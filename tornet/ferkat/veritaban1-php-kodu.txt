@@ -1,0 +1,3 @@
+<?
+$sql = 'CREATE TABLE `gorusler` ( `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY, `isim` VARCHAR(100) NOT NULL, `email` VARCHAR(100) NOT NULL, `metin` TEXT NOT NULL, `tarih` VARCHAR(20) NOT NULL, `ip` VARCHAR(30) NOT NULL );'; 
+?>

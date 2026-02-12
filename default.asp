@@ -1,0 +1,16 @@
+<%response.buffer=true%>
+<%sayfaadi="Anasayfa"%>
+<%sayfaurl="default.asp"%>
+<!--#include file="kafa.asp"-->
+
+<% if session_uyegiris = "evet" then%>
+
+<!--#include file="ana.asp"-->
+
+<%else%>
+<!--#include file="uyegiris.asp"-->
+<%
+end if
+%>
+
+<!--#include file="ayak.asp"-->
