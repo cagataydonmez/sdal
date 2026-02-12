@@ -1,0 +1,11 @@
+.env
+sdal-modern/server/.env
+node_modules/
+sdal-modern/client/node_modules/
+sdal-modern/server/node_modules/
+sdal-modern/node_modules/
+dist/
+sdal-modern/client/dist/
+sdal-modern/uploads/
+.DS_Store
+Thumbs.db
