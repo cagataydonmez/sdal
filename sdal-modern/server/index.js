@@ -90,22 +90,43 @@ const albumUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-const mailTransport = (() => {
-  const host = process.env.SMTP_HOST;
-  if (!host) return null;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const secure =
-    (process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465;
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
-    tls: process.env.SMTP_TLS_REJECT_UNAUTHORIZED
-      ? { rejectUnauthorized: (process.env.SMTP_TLS_REJECT_UNAUTHORIZED || '').toLowerCase() !== 'false' }
-      : undefined
-  });
-})();
+let mailTransportPromise = null;
+function getMailTransport() {
+  if (mailTransportPromise) return mailTransportPromise;
+  mailTransportPromise = (async () => {
+    if (process.env.MAILTRAP_API_TOKEN) {
+      try {
+        const { MailtrapTransport } = await import('mailtrap');
+        const inboxId = Number(process.env.MAILTRAP_INBOX_ID || 0) || undefined;
+        return nodemailer.createTransport(
+          MailtrapTransport({
+            token: process.env.MAILTRAP_API_TOKEN,
+            sandbox: true,
+            testInboxId: inboxId
+          })
+        );
+      } catch (err) {
+        console.error('Mailtrap transport init failed:', err?.message || err);
+      }
+    }
+
+    const host = process.env.SMTP_HOST;
+    if (!host) return null;
+    const port = Number(process.env.SMTP_PORT || 587);
+    const secure =
+      (process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465;
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+      tls: process.env.SMTP_TLS_REJECT_UNAUTHORIZED
+        ? { rejectUnauthorized: (process.env.SMTP_TLS_REJECT_UNAUTHORIZED || '').toLowerCase() !== 'false' }
+        : undefined
+    });
+  })();
+  return mailTransportPromise;
+}
 
 
 const baseUrl = process.env.SDAL_BASE_URL || `http://localhost:${port}`;
@@ -190,44 +211,13 @@ function createActivation() {
 }
 
 async function sendMail({ to, subject, html, from }) {
+  const mailTransport = await getMailTransport();
   if (!mailTransport) {
     console.log('MAIL (mock):', { to, subject });
     return;
   }
   const sender = from || process.env.SMTP_FROM || 'sdal@sdal.org';
   await mailTransport.sendMail({ from: sender, to, subject, html });
-
-  // Looking to send emails in production? Check out our Email API/SMTP product!
-const Nodemailer = require("nodemailer");
-const { MailtrapTransport } = require("mailtrap");
-
-const TOKEN = "1dffd0586452bd778985dbc9b954f4a4";
-
-const transport = Nodemailer.createTransport(
-  MailtrapTransport({
-    token: TOKEN,
-    sandbox: true,
-    testInboxId: 4383091,
-  })
-);
-
-  const senderx = {
-  address: "no-reply@sdal.org",
-  name: "SDAL",
-};
-const recipients = [
-  to,
-];
-
-transport
-  .sendMail({
-    from: senderx,
-    to: recipients,
-    subject: subject,
-    html: html,
-    category: "Activation",
-  })
-  .then(console.log, console.error);
 }
 
 function normalizeEmail(email) {
