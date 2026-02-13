@@ -48,6 +48,10 @@ const albumDir = path.join(uploadsDir, 'album');
 if (!fs.existsSync(albumDir)) {
   fs.mkdirSync(albumDir, { recursive: true });
 }
+const postDir = path.join(uploadsDir, 'posts');
+if (!fs.existsSync(postDir)) {
+  fs.mkdirSync(postDir, { recursive: true });
+}
 
 const allowedImageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif']);
 const photoUpload = multer({
@@ -88,6 +92,27 @@ const albumUpload = multer({
     }
   },
   limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+const postUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, postDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const now = new Date();
+      const stamp = `${now.getMonth() + 1}${now.getDate()}${now.getFullYear()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+      cb(null, `${req.session.userId || 'anon'}_${stamp}${ext || '.jpg'}`);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!allowedImageExts.has(ext)) {
+      cb(new Error('Geçerli bir resim dosyası girmediniz.'));
+    } else {
+      cb(null, true);
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 let mailTransportPromise = null;
@@ -136,6 +161,59 @@ sqlRun(`CREATE TABLE IF NOT EXISTS email_sablon (
   olusturma DateTime
 )`);
 
+// Modern (sdal_new) social tables
+sqlRun(`CREATE TABLE IF NOT EXISTS posts (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  content TEXT,
+  image TEXT,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS post_comments (
+  id INTEGER PRIMARY KEY,
+  post_id INTEGER,
+  user_id INTEGER,
+  comment TEXT,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS post_likes (
+  id INTEGER PRIMARY KEY,
+  post_id INTEGER,
+  user_id INTEGER,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS follows (
+  id INTEGER PRIMARY KEY,
+  follower_id INTEGER,
+  following_id INTEGER,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  type TEXT,
+  source_user_id INTEGER,
+  entity_id INTEGER,
+  message TEXT,
+  read_at TEXT,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY,
+  title TEXT,
+  description TEXT,
+  location TEXT,
+  starts_at TEXT,
+  ends_at TEXT,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS announcements (
+  id INTEGER PRIMARY KEY,
+  title TEXT,
+  body TEXT,
+  created_at TEXT
+)`);
+
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
   return sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.session.userId]);
@@ -162,6 +240,14 @@ function requireAlbumAdmin(req, res, next) {
   if (user.admin === 1 && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
   req.adminUser = user;
   return next();
+}
+
+function addNotification({ userId, type, sourceUserId, entityId, message }) {
+  if (!userId) return;
+  sqlRun(
+    'INSERT INTO notifications (user_id, type, source_user_id, entity_id, message, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [userId, type, sourceUserId || null, entityId || null, message || '', new Date().toISOString()]
+  );
 }
 
 function listLogFiles(dirPath) {
@@ -1748,6 +1834,231 @@ app.post('/api/photos/:id/comments', (req, res) => {
   res.json({ ok: true });
 });
 
+// Modern (sdal_new) social APIs
+app.get('/api/new/feed', requireAuth, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const rows = sqlAll(
+    `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
+            u.kadi, u.isim, u.soyisim, u.resim
+     FROM posts p
+     LEFT JOIN uyeler u ON u.id = p.user_id
+     ORDER BY p.id DESC
+     LIMIT ? OFFSET ?`,
+    [limit, offset]
+  );
+  const postIds = rows.map((r) => r.id);
+  const likes = postIds.length
+    ? sqlAll(`SELECT post_id, COUNT(*) as cnt FROM post_likes WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+    : [];
+  const comments = postIds.length
+    ? sqlAll(`SELECT post_id, COUNT(*) as cnt FROM post_comments WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+    : [];
+  const liked = postIds.length
+    ? sqlAll(`SELECT post_id FROM post_likes WHERE user_id = ? AND post_id IN (${postIds.map(() => '?').join(',')})`, [req.session.userId, ...postIds])
+    : [];
+  const likeMap = new Map(likes.map((l) => [l.post_id, l.cnt]));
+  const commentMap = new Map(comments.map((c) => [c.post_id, c.cnt]));
+  const likedSet = new Set(liked.map((l) => l.post_id));
+
+  res.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      content: r.content,
+      image: r.image,
+      createdAt: r.created_at,
+      author: {
+        id: r.user_id,
+        kadi: r.kadi,
+        isim: r.isim,
+        soyisim: r.soyisim,
+        resim: r.resim
+      },
+      likeCount: likeMap.get(r.id) || 0,
+      commentCount: commentMap.get(r.id) || 0,
+      liked: likedSet.has(r.id)
+    }))
+  });
+});
+
+app.post('/api/new/posts', requireAuth, (req, res) => {
+  const content = metinDuzenle(req.body?.content || '');
+  const image = req.body?.image || null;
+  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
+  const now = new Date().toISOString();
+  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at) VALUES (?, ?, ?, ?)', [
+    req.session.userId,
+    content,
+    image,
+    now
+  ]);
+  res.json({ ok: true, id: result?.lastInsertRowid });
+});
+
+app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), (req, res) => {
+  const content = metinDuzenle(req.body?.content || '');
+  const image = req.file ? `/uploads/posts/${req.file.filename}` : null;
+  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
+  const now = new Date().toISOString();
+  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at) VALUES (?, ?, ?, ?)', [
+    req.session.userId,
+    content,
+    image,
+    now
+  ]);
+  res.json({ ok: true, id: result?.lastInsertRowid, image });
+});
+
+app.post('/api/new/posts/:id/like', requireAuth, (req, res) => {
+  const postId = req.params.id;
+  const existing = sqlGet('SELECT id FROM post_likes WHERE post_id = ? AND user_id = ?', [postId, req.session.userId]);
+  if (existing) {
+    sqlRun('DELETE FROM post_likes WHERE id = ?', [existing.id]);
+    return res.json({ ok: true, liked: false });
+  }
+  sqlRun('INSERT INTO post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)', [postId, req.session.userId, new Date().toISOString()]);
+  const post = sqlGet('SELECT user_id FROM posts WHERE id = ?', [postId]);
+  if (post && post.user_id !== req.session.userId) {
+    addNotification({
+      userId: post.user_id,
+      type: 'like',
+      sourceUserId: req.session.userId,
+      entityId: postId,
+      message: 'Gönderini beğendi.'
+    });
+  }
+  return res.json({ ok: true, liked: true });
+});
+
+app.get('/api/new/posts/:id/comments', requireAuth, (req, res) => {
+  const rows = sqlAll(
+    `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim
+     FROM post_comments c
+     LEFT JOIN uyeler u ON u.id = c.user_id
+     WHERE c.post_id = ?
+     ORDER BY c.id DESC`,
+    [req.params.id]
+  );
+  res.json({ items: rows });
+});
+
+app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
+  const comment = metinDuzenle(req.body?.comment || '');
+  if (!comment) return res.status(400).send('Yorum boş olamaz.');
+  const now = new Date().toISOString();
+  sqlRun('INSERT INTO post_comments (post_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
+    req.params.id,
+    req.session.userId,
+    comment,
+    now
+  ]);
+  const post = sqlGet('SELECT user_id FROM posts WHERE id = ?', [req.params.id]);
+  if (post && post.user_id !== req.session.userId) {
+    addNotification({
+      userId: post.user_id,
+      type: 'comment',
+      sourceUserId: req.session.userId,
+      entityId: req.params.id,
+      message: 'Gönderine yorum yaptı.'
+    });
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/new/notifications', requireAuth, (req, res) => {
+  const rows = sqlAll(
+    `SELECT n.id, n.type, n.entity_id, n.message, n.read_at, n.created_at,
+            u.kadi, u.isim, u.soyisim, u.resim
+     FROM notifications n
+     LEFT JOIN uyeler u ON u.id = n.source_user_id
+     WHERE n.user_id = ?
+     ORDER BY n.id DESC
+     LIMIT 50`,
+    [req.session.userId]
+  );
+  res.json({ items: rows });
+});
+
+app.post('/api/new/notifications/read', requireAuth, (req, res) => {
+  sqlRun('UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL', [
+    new Date().toISOString(),
+    req.session.userId
+  ]);
+  res.json({ ok: true });
+});
+
+app.post('/api/new/follow/:id', requireAuth, (req, res) => {
+  const targetId = req.params.id;
+  if (String(targetId) === String(req.session.userId)) return res.status(400).send('Kendini takip edemezsin.');
+  const existing = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [req.session.userId, targetId]);
+  if (existing) {
+    sqlRun('DELETE FROM follows WHERE id = ?', [existing.id]);
+    return res.json({ ok: true, following: false });
+  }
+  sqlRun('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [
+    req.session.userId,
+    targetId,
+    new Date().toISOString()
+  ]);
+  addNotification({
+    userId: Number(targetId),
+    type: 'follow',
+    sourceUserId: req.session.userId,
+    entityId: targetId,
+    message: 'Seni takip etmeye başladı.'
+  });
+  return res.json({ ok: true, following: true });
+});
+
+app.get('/api/new/follows', requireAuth, (req, res) => {
+  const rows = sqlAll(
+    `SELECT f.following_id, u.kadi, u.isim, u.soyisim, u.resim
+     FROM follows f
+     LEFT JOIN uyeler u ON u.id = f.following_id
+     WHERE f.follower_id = ?
+     ORDER BY f.id DESC`,
+    [req.session.userId]
+  );
+  res.json({ items: rows });
+});
+
+app.get('/api/new/events', requireAuth, (req, res) => {
+  const rows = sqlAll('SELECT * FROM events ORDER BY starts_at ASC');
+  res.json({ items: rows });
+});
+
+app.post('/api/new/events', requireAdmin, (req, res) => {
+  const { title, description, location, starts_at, ends_at } = req.body || {};
+  if (!title) return res.status(400).send('Başlık gerekli.');
+  sqlRun(
+    'INSERT INTO events (title, description, location, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [title, description || '', location || '', starts_at || '', ends_at || '', new Date().toISOString()]
+  );
+  res.json({ ok: true });
+});
+
+app.delete('/api/new/events/:id', requireAdmin, (req, res) => {
+  sqlRun('DELETE FROM events WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/announcements', requireAuth, (req, res) => {
+  const rows = sqlAll('SELECT * FROM announcements ORDER BY id DESC');
+  res.json({ items: rows });
+});
+
+app.post('/api/new/announcements', requireAdmin, (req, res) => {
+  const { title, body } = req.body || {};
+  if (!title || !body) return res.status(400).send('Başlık ve içerik gerekli.');
+  sqlRun('INSERT INTO announcements (title, body, created_at) VALUES (?, ?, ?)', [title, body, new Date().toISOString()]);
+  res.json({ ok: true });
+});
+
+app.delete('/api/new/announcements/:id', requireAdmin, (req, res) => {
+  sqlRun('DELETE FROM announcements WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
 app.get('/api/album/latest', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
@@ -1990,6 +2301,15 @@ app.post('/api/games/tetris/score', (req, res) => {
   }
   res.json({ ok: true });
 });
+
+// Serve modern (sdal_new) frontend
+const modernDist = path.resolve(__dirname, '../../sdal_new/dist');
+if (fs.existsSync(modernDist)) {
+  app.use('/new', express.static(modernDist));
+  app.get('/new/*', (req, res) => {
+    res.sendFile(path.join(modernDist, 'index.html'));
+  });
+}
 
 app.use((err, req, res, next) => {
   if (err) return res.status(400).send(err.message || 'Hata');

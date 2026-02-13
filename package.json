@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "npm --prefix sdal-modern run build",
+    "build": "npm --prefix sdal-modern run build && npm --prefix sdal_new run build",
     "start": "npm --prefix sdal-modern run start"
   },
   "engines": {

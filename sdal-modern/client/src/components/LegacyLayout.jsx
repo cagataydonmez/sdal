@@ -23,6 +23,9 @@ export default function LegacyLayout({ pageTitle, pageImage, children, showLeftC
                       <Link to="/" title="Anasayfaya gider...">
                         <img src="/legacy/logo.gif" alt="SDAL" border="0" />
                       </Link>
+                      <span style={{ float: 'right', marginTop: 10, marginRight: 10 }}>
+                        <a href="/new" className="menulink" style={{ textDecoration: 'none' }}>Yeni Tasarım</a>
+                      </span>
                       {pageTitle && (
                         <span className="sdal-page-title">
                           {pageImage ? (
@@ -63,6 +66,8 @@ export default function LegacyLayout({ pageTitle, pageImage, children, showLeftC
                                 ))}
                                 {menu.length > 0 ? ' | ' : ''}
                                 <Link to="/logout" className="menulink">Güvenli Çıkış</Link>
+                                {' | '}
+                                <a href="/new" className="menulink">Yeni Tasarım</a>
                               </td>
                             </tr>
                           </tbody>
@@ -131,6 +136,8 @@ export default function LegacyLayout({ pageTitle, pageImage, children, showLeftC
                             <Link to={item.url}>{item.label}</Link>
                           </React.Fragment>
                         ))}
+                        {' | '}
+                        <a href="/new">Yeni Tasarım</a>
                         <hr color="#ffffcc" size="1" />
                       </center>
                       <br />
