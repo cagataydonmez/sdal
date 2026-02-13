@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import LegacyLayout from '../components/LegacyLayout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
@@ -18,6 +19,7 @@ async function apiJson(url, options = {}) {
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [adminOk, setAdminOk] = useState(false);
   const [adminPass, setAdminPass] = useState('');
   const [error, setError] = useState('');
@@ -69,6 +71,11 @@ export default function AdminPage() {
       .then((data) => setAdminOk(!!data.adminOk))
       .catch(() => setAdminOk(false));
   }, []);
+
+  useEffect(() => {
+    const nextTab = searchParams.get('tab');
+    if (nextTab) setTab(nextTab);
+  }, [searchParams]);
 
   const isAdmin = user?.admin === 1;
 
@@ -460,7 +467,12 @@ export default function AdminPage() {
       <div style={{ padding: 10 }}>
         <div style={{ marginBottom: 10 }}>
           {tabs.map((t) => (
-            <button key={t.id} className="sub" onClick={() => setTab(t.id)} style={{ marginRight: 6 }}>
+            <button
+              key={t.id}
+              className="sub"
+              onClick={() => { setTab(t.id); setSearchParams({ tab: t.id }); }}
+              style={{ marginRight: 6 }}
+            >
               {t.label}
             </button>
           ))}

@@ -20,7 +20,10 @@ import QuickAccessRemovePage from './pages/QuickAccessRemovePage.jsx';
 import NewPhotosPage from './pages/NewPhotosPage.jsx';
 import NewMembersPage from './pages/NewMembersPage.jsx';
 import TournamentPage from './pages/TournamentPage.jsx';
+import TournamentRegisterPage from './pages/TournamentRegisterPage.jsx';
 import GamesPage from './pages/GamesPage.jsx';
+import GameSnakePage from './pages/GameSnakePage.jsx';
+import GameTetrisPage from './pages/GameTetrisPage.jsx';
 import LogoutPage from './pages/LogoutPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
@@ -29,6 +32,9 @@ import RegisterPage from './pages/RegisterPage.jsx';
 import PasswordResetPage from './pages/PasswordResetPage.jsx';
 import ActivatePage from './pages/ActivatePage.jsx';
 import ActivationResendPage from './pages/ActivationResendPage.jsx';
+import BakimPage from './pages/BakimPage.jsx';
+import Http500Page from './pages/Http500Page.jsx';
+import KarikaturPage from './pages/KarikaturPage.jsx';
 
 export default function App() {
   return (
@@ -57,11 +63,17 @@ export default function App() {
         <Route path="/enyeni-fotolar" element={<RequireAuth><NewPhotosPage /></RequireAuth>} />
         <Route path="/enyeni-uyeler" element={<RequireAuth><NewMembersPage /></RequireAuth>} />
         <Route path="/turnuva" element={<RequireAuth><TournamentPage /></RequireAuth>} />
+        <Route path="/turnuva/kayit" element={<RequireAuth><TournamentRegisterPage /></RequireAuth>} />
         <Route path="/oyunlar" element={<RequireAuth><GamesPage /></RequireAuth>} />
+        <Route path="/oyunlar/yilan" element={<RequireAuth><GameSnakePage /></RequireAuth>} />
+        <Route path="/oyunlar/tetris" element={<RequireAuth><GameTetrisPage /></RequireAuth>} />
         <Route path="/profil" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/profil/fotograf" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
         <Route path="/yonetim" element={<RequireAuth><AdminPage /></RequireAuth>} />
+        <Route path="/bakim" element={<BakimPage />} />
+        <Route path="/http500" element={<Http500Page />} />
+        <Route path="/karikatur1" element={<RequireAuth><KarikaturPage /></RequireAuth>} />
 
         <Route path="/uye-kayit" element={<RegisterPage />} />
         <Route path="/sifre-hatirla" element={<PasswordResetPage />} />
