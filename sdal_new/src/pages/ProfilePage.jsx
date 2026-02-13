@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [verifyStatus, setVerifyStatus] = useState('');
 
   useEffect(() => {
     apiJson('/api/profile').then((p) => setProfile(p.user || null)).catch(() => {});
@@ -71,8 +72,18 @@ export default function ProfilePage() {
             <textarea className="input" value={profile.imza || ''} onChange={(e) => setProfile({ ...profile, imza: e.target.value })} />
           </div>
           <button className="btn primary" onClick={save}>Kaydet</button>
-          <a className="btn ghost" href="/profil/fotograf">Fotoğraf Düzenle</a>
+          <a className="btn ghost" href="/new/profile/photo">Fotoğraf Düzenle</a>
+          <button className="btn ghost" onClick={async () => {
+            setVerifyStatus('');
+            const res = await fetch('/api/new/verified/request', { method: 'POST', credentials: 'include' });
+            if (!res.ok) {
+              setVerifyStatus(await res.text());
+            } else {
+              setVerifyStatus('Doğrulama talebiniz alındı.');
+            }
+          }}>Doğrulama Talebi</button>
           {status ? <div className="ok">{status}</div> : null}
+          {verifyStatus ? <div className="muted">{verifyStatus}</div> : null}
           {error ? <div className="error">{error}</div> : null}
         </div>
       </div>

@@ -1,38 +1,58 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../utils/auth.jsx';
 
 export default function LiveChatPanel() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const lastIdRef = useRef(0);
-
-  async function load() {
-    const res = await fetch(`/api/new/chat/messages?sinceId=${lastIdRef.current}`, { credentials: 'include' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    const items = payload.items || [];
-    if (items.length) {
-      lastIdRef.current = items[items.length - 1].id;
-      setMessages((prev) => [...prev, ...items].slice(-50));
-    }
-  }
+  const [error, setError] = useState('');
+  const wsRef = useRef(null);
 
   useEffect(() => {
+    const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/chat`;
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (!msg?.message) return;
+        setMessages((prev) => [...prev, msg].slice(-50));
+      } catch {
+        // ignore
+      }
+    };
+    return () => ws.close();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch('/api/new/chat/messages', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setMessages(data.items || []);
+      } catch {
+        // ignore
+      }
+    }
     load();
-    const t = setInterval(load, 4000);
-    return () => clearInterval(t);
+    return () => { cancelled = true; };
   }, []);
 
   async function send(e) {
     e.preventDefault();
+    setError('');
+    if (!user?.id) {
+      setError('Mesaj göndermek için giriş yapın.');
+      return;
+    }
     if (!text.trim()) return;
-    await fetch('/api/new/chat/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ message: text })
-    });
+    const payload = { message: text, userId: user.id };
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      wsRef.current.send(JSON.stringify(payload));
+    }
     setText('');
-    load();
   }
 
   return (
@@ -41,7 +61,7 @@ export default function LiveChatPanel() {
       <div className="chat-body">
         {messages.map((m) => (
           <div key={m.id} className="chat-line">
-            <span className="chat-user">@{m.kadi}{m.verified ? ' ✓' : ''}</span>
+            <span className="chat-user">@{(m.user?.kadi || m.kadi) || 'anon'}{(m.user?.verified || m.verified) ? ' ✓' : ''}</span>
             <span className="chat-text">{m.message}</span>
           </div>
         ))}
@@ -50,6 +70,7 @@ export default function LiveChatPanel() {
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Mesaj yaz..." />
         <button className="btn">Gönder</button>
       </form>
+      {error ? <div className="error">{error}</div> : null}
     </div>
   );
 }

@@ -59,6 +59,7 @@ export default function GroupsPage() {
       <div className="card-grid">
         {groups.map((g) => (
           <div className="member-card" key={g.id}>
+            {g.cover_image ? <img src={g.cover_image} alt="" /> : <div className="group-cover-empty">Kapak</div>}
             <div>
               <div className="name">{g.name}</div>
               <div className="meta">{g.description}</div>

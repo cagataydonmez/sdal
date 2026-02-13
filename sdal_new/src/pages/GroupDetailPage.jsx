@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import PostCard from '../components/PostCard.jsx';
+import { useAuth } from '../utils/auth.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -18,12 +19,15 @@ async function apiJson(url, options = {}) {
 
 export default function GroupDetailPage() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState('');
   const [filter, setFilter] = useState('');
   const [image, setImage] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [status, setStatus] = useState('');
 
   async function load() {
     const data = await apiJson(`/api/new/groups/${id}`);
@@ -38,6 +42,7 @@ export default function GroupDetailPage() {
 
   async function submit(e) {
     e.preventDefault();
+    setStatus('');
     if (image) {
       const form = new FormData();
       form.append('content', content);
@@ -53,6 +58,41 @@ export default function GroupDetailPage() {
     load();
   }
 
+  const myRole = useMemo(() => {
+    if (!user?.id) return null;
+    const row = members.find((m) => m.id === user.id);
+    return row?.role || null;
+  }, [members, user]);
+
+  const canManageRoles = user?.admin === 1 || myRole === 'owner';
+  const canUpdateCover = user?.admin === 1 || myRole === 'owner' || myRole === 'moderator';
+
+  async function updateRole(targetId, role) {
+    setStatus('');
+    try {
+      await apiJson(`/api/new/groups/${id}/role`, { method: 'POST', body: JSON.stringify({ userId: targetId, role }) });
+      setStatus('Rol güncellendi.');
+      load();
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  async function uploadCover(e) {
+    e.preventDefault();
+    if (!coverFile) return;
+    setStatus('');
+    const form = new FormData();
+    form.append('image', coverFile);
+    const res = await fetch(`/api/new/groups/${id}/cover`, { method: 'POST', credentials: 'include', body: form });
+    if (!res.ok) {
+      setStatus(await res.text());
+      return;
+    }
+    setCoverFile(null);
+    load();
+  }
+
   if (!group) {
     return <Layout title="Grup">Yükleniyor...</Layout>;
   }
@@ -60,8 +100,19 @@ export default function GroupDetailPage() {
   return (
     <Layout title={group.name}>
       <div className="panel">
-        <h3>{group.name}</h3>
-        <div className="panel-body">{group.description}</div>
+        <div className="group-hero">
+          {group.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">Kapak Görseli</div>}
+          <div>
+            <h3>{group.name}</h3>
+            <div className="panel-body">{group.description}</div>
+          </div>
+        </div>
+        {canUpdateCover ? (
+          <form className="group-cover-form" onSubmit={uploadCover}>
+            <input type="file" accept="image/*" onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
+            <button className="btn ghost" type="submit">Kapak Güncelle</button>
+          </form>
+        ) : null}
       </div>
       <div className="panel">
         <div className="panel-body">
@@ -113,11 +164,20 @@ export default function GroupDetailPage() {
                   <div>
                     <b>{m.isim} {m.soyisim}</b>{m.verified ? <span className="badge">✓</span> : null}
                     <div className="meta">@{m.kadi}</div>
+                    <div className="meta role">{m.role}</div>
+                    {canManageRoles && m.id !== user?.id ? (
+                      <select className="input role-select" value={m.role} onChange={(e) => updateRole(m.id, e.target.value)}>
+                        <option value="member">Üye</option>
+                        <option value="moderator">Moderatör</option>
+                        <option value="owner">Sahip</option>
+                      </select>
+                    ) : null}
                   </div>
                 </div>
               ))}
             </div>
           </div>
+          {status ? <div className="muted">{status}</div> : null}
         </div>
       </div>
     </Layout>

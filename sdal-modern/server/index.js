@@ -12,6 +12,7 @@ import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
 import nodemailer from 'nodemailer';
 import multer from 'multer';
+import { WebSocketServer } from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +56,10 @@ if (!fs.existsSync(postDir)) {
 const storyDir = path.join(uploadsDir, 'stories');
 if (!fs.existsSync(storyDir)) {
   fs.mkdirSync(storyDir, { recursive: true });
+}
+const groupDir = path.join(uploadsDir, 'groups');
+if (!fs.existsSync(groupDir)) {
+  fs.mkdirSync(groupDir, { recursive: true });
 }
 
 const allowedImageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif']);
@@ -127,6 +132,27 @@ const storyUpload = multer({
       const now = new Date();
       const stamp = `${now.getMonth() + 1}${now.getDate()}${now.getFullYear()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
       cb(null, `${req.session.userId || 'anon'}_${stamp}${ext || '.jpg'}`);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!allowedImageExts.has(ext)) {
+      cb(new Error('Geçerli bir resim dosyası girmediniz.'));
+    } else {
+      cb(null, true);
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const groupUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, groupDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const now = new Date();
+      const stamp = `${now.getMonth() + 1}${now.getDate()}${now.getFullYear()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+      cb(null, `group_${req.params.id || 'new'}_${stamp}${ext || '.jpg'}`);
     }
   }),
   fileFilter: (_req, file, cb) => {
@@ -287,6 +313,14 @@ sqlRun(`CREATE TABLE IF NOT EXISTS chat_messages (
   user_id INTEGER,
   message TEXT,
   created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS verification_requests (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  status TEXT,
+  created_at TEXT,
+  reviewed_at TEXT,
+  reviewer_id INTEGER
 )`);
 
 function getCurrentUser(req) {
@@ -2256,6 +2290,36 @@ app.post('/api/new/groups/:id/join', requireAuth, (req, res) => {
   return res.json({ ok: true, joined: true });
 });
 
+app.post('/api/new/groups/:id/cover', requireAuth, groupUpload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).send('Görsel seçilmedi.');
+  const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const member = sqlGet('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
+  if (!member || (member.role !== 'owner' && member.role !== 'moderator' && !getCurrentUser(req)?.admin)) {
+    return res.status(403).send('Yetki yok.');
+  }
+  const image = `/uploads/groups/${req.file.filename}`;
+  sqlRun('UPDATE groups SET cover_image = ? WHERE id = ?', [image, req.params.id]);
+  res.json({ ok: true, image });
+});
+
+app.post('/api/new/groups/:id/role', requireAuth, (req, res) => {
+  const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const member = sqlGet('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
+  const isAdmin = getCurrentUser(req)?.admin === 1;
+  if (!isAdmin && (!member || member.role !== 'owner')) {
+    return res.status(403).send('Yetki yok.');
+  }
+  const targetId = req.body?.userId;
+  const role = req.body?.role;
+  if (!targetId || !['member', 'moderator', 'owner'].includes(role)) {
+    return res.status(400).send('Geçersiz rol.');
+  }
+  sqlRun('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?', [role, req.params.id, targetId]);
+  res.json({ ok: true });
+});
+
 app.get('/api/new/groups/:id', requireAuth, (req, res) => {
   const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
@@ -2372,6 +2436,44 @@ app.post('/api/new/chat/send', requireAuth, (req, res) => {
     now
   ]);
   res.json({ ok: true, id: result?.lastInsertRowid });
+});
+
+app.post('/api/new/verified/request', requireAuth, (req, res) => {
+  const existing = sqlGet('SELECT * FROM verification_requests WHERE user_id = ? AND status = ?', [req.session.userId, 'pending']);
+  if (existing) return res.status(400).send('Zaten bekleyen bir talebiniz var.');
+  sqlRun('INSERT INTO verification_requests (user_id, status, created_at) VALUES (?, ?, ?)', [
+    req.session.userId,
+    'pending',
+    new Date().toISOString()
+  ]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/admin/verification-requests', requireAdmin, (req, res) => {
+  const rows = sqlAll(
+    `SELECT r.id, r.user_id, r.status, r.created_at, u.kadi, u.isim, u.soyisim, u.resim
+     FROM verification_requests r
+     LEFT JOIN uyeler u ON u.id = r.user_id
+     ORDER BY r.id DESC`
+  );
+  res.json({ items: rows });
+});
+
+app.post('/api/new/admin/verification-requests/:id', requireAdmin, (req, res) => {
+  const status = req.body?.status;
+  if (!['approved', 'rejected'].includes(status)) return res.status(400).send('Geçersiz durum.');
+  const row = sqlGet('SELECT * FROM verification_requests WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).send('Talep bulunamadı.');
+  sqlRun('UPDATE verification_requests SET status = ?, reviewed_at = ?, reviewer_id = ? WHERE id = ?', [
+    status,
+    new Date().toISOString(),
+    req.session.userId,
+    req.params.id
+  ]);
+  if (status === 'approved') {
+    sqlRun('UPDATE uyeler SET verified = 1 WHERE id = ?', [row.user_id]);
+  }
+  res.json({ ok: true });
 });
 
 app.post('/api/new/admin/verify', requireAdmin, (req, res) => {
@@ -2660,6 +2762,10 @@ app.get(/\/*.asp$/i, (req, res) => {
   return res.redirect(302, target);
 });
 
+app.get('/profile/photo', (req, res) => {
+  return res.redirect(302, '/new/profile/photo');
+});
+
 // Serve frontend build in production
 const clientDist = path.resolve(__dirname, '../client/dist');
 app.use(express.static(clientDist));
@@ -2667,6 +2773,43 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`SDAL server running on http://localhost:${port}`);
+});
+
+const wss = new WebSocketServer({ server, path: '/ws/chat' });
+wss.on('connection', (ws, req) => {
+  ws.on('message', (data) => {
+    try {
+      const payload = JSON.parse(String(data || '{}'));
+      if (!payload || !payload.userId || !payload.message) return;
+      const message = metinDuzenle(payload.message || '');
+      if (!message) return;
+      const now = new Date().toISOString();
+      const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
+        payload.userId,
+        message,
+        now
+      ]);
+      const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [payload.userId]) || {};
+      const outgoing = JSON.stringify({
+        id: result?.lastInsertRowid,
+        message,
+        created_at: now,
+        user: {
+          id: user.id,
+          kadi: user.kadi,
+          isim: user.isim,
+          soyisim: user.soyisim,
+          resim: user.resim,
+          verified: user.verified
+        }
+      });
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1) client.send(outgoing);
+      });
+    } catch {
+      // ignore
+    }
+  });
 });

@@ -10,6 +10,7 @@ import AlbumsPage from './pages/AlbumsPage.jsx';
 import EventsPage from './pages/EventsPage.jsx';
 import AnnouncementsPage from './pages/AnnouncementsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import ProfilePhotoPage from './pages/ProfilePhotoPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
         <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
         <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+        <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
         <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
         <Route path="/new/*" element={<Navigate to="/new" replace />} />
       </Routes>
