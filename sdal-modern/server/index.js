@@ -94,22 +94,6 @@ let mailTransportPromise = null;
 function getMailTransport() {
   if (mailTransportPromise) return mailTransportPromise;
   mailTransportPromise = (async () => {
-    if (process.env.MAILTRAP_API_TOKEN) {
-      try {
-        const { MailtrapTransport } = await import('mailtrap');
-        const inboxId = Number(process.env.MAILTRAP_INBOX_ID || 0) || undefined;
-        return nodemailer.createTransport(
-          MailtrapTransport({
-            token: process.env.MAILTRAP_API_TOKEN,
-            sandbox: true,
-            testInboxId: inboxId
-          })
-        );
-      } catch (err) {
-        console.error('Mailtrap transport init failed:', err?.message || err);
-      }
-    }
-
     const host = process.env.SMTP_HOST;
     if (!host) return null;
     const port = Number(process.env.SMTP_PORT || 587);
@@ -211,12 +195,52 @@ function createActivation() {
 }
 
 async function sendMail({ to, subject, html, from }) {
+  const sender =
+    from ||
+    process.env.RESEND_FROM ||
+    process.env.SMTP_FROM ||
+    'sdal@sdal.org';
+
+  if (process.env.RESEND_API_KEY) {
+    const recipients = Array.isArray(to)
+      ? to
+      : String(to || '')
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean);
+
+    if (!recipients.length) {
+      console.log('MAIL (mock):', { to, subject });
+      return;
+    }
+
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: sender,
+        to: recipients,
+        subject,
+        html
+      })
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      console.error('Resend send error:', resp.status, text);
+      throw new Error('Resend send failed');
+    }
+    return;
+  }
+
   const mailTransport = await getMailTransport();
   if (!mailTransport) {
     console.log('MAIL (mock):', { to, subject });
     return;
   }
-  const sender = from || process.env.SMTP_FROM || 'sdal@sdal.org';
   await mailTransport.sendMail({ from: sender, to, subject, html });
 }
 
