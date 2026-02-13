@@ -23,7 +23,7 @@ export default function NotificationPanel() {
           <div key={n.id} className="notif">
             <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
             <div>
-              <b>@{n.kadi}</b> {n.message}
+              <b>@{n.kadi}</b> {n.verified ? <span className="badge">✓</span> : null} {n.message}
               <div className="meta">{new Date(n.created_at).toLocaleString()}</div>
             </div>
           </div>

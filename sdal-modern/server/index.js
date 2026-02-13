@@ -52,6 +52,10 @@ const postDir = path.join(uploadsDir, 'posts');
 if (!fs.existsSync(postDir)) {
   fs.mkdirSync(postDir, { recursive: true });
 }
+const storyDir = path.join(uploadsDir, 'stories');
+if (!fs.existsSync(storyDir)) {
+  fs.mkdirSync(storyDir, { recursive: true });
+}
 
 const allowedImageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif']);
 const photoUpload = multer({
@@ -97,6 +101,27 @@ const albumUpload = multer({
 const postUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, postDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const now = new Date();
+      const stamp = `${now.getMonth() + 1}${now.getDate()}${now.getFullYear()}${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+      cb(null, `${req.session.userId || 'anon'}_${stamp}${ext || '.jpg'}`);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!allowedImageExts.has(ext)) {
+      cb(new Error('Geçerli bir resim dosyası girmediniz.'));
+    } else {
+      cb(null, true);
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const storyUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, storyDir),
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname || '').toLowerCase();
       const now = new Date();
@@ -211,6 +236,56 @@ sqlRun(`CREATE TABLE IF NOT EXISTS announcements (
   id INTEGER PRIMARY KEY,
   title TEXT,
   body TEXT,
+  created_at TEXT
+)`);
+
+function ensureColumn(table, column, ddl) {
+  try {
+    const cols = sqlAll(`PRAGMA table_info(${table})`);
+    if (!cols.some((c) => c.name === column)) {
+      sqlRun(ddl);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+ensureColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
+ensureColumn('posts', 'group_id', 'ALTER TABLE posts ADD COLUMN group_id INTEGER');
+
+sqlRun(`CREATE TABLE IF NOT EXISTS stories (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  image TEXT,
+  caption TEXT,
+  created_at TEXT,
+  expires_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS story_views (
+  id INTEGER PRIMARY KEY,
+  story_id INTEGER,
+  user_id INTEGER,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS groups (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  description TEXT,
+  cover_image TEXT,
+  owner_id INTEGER,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS group_members (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER,
+  user_id INTEGER,
+  role TEXT,
+  created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  message TEXT,
   created_at TEXT
 )`);
 
@@ -422,6 +497,38 @@ async function sendImage(res, filePath, options = {}) {
   } catch (err) {
     res.status(500).send('Image processing failed');
   }
+}
+
+async function applyImageFilter(filePath, filter) {
+  if (!filter) return;
+  let image = sharp(filePath);
+  switch (filter) {
+    case 'grayscale':
+      image = image.grayscale();
+      break;
+    case 'sepia':
+      image = image.modulate({ saturation: 0.5 }).tint('#704214');
+      break;
+    case 'vivid':
+      image = image.modulate({ saturation: 1.4, brightness: 1.05 });
+      break;
+    case 'cool':
+      image = image.tint('#5a78ff');
+      break;
+    case 'warm':
+      image = image.tint('#ff9a5a');
+      break;
+    case 'blur':
+      image = image.blur(1.5);
+      break;
+    case 'sharp':
+      image = image.sharpen();
+      break;
+    default:
+      return;
+  }
+  const buf = await image.toBuffer();
+  fs.writeFileSync(filePath, buf);
 }
 
 function issueCaptcha(req, res) {
@@ -826,7 +933,7 @@ app.get('/api/session', (req, res) => {
   if (!req.session.userId) {
     return res.json({ user: null });
   }
-  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin FROM uyeler WHERE id = ?', [req.session.userId]);
+  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, verified FROM uyeler WHERE id = ?', [req.session.userId]);
   res.json({ user: user || null });
 });
 
@@ -1641,7 +1748,7 @@ app.get('/api/members', (req, res) => {
   const offset = (safePage - 1) * pageSize;
   const rows = sqlAll(`
     SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
-           sehir, universite, meslek, websitesi, imza, resim, online, sontarih
+           sehir, universite, meslek, websitesi, imza, resim, online, sontarih, verified
     FROM uyeler
     WHERE ${where}
     ORDER BY isim
@@ -1839,8 +1946,8 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const rows = sqlAll(
-    `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
-            u.kadi, u.isim, u.soyisim, u.resim
+    `SELECT p.id, p.user_id, p.content, p.image, p.created_at, p.group_id,
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
      LEFT JOIN uyeler u ON u.id = p.user_id
      ORDER BY p.id DESC
@@ -1872,8 +1979,10 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
         kadi: r.kadi,
         isim: r.isim,
         soyisim: r.soyisim,
-        resim: r.resim
+        resim: r.resim,
+        verified: r.verified
       },
+      groupId: r.group_id,
       likeCount: likeMap.get(r.id) || 0,
       commentCount: commentMap.get(r.id) || 0,
       liked: likedSet.has(r.id)
@@ -1884,27 +1993,39 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
 app.post('/api/new/posts', requireAuth, (req, res) => {
   const content = metinDuzenle(req.body?.content || '');
   const image = req.body?.image || null;
+  const groupId = req.body?.group_id || null;
   if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
-  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at) VALUES (?, ?, ?, ?)', [
+  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
     content,
     image,
-    now
+    now,
+    groupId
   ]);
   res.json({ ok: true, id: result?.lastInsertRowid });
 });
 
 app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), (req, res) => {
   const content = metinDuzenle(req.body?.content || '');
+  const filter = req.body?.filter || '';
+  const groupId = req.body?.group_id || null;
   const image = req.file ? `/uploads/posts/${req.file.filename}` : null;
   if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
+  if (req.file && filter) {
+    try {
+      applyImageFilter(req.file.path, filter);
+    } catch {
+      // ignore filter errors
+    }
+  }
   const now = new Date().toISOString();
-  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at) VALUES (?, ?, ?, ?)', [
+  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
     content,
     image,
-    now
+    now,
+    groupId
   ]);
   res.json({ ok: true, id: result?.lastInsertRowid, image });
 });
@@ -1968,7 +2089,7 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
 app.get('/api/new/notifications', requireAuth, (req, res) => {
   const rows = sqlAll(
     `SELECT n.id, n.type, n.entity_id, n.message, n.read_at, n.created_at,
-            u.kadi, u.isim, u.soyisim, u.resim
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM notifications n
      LEFT JOIN uyeler u ON u.id = n.source_user_id
      WHERE n.user_id = ?
@@ -1984,6 +2105,66 @@ app.post('/api/new/notifications/read', requireAuth, (req, res) => {
     new Date().toISOString(),
     req.session.userId
   ]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/stories', requireAuth, (req, res) => {
+  const now = new Date().toISOString();
+  const rows = sqlAll(
+    `SELECT s.id, s.user_id, s.image, s.caption, s.created_at, s.expires_at,
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM stories s
+     LEFT JOIN uyeler u ON u.id = s.user_id
+     WHERE s.expires_at > ?
+     ORDER BY s.created_at DESC`,
+    [now]
+  );
+  const viewed = sqlAll('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
+  const viewedSet = new Set(viewed.map((v) => v.story_id));
+  res.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      image: r.image,
+      caption: r.caption,
+      createdAt: r.created_at,
+      author: {
+        id: r.user_id,
+        kadi: r.kadi,
+        isim: r.isim,
+        soyisim: r.soyisim,
+        resim: r.resim,
+        verified: r.verified
+      },
+      viewed: viewedSet.has(r.id)
+    }))
+  });
+});
+
+app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).send('Görsel seçilmedi.');
+  const caption = metinDuzenle(req.body?.caption || '');
+  const image = `/uploads/stories/${req.file.filename}`;
+  const now = new Date();
+  const expires = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const result = sqlRun('INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', [
+    req.session.userId,
+    image,
+    caption,
+    now.toISOString(),
+    expires.toISOString()
+  ]);
+  res.json({ ok: true, id: result?.lastInsertRowid, image });
+});
+
+app.post('/api/new/stories/:id/view', requireAuth, (req, res) => {
+  const existing = sqlGet('SELECT id FROM story_views WHERE story_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
+  if (!existing) {
+    sqlRun('INSERT INTO story_views (story_id, user_id, created_at) VALUES (?, ?, ?)', [
+      req.params.id,
+      req.session.userId,
+      new Date().toISOString()
+    ]);
+  }
   res.json({ ok: true });
 });
 
@@ -2022,6 +2203,114 @@ app.get('/api/new/follows', requireAuth, (req, res) => {
   res.json({ items: rows });
 });
 
+app.get('/api/new/groups', requireAuth, (req, res) => {
+  const groups = sqlAll('SELECT * FROM groups ORDER BY id DESC');
+  const memberCounts = sqlAll('SELECT group_id, COUNT(*) AS cnt FROM group_members GROUP BY group_id');
+  const membership = sqlAll('SELECT group_id FROM group_members WHERE user_id = ?', [req.session.userId]);
+  const countMap = new Map(memberCounts.map((c) => [c.group_id, c.cnt]));
+  const memberSet = new Set(membership.map((m) => m.group_id));
+  res.json({
+    items: groups.map((g) => ({
+      ...g,
+      members: countMap.get(g.id) || 0,
+      joined: memberSet.has(g.id)
+    }))
+  });
+});
+
+app.post('/api/new/groups', requireAuth, (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  if (!name) return res.status(400).send('Grup adı gerekli.');
+  const description = String(req.body?.description || '');
+  const now = new Date().toISOString();
+  const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at) VALUES (?, ?, ?, ?, ?)', [
+    name,
+    description,
+    req.body?.cover_image || null,
+    req.session.userId,
+    now
+  ]);
+  const groupId = result?.lastInsertRowid;
+  sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+    groupId,
+    req.session.userId,
+    'owner',
+    now
+  ]);
+  res.json({ ok: true, id: groupId });
+});
+
+app.post('/api/new/groups/:id/join', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const existing = sqlGet('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, req.session.userId]);
+  if (existing) {
+    sqlRun('DELETE FROM group_members WHERE id = ?', [existing.id]);
+    return res.json({ ok: true, joined: false });
+  }
+  sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+    groupId,
+    req.session.userId,
+    'member',
+    new Date().toISOString()
+  ]);
+  return res.json({ ok: true, joined: true });
+});
+
+app.get('/api/new/groups/:id', requireAuth, (req, res) => {
+  const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const members = sqlAll(
+    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, m.role
+     FROM group_members m
+     LEFT JOIN uyeler u ON u.id = m.user_id
+     WHERE m.group_id = ?`,
+    [req.params.id]
+  );
+  const posts = sqlAll(
+    `SELECT p.id, p.content, p.image, p.created_at,
+            u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM posts p
+     LEFT JOIN uyeler u ON u.id = p.user_id
+     WHERE p.group_id = ?
+     ORDER BY p.id DESC`,
+    [req.params.id]
+  );
+  res.json({ group, members, posts });
+});
+
+app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
+  const content = metinDuzenle(req.body?.content || '');
+  if (!content) return res.status(400).send('İçerik boş olamaz.');
+  const now = new Date().toISOString();
+  sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
+    req.session.userId,
+    content,
+    null,
+    now,
+    req.params.id
+  ]);
+  res.json({ ok: true });
+});
+
+app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('image'), (req, res) => {
+  const content = metinDuzenle(req.body?.content || '');
+  const filter = req.body?.filter || '';
+  const image = req.file ? `/uploads/posts/${req.file.filename}` : null;
+  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
+  if (req.file && filter) {
+    try { applyImageFilter(req.file.path, filter); } catch {}
+  }
+  const now = new Date().toISOString();
+  sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
+    req.session.userId,
+    content,
+    image,
+    now,
+    req.params.id
+  ]);
+  res.json({ ok: true });
+});
+
 app.get('/api/new/events', requireAuth, (req, res) => {
   const rows = sqlAll('SELECT * FROM events ORDER BY starts_at ASC');
   res.json({ items: rows });
@@ -2056,6 +2345,40 @@ app.post('/api/new/announcements', requireAdmin, (req, res) => {
 
 app.delete('/api/new/announcements/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM announcements WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/chat/messages', requireAuth, (req, res) => {
+  const sinceId = parseInt(req.query.sinceId || '0', 10) || 0;
+  const rows = sqlAll(
+    `SELECT c.id, c.message, c.created_at, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM chat_messages c
+     LEFT JOIN uyeler u ON u.id = c.user_id
+     WHERE c.id > ?
+     ORDER BY c.id DESC
+     LIMIT 50`,
+    [sinceId]
+  );
+  res.json({ items: rows.reverse() });
+});
+
+app.post('/api/new/chat/send', requireAuth, (req, res) => {
+  const message = metinDuzenle(req.body?.message || '');
+  if (!message) return res.status(400).send('Mesaj boş olamaz.');
+  const now = new Date().toISOString();
+  const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
+    req.session.userId,
+    message,
+    now
+  ]);
+  res.json({ ok: true, id: result?.lastInsertRowid });
+});
+
+app.post('/api/new/admin/verify', requireAdmin, (req, res) => {
+  const userId = req.body?.userId;
+  const value = String(req.body?.verified || '0') === '1' ? 1 : 0;
+  if (!userId) return res.status(400).send('User ID gerekli.');
+  sqlRun('UPDATE uyeler SET verified = ? WHERE id = ?', [value, userId]);
   res.json({ ok: true });
 });
 

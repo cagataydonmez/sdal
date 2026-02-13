@@ -15,6 +15,7 @@ export default function Layout({ children, title, right }) {
         <nav>
           <NavLink to="/new" end>Akış</NavLink>
           <NavLink to="/new/explore">Keşfet</NavLink>
+          <NavLink to="/new/groups">Gruplar</NavLink>
           <NavLink to="/new/messages">Mesajlar</NavLink>
           <NavLink to="/new/albums">Fotoğraflar</NavLink>
           <NavLink to="/new/events">Etkinlikler</NavLink>

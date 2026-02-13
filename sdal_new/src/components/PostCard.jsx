@@ -26,7 +26,10 @@ export default function PostCard({ post, onRefresh }) {
       <div className="post-header">
         <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
         <div>
-          <div className="name">{post.author?.isim} {post.author?.soyisim}</div>
+          <div className="name">
+            {post.author?.isim} {post.author?.soyisim}
+            {post.author?.verified ? <span className="badge">✓</span> : null}
+          </div>
           <div className="handle">@{post.author?.kadi}</div>
         </div>
         <div className="meta">{new Date(post.createdAt).toLocaleString()}</div>

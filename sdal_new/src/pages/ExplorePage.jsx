@@ -6,7 +6,7 @@ export default function ExplorePage() {
   const [query, setQuery] = useState('');
 
   async function load() {
-    const res = await fetch(`/api/members?page=1&pageSize=50&q=${encodeURIComponent(query)}`, { credentials: 'include' });
+    const res = await fetch(`/api/members?page=1&pageSize=50&term=${encodeURIComponent(query)}`, { credentials: 'include' });
     const payload = await res.json();
     setMembers(payload.items || []);
   }
@@ -37,7 +37,10 @@ export default function ExplorePage() {
           <div className="member-card" key={m.id}>
             <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
             <div>
-              <div className="name">{m.isim} {m.soyisim}</div>
+              <div className="name">
+                {m.isim} {m.soyisim}
+                {m.verified ? <span className="badge">✓</span> : null}
+              </div>
               <div className="handle">@{m.kadi}</div>
               <div className="meta">{m.mezuniyetyili || ''}</div>
             </div>

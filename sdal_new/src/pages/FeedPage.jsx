@@ -3,6 +3,8 @@ import Layout from '../components/Layout.jsx';
 import PostComposer from '../components/PostComposer.jsx';
 import PostCard from '../components/PostCard.jsx';
 import NotificationPanel from '../components/NotificationPanel.jsx';
+import StoryBar from '../components/StoryBar.jsx';
+import LiveChatPanel from '../components/LiveChatPanel.jsx';
 
 export default function FeedPage() {
   const [posts, setPosts] = useState([]);
@@ -24,6 +26,7 @@ export default function FeedPage() {
     <Layout title="Akış" right={<a className="btn ghost" href="/">Klasik Görünüm</a>}>
       <div className="grid">
         <div className="col-main">
+          <StoryBar />
           <PostComposer onPost={load} />
           {loading ? <div className="muted">Yükleniyor...</div> : null}
           {posts.map((p) => (
@@ -32,6 +35,7 @@ export default function FeedPage() {
         </div>
         <div className="col-side">
           <NotificationPanel />
+          <LiveChatPanel />
           <div className="panel">
             <h3>Hızlı Erişim</h3>
             <div className="panel-body">
