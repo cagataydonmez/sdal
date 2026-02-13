@@ -57,7 +57,7 @@ export default function MessageDetailPage() {
                 <tbody>
                   <tr>
                     <td align="left" style={{ fontSize: 15, color: '#663300' }}><b>Mesajı Görüntüle</b></td>
-                    <td align="right"><a href={`/mesajlar?k=${kk}`} title="Mesajlar sayfasına geri dön">Mesajlar sayfasına geri dön >></a></td>
+                    <td align="right"><a href={`/mesajlar?k=${kk}`} title="Mesajlar sayfasına geri dön">Mesajlar sayfasına geri dön &gt;&gt;</a></td>
                   </tr>
                 </tbody>
               </table>
