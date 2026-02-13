@@ -101,6 +101,7 @@ const mailTransport = (() => {
   });
 })();
 
+
 const baseUrl = process.env.SDAL_BASE_URL || `http://localhost:${port}`;
 const adminPassword = process.env.SDAL_ADMIN_PASSWORD || 'guuk';
 const legacyRoot = path.resolve(__dirname, '../..');
@@ -189,6 +190,38 @@ async function sendMail({ to, subject, html, from }) {
   }
   const sender = from || process.env.SMTP_FROM || 'sdal@sdal.org';
   await mailTransport.sendMail({ from: sender, to, subject, html });
+
+  // Looking to send emails in production? Check out our Email API/SMTP product!
+const Nodemailer = require("nodemailer");
+const { MailtrapTransport } = require("mailtrap");
+
+const TOKEN = "1dffd0586452bd778985dbc9b954f4a4";
+
+const transport = Nodemailer.createTransport(
+  MailtrapTransport({
+    token: TOKEN,
+    sandbox: true,
+    testInboxId: 4383091,
+  })
+);
+
+  const senderx = {
+  address: "no-reply@sdal.org",
+  name: "SDAL",
+};
+const recipients = [
+  to,
+];
+
+transport
+  .sendMail({
+    from: senderx,
+    to: recipients,
+    subject: subject,
+    html: html,
+    category: "Activation",
+  })
+  .then(console.log, console.error);
 }
 
 function normalizeEmail(email) {
