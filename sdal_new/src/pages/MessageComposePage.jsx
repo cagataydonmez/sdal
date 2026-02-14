@@ -10,13 +10,32 @@ export default function MessageComposePage() {
   const [body, setBody] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [searchError, setSearchError] = useState('');
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
-    if (query.length < 2) return;
-    fetch(`/api/members?term=${encodeURIComponent(query)}&pageSize=10`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((p) => setResults(p.rows || []))
-      .catch(() => {});
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      setSearchError('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setSearchError('');
+      fetch(`/api/messages/recipients?q=${encodeURIComponent(q)}&limit=12`, { credentials: 'include' })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(await r.text());
+          return r.json();
+        })
+        .then((p) => setResults(p.items || []))
+        .catch((err) => {
+          setResults([]);
+          setSearchError(err.message || 'Üye araması başarısız.');
+        })
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => clearTimeout(timer);
   }, [query]);
 
   async function submit(e) {
@@ -51,12 +70,15 @@ export default function MessageComposePage() {
             <input className="input" placeholder="Üye ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
             {query.length >= 2 ? (
               <div className="list">
+                {searching ? <div className="muted">Aranıyor...</div> : null}
+                {!searching && !results.length ? <div className="muted">Sonuç bulunamadı.</div> : null}
                 {results.map((u) => (
-                  <button key={u.id} className="list-item" onClick={() => setRecipient(u)}>
+                  <button key={u.id} type="button" className="list-item" onClick={() => setRecipient(u)}>
                     <div className="name">{u.isim} {u.soyisim}</div>
                     <div className="meta">@{u.kadi}</div>
                   </button>
                 ))}
+                {searchError ? <div className="error">{searchError}</div> : null}
               </div>
             ) : null}
             {recipient ? <div className="chip">Alıcı: {recipient.isim} {recipient.soyisim} (@{recipient.kadi})</div> : null}

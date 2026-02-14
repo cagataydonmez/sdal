@@ -1915,6 +1915,27 @@ app.get('/api/messages', (req, res) => {
   res.json({ rows, page: safePage, pages, total, box, pageSize });
 });
 
+app.get('/api/messages/recipients', (req, res) => {
+  if (!req.session.userId) return res.status(401).send('Login required');
+  const q = String(req.query.q || '').trim().replace(/'/g, '');
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
+  if (!q) return res.json({ items: [] });
+  const term = `%${q}%`;
+  const rows = sqlAll(
+    `SELECT id, kadi, isim, soyisim, resim, verified
+     FROM uyeler
+     WHERE yasak = 0
+       AND (aktiv = 1 OR aktiv IS NULL)
+       AND (
+         kadi LIKE ? OR isim LIKE ? OR soyisim LIKE ? OR email LIKE ?
+       )
+     ORDER BY kadi ASC
+     LIMIT ?`,
+    [term, term, term, term, limit]
+  );
+  res.json({ items: rows });
+});
+
 app.get('/api/messages/:id', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const row = sqlGet('SELECT * FROM gelenkutusu WHERE id = ?', [req.params.id]);
