@@ -285,6 +285,30 @@ export default function AdminPage() {
     setLogContent(data.content || '');
   }
 
+  async function copyCurrentLog() {
+    if (!logContent) return;
+    try {
+      await navigator.clipboard.writeText(logContent);
+      setStatus('Log içeriği panoya kopyalandı.');
+    } catch {
+      setStatus('Kopyalama başarısız. Tarayıcı izinlerini kontrol edin.');
+    }
+  }
+
+  function downloadCurrentLog() {
+    if (!logContent) return;
+    const fileName = (logFile || `${logType}.log`).replace(/[^\w.-]/g, '_');
+    const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName.endsWith('.log') ? fileName : `${fileName}.log`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function loadEmailMeta() {
     const cats = await apiJson('/api/admin/email/categories');
     const tpls = await apiJson('/api/admin/email/templates');
@@ -926,7 +950,13 @@ export default function AdminPage() {
             {!logs.length ? <div className="muted">Bu log türünde henüz dosya yok.</div> : null}
             {logFile ? (
               <div className="panel-body">
-                <h3>{logFile}</h3>
+                <div className="composer-actions">
+                  <h3>{logFile}</h3>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn ghost" onClick={copyCurrentLog}>Kopyala</button>
+                    <button className="btn ghost" onClick={downloadCurrentLog}>İndir</button>
+                  </div>
+                </div>
                 <textarea className="input" rows={12} value={logContent} readOnly />
               </div>
             ) : null}
