@@ -1571,6 +1571,20 @@ app.get('/api/admin/album/photos', requireAlbumAdmin, (req, res) => {
 
 app.post('/api/admin/album/photos/bulk', requireAlbumAdmin, (req, res) => {
   const { ids = [], action } = req.body || {};
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).send('Fotoğraf seçmelisiniz.');
+  if (action === 'sil') {
+    for (const id of ids) {
+      const photo = sqlGet('SELECT * FROM album_foto WHERE id = ?', [id]);
+      if (!photo) continue;
+      const filePath = path.join(uploadsDir, 'album', photo.dosyaadi || '');
+      if (photo.dosyaadi && fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch {}
+      }
+      sqlRun('DELETE FROM album_fotoyorum WHERE fotoid = ?', [id]);
+      sqlRun('DELETE FROM album_foto WHERE id = ?', [id]);
+    }
+    return res.json({ ok: true, deleted: ids.length });
+  }
   const activeValue = action === 'deaktiv' ? 0 : 1;
   for (const id of ids) {
     sqlRun('UPDATE album_foto SET aktif = ? WHERE id = ?', [activeValue, id]);
@@ -2901,6 +2915,62 @@ app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
   const recentPosts = sqlAll('SELECT id, content, created_at FROM posts ORDER BY id DESC LIMIT 5');
   const recentPhotos = sqlAll('SELECT id, dosyaadi, tarih FROM album_foto ORDER BY id DESC LIMIT 5');
   res.json({ counts, recentUsers, recentPosts, recentPhotos });
+});
+
+app.get('/api/new/admin/live', requireAdmin, (req, res) => {
+  const counts = {
+    onlineUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE online = 1')?.cnt || 0,
+    pendingVerifications: sqlGet('SELECT COUNT(*) AS cnt FROM verification_requests WHERE status = ?', ['pending'])?.cnt || 0,
+    pendingEvents: sqlGet('SELECT COUNT(*) AS cnt FROM events WHERE COALESCE(approved, 1) = 0')?.cnt || 0,
+    pendingAnnouncements: sqlGet('SELECT COUNT(*) AS cnt FROM announcements WHERE COALESCE(approved, 1) = 0')?.cnt || 0,
+    pendingPhotos: sqlGet('SELECT COUNT(*) AS cnt FROM album_foto WHERE aktif = 0')?.cnt || 0
+  };
+
+  const rows = [];
+  const chat = sqlAll(
+    `SELECT c.id, c.created_at AS ts, u.kadi
+     FROM chat_messages c
+     LEFT JOIN uyeler u ON u.id = c.user_id
+     ORDER BY c.id DESC
+     LIMIT 8`
+  );
+  for (const item of chat) {
+    rows.push({
+      id: `chat-${item.id}`,
+      type: 'chat',
+      message: `@${item.kadi || 'üye'} canlı sohbete mesaj gönderdi.`,
+      at: item.ts || null
+    });
+  }
+
+  const posts = sqlAll(
+    `SELECT p.id, p.created_at AS ts, u.kadi
+     FROM posts p
+     LEFT JOIN uyeler u ON u.id = p.user_id
+     ORDER BY p.id DESC
+     LIMIT 8`
+  );
+  for (const item of posts) {
+    rows.push({
+      id: `post-${item.id}`,
+      type: 'post',
+      message: `@${item.kadi || 'üye'} yeni gönderi paylaştı.`,
+      at: item.ts || null
+    });
+  }
+
+  const newestUsers = sqlAll('SELECT id, kadi, ilktarih AS ts FROM uyeler ORDER BY id DESC LIMIT 8');
+  for (const item of newestUsers) {
+    rows.push({
+      id: `user-${item.id}`,
+      type: 'user',
+      message: `@${item.kadi || 'üye'} sisteme katıldı.`,
+      at: item.ts || null
+    });
+  }
+
+  rows.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
+  res.json({ counts, activity: rows.slice(0, 20), now: new Date().toISOString() });
 });
 
 app.get('/api/new/admin/groups', requireAdmin, (req, res) => {

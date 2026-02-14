@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
@@ -56,11 +56,12 @@ export default function AdminPage() {
   const [photoEdit, setPhotoEdit] = useState(null);
 
   const [pages, setPages] = useState([]);
-  const [pageForm, setPageForm] = useState({ sayfaismi: '', sayfaurl: '', sayfaicerik: '' });
+  const [pageForm, setPageForm] = useState({ sayfaismi: '', sayfaurl: '', babaid: '0', menugorun: 1, yonlendir: 0, mozellik: 0, resim: 'yok' });
 
   const [logs, setLogs] = useState([]);
   const [logFile, setLogFile] = useState('');
   const [logContent, setLogContent] = useState('');
+  const [logType, setLogType] = useState('error');
 
   const [emailCats, setEmailCats] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -90,6 +91,8 @@ export default function AdminPage() {
   const [dbRows, setDbRows] = useState([]);
   const [dbMeta, setDbMeta] = useState({ total: 0, page: 1, pages: 1, limit: 50 });
   const [dbSearch, setDbSearch] = useState('');
+  const [live, setLive] = useState({ counts: {}, activity: [], now: '' });
+  const [dashboardAutoRefresh, setDashboardAutoRefresh] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -99,9 +102,19 @@ export default function AdminPage() {
       .catch(() => {});
   }, [user]);
 
+  const refreshDashboard = useCallback(async () => {
+    if (user?.admin !== 1 || !adminOk) return;
+    const [statsData, liveData] = await Promise.all([
+      apiJson('/api/new/admin/stats'),
+      apiJson('/api/new/admin/live')
+    ]);
+    setStats(statsData);
+    setLive(liveData || { counts: {}, activity: [], now: '' });
+  }, [user, adminOk]);
+
   useEffect(() => {
     if (user?.admin !== 1 || !adminOk) return;
-    if (tab === 'dashboard') loadStats();
+    if (tab === 'dashboard') refreshDashboard();
     if (tab === 'users') loadUsers();
     if (tab === 'album') loadCategories();
     if (tab === 'photos') loadPhotos();
@@ -117,7 +130,15 @@ export default function AdminPage() {
     if (tab === 'chat') loadChat();
     if (tab === 'messages') loadAdminMessages();
     if (tab === 'database') loadDbTables();
-  }, [tab, user, adminOk]);
+  }, [tab, user, adminOk, refreshDashboard]);
+
+  useEffect(() => {
+    if (tab !== 'dashboard' || !dashboardAutoRefresh || user?.admin !== 1 || !adminOk) return undefined;
+    const timer = setInterval(() => {
+      refreshDashboard().catch(() => {});
+    }, 7000);
+    return () => clearInterval(timer);
+  }, [tab, dashboardAutoRefresh, user, adminOk, refreshDashboard]);
 
   async function adminLogin(e) {
     e.preventDefault();
@@ -213,7 +234,8 @@ export default function AdminPage() {
   async function bulkPhoto(action) {
     const ids = photos.filter((p) => p.selected).map((p) => p.id);
     if (!ids.length) return;
-    await apiJson('/api/admin/album/photos/bulk', { method: 'POST', body: JSON.stringify({ ids, action }) });
+    const finalAction = action === 'pasif' ? 'deaktiv' : action;
+    await apiJson('/api/admin/album/photos/bulk', { method: 'POST', body: JSON.stringify({ ids, action: finalAction }) });
     loadPhotos();
   }
 
@@ -224,7 +246,7 @@ export default function AdminPage() {
 
   async function savePage() {
     await apiJson('/api/admin/pages', { method: 'POST', body: JSON.stringify(pageForm) });
-    setPageForm({ sayfaismi: '', sayfaurl: '', sayfaicerik: '' });
+    setPageForm({ sayfaismi: '', sayfaurl: '', babaid: '0', menugorun: 1, yonlendir: 0, mozellik: 0, resim: 'yok' });
     loadPages();
   }
 
@@ -239,13 +261,17 @@ export default function AdminPage() {
   }
 
   async function loadLogs() {
-    const data = await apiJson('/api/admin/logs');
+    const data = await apiJson(`/api/admin/logs?type=${encodeURIComponent(logType)}`);
     setLogs(data.files || []);
+    setLogFile('');
+    setLogContent('');
   }
 
   async function openLog(file) {
-    const data = await apiJson(`/api/admin/logs?file=${encodeURIComponent(file)}`);
-    setLogFile(file);
+    const fileName = typeof file === 'string' ? file : file?.name;
+    if (!fileName) return;
+    const data = await apiJson(`/api/admin/logs?type=${encodeURIComponent(logType)}&file=${encodeURIComponent(fileName)}`);
+    setLogFile(fileName);
     setLogContent(data.content || '');
   }
 
@@ -455,43 +481,72 @@ export default function AdminPage() {
       </div>
 
       {tab === 'dashboard' && stats ? (
-        <div className="grid">
-          <div className="col-main">
-            <div className="panel">
-              <h3>Genel İstatistikler</h3>
-              <div className="panel-body">
-                <div className="list">
-                  <div className="list-item">Üye: {stats.counts.users}</div>
-                  <div className="list-item">Aktif: {stats.counts.activeUsers}</div>
-                  <div className="list-item">Bekleyen: {stats.counts.pendingUsers}</div>
-                  <div className="list-item">Yasaklı: {stats.counts.bannedUsers}</div>
-                  <div className="list-item">Gönderi: {stats.counts.posts}</div>
-                  <div className="list-item">Fotoğraf: {stats.counts.photos}</div>
-                  <div className="list-item">Hikaye: {stats.counts.stories}</div>
-                  <div className="list-item">Gruplar: {stats.counts.groups}</div>
-                  <div className="list-item">Mesajlar: {stats.counts.messages}</div>
-                  <div className="list-item">Duyuru: {stats.counts.announcements}</div>
-                  <div className="list-item">Etkinlik: {stats.counts.events}</div>
-                  <div className="list-item">Canlı Sohbet: {stats.counts.chat}</div>
+        <div className="stack">
+          <div className="panel">
+            <h3>Yönetim Dashboard</h3>
+            <div className="panel-body">
+              <div className="admin-live-header">
+                <div className="muted">
+                  Son canlı güncelleme: {live.now ? new Date(live.now).toLocaleString('tr-TR') : '-'}
                 </div>
+                <div className="admin-live-actions">
+                  <label className="admin-switch">
+                    <input
+                      type="checkbox"
+                      checked={dashboardAutoRefresh}
+                      onChange={(e) => setDashboardAutoRefresh(e.target.checked)}
+                    />
+                    <span>Canlı İzleme</span>
+                  </label>
+                  <button className="btn ghost" onClick={() => refreshDashboard().catch(() => {})}>Şimdi Yenile</button>
+                </div>
+              </div>
+              <div className="admin-kpi-grid">
+                <div className="admin-kpi-card"><div className="muted">Toplam Üye</div><b>{stats.counts.users}</b></div>
+                <div className="admin-kpi-card"><div className="muted">Aktif Üye</div><b>{stats.counts.activeUsers}</b></div>
+                <div className="admin-kpi-card"><div className="muted">Online Üye</div><b>{live.counts.onlineUsers || 0}</b></div>
+                <div className="admin-kpi-card"><div className="muted">Bekleyen Fotoğraf</div><b>{live.counts.pendingPhotos || 0}</b></div>
+                <div className="admin-kpi-card"><div className="muted">Bekleyen Etkinlik</div><b>{live.counts.pendingEvents || 0}</b></div>
+                <div className="admin-kpi-card"><div className="muted">Bekleyen Duyuru</div><b>{live.counts.pendingAnnouncements || 0}</b></div>
+                <div className="admin-kpi-card"><div className="muted">Bekleyen Doğrulama</div><b>{live.counts.pendingVerifications || 0}</b></div>
+                <div className="admin-kpi-card"><div className="muted">Toplam Mesaj</div><b>{stats.counts.messages}</b></div>
               </div>
             </div>
           </div>
-          <div className="col-side">
-            <div className="panel">
-              <h3>Yeni Üyeler</h3>
-              <div className="panel-body">
-                {stats.recentUsers.map((u) => (
-                  <div key={u.id} className="list-item">@{u.kadi}</div>
-                ))}
+          <div className="grid">
+            <div className="col-main">
+              <div className="panel">
+                <h3>Canlı Aktivite</h3>
+                <div className="panel-body">
+                  <div className="list">
+                    {(live.activity || []).map((a) => (
+                      <div key={a.id} className="list-item">
+                        <div>
+                          <div className="name">{a.message}</div>
+                          <div className="meta">{a.type} • {a.at ? new Date(a.at).toLocaleString('tr-TR') : '-'}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="panel">
-              <h3>Son Paylaşımlar</h3>
-              <div className="panel-body">
-                {stats.recentPosts.map((p) => (
-                  <div key={p.id} className="list-item">{(p.content || '').slice(0, 60)}</div>
-                ))}
+            <div className="col-side">
+              <div className="panel">
+                <h3>Yeni Üyeler</h3>
+                <div className="panel-body">
+                  {stats.recentUsers.map((u) => (
+                    <div key={u.id} className="list-item">@{u.kadi}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="panel">
+                <h3>Son Paylaşımlar</h3>
+                <div className="panel-body">
+                  {stats.recentPosts.map((p) => (
+                    <div key={p.id} className="list-item">{(p.content || '').slice(0, 80) || '(metin yok)'}</div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -687,7 +742,20 @@ export default function AdminPage() {
               <label>Yeni Sayfa</label>
               <input className="input" placeholder="Başlık" value={pageForm.sayfaismi} onChange={(e) => setPageForm({ ...pageForm, sayfaismi: e.target.value })} />
               <input className="input" placeholder="URL" value={pageForm.sayfaurl} onChange={(e) => setPageForm({ ...pageForm, sayfaurl: e.target.value })} />
-              <textarea className="input" placeholder="İçerik" value={pageForm.sayfaicerik} onChange={(e) => setPageForm({ ...pageForm, sayfaicerik: e.target.value })} />
+              <input className="input" placeholder="Baba ID" value={pageForm.babaid} onChange={(e) => setPageForm({ ...pageForm, babaid: e.target.value })} />
+              <select className="input" value={pageForm.menugorun} onChange={(e) => setPageForm({ ...pageForm, menugorun: Number(e.target.value) })}>
+                <option value={1}>Menüde Göster</option>
+                <option value={0}>Menüde Gizle</option>
+              </select>
+              <select className="input" value={pageForm.yonlendir} onChange={(e) => setPageForm({ ...pageForm, yonlendir: Number(e.target.value) })}>
+                <option value={0}>Yönlendirme Yok</option>
+                <option value={1}>Yönlendir</option>
+              </select>
+              <select className="input" value={pageForm.mozellik} onChange={(e) => setPageForm({ ...pageForm, mozellik: Number(e.target.value) })}>
+                <option value={0}>Normal</option>
+                <option value={1}>Özel</option>
+              </select>
+              <input className="input" placeholder="Resim (yok)" value={pageForm.resim} onChange={(e) => setPageForm({ ...pageForm, resim: e.target.value || 'yok' })} />
               <button className="btn primary" onClick={savePage}>Kaydet</button>
             </div>
             <div className="list">
@@ -695,6 +763,12 @@ export default function AdminPage() {
                 <div key={p.id} className="list-item">
                   <input className="input" value={p.sayfaismi || ''} onChange={(e) => setPages((prev) => prev.map((x) => x.id === p.id ? { ...x, sayfaismi: e.target.value } : x))} />
                   <input className="input" value={p.sayfaurl || ''} onChange={(e) => setPages((prev) => prev.map((x) => x.id === p.id ? { ...x, sayfaurl: e.target.value } : x))} />
+                  <input className="input" value={p.babaid ?? 0} onChange={(e) => setPages((prev) => prev.map((x) => x.id === p.id ? { ...x, babaid: e.target.value } : x))} />
+                  <select className="input" value={p.menugorun ?? 1} onChange={(e) => setPages((prev) => prev.map((x) => x.id === p.id ? { ...x, menugorun: Number(e.target.value) } : x))}>
+                    <option value={1}>Menüde</option>
+                    <option value={0}>Gizli</option>
+                  </select>
+                  <input className="input" value={p.resim || 'yok'} onChange={(e) => setPages((prev) => prev.map((x) => x.id === p.id ? { ...x, resim: e.target.value || 'yok' } : x))} />
                   <button className="btn" onClick={() => updatePage(p)}>Güncelle</button>
                   <button className="btn ghost" onClick={() => deletePage(p.id)}>Sil</button>
                 </div>
@@ -779,9 +853,21 @@ export default function AdminPage() {
       {tab === 'logs' ? (
         <div className="panel">
           <div className="panel-body">
+            <div className="form-row">
+              <label>Log Türü</label>
+              <select className="input" value={logType} onChange={(e) => setLogType(e.target.value)}>
+                <option value="error">Hata Logları</option>
+                <option value="page">Sayfa Logları</option>
+                <option value="member">Üye Logları</option>
+              </select>
+              <button className="btn" onClick={loadLogs}>Yükle</button>
+            </div>
             <div className="list">
               {logs.map((f) => (
-                <button key={f} className="list-item" onClick={() => openLog(f)}>{f}</button>
+                <button key={f.name} className="list-item" onClick={() => openLog(f)}>
+                  <span>{f.name}</span>
+                  <span className="meta">{Math.round((f.size || 0) / 1024)} KB</span>
+                </button>
               ))}
             </div>
             {logFile ? (
@@ -800,7 +886,7 @@ export default function AdminPage() {
             <div className="list">
               {teams.map((t) => (
                 <div key={t.id} className="list-item">
-                  <div>{t.takimadi || t.isim}</div>
+                  <div>{t.tisim || t.takimadi || t.isim || `Takım #${t.id}`}</div>
                   <button className="btn ghost" onClick={() => deleteTeam(t.id)}>Sil</button>
                 </div>
               ))}

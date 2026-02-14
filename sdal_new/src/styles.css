@@ -686,6 +686,42 @@ a { color: inherit; text-decoration: none; }
   flex-wrap: wrap;
   gap: 8px;
 }
+.admin-live-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-live-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.admin-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff;
+}
+.admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.admin-kpi-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff, #faf7f3);
+  padding: 12px;
+}
+.admin-kpi-card b {
+  font-size: 26px;
+  line-height: 1;
+}
 .db-grid {
   display: grid;
   grid-template-columns: 280px 1fr;
