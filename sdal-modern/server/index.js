@@ -921,6 +921,19 @@ app.get('/abandon.asp', (req, res) => {
   });
 });
 
+app.get('/logout', (req, res) => {
+  if (req.session.userId) {
+    sqlRun('UPDATE uyeler SET online = 0 WHERE id = ?', [req.session.userId]);
+  }
+  req.session.destroy(() => {
+    res.clearCookie('uyegiris');
+    res.clearCookie('uyeid');
+    res.clearCookie('kadi');
+    res.clearCookie('admingiris');
+    res.redirect(302, '/new/login');
+  });
+});
+
 app.get('/admincikis.asp', (req, res) => {
   req.session.adminOk = false;
   res.redirect(302, '/admin');
@@ -2122,7 +2135,7 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
 
 app.get('/api/new/notifications', requireAuth, (req, res) => {
   const rows = sqlAll(
-    `SELECT n.id, n.type, n.entity_id, n.message, n.read_at, n.created_at,
+    `SELECT n.id, n.type, n.entity_id, n.source_user_id, n.message, n.read_at, n.created_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM notifications n
      LEFT JOIN uyeler u ON u.id = n.source_user_id
@@ -2235,6 +2248,14 @@ app.get('/api/new/follows', requireAuth, (req, res) => {
     [req.session.userId]
   );
   res.json({ items: rows });
+});
+
+app.get('/api/new/messages/unread', requireAuth, (req, res) => {
+  const row = sqlGet(
+    'SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE kime = ? AND aktifgelen = 1 AND yeni = 1',
+    [req.session.userId]
+  );
+  res.json({ count: row?.cnt || 0 });
 });
 
 app.get('/api/new/groups', requireAuth, (req, res) => {

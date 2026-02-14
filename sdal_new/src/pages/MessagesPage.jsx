@@ -1,16 +1,42 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import { useLiveRefresh } from '../utils/live.js';
 
 export default function MessagesPage() {
   const [messages, setMessages] = useState([]);
   const [box, setBox] = useState('inbox');
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
+    setLoading(true);
     fetch(`/api/messages?box=${box}`, { credentials: 'include' })
       .then((r) => r.json())
       .then((p) => setMessages(p.rows || []))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [box]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useLiveRefresh(load, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
+
+  const filtered = useMemo(
+    () =>
+      messages.filter((m) => {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        return `${m.konu || ''} ${m.kimden_kadi || ''} ${m.kime_kadi || ''}`.toLowerCase().includes(q);
+      }),
+    [messages, query]
+  );
+
+  const unreadCount = useMemo(
+    () => messages.filter((m) => box === 'inbox' && Number(m.yeni) === 1).length,
+    [messages, box]
+  );
 
   return (
     <Layout title="Mesajlar">
@@ -19,14 +45,17 @@ export default function MessagesPage() {
           <a className="btn primary" href="/new/messages/compose">Yeni Mesaj</a>
           <button className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`} onClick={() => setBox('inbox')}>Gelen</button>
           <button className={`btn ${box === 'outbox' ? 'primary' : 'ghost'}`} onClick={() => setBox('outbox')}>Giden</button>
+          {box === 'inbox' ? <div className="chip">Okunmamış: {unreadCount}</div> : null}
+          <input className="input" placeholder="Mesaj ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
       </div>
       <div className="list">
-        {messages.map((m) => (
-          <a className="list-item" key={m.id} href={`/new/messages/${m.id}`}>
+        {loading ? <div className="muted">Yükleniyor...</div> : null}
+        {filtered.map((m) => (
+          <a className={`list-item ${box === 'inbox' && Number(m.yeni) === 1 ? 'unread-item' : ''}`} key={m.id} href={`/new/messages/${m.id}`}>
             <div>
               <div className="name">{m.konu || 'Mesaj'}</div>
-              <div className="meta">{m.kimden_kadi} → {m.kime_kadi}</div>
+              <div className="meta">{m.kimden_kadi} → {m.kime_kadi}{box === 'inbox' && Number(m.yeni) === 1 ? ' • Yeni' : ''}</div>
             </div>
             <div className="meta">{m.tarih ? new Date(m.tarih).toLocaleString() : ''}</div>
           </a>

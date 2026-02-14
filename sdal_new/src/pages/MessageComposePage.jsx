@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import { emitAppChange } from '../utils/live.js';
 
 export default function MessageComposePage() {
   const [query, setQuery] = useState('');
@@ -37,6 +38,7 @@ export default function MessageComposePage() {
       return;
     }
     setStatus('Mesaj gönderildi.');
+    emitAppChange('message:created');
     setSubject('');
     setBody('');
   }

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
+import { emitAppChange } from '../utils/live.js';
 
 export default function MessageDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [message, setMessage] = useState(null);
   const [sender, setSender] = useState(null);
   const [receiver, setReceiver] = useState(null);
@@ -30,7 +32,8 @@ export default function MessageDetailPage() {
       setError(await res.text());
       return;
     }
-    setError('Mesaj silindi.');
+    emitAppChange('message:deleted', { id });
+    navigate('/new/messages');
   }
 
   if (!message) return <Layout title="Mesaj">{error ? <div className="error">{error}</div> : 'Yükleniyor...'}</Layout>;

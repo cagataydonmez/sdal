@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../utils/auth.jsx';
+import { emitAppChange } from '../utils/live.js';
 
 export default function LiveChatPanel() {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ export default function LiveChatPanel() {
         const msg = JSON.parse(evt.data);
         if (!msg?.message) return;
         setMessages((prev) => [...prev, msg].slice(-50));
+        emitAppChange('chat:new');
       } catch {
         // ignore
       }

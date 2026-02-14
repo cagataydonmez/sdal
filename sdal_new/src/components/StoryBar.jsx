@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 
 export default function StoryBar() {
   const [stories, setStories] = useState([]);
@@ -6,12 +7,12 @@ export default function StoryBar() {
   const [progress, setProgress] = useState(0);
   const durationMs = 5000;
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch('/api/new/stories', { credentials: 'include' });
     if (!res.ok) return;
     const payload = await res.json();
     setStories(payload.items || []);
-  }
+  }, []);
 
   async function markViewed(story) {
     if (!story?.id) return;
@@ -26,7 +27,8 @@ export default function StoryBar() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
+  useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['story:created', '*'] });
 
   useEffect(() => {
     if (activeIndex === null) return;
@@ -85,6 +87,7 @@ export default function StoryBar() {
     form.append('image', file);
     form.append('caption', '');
     await fetch('/api/new/stories/upload', { method: 'POST', credentials: 'include', body: form });
+    emitAppChange('story:created');
     load();
   }
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { emitAppChange } from '../utils/live.js';
 
 export default function PostComposer({ onPost }) {
   const [content, setContent] = useState('');
@@ -35,6 +36,7 @@ export default function PostComposer({ onPost }) {
       setContent('');
       setImage(null);
       setFilter('');
+      emitAppChange('post:created');
       onPost?.();
     } catch (err) {
       setError(err.message || 'Paylaşım başarısız.');

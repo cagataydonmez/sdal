@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import { useAuth } from '../utils/auth.jsx';
+import { emitAppChange } from '../utils/live.js';
 
 export default function ProfilePhotoPage() {
+  const { refresh } = useAuth();
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -17,6 +20,8 @@ export default function ProfilePhotoPage() {
       setError(await res.text());
       return;
     }
+    await refresh();
+    emitAppChange('profile:updated');
     setStatus('Fotoğraf güncellendi.');
   }
 
