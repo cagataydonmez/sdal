@@ -1849,8 +1849,11 @@ app.get('/api/members', (req, res) => {
   const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 50);
   const term = req.query.term ? String(req.query.term).replace(/'/g, '') : '';
   const where = term
-    ? `aktiv = 1 AND yasak = 0 AND (kadi LIKE ? OR isim LIKE ? OR soyisim LIKE ? OR meslek LIKE ? OR email LIKE ?)`
-    : 'aktiv = 1 AND yasak = 0';
+    ? `COALESCE(CAST(aktiv AS INTEGER), 1) = 1
+       AND COALESCE(CAST(yasak AS INTEGER), 0) = 0
+       AND (LOWER(kadi) LIKE LOWER(?) OR LOWER(isim) LIKE LOWER(?) OR LOWER(soyisim) LIKE LOWER(?) OR LOWER(meslek) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))`
+    : `COALESCE(CAST(aktiv AS INTEGER), 1) = 1
+       AND COALESCE(CAST(yasak AS INTEGER), 0) = 0`;
   const params = term ? Array(5).fill(`%${term}%`) : [];
 
   const totalRow = sqlGet(`SELECT COUNT(*) AS cnt FROM uyeler WHERE ${where}`, params);
@@ -1924,10 +1927,13 @@ app.get('/api/messages/recipients', (req, res) => {
   const rows = sqlAll(
     `SELECT id, kadi, isim, soyisim, resim, verified
      FROM uyeler
-     WHERE yasak = 0
-       AND (aktiv = 1 OR aktiv IS NULL)
+     WHERE COALESCE(CAST(yasak AS INTEGER), 0) = 0
+       AND COALESCE(CAST(aktiv AS INTEGER), 1) = 1
        AND (
-         kadi LIKE ? OR isim LIKE ? OR soyisim LIKE ? OR email LIKE ?
+         LOWER(kadi) LIKE LOWER(?)
+         OR LOWER(isim) LIKE LOWER(?)
+         OR LOWER(soyisim) LIKE LOWER(?)
+         OR LOWER(email) LIKE LOWER(?)
        )
      ORDER BY kadi ASC
      LIMIT ?`,
