@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
-import { applyMention, detectMentionContext } from '../utils/mentions.js';
+import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -27,7 +27,7 @@ export default function EventsPage() {
   const [status, setStatus] = useState('');
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [followed, setFollowed] = useState([]);
+  const [mentionUsers, setMentionUsers] = useState([]);
   const [formMentionCtx, setFormMentionCtx] = useState(null);
   const [commentMentionCtx, setCommentMentionCtx] = useState({});
   const sentinelRef = useRef(null);
@@ -38,14 +38,6 @@ export default function EventsPage() {
   useEffect(() => {
     commentsRef.current = comments;
   }, [comments]);
-
-  async function loadFollowed() {
-    if (followed.length) return;
-    const res = await fetch('/api/new/follows', { credentials: 'include' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    setFollowed(payload.items || []);
-  }
 
   const load = useCallback(async (offset = 0, append = false) => {
     const data = await apiJson(`/api/new/events?limit=15&offset=${offset}`);
@@ -118,7 +110,6 @@ export default function EventsPage() {
     setForm((prev) => ({ ...prev, description: value }));
     const ctx = detectMentionContext(value, caretPos);
     setFormMentionCtx(ctx);
-    if (ctx) loadFollowed();
   }
 
   function insertDescriptionMention(kadi) {
@@ -130,7 +121,6 @@ export default function EventsPage() {
     setDrafts((prev) => ({ ...prev, [eventId]: value }));
     const ctx = detectMentionContext(value, caretPos);
     setCommentMentionCtx((prev) => ({ ...prev, [eventId]: ctx }));
-    if (ctx) loadFollowed();
   }
 
   function insertCommentMention(eventId, kadi) {
@@ -138,6 +128,15 @@ export default function EventsPage() {
     setDrafts((prev) => ({ ...prev, [eventId]: applyMention(prev[eventId] || '', ctx, kadi) }));
     setCommentMentionCtx((prev) => ({ ...prev, [eventId]: null }));
   }
+
+  useEffect(() => {
+    const q = formMentionCtx?.query || Object.values(commentMentionCtx).find((v) => v?.query)?.query || '';
+    if (!q) {
+      setMentionUsers([]);
+      return;
+    }
+    fetchMentionCandidates(q).then(setMentionUsers).catch(() => setMentionUsers([]));
+  }, [formMentionCtx?.query, commentMentionCtx]);
 
   async function notifyFollowers(eventId) {
     const res = await apiJson(`/api/new/events/${eventId}/notify`, { method: 'POST' });
@@ -154,11 +153,10 @@ export default function EventsPage() {
           <textarea className="input" placeholder="Açıklama" value={form.description} onChange={(e) => handleDescriptionChange(e.target.value, e.target.selectionStart)} />
           {formMentionCtx ? (
             <div className="mention-box">
-              {followed
-                .filter((u) => !formMentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(formMentionCtx.query.toLowerCase()))
+              {mentionUsers
                 .slice(0, 8)
                 .map((u) => (
-                  <button key={u.following_id} type="button" className="mention-item" onClick={() => insertDescriptionMention(u.kadi)}>
+                  <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertDescriptionMention(u.kadi)}>
                     @{u.kadi}
                   </button>
                 ))}
@@ -212,11 +210,10 @@ export default function EventsPage() {
               </form>
               {commentMentionCtx[e.id] ? (
                 <div className="mention-box">
-                  {followed
-                    .filter((u) => !commentMentionCtx[e.id].query || String(u.kadi || '').toLowerCase().startsWith(commentMentionCtx[e.id].query.toLowerCase()))
+                  {mentionUsers
                     .slice(0, 8)
                     .map((u) => (
-                      <button key={u.following_id} type="button" className="mention-item" onClick={() => insertCommentMention(e.id, u.kadi)}>
+                      <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertCommentMention(e.id, u.kadi)}>
                         @{u.kadi}
                       </button>
                     ))}

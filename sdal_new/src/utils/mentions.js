@@ -5,6 +5,7 @@ export function detectMentionContext(text, caretPos) {
   const match = before.match(/(^|\s)@([a-zA-Z0-9._-]*)$/);
   if (!match) return null;
   const query = match[2] || '';
+  if (query.length < 2) return null;
   const start = before.lastIndexOf('@');
   if (start < 0) return null;
   return { query, start, end: caret };
@@ -16,4 +17,13 @@ export function applyMention(text, context, kadi) {
   const start = Math.max(0, Math.min(context.start, value.length));
   const end = Math.max(start, Math.min(context.end, value.length));
   return `${value.slice(0, start)}@${kadi} ${value.slice(end)}`;
+}
+
+export async function fetchMentionCandidates(query) {
+  const q = String(query || '').trim();
+  if (q.length < 2) return [];
+  const res = await fetch(`/api/messages/recipients?q=${encodeURIComponent(q)}&limit=12`, { credentials: 'include' });
+  if (!res.ok) return [];
+  const payload = await res.json();
+  return payload.items || [];
 }

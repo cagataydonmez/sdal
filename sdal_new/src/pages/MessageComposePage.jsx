@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
-import { applyMention, detectMentionContext } from '../utils/mentions.js';
+import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
 
 export default function MessageComposePage() {
   const [searchParams] = useSearchParams();
@@ -15,7 +15,7 @@ export default function MessageComposePage() {
   const [error, setError] = useState('');
   const [searchError, setSearchError] = useState('');
   const [searching, setSearching] = useState(false);
-  const [followed, setFollowed] = useState([]);
+  const [mentionUsers, setMentionUsers] = useState([]);
   const [mentionCtx, setMentionCtx] = useState(null);
   const [prefilled, setPrefilled] = useState(false);
 
@@ -94,25 +94,25 @@ export default function MessageComposePage() {
     })();
   }, [searchParams, prefilled, subject, body]);
 
-  async function loadFollowed() {
-    if (followed.length) return;
-    const res = await fetch('/api/new/follows', { credentials: 'include' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    setFollowed(payload.items || []);
-  }
-
   function handleBodyChange(value, caretPos) {
     setBody(value);
     const ctx = detectMentionContext(value, caretPos);
     setMentionCtx(ctx);
-    if (ctx) loadFollowed();
+    if (!ctx) setMentionUsers([]);
   }
 
   function insertMention(kadi) {
     setBody((prev) => applyMention(prev, mentionCtx, kadi));
     setMentionCtx(null);
   }
+
+  useEffect(() => {
+    if (!mentionCtx?.query) {
+      setMentionUsers([]);
+      return;
+    }
+    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
+  }, [mentionCtx?.query]);
 
   async function submit(e) {
     e.preventDefault();
@@ -170,11 +170,10 @@ export default function MessageComposePage() {
             <textarea className="input" placeholder="Mesaj" value={body} onChange={(e) => handleBodyChange(e.target.value, e.target.selectionStart)} />
             {mentionCtx ? (
               <div className="mention-box">
-                {followed
-                  .filter((u) => !mentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(mentionCtx.query.toLowerCase()))
+                {mentionUsers
                   .slice(0, 8)
                   .map((u) => (
-                    <button key={u.following_id} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
+                    <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
                       @{u.kadi}
                     </button>
                   ))}

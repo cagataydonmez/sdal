@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
-import { applyMention, detectMentionContext } from '../utils/mentions.js';
+import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
 
 export default function PostCard({ post, onRefresh, focused = false }) {
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
-  const [followed, setFollowed] = useState([]);
+  const [mentionUsers, setMentionUsers] = useState([]);
   const [mentionCtx, setMentionCtx] = useState(null);
 
   async function loadComments() {
@@ -28,26 +28,25 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     loadComments();
   }, [showComments, post.commentCount]);
 
-  async function loadFollowed() {
-    if (followed.length) return;
-    const res = await fetch('/api/new/follows', { credentials: 'include' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    setFollowed(payload.items || []);
-  }
-
   function handleCommentChange(value, caretPos) {
     setComment(value);
     const nextCtx = detectMentionContext(value, caretPos);
     setMentionCtx(nextCtx);
-    if (!nextCtx) return;
-    loadFollowed();
+    if (!nextCtx) setMentionUsers([]);
   }
 
   function insertMention(kadi) {
     setComment((prev) => applyMention(prev, mentionCtx, kadi));
     setMentionCtx(null);
   }
+
+  useEffect(() => {
+    if (!mentionCtx?.query) {
+      setMentionUsers([]);
+      return;
+    }
+    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
+  }, [mentionCtx?.query]);
 
   async function toggleLike() {
     await fetch(`/api/new/posts/${post.id}/like`, { method: 'POST', credentials: 'include' });
@@ -107,11 +106,10 @@ export default function PostCard({ post, onRefresh, focused = false }) {
       </form>
       {mentionCtx ? (
         <div className="mention-box">
-          {followed
-            .filter((u) => !mentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(mentionCtx.query.toLowerCase()))
+          {mentionUsers
             .slice(0, 8)
             .map((u) => (
-              <button key={u.following_id} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
+              <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
                 @{u.kadi}
               </button>
             ))}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
-import { applyMention, detectMentionContext } from '../utils/mentions.js';
+import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -21,7 +21,7 @@ export default function GroupsPage() {
   const [error, setError] = useState('');
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [followed, setFollowed] = useState([]);
+  const [mentionUsers, setMentionUsers] = useState([]);
   const [mentionCtx, setMentionCtx] = useState(null);
   const sentinelRef = useRef(null);
 
@@ -69,25 +69,25 @@ export default function GroupsPage() {
     load();
   }
 
-  async function loadFollowed() {
-    if (followed.length) return;
-    const res = await fetch('/api/new/follows', { credentials: 'include' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    setFollowed(payload.items || []);
-  }
-
   function handleDescriptionChange(value, caretPos) {
     setForm((prev) => ({ ...prev, description: value }));
     const ctx = detectMentionContext(value, caretPos);
     setMentionCtx(ctx);
-    if (ctx) loadFollowed();
+    if (!ctx) setMentionUsers([]);
   }
 
   function insertMention(kadi) {
     setForm((prev) => ({ ...prev, description: applyMention(prev.description, mentionCtx, kadi) }));
     setMentionCtx(null);
   }
+
+  useEffect(() => {
+    if (!mentionCtx?.query) {
+      setMentionUsers([]);
+      return;
+    }
+    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
+  }, [mentionCtx?.query]);
 
   return (
     <Layout title="Gruplar">
@@ -98,11 +98,10 @@ export default function GroupsPage() {
           <textarea className="input" placeholder="Açıklama" value={form.description} onChange={(e) => handleDescriptionChange(e.target.value, e.target.selectionStart)} />
           {mentionCtx ? (
             <div className="mention-box">
-              {followed
-                .filter((u) => !mentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(mentionCtx.query.toLowerCase()))
+              {mentionUsers
                 .slice(0, 8)
                 .map((u) => (
-                  <button key={u.following_id} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
+                  <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
                     @{u.kadi}
                   </button>
                 ))}

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { emitAppChange } from '../utils/live.js';
-import { applyMention, detectMentionContext } from '../utils/mentions.js';
+import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
 
 const FILTERS = [
   { key: '', label: 'Filtre Yok' },
@@ -19,29 +19,28 @@ export default function PostComposer({ onPost }) {
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [followed, setFollowed] = useState([]);
+  const [mentionUsers, setMentionUsers] = useState([]);
   const [mentionCtx, setMentionCtx] = useState(null);
-
-  async function loadFollowed() {
-    if (followed.length) return;
-    const res = await fetch('/api/new/follows', { credentials: 'include' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    setFollowed(payload.items || []);
-  }
 
   function handleContentChange(value, caretPos) {
     setContent(value);
     const nextCtx = detectMentionContext(value, caretPos);
     setMentionCtx(nextCtx);
-    if (!nextCtx) return;
-    loadFollowed();
+    if (!nextCtx) setMentionUsers([]);
   }
 
   function insertMention(kadi) {
     setContent((prev) => applyMention(prev, mentionCtx, kadi));
     setMentionCtx(null);
   }
+
+  useEffect(() => {
+    if (!mentionCtx?.query) {
+      setMentionUsers([]);
+      return;
+    }
+    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
+  }, [mentionCtx?.query]);
 
   async function submit(e) {
     e.preventDefault();
@@ -89,11 +88,10 @@ export default function PostComposer({ onPost }) {
       />
       {mentionCtx ? (
         <div className="mention-box">
-          {followed
-            .filter((u) => !mentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(mentionCtx.query.toLowerCase()))
+          {mentionUsers
             .slice(0, 8)
             .map((u) => (
-              <button key={u.following_id} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
+              <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
                 @{u.kadi}
               </button>
             ))}
