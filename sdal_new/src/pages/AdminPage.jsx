@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
@@ -30,7 +30,8 @@ const tabs = [
   { key: 'announcements', label: 'Duyurular' },
   { key: 'groups', label: 'Gruplar' },
   { key: 'stories', label: 'Hikayeler' },
-  { key: 'chat', label: 'Canlı Sohbet' }
+  { key: 'chat', label: 'Canlı Sohbet' },
+  { key: 'database', label: 'Veritabanı' }
 ];
 
 export default function AdminPage() {
@@ -83,6 +84,12 @@ export default function AdminPage() {
   const [stories, setStories] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
+  const [dbTables, setDbTables] = useState([]);
+  const [dbTableName, setDbTableName] = useState('');
+  const [dbColumns, setDbColumns] = useState([]);
+  const [dbRows, setDbRows] = useState([]);
+  const [dbMeta, setDbMeta] = useState({ total: 0, page: 1, pages: 1, limit: 50 });
+  const [dbSearch, setDbSearch] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -109,6 +116,7 @@ export default function AdminPage() {
     if (tab === 'stories') loadStories();
     if (tab === 'chat') loadChat();
     if (tab === 'messages') loadAdminMessages();
+    if (tab === 'database') loadDbTables();
   }, [tab, user, adminOk]);
 
   async function adminLogin(e) {
@@ -381,6 +389,32 @@ export default function AdminPage() {
     await apiJson(`/api/new/admin/messages/${id}`, { method: 'DELETE' });
     loadAdminMessages();
   }
+
+  async function loadDbTables() {
+    const data = await apiJson('/api/new/admin/db/tables');
+    const items = data.items || [];
+    setDbTables(items);
+    if (!dbTableName && items.length) {
+      loadDbTable(items[0].name, 1);
+    }
+  }
+
+  async function loadDbTable(name, page = 1) {
+    if (!name) return;
+    const data = await apiJson(`/api/new/admin/db/table/${encodeURIComponent(name)}?page=${page}&limit=${dbMeta.limit}`);
+    setDbTableName(data.table || name);
+    setDbColumns(data.columns || []);
+    setDbRows(data.rows || []);
+    setDbMeta({ total: data.total || 0, page: data.page || 1, pages: data.pages || 1, limit: data.limit || dbMeta.limit });
+  }
+
+  const filteredDbRows = useMemo(() => {
+    const needle = dbSearch.trim().toLowerCase();
+    if (!needle) return dbRows;
+    return dbRows.filter((row) =>
+      Object.values(row || {}).some((value) => String(value ?? '').toLowerCase().includes(needle))
+    );
+  }, [dbRows, dbSearch]);
 
   if (user?.admin !== 1) {
     return (
@@ -866,6 +900,85 @@ export default function AdminPage() {
                   <button className="btn ghost" onClick={() => deleteChat(c.id)}>Sil</button>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'database' ? (
+        <div className="db-grid">
+          <div className="panel">
+            <h3>Tablolar</h3>
+            <div className="panel-body">
+              <button className="btn" onClick={loadDbTables}>Yenile</button>
+              <div className="list">
+                {dbTables.map((t) => (
+                  <button
+                    key={t.name}
+                    className={`list-item db-table-item ${dbTableName === t.name ? 'active' : ''}`}
+                    onClick={() => loadDbTable(t.name, 1)}
+                  >
+                    <span>{t.name}</span>
+                    <span className="meta">{t.rowCount}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="panel">
+            <h3>İçerik: {dbTableName || '-'}</h3>
+            <div className="panel-body">
+              <div className="db-toolbar">
+                <input
+                  className="input"
+                  placeholder="Bu sayfada ara..."
+                  value={dbSearch}
+                  onChange={(e) => setDbSearch(e.target.value)}
+                />
+                <span className="chip">Toplam: {dbMeta.total}</span>
+                <span className="chip">Sayfa: {dbMeta.page}/{dbMeta.pages}</span>
+                <button
+                  className="btn ghost"
+                  disabled={dbMeta.page <= 1}
+                  onClick={() => loadDbTable(dbTableName, dbMeta.page - 1)}
+                >
+                  Önceki
+                </button>
+                <button
+                  className="btn ghost"
+                  disabled={dbMeta.page >= dbMeta.pages}
+                  onClick={() => loadDbTable(dbTableName, dbMeta.page + 1)}
+                >
+                  Sonraki
+                </button>
+              </div>
+              {dbColumns.length ? (
+                <div className="db-table-wrap">
+                  <table className="db-table">
+                    <thead>
+                      <tr>
+                        {dbColumns.map((c) => (
+                          <th key={c.name}>
+                            <div>{c.name}</div>
+                            <div className="meta">{c.type || 'TEXT'}{c.pk ? ' • PK' : ''}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDbRows.map((row, idx) => (
+                        <tr key={idx}>
+                          {dbColumns.map((c) => (
+                            <td key={`${idx}-${c.name}`}>{String(row?.[c.name] ?? '')}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="muted">Tablo seçin.</div>
+              )}
             </div>
           </div>
         </div>

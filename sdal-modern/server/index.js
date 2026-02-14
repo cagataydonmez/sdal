@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 8787;
+app.set('trust proxy', true);
 
 app.use(morgan('dev'));
 app.use(cookieParser());
@@ -189,7 +190,6 @@ function getMailTransport() {
 }
 
 
-const baseUrl = process.env.SDAL_BASE_URL || `http://localhost:${port}`;
 const adminPassword = process.env.SDAL_ADMIN_PASSWORD || 'guuk';
 const legacyRoot = path.resolve(__dirname, '../..');
 const hatalogDir = path.join(legacyRoot, 'hatalog');
@@ -377,6 +377,70 @@ function readLogFile(dirPath, name) {
   const full = path.join(dirPath, safeName);
   if (!fs.existsSync(full)) return null;
   return fs.readFileSync(full, 'utf-8');
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function resolvePublicBaseUrl(req) {
+  const configured = String(process.env.SDAL_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+  const xfProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const xfHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const proto = xfProto || req.protocol || 'http';
+  const host = xfHost || req.get('host') || `localhost:${port}`;
+  return `${proto}://${host}`;
+}
+
+function buildActivationEmailHtml({ siteBase, activationLink, user }) {
+  const safeBase = String(siteBase || '').replace(/\/+$/, '');
+  const safeActivation = String(activationLink || '');
+  const fullName = `${user?.isim || ''} ${user?.soyisim || ''}`.trim() || (user?.kadi ? `@${user.kadi}` : 'Üye');
+  const safeName = escapeHtml(fullName);
+  const safeKadi = escapeHtml(user?.kadi || '');
+  const safeLink = escapeHtml(safeActivation);
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SDAL Aktivasyon</title>
+</head>
+<body style="margin:0;padding:24px;background:#f4efe8;font-family:Arial,sans-serif;color:#1f2937;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+    <tr>
+      <td style="padding:20px 24px;background:linear-gradient(135deg,#111827 0%, #2b3444 100%);color:#fff;">
+        <div style="font-size:20px;font-weight:700;letter-spacing:0.3px;">SDAL</div>
+        <div style="opacity:0.85;font-size:13px;margin-top:4px;">Hesap Aktivasyonu</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:24px;">
+        <p style="margin:0 0 12px;font-size:16px;">Merhaba <b>${safeName}</b>,</p>
+        <p style="margin:0 0 16px;line-height:1.5;">Üyelik işlemini tamamlamak için aşağıdaki düğmeyi kullanabilirsin.</p>
+        <p style="margin:0 0 18px;">
+          <a href="${safeActivation}" target="_blank" rel="noreferrer" style="display:inline-block;padding:12px 18px;background:#ff6b4a;color:#111827;text-decoration:none;border-radius:999px;font-weight:700;">Hesabı Aktifleştir</a>
+        </p>
+        <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Kullanıcı adı: <b style="color:#111827">@${safeKadi}</b></p>
+        <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">Buton çalışmazsa bağlantıyı kopyala:</p>
+        <p style="margin:0;font-size:12px;word-break:break-all;"><a href="${safeActivation}" target="_blank" rel="noreferrer" style="color:#2563eb;">${safeLink}</a></p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 24px;background:#f9fafb;color:#6b7280;font-size:12px;">
+        SDAL hesabını sen açmadıysan bu e-postayı yok sayabilirsin.<br/>
+        <a href="${escapeHtml(safeBase)}/" target="_blank" rel="noreferrer" style="color:#4b5563;">${escapeHtml(safeBase)}</a>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 function createActivation() {
@@ -1584,28 +1648,15 @@ app.post('/api/register', async (req, res) => {
     );
   }
 
-  const activationLink = `${baseUrl}/aktivet?id=${newId}&akt=${aktivasyon}`;
-  const html = `
-    <body bgcolor="#663300" topmargin=0 leftmargin=0>
-    <table border=0 width=100% height=100% cellpadding=0 cellspacing=0>
-    <tr><td width=100% height=100% bgcolor="#663300" align=center valign=center>
-    <table border=0 width=100% height=300 cellpadding=0 cellspacing=0>
-    <tr><td width=100% height=50 align=left valign=bottom style="background:#663300;">
-    <a href="${baseUrl}/" title="Anasayfaya gider..." target="_blank"><img src="${baseUrl}/legacy/logo.gif" border=0></a>
-    </td></tr><tr><td width=100% height=8 align=left valign=bottom background="${baseUrl}/legacy/upback.gif"></td></tr>
-    <tr><td width=100% height=150 align=center valign=center style="background:#FFCC99;">
-    Sayın <b>${isim} ${soyisim}</b>,<br>
-    <a href="${activationLink}" target="_blank">Üyelik işleminizin tamamlanabilmesi için lütfen burayı tıklayınız!!</a><br><br>
-    Kullanıcı adınız : ${kadi}<br>Şifreniz : ${sifre}
-    <br><br>Aktivasyon adresi : ${activationLink}
-    </td></tr>
-    <tr><td width=100% height=5 align=left valign=bottom background="${baseUrl}/legacy/downback.gif"></td></tr>
-    <tr><td width=100% height=50 align=left valign=bottom style="background:#663300;font-size:10;color:#FFFFCC;font-family:verdana;">
-    <b>&nbsp; <a href="${baseUrl}/" style="color:#FFFFCC;" target="_blank">sdal.org</a> bir sdal kuruluşudur.</b>
-    </td></tr></table></td></tr></table>
-  `;
+  const publicBaseUrl = resolvePublicBaseUrl(req);
+  const activationLink = `${publicBaseUrl}/aktivet?id=${newId}&akt=${aktivasyon}`;
+  const html = buildActivationEmailHtml({
+    siteBase: publicBaseUrl,
+    activationLink,
+    user: { kadi: cleanKadi, isim: cleanIsim, soyisim: cleanSoyisim }
+  });
 
-  await sendMail({ to: email, subject: 'SDAL.ORG - Üyelik Başvurusu', html });
+  await sendMail({ to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html });
 
   res.json({ ok: true });
 });
@@ -1629,8 +1680,13 @@ app.post('/api/activation/resend', async (req, res) => {
   if (id) user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [id]);
   if (!user && email) user = sqlGet('SELECT * FROM uyeler WHERE email = ?', [email]);
   if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
-  const activationLink = `${baseUrl}/aktivet?id=${user.id}&akt=${user.aktivasyon}`;
-  const html = `Aktivasyon bağlantınız: <a href="${activationLink}">${activationLink}</a>`;
+  const publicBaseUrl = resolvePublicBaseUrl(req);
+  const activationLink = `${publicBaseUrl}/aktivet?id=${user.id}&akt=${user.aktivasyon}`;
+  const html = buildActivationEmailHtml({
+    siteBase: publicBaseUrl,
+    activationLink,
+    user
+  });
   await sendMail({ to: user.email, subject: 'SDAL - Aktivasyon', html });
   res.json({ ok: true });
 });
@@ -1642,9 +1698,18 @@ app.post('/api/password-reset', async (req, res) => {
   if (!user && email) user = sqlGet('SELECT * FROM uyeler WHERE email = ?', [email]);
   if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
 
-  const html = `Sayın <b>${user.isim} ${user.soyisim}</b>,<br><br>
-    Kullanıcı adınız : ${user.kadi}<br>Şifreniz : ${user.sifre}
-    <br><br><a href="${baseUrl}/">Siteye girmek için tıklayınız</a>`;
+  const publicBaseUrl = resolvePublicBaseUrl(req);
+  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f4efe8;padding:24px;color:#1f2937;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;">
+      <tr><td style="padding:20px 24px;">
+        <h2 style="margin:0 0 12px;font-size:18px;">SDAL Hesap Bilgilendirmesi</h2>
+        <p style="margin:0 0 12px;">Merhaba <b>${escapeHtml(user.isim)} ${escapeHtml(user.soyisim)}</b>,</p>
+        <p style="margin:0 0 12px;">Güvenlik nedeniyle e-posta ile şifre paylaşmıyoruz.</p>
+        <p style="margin:0 0 16px;">Kullanıcı adın: <b>@${escapeHtml(user.kadi)}</b></p>
+        <a href="${escapeHtml(publicBaseUrl)}/new/password-reset" style="display:inline-block;padding:10px 14px;border-radius:999px;background:#ff6b4a;color:#111827;text-decoration:none;font-weight:700;">Şifremi Sıfırla</a>
+      </td></tr>
+    </table>
+  </body></html>`;
   await sendMail({ to: user.email, subject: 'SDAL.ORG - ŞİFRE HATIRLAMA', html });
   res.json({ ok: true });
 });
@@ -2582,6 +2647,57 @@ app.get('/api/new/admin/messages', requireAdmin, (req, res) => {
 app.delete('/api/new/admin/messages/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM gelenkutusu WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
+});
+
+app.get('/api/new/admin/db/tables', requireAdmin, (_req, res) => {
+  const rows = sqlAll(
+    `SELECT name
+     FROM sqlite_master
+     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+     ORDER BY name ASC`
+  );
+  const tables = rows.map((r) => {
+    const safeName = String(r.name || '');
+    const escaped = safeName.replace(/"/g, '""');
+    const count = sqlGet(`SELECT COUNT(*) AS cnt FROM "${escaped}"`)?.cnt || 0;
+    return { name: safeName, rowCount: count };
+  });
+  res.json({ items: tables });
+});
+
+app.get('/api/new/admin/db/table/:name', requireAdmin, (req, res) => {
+  const tableName = String(req.params.name || '');
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 200);
+  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+  const available = sqlAll(
+    `SELECT name
+     FROM sqlite_master
+     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`
+  ).map((r) => String(r.name || ''));
+  if (!available.includes(tableName)) {
+    return res.status(404).send('Tablo bulunamadı.');
+  }
+  const escaped = tableName.replace(/"/g, '""');
+  const total = sqlGet(`SELECT COUNT(*) AS cnt FROM "${escaped}"`)?.cnt || 0;
+  const pages = Math.max(Math.ceil(total / limit), 1);
+  const safePage = Math.min(page, pages);
+  const offset = (safePage - 1) * limit;
+  const columns = sqlAll(`PRAGMA table_info("${escaped}")`).map((c) => ({
+    name: c.name,
+    type: c.type,
+    notnull: c.notnull,
+    pk: c.pk
+  }));
+  const rows = sqlAll(`SELECT * FROM "${escaped}" LIMIT ? OFFSET ?`, [limit, offset]);
+  res.json({
+    table: tableName,
+    columns,
+    rows,
+    total,
+    page: safePage,
+    pages,
+    limit
+  });
 });
 
 app.get('/api/album/latest', (req, res) => {

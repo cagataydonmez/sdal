@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import PostComposer from '../components/PostComposer.jsx';
@@ -12,15 +12,52 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [pendingPostsCount, setPendingPostsCount] = useState(0);
+  const [pendingItems, setPendingItems] = useState(null);
   const [searchParams] = useSearchParams();
   const focusPostId = Number(searchParams.get('post') || 0) || null;
+  const postsRef = useRef([]);
+  const loadingRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch('/api/new/feed', { credentials: 'include' });
-    const payload = await res.json();
-    setPosts(payload.items || []);
-    setLoading(false);
+  useEffect(() => {
+    postsRef.current = posts;
+  }, [posts]);
+
+  const load = useCallback(async ({ silent = false, force = false } = {}) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    try {
+      if (!silent) setLoading(true);
+      const res = await fetch('/api/new/feed', { credentials: 'include' });
+      const payload = await res.json();
+      const items = payload.items || [];
+      const prev = postsRef.current;
+      const prevMap = new Map(prev.map((p) => [p.id, p]));
+      const hasNewPosts = items.some((p) => !prevMap.has(p.id));
+      const changed =
+        prev.length !== items.length ||
+        items.some((p) => {
+          const old = prevMap.get(p.id);
+          if (!old) return true;
+          return old.likeCount !== p.likeCount || old.commentCount !== p.commentCount || old.liked !== p.liked || old.content !== p.content;
+        });
+
+      const userReadingOldFeed = window.scrollY > 140;
+      if (silent && hasNewPosts && userReadingOldFeed && !force) {
+        const newCount = items.filter((p) => !prevMap.has(p.id)).length;
+        setPendingItems(items);
+        setPendingPostsCount(newCount);
+      } else if (changed || force) {
+        setPendingItems(null);
+        setPendingPostsCount(0);
+        setPosts(items);
+      }
+    } catch {
+      // ignore fetch errors in background refresh
+    } finally {
+      if (!silent) setLoading(false);
+      loadingRef.current = false;
+    }
   }, []);
 
   const loadUnreadMessages = useCallback(async () => {
@@ -34,12 +71,16 @@ export default function FeedPage() {
     }
   }, []);
 
+  const refreshFeedSilently = useCallback(() => {
+    load({ silent: true });
+  }, [load]);
+
   useEffect(() => {
-    load();
+    load({ silent: false });
     loadUnreadMessages();
   }, [load, loadUnreadMessages]);
 
-  useLiveRefresh(load, { intervalMs: 7000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created', '*'] });
+  useLiveRefresh(refreshFeedSilently, { intervalMs: 7000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created', '*'] });
   useLiveRefresh(loadUnreadMessages, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
 
   return (
@@ -47,10 +88,22 @@ export default function FeedPage() {
       <div className="grid">
         <div className="col-main">
           <StoryBar />
-          <PostComposer onPost={load} />
+          {pendingPostsCount > 0 ? (
+            <button
+              className="btn primary"
+              onClick={() => {
+                if (pendingItems) setPosts(pendingItems);
+                setPendingItems(null);
+                setPendingPostsCount(0);
+              }}
+            >
+              {pendingPostsCount} yeni gönderi var, yenile
+            </button>
+          ) : null}
+          <PostComposer onPost={() => load({ silent: true, force: true })} />
           {loading ? <div className="muted">Yükleniyor...</div> : null}
           {posts.map((p) => (
-            <PostCard key={p.id} post={p} onRefresh={load} focused={focusPostId === p.id} />
+            <PostCard key={p.id} post={p} onRefresh={() => load({ silent: true, force: true })} focused={focusPostId === p.id} />
           ))}
         </div>
         <div className="col-side">
