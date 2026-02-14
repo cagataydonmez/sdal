@@ -178,6 +178,13 @@ function LeftColumn({ sidebar }) {
               </Link>
             </td>
           </tr>
+          <tr>
+            <td style={{ border: '1px solid #663300', textAlign: 'center' }}>
+              <a href="/new" style={{ color: '#660000', textDecoration: 'none', fontSize: 11 }}>
+                <b>Yeni Tasarıma Geç</b>
+              </a>
+            </td>
+          </tr>
         </tbody>
       </table>
 

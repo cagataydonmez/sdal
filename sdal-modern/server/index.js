@@ -2826,23 +2826,19 @@ app.get(/\/*.asp$/i, (req, res) => {
   let target = mapLegacyUrl(legacy);
 
   // Map common query-based routes
-  if (legacy === 'uyedetay.asp' && req.query.id) target = `/new/members/${req.query.id}`;
-  if (legacy === 'mesajgor.asp' && req.query.mid) target = `/new/messages/${req.query.mid}`;
-  if (legacy === 'albumkat.asp' && req.query.kat) target = `/new/albums/${req.query.kat}`;
-  if (legacy === 'aktgnd.asp' && req.query.id) target = `/new/activation/resend`;
-  if (legacy === 'aktivet.asp' && req.query.id && req.query.akt) target = `/new/activate?id=${req.query.id}&akt=${req.query.akt}`;
-  if (legacy === 'fotogoster.asp' && req.query.fid) target = `/new/albums/photo/${req.query.fid}`;
+  if (legacy === 'uyedetay.asp' && req.query.id) target = `/uyeler/${req.query.id}`;
+  if (legacy === 'mesajgor.asp' && req.query.mid) target = `/mesajlar/${req.query.mid}?k=${req.query.kk || 0}`;
+  if (legacy === 'albumkat.asp' && req.query.kat) target = `/album/${req.query.kat}`;
+  if (legacy === 'aktgnd.asp' && req.query.id) target = `/aktivasyon-gonder?id=${req.query.id}`;
+  if (legacy === 'aktivet.asp' && req.query.id && req.query.akt) target = `/aktivet?id=${req.query.id}&akt=${req.query.akt}`;
+  if (legacy === 'fotogoster.asp' && req.query.fid) target = `/album/foto/${req.query.fid}`;
   if ((legacy === 'pano.asp' || legacy === 'panolar.asp' || legacy === 'mesajpanosu.asp') && req.query.mkatid) {
-    target = `/new`;
+    target = `/panolar?mkatid=${req.query.mkatid}`;
   }
-  if (legacy === 'hizlierisimekle.asp' && req.query.uid) target = `/new`;
-  if (legacy === 'hizlierisimcikart.asp' && req.query.uid) target = `/new`;
+  if (legacy === 'hizlierisimekle.asp' && req.query.uid) target = `/hizli-erisim/ekle?uid=${req.query.uid}`;
+  if (legacy === 'hizlierisimcikart.asp' && req.query.uid) target = `/hizli-erisim/cikart?uid=${req.query.uid}`;
 
   return res.redirect(302, target);
-});
-
-app.get('/profile/photo', (req, res) => {
-  return res.redirect(302, '/new/profile/photo');
 });
 
 // Serve frontend build in production
