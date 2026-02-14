@@ -13,6 +13,7 @@ export default function NotificationPanel() {
 
   function getTarget(n) {
     if ((n.type === 'like' || n.type === 'comment') && n.entity_id) return `/new?post=${n.entity_id}`;
+    if (n.type === 'photo_comment' && n.entity_id) return `/new/albums/photo/${n.entity_id}`;
     if (n.type === 'follow' && n.source_user_id) return `/new/members/${n.source_user_id}`;
     return '/new';
   }

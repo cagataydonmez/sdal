@@ -8,6 +8,7 @@ export default function AlbumPhotoPage() {
   const [comments, setComments] = useState([]);
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   async function load() {
     const res = await fetch(`/api/photos/${id}`, { credentials: 'include' });
@@ -24,6 +25,11 @@ export default function AlbumPhotoPage() {
   async function submit(e) {
     e.preventDefault();
     setError('');
+    if (!comment.trim()) {
+      setError('Yorum yazmalısın.');
+      return;
+    }
+    setLoading(true);
     const res = await fetch(`/api/photos/${id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -32,10 +38,12 @@ export default function AlbumPhotoPage() {
     });
     if (!res.ok) {
       setError(await res.text());
+      setLoading(false);
       return;
     }
     setComment('');
-    load();
+    await load();
+    setLoading(false);
   }
 
   if (!photo) return <Layout title="Fotoğraf">Yükleniyor...</Layout>;
@@ -53,7 +61,7 @@ export default function AlbumPhotoPage() {
         <div className="panel-body">
           <form className="stack" onSubmit={submit}>
             <textarea className="input" placeholder="Yorum yaz..." value={comment} onChange={(e) => setComment(e.target.value)} />
-            <button className="btn">Yorum Ekle</button>
+            <button className="btn" disabled={loading}>{loading ? 'Gönderiliyor...' : 'Yorum Ekle'}</button>
             {error ? <div className="error">{error}</div> : null}
           </form>
         </div>
@@ -67,7 +75,7 @@ export default function AlbumPhotoPage() {
                 <div className="name">{c.uyeadi}</div>
                 <div className="meta">{c.tarih ? new Date(c.tarih).toLocaleString() : ''}</div>
               </div>
-              <div>{c.yorum}</div>
+              <div dangerouslySetInnerHTML={{ __html: c.yorum || '' }} />
             </div>
           ))}
         </div>

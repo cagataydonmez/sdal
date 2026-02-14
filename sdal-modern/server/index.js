@@ -379,6 +379,20 @@ function readLogFile(dirPath, name) {
   return fs.readFileSync(full, 'utf-8');
 }
 
+function normalizeUserId(value) {
+  if (value === null || value === undefined) return null;
+  const n = Number(String(value).trim());
+  if (Number.isFinite(n)) return Math.trunc(n);
+  const cleaned = String(value).trim().replace(/\.0+$/, '');
+  return cleaned || null;
+}
+
+function sameUserId(a, b) {
+  const aa = normalizeUserId(a);
+  const bb = normalizeUserId(b);
+  return aa !== null && bb !== null && String(aa) === String(bb);
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -1898,7 +1912,9 @@ app.get('/api/messages', (req, res) => {
   const box = req.query.box === 'outbox' ? 'outbox' : 'inbox';
   const page = Math.max(parseInt(req.query.page || '1', 10), 1);
   const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '5', 10), 1), 50);
-  const where = box === 'inbox' ? 'kime = ? AND aktifgelen = 1' : 'kimden = ? AND aktifgiden = 1';
+  const where = box === 'inbox'
+    ? 'CAST(kime AS INTEGER) = CAST(? AS INTEGER) AND aktifgelen = 1'
+    : 'CAST(kimden AS INTEGER) = CAST(? AS INTEGER) AND aktifgiden = 1';
   const totalRow = sqlGet(`SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE ${where}`, [req.session.userId]);
   const total = totalRow ? totalRow.cnt : 0;
   const pages = Math.max(Math.ceil(total / pageSize), 1);
@@ -1946,13 +1962,13 @@ app.get('/api/messages/:id', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const row = sqlGet('SELECT * FROM gelenkutusu WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).send('Mesaj bulunamadı');
-  if (String(row.kime) !== String(req.session.userId) && String(row.kimden) !== String(req.session.userId)) {
+  if (!sameUserId(row.kime, req.session.userId) && !sameUserId(row.kimden, req.session.userId)) {
     return res.status(403).send('Yetkisiz');
   }
-  const sender = sqlGet('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [row.kimden]);
-  const receiver = sqlGet('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [row.kime]);
+  const sender = sqlGet('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [normalizeUserId(row.kimden)]);
+  const receiver = sqlGet('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [normalizeUserId(row.kime)]);
 
-  if (String(row.kime) === String(req.session.userId) && row.yeni === 1) {
+  if (sameUserId(row.kime, req.session.userId) && row.yeni === 1) {
     sqlRun('UPDATE gelenkutusu SET yeni = 0 WHERE id = ?', [row.id]);
   }
 
@@ -1980,13 +1996,13 @@ app.delete('/api/messages/:id', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const row = sqlGet('SELECT * FROM gelenkutusu WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).send('Mesaj bulunamadı');
-  if (String(row.kime) !== String(req.session.userId) && String(row.kimden) !== String(req.session.userId)) {
+  if (!sameUserId(row.kime, req.session.userId) && !sameUserId(row.kimden, req.session.userId)) {
     return res.status(403).send('Yetkisiz');
   }
-  if (String(row.kime) === String(req.session.userId)) {
+  if (sameUserId(row.kime, req.session.userId)) {
     sqlRun('UPDATE gelenkutusu SET aktifgelen = 0 WHERE id = ?', [row.id]);
   }
-  if (String(row.kimden) === String(req.session.userId)) {
+  if (sameUserId(row.kimden, req.session.userId)) {
     sqlRun('UPDATE gelenkutusu SET aktifgiden = 0 WHERE id = ?', [row.id]);
   }
   res.status(204).send();
@@ -2068,15 +2084,28 @@ app.get('/api/photos/:id/comments', (req, res) => {
 
 app.post('/api/photos/:id/comments', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
+  const photo = sqlGet('SELECT id, ekleyenid, aktif FROM album_foto WHERE id = ?', [req.params.id]);
+  if (!photo) return res.status(404).send('Fotoğraf bulunamadı');
+  if (Number(photo.aktif || 0) !== 1) return res.status(400).send('Fotoğraf yoruma açık değil');
   const yorum = metinDuzenle(req.body?.yorum || '');
   if (!yorum) return res.status(400).send('Yorum girmedin');
   const user = getCurrentUser(req);
   sqlRun('INSERT INTO album_fotoyorum (fotoid, uyeadi, yorum, tarih) VALUES (?, ?, ?, ?)', [
-    req.params.id,
+    photo.id,
     user?.kadi || 'Misafir',
     yorum,
     new Date().toISOString()
   ]);
+  const ownerId = normalizeUserId(photo.ekleyenid);
+  if (ownerId && !sameUserId(ownerId, req.session.userId)) {
+    addNotification({
+      userId: ownerId,
+      type: 'photo_comment',
+      sourceUserId: req.session.userId,
+      entityId: photo.id,
+      message: 'Fotoğrafına yorum yaptı.'
+    });
+  }
   res.json({ ok: true });
 });
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useLiveRefresh } from '../utils/live.js';
 
@@ -7,21 +7,43 @@ export default function MessagesPage() {
   const [box, setBox] = useState('inbox');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const messagesRef = useRef([]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     fetch(`/api/messages?box=${box}`, { credentials: 'include' })
       .then((r) => r.json())
-      .then((p) => setMessages(p.rows || []))
+      .then((p) => {
+        const next = p.rows || [];
+        const prev = messagesRef.current;
+        const changed =
+          prev.length !== next.length ||
+          next.some((m, i) => {
+            const old = prev[i];
+            if (!old) return true;
+            return old.id !== m.id || old.yeni !== m.yeni || old.tarih !== m.tarih || old.konu !== m.konu;
+          });
+        if (changed) setMessages(next);
+      })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   }, [box]);
 
   useEffect(() => {
-    load();
+    load({ silent: false });
   }, [load]);
 
-  useLiveRefresh(load, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
+  const silentRefresh = useCallback(() => {
+    load({ silent: true });
+  }, [load]);
+
+  useLiveRefresh(silentRefresh, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
 
   const filtered = useMemo(
     () =>
