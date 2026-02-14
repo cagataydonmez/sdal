@@ -8,7 +8,7 @@ export default function ExplorePage() {
   async function load() {
     const res = await fetch(`/api/members?page=1&pageSize=50&term=${encodeURIComponent(query)}`, { credentials: 'include' });
     const payload = await res.json();
-    setMembers(payload.items || []);
+    setMembers(payload.rows || []);
   }
 
   useEffect(() => {
@@ -35,7 +35,9 @@ export default function ExplorePage() {
       <div className="card-grid">
         {members.map((m) => (
           <div className="member-card" key={m.id}>
-            <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            <a href={`/new/members/${m.id}`}>
+              <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            </a>
             <div>
               <div className="name">
                 {m.isim} {m.soyisim}

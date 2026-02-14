@@ -38,6 +38,10 @@ export default function LoginPage() {
             <button className="btn primary" type="submit">Giriş Yap</button>
             {error ? <div className="error">{error}</div> : null}
           </form>
+          <div className="panel-body">
+            <a className="btn ghost" href="/new/register">Üye Ol</a>
+            <a className="btn ghost" href="/new/password-reset">Şifremi Unuttum</a>
+          </div>
         </div>
       </div>
     </Layout>

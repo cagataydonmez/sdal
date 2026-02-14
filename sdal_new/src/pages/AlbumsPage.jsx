@@ -22,14 +22,14 @@ export default function AlbumsPage() {
         <h3>Kategoriler</h3>
         <div className="panel-body">
           {categories.map((c) => (
-            <a key={c.id} className="chip" href={`/album/${c.id}`}>{c.kategori}</a>
+            <a key={c.id} className="chip" href={`/new/albums/${c.id}`}>{c.kategori}</a>
           ))}
-          <a className="btn primary" href="/album/yeni">Fotoğraf Yükle</a>
+          <a className="btn primary" href="/new/albums/upload">Fotoğraf Yükle</a>
         </div>
       </div>
       <div className="photo-grid">
         {latest.map((p) => (
-          <a key={p.id} href={`/album/foto/${p.id}`}>
+          <a key={p.id} href={`/new/albums/photo/${p.id}`}>
             <img src={`/api/media/kucukresim?width=200&file=${encodeURIComponent(p.dosyaadi)}`} alt="" />
           </a>
         ))}

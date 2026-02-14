@@ -2484,6 +2484,85 @@ app.post('/api/new/admin/verify', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
+  const counts = {
+    users: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler')?.cnt || 0,
+    activeUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE aktiv = 1 AND yasak = 0')?.cnt || 0,
+    pendingUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE aktiv = 0 AND yasak = 0')?.cnt || 0,
+    bannedUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE yasak = 1')?.cnt || 0,
+    posts: sqlGet('SELECT COUNT(*) AS cnt FROM posts')?.cnt || 0,
+    photos: sqlGet('SELECT COUNT(*) AS cnt FROM album_foto')?.cnt || 0,
+    stories: sqlGet('SELECT COUNT(*) AS cnt FROM stories')?.cnt || 0,
+    groups: sqlGet('SELECT COUNT(*) AS cnt FROM groups')?.cnt || 0,
+    messages: sqlGet('SELECT COUNT(*) AS cnt FROM gelenkutusu')?.cnt || 0,
+    events: sqlGet('SELECT COUNT(*) AS cnt FROM events')?.cnt || 0,
+    announcements: sqlGet('SELECT COUNT(*) AS cnt FROM announcements')?.cnt || 0,
+    chat: sqlGet('SELECT COUNT(*) AS cnt FROM chat_messages')?.cnt || 0
+  };
+  const recentUsers = sqlAll('SELECT id, kadi, isim, soyisim, ilktarih FROM uyeler ORDER BY id DESC LIMIT 5');
+  const recentPosts = sqlAll('SELECT id, content, created_at FROM posts ORDER BY id DESC LIMIT 5');
+  const recentPhotos = sqlAll('SELECT id, dosyaadi, tarih FROM album_foto ORDER BY id DESC LIMIT 5');
+  res.json({ counts, recentUsers, recentPosts, recentPhotos });
+});
+
+app.get('/api/new/admin/groups', requireAdmin, (req, res) => {
+  const rows = sqlAll('SELECT id, name, description, cover_image, owner_id, created_at FROM groups ORDER BY id DESC');
+  res.json({ items: rows });
+});
+
+app.delete('/api/new/admin/groups/:id', requireAdmin, (req, res) => {
+  sqlRun('DELETE FROM group_members WHERE group_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM posts WHERE group_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM groups WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/admin/stories', requireAdmin, (req, res) => {
+  const rows = sqlAll(
+    `SELECT s.id, s.image, s.caption, s.created_at, s.expires_at, u.kadi
+     FROM stories s LEFT JOIN uyeler u ON u.id = s.user_id
+     ORDER BY s.id DESC`
+  );
+  res.json({ items: rows });
+});
+
+app.delete('/api/new/admin/stories/:id', requireAdmin, (req, res) => {
+  sqlRun('DELETE FROM story_views WHERE story_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM stories WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/admin/chat/messages', requireAdmin, (req, res) => {
+  const rows = sqlAll(
+    `SELECT c.id, c.message, c.created_at, u.kadi
+     FROM chat_messages c LEFT JOIN uyeler u ON u.id = c.user_id
+     ORDER BY c.id DESC LIMIT 200`
+  );
+  res.json({ items: rows });
+});
+
+app.delete('/api/new/admin/chat/messages/:id', requireAdmin, (req, res) => {
+  sqlRun('DELETE FROM chat_messages WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/admin/messages', requireAdmin, (req, res) => {
+  const rows = sqlAll(
+    `SELECT g.id, g.konu, g.tarih, u1.kadi AS kimden_kadi, u2.kadi AS kime_kadi
+     FROM gelenkutusu g
+     LEFT JOIN uyeler u1 ON u1.id = g.kimden
+     LEFT JOIN uyeler u2 ON u2.id = g.kime
+     ORDER BY g.id DESC
+     LIMIT 200`
+  );
+  res.json({ items: rows });
+});
+
+app.delete('/api/new/admin/messages/:id', requireAdmin, (req, res) => {
+  sqlRun('DELETE FROM gelenkutusu WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
 app.get('/api/album/latest', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
@@ -2747,17 +2826,17 @@ app.get(/\/*.asp$/i, (req, res) => {
   let target = mapLegacyUrl(legacy);
 
   // Map common query-based routes
-  if (legacy === 'uyedetay.asp' && req.query.id) target = `/uyeler/${req.query.id}`;
-  if (legacy === 'mesajgor.asp' && req.query.mid) target = `/mesajlar/${req.query.mid}?k=${req.query.kk || 0}`;
-  if (legacy === 'albumkat.asp' && req.query.kat) target = `/album/${req.query.kat}`;
-  if (legacy === 'aktgnd.asp' && req.query.id) target = `/aktivasyon-gonder?id=${req.query.id}`;
-  if (legacy === 'aktivet.asp' && req.query.id && req.query.akt) target = `/aktivet?id=${req.query.id}&akt=${req.query.akt}`;
-  if (legacy === 'fotogoster.asp' && req.query.fid) target = `/album/foto/${req.query.fid}`;
+  if (legacy === 'uyedetay.asp' && req.query.id) target = `/new/members/${req.query.id}`;
+  if (legacy === 'mesajgor.asp' && req.query.mid) target = `/new/messages/${req.query.mid}`;
+  if (legacy === 'albumkat.asp' && req.query.kat) target = `/new/albums/${req.query.kat}`;
+  if (legacy === 'aktgnd.asp' && req.query.id) target = `/new/activation/resend`;
+  if (legacy === 'aktivet.asp' && req.query.id && req.query.akt) target = `/new/activate?id=${req.query.id}&akt=${req.query.akt}`;
+  if (legacy === 'fotogoster.asp' && req.query.fid) target = `/new/albums/photo/${req.query.fid}`;
   if ((legacy === 'pano.asp' || legacy === 'panolar.asp' || legacy === 'mesajpanosu.asp') && req.query.mkatid) {
-    target = `/panolar?mkatid=${req.query.mkatid}`;
+    target = `/new`;
   }
-  if (legacy === 'hizlierisimekle.asp' && req.query.uid) target = `/hizli-erisim/ekle?uid=${req.query.uid}`;
-  if (legacy === 'hizlierisimcikart.asp' && req.query.uid) target = `/hizli-erisim/cikart?uid=${req.query.uid}`;
+  if (legacy === 'hizlierisimekle.asp' && req.query.uid) target = `/new`;
+  if (legacy === 'hizlierisimcikart.asp' && req.query.uid) target = `/new`;
 
   return res.redirect(302, target);
 });

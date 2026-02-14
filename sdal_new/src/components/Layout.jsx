@@ -25,7 +25,12 @@ export default function Layout({ children, title, right }) {
         </nav>
         <div className="side-footer">
           <a href="/" className="ghost">Klasik Görünüm</a>
-          {user ? <a href="/logout">Çıkış</a> : <a href="/login">Giriş</a>}
+          {user ? <a href="/logout">Çıkış</a> : (
+            <>
+              <a href="/new/login">Giriş</a>
+              <a href="/new/register">Üye Ol</a>
+            </>
+          )}
         </div>
       </aside>
 
@@ -43,7 +48,7 @@ export default function Layout({ children, title, right }) {
                 <span>{user.kadi}</span>
               </div>
             ) : (
-              <Link className="btn" to="/login">Giriş</Link>
+              <Link className="btn" to="/new/login">Giriş</Link>
             )}
           </div>
         </header>

@@ -23,7 +23,7 @@ export default function FeedPage() {
   }, []);
 
   return (
-    <Layout title="Akış" right={<a className="btn ghost" href="/">Klasik Görünüm</a>}>
+    <Layout title="Akış">
       <div className="grid">
         <div className="col-main">
           <StoryBar />
