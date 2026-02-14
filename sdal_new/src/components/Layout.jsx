@@ -47,13 +47,16 @@ export default function Layout({ children, title, right }) {
         <nav>
           <NavLink to="/new" end>Akış</NavLink>
           <NavLink to="/new/explore">Keşfet</NavLink>
+          <NavLink to="/new/following">Takip Ettiklerim</NavLink>
           <NavLink to="/new/groups">Gruplar</NavLink>
           <NavLink to="/new/messages">Mesajlar</NavLink>
           <NavLink to="/new/albums">Fotoğraflar</NavLink>
+          <NavLink to="/new/games">Oyunlar</NavLink>
           <NavLink to="/new/events">Etkinlikler</NavLink>
           <NavLink to="/new/announcements">Duyurular</NavLink>
           <NavLink to="/new/profile">Profil</NavLink>
-          <NavLink to="/new/admin">Yönetim</NavLink>
+          <NavLink to="/new/help">Yardım</NavLink>
+          {user?.admin === 1 ? <NavLink to="/new/admin">Yönetim</NavLink> : null}
         </nav>
         <div className="side-footer">
           <a href="/" className="ghost">Klasik Görünüm</a>
@@ -103,15 +106,18 @@ export default function Layout({ children, title, right }) {
       <nav className="bottom-nav">
         <NavLink to="/new" end>Akış</NavLink>
         <NavLink to="/new/explore">Keşfet</NavLink>
+        <NavLink to="/new/following">Takip</NavLink>
         <NavLink to="/new/groups">Gruplar</NavLink>
         <NavLink to="/new/messages">
           Mesajlar {unreadCount > 0 ? <span className="mini-badge">{unreadCount}</span> : null}
         </NavLink>
         <NavLink to="/new/albums">Fotoğraflar</NavLink>
+        <NavLink to="/new/games">Oyunlar</NavLink>
         <NavLink to="/new/events">Etkinlikler</NavLink>
         <NavLink to="/new/announcements">Duyurular</NavLink>
         <NavLink to="/new/profile">Profil</NavLink>
-        <NavLink to="/new/admin">Yönetim</NavLink>
+        <NavLink to="/new/help">Yardım</NavLink>
+        {user?.admin === 1 ? <NavLink to="/new/admin">Yönetim</NavLink> : null}
         {user ? <button className="linkish bottom-link" onClick={handleLogout}>Çıkış</button> : null}
       </nav>
     </div>

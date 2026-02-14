@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
+import { formatDateTime } from '../utils/date.js';
 
 export default function AlbumPhotoPage() {
   const { id } = useParams();
@@ -51,9 +52,9 @@ export default function AlbumPhotoPage() {
   return (
     <Layout title={photo.baslik || 'Fotoğraf'}>
       <div className="panel">
-        <img className="post-image" src={`/api/media/kucukresim?width=900&file=${encodeURIComponent(photo.dosyaadi)}`} alt="" />
-        <div className="panel-body">
-          <div className="meta">{photo.tarih ? new Date(photo.tarih).toLocaleString() : ''}</div>
+        <img className="photo-view-image" src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(photo.dosyaadi)}`} alt="" />
+          <div className="panel-body">
+          <div className="meta">{formatDateTime(photo.tarih)}</div>
           <div>{photo.aciklama}</div>
         </div>
       </div>
@@ -73,7 +74,7 @@ export default function AlbumPhotoPage() {
             <div key={c.id} className="list-item">
               <div>
                 <div className="name">{c.uyeadi}</div>
-                <div className="meta">{c.tarih ? new Date(c.tarih).toLocaleString() : ''}</div>
+                <div className="meta">{formatDateTime(c.tarih)}</div>
               </div>
               <div dangerouslySetInnerHTML={{ __html: c.yorum || '' }} />
             </div>

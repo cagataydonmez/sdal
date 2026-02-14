@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import PostCard from '../components/PostCard.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { applyMention, detectMentionContext } from '../utils/mentions.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -28,6 +29,8 @@ export default function GroupDetailPage() {
   const [image, setImage] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
   const [status, setStatus] = useState('');
+  const [followed, setFollowed] = useState([]);
+  const [mentionCtx, setMentionCtx] = useState(null);
 
   async function load() {
     const data = await apiJson(`/api/new/groups/${id}`);
@@ -55,7 +58,28 @@ export default function GroupDetailPage() {
     setContent('');
     setImage(null);
     setFilter('');
+    setMentionCtx(null);
     load();
+  }
+
+  async function loadFollowed() {
+    if (followed.length) return;
+    const res = await fetch('/api/new/follows', { credentials: 'include' });
+    if (!res.ok) return;
+    const payload = await res.json();
+    setFollowed(payload.items || []);
+  }
+
+  function handleContentChange(value, caretPos) {
+    setContent(value);
+    const ctx = detectMentionContext(value, caretPos);
+    setMentionCtx(ctx);
+    if (ctx) loadFollowed();
+  }
+
+  function insertMention(kadi) {
+    setContent((prev) => applyMention(prev, mentionCtx, kadi));
+    setMentionCtx(null);
   }
 
   const myRole = useMemo(() => {
@@ -117,7 +141,19 @@ export default function GroupDetailPage() {
       <div className="panel">
         <div className="panel-body">
           <form onSubmit={submit} className="stack">
-            <textarea className="input" placeholder="Gruba bir şey yaz..." value={content} onChange={(e) => setContent(e.target.value)} />
+            <textarea className="input" placeholder="Gruba bir şey yaz..." value={content} onChange={(e) => handleContentChange(e.target.value, e.target.selectionStart)} />
+            {mentionCtx ? (
+              <div className="mention-box">
+                {followed
+                  .filter((u) => !mentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(mentionCtx.query.toLowerCase()))
+                  .slice(0, 8)
+                  .map((u) => (
+                    <button key={u.following_id} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
+                      @{u.kadi}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
             <div className="composer-actions">
               <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
               <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)}>

@@ -205,6 +205,38 @@ a { color: inherit; text-decoration: none; }
   justify-content: space-between;
   align-items: center;
   margin-top: 10px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.filter-grid {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip-active {
+  background: #ffe2da;
+  border-color: #ffb4a2;
+}
+.mention-box {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  max-height: 160px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.mention-item {
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.mention-item:hover {
+  background: #f7f3ee;
 }
 
 .post-card {
@@ -232,8 +264,19 @@ a { color: inherit; text-decoration: none; }
 .post-body p { margin: 12px 0; }
 .post-image {
   width: 100%;
+  max-height: min(70vh, 560px);
+  object-fit: contain;
+  background: #f7f3ee;
   border-radius: 12px;
   border: 1px solid var(--line);
+}
+.photo-view-image {
+  width: 100%;
+  max-height: min(72vh, 780px);
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #f7f3ee;
 }
 .post-actions {
   display: flex;
@@ -379,6 +422,13 @@ a { color: inherit; text-decoration: none; }
   gap: 6px;
   margin-bottom: 10px;
 }
+.profile-avatar-xl {
+  width: 128px;
+  height: 128px;
+  object-fit: cover;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+}
 
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .muted { color: var(--muted); }
@@ -418,6 +468,30 @@ a { color: inherit; text-decoration: none; }
 }
 .unread-item {
   border: 1px solid #ffc6a7;
+}
+.message-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.message-row {
+  align-items: flex-start;
+}
+.message-list-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.message-snippet {
+  color: var(--muted);
+  font-size: 13px;
+}
+.message-bubble {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #faf6f0;
+  padding: 12px;
 }
 
 .bottom-nav {
@@ -596,6 +670,12 @@ a { color: inherit; text-decoration: none; }
   gap: 10px;
   align-items: center;
 }
+.verify-user .avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+}
 .verify-actions {
   display: flex;
   gap: 8px;
@@ -657,12 +737,140 @@ a { color: inherit; text-decoration: none; }
   object-fit: cover;
 }
 
+.games-layout {
+  display: grid;
+  grid-template-columns: 1.25fr 0.9fr;
+  gap: 16px;
+}
+.game-panel {
+  min-height: 380px;
+}
+.game-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.game-leaderboard .panel-body {
+  max-height: 360px;
+  overflow: auto;
+}
+.game-score-row {
+  align-items: flex-start;
+}
+.snake-grid {
+  display: grid;
+  gap: 2px;
+  width: min(100%, 460px);
+  aspect-ratio: 1 / 1;
+  margin-bottom: 10px;
+}
+.snake-cell {
+  border-radius: 3px;
+  background: #f2ede5;
+}
+.snake-cell.snake {
+  background: #1b7f6b;
+}
+.snake-cell.food {
+  background: #ff6b4a;
+}
+.tetris-grid {
+  display: grid;
+  gap: 2px;
+  width: min(100%, 320px);
+  aspect-ratio: 10 / 18;
+  margin-bottom: 10px;
+}
+.tetris-cell {
+  background: #f2ede5;
+  border-radius: 2px;
+}
+.tetris-cell.on {
+  background: #1f2937;
+}
+.tetris-cell.active {
+  background: #ff6b4a;
+}
+.tap-area {
+  position: relative;
+  width: min(100%, 460px);
+  aspect-ratio: 16 / 10;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.tap-dot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  cursor: pointer;
+}
+.memory-grid {
+  display: grid;
+  width: min(100%, 380px);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.memory-card {
+  height: 64px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f2ede5;
+  font-weight: 700;
+}
+.memory-card.open {
+  background: #fff;
+  border-color: #ffb4a2;
+}
+.g2048-grid {
+  width: min(100%, 360px);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.g2048-cell {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  background: #ece2d2;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.g2048-cell.v2 { background: #f7f3ee; }
+.g2048-cell.v4 { background: #fff4db; }
+.g2048-cell.v8 { background: #ffd9a8; }
+.g2048-cell.v16 { background: #ffc27c; }
+.g2048-cell.v32,
+.g2048-cell.v64 { background: #ff9f68; }
+.g2048-cell.v128,
+.g2048-cell.v256,
+.g2048-cell.v512,
+.g2048-cell.v1024,
+.g2048-cell.v2048 { background: #ff6b4a; color: #fff; }
+.mobile-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 1024px) {
   .app-shell { grid-template-columns: 1fr; }
   .side-nav { display: none; }
   .main-area { padding: 20px; }
   .grid { grid-template-columns: 1fr; }
+  .composer-actions input[type="file"] {
+    width: 100%;
+  }
   .db-grid { grid-template-columns: 1fr; }
+  .games-layout { grid-template-columns: 1fr; }
+  .message-list-side { align-items: flex-start; }
   .bottom-nav {
     position: fixed;
     bottom: 0;

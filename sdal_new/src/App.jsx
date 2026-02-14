@@ -23,6 +23,9 @@ import ActivationResendPage from './pages/ActivationResendPage.jsx';
 import PasswordResetPage from './pages/PasswordResetPage.jsx';
 import MessageComposePage from './pages/MessageComposePage.jsx';
 import MessageDetailPage from './pages/MessageDetailPage.jsx';
+import FollowingPage from './pages/FollowingPage.jsx';
+import HelpPage from './pages/HelpPage.jsx';
+import GamesPage from './pages/GamesPage.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -42,6 +45,7 @@ export default function App() {
         <Route path="/new/password-reset" element={<PasswordResetPage />} />
         <Route path="/new" element={<RequireAuth><FeedPage /></RequireAuth>} />
         <Route path="/new/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
+        <Route path="/new/following" element={<RequireAuth><FollowingPage /></RequireAuth>} />
         <Route path="/new/members/:id" element={<RequireAuth><MemberDetailPage /></RequireAuth>} />
         <Route path="/new/groups" element={<RequireAuth><GroupsPage /></RequireAuth>} />
         <Route path="/new/groups/:id" element={<RequireAuth><GroupDetailPage /></RequireAuth>} />
@@ -54,8 +58,10 @@ export default function App() {
         <Route path="/new/albums/:id" element={<RequireAuth><AlbumCategoryPage /></RequireAuth>} />
         <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
         <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
+        <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
         <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
+        <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />
         <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
         <Route path="/new/*" element={<Navigate to="/new" replace />} />
       </Routes>

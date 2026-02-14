@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { emitAppChange } from '../utils/live.js';
+import { formatDateTime } from '../utils/date.js';
+import { applyMention, detectMentionContext } from '../utils/mentions.js';
 
 export default function PostCard({ post, onRefresh, focused = false }) {
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
+  const [followed, setFollowed] = useState([]);
+  const [mentionCtx, setMentionCtx] = useState(null);
 
   async function loadComments() {
     const res = await fetch(`/api/new/posts/${post.id}/comments`, { credentials: 'include' });
@@ -24,6 +28,27 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     loadComments();
   }, [showComments, post.commentCount]);
 
+  async function loadFollowed() {
+    if (followed.length) return;
+    const res = await fetch('/api/new/follows', { credentials: 'include' });
+    if (!res.ok) return;
+    const payload = await res.json();
+    setFollowed(payload.items || []);
+  }
+
+  function handleCommentChange(value, caretPos) {
+    setComment(value);
+    const nextCtx = detectMentionContext(value, caretPos);
+    setMentionCtx(nextCtx);
+    if (!nextCtx) return;
+    loadFollowed();
+  }
+
+  function insertMention(kadi) {
+    setComment((prev) => applyMention(prev, mentionCtx, kadi));
+    setMentionCtx(null);
+  }
+
   async function toggleLike() {
     await fetch(`/api/new/posts/${post.id}/like`, { method: 'POST', credentials: 'include' });
     emitAppChange('post:liked', { postId: post.id });
@@ -41,6 +66,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     });
     setComment('');
     setShowComments(true);
+    setMentionCtx(null);
     emitAppChange('post:commented', { postId: post.id });
     loadComments();
     onRefresh?.();
@@ -57,10 +83,10 @@ export default function PostCard({ post, onRefresh, focused = false }) {
           </div>
           <div className="handle">@{post.author?.kadi}</div>
         </div>
-        <div className="meta">{new Date(post.createdAt).toLocaleString()}</div>
+        <div className="meta">{formatDateTime(post.createdAt)}</div>
       </div>
       <div className="post-body">
-        <p>{post.content}</p>
+        <p dangerouslySetInnerHTML={{ __html: post.content || '' }} />
         {post.image ? <img className="post-image" src={post.image} alt="" /> : null}
       </div>
       <div className="post-actions">
@@ -76,9 +102,21 @@ export default function PostCard({ post, onRefresh, focused = false }) {
         </button>
       </div>
       <form className="comment-form" onSubmit={submitComment}>
-        <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Yorum yaz..." />
+        <input value={comment} onChange={(e) => handleCommentChange(e.target.value, e.target.selectionStart)} placeholder="Yorum yaz..." />
         <button className="btn">Gönder</button>
       </form>
+      {mentionCtx ? (
+        <div className="mention-box">
+          {followed
+            .filter((u) => !mentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(mentionCtx.query.toLowerCase()))
+            .slice(0, 8)
+            .map((u) => (
+              <button key={u.following_id} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
+                @{u.kadi}
+              </button>
+            ))}
+        </div>
+      ) : null}
       {showComments ? (
         <div className="comment-list">
           {comments.length === 0 ? <div className="muted">Henüz yorum yok.</div> : null}
@@ -87,7 +125,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
               <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
               <div>
                 <div className="name">@{c.kadi}</div>
-                <div>{c.comment}</div>
+                <div dangerouslySetInnerHTML={{ __html: c.comment || '' }} />
               </div>
             </a>
           ))}

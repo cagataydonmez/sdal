@@ -14,10 +14,15 @@ export default function FeedPage() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [pendingPostsCount, setPendingPostsCount] = useState(0);
   const [pendingItems, setPendingItems] = useState(null);
+  const [scope, setScope] = useState('all');
+  const [quickUsers, setQuickUsers] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchParams] = useSearchParams();
   const focusPostId = Number(searchParams.get('post') || 0) || null;
   const postsRef = useRef([]);
   const loadingRef = useRef(false);
+  const sentinelRef = useRef(null);
 
   useEffect(() => {
     postsRef.current = posts;
@@ -28,7 +33,7 @@ export default function FeedPage() {
     loadingRef.current = true;
     try {
       if (!silent) setLoading(true);
-      const res = await fetch('/api/new/feed', { credentials: 'include' });
+      const res = await fetch(`/api/new/feed?limit=20&offset=0&scope=${scope}`, { credentials: 'include' });
       const payload = await res.json();
       const items = payload.items || [];
       const prev = postsRef.current;
@@ -51,6 +56,7 @@ export default function FeedPage() {
         setPendingItems(null);
         setPendingPostsCount(0);
         setPosts(items);
+        setHasMore(!!payload.hasMore);
       }
     } catch {
       // ignore fetch errors in background refresh
@@ -58,7 +64,32 @@ export default function FeedPage() {
       if (!silent) setLoading(false);
       loadingRef.current = false;
     }
-  }, []);
+  }, [scope]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || loadingRef.current) return;
+    setLoadingMore(true);
+    try {
+      const offset = postsRef.current.length;
+      const res = await fetch(`/api/new/feed?limit=20&offset=${offset}&scope=${scope}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const payload = await res.json();
+      const next = payload.items || [];
+      if (next.length) {
+        setPosts((prev) => {
+          const ids = new Set(prev.map((p) => p.id));
+          const merged = [...prev];
+          for (const n of next) {
+            if (!ids.has(n.id)) merged.push(n);
+          }
+          return merged;
+        });
+      }
+      setHasMore(!!payload.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [scope, hasMore, loadingMore]);
 
   const loadUnreadMessages = useCallback(async () => {
     try {
@@ -71,6 +102,17 @@ export default function FeedPage() {
     }
   }, []);
 
+  const loadQuickAccess = useCallback(async () => {
+    try {
+      const res = await fetch('/api/quick-access', { credentials: 'include' });
+      if (!res.ok) return;
+      const payload = await res.json();
+      setQuickUsers(payload.users || []);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const refreshFeedSilently = useCallback(() => {
     load({ silent: true });
   }, [load]);
@@ -78,7 +120,18 @@ export default function FeedPage() {
   useEffect(() => {
     load({ silent: false });
     loadUnreadMessages();
-  }, [load, loadUnreadMessages]);
+    loadQuickAccess();
+  }, [load, loadUnreadMessages, loadQuickAccess, scope]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore();
+    }, { rootMargin: '400px 0px' });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [loadMore]);
 
   useLiveRefresh(refreshFeedSilently, { intervalMs: 7000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created', '*'] });
   useLiveRefresh(loadUnreadMessages, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
@@ -87,6 +140,12 @@ export default function FeedPage() {
     <Layout title="Akış">
       <div className="grid">
         <div className="col-main">
+          <div className="panel">
+            <div className="panel-body">
+              <button className={`btn ${scope === 'all' ? 'primary' : 'ghost'}`} onClick={() => setScope('all')}>Tümü</button>
+              <button className={`btn ${scope === 'following' ? 'primary' : 'ghost'}`} onClick={() => setScope('following')}>Takip Ettiklerim</button>
+            </div>
+          </div>
           <StoryBar />
           {pendingPostsCount > 0 ? (
             <button
@@ -105,6 +164,9 @@ export default function FeedPage() {
           {posts.map((p) => (
             <PostCard key={p.id} post={p} onRefresh={() => load({ silent: true, force: true })} focused={focusPostId === p.id} />
           ))}
+          <div ref={sentinelRef} />
+          {loadingMore ? <div className="muted">Daha fazla yükleniyor...</div> : null}
+          {!hasMore && posts.length > 0 ? <div className="muted">Sonuna ulaştın.</div> : null}
         </div>
         <div className="col-side">
           <NotificationPanel />
@@ -120,6 +182,15 @@ export default function FeedPage() {
           <div className="panel">
             <h3>Hızlı Erişim</h3>
             <div className="panel-body">
+              {quickUsers.map((u) => (
+                <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
+                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                  <div>
+                    <div>@{u.kadi}</div>
+                    <div className="meta">{Number(u.online) === 1 ? 'Çevrimiçi' : 'Offline'}</div>
+                  </div>
+                </a>
+              ))}
               <a href="/new/explore">Üyeleri keşfet</a>
               <a href="/new/events">Yaklaşan etkinlikler</a>
               <a href="/new/announcements">Duyurular</a>

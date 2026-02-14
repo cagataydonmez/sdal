@@ -1,20 +1,55 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 
 export default function AlbumsPage() {
   const [categories, setCategories] = useState([]);
   const [latest, setLatest] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef(null);
 
   useEffect(() => {
     fetch('/api/albums', { credentials: 'include' })
       .then((r) => r.json())
       .then((p) => setCategories(p.items || []))
       .catch(() => {});
-    fetch('/api/album/latest?limit=24', { credentials: 'include' })
+    fetch('/api/album/latest?limit=24&offset=0', { credentials: 'include' })
       .then((r) => r.json())
-      .then((p) => setLatest(p.items || []))
+      .then((p) => {
+        setLatest(p.items || []);
+        setHasMore(!!p.hasMore);
+      })
       .catch(() => {});
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const res = await fetch(`/api/album/latest?limit=24&offset=${latest.length}`, { credentials: 'include' });
+    if (!res.ok) {
+      setLoadingMore(false);
+      return;
+    }
+    const payload = await res.json();
+    setLatest((prev) => {
+      const ids = new Set(prev.map((x) => x.id));
+      const merged = [...prev];
+      for (const item of payload.items || []) if (!ids.has(item.id)) merged.push(item);
+      return merged;
+    });
+    setHasMore(!!payload.hasMore);
+    setLoadingMore(false);
+  }, [latest.length, hasMore, loadingMore]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore();
+    }, { rootMargin: '300px 0px' });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [loadMore]);
 
   return (
     <Layout title="Fotoğraflar">
@@ -34,6 +69,8 @@ export default function AlbumsPage() {
           </a>
         ))}
       </div>
+      <div ref={sentinelRef} />
+      {loadingMore ? <div className="muted">Daha fazla fotoğraf yükleniyor...</div> : null}
     </Layout>
   );
 }

@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
 import { emitAppChange } from '../utils/live.js';
+import { applyMention, detectMentionContext } from '../utils/mentions.js';
+
+const FILTERS = [
+  { key: '', label: 'Filtre Yok' },
+  { key: 'grayscale', label: 'Siyah Beyaz' },
+  { key: 'sepia', label: 'Sepya' },
+  { key: 'vivid', label: 'Canlı' },
+  { key: 'cool', label: 'Soğuk' },
+  { key: 'warm', label: 'Sıcak' },
+  { key: 'blur', label: 'Blur' },
+  { key: 'sharp', label: 'Sharp' }
+];
 
 export default function PostComposer({ onPost }) {
   const [content, setContent] = useState('');
@@ -7,6 +19,29 @@ export default function PostComposer({ onPost }) {
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [followed, setFollowed] = useState([]);
+  const [mentionCtx, setMentionCtx] = useState(null);
+
+  async function loadFollowed() {
+    if (followed.length) return;
+    const res = await fetch('/api/new/follows', { credentials: 'include' });
+    if (!res.ok) return;
+    const payload = await res.json();
+    setFollowed(payload.items || []);
+  }
+
+  function handleContentChange(value, caretPos) {
+    setContent(value);
+    const nextCtx = detectMentionContext(value, caretPos);
+    setMentionCtx(nextCtx);
+    if (!nextCtx) return;
+    loadFollowed();
+  }
+
+  function insertMention(kadi) {
+    setContent((prev) => applyMention(prev, mentionCtx, kadi));
+    setMentionCtx(null);
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -50,22 +85,38 @@ export default function PostComposer({ onPost }) {
       <textarea
         placeholder="Bugün neler oluyor?"
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => handleContentChange(e.target.value, e.target.selectionStart)}
       />
+      {mentionCtx ? (
+        <div className="mention-box">
+          {followed
+            .filter((u) => !mentionCtx.query || String(u.kadi || '').toLowerCase().startsWith(mentionCtx.query.toLowerCase()))
+            .slice(0, 8)
+            .map((u) => (
+              <button key={u.following_id} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
+                @{u.kadi}
+              </button>
+            ))}
+        </div>
+      ) : null}
       <div className="composer-actions">
         <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
-        <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)}>
-          <option value="">Filtre yok</option>
-          <option value="grayscale">Siyah Beyaz</option>
-          <option value="sepia">Sepya</option>
-          <option value="vivid">Canlı</option>
-          <option value="cool">Soğuk</option>
-          <option value="warm">Sıcak</option>
-          <option value="blur">Blur</option>
-          <option value="sharp">Sharp</option>
-        </select>
         <button className="btn primary" disabled={loading}>Paylaş</button>
       </div>
+      {image ? (
+        <div className="filter-grid">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key || 'none'}
+              type="button"
+              className={`chip ${filter === f.key ? 'chip-active' : ''}`}
+              onClick={() => setFilter(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {error ? <div className="error">{error}</div> : null}
     </form>
   );

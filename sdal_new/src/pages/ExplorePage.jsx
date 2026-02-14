@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 
@@ -6,21 +6,41 @@ export default function ExplorePage() {
   const [members, setMembers] = useState([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const sentinelRef = useRef(null);
 
-  const load = useCallback(async (term = '') => {
+  const load = useCallback(async (term = '', nextPage = 1, append = false) => {
     setLoading(true);
-    const res = await fetch(`/api/members?page=1&pageSize=50&term=${encodeURIComponent(term)}`, { credentials: 'include' });
+    const res = await fetch(`/api/members?page=${nextPage}&pageSize=30&term=${encodeURIComponent(term)}`, { credentials: 'include' });
     const payload = await res.json();
-    setMembers(payload.rows || []);
+    setMembers((prev) => (append ? [...prev, ...(payload.rows || [])] : (payload.rows || [])));
+    setPage(payload.page || nextPage);
+    setPages(payload.pages || 1);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      load(query);
+      load(query, 1, false);
     }, 250);
     return () => clearTimeout(timer);
   }, [query, load]);
+
+  const loadMore = useCallback(() => {
+    if (loading || page >= pages) return;
+    load(query, page + 1, true);
+  }, [loading, page, pages, load, query]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore();
+    }, { rootMargin: '300px 0px' });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [loadMore]);
 
   async function follow(id) {
     await fetch(`/api/new/follow/${id}`, { method: 'POST', credentials: 'include' });
@@ -58,6 +78,9 @@ export default function ExplorePage() {
           </div>
         ))}
       </div>
+      <div ref={sentinelRef} />
+      {loading ? <div className="muted">Yükleniyor...</div> : null}
+      {!loading && page >= pages && members.length > 0 ? <div className="muted">Sonuçların sonu.</div> : null}
     </Layout>
   );
 }

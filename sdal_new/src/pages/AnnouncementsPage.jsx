@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { formatDateTime } from '../utils/date.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -20,25 +21,55 @@ export default function AnnouncementsPage() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: '', body: '' });
   const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef(null);
+  const isAdmin = user?.admin === 1;
 
-  async function load() {
-    const data = await apiJson('/api/new/announcements');
-    setItems(data.items || []);
-  }
+  const load = useCallback(async (offset = 0, append = false) => {
+    const data = await apiJson(`/api/new/announcements?limit=15&offset=${offset}`);
+    setItems((prev) => (append ? [...prev, ...(data.items || [])] : (data.items || [])));
+    setHasMore(!!data.hasMore);
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    load(0, false);
+  }, [load]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    await load(items.length, true);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, items.length, load]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore();
+    }, { rootMargin: '300px 0px' });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [loadMore]);
 
   async function create() {
     setError('');
+    setStatus('');
     try {
       await apiJson('/api/new/announcements', { method: 'POST', body: JSON.stringify(form) });
       setForm({ title: '', body: '' });
+      setStatus(isAdmin ? 'Duyuru yayınlandı.' : 'Duyuru önerin admin onayına gönderildi.');
       load();
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  async function approve(id, approved) {
+    await apiJson(`/api/new/announcements/${id}/approve`, { method: 'POST', body: JSON.stringify({ approved: approved ? 1 : 0 }) });
+    load();
   }
 
   async function remove(id) {
@@ -48,30 +79,37 @@ export default function AnnouncementsPage() {
 
   return (
     <Layout title="Duyurular">
-      {user?.admin === 1 ? (
-        <div className="panel">
-          <h3>Yeni Duyuru</h3>
-          <div className="panel-body">
-            <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <textarea className="input" placeholder="Duyuru metni" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
-            <button className="btn primary" onClick={create}>Yayınla</button>
-            {error ? <div className="error">{error}</div> : null}
-          </div>
+      <div className="panel">
+        <h3>{isAdmin ? 'Yeni Duyuru' : 'Duyuru Önerisi'}</h3>
+        <div className="panel-body">
+          <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <textarea className="input" placeholder="Duyuru metni" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+          <button className="btn primary" onClick={create}>{isAdmin ? 'Yayınla' : 'Öner'}</button>
+          {status ? <div className="muted">{status}</div> : null}
+          {error ? <div className="error">{error}</div> : null}
         </div>
-      ) : null}
+      </div>
 
       <div className="stack">
         {items.map((a) => (
           <div key={a.id} className="panel">
             <h3>{a.title}</h3>
             <div className="panel-body">
-              <div className="body">{a.body}</div>
-              <div className="meta">{a.created_at ? new Date(a.created_at).toLocaleString() : ''}</div>
-              {user?.admin === 1 ? <button className="btn ghost" onClick={() => remove(a.id)}>Sil</button> : null}
+              <div dangerouslySetInnerHTML={{ __html: a.body || '' }} />
+              <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || 'uye'} {Number(a.approved || 0) === 1 ? '' : '· Onay bekliyor'}</div>
+              {isAdmin ? (
+                <div className="composer-actions">
+                  {Number(a.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(a.id, true)}>Onayla</button> : null}
+                  {Number(a.approved || 0) !== 0 ? <button className="btn ghost" onClick={() => approve(a.id, false)}>Reddet</button> : null}
+                  <button className="btn ghost" onClick={() => remove(a.id)}>Sil</button>
+                </div>
+              ) : null}
             </div>
           </div>
         ))}
       </div>
+      <div ref={sentinelRef} />
+      {loadingMore ? <div className="muted">Daha fazla duyuru yükleniyor...</div> : null}
     </Layout>
   );
 }

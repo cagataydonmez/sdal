@@ -17,7 +17,7 @@ export default function LiveChatPanel() {
       try {
         const msg = JSON.parse(evt.data);
         if (!msg?.message) return;
-        setMessages((prev) => [...prev, msg].slice(-50));
+        setMessages((prev) => [msg, ...prev].slice(0, 50));
         emitAppChange('chat:new');
       } catch {
         // ignore
@@ -33,7 +33,7 @@ export default function LiveChatPanel() {
         const res = await fetch('/api/new/chat/messages', { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
-        if (!cancelled) setMessages(data.items || []);
+        if (!cancelled) setMessages((data.items || []).slice().reverse());
       } catch {
         // ignore
       }

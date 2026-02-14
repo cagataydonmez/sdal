@@ -278,6 +278,22 @@ function ensureColumn(table, column, ddl) {
 
 ensureColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
 ensureColumn('posts', 'group_id', 'ALTER TABLE posts ADD COLUMN group_id INTEGER');
+ensureColumn('events', 'approved', 'ALTER TABLE events ADD COLUMN approved INTEGER DEFAULT 1');
+ensureColumn('events', 'created_by', 'ALTER TABLE events ADD COLUMN created_by INTEGER');
+ensureColumn('events', 'approved_by', 'ALTER TABLE events ADD COLUMN approved_by INTEGER');
+ensureColumn('events', 'approved_at', 'ALTER TABLE events ADD COLUMN approved_at TEXT');
+ensureColumn('announcements', 'approved', 'ALTER TABLE announcements ADD COLUMN approved INTEGER DEFAULT 1');
+ensureColumn('announcements', 'created_by', 'ALTER TABLE announcements ADD COLUMN created_by INTEGER');
+ensureColumn('announcements', 'approved_by', 'ALTER TABLE announcements ADD COLUMN approved_by INTEGER');
+ensureColumn('announcements', 'approved_at', 'ALTER TABLE announcements ADD COLUMN approved_at TEXT');
+
+sqlRun(`CREATE TABLE IF NOT EXISTS event_comments (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER,
+  user_id INTEGER,
+  comment TEXT,
+  created_at TEXT
+)`);
 
 sqlRun(`CREATE TABLE IF NOT EXISTS stories (
   id INTEGER PRIMARY KEY,
@@ -322,6 +338,13 @@ sqlRun(`CREATE TABLE IF NOT EXISTS verification_requests (
   reviewed_at TEXT,
   reviewer_id INTEGER
 )`);
+sqlRun(`CREATE TABLE IF NOT EXISTS game_scores (
+  id INTEGER PRIMARY KEY,
+  game_key TEXT,
+  name TEXT,
+  score INTEGER,
+  created_at TEXT
+)`);
 
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
@@ -359,6 +382,44 @@ function addNotification({ userId, type, sourceUserId, entityId, message }) {
   );
 }
 
+function findMentionUserIds(text, excludeUserId = null) {
+  const raw = String(text || '');
+  const handles = new Set();
+  const regex = /@([a-zA-Z0-9._-]{2,20})/g;
+  let m;
+  while ((m = regex.exec(raw)) !== null) {
+    if (m[1]) handles.add(m[1].toLowerCase());
+  }
+  if (!handles.size) return [];
+  const users = sqlAll(
+    `SELECT id, kadi
+     FROM uyeler
+     WHERE COALESCE(CAST(yasak AS INTEGER), 0) = 0
+       AND (
+         aktiv IS NULL
+         OR CAST(aktiv AS INTEGER) = 1
+         OR LOWER(CAST(aktiv AS TEXT)) IN ('true', 'evet')
+       )`
+  );
+  const ids = [];
+  for (const u of users) {
+    if (!u?.kadi) continue;
+    if (!handles.has(String(u.kadi).toLowerCase())) continue;
+    if (excludeUserId && sameUserId(u.id, excludeUserId)) continue;
+    ids.push(Number(u.id));
+  }
+  return Array.from(new Set(ids));
+}
+
+function notifyMentions({ text, sourceUserId, entityId, type = 'mention', message = 'Senden bahsetti.', allowedUserIds = null }) {
+  const ids = findMentionUserIds(text, sourceUserId);
+  const allowed = Array.isArray(allowedUserIds) ? new Set(allowedUserIds.map((v) => String(normalizeUserId(v)))) : null;
+  for (const userId of ids) {
+    if (allowed && !allowed.has(String(normalizeUserId(userId)))) continue;
+    addNotification({ userId, type, sourceUserId, entityId, message });
+  }
+}
+
 function listLogFiles(dirPath) {
   if (!fs.existsSync(dirPath)) return [];
   const entries = fs.readdirSync(dirPath);
@@ -381,9 +442,14 @@ function readLogFile(dirPath, name) {
 
 function normalizeUserId(value) {
   if (value === null || value === undefined) return null;
-  const n = Number(String(value).trim());
+  const raw = String(value).trim();
+  const n = Number(raw);
   if (Number.isFinite(n)) return Math.trunc(n);
-  const cleaned = String(value).trim().replace(/\.0+$/, '');
+  // SQLite CAST can coerce leading digits from mixed strings (e.g. "12abc" -> 12).
+  // Mirror that behavior so auth checks match query filters.
+  const leadingInt = raw.match(/^-?\d+/);
+  if (leadingInt) return parseInt(leadingInt[0], 10);
+  const cleaned = raw.replace(/\.0+$/, '');
   return cleaned || null;
 }
 
@@ -1936,7 +2002,7 @@ app.get('/api/messages', (req, res) => {
 
 app.get('/api/messages/recipients', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
-  const q = String(req.query.q || '').trim().replace(/'/g, '');
+  const q = String(req.query.q || '').trim().replace(/^@+/, '').replace(/'/g, '');
   const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
   if (!q) return res.json({ items: [] });
   const term = `%${q}%`;
@@ -1944,7 +2010,11 @@ app.get('/api/messages/recipients', (req, res) => {
     `SELECT id, kadi, isim, soyisim, resim, verified
      FROM uyeler
      WHERE COALESCE(CAST(yasak AS INTEGER), 0) = 0
-       AND COALESCE(CAST(aktiv AS INTEGER), 1) = 1
+       AND (
+         aktiv IS NULL
+         OR CAST(aktiv AS INTEGER) = 1
+         OR LOWER(CAST(aktiv AS TEXT)) IN ('true', 'evet')
+       )
        AND (
          LOWER(kadi) LIKE LOWER(?)
          OR LOWER(isim) LIKE LOWER(?)
@@ -1983,11 +2053,19 @@ app.post('/api/messages', (req, res) => {
   const body = (mesaj && String(mesaj).trim()) ? metinDuzenle(String(mesaj)) : 'Sistem Bilgisi : [b]Boş Mesaj Gönderildi![/b]';
   const now = new Date().toISOString();
 
-  sqlRun(
+  const result = sqlRun(
     `INSERT INTO gelenkutusu (kime, kimden, aktifgelen, konu, mesaj, yeni, tarih, aktifgiden)
      VALUES (?, ?, 1, ?, ?, 1, ?, 1)`,
     [kime, req.session.userId, subject, body, now]
   );
+  notifyMentions({
+    text: req.body?.mesaj || '',
+    sourceUserId: req.session.userId,
+    entityId: result?.lastInsertRowid,
+    type: 'mention_message',
+    message: 'Mesajda senden bahsetti.',
+    allowedUserIds: [kime]
+  });
 
   res.status(201).json({ ok: true });
 });
@@ -2113,14 +2191,22 @@ app.post('/api/photos/:id/comments', (req, res) => {
 app.get('/api/new/feed', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const scope = String(req.query.scope || 'all');
+  let where = '';
+  const params = [];
+  if (scope === 'following') {
+    where = 'WHERE (p.user_id = ? OR p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?))';
+    params.push(req.session.userId, req.session.userId);
+  }
   const rows = sqlAll(
     `SELECT p.id, p.user_id, p.content, p.image, p.created_at, p.group_id,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
      LEFT JOIN uyeler u ON u.id = p.user_id
+     ${where}
      ORDER BY p.id DESC
      LIMIT ? OFFSET ?`,
-    [limit, offset]
+    [...params, limit, offset]
   );
   const postIds = rows.map((r) => r.id);
   const likes = postIds.length
@@ -2154,7 +2240,8 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
       likeCount: likeMap.get(r.id) || 0,
       commentCount: commentMap.get(r.id) || 0,
       liked: likedSet.has(r.id)
-    }))
+    })),
+    hasMore: rows.length === limit
   });
 });
 
@@ -2171,6 +2258,13 @@ app.post('/api/new/posts', requireAuth, (req, res) => {
     now,
     groupId
   ]);
+  notifyMentions({
+    text: req.body?.content || '',
+    sourceUserId: req.session.userId,
+    entityId: result?.lastInsertRowid,
+    type: 'mention_post',
+    message: 'Gönderide senden bahsetti.'
+  });
   res.json({ ok: true, id: result?.lastInsertRowid });
 });
 
@@ -2195,6 +2289,13 @@ app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), (req,
     now,
     groupId
   ]);
+  notifyMentions({
+    text: req.body?.content || '',
+    sourceUserId: req.session.userId,
+    entityId: result?.lastInsertRowid,
+    type: 'mention_post',
+    message: 'Gönderide senden bahsetti.'
+  });
   res.json({ ok: true, id: result?.lastInsertRowid, image });
 });
 
@@ -2251,6 +2352,13 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
       message: 'Gönderine yorum yaptı.'
     });
   }
+  notifyMentions({
+    text: req.body?.comment || '',
+    sourceUserId: req.session.userId,
+    entityId: req.params.id,
+    type: 'mention_post',
+    message: 'Yorumda senden bahsetti.'
+  });
   res.json({ ok: true });
 });
 
@@ -2380,7 +2488,9 @@ app.get('/api/new/messages/unread', requireAuth, (req, res) => {
 });
 
 app.get('/api/new/groups', requireAuth, (req, res) => {
-  const groups = sqlAll('SELECT * FROM groups ORDER BY id DESC');
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const groups = sqlAll('SELECT * FROM groups ORDER BY id DESC LIMIT ? OFFSET ?', [limit, offset]);
   const memberCounts = sqlAll('SELECT group_id, COUNT(*) AS cnt FROM group_members GROUP BY group_id');
   const membership = sqlAll('SELECT group_id FROM group_members WHERE user_id = ?', [req.session.userId]);
   const countMap = new Map(memberCounts.map((c) => [c.group_id, c.cnt]));
@@ -2390,7 +2500,8 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
       ...g,
       members: countMap.get(g.id) || 0,
       joined: memberSet.has(g.id)
-    }))
+    })),
+    hasMore: groups.length === limit
   });
 });
 
@@ -2413,6 +2524,13 @@ app.post('/api/new/groups', requireAuth, (req, res) => {
     'owner',
     now
   ]);
+  notifyMentions({
+    text: description,
+    sourceUserId: req.session.userId,
+    entityId: groupId,
+    type: 'mention_group',
+    message: 'Yeni grup açıklamasında senden bahsetti.'
+  });
   res.json({ ok: true, id: groupId });
 });
 
@@ -2486,6 +2604,7 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
 
 app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
   const content = metinDuzenle(req.body?.content || '');
+  const contentRaw = String(req.body?.content || '');
   if (!content) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
@@ -2495,11 +2614,19 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
     now,
     req.params.id
   ]);
+  notifyMentions({
+    text: contentRaw,
+    sourceUserId: req.session.userId,
+    entityId: req.params.id,
+    type: 'mention_group',
+    message: 'Grup paylaşımında senden bahsetti.'
+  });
   res.json({ ok: true });
 });
 
 app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('image'), (req, res) => {
   const content = metinDuzenle(req.body?.content || '');
+  const contentRaw = String(req.body?.content || '');
   const filter = req.body?.filter || '';
   const image = req.file ? `/uploads/posts/${req.file.filename}` : null;
   if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
@@ -2514,38 +2641,167 @@ app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('ima
     now,
     req.params.id
   ]);
+  notifyMentions({
+    text: contentRaw,
+    sourceUserId: req.session.userId,
+    entityId: req.params.id,
+    type: 'mention_group',
+    message: 'Grup paylaşımında senden bahsetti.'
+  });
   res.json({ ok: true });
 });
 
 app.get('/api/new/events', requireAuth, (req, res) => {
-  const rows = sqlAll('SELECT * FROM events ORDER BY starts_at ASC');
-  res.json({ items: rows });
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const rows = sqlAll(
+    `SELECT e.*, u.kadi AS creator_kadi
+     FROM events e
+     LEFT JOIN uyeler u ON u.id = e.created_by
+     ${isAdmin ? '' : 'WHERE COALESCE(e.approved, 1) = 1'}
+     ORDER BY e.starts_at ASC`
+     + ' LIMIT ? OFFSET ?',
+    [limit, offset]
+  );
+  res.json({ items: rows, hasMore: rows.length === limit });
 });
 
-app.post('/api/new/events', requireAdmin, (req, res) => {
+app.post('/api/new/events', requireAuth, (req, res) => {
   const { title, description, location, starts_at, ends_at } = req.body || {};
   if (!title) return res.status(400).send('Başlık gerekli.');
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const now = new Date().toISOString();
+  const result = sqlRun(
+    `INSERT INTO events (title, description, location, starts_at, ends_at, created_at, created_by, approved, approved_by, approved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, description || '', location || '', starts_at || '', ends_at || '', now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
+  );
+  notifyMentions({
+    text: description || '',
+    sourceUserId: req.session.userId,
+    entityId: result?.lastInsertRowid,
+    type: 'mention_event',
+    message: 'Etkinlik açıklamasında senden bahsetti.'
+  });
+  res.json({ ok: true, pending: !isAdmin });
+});
+
+app.post('/api/new/events/:id/approve', requireAdmin, (req, res) => {
+  const approved = String(req.body?.approved || '1') === '1' ? 1 : 0;
   sqlRun(
-    'INSERT INTO events (title, description, location, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    [title, description || '', location || '', starts_at || '', ends_at || '', new Date().toISOString()]
+    'UPDATE events SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
+    [approved, req.session.userId, new Date().toISOString(), req.params.id]
   );
   res.json({ ok: true });
 });
 
 app.delete('/api/new/events/:id', requireAdmin, (req, res) => {
+  sqlRun('DELETE FROM event_comments WHERE event_id = ?', [req.params.id]);
   sqlRun('DELETE FROM events WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
 });
 
-app.get('/api/new/announcements', requireAuth, (req, res) => {
-  const rows = sqlAll('SELECT * FROM announcements ORDER BY id DESC');
+app.get('/api/new/events/:id/comments', requireAuth, (req, res) => {
+  const rows = sqlAll(
+    `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM event_comments c
+     LEFT JOIN uyeler u ON u.id = c.user_id
+     WHERE c.event_id = ?
+     ORDER BY c.id DESC`,
+    [req.params.id]
+  );
   res.json({ items: rows });
 });
 
-app.post('/api/new/announcements', requireAdmin, (req, res) => {
+app.post('/api/new/events/:id/comments', requireAuth, (req, res) => {
+  const event = sqlGet('SELECT * FROM events WHERE id = ?', [req.params.id]);
+  if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+  const commentRaw = req.body?.comment || '';
+  const comment = metinDuzenle(commentRaw);
+  if (!comment) return res.status(400).send('Yorum boş olamaz.');
+  const now = new Date().toISOString();
+  sqlRun('INSERT INTO event_comments (event_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
+    req.params.id,
+    req.session.userId,
+    comment,
+    now
+  ]);
+  if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
+    addNotification({
+      userId: event.created_by,
+      type: 'event_comment',
+      sourceUserId: req.session.userId,
+      entityId: req.params.id,
+      message: 'Etkinliğine yorum yaptı.'
+    });
+  }
+  notifyMentions({
+    text: commentRaw,
+    sourceUserId: req.session.userId,
+    entityId: req.params.id,
+    type: 'mention_event',
+    message: 'Etkinlik yorumunda senden bahsetti.'
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/new/events/:id/notify', requireAuth, (req, res) => {
+  const event = sqlGet('SELECT id, title FROM events WHERE id = ? AND COALESCE(approved,1) = 1', [req.params.id]);
+  if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+  const followers = sqlAll('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]);
+  for (const f of followers) {
+    if (sameUserId(f.follower_id, req.session.userId)) continue;
+    addNotification({
+      userId: f.follower_id,
+      type: 'event_invite',
+      sourceUserId: req.session.userId,
+      entityId: event.id,
+      message: `Seni "${event.title}" etkinliğine davet etti.`
+    });
+  }
+  res.json({ ok: true, count: followers.length });
+});
+
+app.get('/api/new/announcements', requireAuth, (req, res) => {
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const rows = sqlAll(
+    `SELECT a.*, u.kadi AS creator_kadi
+     FROM announcements a
+     LEFT JOIN uyeler u ON u.id = a.created_by
+     ${isAdmin ? '' : 'WHERE COALESCE(a.approved, 1) = 1'}
+     ORDER BY a.id DESC`
+     + ' LIMIT ? OFFSET ?',
+    [limit, offset]
+  );
+  res.json({ items: rows, hasMore: rows.length === limit });
+});
+
+app.post('/api/new/announcements', requireAuth, (req, res) => {
   const { title, body } = req.body || {};
   if (!title || !body) return res.status(400).send('Başlık ve içerik gerekli.');
-  sqlRun('INSERT INTO announcements (title, body, created_at) VALUES (?, ?, ?)', [title, body, new Date().toISOString()]);
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const now = new Date().toISOString();
+  sqlRun(
+    `INSERT INTO announcements (title, body, created_at, created_by, approved, approved_by, approved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [title, metinDuzenle(body), now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
+  );
+  res.json({ ok: true, pending: !isAdmin });
+});
+
+app.post('/api/new/announcements/:id/approve', requireAdmin, (req, res) => {
+  const approved = String(req.body?.approved || '1') === '1' ? 1 : 0;
+  sqlRun(
+    'UPDATE announcements SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
+    [approved, req.session.userId, new Date().toISOString(), req.params.id]
+  );
   res.json({ ok: true });
 });
 
@@ -2759,16 +3015,17 @@ app.get('/api/new/admin/db/table/:name', requireAdmin, (req, res) => {
 app.get('/api/album/latest', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const rows = sqlAll(
     `SELECT f.id, f.katid, f.dosyaadi, f.tarih, f.hit, k.kategori
      FROM album_foto f
      LEFT JOIN album_kat k ON k.id = f.katid
      WHERE f.aktif = 1
      ORDER BY f.id DESC
-     LIMIT ?`,
-    [limit]
+     LIMIT ? OFFSET ?`,
+    [limit, offset]
   );
-  res.json({ items: rows });
+  res.json({ items: rows, hasMore: rows.length === limit });
 });
 
 app.get('/api/members/latest', (req, res) => {
@@ -2995,6 +3252,38 @@ app.post('/api/games/tetris/score', (req, res) => {
     sqlRun('INSERT INTO oyun_tetris (isim, puan, tarih) VALUES (?, ?, ?)', [name, score, new Date().toISOString()]);
   } else if (score > Number(existing.puan || 0)) {
     sqlRun('UPDATE oyun_tetris SET puan = ?, tarih = ? WHERE isim = ?', [score, new Date().toISOString(), name]);
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/games/arcade/:game/leaderboard', (req, res) => {
+  const game = String(req.params.game || '').trim().toLowerCase();
+  const allowed = new Set(['tap-rush', 'memory-pairs', 'puzzle-2048']);
+  if (!allowed.has(game)) return res.status(404).send('Game not found');
+  const rows = sqlAll(
+    `SELECT name AS isim, score AS skor, created_at AS tarih
+     FROM game_scores
+     WHERE game_key = ?
+     ORDER BY score DESC, created_at ASC
+     LIMIT 25`,
+    [game]
+  );
+  res.json({ rows });
+});
+
+app.post('/api/games/arcade/:game/score', (req, res) => {
+  if (!req.session.userId) return res.status(401).send('Login required');
+  const game = String(req.params.game || '').trim().toLowerCase();
+  const allowed = new Set(['tap-rush', 'memory-pairs', 'puzzle-2048']);
+  if (!allowed.has(game)) return res.status(404).send('Game not found');
+  const score = Math.max(0, Math.floor(Number(req.body?.score || 0)));
+  const user = sqlGet('SELECT kadi FROM uyeler WHERE id = ?', [req.session.userId]);
+  const name = user?.kadi || 'Misafir';
+  const existing = sqlGet('SELECT id, score FROM game_scores WHERE game_key = ? AND name = ?', [game, name]);
+  if (!existing) {
+    sqlRun('INSERT INTO game_scores (game_key, name, score, created_at) VALUES (?, ?, ?, ?)', [game, name, score, new Date().toISOString()]);
+  } else if (score > Number(existing.score || 0)) {
+    sqlRun('UPDATE game_scores SET score = ?, created_at = ? WHERE id = ?', [score, new Date().toISOString(), existing.id]);
   }
   res.json({ ok: true });
 });
