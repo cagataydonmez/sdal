@@ -686,6 +686,58 @@ a { color: inherit; text-decoration: none; }
   flex-wrap: wrap;
   gap: 8px;
 }
+.admin-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.admin-nav {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+.admin-nav-group {
+  display: grid;
+  gap: 8px;
+}
+.admin-nav-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--muted);
+}
+.admin-nav-item {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+}
+.admin-nav-item .name {
+  font-weight: 700;
+}
+.admin-nav-item .meta {
+  font-size: 12px;
+  margin-top: 2px;
+}
+.admin-nav-item.active {
+  background: #121212;
+  color: #fff;
+  border-color: #121212;
+}
+.admin-content {
+  width: 100%;
+  max-width: 1080px;
+}
+.admin-page-wrap {
+  width: 100%;
+  max-width: 1040px;
+}
 .admin-live-header {
   display: flex;
   justify-content: space-between;
@@ -905,6 +957,15 @@ a { color: inherit; text-decoration: none; }
     width: 100%;
   }
   .db-grid { grid-template-columns: 1fr; }
+  .admin-shell { grid-template-columns: 1fr; }
+  .admin-nav {
+    position: static;
+    max-height: none;
+  }
+  .admin-content,
+  .admin-page-wrap {
+    max-width: 100%;
+  }
   .games-layout { grid-template-columns: 1fr; }
   .message-list-side { align-items: flex-start; }
   .bottom-nav {

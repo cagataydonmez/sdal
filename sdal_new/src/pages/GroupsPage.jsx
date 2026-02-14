@@ -15,6 +15,13 @@ async function apiJson(url, options = {}) {
   return res.json();
 }
 
+function mergeUniqueById(prev, next) {
+  const map = new Map();
+  for (const item of prev || []) map.set(item.id, item);
+  for (const item of next || []) map.set(item.id, item);
+  return Array.from(map.values());
+}
+
 export default function GroupsPage() {
   const [groups, setGroups] = useState([]);
   const [form, setForm] = useState({ name: '', description: '' });
@@ -24,10 +31,17 @@ export default function GroupsPage() {
   const [mentionUsers, setMentionUsers] = useState([]);
   const [mentionCtx, setMentionCtx] = useState(null);
   const sentinelRef = useRef(null);
+  const groupsRef = useRef([]);
+  const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
 
   const load = useCallback(async (offset = 0, append = false) => {
     const data = await apiJson(`/api/new/groups?limit=20&offset=${offset}`);
-    setGroups((prev) => (append ? [...prev, ...(data.items || [])] : (data.items || [])));
+    const items = data.items || [];
+    setGroups((prev) => (append ? mergeUniqueById(prev, items) : mergeUniqueById([], items)));
     setHasMore(!!data.hasMore);
   }, []);
 
@@ -36,11 +50,13 @@ export default function GroupsPage() {
   }, [load]);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMoreRef.current || loadingMore || !hasMore) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    await load(groups.length, true);
+    await load(groupsRef.current.length, true);
     setLoadingMore(false);
-  }, [loadingMore, hasMore, groups.length, load]);
+    loadingMoreRef.current = false;
+  }, [loadingMore, hasMore, load]);
 
   useEffect(() => {
     const node = sentinelRef.current;

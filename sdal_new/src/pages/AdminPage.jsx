@@ -16,22 +16,22 @@ async function apiJson(url, options = {}) {
 }
 
 const tabs = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'users', label: 'Üyeler' },
-  { key: 'album', label: 'Albüm Kategorileri' },
-  { key: 'photos', label: 'Fotoğraf Moderasyon' },
-  { key: 'messages', label: 'Mesajlar' },
-  { key: 'pages', label: 'Sayfalar' },
-  { key: 'email', label: 'E-Posta' },
-  { key: 'logs', label: 'Loglar' },
-  { key: 'tournament', label: 'Turnuva' },
-  { key: 'verification', label: 'Doğrulama' },
-  { key: 'events', label: 'Etkinlikler' },
-  { key: 'announcements', label: 'Duyurular' },
-  { key: 'groups', label: 'Gruplar' },
-  { key: 'stories', label: 'Hikayeler' },
-  { key: 'chat', label: 'Canlı Sohbet' },
-  { key: 'database', label: 'Veritabanı' }
+  { key: 'dashboard', label: 'Dashboard', section: 'Genel', hint: 'Canlı metrikler ve operasyon özeti' },
+  { key: 'users', label: 'Üyeler', section: 'Topluluk', hint: 'Üye yönetimi ve yetkiler' },
+  { key: 'verification', label: 'Doğrulama', section: 'Topluluk', hint: 'Rozet/kimlik doğrulama talepleri' },
+  { key: 'groups', label: 'Gruplar', section: 'Topluluk', hint: 'Grup moderasyonu ve temizlik' },
+  { key: 'stories', label: 'Hikayeler', section: 'Topluluk', hint: 'Story denetimi' },
+  { key: 'chat', label: 'Canlı Sohbet', section: 'Topluluk', hint: 'Sohbet moderasyonu' },
+  { key: 'messages', label: 'Mesajlar', section: 'Topluluk', hint: 'Sistem içi mesaj denetimi' },
+  { key: 'pages', label: 'Sayfalar', section: 'İçerik', hint: 'Legacy sayfa yönetimi' },
+  { key: 'events', label: 'Etkinlikler', section: 'İçerik', hint: 'Etkinlik içerikleri ve onaylar' },
+  { key: 'announcements', label: 'Duyurular', section: 'İçerik', hint: 'Duyuru yayın yönetimi' },
+  { key: 'album', label: 'Albüm Kategorileri', section: 'Medya', hint: 'Albüm kategori yönetimi' },
+  { key: 'photos', label: 'Fotoğraf Moderasyon', section: 'Medya', hint: 'Fotoğraf onay/silme işlemleri' },
+  { key: 'email', label: 'E-Posta', section: 'İletişim', hint: 'Tekil ve toplu gönderimler' },
+  { key: 'tournament', label: 'Turnuva', section: 'İçerik', hint: 'Turnuva kayıt yönetimi' },
+  { key: 'logs', label: 'Loglar', section: 'Sistem', hint: 'Hata/sayfa/üye log dosyaları' },
+  { key: 'database', label: 'Veritabanı', section: 'Sistem', hint: 'Tablo ve kayıt gözlemleme' }
 ];
 
 export default function AdminPage() {
@@ -61,7 +61,7 @@ export default function AdminPage() {
   const [logs, setLogs] = useState([]);
   const [logFile, setLogFile] = useState('');
   const [logContent, setLogContent] = useState('');
-  const [logType, setLogType] = useState('error');
+  const [logType, setLogType] = useState('app');
 
   const [emailCats, setEmailCats] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -139,6 +139,11 @@ export default function AdminPage() {
     }, 7000);
     return () => clearInterval(timer);
   }, [tab, dashboardAutoRefresh, user, adminOk, refreshDashboard]);
+
+  useEffect(() => {
+    if (tab !== 'logs' || user?.admin !== 1 || !adminOk) return;
+    loadLogs().catch(() => {});
+  }, [logType, tab, user, adminOk]);
 
   async function adminLogin(e) {
     e.preventDefault();
@@ -261,10 +266,15 @@ export default function AdminPage() {
   }
 
   async function loadLogs() {
-    const data = await apiJson(`/api/admin/logs?type=${encodeURIComponent(logType)}`);
-    setLogs(data.files || []);
-    setLogFile('');
-    setLogContent('');
+    try {
+      const data = await apiJson(`/api/admin/logs?type=${encodeURIComponent(logType)}`);
+      setLogs(data.files || []);
+      setLogFile('');
+      setLogContent('');
+    } catch (err) {
+      setStatus(err.message || 'Loglar alınamadı.');
+      setLogs([]);
+    }
   }
 
   async function openLog(file) {
@@ -387,8 +397,13 @@ export default function AdminPage() {
   }
 
   async function loadStories() {
-    const data = await apiJson('/api/new/admin/stories');
-    setStories(data.items || []);
+    try {
+      const data = await apiJson('/api/new/admin/stories');
+      setStories(data.items || []);
+    } catch (err) {
+      setStatus(err.message || 'Hikayeler alınamadı.');
+      setStories([]);
+    }
   }
 
   async function deleteStory(id) {
@@ -397,8 +412,13 @@ export default function AdminPage() {
   }
 
   async function loadChat() {
-    const data = await apiJson('/api/new/admin/chat/messages');
-    setChatMessages(data.items || []);
+    try {
+      const data = await apiJson('/api/new/admin/chat/messages');
+      setChatMessages(data.items || []);
+    } catch (err) {
+      setStatus(err.message || 'Sohbet mesajları alınamadı.');
+      setChatMessages([]);
+    }
   }
 
   async function deleteChat(id) {
@@ -442,6 +462,16 @@ export default function AdminPage() {
     );
   }, [dbRows, dbSearch]);
 
+  const groupedTabs = useMemo(() => {
+    return tabs.reduce((acc, t) => {
+      if (!acc[t.section]) acc[t.section] = [];
+      acc[t.section].push(t);
+      return acc;
+    }, {});
+  }, []);
+
+  const currentTab = useMemo(() => tabs.find((t) => t.key === tab) || tabs[0], [tab]);
+
   if (user?.admin !== 1) {
     return (
       <Layout title="Yönetim">
@@ -470,16 +500,37 @@ export default function AdminPage() {
 
   return (
     <Layout title="Yönetim">
-      <div className="panel">
-        <div className="panel-body admin-tabs">
-          {tabs.map((t) => (
-            <button key={t.key} className={`btn ${tab === t.key ? 'primary' : 'ghost'}`} onClick={() => setTab(t.key)}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <div className="admin-shell">
+        <aside className="panel admin-nav">
+          <h3>Admin Menü</h3>
+          <div className="panel-body">
+            {Object.entries(groupedTabs).map(([section, sectionTabs]) => (
+              <div key={section} className="admin-nav-group">
+                <div className="admin-nav-title">{section}</div>
+                {sectionTabs.map((t) => (
+                  <button
+                    key={t.key}
+                    className={`admin-nav-item ${tab === t.key ? 'active' : ''}`}
+                    onClick={() => setTab(t.key)}
+                  >
+                    <div className="name">{t.label}</div>
+                    <div className="meta">{t.hint}</div>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </aside>
 
+        <div className="admin-content">
+          <div className="panel admin-page-header">
+            <div className="panel-body">
+              <h3>{currentTab.label}</h3>
+              <div className="muted">{currentTab.hint}</div>
+            </div>
+          </div>
+
+          <div className="admin-page-wrap">
       {tab === 'dashboard' && stats ? (
         <div className="stack">
           <div className="panel">
@@ -725,7 +776,8 @@ export default function AdminPage() {
                 <div key={m.id} className="list-item">
                   <div>
                     <div className="name">{m.konu}</div>
-                    <div className="meta">{m.kimden_kadi} → {m.kime_kadi}</div>
+                    <div className="meta">{m.kimden_kadi} → {m.kime_kadi} • {m.tarih ? new Date(m.tarih).toLocaleString('tr-TR') : '-'}</div>
+                    <div className="meta" style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{m.mesaj || '(mesaj içeriği boş)'}</div>
                   </div>
                   <button className="btn ghost" onClick={() => deleteAdminMessage(m.id)}>Sil</button>
                 </div>
@@ -856,6 +908,7 @@ export default function AdminPage() {
             <div className="form-row">
               <label>Log Türü</label>
               <select className="input" value={logType} onChange={(e) => setLogType(e.target.value)}>
+                <option value="app">Uygulama Logları</option>
                 <option value="error">Hata Logları</option>
                 <option value="page">Sayfa Logları</option>
                 <option value="member">Üye Logları</option>
@@ -870,6 +923,7 @@ export default function AdminPage() {
                 </button>
               ))}
             </div>
+            {!logs.length ? <div className="muted">Bu log türünde henüz dosya yok.</div> : null}
             {logFile ? (
               <div className="panel-body">
                 <h3>{logFile}</h3>
@@ -967,11 +1021,17 @@ export default function AdminPage() {
             <div className="list">
               {stories.map((s) => (
                 <div key={s.id} className="list-item">
-                  <div>@{s.kadi}</div>
+                  <div>
+                    <div className="name">@{s.kadi || 'üye'}</div>
+                    <div className="meta">{s.created_at ? new Date(s.created_at).toLocaleString('tr-TR') : '-'}</div>
+                    <div className="meta">{s.caption || '(açıklama yok)'}</div>
+                    {s.image ? <a className="meta" href={s.image} target="_blank" rel="noreferrer">Görseli Aç</a> : null}
+                  </div>
                   <button className="btn ghost" onClick={() => deleteStory(s.id)}>Sil</button>
                 </div>
               ))}
             </div>
+            {!stories.length ? <div className="muted">Gösterilecek hikaye yok.</div> : null}
           </div>
         </div>
       ) : null}
@@ -982,11 +1042,16 @@ export default function AdminPage() {
             <div className="list">
               {chatMessages.map((c) => (
                 <div key={c.id} className="list-item">
-                  <div>@{c.kadi}: {c.message}</div>
+                  <div>
+                    <div className="name">@{c.kadi || 'üye'}</div>
+                    <div className="meta">{c.created_at ? new Date(c.created_at).toLocaleString('tr-TR') : '-'}</div>
+                    <div>{c.message}</div>
+                  </div>
                   <button className="btn ghost" onClick={() => deleteChat(c.id)}>Sil</button>
                 </div>
               ))}
             </div>
+            {!chatMessages.length ? <div className="muted">Gösterilecek sohbet mesajı yok.</div> : null}
           </div>
         </div>
       ) : null}
@@ -1071,6 +1136,9 @@ export default function AdminPage() {
       ) : null}
 
       {status ? <div className="muted">{status}</div> : null}
+          </div>
+        </div>
+      </div>
     </Layout>
   );
 }

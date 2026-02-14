@@ -17,6 +17,13 @@ async function apiJson(url, options = {}) {
   return res.json();
 }
 
+function mergeUniqueById(prev, next) {
+  const map = new Map();
+  for (const item of prev || []) map.set(item.id, item);
+  for (const item of next || []) map.set(item.id, item);
+  return Array.from(map.values());
+}
+
 export default function EventsPage() {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
@@ -32,6 +39,8 @@ export default function EventsPage() {
   const [commentMentionCtx, setCommentMentionCtx] = useState({});
   const sentinelRef = useRef(null);
   const commentsRef = useRef({});
+  const eventsRef = useRef([]);
+  const loadingMoreRef = useRef(false);
 
   const isAdmin = user?.admin === 1;
 
@@ -39,10 +48,14 @@ export default function EventsPage() {
     commentsRef.current = comments;
   }, [comments]);
 
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
+
   const load = useCallback(async (offset = 0, append = false) => {
     const data = await apiJson(`/api/new/events?limit=15&offset=${offset}`);
     const items = data.items || [];
-    setEvents((prev) => (append ? [...prev, ...items] : items));
+    setEvents((prev) => (append ? mergeUniqueById(prev, items) : mergeUniqueById([], items)));
     setHasMore(!!data.hasMore);
     for (const e of items) {
       if (commentsRef.current[e.id]) continue;
@@ -56,11 +69,13 @@ export default function EventsPage() {
   }, [load]);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMoreRef.current || loadingMore || !hasMore) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    await load(events.length, true);
+    await load(eventsRef.current.length, true);
     setLoadingMore(false);
-  }, [loadingMore, hasMore, events.length, load]);
+    loadingMoreRef.current = false;
+  }, [loadingMore, hasMore, load]);
 
   useEffect(() => {
     const node = sentinelRef.current;

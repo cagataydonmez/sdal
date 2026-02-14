@@ -16,6 +16,13 @@ async function apiJson(url, options = {}) {
   return res.json();
 }
 
+function mergeUniqueById(prev, next) {
+  const map = new Map();
+  for (const item of prev || []) map.set(item.id, item);
+  for (const item of next || []) map.set(item.id, item);
+  return Array.from(map.values());
+}
+
 export default function AnnouncementsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -25,11 +32,18 @@ export default function AnnouncementsPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef(null);
+  const itemsRef = useRef([]);
+  const loadingMoreRef = useRef(false);
   const isAdmin = user?.admin === 1;
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   const load = useCallback(async (offset = 0, append = false) => {
     const data = await apiJson(`/api/new/announcements?limit=15&offset=${offset}`);
-    setItems((prev) => (append ? [...prev, ...(data.items || [])] : (data.items || [])));
+    const rows = data.items || [];
+    setItems((prev) => (append ? mergeUniqueById(prev, rows) : mergeUniqueById([], rows)));
     setHasMore(!!data.hasMore);
   }, []);
 
@@ -38,11 +52,13 @@ export default function AnnouncementsPage() {
   }, [load]);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMoreRef.current || loadingMore || !hasMore) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    await load(items.length, true);
+    await load(itemsRef.current.length, true);
     setLoadingMore(false);
-  }, [loadingMore, hasMore, items.length, load]);
+    loadingMoreRef.current = false;
+  }, [loadingMore, hasMore, load]);
 
   useEffect(() => {
     const node = sentinelRef.current;

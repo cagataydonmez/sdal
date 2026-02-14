@@ -36,6 +36,23 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    if (!req.path.startsWith('/api/')) return;
+    const durationMs = Date.now() - start;
+    writeAppLog('info', 'http_request', {
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs,
+      userId: req.session?.userId || null,
+      ip: req.ip
+    });
+  });
+  next();
+});
+
 const legacyDir = path.resolve(__dirname, '../client/public/legacy');
 app.use('/legacy', express.static(legacyDir));
 app.use('/smiley', express.static(path.join(legacyDir, 'smiley')));
@@ -195,6 +212,28 @@ const legacyRoot = path.resolve(__dirname, '../..');
 const hatalogDir = path.join(legacyRoot, 'hatalog');
 const sayfalogDir = path.join(legacyRoot, 'sayfalog');
 const uyedetaylogDir = path.join(legacyRoot, 'uyedetaylog');
+const appLogsDir = path.resolve(__dirname, '../logs');
+if (!fs.existsSync(appLogsDir)) {
+  fs.mkdirSync(appLogsDir, { recursive: true });
+}
+const appLogFile = path.join(appLogsDir, 'app.log');
+if (!fs.existsSync(appLogFile)) {
+  fs.writeFileSync(appLogFile, '', 'utf-8');
+}
+
+function writeAppLog(level, event, meta = {}) {
+  try {
+    const row = {
+      ts: new Date().toISOString(),
+      level: String(level || 'info'),
+      event: String(event || 'app_event'),
+      ...meta
+    };
+    fs.appendFileSync(appLogFile, `${JSON.stringify(row)}\n`, 'utf-8');
+  } catch {
+    // Do not crash request flow on logging failure
+  }
+}
 
 // Ensure admin email tables exist
 sqlRun(`CREATE TABLE IF NOT EXISTS email_kategori (
@@ -372,6 +411,14 @@ function requireAlbumAdmin(req, res, next) {
   if (user.admin === 1 && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
   req.adminUser = user;
   return next();
+}
+
+function logAdminAction(req, action, details = {}) {
+  writeAppLog('info', 'admin_action', {
+    action,
+    adminUserId: req.session?.userId || null,
+    details
+  });
 }
 
 function addNotification({ userId, type, sourceUserId, entityId, message }) {
@@ -1194,17 +1241,28 @@ app.get('/api/admin/session', (req, res) => {
 
 app.post('/api/admin/login', (req, res) => {
   const user = getCurrentUser(req);
-  if (!user) return res.status(401).send('Login required');
-  if (user.admin !== 1) return res.status(403).send('Admin erişimi gerekli.');
+  if (!user) {
+    writeAppLog('warn', 'admin_login_denied', { reason: 'unauthenticated', ip: req.ip });
+    return res.status(401).send('Login required');
+  }
+  if (user.admin !== 1) {
+    writeAppLog('warn', 'admin_login_denied', { reason: 'not_admin', userId: user.id, ip: req.ip });
+    return res.status(403).send('Admin erişimi gerekli.');
+  }
   const password = String(req.body?.password || '');
   if (!password) return res.status(400).send('Şifre girmedin.');
-  if (password !== adminPassword) return res.status(400).send('Şifre yanlış.');
+  if (password !== adminPassword) {
+    writeAppLog('warn', 'admin_login_denied', { reason: 'bad_password', userId: user.id, ip: req.ip });
+    return res.status(400).send('Şifre yanlış.');
+  }
   req.session.adminOk = true;
   res.cookie('admingiris', 'evet');
+  writeAppLog('info', 'admin_login_success', { userId: user.id, ip: req.ip });
   res.json({ ok: true });
 });
 
 app.post('/api/admin/logout', (req, res) => {
+  writeAppLog('info', 'admin_logout', { userId: req.session?.userId || null, ip: req.ip });
   req.session.adminOk = false;
   res.clearCookie('admingiris');
   res.json({ ok: true });
@@ -1365,15 +1423,20 @@ app.get('/api/admin/logs', requireAdmin, (req, res) => {
   const map = {
     error: hatalogDir,
     page: sayfalogDir,
-    member: uyedetaylogDir
+    member: uyedetaylogDir,
+    app: appLogsDir
   };
   const dir = map[type] || hatalogDir;
+  if (type === 'app' && !fs.existsSync(appLogFile)) {
+    fs.writeFileSync(appLogFile, '', 'utf-8');
+  }
   if (file) {
     const content = readLogFile(dir, file);
     if (!content) return res.status(404).send('Dosya Bulunamadı!');
     return res.json({ file, content });
   }
-  res.json({ files: listLogFiles(dir) });
+  const files = listLogFiles(dir);
+  res.json({ files });
 });
 
 app.post('/api/admin/email/send', requireAdmin, async (req, res) => {
@@ -2206,10 +2269,10 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const scope = String(req.query.scope || 'all');
-  let where = '';
+  let where = 'WHERE p.group_id IS NULL';
   const params = [];
   if (scope === 'following') {
-    where = 'WHERE (p.user_id = ? OR p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?))';
+    where = 'WHERE p.group_id IS NULL AND (p.user_id = ? OR p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?))';
     params.push(req.session.userId, req.session.userId);
   }
   const rows = sqlAll(
@@ -2986,37 +3049,59 @@ app.delete('/api/new/admin/groups/:id', requireAdmin, (req, res) => {
 });
 
 app.get('/api/new/admin/stories', requireAdmin, (req, res) => {
-  const rows = sqlAll(
+  let rows = sqlAll(
     `SELECT s.id, s.image, s.caption, s.created_at, s.expires_at, u.kadi
      FROM stories s LEFT JOIN uyeler u ON u.id = s.user_id
      ORDER BY s.id DESC`
   );
+  if (!rows.length) {
+    rows = sqlAll(
+      `SELECT id, image, caption, created_at, expires_at, 'legacy' AS kadi
+       FROM stories
+       ORDER BY id DESC
+       LIMIT 200`
+    );
+  }
   res.json({ items: rows });
 });
 
 app.delete('/api/new/admin/stories/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM story_views WHERE story_id = ?', [req.params.id]);
   sqlRun('DELETE FROM stories WHERE id = ?', [req.params.id]);
+  logAdminAction(req, 'story_delete', { storyId: req.params.id });
   res.json({ ok: true });
 });
 
 app.get('/api/new/admin/chat/messages', requireAdmin, (req, res) => {
-  const rows = sqlAll(
+  let rows = sqlAll(
     `SELECT c.id, c.message, c.created_at, u.kadi
      FROM chat_messages c LEFT JOIN uyeler u ON u.id = c.user_id
      ORDER BY c.id DESC LIMIT 200`
   );
+  if (!rows.length) {
+    try {
+      rows = sqlAll(
+        `SELECT h.id, h.metin AS message, h.tarih AS created_at, h.kadi
+         FROM hmes h
+         ORDER BY h.id DESC
+         LIMIT 200`
+      );
+    } catch {
+      rows = [];
+    }
+  }
   res.json({ items: rows });
 });
 
 app.delete('/api/new/admin/chat/messages/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM chat_messages WHERE id = ?', [req.params.id]);
+  logAdminAction(req, 'chat_message_delete', { messageId: req.params.id });
   res.json({ ok: true });
 });
 
 app.get('/api/new/admin/messages', requireAdmin, (req, res) => {
   const rows = sqlAll(
-    `SELECT g.id, g.konu, g.tarih, u1.kadi AS kimden_kadi, u2.kadi AS kime_kadi
+    `SELECT g.id, g.konu, g.mesaj, g.tarih, u1.kadi AS kimden_kadi, u2.kadi AS kime_kadi
      FROM gelenkutusu g
      LEFT JOIN uyeler u1 ON u1.id = g.kimden
      LEFT JOIN uyeler u2 ON u2.id = g.kime
@@ -3028,6 +3113,7 @@ app.get('/api/new/admin/messages', requireAdmin, (req, res) => {
 
 app.delete('/api/new/admin/messages/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM gelenkutusu WHERE id = ?', [req.params.id]);
+  logAdminAction(req, 'inbox_message_delete', { messageId: req.params.id });
   res.json({ ok: true });
 });
 
@@ -3402,6 +3488,7 @@ app.get('*', (req, res) => {
 
 const server = app.listen(port, () => {
   console.log(`SDAL server running on http://localhost:${port}`);
+  writeAppLog('info', 'server_started', { port, node: process.version, dbPath });
 });
 
 const wss = new WebSocketServer({ server, path: '/ws/chat' });
