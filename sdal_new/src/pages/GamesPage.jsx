@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
@@ -368,6 +368,7 @@ function MemoryPairs({ onScore }) {
   const [matched, setMatched] = useState(new Set());
   const [moves, setMoves] = useState(0);
   const [finished, setFinished] = useState(false);
+  const movesRef = useRef(0);
 
   function reset() {
     const vals = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -376,6 +377,7 @@ function MemoryPairs({ onScore }) {
     setOpen([]);
     setMatched(new Set());
     setMoves(0);
+    movesRef.current = 0;
     setFinished(false);
   }
 
@@ -386,7 +388,9 @@ function MemoryPairs({ onScore }) {
   useEffect(() => {
     if (open.length !== 2) return undefined;
     const [a, b] = open;
-    setMoves((m) => m + 1);
+    const nextMove = movesRef.current + 1;
+    movesRef.current = nextMove;
+    setMoves(nextMove);
     if (cards[a]?.value === cards[b]?.value) {
       setMatched((prev) => {
         const next = new Set(prev);
@@ -394,7 +398,7 @@ function MemoryPairs({ onScore }) {
         next.add(b);
         if (next.size === 16) {
           setFinished(true);
-          const sc = Math.max(100, 1200 - (moves + 1) * 20);
+          const sc = Math.max(100, 1200 - nextMove * 20);
           onScore(sc);
         }
         return next;
@@ -404,7 +408,7 @@ function MemoryPairs({ onScore }) {
     }
     const timer = setTimeout(() => setOpen([]), 550);
     return () => clearTimeout(timer);
-  }, [open, cards, moves, onScore]);
+  }, [open, cards, onScore]);
 
   function flip(idx) {
     if (finished || open.includes(idx) || matched.has(idx) || open.length === 2) return;
