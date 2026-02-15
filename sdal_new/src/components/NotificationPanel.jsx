@@ -7,7 +7,7 @@ export default function NotificationPanel() {
   const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/new/notifications', { credentials: 'include' });
+    const res = await fetch('/api/new/notifications', { credentials: 'include', cache: 'no-store' });
     if (!res.ok) return;
     const payload = await res.json();
     setItems(payload.items || []);
@@ -59,7 +59,9 @@ export default function NotificationPanel() {
           : x
       )));
       emitAppChange('group:invite:responded', { id: notification.id, action, groupId: notification.entity_id });
-      await load();
+      setTimeout(() => {
+        load().catch(() => {});
+      }, 200);
     } catch (err) {
       emitAppChange('toast', { type: 'error', message: err?.message || 'Davet yanıtlanamadı.' });
     } finally {
