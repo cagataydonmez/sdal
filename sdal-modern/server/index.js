@@ -514,7 +514,6 @@ ensureColumn('announcements', 'approved', 'ALTER TABLE announcements ADD COLUMN 
 ensureColumn('announcements', 'created_by', 'ALTER TABLE announcements ADD COLUMN created_by INTEGER');
 ensureColumn('announcements', 'approved_by', 'ALTER TABLE announcements ADD COLUMN approved_by INTEGER');
 ensureColumn('announcements', 'approved_at', 'ALTER TABLE announcements ADD COLUMN approved_at TEXT');
-ensureColumn('groups', 'visibility', "ALTER TABLE groups ADD COLUMN visibility TEXT DEFAULT 'public'");
 
 sqlRun(`CREATE TABLE IF NOT EXISTS event_comments (
   id INTEGER PRIMARY KEY,
@@ -546,6 +545,7 @@ sqlRun(`CREATE TABLE IF NOT EXISTS groups (
   owner_id INTEGER,
   created_at TEXT
 )`);
+ensureColumn('groups', 'visibility', "ALTER TABLE groups ADD COLUMN visibility TEXT DEFAULT 'public'");
 sqlRun(`CREATE TABLE IF NOT EXISTS group_members (
   id INTEGER PRIMARY KEY,
   group_id INTEGER,
