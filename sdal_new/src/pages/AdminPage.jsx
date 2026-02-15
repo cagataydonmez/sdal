@@ -18,6 +18,7 @@ async function apiJson(url, options = {}) {
 const tabs = [
   { key: 'dashboard', label: 'Dashboard', section: 'Genel', hint: 'Canlı metrikler ve operasyon özeti' },
   { key: 'users', label: 'Üyeler', section: 'Topluluk', hint: 'Üye yönetimi ve yetkiler' },
+  { key: 'engagement', label: 'Etkileşim Skorları', section: 'Topluluk', hint: 'Gizli görünürlük puanları' },
   { key: 'verification', label: 'Doğrulama', section: 'Topluluk', hint: 'Rozet/kimlik doğrulama talepleri' },
   { key: 'groups', label: 'Gruplar', section: 'Topluluk', hint: 'Grup moderasyonu ve temizlik' },
   { key: 'stories', label: 'Hikayeler', section: 'Topluluk', hint: 'Story denetimi' },
@@ -34,6 +35,23 @@ const tabs = [
   { key: 'database', label: 'Veritabanı', section: 'Sistem', hint: 'Tablo ve kayıt gözlemleme' }
 ];
 
+const commonLogActivities = [
+  'http_error',
+  'member_activity',
+  'page_view',
+  'admin_login_denied',
+  'admin_login_success',
+  'admin_logout',
+  'story_delete',
+  'chat_message_delete',
+  'inbox_message_delete',
+  'uncaught_route_error',
+  'uncaught_exception',
+  'unhandled_rejection',
+  'server_started',
+  'http_request'
+];
+
 export default function AdminPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState('dashboard');
@@ -45,8 +63,38 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [userFilter, setUserFilter] = useState('active');
   const [userQuery, setUserQuery] = useState('');
+  const [userSearchPhotoOnly, setUserSearchPhotoOnly] = useState(false);
+  const [userVerifiedOnly, setUserVerifiedOnly] = useState(false);
+  const [userOnlineOnly, setUserOnlineOnly] = useState(false);
+  const [userMinScore, setUserMinScore] = useState('');
+  const [userSort, setUserSort] = useState('engagement_desc');
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userMode, setUserMode] = useState('filter');
   const [userDetail, setUserDetail] = useState(null);
   const [userForm, setUserForm] = useState(null);
+  const [usersMeta, setUsersMeta] = useState({ total: 0, returned: 0 });
+
+  const [engagementRows, setEngagementRows] = useState([]);
+  const [engagementLoading, setEngagementLoading] = useState(false);
+  const [engagementFilters, setEngagementFilters] = useState({
+    q: '',
+    status: 'all',
+    variant: '',
+    minScore: '',
+    maxScore: '',
+    sort: 'score_desc',
+    page: 1,
+    limit: 40
+  });
+  const [engagementMeta, setEngagementMeta] = useState({ total: 0, page: 1, pages: 1, limit: 40 });
+  const [engagementSummary, setEngagementSummary] = useState({ avgScore: 0, maxScore: 0, minScore: 0 });
+  const [engagementLastCalculatedAt, setEngagementLastCalculatedAt] = useState('');
+  const [engagementAbConfigs, setEngagementAbConfigs] = useState([]);
+  const [engagementAbForms, setEngagementAbForms] = useState({});
+  const [engagementAbPerformance, setEngagementAbPerformance] = useState([]);
+  const [engagementAbAssignments, setEngagementAbAssignments] = useState([]);
+  const [engagementAbRecommendations, setEngagementAbRecommendations] = useState([]);
+  const [engagementAbLoading, setEngagementAbLoading] = useState(false);
 
   const [categories, setCategories] = useState([]);
   const [categoryForm, setCategoryForm] = useState({ kategori: '', aciklama: '', aktif: 1 });
@@ -62,6 +110,22 @@ export default function AdminPage() {
   const [logFile, setLogFile] = useState('');
   const [logContent, setLogContent] = useState('');
   const [logType, setLogType] = useState('app');
+  const [logFilters, setLogFilters] = useState({
+    q: '',
+    activity: '',
+    userId: '',
+    from: '',
+    to: '',
+    limit: 500,
+    offset: 0
+  });
+  const [logMeta, setLogMeta] = useState({
+    total: 0,
+    matched: 0,
+    returned: 0,
+    offset: 0,
+    limit: 500
+  });
 
   const [emailCats, setEmailCats] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -115,7 +179,6 @@ export default function AdminPage() {
   useEffect(() => {
     if (user?.admin !== 1 || !adminOk) return;
     if (tab === 'dashboard') refreshDashboard();
-    if (tab === 'users') loadUsers();
     if (tab === 'album') loadCategories();
     if (tab === 'photos') loadPhotos();
     if (tab === 'pages') loadPages();
@@ -123,6 +186,10 @@ export default function AdminPage() {
     if (tab === 'email') loadEmailMeta();
     if (tab === 'tournament') loadTeams();
     if (tab === 'verification') loadVerification();
+    if (tab === 'engagement') {
+      loadEngagementScores();
+      loadEngagementAb();
+    }
     if (tab === 'events') loadEvents();
     if (tab === 'announcements') loadAnnouncements();
     if (tab === 'groups') loadGroups();
@@ -131,6 +198,11 @@ export default function AdminPage() {
     if (tab === 'messages') loadAdminMessages();
     if (tab === 'database') loadDbTables();
   }, [tab, user, adminOk, refreshDashboard]);
+
+  useEffect(() => {
+    if (tab !== 'users' || user?.admin !== 1 || !adminOk) return;
+    loadUsers(userFilter).catch((err) => setStatus(err.message || 'Üyeler yüklenemedi.'));
+  }, [tab, user, adminOk, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore]);
 
   useEffect(() => {
     if (tab !== 'dashboard' || !dashboardAutoRefresh || user?.admin !== 1 || !adminOk) return undefined;
@@ -168,15 +240,36 @@ export default function AdminPage() {
     setStats(data);
   }
 
-  async function loadUsers() {
-    const data = await apiJson(`/api/admin/users/lists?filter=${userFilter}`);
-    setUsers(data.users || []);
+  async function loadUsers(filterValue = userFilter, overrides = {}) {
+    setUsersLoading(true);
+    try {
+      const effectiveSort = overrides.sort ?? userSort;
+      const effectiveQuery = String(overrides.query ?? userQuery).trim();
+      const effectivePhotoOnly = overrides.photoOnly ?? userSearchPhotoOnly;
+      const effectiveVerifiedOnly = overrides.verifiedOnly ?? userVerifiedOnly;
+      const effectiveOnlineOnly = overrides.onlineOnly ?? userOnlineOnly;
+      const effectiveMinScore = String(overrides.minScore ?? userMinScore ?? '').trim();
+      const params = new URLSearchParams({
+        filter: filterValue,
+        sort: effectiveSort,
+        limit: '800'
+      });
+      if (effectiveQuery) params.set('q', effectiveQuery);
+      if (effectivePhotoOnly) params.set('photo', '1');
+      if (effectiveVerifiedOnly) params.set('verified', '1');
+      if (effectiveOnlineOnly) params.set('online', '1');
+      if (effectiveMinScore) params.set('minScore', effectiveMinScore);
+      const data = await apiJson(`/api/admin/users/lists?${params.toString()}`);
+      setUsers(data.users || []);
+      setUsersMeta({ total: Number(data.meta?.total || 0), returned: Number(data.meta?.returned || 0) });
+      setUserMode(effectiveQuery || effectivePhotoOnly ? 'search' : 'filter');
+    } finally {
+      setUsersLoading(false);
+    }
   }
 
   async function searchUsers() {
-    if (!userQuery.trim()) return;
-    const data = await apiJson(`/api/admin/users/search?q=${encodeURIComponent(userQuery)}`);
-    setUsers(data.users || []);
+    await loadUsers(userFilter);
   }
 
   async function loadUserDetail(id) {
@@ -190,6 +283,155 @@ export default function AdminPage() {
     await apiJson(`/api/admin/users/${userForm.id}`, { method: 'PUT', body: JSON.stringify(userForm) });
     setStatus('Üye güncellendi.');
     loadUsers();
+  }
+
+  async function loadEngagementScores(pageValue = engagementFilters.page) {
+    setEngagementLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageValue),
+        limit: String(engagementFilters.limit || 40),
+        sort: engagementFilters.sort || 'score_desc',
+        status: engagementFilters.status || 'all'
+      });
+      if (engagementFilters.q.trim()) params.set('q', engagementFilters.q.trim());
+      if (engagementFilters.variant) params.set('variant', engagementFilters.variant);
+      if (String(engagementFilters.minScore || '').trim()) params.set('minScore', String(engagementFilters.minScore).trim());
+      if (String(engagementFilters.maxScore || '').trim()) params.set('maxScore', String(engagementFilters.maxScore).trim());
+      const data = await apiJson(`/api/new/admin/engagement-scores?${params.toString()}`);
+      setEngagementRows(data.items || []);
+      setEngagementMeta({
+        total: Number(data.total || 0),
+        page: Number(data.page || pageValue || 1),
+        pages: Number(data.pages || 1),
+        limit: Number(data.limit || engagementFilters.limit || 40)
+      });
+      setEngagementSummary(data.summary || { avgScore: 0, maxScore: 0, minScore: 0 });
+      setEngagementLastCalculatedAt(data.lastCalculatedAt || '');
+      setEngagementFilters((prev) => ({ ...prev, page: Number(data.page || pageValue || 1) }));
+    } finally {
+      setEngagementLoading(false);
+    }
+  }
+
+  async function recalculateEngagementScores() {
+    await apiJson('/api/new/admin/engagement-scores/recalculate', { method: 'POST' });
+    setStatus('Etkileşim skorları yeniden hesaplandı.');
+    await Promise.all([
+      loadEngagementScores(1),
+      loadEngagementAb(),
+      loadUsers(userFilter)
+    ]);
+  }
+
+  async function loadEngagementAb() {
+    setEngagementAbLoading(true);
+    try {
+      const data = await apiJson('/api/new/admin/engagement-ab');
+      const configs = data.configs || [];
+      setEngagementAbConfigs(configs);
+      setEngagementAbPerformance(data.performance || []);
+      setEngagementAbAssignments(data.assignmentCounts || []);
+      setEngagementAbRecommendations(data.recommendations || []);
+      if (data.lastCalculatedAt) setEngagementLastCalculatedAt(data.lastCalculatedAt);
+      const nextForms = {};
+      for (const cfg of configs) {
+        nextForms[cfg.variant] = {
+          name: cfg.name || '',
+          description: cfg.description || '',
+          trafficPct: String(cfg.trafficPct ?? 50),
+          enabled: Number(cfg.enabled || 0) === 1,
+          paramsText: JSON.stringify(cfg.params || {}, null, 2)
+        };
+      }
+      setEngagementAbForms(nextForms);
+    } finally {
+      setEngagementAbLoading(false);
+    }
+  }
+
+  function updateEngagementAbForm(variant, field, value) {
+    setEngagementAbForms((prev) => ({
+      ...prev,
+      [variant]: {
+        ...(prev[variant] || {}),
+        [field]: value
+      }
+    }));
+  }
+
+  async function saveEngagementAbVariant(variant) {
+    const form = engagementAbForms[variant];
+    if (!form) return;
+    let params;
+    try {
+      params = JSON.parse(form.paramsText || '{}');
+    } catch {
+      setStatus(`Variant ${variant} parametre JSON formatı geçersiz.`);
+      return;
+    }
+    await apiJson(`/api/new/admin/engagement-ab/${encodeURIComponent(variant)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: form.name,
+        description: form.description,
+        trafficPct: Number(form.trafficPct || 0),
+        enabled: form.enabled ? 1 : 0,
+        params
+      })
+    });
+    setStatus(`Variant ${variant} kaydedildi.`);
+    await Promise.all([
+      loadEngagementAb(),
+      loadEngagementScores(1)
+    ]);
+  }
+
+  async function rebalanceEngagementAb() {
+    await apiJson('/api/new/admin/engagement-ab/rebalance', { method: 'POST', body: JSON.stringify({ keepAssignments: 0 }) });
+    setStatus('A/B üyelik dağılımı yeniden oluşturuldu ve skorlar hesaplandı.');
+    await Promise.all([
+      loadEngagementAb(),
+      loadEngagementScores(1),
+      loadUsers(userFilter)
+    ]);
+  }
+
+  function applyAbRecommendation(recommendation) {
+    const variant = recommendation?.variant;
+    if (!variant) return;
+    if (recommendation.patch && typeof recommendation.patch === 'object') {
+      setEngagementAbForms((prev) => {
+        const current = prev[variant];
+        if (!current) return prev;
+        let currentParams = {};
+        try {
+          currentParams = JSON.parse(current.paramsText || '{}');
+        } catch {
+          currentParams = {};
+        }
+        const merged = { ...currentParams, ...recommendation.patch };
+        return {
+          ...prev,
+          [variant]: {
+            ...current,
+            paramsText: JSON.stringify(merged, null, 2)
+          }
+        };
+      });
+      setStatus(`Variant ${variant} için öneri forma uygulandı. Kaydetmek için "Variant ${variant} Kaydet" tuşuna bas.`);
+    }
+    if (recommendation.trafficPatch && typeof recommendation.trafficPatch === 'object') {
+      setEngagementAbForms((prev) => {
+        const next = { ...prev };
+        for (const [v, value] of Object.entries(recommendation.trafficPatch)) {
+          if (!next[v]) continue;
+          next[v] = { ...next[v], trafficPct: String(value) };
+        }
+        return next;
+      });
+      setStatus('Traffic önerisi forma uygulandı. İlgili variantları kaydet.');
+    }
   }
 
   async function updateVerify() {
@@ -267,22 +509,65 @@ export default function AdminPage() {
 
   async function loadLogs() {
     try {
-      const data = await apiJson(`/api/admin/logs?type=${encodeURIComponent(logType)}`);
+      const params = new URLSearchParams({
+        type: logType,
+        ...(logFilters.from ? { from: logFilters.from } : {}),
+        ...(logFilters.to ? { to: logFilters.to } : {})
+      });
+      const data = await apiJson(`/api/admin/logs?${params.toString()}`);
       setLogs(data.files || []);
       setLogFile('');
       setLogContent('');
+      setLogMeta({ total: 0, matched: 0, returned: 0, offset: 0, limit: Number(logFilters.limit) || 500 });
     } catch (err) {
       setStatus(err.message || 'Loglar alınamadı.');
       setLogs([]);
     }
   }
 
-  async function openLog(file) {
+  async function openLog(file, opts = {}) {
     const fileName = typeof file === 'string' ? file : file?.name;
     if (!fileName) return;
-    const data = await apiJson(`/api/admin/logs?type=${encodeURIComponent(logType)}&file=${encodeURIComponent(fileName)}`);
+    const merged = {
+      ...logFilters,
+      ...opts
+    };
+    const params = new URLSearchParams({
+      type: logType,
+      file: fileName,
+      ...(merged.q ? { q: merged.q } : {}),
+      ...(merged.activity ? { activity: merged.activity } : {}),
+      ...(merged.userId ? { userId: merged.userId } : {}),
+      ...(merged.from ? { from: merged.from } : {}),
+      ...(merged.to ? { to: merged.to } : {}),
+      limit: String(merged.limit || 500),
+      offset: String(merged.offset || 0)
+    });
+    const data = await apiJson(`/api/admin/logs?${params.toString()}`);
     setLogFile(fileName);
     setLogContent(data.content || '');
+    setLogMeta({
+      total: Number(data.total || 0),
+      matched: Number(data.matched || 0),
+      returned: Number(data.returned || 0),
+      offset: Number(data.offset || 0),
+      limit: Number(data.limit || merged.limit || 500)
+    });
+  }
+
+  async function applyLogFilters() {
+    if (!logFile) return;
+    await openLog(logFile, { offset: 0 });
+  }
+
+  async function paginateLog(direction) {
+    if (!logFile) return;
+    const step = Number(logMeta.limit || logFilters.limit || 500);
+    const currentOffset = Number(logMeta.offset || 0);
+    const nextOffset = direction === 'next'
+      ? currentOffset + step
+      : Math.max(currentOffset - step, 0);
+    await openLog(logFile, { offset: nextOffset });
   }
 
   async function copyCurrentLog() {
@@ -495,6 +780,14 @@ export default function AdminPage() {
   }, []);
 
   const currentTab = useMemo(() => tabs.find((t) => t.key === tab) || tabs[0], [tab]);
+  const userSummary = useMemo(() => {
+    const total = users.length;
+    const active = users.filter((u) => Number(u.aktiv || 0) === 1 && Number(u.yasak || 0) === 0).length;
+    const pending = users.filter((u) => Number(u.aktiv || 0) === 0 && Number(u.yasak || 0) === 0).length;
+    const banned = users.filter((u) => Number(u.yasak || 0) === 1).length;
+    const online = users.filter((u) => Number(u.online || 0) === 1).length;
+    return { total, active, pending, banned, online };
+  }, [users]);
 
   if (user?.admin !== 1) {
     return (
@@ -633,7 +926,7 @@ export default function AdminPage() {
           <div className="panel-body">
             <div className="stack">
               <div className="form-row">
-                <label>Filtre</label>
+                <label>Liste Filtresi</label>
                 <select className="input" value={userFilter} onChange={(e) => setUserFilter(e.target.value)}>
                   <option value="active">Aktif</option>
                   <option value="pending">Bekleyen</option>
@@ -642,18 +935,96 @@ export default function AdminPage() {
                   <option value="recent">Son giriş</option>
                   <option value="all">Tümü</option>
                 </select>
-                <button className="btn" onClick={loadUsers}>Listele</button>
+                <select className="input" value={userSort} onChange={(e) => setUserSort(e.target.value)}>
+                  <option value="engagement_desc">Skor: Yüksekten Düşüğe</option>
+                  <option value="engagement_asc">Skor: Düşükten Yükseğe</option>
+                  <option value="online">Online Önce</option>
+                  <option value="recent">Son Giriş</option>
+                  <option value="name">Ada Göre</option>
+                </select>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="Min skor"
+                  value={userMinScore}
+                  onChange={(e) => setUserMinScore(e.target.value)}
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={userVerifiedOnly}
+                    onChange={(e) => setUserVerifiedOnly(e.target.checked)}
+                  />
+                  Verified
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={userOnlineOnly}
+                    onChange={(e) => setUserOnlineOnly(e.target.checked)}
+                  />
+                  Sadece online
+                </label>
+                <button className="btn ghost" onClick={() => loadUsers(userFilter)}>Yenile</button>
               </div>
               <div className="form-row">
                 <label>Arama</label>
                 <input className="input" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={userSearchPhotoOnly}
+                    onChange={(e) => setUserSearchPhotoOnly(e.target.checked)}
+                  />
+                  Sadece fotoğrafı olanlar
+                </label>
                 <button className="btn" onClick={searchUsers}>Ara</button>
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    setUserQuery('');
+                    setUserSearchPhotoOnly(false);
+                    setUserVerifiedOnly(false);
+                    setUserOnlineOnly(false);
+                    setUserMinScore('');
+                    setUserSort('engagement_desc');
+                    loadUsers(userFilter, {
+                      query: '',
+                      photoOnly: false,
+                      verifiedOnly: false,
+                      onlineOnly: false,
+                      minScore: '',
+                      sort: 'engagement_desc'
+                    });
+                  }}
+                >
+                  Temizle
+                </button>
+              </div>
+              <div className="composer-actions">
+                <span className="chip">Mod: {userMode === 'search' ? 'Arama Sonucu' : 'Filtre Listesi'}</span>
+                <span className="chip">Toplam: {userSummary.total}</span>
+                <span className="chip">Sunucuda Eşleşen: {usersMeta.total}</span>
+                <span className="chip">Aktif: {userSummary.active}</span>
+                <span className="chip">Bekleyen: {userSummary.pending}</span>
+                <span className="chip">Yasaklı: {userSummary.banned}</span>
+                <span className="chip">Online: {userSummary.online}</span>
               </div>
             </div>
+            {usersLoading ? <div className="muted">Üyeler yükleniyor...</div> : null}
             <div className="list">
               {users.map((u) => (
                 <button key={u.id} className="list-item" onClick={() => loadUserDetail(u.id)}>
-                  {u.kadi} ({u.isim} {u.soyisim})
+                  <div>
+                    <div className="name">@{u.kadi} ({u.isim} {u.soyisim})</div>
+                    <div className="meta">
+                      Skor: {Number(u.engagement_score || 0).toFixed(1)} / 100
+                      {Number(u.online || 0) === 1 ? ' • Online' : ''}
+                      {Number(u.verified || 0) === 1 ? ' • Verified' : ''}
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
@@ -671,6 +1042,13 @@ export default function AdminPage() {
                 <div className="form-row">
                   <label>Email</label>
                   <input className="input" value={userForm.email || ''} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} />
+                </div>
+                <div className="form-row">
+                  <label>Etkileşim Skoru</label>
+                  <input className="input" value={`${Number(userForm.engagement_score || 0).toFixed(1)} / 100`} readOnly />
+                  <div className="muted">
+                    Güncellendi: {userForm.engagement_updated_at ? new Date(userForm.engagement_updated_at).toLocaleString('tr-TR') : '-'}
+                  </div>
                 </div>
                 <div className="form-row">
                   <label>Şifre (yalnızca gerekiyorsa)</label>
@@ -712,6 +1090,222 @@ export default function AdminPage() {
                 <option value="0">Kaldır</option>
               </select>
               <button className="btn" onClick={updateVerify}>Güncelle</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'engagement' ? (
+        <div className="panel">
+          <div className="panel-body">
+            <h3>A/B Parametre Setleri</h3>
+            <div className="composer-actions">
+              <button className="btn ghost" onClick={loadEngagementAb}>A/B Verisini Yenile</button>
+              <button className="btn ghost" onClick={rebalanceEngagementAb}>A/B Dağılımını Yeniden Oluştur</button>
+              {engagementAbLoading ? <span className="muted">Yükleniyor...</span> : null}
+            </div>
+            <div className="composer-actions">
+              {engagementAbAssignments.map((a) => (
+                <span key={`assign-${a.variant}`} className="chip">
+                  Atama {a.variant}: {a.cnt}
+                </span>
+              ))}
+            </div>
+            {engagementAbRecommendations.length ? (
+              <div className="panel" style={{ marginBottom: 10 }}>
+                <h3>Otomatik Öneriler</h3>
+                <div className="panel-body">
+                  {engagementAbRecommendations.map((rec, idx) => (
+                    <div key={`rec-${rec.variant}-${idx}`} className="list-item">
+                      <div>
+                        <div className="name">Variant {rec.variant} • Güven: {Math.round(Number(rec.confidence || 0) * 100)}%</div>
+                        <div className="meta">{Array.isArray(rec.reasons) ? rec.reasons.join(' | ') : ''}</div>
+                        {rec.patch ? (
+                          <div className="meta">
+                            Parametre yaması: {Object.entries(rec.patch).slice(0, 6).map(([k, v]) => `${k}=${v}`).join(', ')}
+                          </div>
+                        ) : null}
+                        {rec.trafficPatch ? (
+                          <div className="meta">
+                            Traffic yaması: {Object.entries(rec.trafficPatch).map(([k, v]) => `${k}:${v}%`).join(' • ')}
+                          </div>
+                        ) : null}
+                      </div>
+                      <button className="btn ghost" onClick={() => applyAbRecommendation(rec)}>Öneriyi Uygula</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div className="list">
+              {engagementAbConfigs.map((cfg) => {
+                const form = engagementAbForms[cfg.variant] || {};
+                const perf = engagementAbPerformance.find((p) => String(p.variant) === String(cfg.variant));
+                return (
+                  <div key={cfg.variant} className="list-item" style={{ display: 'block' }}>
+                    <div className="name">Variant {cfg.variant}</div>
+                    <div className="meta">{cfg.description}</div>
+                    <div className="meta">
+                      Üye: {perf?.users || 0} • Ort. Skor: {Number(perf?.avg_score || 0).toFixed(1)} •
+                      Etkileşim Oranı: {Number(perf?.engagementRate || 0).toFixed(2)}
+                    </div>
+                    <div className="form-row">
+                      <label>Ad</label>
+                      <input
+                        className="input"
+                        value={form.name || ''}
+                        onChange={(e) => updateEngagementAbForm(cfg.variant, 'name', e.target.value)}
+                      />
+                      <label>Açıklama</label>
+                      <input
+                        className="input"
+                        value={form.description || ''}
+                        onChange={(e) => updateEngagementAbForm(cfg.variant, 'description', e.target.value)}
+                      />
+                      <label>Traffic %</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={form.trafficPct || '0'}
+                        onChange={(e) => updateEngagementAbForm(cfg.variant, 'trafficPct', e.target.value)}
+                      />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={!!form.enabled}
+                          onChange={(e) => updateEngagementAbForm(cfg.variant, 'enabled', e.target.checked)}
+                        />
+                        Aktif
+                      </label>
+                    </div>
+                    <textarea
+                      className="input"
+                      rows={10}
+                      value={form.paramsText || '{}'}
+                      onChange={(e) => updateEngagementAbForm(cfg.variant, 'paramsText', e.target.value)}
+                    />
+                    <div className="composer-actions">
+                      <button className="btn" onClick={() => saveEngagementAbVariant(cfg.variant)}>
+                        Variant {cfg.variant} Kaydet
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <h3>Skor Kayıtları</h3>
+            <div className="form-row">
+              <label>Filtre</label>
+              <input
+                className="input"
+                placeholder="Kullanıcı ara"
+                value={engagementFilters.q}
+                onChange={(e) => setEngagementFilters((prev) => ({ ...prev, q: e.target.value }))}
+              />
+              <select
+                className="input"
+                value={engagementFilters.variant}
+                onChange={(e) => setEngagementFilters((prev) => ({ ...prev, variant: e.target.value, page: 1 }))}
+              >
+                <option value="">Tüm variantlar</option>
+                {engagementAbConfigs.map((cfg) => (
+                  <option key={`variant-${cfg.variant}`} value={cfg.variant}>
+                    Variant {cfg.variant}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="input"
+                value={engagementFilters.status}
+                onChange={(e) => setEngagementFilters((prev) => ({ ...prev, status: e.target.value, page: 1 }))}
+              >
+                <option value="all">Tüm üyeler</option>
+                <option value="active">Aktif</option>
+                <option value="pending">Bekleyen</option>
+                <option value="banned">Yasaklı</option>
+              </select>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                max="100"
+                placeholder="Min skor"
+                value={engagementFilters.minScore}
+                onChange={(e) => setEngagementFilters((prev) => ({ ...prev, minScore: e.target.value, page: 1 }))}
+              />
+              <input
+                className="input"
+                type="number"
+                min="0"
+                max="100"
+                placeholder="Maks skor"
+                value={engagementFilters.maxScore}
+                onChange={(e) => setEngagementFilters((prev) => ({ ...prev, maxScore: e.target.value, page: 1 }))}
+              />
+              <select
+                className="input"
+                value={engagementFilters.sort}
+                onChange={(e) => setEngagementFilters((prev) => ({ ...prev, sort: e.target.value }))}
+              >
+                <option value="score_desc">Skor: Yüksekten Düşüğe</option>
+                <option value="score_asc">Skor: Düşükten Yükseğe</option>
+                <option value="recent_update">Son Güncellenen</option>
+                <option value="name">Ada Göre</option>
+              </select>
+              <button className="btn" onClick={() => loadEngagementScores(1)}>Uygula</button>
+              <button className="btn ghost" onClick={recalculateEngagementScores}>Skorları Yeniden Hesapla</button>
+            </div>
+            <div className="composer-actions">
+              <span className="chip">Toplam: {engagementMeta.total}</span>
+              <span className="chip">Ortalama: {Number(engagementSummary.avgScore || 0).toFixed(1)}</span>
+              <span className="chip">Maks: {Number(engagementSummary.maxScore || 0).toFixed(1)}</span>
+              <span className="chip">Min: {Number(engagementSummary.minScore || 0).toFixed(1)}</span>
+              <span className="chip">
+                Son hesaplama: {engagementLastCalculatedAt ? new Date(engagementLastCalculatedAt).toLocaleString('tr-TR') : '-'}
+              </span>
+            </div>
+            {engagementLoading ? <div className="muted">Skorlar yükleniyor...</div> : null}
+            <div className="list">
+              {engagementRows.map((u) => (
+                <div key={u.id} className="list-item">
+                  <div>
+                    <div className="name">@{u.kadi} ({u.isim} {u.soyisim})</div>
+                    <div className="meta">
+                      Variant: {u.ab_variant || 'A'} • Skor: {Number(u.score || 0).toFixed(1)} / 100 • Ham: {Number(u.raw_score || 0).toFixed(1)} • Son aktivite:{' '}
+                      {u.last_activity_at ? new Date(u.last_activity_at).toLocaleString('tr-TR') : '-'}
+                    </div>
+                    <div className="meta">
+                      İçerik: {Number(u.creator_score || 0).toFixed(1)} • Etkileşim: {Number(u.engagement_received_score || 0).toFixed(1)} •
+                      Topluluk: {Number(u.community_score || 0).toFixed(1)} • Ağ: {Number(u.network_score || 0).toFixed(1)} •
+                      Kalite: {Number(u.quality_score || 0).toFixed(1)} • Ceza: {Number(u.penalty_score || 0).toFixed(1)}
+                    </div>
+                    <div className="meta">
+                      30g post: {u.posts_30d || 0} • Beğeni: {u.likes_received_30d || 0} • Yorum: {u.comments_received_30d || 0} •
+                      Takipçi: {u.followers_count || 0} • Takip: {u.following_count || 0}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="composer-actions">
+              <button
+                className="btn ghost"
+                disabled={engagementMeta.page <= 1}
+                onClick={() => loadEngagementScores(Math.max(1, engagementMeta.page - 1))}
+              >
+                Önceki
+              </button>
+              <span className="chip">Sayfa {engagementMeta.page} / {engagementMeta.pages}</span>
+              <button
+                className="btn ghost"
+                disabled={engagementMeta.page >= engagementMeta.pages}
+                onClick={() => loadEngagementScores(engagementMeta.page + 1)}
+              >
+                Sonraki
+              </button>
             </div>
           </div>
         </div>
@@ -937,11 +1531,64 @@ export default function AdminPage() {
                 <option value="page">Sayfa Logları</option>
                 <option value="member">Üye Logları</option>
               </select>
+              <input
+                className="input"
+                type="date"
+                value={logFilters.from}
+                onChange={(e) => setLogFilters((prev) => ({ ...prev, from: e.target.value }))}
+              />
+              <input
+                className="input"
+                type="date"
+                value={logFilters.to}
+                onChange={(e) => setLogFilters((prev) => ({ ...prev, to: e.target.value }))}
+              />
               <button className="btn" onClick={loadLogs}>Yükle</button>
+            </div>
+            <div className="form-row">
+              <label>İçerik Filtreleri</label>
+              <input
+                className="input"
+                placeholder="Metin ara (q)"
+                value={logFilters.q}
+                onChange={(e) => setLogFilters((prev) => ({ ...prev, q: e.target.value }))}
+              />
+              <select
+                className="input"
+                value={logFilters.activity}
+                onChange={(e) => setLogFilters((prev) => ({ ...prev, activity: e.target.value }))}
+              >
+                <option value="">Hızlı activity seç</option>
+                {commonLogActivities.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+              <input
+                className="input"
+                placeholder="activity (ör. http_error)"
+                value={logFilters.activity}
+                onChange={(e) => setLogFilters((prev) => ({ ...prev, activity: e.target.value }))}
+              />
+              <input
+                className="input"
+                placeholder="userId"
+                value={logFilters.userId}
+                onChange={(e) => setLogFilters((prev) => ({ ...prev, userId: e.target.value }))}
+              />
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="10000"
+                placeholder="limit"
+                value={logFilters.limit}
+                onChange={(e) => setLogFilters((prev) => ({ ...prev, limit: Number(e.target.value || 500) }))}
+              />
+              <button className="btn ghost" onClick={applyLogFilters} disabled={!logFile}>Filtreyi Uygula</button>
             </div>
             <div className="list">
               {logs.map((f) => (
-                <button key={f.name} className="list-item" onClick={() => openLog(f)}>
+                <button key={f.name} className="list-item" onClick={() => openLog(f, { offset: 0 })}>
                   <span>{f.name}</span>
                   <span className="meta">{Math.round((f.size || 0) / 1024)} KB</span>
                 </button>
@@ -955,6 +1602,27 @@ export default function AdminPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn ghost" onClick={copyCurrentLog}>Kopyala</button>
                     <button className="btn ghost" onClick={downloadCurrentLog}>İndir</button>
+                  </div>
+                </div>
+                <div className="composer-actions">
+                  <div className="muted">
+                    Toplam: {logMeta.total} • Eşleşen: {logMeta.matched} • Gösterilen: {logMeta.returned}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn ghost"
+                      onClick={() => paginateLog('prev')}
+                      disabled={Number(logMeta.offset || 0) <= 0}
+                    >
+                      Önceki
+                    </button>
+                    <button
+                      className="btn ghost"
+                      onClick={() => paginateLog('next')}
+                      disabled={Number(logMeta.offset || 0) + Number(logMeta.limit || 0) >= Number(logMeta.matched || 0)}
+                    >
+                      Sonraki
+                    </button>
                   </div>
                 </div>
                 <textarea className="input" rows={12} value={logContent} readOnly />

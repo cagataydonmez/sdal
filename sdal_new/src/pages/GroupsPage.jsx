@@ -81,8 +81,12 @@ export default function GroupsPage() {
   }
 
   async function toggleJoin(id) {
-    await apiJson(`/api/new/groups/${id}/join`, { method: 'POST' });
-    load();
+    try {
+      await apiJson(`/api/new/groups/${id}/join`, { method: 'POST' });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   function handleDescriptionChange(value, caretPos) {
@@ -135,10 +139,12 @@ export default function GroupsPage() {
             <div>
               <div className="name">{g.name}</div>
               <div className="meta">{g.description}</div>
-              <div className="meta">{g.members} üye</div>
+              <div className="meta">{g.members} üye {g.visibility === 'members_only' ? '· Gizli' : ''}</div>
               <a className="btn ghost" href={`/new/groups/${g.id}`}>Aç</a>
             </div>
-            <button className="btn" onClick={() => toggleJoin(g.id)}>{g.joined ? 'Ayrıl' : 'Katıl'}</button>
+            <button className="btn" onClick={() => toggleJoin(g.id)}>
+              {g.joined ? 'Ayrıl' : (g.invited ? 'Daveti Kabul Et' : (g.pending ? 'İsteği İptal Et' : 'Katılım İsteği'))}
+            </button>
           </div>
         ))}
       </div>

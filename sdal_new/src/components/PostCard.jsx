@@ -71,10 +71,18 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     onRefresh?.();
   }
 
+  const authorId = Number(post.author?.id || post.user_id || 0) || null;
+
   return (
     <article className="post-card">
       <div className="post-header">
-        <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+        {authorId ? (
+          <a href={`/new/members/${authorId}`} aria-label={`${post.author?.kadi || 'uye'} profiline git`}>
+            <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+          </a>
+        ) : (
+          <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+        )}
         <div>
           <div className="name">
             {post.author?.isim} {post.author?.soyisim}

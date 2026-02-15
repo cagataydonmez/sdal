@@ -26,6 +26,7 @@ import MessageDetailPage from './pages/MessageDetailPage.jsx';
 import FollowingPage from './pages/FollowingPage.jsx';
 import HelpPage from './pages/HelpPage.jsx';
 import GamesPage from './pages/GamesPage.jsx';
+import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -37,6 +38,7 @@ function RequireAuth({ children }) {
 export default function App() {
   return (
     <AuthProvider>
+      <GlobalActionFeedback />
       <Routes>
         <Route path="/new/login" element={<LoginPage />} />
         <Route path="/new/register" element={<RegisterPage />} />
@@ -59,6 +61,7 @@ export default function App() {
         <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
         <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
         <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
+        <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />
         <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
         <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />

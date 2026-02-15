@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
 
@@ -19,11 +20,11 @@ const PIECES = [
 ];
 
 const GAME_META = {
-  snake: { title: 'Yilan (Klasik)', scoreLabel: 'Skor' },
-  tetris: { title: 'Tetris (Klasik)', scoreLabel: 'Puan' },
-  'tap-rush': { title: 'Tap Rush', scoreLabel: 'Skor' },
-  'memory-pairs': { title: 'Memory Pairs', scoreLabel: 'Puan' },
-  'puzzle-2048': { title: '2048', scoreLabel: 'Puan' }
+  snake: { title: 'Yilan (Klasik)', scoreLabel: 'Skor', type: 'classic' },
+  tetris: { title: 'Tetris (Klasik)', scoreLabel: 'Puan', type: 'classic' },
+  'tap-rush': { title: 'Tap Rush', scoreLabel: 'Skor', type: 'arcade' },
+  'memory-pairs': { title: 'Memory Pairs', scoreLabel: 'Puan', type: 'arcade' },
+  'puzzle-2048': { title: '2048', scoreLabel: 'Puan', type: 'arcade' }
 };
 
 function randomInt(max) {
@@ -73,6 +74,18 @@ function clearLines(grid) {
   return { grid: kept, removed };
 }
 
+function useArrowKeyControls(handler) {
+  useEffect(() => {
+    function onKey(e) {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      handler(e.key);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handler]);
+}
+
 function useLeaderboard(gameKey, endpointType = 'classic') {
   const [rows, setRows] = useState([]);
   const endpoint = endpointType === 'classic'
@@ -86,7 +99,9 @@ function useLeaderboard(gameKey, endpointType = 'classic') {
     setRows(payload.rows || []);
   }, [endpoint]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return { rows, reload: load };
 }
@@ -94,11 +109,11 @@ function useLeaderboard(gameKey, endpointType = 'classic') {
 function Leaderboard({ title, rows, scoreLabel }) {
   return (
     <div className="panel game-leaderboard">
-      <h3>{title} - Yüksek Skor</h3>
+      <h3>{title} - Yuksek Skor</h3>
       <div className="panel-body">
-        {rows.length === 0 ? <div className="muted">Henüz skor yok.</div> : null}
+        {rows.length === 0 ? <div className="muted">Henuz skor yok.</div> : null}
         {rows.map((r, idx) => (
-          <div className="list-item game-score-row" key={`${r.isim}-${r.skor}-${idx}`}>
+          <div className="list-item game-score-row" key={`${r.isim}-${r.skor || r.puan}-${idx}`}>
             <div><b>{idx + 1}. @{r.isim}</b></div>
             <div className="meta">{scoreLabel}: {r.skor ?? r.puan} · {formatDateTime(r.tarih)}</div>
           </div>
@@ -144,16 +159,13 @@ function SnakeGame({ onScore }) {
     return () => clearInterval(timer);
   }, [running, dir, food, score, onScore]);
 
-  useEffect(() => {
-    function onKey(e) {
-      const map = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
-      if (!map[e.key]) return;
-      const [x, y] = map[e.key];
-      setDir((d) => (d.x + x === 0 && d.y + y === 0 ? d : { x, y }));
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useArrowKeyControls((key) => {
+    const map = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const next = map[key];
+    if (!next) return;
+    const [x, y] = next;
+    setDir((d) => (d.x + x === 0 && d.y + y === 0 ? d : { x, y }));
+  });
 
   const cells = useMemo(() => {
     const set = new Set(snake.map((p) => `${p.x}:${p.y}`));
@@ -173,9 +185,14 @@ function SnakeGame({ onScore }) {
         <span className="chip">Skor: {score}</span>
         <button className="btn" onClick={() => setRunning((v) => !v)}>{running ? 'Duraklat' : 'Baslat'}</button>
         <button className="btn ghost" onClick={() => {
-          setSnake([{ x: 7, y: 7 }]); setDir({ x: 1, y: 0 }); setFood({ x: 12, y: 10 }); setScore(0); setRunning(false);
+          setSnake([{ x: 7, y: 7 }]);
+          setDir({ x: 1, y: 0 });
+          setFood({ x: 12, y: 10 });
+          setScore(0);
+          setRunning(false);
         }}>Sifirla</button>
       </div>
+      <div className="game-hint">Kontrol: Ok tuslari</div>
       <div className="snake-grid" style={{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }}>
         {cells.map((v, idx) => <div key={idx} className={`snake-cell ${v}`} />)}
       </div>
@@ -231,29 +248,25 @@ function TetrisGame({ onScore }) {
     return () => clearInterval(timer);
   }, [running, tick]);
 
-  function move(dx) {
+  const move = useCallback((dx) => {
     if (!hasCollision(grid, piece, x + dx, y)) setX((v) => v + dx);
-  }
+  }, [grid, piece, x, y]);
 
-  function drop() {
+  const drop = useCallback(() => {
     if (!hasCollision(grid, piece, x, y + 1)) setY((v) => v + 1);
     else tick();
-  }
+  }, [grid, piece, x, y, tick]);
 
-  function spin() {
+  const spin = useCallback(() => {
     const rotated = rotate(piece);
     if (!hasCollision(grid, rotated, x, y)) setPiece(rotated);
-  }
+  }, [grid, piece, x, y]);
 
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === 'ArrowLeft') move(-1);
-      if (e.key === 'ArrowRight') move(1);
-      if (e.key === 'ArrowDown') drop();
-      if (e.key === 'ArrowUp') spin();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+  useArrowKeyControls((key) => {
+    if (key === 'ArrowLeft') move(-1);
+    if (key === 'ArrowRight') move(1);
+    if (key === 'ArrowDown') drop();
+    if (key === 'ArrowUp') spin();
   });
 
   const cells = useMemo(() => {
@@ -284,6 +297,7 @@ function TetrisGame({ onScore }) {
           setRunning(false);
         }}>Sifirla</button>
       </div>
+      <div className="game-hint">Kontrol: Sol/Sag/Asagi + Yukari (cevir)</div>
       <div className="tetris-grid" style={{ gridTemplateColumns: `repeat(${TETRIS_W}, 1fr)` }}>
         {cells.map((v, i) => <div key={i} className={`tetris-cell ${v ? 'on' : ''} ${v === 2 ? 'active' : ''}`} />)}
       </div>
@@ -365,10 +379,12 @@ function MemoryPairs({ onScore }) {
     setFinished(false);
   }
 
-  useEffect(() => { reset(); }, []);
+  useEffect(() => {
+    reset();
+  }, []);
 
   useEffect(() => {
-    if (open.length !== 2) return;
+    if (open.length !== 2) return undefined;
     const [a, b] = open;
     setMoves((m) => m + 1);
     if (cards[a]?.value === cards[b]?.value) {
@@ -384,7 +400,7 @@ function MemoryPairs({ onScore }) {
         return next;
       });
       setOpen([]);
-      return;
+      return undefined;
     }
     const timer = setTimeout(() => setOpen([]), 550);
     return () => clearTimeout(timer);
@@ -457,13 +473,15 @@ function Puzzle2048({ onScore }) {
     setScore(0);
   }
 
-  useEffect(() => { reset(); }, []);
+  useEffect(() => {
+    reset();
+  }, []);
 
   const applyMove = useCallback((dir) => {
     setGrid((prev) => {
       let moved = false;
       let gained = 0;
-      let next = prev.map((row) => [...row]);
+      const next = prev.map((row) => [...row]);
 
       function setRow(r, row) {
         for (let c = 0; c < 4; c += 1) {
@@ -505,14 +523,11 @@ function Puzzle2048({ onScore }) {
     });
   }, [onScore, score]);
 
-  useEffect(() => {
-    function onKey(e) {
-      const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
-      if (map[e.key]) applyMove(map[e.key]);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [applyMove]);
+  useArrowKeyControls((key) => {
+    const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+    const dir = map[key];
+    if (dir) applyMove(dir);
+  });
 
   return (
     <div className="panel game-panel">
@@ -521,6 +536,7 @@ function Puzzle2048({ onScore }) {
         <span className="chip">Puan: {score}</span>
         <button className="btn" onClick={reset}>Yenile</button>
       </div>
+      <div className="game-hint">Kontrol: Ok tuslari</div>
       <div className="g2048-grid">
         {grid.flat().map((n, i) => <div className={`g2048-cell v${n}`} key={i}>{n || ''}</div>)}
       </div>
@@ -536,17 +552,45 @@ function Puzzle2048({ onScore }) {
   );
 }
 
-export default function GamesPage() {
-  const [status, setStatus] = useState('');
-  const snakeBoard = useLeaderboard('snake', 'classic');
-  const tetrisBoard = useLeaderboard('tetris', 'classic');
-  const tapBoard = useLeaderboard('tap-rush', 'arcade');
-  const memoryBoard = useLeaderboard('memory-pairs', 'arcade');
-  const g2048Board = useLeaderboard('puzzle-2048', 'arcade');
+const GAME_COMPONENTS = {
+  snake: SnakeGame,
+  tetris: TetrisGame,
+  'tap-rush': TapRush,
+  'memory-pairs': MemoryPairs,
+  'puzzle-2048': Puzzle2048
+};
 
-  const saveScore = useCallback(async (game, score, type = 'arcade') => {
+function GamesCatalog() {
+  return (
+    <Layout title="Oyunlar">
+      <div className="panel">
+        <h3>Arcade</h3>
+        <div className="panel-body games-catalog">
+          {Object.entries(GAME_META).map(([key, meta]) => (
+            <Link key={key} className="member-card game-card-link" to={`/new/games/${key}`}>
+              <div className="group-cover-empty">Oyun</div>
+              <div>
+                <div className="name">{meta.title}</div>
+                <div className="meta">Ayrica acilir, ayni sayfada high score tablosu ile oynanir.</div>
+              </div>
+              <span className="btn ghost">Ac</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+function GameDetailPage({ gameKey }) {
+  const meta = GAME_META[gameKey];
+  const GameComponent = GAME_COMPONENTS[gameKey];
+  const board = useLeaderboard(gameKey, meta.type);
+  const [status, setStatus] = useState('');
+
+  const saveScore = useCallback(async (score) => {
     if (!score || score < 1) return;
-    const endpoint = type === 'classic' ? `/api/games/${game}/score` : `/api/games/arcade/${game}/score`;
+    const endpoint = meta.type === 'classic' ? `/api/games/${gameKey}/score` : `/api/games/arcade/${gameKey}/score`;
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -554,33 +598,41 @@ export default function GamesPage() {
       body: JSON.stringify({ score })
     });
     if (!res.ok) return;
-    setStatus(`${GAME_META[game].title} skoru kaydedildi: ${score}`);
-    if (game === 'snake') snakeBoard.reload();
-    if (game === 'tetris') tetrisBoard.reload();
-    if (game === 'tap-rush') tapBoard.reload();
-    if (game === 'memory-pairs') memoryBoard.reload();
-    if (game === 'puzzle-2048') g2048Board.reload();
-  }, [snakeBoard, tetrisBoard, tapBoard, memoryBoard, g2048Board]);
+    setStatus(`${meta.title} skoru kaydedildi: ${score}`);
+    board.reload();
+  }, [meta, gameKey, board]);
 
   return (
-    <Layout title="Oyunlar">
+    <Layout title={meta.title}>
+      <div className="panel">
+        <div className="panel-body game-route-head">
+          <Link className="btn ghost" to="/new/games">Tum Oyunlar</Link>
+          <span className="meta">Ok tuslari bu sayfada kaydirma yapmaz; sadece oyunu kontrol eder.</span>
+        </div>
+      </div>
       {status ? <div className="ok">{status}</div> : null}
-      <div className="games-layout">
-        <SnakeGame onScore={(s) => saveScore('snake', s, 'classic')} />
-        <Leaderboard title={GAME_META.snake.title} rows={snakeBoard.rows} scoreLabel={GAME_META.snake.scoreLabel} />
-
-        <TetrisGame onScore={(s) => saveScore('tetris', s, 'classic')} />
-        <Leaderboard title={GAME_META.tetris.title} rows={tetrisBoard.rows} scoreLabel={GAME_META.tetris.scoreLabel} />
-
-        <TapRush onScore={(s) => saveScore('tap-rush', s)} />
-        <Leaderboard title={GAME_META['tap-rush'].title} rows={tapBoard.rows} scoreLabel={GAME_META['tap-rush'].scoreLabel} />
-
-        <MemoryPairs onScore={(s) => saveScore('memory-pairs', s)} />
-        <Leaderboard title={GAME_META['memory-pairs'].title} rows={memoryBoard.rows} scoreLabel={GAME_META['memory-pairs'].scoreLabel} />
-
-        <Puzzle2048 onScore={(s) => saveScore('puzzle-2048', s)} />
-        <Leaderboard title={GAME_META['puzzle-2048'].title} rows={g2048Board.rows} scoreLabel={GAME_META['puzzle-2048'].scoreLabel} />
+      <div className="games-layout game-single-layout">
+        <GameComponent onScore={saveScore} />
+        <Leaderboard title={meta.title} rows={board.rows} scoreLabel={meta.scoreLabel} />
       </div>
     </Layout>
   );
+}
+
+export default function GamesPage() {
+  const { game } = useParams();
+  if (!game) return <GamesCatalog />;
+  if (!GAME_META[game] || !GAME_COMPONENTS[game]) {
+    return (
+      <Layout title="Oyun bulunamadi">
+        <div className="panel">
+          <div className="panel-body">
+            <div className="error">Gecerli oyun bulunamadi.</div>
+            <Link className="btn ghost" to="/new/games">Oyunlara don</Link>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+  return <GameDetailPage gameKey={game} />;
 }

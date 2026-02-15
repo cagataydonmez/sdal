@@ -39,16 +39,54 @@ app.use(
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
-    if (!req.path.startsWith('/api/')) return;
     const durationMs = Date.now() - start;
-    writeAppLog('info', 'http_request', {
+    const meta = {
       method: req.method,
       path: req.path,
       status: res.statusCode,
       durationMs,
       userId: req.session?.userId || null,
       ip: req.ip
-    });
+    };
+
+    if (req.path.startsWith('/api/')) {
+      writeAppLog('info', 'http_request', meta);
+    }
+
+    // Hata logları: 4xx/5xx taleplerin tamamı
+    if (res.statusCode >= 400) {
+      writeLegacyLog('error', 'http_error', {
+        ...meta,
+        query: req.originalUrl?.includes('?') ? req.originalUrl.split('?')[1] : ''
+      });
+    }
+
+    // Üye logları: kimliği belli kullanıcıların yazma işlemleri
+    const isWrite = req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE';
+    if (req.session?.userId && req.path.startsWith('/api/') && isWrite) {
+      writeLegacyLog('member', 'member_activity', meta);
+    }
+
+    // Sayfa logları: HTML sayfa görüntülemeleri
+    const accept = String(req.headers.accept || '');
+    const wantsHtml = accept.includes('text/html');
+    const isPageView = req.method === 'GET'
+      && !req.path.startsWith('/api/')
+      && !req.path.startsWith('/uploads/')
+      && !req.path.startsWith('/legacy/')
+      && !req.path.startsWith('/smiley/')
+      && wantsHtml
+      && res.statusCode < 400;
+    if (isPageView) {
+      writeLegacyLog('page', 'page_view', {
+        path: req.path,
+        query: req.originalUrl?.includes('?') ? req.originalUrl.split('?')[1] : '',
+        userId: req.session?.userId || null,
+        ip: req.ip,
+        referer: req.headers.referer || '',
+        ua: req.headers['user-agent'] || ''
+      });
+    }
   });
   next();
 });
@@ -212,6 +250,11 @@ const legacyRoot = path.resolve(__dirname, '../..');
 const hatalogDir = path.join(legacyRoot, 'hatalog');
 const sayfalogDir = path.join(legacyRoot, 'sayfalog');
 const uyedetaylogDir = path.join(legacyRoot, 'uyedetaylog');
+for (const dir of [hatalogDir, sayfalogDir, uyedetaylogDir]) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
 const appLogsDir = path.resolve(__dirname, '../logs');
 if (!fs.existsSync(appLogsDir)) {
   fs.mkdirSync(appLogsDir, { recursive: true });
@@ -232,6 +275,28 @@ function writeAppLog(level, event, meta = {}) {
     fs.appendFileSync(appLogFile, `${JSON.stringify(row)}\n`, 'utf-8');
   } catch {
     // Do not crash request flow on logging failure
+  }
+}
+
+function writeLegacyLog(type, activity, meta = {}) {
+  try {
+    const map = {
+      error: hatalogDir,
+      page: sayfalogDir,
+      member: uyedetaylogDir
+    };
+    const dir = map[type];
+    if (!dir) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const file = path.join(dir, `${day}.log`);
+    const timestamp = new Date().toISOString();
+    const pairs = Object.entries(meta || {})
+      .filter(([, v]) => v !== undefined && v !== null && String(v) !== '')
+      .map(([k, v]) => `${k}=${String(v).replace(/\s+/g, ' ').slice(0, 300)}`);
+    const line = `[${timestamp}] activity=${activity}${pairs.length ? ` | ${pairs.join(' | ')}` : ''}\n`;
+    fs.appendFileSync(file, line, 'utf-8');
+  } catch {
+    // Legacy log writing must never break request flow.
   }
 }
 
@@ -325,6 +390,7 @@ ensureColumn('announcements', 'approved', 'ALTER TABLE announcements ADD COLUMN 
 ensureColumn('announcements', 'created_by', 'ALTER TABLE announcements ADD COLUMN created_by INTEGER');
 ensureColumn('announcements', 'approved_by', 'ALTER TABLE announcements ADD COLUMN approved_by INTEGER');
 ensureColumn('announcements', 'approved_at', 'ALTER TABLE announcements ADD COLUMN approved_at TEXT');
+ensureColumn('groups', 'visibility', "ALTER TABLE groups ADD COLUMN visibility TEXT DEFAULT 'public'");
 
 sqlRun(`CREATE TABLE IF NOT EXISTS event_comments (
   id INTEGER PRIMARY KEY,
@@ -363,6 +429,43 @@ sqlRun(`CREATE TABLE IF NOT EXISTS group_members (
   role TEXT,
   created_at TEXT
 )`);
+sqlRun(`CREATE TABLE IF NOT EXISTS group_join_requests (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER,
+  user_id INTEGER,
+  status TEXT,
+  created_at TEXT,
+  reviewed_at TEXT,
+  reviewed_by INTEGER
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS group_invites (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER,
+  invited_user_id INTEGER,
+  invited_by INTEGER,
+  status TEXT,
+  created_at TEXT,
+  responded_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS group_events (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER,
+  title TEXT,
+  description TEXT,
+  location TEXT,
+  starts_at TEXT,
+  ends_at TEXT,
+  created_at TEXT,
+  created_by INTEGER
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS group_announcements (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER,
+  title TEXT,
+  body TEXT,
+  created_at TEXT,
+  created_by INTEGER
+)`);
 sqlRun(`CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY,
   user_id INTEGER,
@@ -384,6 +487,62 @@ sqlRun(`CREATE TABLE IF NOT EXISTS game_scores (
   score INTEGER,
   created_at TEXT
 )`);
+sqlRun(`CREATE TABLE IF NOT EXISTS member_engagement_scores (
+  user_id INTEGER PRIMARY KEY,
+  ab_variant TEXT DEFAULT 'A',
+  score REAL DEFAULT 0,
+  raw_score REAL DEFAULT 0,
+  creator_score REAL DEFAULT 0,
+  engagement_received_score REAL DEFAULT 0,
+  community_score REAL DEFAULT 0,
+  network_score REAL DEFAULT 0,
+  quality_score REAL DEFAULT 0,
+  penalty_score REAL DEFAULT 0,
+  posts_30d INTEGER DEFAULT 0,
+  posts_7d INTEGER DEFAULT 0,
+  likes_received_30d INTEGER DEFAULT 0,
+  comments_received_30d INTEGER DEFAULT 0,
+  likes_given_30d INTEGER DEFAULT 0,
+  comments_given_30d INTEGER DEFAULT 0,
+  followers_count INTEGER DEFAULT 0,
+  following_count INTEGER DEFAULT 0,
+  follows_gained_30d INTEGER DEFAULT 0,
+  follows_given_30d INTEGER DEFAULT 0,
+  stories_30d INTEGER DEFAULT 0,
+  story_views_received_30d INTEGER DEFAULT 0,
+  chat_messages_30d INTEGER DEFAULT 0,
+  last_activity_at TEXT,
+  updated_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS engagement_ab_config (
+  variant TEXT PRIMARY KEY,
+  name TEXT,
+  description TEXT,
+  traffic_pct INTEGER DEFAULT 50,
+  enabled INTEGER DEFAULT 1,
+  params_json TEXT,
+  updated_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS engagement_ab_assignments (
+  user_id INTEGER PRIMARY KEY,
+  variant TEXT,
+  assigned_at TEXT,
+  updated_at TEXT
+)`);
+sqlRun('CREATE INDEX IF NOT EXISTS idx_posts_user_created ON posts (user_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_post_likes_post_created ON post_likes (post_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_post_likes_user_created ON post_likes (user_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_post_comments_post_created ON post_comments (post_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_post_comments_user_created ON post_comments (user_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_follows_following_created ON follows (following_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows (follower_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_stories_user_created ON stories (user_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_story_views_story_created ON story_views (story_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_score ON member_engagement_scores (score DESC)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_updated ON member_engagement_scores (updated_at DESC)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_variant ON member_engagement_scores (ab_variant, score DESC)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON engagement_ab_assignments (variant)');
+ensureColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
 
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
@@ -413,7 +572,25 @@ function requireAlbumAdmin(req, res, next) {
   return next();
 }
 
+function getGroupMember(groupId, userId) {
+  if (!groupId || !userId) return null;
+  return sqlGet('SELECT id, role FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, userId]);
+}
+
+function isGroupManager(req, groupId) {
+  const user = getCurrentUser(req);
+  if (!user) return false;
+  if (user.admin === 1) return true;
+  const member = getGroupMember(groupId, req.session.userId);
+  return !!member && (member.role === 'owner' || member.role === 'moderator');
+}
+
 function logAdminAction(req, action, details = {}) {
+  writeLegacyLog('member', action, {
+    userId: req.session?.userId || null,
+    ip: req.ip,
+    ...details
+  });
   writeAppLog('info', 'admin_action', {
     action,
     adminUserId: req.session?.userId || null,
@@ -427,6 +604,589 @@ function addNotification({ userId, type, sourceUserId, entityId, message }) {
     'INSERT INTO notifications (user_id, type, source_user_id, entity_id, message, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     [userId, type, sourceUserId || null, entityId || null, message || '', new Date().toISOString()]
   );
+}
+
+const engagementDefaultParams = Object.freeze({
+  receivedLikeWeight: 1,
+  receivedCommentWeight: 2.4,
+  receivedStoryViewWeight: 0.35,
+  creatorPostWeight: 1.6,
+  creatorRecentPostWeight: 2.2,
+  creatorStoryWeight: 1,
+  communityLikeWeight: 1,
+  communityCommentWeight: 1.8,
+  communityFollowWeight: 0.85,
+  communityChatWeight: 0.45,
+  networkFollowerWeight: 1.2,
+  networkFollowGainWeight: 2.4,
+  scaleReceived: 7.5,
+  scaleCreator: 6.2,
+  scaleCommunity: 5.3,
+  scaleNetwork: 4.5,
+  capReceived: 36,
+  capCreator: 22,
+  capCommunity: 19,
+  capNetwork: 16,
+  qualityVerifiedBonus: 2.5,
+  qualityOnlineBonus: 1,
+  qualityPhotoBonus: 1,
+  qualityFieldBonus: 0.6,
+  penaltyBanned: 70,
+  penaltyInactive: 18,
+  penaltyLowQualityPost: 8,
+  penaltyAggressiveFollow: 6,
+  penaltyLowFollowerRatio: 4,
+  recency1d: 1.08,
+  recency7d: 1.04,
+  recency30d: 1,
+  recency90d: 0.92,
+  recency180d: 0.84,
+  recencyOld: 0.76
+});
+
+const engagementDefaultVariants = Object.freeze({
+  A: {
+    name: 'Baseline',
+    description: 'Denge odakli temel agirlik seti',
+    trafficPct: 50,
+    enabled: 1,
+    params: { ...engagementDefaultParams }
+  },
+  B: {
+    name: 'Growth',
+    description: 'Yorum/follow etkisi daha yuksek deney seti',
+    trafficPct: 50,
+    enabled: 1,
+    params: {
+      ...engagementDefaultParams,
+      receivedCommentWeight: 2.8,
+      creatorRecentPostWeight: 2.5,
+      networkFollowGainWeight: 2.8,
+      scaleReceived: 7.9,
+      scaleCommunity: 5.8,
+      capReceived: 38
+    }
+  }
+});
+
+const engagementParamBounds = Object.freeze({
+  receivedLikeWeight: [0, 5],
+  receivedCommentWeight: [0, 8],
+  receivedStoryViewWeight: [0, 3],
+  creatorPostWeight: [0, 5],
+  creatorRecentPostWeight: [0, 6],
+  creatorStoryWeight: [0, 4],
+  communityLikeWeight: [0, 5],
+  communityCommentWeight: [0, 8],
+  communityFollowWeight: [0, 5],
+  communityChatWeight: [0, 3],
+  networkFollowerWeight: [0, 5],
+  networkFollowGainWeight: [0, 8],
+  scaleReceived: [0, 15],
+  scaleCreator: [0, 15],
+  scaleCommunity: [0, 15],
+  scaleNetwork: [0, 15],
+  capReceived: [0, 100],
+  capCreator: [0, 100],
+  capCommunity: [0, 100],
+  capNetwork: [0, 100],
+  qualityVerifiedBonus: [0, 10],
+  qualityOnlineBonus: [0, 6],
+  qualityPhotoBonus: [0, 6],
+  qualityFieldBonus: [0, 3],
+  penaltyBanned: [0, 100],
+  penaltyInactive: [0, 50],
+  penaltyLowQualityPost: [0, 30],
+  penaltyAggressiveFollow: [0, 30],
+  penaltyLowFollowerRatio: [0, 20],
+  recency1d: [0.2, 2],
+  recency7d: [0.2, 2],
+  recency30d: [0.2, 2],
+  recency90d: [0.2, 2],
+  recency180d: [0.2, 2],
+  recencyOld: [0.2, 2]
+});
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function asCountMap(rows, idField = 'user_id', valueField = 'cnt') {
+  const out = new Map();
+  for (const row of rows || []) {
+    const key = Number(row?.[idField] || 0);
+    if (!key) continue;
+    const count = Number(row?.[valueField] || 0);
+    out.set(key, Number.isFinite(count) ? count : 0);
+  }
+  return out;
+}
+
+function asLastAtMap(rows, idField = 'user_id', valueField = 'last_at') {
+  const out = new Map();
+  for (const row of rows || []) {
+    const key = Number(row?.[idField] || 0);
+    if (!key) continue;
+    const value = row?.[valueField];
+    if (!value) continue;
+    out.set(key, value);
+  }
+  return out;
+}
+
+function toTruthyFlag(value) {
+  if (value === true) return true;
+  if (value === false || value === null || value === undefined) return false;
+  if (Number(value) === 1) return true;
+  const raw = String(value || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'evet' || raw === 'yes';
+}
+
+function toDateMs(value) {
+  if (!value) return null;
+  const ms = new Date(String(value)).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function pickLatestDateIso(...values) {
+  let bestMs = null;
+  let bestIso = null;
+  for (const value of values) {
+    const ms = toDateMs(value);
+    if (ms === null) continue;
+    if (bestMs === null || ms > bestMs) {
+      bestMs = ms;
+      bestIso = new Date(ms).toISOString();
+    }
+  }
+  return bestIso;
+}
+
+function normalizeEngagementParams(raw, fallback = engagementDefaultParams) {
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  const out = {};
+  for (const [key, fallbackValue] of Object.entries(fallback)) {
+    const val = Number(src[key]);
+    const range = engagementParamBounds[key];
+    if (!range) {
+      out[key] = Number.isFinite(val) ? val : fallbackValue;
+      continue;
+    }
+    if (!Number.isFinite(val)) {
+      out[key] = fallbackValue;
+      continue;
+    }
+    out[key] = clamp(val, range[0], range[1]);
+  }
+  return out;
+}
+
+function ensureEngagementAbConfigRows() {
+  const now = new Date().toISOString();
+  for (const [variant, cfg] of Object.entries(engagementDefaultVariants)) {
+    const existing = sqlGet('SELECT variant FROM engagement_ab_config WHERE variant = ?', [variant]);
+    if (existing) continue;
+    sqlRun(
+      `INSERT INTO engagement_ab_config
+       (variant, name, description, traffic_pct, enabled, params_json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        variant,
+        cfg.name,
+        cfg.description,
+        cfg.trafficPct,
+        cfg.enabled,
+        JSON.stringify(cfg.params),
+        now
+      ]
+    );
+  }
+}
+
+function getEngagementAbConfigs() {
+  ensureEngagementAbConfigRows();
+  const rows = sqlAll(
+    `SELECT variant, name, description, traffic_pct, enabled, params_json, updated_at
+     FROM engagement_ab_config
+     ORDER BY variant ASC`
+  );
+  const items = [];
+  for (const row of rows) {
+    const variant = String(row.variant || '').toUpperCase();
+    const fallback = engagementDefaultVariants[variant]?.params || engagementDefaultParams;
+    let parsed = {};
+    try {
+      parsed = row.params_json ? JSON.parse(row.params_json) : {};
+    } catch {
+      parsed = {};
+    }
+    items.push({
+      variant,
+      name: String(row.name || engagementDefaultVariants[variant]?.name || variant),
+      description: String(row.description || engagementDefaultVariants[variant]?.description || ''),
+      trafficPct: clamp(Number(row.traffic_pct || 0), 0, 100),
+      enabled: Number(row.enabled || 0) === 1 ? 1 : 0,
+      params: normalizeEngagementParams(parsed, fallback),
+      updatedAt: row.updated_at || null
+    });
+  }
+  if (!items.length) {
+    return Object.entries(engagementDefaultVariants).map(([variant, cfg]) => ({
+      variant,
+      name: cfg.name,
+      description: cfg.description,
+      trafficPct: cfg.trafficPct,
+      enabled: cfg.enabled,
+      params: normalizeEngagementParams(cfg.params, engagementDefaultParams),
+      updatedAt: null
+    }));
+  }
+  return items;
+}
+
+function hashUserSlot(userId) {
+  const text = String(userId || '');
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) % 1000003;
+  }
+  return Math.abs(hash % 100);
+}
+
+function chooseVariantForUser(userId, configs) {
+  const enabled = (configs || []).filter((c) => c.enabled === 1 && c.trafficPct > 0);
+  if (!enabled.length) return 'A';
+  const totalTraffic = enabled.reduce((sum, c) => sum + Number(c.trafficPct || 0), 0);
+  if (totalTraffic <= 0) return enabled[0]?.variant || 'A';
+  const slot = hashUserSlot(userId);
+  let cursor = 0;
+  for (const cfg of enabled) {
+    const span = Math.round((Number(cfg.trafficPct || 0) / totalTraffic) * 100);
+    cursor += Math.max(span, 0);
+    if (slot < cursor) return cfg.variant;
+  }
+  return enabled[enabled.length - 1]?.variant || 'A';
+}
+
+let engagementRecalcRunning = false;
+let engagementRecalcTimer = null;
+
+function recalculateMemberEngagementScores(reason = 'scheduled') {
+  if (engagementRecalcRunning) return;
+  engagementRecalcRunning = true;
+  const startedAt = Date.now();
+  try {
+    const nowIso = new Date().toISOString();
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const users = sqlAll(
+      `SELECT id, kadi, aktiv, yasak, verified, resim, mezuniyetyili, universite, sehir, meslek,
+              online, sontarih, sonislemtarih, sonislemsaat
+       FROM uyeler`
+    );
+
+    const posts30Rows = sqlAll(
+      `SELECT user_id, COUNT(*) AS cnt,
+              SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS recent7,
+              MAX(created_at) AS last_at
+       FROM posts
+       WHERE user_id IS NOT NULL AND created_at >= ?
+       GROUP BY user_id`,
+      [since7, since30]
+    );
+    const likesReceived30Rows = sqlAll(
+      `SELECT p.user_id, COUNT(*) AS cnt, MAX(l.created_at) AS last_at
+       FROM post_likes l
+       JOIN posts p ON p.id = l.post_id
+       WHERE l.created_at >= ?
+       GROUP BY p.user_id`,
+      [since30]
+    );
+    const commentsReceived30Rows = sqlAll(
+      `SELECT p.user_id, COUNT(*) AS cnt, MAX(c.created_at) AS last_at
+       FROM post_comments c
+       JOIN posts p ON p.id = c.post_id
+       WHERE c.created_at >= ?
+       GROUP BY p.user_id`,
+      [since30]
+    );
+    const likesGiven30Rows = sqlAll(
+      `SELECT user_id, COUNT(*) AS cnt, MAX(created_at) AS last_at
+       FROM post_likes
+       WHERE created_at >= ?
+       GROUP BY user_id`,
+      [since30]
+    );
+    const commentsGiven30Rows = sqlAll(
+      `SELECT user_id, COUNT(*) AS cnt, MAX(created_at) AS last_at
+       FROM post_comments
+       WHERE created_at >= ?
+       GROUP BY user_id`,
+      [since30]
+    );
+    const followsGained30Rows = sqlAll(
+      `SELECT following_id AS user_id, COUNT(*) AS cnt, MAX(created_at) AS last_at
+       FROM follows
+       WHERE created_at >= ?
+       GROUP BY following_id`,
+      [since30]
+    );
+    const followsGiven30Rows = sqlAll(
+      `SELECT follower_id AS user_id, COUNT(*) AS cnt, MAX(created_at) AS last_at
+       FROM follows
+       WHERE created_at >= ?
+       GROUP BY follower_id`,
+      [since30]
+    );
+    const followersRows = sqlAll('SELECT following_id AS user_id, COUNT(*) AS cnt FROM follows GROUP BY following_id');
+    const followingRows = sqlAll('SELECT follower_id AS user_id, COUNT(*) AS cnt FROM follows GROUP BY follower_id');
+    const stories30Rows = sqlAll(
+      `SELECT user_id, COUNT(*) AS cnt, MAX(created_at) AS last_at
+       FROM stories
+       WHERE created_at >= ?
+       GROUP BY user_id`,
+      [since30]
+    );
+    const storyViewsReceived30Rows = sqlAll(
+      `SELECT s.user_id, COUNT(*) AS cnt, MAX(v.created_at) AS last_at
+       FROM story_views v
+       JOIN stories s ON s.id = v.story_id
+       WHERE v.created_at >= ?
+       GROUP BY s.user_id`,
+      [since30]
+    );
+    const chatMessages30Rows = sqlAll(
+      `SELECT user_id, COUNT(*) AS cnt, MAX(created_at) AS last_at
+       FROM chat_messages
+       WHERE created_at >= ?
+       GROUP BY user_id`,
+      [since30]
+    );
+
+    const posts30Map = asCountMap(posts30Rows);
+    const posts7Map = new Map(posts30Rows.map((r) => [Number(r.user_id || 0), Number(r.recent7 || 0)]));
+    const likesReceived30Map = asCountMap(likesReceived30Rows);
+    const commentsReceived30Map = asCountMap(commentsReceived30Rows);
+    const likesGiven30Map = asCountMap(likesGiven30Rows);
+    const commentsGiven30Map = asCountMap(commentsGiven30Rows);
+    const followsGained30Map = asCountMap(followsGained30Rows);
+    const followsGiven30Map = asCountMap(followsGiven30Rows);
+    const followersMap = asCountMap(followersRows);
+    const followingMap = asCountMap(followingRows);
+    const stories30Map = asCountMap(stories30Rows);
+    const storyViewsReceived30Map = asCountMap(storyViewsReceived30Rows);
+    const chatMessages30Map = asCountMap(chatMessages30Rows);
+    const postsLastMap = asLastAtMap(posts30Rows);
+    const likesReceivedLastMap = asLastAtMap(likesReceived30Rows);
+    const commentsReceivedLastMap = asLastAtMap(commentsReceived30Rows);
+    const likesGivenLastMap = asLastAtMap(likesGiven30Rows);
+    const commentsGivenLastMap = asLastAtMap(commentsGiven30Rows);
+    const followsGainedLastMap = asLastAtMap(followsGained30Rows);
+    const followsGivenLastMap = asLastAtMap(followsGiven30Rows);
+    const storiesLastMap = asLastAtMap(stories30Rows);
+    const storyViewsLastMap = asLastAtMap(storyViewsReceived30Rows);
+    const chatMessagesLastMap = asLastAtMap(chatMessages30Rows);
+    const abConfigs = getEngagementAbConfigs();
+    const abParamsByVariant = new Map(abConfigs.map((cfg) => [cfg.variant, cfg.params]));
+    const assignmentRows = sqlAll('SELECT user_id, variant FROM engagement_ab_assignments');
+    const assignmentMap = new Map(
+      assignmentRows
+        .map((r) => [Number(r.user_id || 0), String(r.variant || '').toUpperCase()])
+        .filter(([uid, variant]) => uid > 0 && variant)
+    );
+    const variantCounts = {};
+
+    sqlRun('DELETE FROM member_engagement_scores WHERE user_id NOT IN (SELECT id FROM uyeler)');
+    sqlRun('DELETE FROM engagement_ab_assignments WHERE user_id NOT IN (SELECT id FROM uyeler)');
+    for (const user of users) {
+      const uid = Number(user?.id || 0);
+      if (!uid) continue;
+      let abVariant = assignmentMap.get(uid);
+      if (!abVariant || !abParamsByVariant.has(abVariant)) {
+        abVariant = chooseVariantForUser(uid, abConfigs);
+        assignmentMap.set(uid, abVariant);
+        sqlRun(
+          `INSERT INTO engagement_ab_assignments (user_id, variant, assigned_at, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET
+             variant = excluded.variant,
+             updated_at = excluded.updated_at`,
+          [uid, abVariant, nowIso, nowIso]
+        );
+      }
+      const p = abParamsByVariant.get(abVariant) || engagementDefaultParams;
+      variantCounts[abVariant] = (variantCounts[abVariant] || 0) + 1;
+
+      const posts30 = Number(posts30Map.get(uid) || 0);
+      const posts7 = Number(posts7Map.get(uid) || 0);
+      const likesReceived30 = Number(likesReceived30Map.get(uid) || 0);
+      const commentsReceived30 = Number(commentsReceived30Map.get(uid) || 0);
+      const likesGiven30 = Number(likesGiven30Map.get(uid) || 0);
+      const commentsGiven30 = Number(commentsGiven30Map.get(uid) || 0);
+      const followsGained30 = Number(followsGained30Map.get(uid) || 0);
+      const followsGiven30 = Number(followsGiven30Map.get(uid) || 0);
+      const followersCount = Number(followersMap.get(uid) || 0);
+      const followingCount = Number(followingMap.get(uid) || 0);
+      const stories30 = Number(stories30Map.get(uid) || 0);
+      const storyViewsReceived30 = Number(storyViewsReceived30Map.get(uid) || 0);
+      const chatMessages30 = Number(chatMessages30Map.get(uid) || 0);
+
+      const interactionsReceived =
+        likesReceived30 * p.receivedLikeWeight
+        + commentsReceived30 * p.receivedCommentWeight
+        + storyViewsReceived30 * p.receivedStoryViewWeight;
+      const creatorActivity =
+        posts30 * p.creatorPostWeight
+        + posts7 * p.creatorRecentPostWeight
+        + stories30 * p.creatorStoryWeight;
+      const communityActions =
+        likesGiven30 * p.communityLikeWeight
+        + commentsGiven30 * p.communityCommentWeight
+        + followsGiven30 * p.communityFollowWeight
+        + chatMessages30 * p.communityChatWeight;
+      const networkGrowth =
+        followersCount * p.networkFollowerWeight
+        + followsGained30 * p.networkFollowGainWeight;
+
+      const engagementReceivedScore = Math.min(p.capReceived, Math.log1p(interactionsReceived) * p.scaleReceived);
+      const creatorScore = Math.min(p.capCreator, Math.log1p(creatorActivity) * p.scaleCreator);
+      const communityScore = Math.min(p.capCommunity, Math.log1p(communityActions) * p.scaleCommunity);
+      const networkScore = Math.min(p.capNetwork, Math.log1p(networkGrowth) * p.scaleNetwork);
+
+      let qualityScore = 0;
+      if (toTruthyFlag(user?.verified)) qualityScore += p.qualityVerifiedBonus;
+      if (toTruthyFlag(user?.online)) qualityScore += p.qualityOnlineBonus;
+      if (user?.resim && String(user.resim).trim() && String(user.resim).trim().toLowerCase() !== 'yok') qualityScore += p.qualityPhotoBonus;
+      if (String(user?.mezuniyetyili || '').trim()) qualityScore += p.qualityFieldBonus;
+      if (String(user?.universite || '').trim()) qualityScore += p.qualityFieldBonus;
+      if (String(user?.sehir || '').trim()) qualityScore += p.qualityFieldBonus;
+      if (String(user?.meslek || '').trim()) qualityScore += p.qualityFieldBonus;
+
+      let penaltyScore = 0;
+      if (toTruthyFlag(user?.yasak)) penaltyScore += p.penaltyBanned;
+      if (!toTruthyFlag(user?.aktiv)) penaltyScore += p.penaltyInactive;
+      if (posts30 >= 8 && likesReceived30 + commentsReceived30 <= 2) penaltyScore += p.penaltyLowQualityPost;
+      if (followsGiven30 >= 120 && followsGained30 <= 3) penaltyScore += p.penaltyAggressiveFollow;
+      if (followingCount > 0 && followersCount / followingCount < 0.03 && followingCount >= 150) penaltyScore += p.penaltyLowFollowerRatio;
+
+      const legacyLast = user?.sonislemtarih && user?.sonislemsaat
+        ? `${user.sonislemtarih} ${user.sonislemsaat}`
+        : user?.sontarih;
+      const lastActivityAt = pickLatestDateIso(
+        postsLastMap.get(uid),
+        likesReceivedLastMap.get(uid),
+        commentsReceivedLastMap.get(uid),
+        likesGivenLastMap.get(uid),
+        commentsGivenLastMap.get(uid),
+        followsGainedLastMap.get(uid),
+        followsGivenLastMap.get(uid),
+        storiesLastMap.get(uid),
+        storyViewsLastMap.get(uid),
+        chatMessagesLastMap.get(uid),
+        legacyLast
+      );
+
+      const rawScore = creatorScore + engagementReceivedScore + communityScore + networkScore + qualityScore - penaltyScore;
+      const nowMs = Date.now();
+      const lastMs = toDateMs(lastActivityAt);
+      const daysSinceLast = lastMs === null ? 365 : (nowMs - lastMs) / (24 * 60 * 60 * 1000);
+      let recencyFactor = 1;
+      if (daysSinceLast <= 1) recencyFactor = p.recency1d;
+      else if (daysSinceLast <= 7) recencyFactor = p.recency7d;
+      else if (daysSinceLast <= 30) recencyFactor = p.recency30d;
+      else if (daysSinceLast <= 90) recencyFactor = p.recency90d;
+      else if (daysSinceLast <= 180) recencyFactor = p.recency180d;
+      else recencyFactor = p.recencyOld;
+      const score = clamp(rawScore * recencyFactor, 0, 100);
+
+      sqlRun(
+        `INSERT INTO member_engagement_scores (
+          user_id, ab_variant, score, raw_score, creator_score, engagement_received_score, community_score, network_score,
+          quality_score, penalty_score, posts_30d, posts_7d, likes_received_30d, comments_received_30d,
+          likes_given_30d, comments_given_30d, followers_count, following_count, follows_gained_30d,
+          follows_given_30d, stories_30d, story_views_received_30d, chat_messages_30d, last_activity_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+          ab_variant = excluded.ab_variant,
+          score = excluded.score,
+          raw_score = excluded.raw_score,
+          creator_score = excluded.creator_score,
+          engagement_received_score = excluded.engagement_received_score,
+          community_score = excluded.community_score,
+          network_score = excluded.network_score,
+          quality_score = excluded.quality_score,
+          penalty_score = excluded.penalty_score,
+          posts_30d = excluded.posts_30d,
+          posts_7d = excluded.posts_7d,
+          likes_received_30d = excluded.likes_received_30d,
+          comments_received_30d = excluded.comments_received_30d,
+          likes_given_30d = excluded.likes_given_30d,
+          comments_given_30d = excluded.comments_given_30d,
+          followers_count = excluded.followers_count,
+          following_count = excluded.following_count,
+          follows_gained_30d = excluded.follows_gained_30d,
+          follows_given_30d = excluded.follows_given_30d,
+          stories_30d = excluded.stories_30d,
+          story_views_received_30d = excluded.story_views_received_30d,
+          chat_messages_30d = excluded.chat_messages_30d,
+          last_activity_at = excluded.last_activity_at,
+          updated_at = excluded.updated_at`,
+        [
+          uid,
+          abVariant,
+          Number(score.toFixed(2)),
+          Number(rawScore.toFixed(2)),
+          Number(creatorScore.toFixed(2)),
+          Number(engagementReceivedScore.toFixed(2)),
+          Number(communityScore.toFixed(2)),
+          Number(networkScore.toFixed(2)),
+          Number(qualityScore.toFixed(2)),
+          Number(penaltyScore.toFixed(2)),
+          posts30,
+          posts7,
+          likesReceived30,
+          commentsReceived30,
+          likesGiven30,
+          commentsGiven30,
+          followersCount,
+          followingCount,
+          followsGained30,
+          followsGiven30,
+          stories30,
+          storyViewsReceived30,
+          chatMessages30,
+          lastActivityAt || null,
+          nowIso
+        ]
+      );
+    }
+
+    writeAppLog('info', 'engagement_scores_recalculated', {
+      reason,
+      users: users.length,
+      variants: variantCounts,
+      durationMs: Date.now() - startedAt
+    });
+  } catch (err) {
+    writeAppLog('error', 'engagement_scores_recalculate_failed', {
+      reason,
+      message: err?.message || 'unknown_error'
+    });
+  } finally {
+    engagementRecalcRunning = false;
+  }
+}
+
+function scheduleEngagementRecalculation(reason = 'activity') {
+  if (engagementRecalcTimer || engagementRecalcRunning) return;
+  engagementRecalcTimer = setTimeout(() => {
+    engagementRecalcTimer = null;
+    recalculateMemberEngagementScores(reason);
+  }, 15000);
 }
 
 function findMentionUserIds(text, excludeUserId = null) {
@@ -485,6 +1245,109 @@ function readLogFile(dirPath, name) {
   const full = path.join(dirPath, safeName);
   if (!fs.existsSync(full)) return null;
   return fs.readFileSync(full, 'utf-8');
+}
+
+function parseDateInput(value) {
+  if (!value) return null;
+  const d = new Date(String(value));
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function parseLegacyMeta(text) {
+  const out = {};
+  const parts = String(text || '').split(' | ');
+  for (const part of parts) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    const key = part.slice(0, idx).trim();
+    const val = part.slice(idx + 1).trim();
+    if (!key) continue;
+    out[key] = val;
+  }
+  return out;
+}
+
+function parseLogLine(line) {
+  const raw = String(line || '');
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // JSONL (app logs)
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const obj = JSON.parse(trimmed);
+      const ts = obj.ts || obj.timestamp || obj.created_at || null;
+      return {
+        raw,
+        ts: ts ? new Date(ts) : null,
+        activity: obj.event || obj.activity || '',
+        userId: obj.userId || obj.adminUserId || obj.details?.userId || null,
+        text: trimmed.toLowerCase()
+      };
+    } catch {
+      // fall through
+    }
+  }
+
+  // Legacy format: [ISO] activity=name | key=val | ...
+  const m = trimmed.match(/^\[([^\]]+)\]\s+activity=([^\s|]+)(?:\s+\|\s+(.+))?$/);
+  if (m) {
+    const ts = parseDateInput(m[1]);
+    const activity = m[2] || '';
+    const meta = parseLegacyMeta(m[3] || '');
+    return {
+      raw,
+      ts,
+      activity,
+      userId: meta.userId || meta.adminUserId || null,
+      text: trimmed.toLowerCase()
+    };
+  }
+
+  return {
+    raw,
+    ts: null,
+    activity: '',
+    userId: null,
+    text: trimmed.toLowerCase()
+  };
+}
+
+function lineMatchesFilters(entry, filters) {
+  if (!entry) return false;
+  if (filters.q && !entry.text.includes(filters.q)) return false;
+  if (filters.activity && String(entry.activity || '').toLowerCase() !== filters.activity) return false;
+  if (filters.userId && String(entry.userId || '') !== filters.userId) return false;
+  if (filters.from && entry.ts && entry.ts < filters.from) return false;
+  if (filters.to && entry.ts && entry.ts > filters.to) return false;
+  if ((filters.from || filters.to) && !entry.ts && (filters.activity || filters.userId)) return false;
+  return true;
+}
+
+function filterLogContent(content, query) {
+  const rawLines = String(content || '').split('\n').filter((line) => String(line).trim() !== '');
+  const q = String(query.q || '').trim().toLowerCase();
+  const activity = String(query.activity || '').trim().toLowerCase();
+  const userId = String(query.userId || query.user_id || '').trim();
+  const from = parseDateInput(query.from || query.date_from);
+  const to = parseDateInput(query.to || query.date_to);
+  const limit = Math.min(Math.max(parseInt(query.limit || '500', 10), 1), 10000);
+  const offset = Math.max(parseInt(query.offset || '0', 10), 0);
+
+  const filters = { q, activity, userId, from, to };
+  const parsed = rawLines.map(parseLogLine).filter(Boolean);
+  const matched = parsed.filter((line) => lineMatchesFilters(line, filters));
+  const sliced = matched.slice(offset, offset + limit);
+
+  return {
+    content: sliced.map((line) => line.raw).join('\n'),
+    total: rawLines.length,
+    matched: matched.length,
+    returned: sliced.length,
+    offset,
+    limit
+  };
 }
 
 function normalizeUserId(value) {
@@ -1242,63 +2105,163 @@ app.get('/api/admin/session', (req, res) => {
 app.post('/api/admin/login', (req, res) => {
   const user = getCurrentUser(req);
   if (!user) {
+    writeLegacyLog('error', 'admin_login_denied', { reason: 'unauthenticated', ip: req.ip });
     writeAppLog('warn', 'admin_login_denied', { reason: 'unauthenticated', ip: req.ip });
     return res.status(401).send('Login required');
   }
   if (user.admin !== 1) {
+    writeLegacyLog('error', 'admin_login_denied', { reason: 'not_admin', userId: user.id, ip: req.ip });
     writeAppLog('warn', 'admin_login_denied', { reason: 'not_admin', userId: user.id, ip: req.ip });
     return res.status(403).send('Admin erişimi gerekli.');
   }
   const password = String(req.body?.password || '');
   if (!password) return res.status(400).send('Şifre girmedin.');
   if (password !== adminPassword) {
+    writeLegacyLog('error', 'admin_login_denied', { reason: 'bad_password', userId: user.id, ip: req.ip });
     writeAppLog('warn', 'admin_login_denied', { reason: 'bad_password', userId: user.id, ip: req.ip });
     return res.status(400).send('Şifre yanlış.');
   }
   req.session.adminOk = true;
   res.cookie('admingiris', 'evet');
+  writeLegacyLog('member', 'admin_login_success', { userId: user.id, ip: req.ip });
   writeAppLog('info', 'admin_login_success', { userId: user.id, ip: req.ip });
   res.json({ ok: true });
 });
 
 app.post('/api/admin/logout', (req, res) => {
+  writeLegacyLog('member', 'admin_logout', { userId: req.session?.userId || null, ip: req.ip });
   writeAppLog('info', 'admin_logout', { userId: req.session?.userId || null, ip: req.ip });
   req.session.adminOk = false;
   res.clearCookie('admingiris');
   res.json({ ok: true });
 });
 
+function queryAdminUsers(rawQuery = {}) {
+  const filter = String(rawQuery.filter || 'all').trim();
+  const q = String(rawQuery.q || '').trim();
+  const withPhoto = String(rawQuery.photo || rawQuery.res || '').trim() === '1';
+  const verifiedOnly = String(rawQuery.verified || '').trim() === '1';
+  const onlineOnly = String(rawQuery.online || '').trim() === '1';
+  const adminOnly = String(rawQuery.admin || '').trim() === '1';
+  const minScoreRaw = String(rawQuery.minScore ?? rawQuery.min_score ?? '').trim();
+  const maxScoreRaw = String(rawQuery.maxScore ?? rawQuery.max_score ?? '').trim();
+  const minScore = minScoreRaw === '' ? NaN : Number(minScoreRaw);
+  const maxScore = maxScoreRaw === '' ? NaN : Number(maxScoreRaw);
+  const limit = Math.min(Math.max(parseInt(rawQuery.limit || '500', 10), 1), 2000);
+  const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR LOWER(CAST(u.aktiv AS TEXT)) IN ('true','evet','yes'))";
+  const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR LOWER(CAST(u.yasak AS TEXT)) IN ('true','evet','yes'))";
+  const onlineExpr = "(COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))";
+
+  const whereParts = [];
+  const params = [];
+  if (filter === 'active') whereParts.push(`${activeExpr} AND NOT ${bannedExpr}`);
+  if (filter === 'pending') whereParts.push(`NOT ${activeExpr} AND NOT ${bannedExpr}`);
+  if (filter === 'banned') whereParts.push(`${bannedExpr}`);
+  if (filter === 'online') whereParts.push(`${onlineExpr}`);
+  if (q) {
+    whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.email AS TEXT)) LIKE LOWER(?))');
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (withPhoto) {
+    whereParts.push("u.resim IS NOT NULL AND TRIM(CAST(u.resim AS TEXT)) != '' AND LOWER(TRIM(CAST(u.resim AS TEXT))) != 'yok'");
+  }
+  if (verifiedOnly) {
+    whereParts.push("COALESCE(CAST(u.verified AS INTEGER), 0) = 1");
+  }
+  if (onlineOnly) {
+    whereParts.push(onlineExpr);
+  }
+  if (adminOnly) {
+    whereParts.push("COALESCE(CAST(u.admin AS INTEGER), 0) = 1");
+  }
+  if (Number.isFinite(minScore)) {
+    whereParts.push('COALESCE(es.score, 0) >= ?');
+    params.push(minScore);
+  }
+  if (Number.isFinite(maxScore)) {
+    whereParts.push('COALESCE(es.score, 0) <= ?');
+    params.push(maxScore);
+  }
+  const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+  let sort = String(rawQuery.sort || '').trim();
+  if (!sort) {
+    sort = filter === 'recent' ? 'recent' : 'engagement_desc';
+  }
+  const sortMap = {
+    name: 'u.kadi COLLATE NOCASE ASC',
+    recent: 'COALESCE(u.sontarih, u.sonislemtarih, "") DESC, u.id DESC',
+    online: `${onlineExpr} DESC, COALESCE(es.score, 0) DESC, u.kadi COLLATE NOCASE ASC`,
+    engagement_desc: 'COALESCE(es.score, 0) DESC, u.id DESC',
+    engagement_asc: 'COALESCE(es.score, 0) ASC, u.id DESC'
+  };
+  const orderBy = sortMap[sort] || sortMap.engagement_desc;
+
+  const total = sqlGet(
+    `SELECT COUNT(*) AS cnt
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+     ${where}`,
+    params
+  )?.cnt || 0;
+
+  const users = sqlAll(
+    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.aktiv, u.yasak, u.online, u.sontarih, u.resim, u.verified,
+            u.mezuniyetyili, u.email, u.admin,
+            COALESCE(es.score, 0) AS engagement_score,
+            es.updated_at AS engagement_updated_at
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+     ${where}
+     ORDER BY ${orderBy}
+     LIMIT ?`,
+    [...params, limit]
+  );
+
+  return {
+    users,
+    meta: {
+      total,
+      returned: users.length,
+      filter,
+      sort,
+      withPhoto,
+      verifiedOnly,
+      onlineOnly,
+      adminOnly,
+      minScore: Number.isFinite(minScore) ? minScore : null,
+      maxScore: Number.isFinite(maxScore) ? maxScore : null,
+      q: q || ''
+    }
+  };
+}
+
 app.get('/api/admin/users/lists', requireAdmin, (req, res) => {
-  const filter = String(req.query.filter || 'all');
-  let where = '';
-  let order = 'kadi';
-  if (filter === 'active') where = 'aktiv = 1 AND yasak = 0';
-  if (filter === 'pending') where = 'aktiv = 0 AND yasak = 0';
-  if (filter === 'banned') where = 'yasak = 1';
-  if (filter === 'online') where = 'online = 1';
-  if (filter === 'recent') order = 'sontarih DESC';
-  const query = `SELECT id, kadi, isim, soyisim, aktiv, yasak, online, sontarih FROM uyeler ${where ? `WHERE ${where}` : ''} ORDER BY ${order}`;
-  res.json({ users: sqlAll(query) });
+  res.json(queryAdminUsers(req.query));
 });
 
 app.get('/api/admin/users/search', requireAdmin, (req, res) => {
-  const query = String(req.query.q || '');
+  const query = String(req.query.q || '').trim();
   const onlyWithPhoto = String(req.query.res || '') === '1';
-  if (onlyWithPhoto) {
-    const users = sqlAll("SELECT id, kadi, isim, soyisim, resim FROM uyeler WHERE resim <> 'yok' ORDER BY kadi");
-    return res.json({ users });
-  }
-  if (!query) return res.status(400).send('Aranacak anahtar kelime girmedin.');
-  const term = `%${query}%`;
-  const users = sqlAll(
-    'SELECT id, kadi, isim, soyisim, resim FROM uyeler WHERE kadi LIKE ? OR isim LIKE ? OR soyisim LIKE ? ORDER BY kadi',
-    [term, term, term]
-  );
-  res.json({ users });
+  if (!query && !onlyWithPhoto) return res.status(400).send('Aranacak anahtar kelime girmedin.');
+  const result = queryAdminUsers({
+    ...req.query,
+    q: query,
+    photo: onlyWithPhoto ? '1' : req.query.photo,
+    filter: 'all',
+    limit: req.query.limit || 800,
+    sort: req.query.sort || 'engagement_desc'
+  });
+  res.json(result);
 });
 
 app.get('/api/admin/users/:id', requireAdmin, (req, res) => {
-  const user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.params.id]);
+  const user = sqlGet(
+    `SELECT u.*, COALESCE(es.score, 0) AS engagement_score, es.updated_at AS engagement_updated_at
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+     WHERE u.id = ?`,
+    [req.params.id]
+  );
   if (!user) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
   res.json({ user });
 });
@@ -1362,6 +2325,7 @@ app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
       fields.admin, fields.resim, target.id
     ]
   );
+  scheduleEngagementRecalculation('admin_user_updated');
   res.json({ ok: true });
 });
 
@@ -1430,12 +2394,31 @@ app.get('/api/admin/logs', requireAdmin, (req, res) => {
   if (type === 'app' && !fs.existsSync(appLogFile)) {
     fs.writeFileSync(appLogFile, '', 'utf-8');
   }
+  const from = parseDateInput(req.query.from || req.query.date_from);
+  const to = parseDateInput(req.query.to || req.query.date_to);
   if (file) {
     const content = readLogFile(dir, file);
     if (!content) return res.status(404).send('Dosya Bulunamadı!');
-    return res.json({ file, content });
+    const filtered = filterLogContent(content, req.query || {});
+    return res.json({
+      file,
+      content: filtered.content,
+      total: filtered.total,
+      matched: filtered.matched,
+      returned: filtered.returned,
+      offset: filtered.offset,
+      limit: filtered.limit
+    });
   }
-  const files = listLogFiles(dir);
+  let files = listLogFiles(dir);
+  if (from || to) {
+    files = files.filter((f) => {
+      const d = new Date(f.mtime);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+  }
   res.json({ files });
 });
 
@@ -2005,13 +2988,57 @@ app.get('/api/members', (req, res) => {
   const page = Math.max(parseInt(req.query.page || '1', 10), 1);
   const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 50);
   const term = req.query.term ? String(req.query.term).replace(/'/g, '') : '';
-  const where = term
-    ? `COALESCE(CAST(aktiv AS INTEGER), 1) = 1
-       AND COALESCE(CAST(yasak AS INTEGER), 0) = 0
-       AND (LOWER(kadi) LIKE LOWER(?) OR LOWER(isim) LIKE LOWER(?) OR LOWER(soyisim) LIKE LOWER(?) OR LOWER(meslek) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))`
-    : `COALESCE(CAST(aktiv AS INTEGER), 1) = 1
-       AND COALESCE(CAST(yasak AS INTEGER), 0) = 0`;
-  const params = term ? Array(5).fill(`%${term}%`) : [];
+  const gradYear = parseInt(String(req.query.gradYear || '0'), 10) || 0;
+  const verifiedOnly = String(req.query.verified || '').trim() === '1';
+  const withPhoto = String(req.query.withPhoto || '').trim() === '1';
+  const onlineOnly = String(req.query.online || '').trim() === '1';
+  const relation = String(req.query.relation || '').trim();
+  const excludeSelf = String(req.query.excludeSelf || '').trim() === '1';
+  const sort = String(req.query.sort || 'recommended').trim();
+  const whereParts = [
+    `COALESCE(CAST(aktiv AS INTEGER), 1) = 1`,
+    `COALESCE(CAST(yasak AS INTEGER), 0) = 0`
+  ];
+  const params = [];
+  if (excludeSelf) {
+    whereParts.push('id != ?');
+    params.push(req.session.userId);
+  }
+  if (term) {
+    whereParts.push('(LOWER(kadi) LIKE LOWER(?) OR LOWER(isim) LIKE LOWER(?) OR LOWER(soyisim) LIKE LOWER(?) OR LOWER(meslek) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))');
+    params.push(...Array(5).fill(`%${term}%`));
+  }
+  if (gradYear > 0) {
+    whereParts.push('CAST(COALESCE(mezuniyetyili, 0) AS INTEGER) = ?');
+    params.push(gradYear);
+  }
+  if (verifiedOnly) {
+    whereParts.push('COALESCE(CAST(verified AS INTEGER), 0) = 1');
+  }
+  if (withPhoto) {
+    whereParts.push("resim IS NOT NULL AND TRIM(CAST(resim AS TEXT)) != '' AND LOWER(TRIM(CAST(resim AS TEXT))) != 'yok'");
+  }
+  if (onlineOnly) {
+    whereParts.push('COALESCE(CAST(online AS INTEGER), 0) = 1');
+  }
+  if (relation === 'following') {
+    whereParts.push('id IN (SELECT following_id FROM follows WHERE follower_id = ?)');
+    params.push(req.session.userId);
+  }
+  if (relation === 'not_following') {
+    whereParts.push('id NOT IN (SELECT following_id FROM follows WHERE follower_id = ?)');
+    params.push(req.session.userId);
+  }
+  const where = whereParts.join(' AND ');
+  const orderByMap = {
+    name: 'u.isim ASC, u.soyisim ASC',
+    recent: 'u.id DESC',
+    online: 'COALESCE(CAST(u.online AS INTEGER), 0) DESC, u.isim ASC',
+    year: 'CAST(COALESCE(u.mezuniyetyili, 0) AS INTEGER) DESC, u.isim ASC',
+    engagement: 'COALESCE(es.score, 0) DESC, u.id DESC',
+    recommended: 'COALESCE(es.score, 0) DESC, COALESCE(CAST(u.online AS INTEGER), 0) DESC, COALESCE(CAST(u.verified AS INTEGER), 0) DESC, u.id DESC'
+  };
+  const orderBy = orderByMap[sort] || orderByMap.name;
 
   const totalRow = sqlGet(`SELECT COUNT(*) AS cnt FROM uyeler WHERE ${where}`, params);
   const total = totalRow ? totalRow.cnt : 0;
@@ -2019,11 +3046,12 @@ app.get('/api/members', (req, res) => {
   const safePage = Math.min(page, pages);
   const offset = (safePage - 1) * pageSize;
   const rows = sqlAll(`
-    SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
-           sehir, universite, meslek, websitesi, imza, resim, online, sontarih, verified
-    FROM uyeler
+    SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.mailkapali, u.mezuniyetyili, u.dogumgun, u.dogumay, u.dogumyil,
+           u.sehir, u.universite, u.meslek, u.websitesi, u.imza, u.resim, u.online, u.sontarih, u.verified
+    FROM uyeler u
+    LEFT JOIN member_engagement_scores es ON es.user_id = u.id
     WHERE ${where}
-    ORDER BY isim
+    ORDER BY ${orderBy}
     LIMIT ? OFFSET ?
   `, [...params, pageSize, offset]);
 
@@ -2035,7 +3063,7 @@ app.get('/api/members', (req, res) => {
     ranges.push({ start, end });
   }
 
-  res.json({ rows, page: safePage, pages, total, ranges, pageSize, term });
+  res.json({ rows, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort } });
 });
 
 app.get('/api/members/:id', (req, res) => {
@@ -2227,13 +3255,29 @@ app.get('/api/photos/:id', (req, res) => {
   const row = sqlGet('SELECT id, katid, dosyaadi, baslik, aciklama, tarih FROM album_foto WHERE id = ? AND aktif = 1', [req.params.id]);
   if (!row) return res.status(404).send('Fotoğraf bulunamadı');
   const category = sqlGet('SELECT id, kategori FROM album_kat WHERE id = ?', [row.katid]);
-  const comments = sqlAll('SELECT id, uyeadi, yorum, tarih FROM album_fotoyorum WHERE fotoid = ? ORDER BY id DESC', [row.id]);
+  const comments = sqlAll(
+    `SELECT c.id, c.uyeadi, c.yorum, c.tarih,
+            u.id AS user_id, u.kadi, u.verified, u.resim, u.isim, u.soyisim
+     FROM album_fotoyorum c
+     LEFT JOIN uyeler u ON LOWER(u.kadi) = LOWER(c.uyeadi)
+     WHERE c.fotoid = ?
+     ORDER BY c.id DESC`,
+    [row.id]
+  );
   res.json({ row, category, comments });
 });
 
 app.get('/api/photos/:id/comments', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
-  const comments = sqlAll('SELECT id, uyeadi, yorum, tarih FROM album_fotoyorum WHERE fotoid = ? ORDER BY id DESC', [req.params.id]);
+  const comments = sqlAll(
+    `SELECT c.id, c.uyeadi, c.yorum, c.tarih,
+            u.id AS user_id, u.kadi, u.verified, u.resim, u.isim, u.soyisim
+     FROM album_fotoyorum c
+     LEFT JOIN uyeler u ON LOWER(u.kadi) = LOWER(c.uyeadi)
+     WHERE c.fotoid = ?
+     ORDER BY c.id DESC`,
+    [req.params.id]
+  );
   res.json({ comments });
 });
 
@@ -2242,7 +3286,8 @@ app.post('/api/photos/:id/comments', (req, res) => {
   const photo = sqlGet('SELECT id, ekleyenid, aktif FROM album_foto WHERE id = ?', [req.params.id]);
   if (!photo) return res.status(404).send('Fotoğraf bulunamadı');
   if (Number(photo.aktif || 0) !== 1) return res.status(400).send('Fotoğraf yoruma açık değil');
-  const yorum = metinDuzenle(req.body?.yorum || '');
+  const yorumRaw = String(req.body?.yorum || '');
+  const yorum = metinDuzenle(yorumRaw);
   if (!yorum) return res.status(400).send('Yorum girmedin');
   const user = getCurrentUser(req);
   sqlRun('INSERT INTO album_fotoyorum (fotoid, uyeadi, yorum, tarih) VALUES (?, ?, ?, ?)', [
@@ -2261,6 +3306,13 @@ app.post('/api/photos/:id/comments', (req, res) => {
       message: 'Fotoğrafına yorum yaptı.'
     });
   }
+  notifyMentions({
+    text: yorumRaw,
+    sourceUserId: req.session.userId,
+    entityId: photo.id,
+    type: 'mention_photo',
+    message: 'Fotoğraf yorumunda senden bahsetti.'
+  });
   res.json({ ok: true });
 });
 
@@ -2280,10 +3332,15 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
      LEFT JOIN uyeler u ON u.id = p.user_id
+     LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id
      ${where}
-     ORDER BY p.id DESC
+     ORDER BY (
+       COALESCE(es.score, 0) * 0.72
+       - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 72), 0) * 0.45
+       + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
+     ) DESC, p.id DESC
      LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
+    [...params, req.session.userId, limit, offset]
   );
   const postIds = rows.map((r) => r.id);
   const likes = postIds.length
@@ -2342,6 +3399,7 @@ app.post('/api/new/posts', requireAuth, (req, res) => {
     type: 'mention_post',
     message: 'Gönderide senden bahsetti.'
   });
+  scheduleEngagementRecalculation('post_created');
   res.json({ ok: true, id: result?.lastInsertRowid });
 });
 
@@ -2373,14 +3431,25 @@ app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), (req,
     type: 'mention_post',
     message: 'Gönderide senden bahsetti.'
   });
+  scheduleEngagementRecalculation('post_created');
   res.json({ ok: true, id: result?.lastInsertRowid, image });
 });
 
 app.post('/api/new/posts/:id/like', requireAuth, (req, res) => {
   const postId = req.params.id;
+  const postRow = sqlGet('SELECT id, user_id, group_id FROM posts WHERE id = ?', [postId]);
+  if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
+  if (postRow.group_id) {
+    const user = getCurrentUser(req);
+    if (user?.admin !== 1) {
+      const member = getGroupMember(postRow.group_id, req.session.userId);
+      if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
+    }
+  }
   const existing = sqlGet('SELECT id FROM post_likes WHERE post_id = ? AND user_id = ?', [postId, req.session.userId]);
   if (existing) {
     sqlRun('DELETE FROM post_likes WHERE id = ?', [existing.id]);
+    scheduleEngagementRecalculation('post_like_changed');
     return res.json({ ok: true, liked: false });
   }
   sqlRun('INSERT INTO post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)', [postId, req.session.userId, new Date().toISOString()]);
@@ -2394,10 +3463,20 @@ app.post('/api/new/posts/:id/like', requireAuth, (req, res) => {
       message: 'Gönderini beğendi.'
     });
   }
+  scheduleEngagementRecalculation('post_like_changed');
   return res.json({ ok: true, liked: true });
 });
 
 app.get('/api/new/posts/:id/comments', requireAuth, (req, res) => {
+  const post = sqlGet('SELECT id, group_id FROM posts WHERE id = ?', [req.params.id]);
+  if (!post) return res.status(404).send('Gönderi bulunamadı.');
+  if (post.group_id) {
+    const user = getCurrentUser(req);
+    if (user?.admin !== 1) {
+      const member = getGroupMember(post.group_id, req.session.userId);
+      if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
+    }
+  }
   const rows = sqlAll(
     `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim
      FROM post_comments c
@@ -2410,6 +3489,15 @@ app.get('/api/new/posts/:id/comments', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
+  const postTarget = sqlGet('SELECT id, user_id, group_id FROM posts WHERE id = ?', [req.params.id]);
+  if (!postTarget) return res.status(404).send('Gönderi bulunamadı.');
+  if (postTarget.group_id) {
+    const user = getCurrentUser(req);
+    if (user?.admin !== 1) {
+      const member = getGroupMember(postTarget.group_id, req.session.userId);
+      if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
+    }
+  }
   const comment = metinDuzenle(req.body?.comment || '');
   if (!comment) return res.status(400).send('Yorum boş olamaz.');
   const now = new Date().toISOString();
@@ -2419,10 +3507,9 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
     comment,
     now
   ]);
-  const post = sqlGet('SELECT user_id FROM posts WHERE id = ?', [req.params.id]);
-  if (post && post.user_id !== req.session.userId) {
+  if (postTarget && postTarget.user_id !== req.session.userId) {
     addNotification({
-      userId: post.user_id,
+      userId: postTarget.user_id,
       type: 'comment',
       sourceUserId: req.session.userId,
       entityId: req.params.id,
@@ -2436,6 +3523,7 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
     type: 'mention_post',
     message: 'Yorumda senden bahsetti.'
   });
+  scheduleEngagementRecalculation('post_comment_created');
   res.json({ ok: true });
 });
 
@@ -2506,6 +3594,7 @@ app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), (r
     now.toISOString(),
     expires.toISOString()
   ]);
+  scheduleEngagementRecalculation('story_created');
   res.json({ ok: true, id: result?.lastInsertRowid, image });
 });
 
@@ -2517,6 +3606,7 @@ app.post('/api/new/stories/:id/view', requireAuth, (req, res) => {
       req.session.userId,
       new Date().toISOString()
     ]);
+    scheduleEngagementRecalculation('story_viewed');
   }
   res.json({ ok: true });
 });
@@ -2527,6 +3617,7 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
   const existing = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [req.session.userId, targetId]);
   if (existing) {
     sqlRun('DELETE FROM follows WHERE id = ?', [existing.id]);
+    scheduleEngagementRecalculation('follow_changed');
     return res.json({ ok: true, following: false });
   }
   sqlRun('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [
@@ -2541,6 +3632,7 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
     entityId: targetId,
     message: 'Seni takip etmeye başladı.'
   });
+  scheduleEngagementRecalculation('follow_changed');
   return res.json({ ok: true, following: true });
 });
 
@@ -2556,6 +3648,113 @@ app.get('/api/new/follows', requireAuth, (req, res) => {
   res.json({ items: rows });
 });
 
+app.get('/api/new/explore/suggestions', requireAuth, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 40);
+  const me = sqlGet(
+    `SELECT id, mezuniyetyili, sehir, universite, meslek
+     FROM uyeler
+     WHERE id = ?`,
+    [req.session.userId]
+  );
+  if (!me) return res.json({ items: [] });
+
+  const followed = sqlAll('SELECT following_id FROM follows WHERE follower_id = ?', [req.session.userId]);
+  const followedSet = new Set(followed.map((r) => Number(r.following_id)));
+
+  const iFollowFollowers = sqlAll(
+    `SELECT f2.following_id AS user_id, COUNT(*) AS cnt
+     FROM follows f1
+     JOIN follows f2 ON f2.follower_id = f1.following_id
+     WHERE f1.follower_id = ?
+     GROUP BY f2.following_id`,
+    [req.session.userId]
+  );
+  const secondDegreeMap = new Map(iFollowFollowers.map((r) => [Number(r.user_id), Number(r.cnt || 0)]));
+
+  const followsMe = sqlAll('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]);
+  const followsMeSet = new Set(followsMe.map((r) => Number(r.follower_id)));
+  const engagementRows = sqlAll('SELECT user_id, score FROM member_engagement_scores');
+  const engagementMap = new Map(engagementRows.map((r) => [Number(r.user_id), Number(r.score || 0)]));
+
+  const candidates = sqlAll(
+    `SELECT id, kadi, isim, soyisim, resim, verified, mezuniyetyili, sehir, universite, meslek, online
+     FROM uyeler
+     WHERE COALESCE(CAST(aktiv AS INTEGER), 1) = 1
+       AND COALESCE(CAST(yasak AS INTEGER), 0) = 0
+       AND id != ?`,
+    [req.session.userId]
+  );
+
+  const scored = [];
+  for (const c of candidates) {
+    const cid = Number(c.id);
+    if (!cid) continue;
+    if (followedSet.has(cid)) continue;
+    let score = 0;
+    const reasons = [];
+
+    const secondDegree = secondDegreeMap.get(cid) || 0;
+    if (secondDegree > 0) {
+      score += Math.min(secondDegree * 18, 54);
+      reasons.push(`${secondDegree} ortak baglanti`);
+    }
+
+    if (Number(c.mezuniyetyili || 0) > 0 && String(c.mezuniyetyili) === String(me.mezuniyetyili || '')) {
+      score += 22;
+      reasons.push('Ayni mezuniyet yili');
+    }
+    if (me.sehir && c.sehir && String(me.sehir).trim() && String(me.sehir).trim().toLowerCase() === String(c.sehir).trim().toLowerCase()) {
+      score += 8;
+      reasons.push('Ayni sehir');
+    }
+    if (me.universite && c.universite && String(me.universite).trim() && String(me.universite).trim().toLowerCase() === String(c.universite).trim().toLowerCase()) {
+      score += 8;
+      reasons.push('Ayni universite');
+    }
+    if (me.meslek && c.meslek && String(me.meslek).trim() && String(me.meslek).trim().toLowerCase() === String(c.meslek).trim().toLowerCase()) {
+      score += 5;
+      reasons.push('Benzer meslek');
+    }
+    if (followsMeSet.has(cid)) {
+      score += 10;
+      reasons.push('Seni takip ediyor');
+    }
+    const engagementScore = Number(engagementMap.get(cid) || 0);
+    if (engagementScore > 0) {
+      score += Math.min(20, engagementScore * 0.2);
+      if (engagementScore >= 70) reasons.push('Toplulukta aktif');
+    }
+    if (Number(c.verified || 0) === 1) score += 2;
+    if (Number(c.online || 0) === 1) score += 1;
+
+    scored.push({
+      ...c,
+      score,
+      reasons: reasons.slice(0, 3)
+    });
+  }
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (Number(b.online || 0) !== Number(a.online || 0)) return Number(b.online || 0) - Number(a.online || 0);
+    if (Number(b.verified || 0) !== Number(a.verified || 0)) return Number(b.verified || 0) - Number(a.verified || 0);
+    return Number(b.id || 0) - Number(a.id || 0);
+  });
+
+  const items = scored.slice(0, limit).map((u) => ({
+    id: u.id,
+    kadi: u.kadi,
+    isim: u.isim,
+    soyisim: u.soyisim,
+    resim: u.resim,
+    verified: u.verified,
+    mezuniyetyili: u.mezuniyetyili,
+    online: u.online,
+    reasons: u.reasons
+  }));
+  res.json({ items });
+});
+
 app.get('/api/new/messages/unread', requireAuth, (req, res) => {
   const row = sqlGet(
     'SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE kime = ? AND aktifgelen = 1 AND yeni = 1',
@@ -2567,18 +3766,47 @@ app.get('/api/new/messages/unread', requireAuth, (req, res) => {
 app.get('/api/new/groups', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-  const groups = sqlAll('SELECT * FROM groups ORDER BY id DESC LIMIT ? OFFSET ?', [limit, offset]);
+  const groups = sqlAll('SELECT * FROM groups ORDER BY id DESC');
   const memberCounts = sqlAll('SELECT group_id, COUNT(*) AS cnt FROM group_members GROUP BY group_id');
-  const membership = sqlAll('SELECT group_id FROM group_members WHERE user_id = ?', [req.session.userId]);
+  const membership = sqlAll('SELECT group_id, role FROM group_members WHERE user_id = ?', [req.session.userId]);
+  const pending = sqlAll(
+    `SELECT group_id
+     FROM group_join_requests
+     WHERE user_id = ? AND status = 'pending'`,
+    [req.session.userId]
+  );
+  const invites = sqlAll(
+    `SELECT group_id
+     FROM group_invites
+     WHERE invited_user_id = ? AND status = 'pending'`,
+    [req.session.userId]
+  );
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1;
   const countMap = new Map(memberCounts.map((c) => [c.group_id, c.cnt]));
-  const memberSet = new Set(membership.map((m) => m.group_id));
+  const memberMap = new Map(membership.map((m) => [m.group_id, m.role]));
+  const pendingSet = new Set(pending.map((p) => p.group_id));
+  const inviteSet = new Set(invites.map((v) => v.group_id));
+  const visible = groups.filter((g) => {
+    const membersOnly = String(g.visibility || 'public') === 'members_only';
+    if (!membersOnly) return true;
+    if (isAdmin) return true;
+    if (memberMap.has(g.id)) return true;
+    if (inviteSet.has(g.id)) return true;
+    return false;
+  });
+  const slice = visible.slice(offset, offset + limit);
   res.json({
-    items: groups.map((g) => ({
+    items: slice.map((g) => ({
       ...g,
       members: countMap.get(g.id) || 0,
-      joined: memberSet.has(g.id)
+      joined: memberMap.has(g.id),
+      pending: pendingSet.has(g.id),
+      invited: inviteSet.has(g.id),
+      myRole: memberMap.get(g.id) || null,
+      membershipStatus: memberMap.has(g.id) ? 'member' : (inviteSet.has(g.id) ? 'invited' : (pendingSet.has(g.id) ? 'pending' : 'none'))
     })),
-    hasMore: groups.length === limit
+    hasMore: offset + slice.length < visible.length
   });
 });
 
@@ -2587,12 +3815,13 @@ app.post('/api/new/groups', requireAuth, (req, res) => {
   if (!name) return res.status(400).send('Grup adı gerekli.');
   const description = String(req.body?.description || '');
   const now = new Date().toISOString();
-  const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at) VALUES (?, ?, ?, ?, ?)', [
+  const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?)', [
     name,
     description,
     req.body?.cover_image || null,
     req.session.userId,
-    now
+    now,
+    'public'
   ]);
   const groupId = result?.lastInsertRowid;
   sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
@@ -2613,18 +3842,238 @@ app.post('/api/new/groups', requireAuth, (req, res) => {
 
 app.post('/api/new/groups/:id/join', requireAuth, (req, res) => {
   const groupId = req.params.id;
-  const existing = sqlGet('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, req.session.userId]);
-  if (existing) {
-    sqlRun('DELETE FROM group_members WHERE id = ?', [existing.id]);
-    return res.json({ ok: true, joined: false });
+  const group = sqlGet('SELECT id, name, visibility FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1;
+  const pendingInvite = sqlGet(
+    `SELECT id
+     FROM group_invites
+     WHERE group_id = ? AND invited_user_id = ? AND status = 'pending'`,
+    [groupId, req.session.userId]
+  );
+
+  const existingMember = getGroupMember(groupId, req.session.userId);
+  if (existingMember) {
+    if (existingMember.role === 'owner') return res.status(400).send('Grup sahibi gruptan ayrılamaz.');
+    sqlRun('DELETE FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, req.session.userId]);
+    return res.json({ ok: true, joined: false, pending: false, membershipStatus: 'none' });
   }
-  sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
-    groupId,
-    req.session.userId,
-    'member',
-    new Date().toISOString()
+
+  if (pendingInvite) {
+    sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+      groupId,
+      req.session.userId,
+      'member',
+      new Date().toISOString()
+    ]);
+    sqlRun('UPDATE group_invites SET status = ?, responded_at = ? WHERE id = ?', ['accepted', new Date().toISOString(), pendingInvite.id]);
+    sqlRun('DELETE FROM group_join_requests WHERE group_id = ? AND user_id = ? AND status = ?', [groupId, req.session.userId, 'pending']);
+    return res.json({ ok: true, joined: true, pending: false, invited: false, membershipStatus: 'member' });
+  }
+
+  if (!isAdmin && String(group.visibility || 'public') === 'members_only') {
+    return res.status(403).send('Bu grup sadece davet ile görünür ve katılım sağlar.');
+  }
+
+  const existingRequest = sqlGet(
+    `SELECT id
+     FROM group_join_requests
+     WHERE group_id = ? AND user_id = ? AND status = 'pending'`,
+    [groupId, req.session.userId]
+  );
+  if (existingRequest) {
+    sqlRun('DELETE FROM group_join_requests WHERE id = ?', [existingRequest.id]);
+    return res.json({ ok: true, joined: false, pending: false, invited: false, membershipStatus: 'none' });
+  }
+
+  sqlRun(
+    `INSERT INTO group_join_requests (group_id, user_id, status, created_at)
+     VALUES (?, ?, 'pending', ?)`,
+    [groupId, req.session.userId, new Date().toISOString()]
+  );
+
+  const managers = sqlAll(
+    `SELECT user_id
+     FROM group_members
+     WHERE group_id = ? AND role IN ('owner', 'moderator')`,
+    [groupId]
+  );
+  for (const manager of managers) {
+    if (Number(manager.user_id) === Number(req.session.userId)) continue;
+    addNotification({
+      userId: Number(manager.user_id),
+      type: 'group_join_request',
+      sourceUserId: req.session.userId,
+      entityId: Number(groupId),
+      message: `${group.name} grubuna katılım isteği gönderdi.`
+    });
+  }
+
+  return res.json({ ok: true, joined: false, pending: true, invited: false, membershipStatus: 'pending' });
+});
+
+app.get('/api/new/groups/:id/requests', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+  const rows = sqlAll(
+    `SELECT r.id, r.group_id, r.user_id, r.status, r.created_at,
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM group_join_requests r
+     LEFT JOIN uyeler u ON u.id = r.user_id
+     WHERE r.group_id = ? AND r.status = 'pending'
+     ORDER BY r.id DESC`,
+    [groupId]
+  );
+  return res.json({ items: rows });
+});
+
+app.post('/api/new/groups/:id/requests/:requestId', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const requestId = req.params.requestId;
+  const action = String(req.body?.action || '').toLowerCase();
+  if (!['approve', 'reject'].includes(action)) return res.status(400).send('Geçersiz işlem.');
+  const group = sqlGet('SELECT id, name FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+
+  const requestRow = sqlGet(
+    `SELECT id, user_id, status
+     FROM group_join_requests
+     WHERE id = ? AND group_id = ?`,
+    [requestId, groupId]
+  );
+  if (!requestRow) return res.status(404).send('Katılım isteği bulunamadı.');
+  if (requestRow.status !== 'pending') return res.status(400).send('İstek zaten sonuçlandırılmış.');
+
+  if (action === 'approve') {
+    const alreadyMember = getGroupMember(groupId, requestRow.user_id);
+    if (!alreadyMember) {
+      sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+        groupId,
+        requestRow.user_id,
+        'member',
+        new Date().toISOString()
+      ]);
+    }
+  }
+
+  sqlRun(
+    `UPDATE group_join_requests
+     SET status = ?, reviewed_at = ?, reviewed_by = ?
+     WHERE id = ?`,
+    [action === 'approve' ? 'approved' : 'rejected', new Date().toISOString(), req.session.userId, requestId]
+  );
+
+  addNotification({
+    userId: Number(requestRow.user_id),
+    type: action === 'approve' ? 'group_join_approved' : 'group_join_rejected',
+    sourceUserId: req.session.userId,
+    entityId: Number(groupId),
+    message: action === 'approve'
+      ? `${group.name} grubuna katılım isteğin onaylandı.`
+      : `${group.name} grubuna katılım isteğin reddedildi.`
+  });
+
+  return res.json({ ok: true, status: action === 'approve' ? 'approved' : 'rejected' });
+});
+
+app.get('/api/new/groups/:id/invitations', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+  const rows = sqlAll(
+    `SELECT i.id, i.group_id, i.invited_user_id, i.invited_by, i.status, i.created_at, i.responded_at,
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM group_invites i
+     LEFT JOIN uyeler u ON u.id = i.invited_user_id
+     WHERE i.group_id = ? AND i.status = 'pending'
+     ORDER BY i.id DESC`,
+    [groupId]
+  );
+  return res.json({ items: rows });
+});
+
+app.post('/api/new/groups/:id/invitations', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id, name FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+  const idsRaw = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+  const userIds = Array.from(new Set(idsRaw.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0)));
+  if (!userIds.length) return res.status(400).send('En az bir üye seçmelisin.');
+  let sent = 0;
+  for (const userId of userIds) {
+    if (sameUserId(userId, req.session.userId)) continue;
+    const alreadyMember = getGroupMember(groupId, userId);
+    if (alreadyMember) continue;
+    const existingPending = sqlGet(
+      `SELECT id
+       FROM group_invites
+       WHERE group_id = ? AND invited_user_id = ? AND status = 'pending'`,
+      [groupId, userId]
+    );
+    if (existingPending) continue;
+    sqlRun(
+      `INSERT INTO group_invites (group_id, invited_user_id, invited_by, status, created_at)
+       VALUES (?, ?, ?, 'pending', ?)`,
+      [groupId, userId, req.session.userId, new Date().toISOString()]
+    );
+    addNotification({
+      userId,
+      type: 'group_invite',
+      sourceUserId: req.session.userId,
+      entityId: Number(groupId),
+      message: `${group.name} grubuna davet edildin.`
+    });
+    sent += 1;
+  }
+  return res.json({ ok: true, sent });
+});
+
+app.post('/api/new/groups/:id/invitations/respond', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const action = String(req.body?.action || '').toLowerCase();
+  if (!['accept', 'reject'].includes(action)) return res.status(400).send('Geçersiz işlem.');
+  const invite = sqlGet(
+    `SELECT id, invited_user_id, status
+     FROM group_invites
+     WHERE group_id = ? AND invited_user_id = ? AND status = 'pending'`,
+    [groupId, req.session.userId]
+  );
+  if (!invite) return res.status(404).send('Bekleyen davet bulunamadı.');
+
+  if (action === 'accept') {
+    const alreadyMember = getGroupMember(groupId, req.session.userId);
+    if (!alreadyMember) {
+      sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+        groupId,
+        req.session.userId,
+        'member',
+        new Date().toISOString()
+      ]);
+    }
+  }
+
+  sqlRun('UPDATE group_invites SET status = ?, responded_at = ? WHERE id = ?', [
+    action === 'accept' ? 'accepted' : 'rejected',
+    new Date().toISOString(),
+    invite.id
   ]);
-  return res.json({ ok: true, joined: true });
+
+  return res.json({ ok: true, status: action === 'accept' ? 'accepted' : 'rejected' });
+});
+
+app.post('/api/new/groups/:id/settings', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+  const visibility = String(req.body?.visibility || '').trim();
+  if (!['public', 'members_only'].includes(visibility)) return res.status(400).send('Geçersiz görünürlük.');
+  sqlRun('UPDATE groups SET visibility = ? WHERE id = ?', [visibility, groupId]);
+  return res.json({ ok: true, visibility });
 });
 
 app.post('/api/new/groups/:id/cover', requireAuth, groupUpload.single('image'), (req, res) => {
@@ -2653,33 +4102,147 @@ app.post('/api/new/groups/:id/role', requireAuth, (req, res) => {
   if (!targetId || !['member', 'moderator', 'owner'].includes(role)) {
     return res.status(400).send('Geçersiz rol.');
   }
+  const targetMember = sqlGet('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?', [req.params.id, targetId]);
+  if (!targetMember) return res.status(404).send('Üye bulunamadı.');
   sqlRun('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?', [role, req.params.id, targetId]);
   res.json({ ok: true });
 });
 
 app.get('/api/new/groups/:id', requireAuth, (req, res) => {
-  const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT * FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1;
+  const member = getGroupMember(groupId, req.session.userId);
+  const invite = sqlGet(
+    `SELECT id, status
+     FROM group_invites
+     WHERE group_id = ? AND invited_user_id = ? AND status = 'pending'`,
+    [groupId, req.session.userId]
+  );
+  const pending = sqlGet(
+    `SELECT id
+     FROM group_join_requests
+     WHERE group_id = ? AND user_id = ? AND status = 'pending'`,
+    [groupId, req.session.userId]
+  );
+  const membersOnly = String(group.visibility || 'public') === 'members_only';
+  if (membersOnly && !isAdmin && !member && !invite) {
+    return res.status(404).send('Grup bulunamadı.');
+  }
+  if (!isAdmin && !member) {
+    const memberCount = sqlGet('SELECT COUNT(*) AS cnt FROM group_members WHERE group_id = ?', [groupId])?.cnt || 0;
+    return res.status(403).json({
+      message: 'Bu grup özel. İçerikleri görmek için owner/moderatör onayı ile üye olmalısın.',
+      membershipStatus: invite ? 'invited' : (pending ? 'pending' : 'none'),
+      group: {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        cover_image: group.cover_image,
+        members: memberCount,
+        visibility: group.visibility || 'public'
+      }
+    });
+  }
   const members = sqlAll(
     `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, m.role
      FROM group_members m
      LEFT JOIN uyeler u ON u.id = m.user_id
      WHERE m.group_id = ?`,
-    [req.params.id]
+    [groupId]
   );
-  const posts = sqlAll(
+  const rawPosts = sqlAll(
     `SELECT p.id, p.content, p.image, p.created_at,
             u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
      LEFT JOIN uyeler u ON u.id = p.user_id
      WHERE p.group_id = ?
      ORDER BY p.id DESC`,
-    [req.params.id]
+    [groupId]
   );
-  res.json({ group, members, posts });
+  const postIds = rawPosts.map((p) => p.id);
+  const likes = postIds.length
+    ? sqlAll(`SELECT post_id, COUNT(*) AS cnt FROM post_likes WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+    : [];
+  const comments = postIds.length
+    ? sqlAll(`SELECT post_id, COUNT(*) AS cnt FROM post_comments WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+    : [];
+  const liked = postIds.length
+    ? sqlAll(`SELECT post_id FROM post_likes WHERE user_id = ? AND post_id IN (${postIds.map(() => '?').join(',')})`, [req.session.userId, ...postIds])
+    : [];
+  const likeMap = new Map(likes.map((l) => [l.post_id, l.cnt]));
+  const commentMap = new Map(comments.map((c) => [c.post_id, c.cnt]));
+  const likedSet = new Set(liked.map((l) => l.post_id));
+  const canReviewRequests = isGroupManager(req, groupId);
+  const joinRequests = canReviewRequests
+    ? sqlAll(
+      `SELECT r.id, r.group_id, r.user_id, r.status, r.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM group_join_requests r
+       LEFT JOIN uyeler u ON u.id = r.user_id
+       WHERE r.group_id = ? AND r.status = 'pending'
+       ORDER BY r.id DESC`,
+      [groupId]
+    )
+    : [];
+  const groupEvents = sqlAll(
+    `SELECT e.id, e.group_id, e.title, e.description, e.location, e.starts_at, e.ends_at, e.created_at, e.created_by, u.kadi AS creator_kadi
+     FROM group_events e
+     LEFT JOIN uyeler u ON u.id = e.created_by
+     WHERE e.group_id = ?
+     ORDER BY COALESCE(e.starts_at, e.created_at) ASC, e.id DESC
+     LIMIT 50`,
+    [groupId]
+  );
+  const groupAnnouncements = sqlAll(
+    `SELECT a.id, a.group_id, a.title, a.body, a.created_at, a.created_by, u.kadi AS creator_kadi
+     FROM group_announcements a
+     LEFT JOIN uyeler u ON u.id = a.created_by
+     WHERE a.group_id = ?
+     ORDER BY a.id DESC
+     LIMIT 50`,
+    [groupId]
+  );
+  const pendingInvites = canReviewRequests
+    ? sqlAll(
+      `SELECT i.id, i.group_id, i.invited_user_id, i.invited_by, i.status, i.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM group_invites i
+       LEFT JOIN uyeler u ON u.id = i.invited_user_id
+       WHERE i.group_id = ? AND i.status = 'pending'
+       ORDER BY i.id DESC`,
+      [groupId]
+    )
+    : [];
+  return res.json({
+    group,
+    members,
+    membershipStatus: 'member',
+    myRole: member?.role || (isAdmin ? 'admin' : null),
+    canReviewRequests,
+    joinRequests,
+    pendingInvites,
+    groupEvents,
+    groupAnnouncements,
+    posts: rawPosts.map((p) => ({
+      ...p,
+      likeCount: likeMap.get(p.id) || 0,
+      commentCount: commentMap.get(p.id) || 0,
+      liked: likedSet.has(p.id)
+    }))
+  });
 });
 
 app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const user = getCurrentUser(req);
+  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+    return res.status(403).send('Bu grup özel. Paylaşım için onaylı üyelik gerekli.');
+  }
   const content = metinDuzenle(req.body?.content || '');
   const contentRaw = String(req.body?.content || '');
   if (!content) return res.status(400).send('İçerik boş olamaz.');
@@ -2689,12 +4252,12 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
     content,
     null,
     now,
-    req.params.id
+    groupId
   ]);
   notifyMentions({
     text: contentRaw,
     sourceUserId: req.session.userId,
-    entityId: req.params.id,
+    entityId: groupId,
     type: 'mention_group',
     message: 'Grup paylaşımında senden bahsetti.'
   });
@@ -2702,6 +4265,13 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('image'), (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const user = getCurrentUser(req);
+  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+    return res.status(403).send('Bu grup özel. Paylaşım için onaylı üyelik gerekli.');
+  }
   const content = metinDuzenle(req.body?.content || '');
   const contentRaw = String(req.body?.content || '');
   const filter = req.body?.filter || '';
@@ -2716,15 +4286,111 @@ app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('ima
     content,
     image,
     now,
-    req.params.id
+    groupId
   ]);
   notifyMentions({
     text: contentRaw,
     sourceUserId: req.session.userId,
-    entityId: req.params.id,
+    entityId: groupId,
     type: 'mention_group',
     message: 'Grup paylaşımında senden bahsetti.'
   });
+  res.json({ ok: true });
+});
+
+app.get('/api/new/groups/:id/events', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const user = getCurrentUser(req);
+  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+    return res.status(403).send('Bu grup özel. Etkinlikler yalnızca üyelere açık.');
+  }
+  const rows = sqlAll(
+    `SELECT e.id, e.group_id, e.title, e.description, e.location, e.starts_at, e.ends_at, e.created_at, e.created_by, u.kadi AS creator_kadi
+     FROM group_events e
+     LEFT JOIN uyeler u ON u.id = e.created_by
+     WHERE e.group_id = ?
+     ORDER BY COALESCE(e.starts_at, e.created_at) ASC, e.id DESC
+     LIMIT 100`,
+    [groupId]
+  );
+  res.json({ items: rows });
+});
+
+app.post('/api/new/groups/:id/events', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok. Sadece owner/moderator etkinlik ekleyebilir.');
+  const title = String(req.body?.title || '').trim();
+  if (!title) return res.status(400).send('Başlık gerekli.');
+  const now = new Date().toISOString();
+  const result = sqlRun(
+    `INSERT INTO group_events (group_id, title, description, location, starts_at, ends_at, created_at, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      groupId,
+      title,
+      metinDuzenle(req.body?.description || ''),
+      String(req.body?.location || ''),
+      String(req.body?.starts_at || ''),
+      String(req.body?.ends_at || ''),
+      now,
+      req.session.userId
+    ]
+  );
+  res.json({ ok: true, id: result?.lastInsertRowid });
+});
+
+app.delete('/api/new/groups/:id/events/:eventId', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+  sqlRun('DELETE FROM group_events WHERE id = ? AND group_id = ?', [req.params.eventId, groupId]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/groups/:id/announcements', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  const user = getCurrentUser(req);
+  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+    return res.status(403).send('Bu grup özel. Duyurular yalnızca üyelere açık.');
+  }
+  const rows = sqlAll(
+    `SELECT a.id, a.group_id, a.title, a.body, a.created_at, a.created_by, u.kadi AS creator_kadi
+     FROM group_announcements a
+     LEFT JOIN uyeler u ON u.id = a.created_by
+     WHERE a.group_id = ?
+     ORDER BY a.id DESC
+     LIMIT 100`,
+    [groupId]
+  );
+  res.json({ items: rows });
+});
+
+app.post('/api/new/groups/:id/announcements', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return res.status(404).send('Grup bulunamadı.');
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok. Sadece owner/moderator duyuru ekleyebilir.');
+  const title = String(req.body?.title || '').trim();
+  const body = metinDuzenle(req.body?.body || '');
+  if (!title || !body) return res.status(400).send('Başlık ve içerik gerekli.');
+  const now = new Date().toISOString();
+  const result = sqlRun(
+    `INSERT INTO group_announcements (group_id, title, body, created_at, created_by)
+     VALUES (?, ?, ?, ?, ?)`,
+    [groupId, title, body, now, req.session.userId]
+  );
+  res.json({ ok: true, id: result?.lastInsertRowid });
+});
+
+app.delete('/api/new/groups/:id/announcements/:announcementId', requireAuth, (req, res) => {
+  const groupId = req.params.id;
+  if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
+  sqlRun('DELETE FROM group_announcements WHERE id = ? AND group_id = ?', [req.params.announcementId, groupId]);
   res.json({ ok: true });
 });
 
@@ -2959,6 +4625,213 @@ app.post('/api/new/admin/verify', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+function buildEngagementAbPerformanceRows() {
+  const rows = sqlAll(
+    `SELECT COALESCE(NULLIF(ab_variant, ''), 'A') AS variant,
+            COUNT(*) AS users,
+            ROUND(AVG(COALESCE(score, 0)), 2) AS avg_score,
+            ROUND(AVG(COALESCE(raw_score, 0)), 2) AS avg_raw_score,
+            ROUND(AVG(COALESCE(posts_30d, 0)), 2) AS avg_posts_30d,
+            ROUND(AVG(COALESCE(likes_received_30d, 0)), 2) AS avg_likes_received_30d,
+            ROUND(AVG(COALESCE(comments_received_30d, 0)), 2) AS avg_comments_received_30d,
+            ROUND(AVG(COALESCE(follows_gained_30d, 0)), 2) AS avg_follows_gained_30d,
+            ROUND(AVG(COALESCE(story_views_received_30d, 0)), 2) AS avg_story_views_received_30d
+     FROM member_engagement_scores
+     GROUP BY COALESCE(NULLIF(ab_variant, ''), 'A')
+     ORDER BY variant ASC`
+  );
+  return rows.map((r) => ({
+    ...r,
+    engagementRate: Number(((Number(r.avg_likes_received_30d || 0) + Number(r.avg_comments_received_30d || 0) * 2) / Math.max(Number(r.avg_posts_30d || 0), 1)).toFixed(2))
+  }));
+}
+
+function round2(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Number(n.toFixed(2));
+}
+
+function buildEngagementAbRecommendations(configs, performance) {
+  const perfMap = new Map((performance || []).map((p) => [String(p.variant || '').toUpperCase(), p]));
+  const configMap = new Map((configs || []).map((c) => [String(c.variant || '').toUpperCase(), c]));
+  const baseline = perfMap.get('A') || performance?.[0] || null;
+  const recommendations = [];
+
+  for (const cfg of (configs || [])) {
+    const variant = String(cfg.variant || '').toUpperCase();
+    const perf = perfMap.get(variant);
+    if (!perf) continue;
+    if (Number(perf.users || 0) < 20) continue;
+    const p = cfg.params || engagementDefaultParams;
+    const patch = {};
+    const reasons = [];
+    const confidenceParts = [];
+
+    if (baseline && baseline.variant !== variant && Number(baseline.users || 0) >= 20) {
+      const baselineRate = Math.max(Number(baseline.engagementRate || 0), 0.01);
+      const baselineScore = Math.max(Number(baseline.avg_score || 0), 0.01);
+      const rateDelta = (Number(perf.engagementRate || 0) - baselineRate) / baselineRate;
+      const scoreDelta = (Number(perf.avg_score || 0) - baselineScore) / baselineScore;
+
+      if (rateDelta < -0.08) {
+        patch.receivedCommentWeight = round2(p.receivedCommentWeight * 1.1);
+        patch.scaleReceived = round2(p.scaleReceived * 1.06);
+        reasons.push(`Etkileşim oranı baseline'a göre düşük (${round2(rateDelta * 100)}%).`);
+        confidenceParts.push(Math.min(0.4, Math.abs(rateDelta)));
+      } else if (rateDelta > 0.08 && scoreDelta > -0.03) {
+        patch.receivedCommentWeight = round2(p.receivedCommentWeight * 1.04);
+        patch.capReceived = round2(p.capReceived * 1.03);
+        reasons.push(`Etkileşim oranı baseline'a göre yüksek (${round2(rateDelta * 100)}%).`);
+        confidenceParts.push(Math.min(0.35, Math.abs(rateDelta)));
+      }
+
+      if (scoreDelta < -0.08) {
+        patch.recency7d = round2(p.recency7d * 1.03);
+        patch.recency30d = round2(p.recency30d * 1.02);
+        patch.penaltyLowQualityPost = round2(p.penaltyLowQualityPost * 0.95);
+        reasons.push(`Ortalama skor baseline'a göre düşük (${round2(scoreDelta * 100)}%).`);
+        confidenceParts.push(Math.min(0.35, Math.abs(scoreDelta)));
+      } else if (scoreDelta > 0.12 && rateDelta >= -0.05) {
+        patch.penaltyAggressiveFollow = round2(p.penaltyAggressiveFollow * 1.05);
+        reasons.push(`Ortalama skor baseline'a göre yüksek (${round2(scoreDelta * 100)}%).`);
+        confidenceParts.push(Math.min(0.25, Math.abs(scoreDelta)));
+      }
+    }
+
+    const postsAvg = Number(perf.avg_posts_30d || 0);
+    const followsGainAvg = Number(perf.avg_follows_gained_30d || 0);
+    if (postsAvg < 1.2) {
+      patch.creatorRecentPostWeight = round2(p.creatorRecentPostWeight * 1.07);
+      reasons.push('İçerik üretim ortalaması düşük; taze içerik sinyali artırıldı.');
+      confidenceParts.push(0.14);
+    }
+    if (followsGainAvg < 0.5) {
+      patch.networkFollowGainWeight = round2(p.networkFollowGainWeight * 1.06);
+      reasons.push('Takipçi artışı düşük; network büyüme katsayısı artırıldı.');
+      confidenceParts.push(0.12);
+    }
+
+    const normalizedPatch = normalizeEngagementParams(
+      { ...p, ...patch },
+      engagementDefaultVariants[variant]?.params || engagementDefaultParams
+    );
+    const finalPatch = {};
+    for (const key of Object.keys(p)) {
+      if (Number(normalizedPatch[key]) !== Number(p[key])) {
+        finalPatch[key] = normalizedPatch[key];
+      }
+    }
+    if (!Object.keys(finalPatch).length) continue;
+
+    const confidenceBase = confidenceParts.reduce((s, v) => s + v, 0);
+    const sampleFactor = Math.min(1, Number(perf.users || 0) / 250);
+    const confidence = round2(clamp(0.25 + confidenceBase + sampleFactor * 0.35, 0, 0.95));
+
+    recommendations.push({
+      variant,
+      confidence,
+      reasons: reasons.slice(0, 4),
+      patch: finalPatch
+    });
+  }
+
+  const activeConfigs = (configs || []).filter((c) => Number(c.enabled || 0) === 1);
+  if (activeConfigs.length >= 2) {
+    const scored = activeConfigs
+      .map((cfg) => {
+        const perf = perfMap.get(cfg.variant);
+        if (!perf) return null;
+        const quality = Number(perf.avg_score || 0) * 0.6 + Number(perf.engagementRate || 0) * 0.4;
+        return { variant: cfg.variant, quality };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.quality - a.quality);
+    if (scored.length >= 2 && scored[0].quality > scored[1].quality * 1.05) {
+      const winner = configMap.get(scored[0].variant);
+      const loser = configMap.get(scored[scored.length - 1].variant);
+      if (winner && loser) {
+        recommendations.push({
+          variant: winner.variant,
+          confidence: 0.62,
+          reasons: [`${winner.variant} varyantı kalite metriğinde daha iyi performans gösteriyor.`],
+          trafficPatch: {
+            [winner.variant]: clamp(Number(winner.trafficPct || 0) + 5, 0, 100),
+            [loser.variant]: clamp(Number(loser.trafficPct || 0) - 5, 0, 100)
+          }
+        });
+      }
+    }
+  }
+
+  return recommendations;
+}
+
+app.get('/api/new/admin/engagement-ab', requireAdmin, (_req, res) => {
+  const configs = getEngagementAbConfigs().map((cfg) => ({
+    variant: cfg.variant,
+    name: cfg.name,
+    description: cfg.description,
+    trafficPct: cfg.trafficPct,
+    enabled: cfg.enabled,
+    params: cfg.params,
+    updatedAt: cfg.updatedAt
+  }));
+  const performance = buildEngagementAbPerformanceRows();
+  const recommendations = buildEngagementAbRecommendations(configs, performance);
+  const assignmentCounts = sqlAll(
+    `SELECT variant, COUNT(*) AS cnt
+     FROM engagement_ab_assignments
+     GROUP BY variant
+     ORDER BY variant ASC`
+  );
+  const lastCalculatedAt = sqlGet('SELECT MAX(updated_at) AS ts FROM member_engagement_scores')?.ts || null;
+  res.json({ configs, performance, assignmentCounts, recommendations, lastCalculatedAt });
+});
+
+app.put('/api/new/admin/engagement-ab/:variant', requireAdmin, (req, res) => {
+  const variant = String(req.params.variant || '').trim().toUpperCase();
+  if (!variant) return res.status(400).send('Variant gerekli.');
+  const existing = sqlGet('SELECT variant, params_json FROM engagement_ab_config WHERE variant = ?', [variant]);
+  if (!existing) return res.status(404).send('Variant bulunamadı.');
+  let currentParams = engagementDefaultVariants[variant]?.params || engagementDefaultParams;
+  try {
+    currentParams = existing.params_json ? JSON.parse(existing.params_json) : currentParams;
+  } catch {
+    // ignore parse error and keep fallback
+  }
+  const payload = req.body || {};
+  const mergedParams = normalizeEngagementParams(
+    payload.params && typeof payload.params === 'object'
+      ? { ...currentParams, ...payload.params }
+      : currentParams,
+    engagementDefaultVariants[variant]?.params || engagementDefaultParams
+  );
+  const trafficPct = clamp(Math.round(Number(payload.trafficPct ?? payload.traffic_pct ?? 50) || 0), 0, 100);
+  const enabled = String(payload.enabled ?? '1') === '1' ? 1 : 0;
+  const name = String(payload.name || '').trim() || (engagementDefaultVariants[variant]?.name || variant);
+  const description = String(payload.description || '').trim() || (engagementDefaultVariants[variant]?.description || '');
+  sqlRun(
+    `UPDATE engagement_ab_config
+     SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
+     WHERE variant = ?`,
+    [name, description, trafficPct, enabled, JSON.stringify(mergedParams), new Date().toISOString(), variant]
+  );
+  logAdminAction(req, 'engagement_ab_config_update', { variant, trafficPct, enabled });
+  scheduleEngagementRecalculation('engagement_ab_updated');
+  res.json({ ok: true });
+});
+
+app.post('/api/new/admin/engagement-ab/rebalance', requireAdmin, (req, res) => {
+  const keepAssignments = String(req.body?.keepAssignments || '0') === '1';
+  if (!keepAssignments) {
+    sqlRun('DELETE FROM engagement_ab_assignments');
+  }
+  recalculateMemberEngagementScores('admin_rebalance_ab');
+  logAdminAction(req, 'engagement_ab_rebalance', { keepAssignments });
+  res.json({ ok: true, keepAssignments });
+});
+
 app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
   const counts = {
     users: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler')?.cnt || 0,
@@ -2978,6 +4851,113 @@ app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
   const recentPosts = sqlAll('SELECT id, content, created_at FROM posts ORDER BY id DESC LIMIT 5');
   const recentPhotos = sqlAll('SELECT id, dosyaadi, tarih FROM album_foto ORDER BY id DESC LIMIT 5');
   res.json({ counts, recentUsers, recentPosts, recentPhotos });
+});
+
+app.get('/api/new/admin/engagement-scores', requireAdmin, (req, res) => {
+  const q = String(req.query.q || '').trim();
+  const minScoreRaw = String(req.query.minScore ?? req.query.min_score ?? '').trim();
+  const maxScoreRaw = String(req.query.maxScore ?? req.query.max_score ?? '').trim();
+  const minScore = minScoreRaw === '' ? NaN : Number(minScoreRaw);
+  const maxScore = maxScoreRaw === '' ? NaN : Number(maxScoreRaw);
+  const status = String(req.query.status || 'all').trim();
+  const sort = String(req.query.sort || 'score_desc').trim();
+  const variant = String(req.query.variant || '').trim().toUpperCase();
+  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
+  const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR LOWER(CAST(u.aktiv AS TEXT)) IN ('true','evet','yes'))";
+  const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR LOWER(CAST(u.yasak AS TEXT)) IN ('true','evet','yes'))";
+
+  const whereParts = [];
+  const params = [];
+  if (q) {
+    whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))');
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (status === 'active') whereParts.push(`${activeExpr} AND NOT ${bannedExpr}`);
+  if (status === 'pending') whereParts.push(`NOT ${activeExpr} AND NOT ${bannedExpr}`);
+  if (status === 'banned') whereParts.push(`${bannedExpr}`);
+  if (Number.isFinite(minScore)) {
+    whereParts.push('COALESCE(es.score, 0) >= ?');
+    params.push(minScore);
+  }
+  if (Number.isFinite(maxScore)) {
+    whereParts.push('COALESCE(es.score, 0) <= ?');
+    params.push(maxScore);
+  }
+  if (variant) {
+    whereParts.push("COALESCE(NULLIF(es.ab_variant, ''), 'A') = ?");
+    params.push(variant);
+  }
+  const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+  const sortMap = {
+    score_desc: 'COALESCE(es.score, 0) DESC, u.id DESC',
+    score_asc: 'COALESCE(es.score, 0) ASC, u.id DESC',
+    recent_update: 'COALESCE(es.updated_at, "") DESC, u.id DESC',
+    name: 'u.kadi COLLATE NOCASE ASC'
+  };
+  const orderBy = sortMap[sort] || sortMap.score_desc;
+  const total = sqlGet(
+    `SELECT COUNT(*) AS cnt
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+     ${where}`,
+    params
+  )?.cnt || 0;
+  const pages = Math.max(Math.ceil(total / limit), 1);
+  const safePage = Math.min(page, pages);
+  const offset = (safePage - 1) * limit;
+
+  const items = sqlAll(
+    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.aktiv, u.yasak, u.online, u.verified,
+            COALESCE(NULLIF(es.ab_variant, ''), 'A') AS ab_variant,
+            COALESCE(es.score, 0) AS score,
+            COALESCE(es.raw_score, 0) AS raw_score,
+            COALESCE(es.creator_score, 0) AS creator_score,
+            COALESCE(es.engagement_received_score, 0) AS engagement_received_score,
+            COALESCE(es.community_score, 0) AS community_score,
+            COALESCE(es.network_score, 0) AS network_score,
+            COALESCE(es.quality_score, 0) AS quality_score,
+            COALESCE(es.penalty_score, 0) AS penalty_score,
+            COALESCE(es.posts_30d, 0) AS posts_30d,
+            COALESCE(es.likes_received_30d, 0) AS likes_received_30d,
+            COALESCE(es.comments_received_30d, 0) AS comments_received_30d,
+            COALESCE(es.followers_count, 0) AS followers_count,
+            COALESCE(es.following_count, 0) AS following_count,
+            es.last_activity_at,
+            es.updated_at
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+     ${where}
+     ORDER BY ${orderBy}
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+
+  const summary = sqlGet(
+    `SELECT ROUND(AVG(COALESCE(es.score, 0)), 2) AS avgScore,
+            MAX(COALESCE(es.score, 0)) AS maxScore,
+            MIN(COALESCE(es.score, 0)) AS minScore
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id`
+  ) || { avgScore: 0, maxScore: 0, minScore: 0 };
+  const lastCalculatedAt = sqlGet('SELECT MAX(updated_at) AS ts FROM member_engagement_scores')?.ts || null;
+  res.json({
+    items,
+    page: safePage,
+    pages,
+    total,
+    limit,
+    sort,
+    status,
+    summary,
+    lastCalculatedAt
+  });
+});
+
+app.post('/api/new/admin/engagement-scores/recalculate', requireAdmin, (_req, res) => {
+  recalculateMemberEngagementScores('admin_manual');
+  const lastCalculatedAt = sqlGet('SELECT MAX(updated_at) AS ts FROM member_engagement_scores')?.ts || null;
+  res.json({ ok: true, lastCalculatedAt });
 });
 
 app.get('/api/new/admin/live', requireAdmin, (req, res) => {
@@ -3043,7 +5023,11 @@ app.get('/api/new/admin/groups', requireAdmin, (req, res) => {
 
 app.delete('/api/new/admin/groups/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM group_members WHERE group_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM group_join_requests WHERE group_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM group_invites WHERE group_id = ?', [req.params.id]);
   sqlRun('DELETE FROM posts WHERE group_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM group_events WHERE group_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM group_announcements WHERE group_id = ?', [req.params.id]);
   sqlRun('DELETE FROM groups WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
 });
@@ -3486,9 +5470,45 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 
+app.use((err, req, res, _next) => {
+  writeLegacyLog('error', 'uncaught_route_error', {
+    method: req?.method || '',
+    path: req?.path || '',
+    userId: req?.session?.userId || null,
+    ip: req?.ip || '',
+    message: err?.message || 'unknown_error'
+  });
+  writeAppLog('error', 'uncaught_route_error', {
+    method: req?.method || '',
+    path: req?.path || '',
+    userId: req?.session?.userId || null,
+    ip: req?.ip || '',
+    message: err?.message || 'unknown_error',
+    stack: err?.stack || ''
+  });
+  if (res.headersSent) return;
+  res.status(500).send('Beklenmeyen bir hata oluştu.');
+});
+
+setTimeout(() => recalculateMemberEngagementScores('startup'), 2500);
+setInterval(() => recalculateMemberEngagementScores('interval_10m'), 10 * 60 * 1000);
+
 const server = app.listen(port, () => {
   console.log(`SDAL server running on http://localhost:${port}`);
+  writeLegacyLog('page', 'server_started', { port, node: process.version });
   writeAppLog('info', 'server_started', { port, node: process.version, dbPath });
+});
+
+process.on('uncaughtException', (err) => {
+  writeLegacyLog('error', 'uncaught_exception', { message: err?.message || 'unknown' });
+  writeAppLog('error', 'uncaught_exception', { message: err?.message || 'unknown', stack: err?.stack || '' });
+});
+
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason || 'unknown');
+  const stack = reason instanceof Error ? reason.stack || '' : '';
+  writeLegacyLog('error', 'unhandled_rejection', { message });
+  writeAppLog('error', 'unhandled_rejection', { message, stack });
 });
 
 const wss = new WebSocketServer({ server, path: '/ws/chat' });
@@ -3505,6 +5525,7 @@ wss.on('connection', (ws, req) => {
         message,
         now
       ]);
+      scheduleEngagementRecalculation('chat_message_created');
       const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [payload.userId]) || {};
       const outgoing = JSON.stringify({
         id: result?.lastInsertRowid,

@@ -206,7 +206,13 @@ export default function EventsPage() {
               <div className="comment-list">
                 {(comments[e.id] || []).map((c) => (
                   <div key={c.id} className="comment-line">
-                    <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                    {(Number(c.user_id || c.uye_id || 0) || null) ? (
+                      <a href={`/new/members/${Number(c.user_id || c.uye_id || 0)}`} aria-label={`${c.kadi || 'uye'} profiline git`}>
+                        <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                      </a>
+                    ) : (
+                      <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                    )}
                     <div>
                       <div className="name">@{c.kadi} {c.verified ? <span className="badge">✓</span> : null}</div>
                       <div className="meta">{formatDateTime(c.created_at)}</div>

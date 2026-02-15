@@ -17,7 +17,9 @@ export default function NotificationPanel() {
     if (n.type === 'mention_post' && n.entity_id) return `/new?post=${n.entity_id}`;
     if (n.type === 'mention_event' && n.entity_id) return '/new/events';
     if (n.type === 'mention_group' && n.entity_id) return `/new/groups/${n.entity_id}`;
+    if ((n.type === 'group_join_request' || n.type === 'group_join_approved' || n.type === 'group_join_rejected' || n.type === 'group_invite') && n.entity_id) return `/new/groups/${n.entity_id}`;
     if (n.type === 'mention_message' && n.entity_id) return `/new/messages/${n.entity_id}`;
+    if (n.type === 'mention_photo' && n.entity_id) return `/new/albums/photo/${n.entity_id}`;
     if (n.type === 'photo_comment' && n.entity_id) return `/new/albums/photo/${n.entity_id}`;
     if ((n.type === 'event_comment' || n.type === 'event_invite') && n.entity_id) return '/new/events';
     if (n.type === 'follow' && n.source_user_id) return `/new/members/${n.source_user_id}`;

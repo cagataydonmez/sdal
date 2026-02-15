@@ -10,6 +10,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [selectedId, setSelectedId] = useState(null);
   const messagesRef = useRef([]);
   const sentinelRef = useRef(null);
 
@@ -71,6 +72,15 @@ export default function MessagesPage() {
     [messages, query, mode, box]
   );
 
+  const selected = useMemo(
+    () => filtered.find((m) => String(m.id) === String(selectedId)) || filtered[0] || null,
+    [filtered, selectedId]
+  );
+
+  useEffect(() => {
+    if (!selected && filtered.length) setSelectedId(filtered[0].id);
+  }, [filtered, selected]);
+
   const unreadCount = useMemo(
     () => messages.filter((m) => box === 'inbox' && Number(m.yeni) === 1).length,
     [messages, box]
@@ -78,44 +88,96 @@ export default function MessagesPage() {
 
   return (
     <Layout title="Mesajlar">
-      <div className="panel">
-        <div className="panel-body">
-          <div className="composer-actions">
+      <div className="message-mailbox">
+        <aside className="panel mailbox-sidebar">
+          <div className="panel-body stack">
             <a className="btn primary" href="/new/messages/compose">Yeni Mesaj</a>
-            <button className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`} onClick={() => { setBox('inbox'); setPage(1); setMessages([]); }}>Gelen</button>
-            <button className={`btn ${box === 'outbox' ? 'primary' : 'ghost'}`} onClick={() => { setBox('outbox'); setPage(1); setMessages([]); }}>Giden</button>
-            <button className={`btn ${mode === 'all' ? 'primary' : 'ghost'}`} onClick={() => setMode('all')}>Tümü</button>
-            {box === 'inbox' ? <button className={`btn ${mode === 'unread' ? 'primary' : 'ghost'}`} onClick={() => setMode('unread')}>Sadece Okunmamış</button> : null}
-          </div>
-          {box === 'inbox' ? <div className="chip">Okunmamış: {unreadCount}</div> : null}
-          <input className="input" placeholder="Mesaj ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
-      </div>
-      <div className="list">
-        {loading ? <div className="muted">Yükleniyor...</div> : null}
-        {!loading && filtered.length === 0 ? <div className="muted">Bu filtrede mesaj bulunamadı.</div> : null}
-        {filtered.map((m) => (
-          <a className={`list-item message-row ${box === 'inbox' && Number(m.yeni) === 1 ? 'unread-item' : ''}`} key={m.id} href={`/new/messages/${m.id}`}>
-            <div className="message-list-main">
-              <div className="name">{m.konu || 'Mesaj'}</div>
-              <div className="meta">{m.kimden_kadi} → {m.kime_kadi}{box === 'inbox' && Number(m.yeni) === 1 ? ' • Yeni' : ''}</div>
-              <div className="message-snippet">{String(m.mesaj || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)}</div>
-            </div>
-            <div className="message-list-side">
-              <div className="meta">{formatDateTime(m.tarih)}</div>
-              <button className="btn ghost" type="button" onClick={(e) => {
-                e.preventDefault();
-                const targetId = box === 'inbox' ? m.kimden : m.kime;
-                window.location.href = `/new/messages/compose?to=${targetId}&replyTo=${m.id}`;
+            <button
+              className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`}
+              onClick={() => {
+                setBox('inbox');
+                setMode('all');
+                setPage(1);
+                setMessages([]);
+                setSelectedId(null);
               }}
-              >
-                Cevapla
-              </button>
+            >
+              Gelen Kutusu {box === 'inbox' ? `(${unreadCount} yeni)` : ''}
+            </button>
+            <button
+              className={`btn ${box === 'outbox' ? 'primary' : 'ghost'}`}
+              onClick={() => {
+                setBox('outbox');
+                setMode('all');
+                setPage(1);
+                setMessages([]);
+                setSelectedId(null);
+              }}
+            >
+              Giden Kutusu
+            </button>
+            <div className="composer-actions">
+              <button className={`btn ${mode === 'all' ? 'primary' : 'ghost'}`} onClick={() => setMode('all')}>Tum Mesajlar</button>
+              {box === 'inbox' ? <button className={`btn ${mode === 'unread' ? 'primary' : 'ghost'}`} onClick={() => setMode('unread')}>Okunmamis</button> : null}
             </div>
-          </a>
-        ))}
+            <input className="input" placeholder="Mesaj ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
+        </aside>
+
+        <section className="panel mailbox-list">
+          <div className="panel-body">
+            <div className="mailbox-list-head">
+              <h3>{box === 'inbox' ? 'Gelen Mesajlar' : 'Giden Mesajlar'}</h3>
+              {loading ? <span className="meta">Yukleniyor...</span> : null}
+            </div>
+            <div className="list mailbox-items">
+              {!loading && filtered.length === 0 ? <div className="muted">Bu filtrede mesaj bulunamadi.</div> : null}
+              {filtered.map((m) => {
+                const unread = box === 'inbox' && Number(m.yeni) === 1;
+                const active = selected && String(selected.id) === String(m.id);
+                return (
+                  <button
+                    className={`list-item mailbox-item ${unread ? 'unread-item' : ''} ${active ? 'mailbox-item-active' : ''}`}
+                    key={m.id}
+                    type="button"
+                    onClick={() => setSelectedId(m.id)}
+                  >
+                    <div className="message-list-main">
+                      <div className="name">{m.konu || 'Mesaj'}</div>
+                      <div className="meta">{m.kimden_kadi} → {m.kime_kadi}{unread ? ' • Yeni' : ''}</div>
+                      <div className="message-snippet">{String(m.mesaj || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 130)}</div>
+                    </div>
+                    <div className="message-list-side">
+                      <div className="meta">{formatDateTime(m.tarih)}</div>
+                    </div>
+                  </button>
+                );
+              })}
+              <div ref={sentinelRef} />
+            </div>
+          </div>
+        </section>
+
+        <section className="panel mailbox-preview">
+          <div className="panel-body">
+            {!selected ? <div className="muted">Mesaj sec.</div> : null}
+            {selected ? (
+              <>
+                <div className="mailbox-preview-head">
+                  <h3>{selected.konu || 'Mesaj'}</h3>
+                  <div className="composer-actions">
+                    <a className="btn ghost" href={`/new/messages/${selected.id}`}>Tam Ekran</a>
+                    <a className="btn primary" href={`/new/messages/compose?to=${box === 'inbox' ? selected.kimden : selected.kime}&replyTo=${selected.id}`}>Cevapla</a>
+                  </div>
+                </div>
+                <div className="meta">{selected.kimden_kadi} → {selected.kime_kadi}</div>
+                <div className="meta">{formatDateTime(selected.tarih)}</div>
+                <div className="message-bubble" dangerouslySetInnerHTML={{ __html: selected.mesaj || '' }} />
+              </>
+            ) : null}
+          </div>
+        </section>
       </div>
-      <div ref={sentinelRef} />
     </Layout>
   );
 }
