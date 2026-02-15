@@ -46,12 +46,16 @@ SQLite file must live on a **persistent volume**, not inside ephemeral container
 Set one of these environment variables in deploy platform:
 
 ```bash
-SDAL_DB_PATH=/data/sdal.sqlite
+SDAL_DB_PATH=/app/data/sdal.sqlite
 # or
-SDAL_DB_DIR=/data
+SDAL_DB_DIR=/app/data
 ```
 
-If `/data` is a mounted volume (Railway Volume, Docker volume, etc.), deploys will not wipe users/posts.
+If `/app/data` is a mounted volume (Railway Volume, Docker volume, etc.), deploys will not wipe users/posts.
+Set uploads to same volume as well:
+```bash
+SDAL_UPLOADS_DIR=/app/data/uploads
+```
 
 ### 2) Optional safety gates
 ```bash
@@ -63,8 +67,10 @@ SDAL_DB_BOOTSTRAP_PATH=../db/sdal.sqlite
 ```
 
 ### 3) Railway note
-- Add a Volume in Railway and mount to `/data`.
-- Set `SDAL_DB_PATH=/data/sdal.sqlite`.
+- Add a Volume in Railway and mount to `/app/data`.
+- Set `SDAL_DB_PATH=/app/data/sdal.sqlite`.
+- Set `SDAL_UPLOADS_DIR=/app/data/uploads`.
+- Admin DB backups are stored under `/app/data/backups`.
 - Redeploy.
 
 ## Backward Compatibility Strategy

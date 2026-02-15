@@ -156,6 +156,7 @@ export default function AdminPage() {
   const [dbMeta, setDbMeta] = useState({ total: 0, page: 1, pages: 1, limit: 50 });
   const [dbSearch, setDbSearch] = useState('');
   const [dbBackups, setDbBackups] = useState([]);
+  const [dbRuntimePath, setDbRuntimePath] = useState('');
   const [dbBackupBusy, setDbBackupBusy] = useState(false);
   const [dbRestoreFile, setDbRestoreFile] = useState(null);
   const [dbRestoreInputKey, setDbRestoreInputKey] = useState(0);
@@ -764,6 +765,7 @@ export default function AdminPage() {
   async function loadDbBackups() {
     const data = await apiJson('/api/new/admin/db/backups');
     setDbBackups(data.items || []);
+    setDbRuntimePath(String(data.dbPath || ''));
   }
 
   async function createDbBackup() {
@@ -1900,6 +1902,9 @@ export default function AdminPage() {
                 <button className="btn ghost" onClick={loadDbBackups} disabled={dbBackupBusy}>Listeyi Yenile</button>
               </div>
               <div className="muted">Yedek dosyasını indirip başka sunucuda geri yükleyebilirsiniz.</div>
+              {dbRuntimePath ? (
+                <div className="muted">Aktif DB yolu: <code>{dbRuntimePath}</code></div>
+              ) : null}
               <input
                 key={dbRestoreInputKey}
                 className="input"

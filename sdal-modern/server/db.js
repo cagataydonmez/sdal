@@ -32,6 +32,7 @@ function resolveDbPath() {
   if (dirFromEnv) return path.join(toAbsolutePath(dirFromEnv), 'sdal.sqlite');
 
   // Railway/containers: prefer mounted volume if present.
+  if (hasWritableDir('/app/data')) return '/app/data/sdal.sqlite';
   if (hasWritableDir('/data')) return '/data/sdal.sqlite';
   return legacyDefaultDbPath;
 }
@@ -107,10 +108,11 @@ export function getDb() {
     process.env.NODE_ENV === 'production'
     && !String(process.env.SDAL_DB_PATH || '').trim()
     && !dbPath.startsWith('/data/')
+    && !dbPath.startsWith('/app/data/')
   ) {
     console.warn(
       `[db] WARNING: DB path is ${dbPath}. This may be ephemeral on deploy. ` +
-      'Set SDAL_DB_PATH to a persistent volume path (e.g. /data/sdal.sqlite).'
+      'Set SDAL_DB_PATH to a persistent volume path (e.g. /app/data/sdal.sqlite or /data/sdal.sqlite).'
     );
   }
 
