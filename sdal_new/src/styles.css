@@ -820,7 +820,7 @@ a { color: inherit; text-decoration: none; }
 }
 .db-grid {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
   gap: 16px;
 }
 .db-table-item {

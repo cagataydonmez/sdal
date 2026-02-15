@@ -155,6 +155,10 @@ export default function AdminPage() {
   const [dbRows, setDbRows] = useState([]);
   const [dbMeta, setDbMeta] = useState({ total: 0, page: 1, pages: 1, limit: 50 });
   const [dbSearch, setDbSearch] = useState('');
+  const [dbBackups, setDbBackups] = useState([]);
+  const [dbBackupBusy, setDbBackupBusy] = useState(false);
+  const [dbRestoreFile, setDbRestoreFile] = useState(null);
+  const [dbRestoreInputKey, setDbRestoreInputKey] = useState(0);
   const [live, setLive] = useState({ counts: {}, activity: [], now: '' });
   const [dashboardAutoRefresh, setDashboardAutoRefresh] = useState(true);
 
@@ -196,7 +200,10 @@ export default function AdminPage() {
     if (tab === 'stories') loadStories();
     if (tab === 'chat') loadChat();
     if (tab === 'messages') loadAdminMessages();
-    if (tab === 'database') loadDbTables();
+    if (tab === 'database') {
+      loadDbTables();
+      loadDbBackups();
+    }
   }, [tab, user, adminOk, refreshDashboard]);
 
   useEffect(() => {
@@ -751,6 +758,59 @@ export default function AdminPage() {
     setDbTables(items);
     if (!dbTableName && items.length) {
       loadDbTable(items[0].name, 1);
+    }
+  }
+
+  async function loadDbBackups() {
+    const data = await apiJson('/api/new/admin/db/backups');
+    setDbBackups(data.items || []);
+  }
+
+  async function createDbBackup() {
+    setDbBackupBusy(true);
+    try {
+      const data = await apiJson('/api/new/admin/db/backups', {
+        method: 'POST',
+        body: JSON.stringify({ label: 'admin' })
+      });
+      setStatus(`Yedek oluşturuldu: ${data.backup?.name || '-'}`);
+      await loadDbBackups();
+    } finally {
+      setDbBackupBusy(false);
+    }
+  }
+
+  function downloadDbBackup(name) {
+    if (!name) return;
+    window.open(`/api/new/admin/db/backups/${encodeURIComponent(name)}/download`, '_blank', 'noopener,noreferrer');
+  }
+
+  async function restoreDbBackup() {
+    if (!dbRestoreFile) {
+      setStatus('Geri yüklemek için bir yedek dosyası seçin.');
+      return;
+    }
+    setDbBackupBusy(true);
+    try {
+      const form = new FormData();
+      form.append('backup', dbRestoreFile);
+      const res = await fetch('/api/new/admin/db/restore', {
+        method: 'POST',
+        credentials: 'include',
+        body: form
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || 'Geri yükleme başarısız.');
+      }
+      const data = await res.json();
+      setStatus(`Veritabanı geri yüklendi. Güvenlik yedeği: ${data.restored?.preRestoreName || '-'}`);
+      setDbRestoreFile(null);
+      setDbRestoreInputKey((v) => v + 1);
+      await Promise.all([loadDbTables(), loadDbBackups()]);
+      if (dbTableName) await loadDbTable(dbTableName, 1);
+    } finally {
+      setDbBackupBusy(false);
     }
   }
 
@@ -1828,6 +1888,40 @@ export default function AdminPage() {
               ) : (
                 <div className="muted">Tablo seçin.</div>
               )}
+            </div>
+          </div>
+          <div className="panel">
+            <h3>Yedekleme</h3>
+            <div className="panel-body">
+              <div className="db-toolbar">
+                <button className="btn" onClick={createDbBackup} disabled={dbBackupBusy}>
+                  {dbBackupBusy ? 'Çalışıyor...' : 'Yeni Yedek Oluştur'}
+                </button>
+                <button className="btn ghost" onClick={loadDbBackups} disabled={dbBackupBusy}>Listeyi Yenile</button>
+              </div>
+              <div className="muted">Yedek dosyasını indirip başka sunucuda geri yükleyebilirsiniz.</div>
+              <input
+                key={dbRestoreInputKey}
+                className="input"
+                type="file"
+                accept=".sqlite,.db,.backup,.bak"
+                onChange={(e) => setDbRestoreFile(e.target.files?.[0] || null)}
+              />
+              <button className="btn ghost" onClick={restoreDbBackup} disabled={dbBackupBusy || !dbRestoreFile}>
+                Seçili Dosyadan Geri Yükle
+              </button>
+              <div className="list">
+                {dbBackups.map((b) => (
+                  <div key={b.name} className="list-item">
+                    <div>
+                      <div className="name">{b.name}</div>
+                      <div className="meta">{Math.round((b.size || 0) / 1024)} KB • {b.mtime ? new Date(b.mtime).toLocaleString('tr-TR') : '-'}</div>
+                    </div>
+                    <button className="btn ghost" onClick={() => downloadDbBackup(b.name)}>İndir</button>
+                  </div>
+                ))}
+              </div>
+              {!dbBackups.length ? <div className="muted">Henüz yedek yok.</div> : null}
             </div>
           </div>
         </div>

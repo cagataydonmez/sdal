@@ -39,6 +39,41 @@ npm run build
 npm run start
 ```
 
+## Production: Prevent Data Loss On Deploy
+SQLite file must live on a **persistent volume**, not inside ephemeral container filesystem.
+
+### 1) Configure persistent DB path
+Set one of these environment variables in deploy platform:
+
+```bash
+SDAL_DB_PATH=/data/sdal.sqlite
+# or
+SDAL_DB_DIR=/data
+```
+
+If `/data` is a mounted volume (Railway Volume, Docker volume, etc.), deploys will not wipe users/posts.
+
+### 2) Optional safety gates
+```bash
+# fail startup if db file does not already exist
+SDAL_DB_REQUIRE_EXISTING=true
+
+# one-time bootstrap copy (only used when target DB is missing)
+SDAL_DB_BOOTSTRAP_PATH=../db/sdal.sqlite
+```
+
+### 3) Railway note
+- Add a Volume in Railway and mount to `/data`.
+- Set `SDAL_DB_PATH=/data/sdal.sqlite`.
+- Redeploy.
+
+## Backward Compatibility Strategy
+- Keep schema evolution additive (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN`).
+- Do not remove or rename old columns without migration compatibility layer.
+- Continue using idempotent startup migrations (`ensureColumn`) for old databases.
+- For legacy Access data, keep one-time importer:
+  - `./scripts/migrate-mdb-to-sqlite.sh`
+
 ## Notes
 - Legacy images are served from `client/public/legacy`.
 - `.asp` URLs are redirected to modern routes.

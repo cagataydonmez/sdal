@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-import { sqlGet, sqlAll, sqlRun, dbPath } from './db.js';
+import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnection } from './db.js';
 import { mapLegacyUrl } from './legacyRoutes.js';
 import fs from 'fs';
 import sharp from 'sharp';
@@ -95,7 +95,7 @@ const legacyDir = path.resolve(__dirname, '../client/public/legacy');
 app.use('/legacy', express.static(legacyDir));
 app.use('/smiley', express.static(path.join(legacyDir, 'smiley')));
 
-const uploadsDir = path.resolve(__dirname, '../uploads');
+const uploadsDir = path.resolve(__dirname, String(process.env.SDAL_UPLOADS_DIR || '../uploads'));
 app.use('/uploads', express.static(uploadsDir));
 const vesikalikDir = path.join(uploadsDir, 'vesikalik');
 if (!fs.existsSync(vesikalikDir)) {
@@ -222,6 +222,21 @@ const groupUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
+const dbBackupIncomingDir = path.resolve(__dirname, '../tmp/db-backup-upload');
+if (!fs.existsSync(dbBackupIncomingDir)) {
+  fs.mkdirSync(dbBackupIncomingDir, { recursive: true });
+}
+const dbBackupUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, dbBackupIncomingDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase() || '.sqlite';
+      cb(null, `incoming-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+    }
+  }),
+  limits: { fileSize: 1024 * 1024 * 1024 }
+});
+
 let mailTransportPromise = null;
 function getMailTransport() {
   if (mailTransportPromise) return mailTransportPromise;
@@ -262,6 +277,115 @@ if (!fs.existsSync(appLogsDir)) {
 const appLogFile = path.join(appLogsDir, 'app.log');
 if (!fs.existsSync(appLogFile)) {
   fs.writeFileSync(appLogFile, '', 'utf-8');
+}
+const dbBackupDir = path.join(path.dirname(dbPath), 'backups');
+if (!fs.existsSync(dbBackupDir)) {
+  fs.mkdirSync(dbBackupDir, { recursive: true });
+}
+
+function backupTimestamp(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+function normalizeBackupName(value) {
+  const base = path.basename(String(value || ''));
+  const safe = base.replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (!safe) return '';
+  if (!safe.endsWith('.sqlite')) return `${safe}.sqlite`;
+  return safe;
+}
+
+function resolveBackupPath(fileName) {
+  const safeName = normalizeBackupName(fileName);
+  if (!safeName) return null;
+  return path.join(dbBackupDir, safeName);
+}
+
+function isSqliteHeader(buffer) {
+  if (!buffer || buffer.length < 16) return false;
+  const signature = Buffer.from('SQLite format 3\u0000', 'utf-8');
+  return buffer.subarray(0, 16).equals(signature);
+}
+
+function isSqliteFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return false;
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const header = Buffer.alloc(16);
+    const bytes = fs.readSync(fd, header, 0, 16, 0);
+    if (bytes < 16) return false;
+    return isSqliteHeader(header);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function listDbBackups() {
+  if (!fs.existsSync(dbBackupDir)) return [];
+  return fs.readdirSync(dbBackupDir)
+    .filter((name) => /\.(sqlite|db|backup|bak)$/i.test(name))
+    .map((name) => {
+      const fullPath = path.join(dbBackupDir, name);
+      const st = fs.statSync(fullPath);
+      return {
+        name,
+        size: st.size,
+        mtime: st.mtime.toISOString()
+      };
+    })
+    .sort((a, b) => new Date(b.mtime).getTime() - new Date(a.mtime).getTime());
+}
+
+async function createDbBackup(label = 'manual') {
+  const safeLabel = String(label || 'manual').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32) || 'manual';
+  const name = `sdal-backup-${backupTimestamp()}-${safeLabel}.sqlite`;
+  const fullPath = path.join(dbBackupDir, name);
+  const db = getDb();
+  try { db.pragma('wal_checkpoint(FULL)'); } catch {}
+  await db.backup(fullPath);
+  const st = fs.statSync(fullPath);
+  return {
+    name,
+    size: st.size,
+    mtime: st.mtime.toISOString()
+  };
+}
+
+function restoreDbFromUploadedFile(incomingPath) {
+  if (!isSqliteFile(incomingPath)) {
+    throw new Error('Yüklenen dosya geçerli bir SQLite yedeği değil.');
+  }
+  const stamp = backupTimestamp();
+  const uploadedName = `uploaded-${stamp}.sqlite`;
+  const uploadedPath = path.join(dbBackupDir, uploadedName);
+  fs.copyFileSync(incomingPath, uploadedPath);
+
+  const preRestoreName = `pre-restore-${stamp}.sqlite`;
+  const preRestorePath = path.join(dbBackupDir, preRestoreName);
+  if (fs.existsSync(dbPath)) {
+    fs.copyFileSync(dbPath, preRestorePath);
+  }
+
+  const tmpPath = `${dbPath}.restore.${Date.now()}.tmp`;
+  fs.copyFileSync(uploadedPath, tmpPath);
+  closeDbConnection();
+  try {
+    fs.renameSync(tmpPath, dbPath);
+  } catch (err) {
+    if (fs.existsSync(preRestorePath)) {
+      fs.copyFileSync(preRestorePath, dbPath);
+    }
+    throw err;
+  } finally {
+    try {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    } catch {
+      // no-op
+    }
+    resetDbConnection();
+  }
+  return { uploadedName, preRestoreName };
 }
 
 function writeAppLog(level, event, meta = {}) {
@@ -5150,6 +5274,54 @@ app.get('/api/new/admin/db/table/:name', requireAdmin, (req, res) => {
     pages,
     limit
   });
+});
+
+app.get('/api/new/admin/db/backups', requireAdmin, (_req, res) => {
+  res.json({
+    items: listDbBackups(),
+    dbPath
+  });
+});
+
+app.post('/api/new/admin/db/backups', requireAdmin, async (req, res) => {
+  try {
+    const label = String(req.body?.label || 'manual');
+    const backup = await createDbBackup(label);
+    logAdminAction(req, 'db_backup_create', { file: backup.name, size: backup.size });
+    res.json({ ok: true, backup });
+  } catch (err) {
+    writeAppLog('error', 'db_backup_create_failed', { message: err?.message || 'unknown' });
+    res.status(500).send(err?.message || 'Yedek oluşturulamadı.');
+  }
+});
+
+app.get('/api/new/admin/db/backups/:name/download', requireAdmin, (req, res) => {
+  const fullPath = resolveBackupPath(req.params.name || '');
+  if (!fullPath || !fs.existsSync(fullPath)) return res.status(404).send('Yedek dosyası bulunamadı.');
+  logAdminAction(req, 'db_backup_download', { file: path.basename(fullPath) });
+  res.download(fullPath, path.basename(fullPath));
+});
+
+app.post('/api/new/admin/db/restore', requireAdmin, dbBackupUpload.single('backup'), (req, res) => {
+  try {
+    if (!req.file?.path) return res.status(400).send('Yedek dosyası gerekli.');
+    const restored = restoreDbFromUploadedFile(req.file.path);
+    logAdminAction(req, 'db_restore', {
+      sourceName: String(req.file.originalname || ''),
+      uploadedFile: restored.uploadedName,
+      preRestoreBackup: restored.preRestoreName
+    });
+    res.json({ ok: true, restored });
+  } catch (err) {
+    writeAppLog('error', 'db_restore_failed', { message: err?.message || 'unknown' });
+    res.status(500).send(err?.message || 'Geri yükleme başarısız.');
+  } finally {
+    try {
+      if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch {
+      // no-op
+    }
+  }
 });
 
 app.get('/api/album/latest', (req, res) => {
