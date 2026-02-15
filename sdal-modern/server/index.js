@@ -5666,9 +5666,24 @@ setTimeout(() => recalculateMemberEngagementScores('startup'), 2500);
 setInterval(() => recalculateMemberEngagementScores('interval_10m'), 10 * 60 * 1000);
 
 const server = app.listen(port, () => {
+  const uyelerExists = !!sqlGet(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'uyeler'"
+  );
+  const tableCount = sqlGet(
+    "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+  )?.cnt || 0;
   console.log(`SDAL server running on http://localhost:${port}`);
+  console.log(`[startup] dbPath=${dbPath}`);
+  console.log(`[startup] cwd=${process.cwd()} node_env=${process.env.NODE_ENV || 'development'}`);
+  console.log(`[startup] tables=${tableCount} uyeler_exists=${uyelerExists ? 'yes' : 'no'}`);
   writeLegacyLog('page', 'server_started', { port, node: process.version });
-  writeAppLog('info', 'server_started', { port, node: process.version, dbPath });
+  writeAppLog('info', 'server_started', {
+    port,
+    node: process.version,
+    dbPath,
+    tableCount,
+    uyelerExists
+  });
 });
 
 process.on('uncaughtException', (err) => {
