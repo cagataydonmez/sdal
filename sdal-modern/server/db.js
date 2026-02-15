@@ -6,7 +6,6 @@ import Database from 'better-sqlite3';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectDir = path.resolve(__dirname, '..');
-const bundledDefaultDbPath = path.resolve(projectDir, 'db/sdal.sqlite');
 const legacyDefaultDbPath = path.resolve(projectDir, '../db/sdal.sqlite');
 
 function toAbsolutePath(p) {
@@ -66,12 +65,7 @@ export function getDb() {
 
   const requireExisting = String(process.env.SDAL_DB_REQUIRE_EXISTING || '').toLowerCase() === 'true';
   const bootstrap = String(process.env.SDAL_DB_BOOTSTRAP_PATH || '').trim();
-  const bootstrapPath = (() => {
-    if (bootstrap) return toAbsolutePath(bootstrap);
-    if (fs.existsSync(bundledDefaultDbPath)) return bundledDefaultDbPath;
-    if (fs.existsSync(legacyDefaultDbPath)) return legacyDefaultDbPath;
-    return '';
-  })();
+  const bootstrapPath = bootstrap ? toAbsolutePath(bootstrap) : '';
   const requiredTable = String(process.env.SDAL_DB_REQUIRED_TABLE || 'uyeler').trim();
   const autoRepairMissingSchema = String(process.env.SDAL_DB_AUTO_REPAIR_MISSING_SCHEMA || '').toLowerCase() !== 'false';
 
