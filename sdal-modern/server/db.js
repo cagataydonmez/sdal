@@ -38,26 +38,6 @@ function resolveDbPath() {
 const dbPath = resolveDbPath();
 let db = null;
 
-function fileHasTable(filePath, tableName) {
-  if (!filePath || !tableName || !fs.existsSync(filePath)) return false;
-  let tmp = null;
-  try {
-    tmp = new Database(filePath, { readonly: true, fileMustExist: true });
-    const row = tmp.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?"
-    ).get(tableName);
-    return !!row;
-  } catch {
-    return false;
-  } finally {
-    try {
-      if (tmp) tmp.close();
-    } catch {
-      // no-op
-    }
-  }
-}
-
 export function getDb() {
   if (db) return db;
   const dir = path.dirname(dbPath);
@@ -66,31 +46,10 @@ export function getDb() {
   const requireExisting = String(process.env.SDAL_DB_REQUIRE_EXISTING || '').toLowerCase() === 'true';
   const bootstrap = String(process.env.SDAL_DB_BOOTSTRAP_PATH || '').trim();
   const bootstrapPath = bootstrap ? toAbsolutePath(bootstrap) : '';
-  const requiredTable = String(process.env.SDAL_DB_REQUIRED_TABLE || 'uyeler').trim();
-  const autoRepairMissingSchema = String(process.env.SDAL_DB_AUTO_REPAIR_MISSING_SCHEMA || '').toLowerCase() !== 'false';
 
   if (!fs.existsSync(dbPath) && bootstrapPath && fs.existsSync(bootstrapPath)) {
     fs.copyFileSync(bootstrapPath, dbPath);
     console.log(`[db] bootstrapped sqlite from ${bootstrapPath} -> ${dbPath}`);
-  }
-
-  if (
-    autoRepairMissingSchema
-    && fs.existsSync(dbPath)
-    && bootstrapPath
-    && fs.existsSync(bootstrapPath)
-    && requiredTable
-    && !fileHasTable(dbPath, requiredTable)
-    && fileHasTable(bootstrapPath, requiredTable)
-  ) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const brokenBackupPath = `${dbPath}.broken-${stamp}.sqlite`;
-    fs.copyFileSync(dbPath, brokenBackupPath);
-    fs.copyFileSync(bootstrapPath, dbPath);
-    console.warn(
-      `[db] auto-repair applied: missing required table "${requiredTable}" in ${dbPath}. ` +
-      `Previous file backed up to ${brokenBackupPath}, replaced from ${bootstrapPath}`
-    );
   }
 
   if (!fs.existsSync(dbPath) && requireExisting) {
