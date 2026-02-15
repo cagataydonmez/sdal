@@ -4,6 +4,7 @@ import { formatDateTime } from '../utils/date.js';
 
 export default function NotificationPanel() {
   const [items, setItems] = useState([]);
+  const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
     const res = await fetch('/api/new/notifications', { credentials: 'include' });
@@ -32,24 +33,65 @@ export default function NotificationPanel() {
 
   useLiveRefresh(load, { intervalMs: 6000, eventTypes: ['notification:new', 'post:liked', 'post:commented', 'follow:changed', '*'] });
 
+  async function respondGroupInvite(notification, action) {
+    if (!notification?.entity_id) return;
+    if (!['accept', 'reject'].includes(action)) return;
+    setBusyId(notification.id);
+    try {
+      const res = await fetch(`/api/new/groups/${notification.entity_id}/invitations/respond`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      emitAppChange('group:invite:responded', { id: notification.id, action, groupId: notification.entity_id });
+      await load();
+    } catch (err) {
+      emitAppChange('toast', { type: 'error', message: err?.message || 'Davet yanıtlanamadı.' });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="panel">
       <h3>Bildirimler</h3>
       <div className="panel-body">
         {items.length === 0 ? <div className="muted">Bildirim yok.</div> : null}
         {items.map((n) => (
-          <a
-            key={n.id}
-            className={`notif notif-link${n.read_at ? '' : ' unread'}`}
-            href={getTarget(n)}
-            onClick={() => emitAppChange('notification:opened', { id: n.id })}
-          >
+          <div key={n.id} className={`notif notif-link${n.read_at ? '' : ' unread'}`}>
             <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-            <div>
-              <b>@{n.kadi}</b> {n.verified ? <span className="badge">✓</span> : null} {n.message}
+            <div className="notif-content">
+              <a
+                href={getTarget(n)}
+                onClick={() => emitAppChange('notification:opened', { id: n.id })}
+              >
+                <b>@{n.kadi}</b> {n.verified ? <span className="badge">✓</span> : null} {n.message}
+              </a>
               <div className="meta">{formatDateTime(n.created_at)}</div>
+              {n.type === 'group_invite' ? (
+                <div className="notif-actions">
+                  <button
+                    className="btn"
+                    disabled={busyId === n.id}
+                    onClick={() => respondGroupInvite(n, 'accept')}
+                  >
+                    Onayla
+                  </button>
+                  <button
+                    className="btn ghost"
+                    disabled={busyId === n.id}
+                    onClick={() => respondGroupInvite(n, 'reject')}
+                  >
+                    Reddet
+                  </button>
+                </div>
+              ) : null}
             </div>
-          </a>
+          </div>
         ))}
       </div>
     </div>

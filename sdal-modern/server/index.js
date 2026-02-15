@@ -4252,7 +4252,7 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
     [groupId, req.session.userId]
   );
   const membersOnly = String(group.visibility || 'public') === 'members_only';
-  if (membersOnly && !isAdmin && !member && !invite) {
+  if (membersOnly && !isAdmin && !member) {
     return res.status(404).send('Grup bulunamadı.');
   }
   if (!isAdmin && !member) {
