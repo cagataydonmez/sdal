@@ -33,6 +33,12 @@ export default function NotificationPanel() {
 
   useLiveRefresh(load, { intervalMs: 6000, eventTypes: ['notification:new', 'post:liked', 'post:commented', 'follow:changed', '*'] });
 
+  function inviteStatusLabel(status) {
+    if (status === 'accepted') return 'Davet onaylandı';
+    if (status === 'rejected') return 'Davet reddedildi';
+    return 'Davet beklemede';
+  }
+
   async function respondGroupInvite(notification, action) {
     if (!notification?.entity_id) return;
     if (!['accept', 'reject'].includes(action)) return;
@@ -47,6 +53,11 @@ export default function NotificationPanel() {
       if (!res.ok) {
         throw new Error(await res.text());
       }
+      setItems((prev) => prev.map((x) => (
+        x.id === notification.id
+          ? { ...x, invite_status: action === 'accept' ? 'accepted' : 'rejected' }
+          : x
+      )));
       emitAppChange('group:invite:responded', { id: notification.id, action, groupId: notification.entity_id });
       await load();
     } catch (err) {
@@ -74,20 +85,33 @@ export default function NotificationPanel() {
               <div className="meta">{formatDateTime(n.created_at)}</div>
               {n.type === 'group_invite' ? (
                 <div className="notif-actions">
-                  <button
-                    className="btn"
-                    disabled={busyId === n.id}
-                    onClick={() => respondGroupInvite(n, 'accept')}
-                  >
-                    Onayla
-                  </button>
-                  <button
-                    className="btn ghost"
-                    disabled={busyId === n.id}
-                    onClick={() => respondGroupInvite(n, 'reject')}
-                  >
-                    Reddet
-                  </button>
+                  {(n.invite_status || 'pending') === 'pending' ? (
+                    <>
+                      <button
+                        className="btn"
+                        disabled={busyId === n.id}
+                        onClick={() => respondGroupInvite(n, 'accept')}
+                      >
+                        Onayla
+                      </button>
+                      <button
+                        className="btn ghost"
+                        disabled={busyId === n.id}
+                        onClick={() => respondGroupInvite(n, 'reject')}
+                      >
+                        Reddet
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className={`chip invite-state ${n.invite_status === 'accepted' ? 'ok' : 'rejected'}`}>
+                        {inviteStatusLabel(n.invite_status)}
+                      </span>
+                      {n.invite_status === 'accepted' ? (
+                        <a className="btn ghost" href={`/new/groups/${n.entity_id}`}>Gruba Git</a>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               ) : null}
             </div>

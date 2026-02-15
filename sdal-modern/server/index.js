@@ -3662,7 +3662,24 @@ app.get('/api/new/notifications', requireAuth, (req, res) => {
      LIMIT 50`,
     [req.session.userId]
   );
-  res.json({ items: rows });
+  const items = rows.map((row) => {
+    if (row.type !== 'group_invite' || !row.entity_id) {
+      return row;
+    }
+    const invite = sqlGet(
+      `SELECT status
+       FROM group_invites
+       WHERE group_id = ? AND invited_user_id = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [row.entity_id, req.session.userId]
+    );
+    return {
+      ...row,
+      invite_status: String(invite?.status || 'pending')
+    };
+  });
+  res.json({ items });
 });
 
 app.post('/api/new/notifications/read', requireAuth, (req, res) => {
@@ -3996,10 +4013,6 @@ app.post('/api/new/groups/:id/join', requireAuth, (req, res) => {
     return res.json({ ok: true, joined: true, pending: false, invited: false, membershipStatus: 'member' });
   }
 
-  if (!isAdmin && String(group.visibility || 'public') === 'members_only') {
-    return res.status(403).send('Bu grup sadece davet ile görünür ve katılım sağlar.');
-  }
-
   const existingRequest = sqlGet(
     `SELECT id
      FROM group_join_requests
@@ -4252,7 +4265,7 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
     [groupId, req.session.userId]
   );
   const membersOnly = String(group.visibility || 'public') === 'members_only';
-  if (membersOnly && !isAdmin && !member) {
+  if (membersOnly && !isAdmin && !member && !invite && !pending) {
     return res.status(404).send('Grup bulunamadı.');
   }
   if (!isAdmin && !member) {
