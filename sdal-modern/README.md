@@ -86,3 +86,4 @@ SDAL_DB_BOOTSTRAP_PATH=../db/sdal.sqlite
 - Email features (activation/password) use SMTP if configured:
   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
   - `SDAL_BASE_URL` for activation links (defaults to `http://localhost:8787`)
+- CI/CD smoke-test note: use a docs-only commit to validate GitHub Actions deploy wiring.
