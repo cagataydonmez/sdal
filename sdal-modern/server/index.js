@@ -3735,35 +3735,93 @@ app.post('/api/new/notifications/read', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+const STORY_TTL_MS = 24 * 60 * 60 * 1000;
+
+function parseIsoMs(value) {
+  const ms = Date.parse(String(value || ''));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function storyTiming(row, nowMs = Date.now()) {
+  const createdMs = parseIsoMs(row.created_at) ?? nowMs;
+  const expiresMs = parseIsoMs(row.expires_at) ?? (createdMs + STORY_TTL_MS);
+  return {
+    createdAt: row.created_at || new Date(createdMs).toISOString(),
+    expiresAt: new Date(expiresMs).toISOString(),
+    isExpired: expiresMs <= nowMs
+  };
+}
+
+function parseStoryId(value) {
+  const storyId = Number(value);
+  if (!Number.isInteger(storyId) || storyId <= 0) return null;
+  return storyId;
+}
+
 app.get('/api/new/stories', requireAuth, (req, res) => {
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
   const rows = sqlAll(
     `SELECT s.id, s.user_id, s.image, s.caption, s.created_at, s.expires_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM stories s
      LEFT JOIN uyeler u ON u.id = s.user_id
-     WHERE s.expires_at > ?
+     WHERE s.expires_at IS NULL OR s.expires_at > ?
      ORDER BY s.created_at DESC`,
-    [now]
+    [nowIso]
   );
   const viewed = sqlAll('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
-  const viewedSet = new Set(viewed.map((v) => v.story_id));
+  const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
+  const items = rows
+    .map((r) => {
+      const timing = storyTiming(r, nowMs);
+      return {
+        id: r.id,
+        image: r.image,
+        caption: r.caption,
+        createdAt: timing.createdAt,
+        expiresAt: timing.expiresAt,
+        isExpired: timing.isExpired,
+        author: {
+          id: r.user_id,
+          kadi: r.kadi,
+          isim: r.isim,
+          soyisim: r.soyisim,
+          resim: r.resim,
+          verified: r.verified
+        },
+        viewed: viewedSet.has(Number(r.id))
+      };
+    })
+    .filter((story) => !story.isExpired);
+  res.json({ items });
+});
+
+app.get('/api/new/stories/mine', requireAuth, (req, res) => {
+  const rows = sqlAll(
+    `SELECT s.id, s.image, s.caption, s.created_at, s.expires_at,
+            COUNT(v.id) AS view_count
+     FROM stories s
+     LEFT JOIN story_views v ON v.story_id = s.id
+     WHERE s.user_id = ?
+     GROUP BY s.id
+     ORDER BY s.created_at DESC`,
+    [req.session.userId]
+  );
+  const nowMs = Date.now();
   res.json({
-    items: rows.map((r) => ({
-      id: r.id,
-      image: r.image,
-      caption: r.caption,
-      createdAt: r.created_at,
-      author: {
-        id: r.user_id,
-        kadi: r.kadi,
-        isim: r.isim,
-        soyisim: r.soyisim,
-        resim: r.resim,
-        verified: r.verified
-      },
-      viewed: viewedSet.has(r.id)
-    }))
+    items: rows.map((row) => {
+      const timing = storyTiming(row, nowMs);
+      return {
+        id: row.id,
+        image: row.image,
+        caption: row.caption,
+        createdAt: timing.createdAt,
+        expiresAt: timing.expiresAt,
+        isExpired: timing.isExpired,
+        viewCount: Number(row.view_count || 0)
+      };
+    })
   });
 });
 
@@ -3772,7 +3830,7 @@ app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), (r
   const caption = metinDuzenle(req.body?.caption || '');
   const image = `/uploads/stories/${req.file.filename}`;
   const now = new Date();
-  const expires = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const expires = new Date(now.getTime() + STORY_TTL_MS);
   const result = sqlRun('INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
     image,
@@ -3784,11 +3842,58 @@ app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), (r
   res.json({ ok: true, id: result?.lastInsertRowid, image });
 });
 
+app.patch('/api/new/stories/:id', requireAuth, (req, res) => {
+  const storyId = parseStoryId(req.params.id);
+  if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+  const story = sqlGet('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
+  if (!story) return res.status(404).send('Hikaye bulunamadı.');
+  const caption = metinDuzenle(req.body?.caption || '');
+  sqlRun('UPDATE stories SET caption = ? WHERE id = ?', [caption, storyId]);
+  res.json({ ok: true });
+});
+
+app.delete('/api/new/stories/:id', requireAuth, (req, res) => {
+  const storyId = parseStoryId(req.params.id);
+  if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+  const story = sqlGet('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
+  if (!story) return res.status(404).send('Hikaye bulunamadı.');
+  sqlRun('DELETE FROM story_views WHERE story_id = ?', [storyId]);
+  sqlRun('DELETE FROM stories WHERE id = ?', [storyId]);
+  res.json({ ok: true });
+});
+
+app.post('/api/new/stories/:id/repost', requireAuth, (req, res) => {
+  const storyId = parseStoryId(req.params.id);
+  if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+  const story = sqlGet('SELECT id, user_id, image, caption, created_at, expires_at FROM stories WHERE id = ?', [storyId]);
+  if (!story || Number(story.user_id) !== Number(req.session.userId)) {
+    return res.status(404).send('Hikaye bulunamadı.');
+  }
+  const timing = storyTiming(story);
+  if (!timing.isExpired) {
+    return res.status(400).send('Sadece süresi dolan hikayeler yeniden paylaşılabilir.');
+  }
+  const now = new Date();
+  const expires = new Date(now.getTime() + STORY_TTL_MS);
+  const result = sqlRun(
+    'INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+    [req.session.userId, story.image, story.caption || '', now.toISOString(), expires.toISOString()]
+  );
+  scheduleEngagementRecalculation('story_created');
+  res.json({ ok: true, id: result?.lastInsertRowid, image: story.image });
+});
+
 app.post('/api/new/stories/:id/view', requireAuth, (req, res) => {
-  const existing = sqlGet('SELECT id FROM story_views WHERE story_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
+  const storyId = parseStoryId(req.params.id);
+  if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+  const story = sqlGet('SELECT id, created_at, expires_at FROM stories WHERE id = ?', [storyId]);
+  if (!story) return res.status(404).send('Hikaye bulunamadı.');
+  const timing = storyTiming(story);
+  if (timing.isExpired) return res.status(400).send('Hikaye süresi dolmuş.');
+  const existing = sqlGet('SELECT id FROM story_views WHERE story_id = ? AND user_id = ?', [storyId, req.session.userId]);
   if (!existing) {
     sqlRun('INSERT INTO story_views (story_id, user_id, created_at) VALUES (?, ?, ?)', [
-      req.params.id,
+      storyId,
       req.session.userId,
       new Date().toISOString()
     ]);
