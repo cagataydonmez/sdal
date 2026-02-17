@@ -25,4 +25,8 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            bash /home/ubuntu/apps/sdal/deploy.sh
+            whoami
+            echo "HOME=$HOME"
+            ls -la "$HOME"
+            ls -la "$HOME/apps/sdal" || true
+            bash "$HOME/apps/sdal/deploy.sh"
