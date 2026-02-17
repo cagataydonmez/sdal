@@ -3842,7 +3842,7 @@ app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), (r
   res.json({ ok: true, id: result?.lastInsertRowid, image });
 });
 
-app.patch('/api/new/stories/:id', requireAuth, (req, res) => {
+function updateStoryCaption(req, res) {
   const storyId = parseStoryId(req.params.id);
   if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
   const story = sqlGet('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
@@ -3850,9 +3850,9 @@ app.patch('/api/new/stories/:id', requireAuth, (req, res) => {
   const caption = metinDuzenle(req.body?.caption || '');
   sqlRun('UPDATE stories SET caption = ? WHERE id = ?', [caption, storyId]);
   res.json({ ok: true });
-});
+}
 
-app.delete('/api/new/stories/:id', requireAuth, (req, res) => {
+function deleteStory(req, res) {
   const storyId = parseStoryId(req.params.id);
   if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
   const story = sqlGet('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
@@ -3860,7 +3860,12 @@ app.delete('/api/new/stories/:id', requireAuth, (req, res) => {
   sqlRun('DELETE FROM story_views WHERE story_id = ?', [storyId]);
   sqlRun('DELETE FROM stories WHERE id = ?', [storyId]);
   res.json({ ok: true });
-});
+}
+
+app.patch('/api/new/stories/:id', requireAuth, updateStoryCaption);
+app.delete('/api/new/stories/:id', requireAuth, deleteStory);
+app.post('/api/new/stories/:id/edit', requireAuth, updateStoryCaption);
+app.post('/api/new/stories/:id/delete', requireAuth, deleteStory);
 
 app.post('/api/new/stories/:id/repost', requireAuth, (req, res) => {
   const storyId = parseStoryId(req.params.id);

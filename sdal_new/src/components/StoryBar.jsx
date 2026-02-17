@@ -103,8 +103,8 @@ export default function StoryBar() {
     if (nextCaption === null) return;
     setBusyAction('edit');
     try {
-      const res = await fetch(`/api/new/stories/${active.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/new/stories/${active.id}/edit`, {
+        method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ caption: nextCaption })
@@ -125,8 +125,8 @@ export default function StoryBar() {
     if (!ok) return;
     setBusyAction('delete');
     try {
-      const res = await fetch(`/api/new/stories/${active.id}`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/new/stories/${active.id}/delete`, {
+        method: 'POST',
         credentials: 'include'
       });
       if (!res.ok) throw new Error(await res.text());

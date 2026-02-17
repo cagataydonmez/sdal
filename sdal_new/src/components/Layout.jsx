@@ -2,9 +2,11 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../utils/auth.jsx';
 import { useLiveRefresh } from '../utils/live.js';
+import { useTheme } from '../utils/theme.jsx';
 
 export default function Layout({ children, title, right }) {
   const { user, logout, refresh } = useAuth();
+  const { mode, theme, cycleMode } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -70,14 +72,17 @@ export default function Layout({ children, title, right }) {
       </aside>
 
       <main className="main-area">
-        <header className="top-bar">
+	        <header className="top-bar">
           <div className="page-title">
             <h1>{title}</h1>
             <p>SDAL sosyal hub</p>
           </div>
-          <div className="top-actions">
-            {right}
-            {user ? (
+	          <div className="top-actions">
+            <button className="btn ghost theme-toggle" onClick={cycleMode} title="Tema modu: Otomatik -> Koyu -> Acik">
+              {mode === 'auto' ? `Tema: Otomatik (${theme === 'dark' ? 'Koyu' : 'Acik'})` : `Tema: ${mode === 'dark' ? 'Koyu' : 'Acik'}`}
+            </button>
+	            {right}
+	            {user ? (
               <div className="user-menu">
                 <button className="user-chip" onClick={() => setMenuOpen((v) => !v)}>
                   <img src={profileImage} alt="" />
@@ -117,6 +122,10 @@ export default function Layout({ children, title, right }) {
         <NavLink to="/new/announcements">Duyurular</NavLink>
         <NavLink to="/new/profile">Profil</NavLink>
         <NavLink to="/new/help">Yardım</NavLink>
+        <button className="linkish bottom-link" onClick={cycleMode}>
+          {mode === 'auto' ? `Tema: Otomatik (${theme === 'dark' ? 'Koyu' : 'Acik'})` : `Tema: ${mode === 'dark' ? 'Koyu' : 'Acik'}`}
+        </button>
+        <a className="bottom-link" href="/">Klasik</a>
         {user?.admin === 1 ? <NavLink to="/new/admin">Yönetim</NavLink> : null}
         {user ? <button className="linkish bottom-link" onClick={handleLogout}>Çıkış</button> : null}
       </nav>

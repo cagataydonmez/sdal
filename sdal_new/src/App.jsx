@@ -27,6 +27,7 @@ import FollowingPage from './pages/FollowingPage.jsx';
 import HelpPage from './pages/HelpPage.jsx';
 import GamesPage from './pages/GamesPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
+import { ThemeProvider } from './utils/theme.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -37,37 +38,39 @@ function RequireAuth({ children }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <GlobalActionFeedback />
-      <Routes>
-        <Route path="/new/login" element={<LoginPage />} />
-        <Route path="/new/register" element={<RegisterPage />} />
-        <Route path="/new/activate" element={<ActivationPage />} />
-        <Route path="/new/activation/resend" element={<ActivationResendPage />} />
-        <Route path="/new/password-reset" element={<PasswordResetPage />} />
-        <Route path="/new" element={<RequireAuth><FeedPage /></RequireAuth>} />
-        <Route path="/new/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
-        <Route path="/new/following" element={<RequireAuth><FollowingPage /></RequireAuth>} />
-        <Route path="/new/members/:id" element={<RequireAuth><MemberDetailPage /></RequireAuth>} />
-        <Route path="/new/groups" element={<RequireAuth><GroupsPage /></RequireAuth>} />
-        <Route path="/new/groups/:id" element={<RequireAuth><GroupDetailPage /></RequireAuth>} />
-        <Route path="/new/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
-        <Route path="/new/messages/compose" element={<RequireAuth><MessageComposePage /></RequireAuth>} />
-        <Route path="/new/messages/:id" element={<RequireAuth><MessageDetailPage /></RequireAuth>} />
-        <Route path="/new/albums" element={<RequireAuth><AlbumsPage /></RequireAuth>} />
-        <Route path="/new/albums/upload" element={<RequireAuth><AlbumUploadPage /></RequireAuth>} />
-        <Route path="/new/albums/photo/:id" element={<RequireAuth><AlbumPhotoPage /></RequireAuth>} />
-        <Route path="/new/albums/:id" element={<RequireAuth><AlbumCategoryPage /></RequireAuth>} />
-        <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
-        <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
-        <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
-        <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />
-        <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
-        <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
-        <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />
-        <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
-        <Route path="/new/*" element={<Navigate to="/new" replace />} />
-      </Routes>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <GlobalActionFeedback />
+        <Routes>
+          <Route path="/new/login" element={<LoginPage />} />
+          <Route path="/new/register" element={<RegisterPage />} />
+          <Route path="/new/activate" element={<ActivationPage />} />
+          <Route path="/new/activation/resend" element={<ActivationResendPage />} />
+          <Route path="/new/password-reset" element={<PasswordResetPage />} />
+          <Route path="/new" element={<RequireAuth><FeedPage /></RequireAuth>} />
+          <Route path="/new/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
+          <Route path="/new/following" element={<RequireAuth><FollowingPage /></RequireAuth>} />
+          <Route path="/new/members/:id" element={<RequireAuth><MemberDetailPage /></RequireAuth>} />
+          <Route path="/new/groups" element={<RequireAuth><GroupsPage /></RequireAuth>} />
+          <Route path="/new/groups/:id" element={<RequireAuth><GroupDetailPage /></RequireAuth>} />
+          <Route path="/new/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
+          <Route path="/new/messages/compose" element={<RequireAuth><MessageComposePage /></RequireAuth>} />
+          <Route path="/new/messages/:id" element={<RequireAuth><MessageDetailPage /></RequireAuth>} />
+          <Route path="/new/albums" element={<RequireAuth><AlbumsPage /></RequireAuth>} />
+          <Route path="/new/albums/upload" element={<RequireAuth><AlbumUploadPage /></RequireAuth>} />
+          <Route path="/new/albums/photo/:id" element={<RequireAuth><AlbumPhotoPage /></RequireAuth>} />
+          <Route path="/new/albums/:id" element={<RequireAuth><AlbumCategoryPage /></RequireAuth>} />
+          <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
+          <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
+          <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
+          <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />
+          <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+          <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
+          <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />
+          <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
+          <Route path="/new/*" element={<Navigate to="/new" replace />} />
+        </Routes>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
