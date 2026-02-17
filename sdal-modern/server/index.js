@@ -424,6 +424,62 @@ function writeLegacyLog(type, activity, meta = {}) {
   }
 }
 
+function ensureSchemaMigrationsTable() {
+  sqlRun(`CREATE TABLE IF NOT EXISTS schema_migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT
+  )`);
+}
+
+function quoteIdentifier(value) {
+  return `"${String(value || '').replace(/"/g, '""')}"`;
+}
+
+function hasColumn(table, column) {
+  try {
+    const safeTable = quoteIdentifier(table);
+    const cols = sqlAll(`PRAGMA table_info(${safeTable})`);
+    return cols.some((c) => c.name === column);
+  } catch {
+    return false;
+  }
+}
+
+function hasMigration(name) {
+  ensureSchemaMigrationsTable();
+  return !!sqlGet('SELECT name FROM schema_migrations WHERE name = ?', [name]);
+}
+
+function runMigration(name, apply) {
+  ensureSchemaMigrationsTable();
+  if (hasMigration(name)) return;
+
+  const db = getDb();
+  const tx = db.transaction(() => {
+    apply();
+    sqlRun(
+      'INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)',
+      [name, new Date().toISOString()]
+    );
+  });
+
+  tx();
+}
+
+// Pattern for future schema changes:
+// runMigration('2026_02_add_users_timezone', () => {
+//   if (!hasColumn('uyeler', 'timezone')) {
+//     sqlRun("ALTER TABLE uyeler ADD COLUMN timezone TEXT DEFAULT 'Europe/Istanbul'");
+//   }
+// });
+function migrateAddColumn(table, column, ddl) {
+  runMigration(`add_column:${table}.${column}`, () => {
+    if (!hasColumn(table, column)) {
+      sqlRun(ddl);
+    }
+  });
+}
+
 // Ensure admin email tables exist
 sqlRun(`CREATE TABLE IF NOT EXISTS email_kategori (
   id INTEGER PRIMARY KEY,
@@ -493,27 +549,16 @@ sqlRun(`CREATE TABLE IF NOT EXISTS announcements (
   created_at TEXT
 )`);
 
-function ensureColumn(table, column, ddl) {
-  try {
-    const cols = sqlAll(`PRAGMA table_info(${table})`);
-    if (!cols.some((c) => c.name === column)) {
-      sqlRun(ddl);
-    }
-  } catch {
-    // ignore
-  }
-}
-
-ensureColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
-ensureColumn('posts', 'group_id', 'ALTER TABLE posts ADD COLUMN group_id INTEGER');
-ensureColumn('events', 'approved', 'ALTER TABLE events ADD COLUMN approved INTEGER DEFAULT 1');
-ensureColumn('events', 'created_by', 'ALTER TABLE events ADD COLUMN created_by INTEGER');
-ensureColumn('events', 'approved_by', 'ALTER TABLE events ADD COLUMN approved_by INTEGER');
-ensureColumn('events', 'approved_at', 'ALTER TABLE events ADD COLUMN approved_at TEXT');
-ensureColumn('announcements', 'approved', 'ALTER TABLE announcements ADD COLUMN approved INTEGER DEFAULT 1');
-ensureColumn('announcements', 'created_by', 'ALTER TABLE announcements ADD COLUMN created_by INTEGER');
-ensureColumn('announcements', 'approved_by', 'ALTER TABLE announcements ADD COLUMN approved_by INTEGER');
-ensureColumn('announcements', 'approved_at', 'ALTER TABLE announcements ADD COLUMN approved_at TEXT');
+migrateAddColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
+migrateAddColumn('posts', 'group_id', 'ALTER TABLE posts ADD COLUMN group_id INTEGER');
+migrateAddColumn('events', 'approved', 'ALTER TABLE events ADD COLUMN approved INTEGER DEFAULT 1');
+migrateAddColumn('events', 'created_by', 'ALTER TABLE events ADD COLUMN created_by INTEGER');
+migrateAddColumn('events', 'approved_by', 'ALTER TABLE events ADD COLUMN approved_by INTEGER');
+migrateAddColumn('events', 'approved_at', 'ALTER TABLE events ADD COLUMN approved_at TEXT');
+migrateAddColumn('announcements', 'approved', 'ALTER TABLE announcements ADD COLUMN approved INTEGER DEFAULT 1');
+migrateAddColumn('announcements', 'created_by', 'ALTER TABLE announcements ADD COLUMN created_by INTEGER');
+migrateAddColumn('announcements', 'approved_by', 'ALTER TABLE announcements ADD COLUMN approved_by INTEGER');
+migrateAddColumn('announcements', 'approved_at', 'ALTER TABLE announcements ADD COLUMN approved_at TEXT');
 
 sqlRun(`CREATE TABLE IF NOT EXISTS event_comments (
   id INTEGER PRIMARY KEY,
@@ -545,7 +590,7 @@ sqlRun(`CREATE TABLE IF NOT EXISTS groups (
   owner_id INTEGER,
   created_at TEXT
 )`);
-ensureColumn('groups', 'visibility', "ALTER TABLE groups ADD COLUMN visibility TEXT DEFAULT 'public'");
+migrateAddColumn('groups', 'visibility', "ALTER TABLE groups ADD COLUMN visibility TEXT DEFAULT 'public'");
 sqlRun(`CREATE TABLE IF NOT EXISTS group_members (
   id INTEGER PRIMARY KEY,
   group_id INTEGER,
@@ -666,7 +711,7 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_score ON member_engagem
 sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_updated ON member_engagement_scores (updated_at DESC)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_variant ON member_engagement_scores (ab_variant, score DESC)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON engagement_ab_assignments (variant)');
-ensureColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
+migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
 
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
@@ -5617,6 +5662,14 @@ app.post('/api/games/arcade/:game/score', (req, res) => {
 const modernDist = path.resolve(__dirname, '../../sdal_new/dist');
 if (fs.existsSync(modernDist)) {
   app.use('/new', express.static(modernDist));
+  app.use('/sdal_new', express.static(modernDist));
+  app.get('/sdal_new', (_req, res) => {
+    res.redirect(302, '/new');
+  });
+  app.get('/sdal_new/*', (req, res) => {
+    const suffix = req.path.replace(/^\/sdal_new/, '') || '/';
+    res.redirect(302, `/new${suffix}`);
+  });
   app.get('/new/*', (req, res) => {
     res.sendFile(path.join(modernDist, 'index.html'));
   });
