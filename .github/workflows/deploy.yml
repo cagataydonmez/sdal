@@ -25,4 +25,4 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            bash "$HOME/deploy-sdal.sh"
+            bash "apps/deploy-sdal.sh"
