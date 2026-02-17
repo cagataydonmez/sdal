@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
+import { useAuth } from '../utils/auth.jsx';
 
 export default function StoryBar() {
+  const { user } = useAuth();
   const [stories, setStories] = useState([]);
   const [activeIndex, setActiveIndex] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [busyAction, setBusyAction] = useState('');
   const durationMs = 5000;
 
   const load = useCallback(async () => {
@@ -57,6 +60,9 @@ export default function StoryBar() {
   }, [activeIndex, stories]);
 
   const active = useMemo(() => (activeIndex !== null ? stories[activeIndex] : null), [activeIndex, stories]);
+  const activeAuthorId = Number(active?.author?.id || 0);
+  const currentUserId = Number(user?.id || 0);
+  const isOwnActiveStory = !!active && !!currentUserId && activeAuthorId === currentUserId;
 
   function goNext() {
     if (activeIndex === null) return;
@@ -89,6 +95,49 @@ export default function StoryBar() {
     await fetch('/api/new/stories/upload', { method: 'POST', credentials: 'include', body: form });
     emitAppChange('story:created');
     load();
+  }
+
+  async function editActiveStory() {
+    if (!active?.id || !isOwnActiveStory || busyAction) return;
+    const nextCaption = window.prompt('Hikaye açıklamasını güncelle:', active.caption || '');
+    if (nextCaption === null) return;
+    setBusyAction('edit');
+    try {
+      const res = await fetch(`/api/new/stories/${active.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caption: nextCaption })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await load();
+      emitAppChange('story:created');
+    } catch (err) {
+      window.alert(err?.message || 'Hikaye güncellenemedi.');
+    } finally {
+      setBusyAction('');
+    }
+  }
+
+  async function deleteActiveStory() {
+    if (!active?.id || !isOwnActiveStory || busyAction) return;
+    const ok = window.confirm('Bu hikayeyi silmek istediğine emin misin?');
+    if (!ok) return;
+    setBusyAction('delete');
+    try {
+      const res = await fetch(`/api/new/stories/${active.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setActiveIndex(null);
+      await load();
+      emitAppChange('story:created');
+    } catch (err) {
+      window.alert(err?.message || 'Hikaye silinemedi.');
+    } finally {
+      setBusyAction('');
+    }
   }
 
   return (
@@ -125,6 +174,16 @@ export default function StoryBar() {
             <div className="story-actions">
               <button className="btn ghost" onClick={goPrev}>Geri</button>
               <button className="btn ghost" onClick={goNext}>İleri</button>
+              {isOwnActiveStory ? (
+                <>
+                  <button className="btn ghost" onClick={editActiveStory} disabled={!!busyAction}>
+                    {busyAction === 'edit' ? 'Kaydediliyor...' : 'Düzenle'}
+                  </button>
+                  <button className="btn ghost delete" onClick={deleteActiveStory} disabled={!!busyAction}>
+                    {busyAction === 'delete' ? 'Siliniyor...' : 'Sil'}
+                  </button>
+                </>
+              ) : null}
               <button className="btn ghost" onClick={() => setActiveIndex(null)}>Kapat</button>
             </div>
           </div>

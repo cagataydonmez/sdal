@@ -657,6 +657,10 @@ a { color: inherit; text-decoration: none; }
   color: #fff;
   border-color: rgba(255, 255, 255, 0.5);
 }
+.story-actions .btn.delete {
+  border-color: rgba(255, 107, 107, 0.85);
+  color: #ff8d8d;
+}
 
 .chat-panel .chat-body {
   max-height: 240px;
