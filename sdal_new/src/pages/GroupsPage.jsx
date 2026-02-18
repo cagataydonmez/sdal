@@ -110,7 +110,7 @@ export default function GroupsPage() {
   }, [mentionCtx?.query]);
 
   return (
-    <Layout title="Gruplar">
+    <Layout title="Gruplar (Deploy Test)">
       <div className="panel">
         <h3>Yeni Grup</h3>
         <div className="panel-body">
