@@ -3934,6 +3934,8 @@ app.patch('/api/new/stories/:id', requireAuth, updateStoryCaption);
 app.delete('/api/new/stories/:id', requireAuth, deleteStory);
 app.post('/api/new/stories/:id/edit', requireAuth, updateStoryCaption);
 app.post('/api/new/stories/:id/delete', requireAuth, deleteStory);
+app.post('/api/new/stories/:id', requireAuth, updateStoryCaption);
+app.post('/api/new/stories/:id/remove', requireAuth, deleteStory);
 
 app.post('/api/new/stories/:id/repost', requireAuth, (req, res) => {
   const storyId = parseStoryId(req.params.id);

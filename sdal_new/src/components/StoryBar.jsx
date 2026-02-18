@@ -19,25 +19,50 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   const touchStartRef = useRef({ x: 0, y: 0 });
   const durationMs = 5000;
 
+  const storyRequest = useCallback(async (url, init = {}) => {
+    return fetch(url, { credentials: 'include', ...init });
+  }, []);
+
   const preloadImage = useCallback((url) => {
     if (!url) return Promise.resolve();
-    if (loadedImagesRef.current.has(url)) return Promise.resolve();
+    let safeUrl = '';
+    try {
+      safeUrl = new URL(String(url), window.location.origin).toString();
+    } catch {
+      return Promise.resolve();
+    }
+    if (loadedImagesRef.current.has(safeUrl)) return Promise.resolve();
     return new Promise((resolve) => {
       const img = new window.Image();
       img.onload = () => {
-        loadedImagesRef.current.add(url);
+        loadedImagesRef.current.add(safeUrl);
         resolve();
       };
       img.onerror = () => resolve();
-      img.src = url;
+      img.src = safeUrl;
     });
   }, []);
 
   const load = useCallback(async () => {
-    const res = await fetch(endpoint, { credentials: 'include' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    setStories(payload.items || []);
+    try {
+      const res = await fetch(endpoint, { credentials: 'include' });
+      if (res.ok) {
+        const payload = await res.json();
+        setStories(payload.items || []);
+        return;
+      }
+      throw new Error(`endpoint_failed_${res.status}`);
+    } catch {
+      const m = String(endpoint).match(/\/api\/new\/stories\/user\/(\d+)/);
+      if (!m) return;
+      const userId = Number(m[1] || 0);
+      if (!userId) return;
+      const fallback = await fetch('/api/new/stories', { credentials: 'include' });
+      if (!fallback.ok) return;
+      const payload = await fallback.json();
+      const items = (payload.items || []).filter((s) => Number(s?.author?.id || 0) === userId);
+      setStories(items);
+    }
   }, [endpoint]);
 
   const groups = useMemo(() => {
@@ -103,7 +128,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   async function markViewed(story) {
     if (!story?.id) return;
-    await fetch(`/api/new/stories/${story.id}/view`, { method: 'POST', credentials: 'include' });
+    await storyRequest(`/api/new/stories/${story.id}/view`, { method: 'POST' });
   }
 
   async function openGroup(group, groupIndex) {
@@ -168,8 +193,10 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     if (!active) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('story-view-open');
     return () => {
       document.body.style.overflow = prev;
+      document.body.classList.remove('story-view-open');
     };
   }, [active]);
 
@@ -189,7 +216,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     const form = new FormData();
     form.append('image', file);
     form.append('caption', caption);
-    await fetch('/api/new/stories/upload', { method: 'POST', credentials: 'include', body: form });
+    await storyRequest('/api/new/stories/upload', { method: 'POST', body: form });
     e.target.value = '';
     emitAppChange('story:created');
     load();
@@ -201,12 +228,25 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     if (nextCaption === null) return;
     setBusyAction('edit');
     try {
-      const res = await fetch(`/api/new/stories/${active.id}/edit`, {
+      let res = await storyRequest(`/api/new/stories/${active.id}/edit`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ caption: nextCaption })
       });
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await storyRequest(`/api/new/stories/${active.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ caption: nextCaption })
+        });
+      }
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await storyRequest(`/api/new/stories/${active.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ caption: nextCaption })
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       await load();
       emitAppChange('story:created');
@@ -223,10 +263,13 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     if (!ok) return;
     setBusyAction('delete');
     try {
-      const res = await fetch(`/api/new/stories/${active.id}/delete`, {
-        method: 'POST',
-        credentials: 'include'
-      });
+      let res = await storyRequest(`/api/new/stories/${active.id}/delete`, { method: 'POST' });
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await storyRequest(`/api/new/stories/${active.id}`, { method: 'DELETE' });
+      }
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await storyRequest(`/api/new/stories/${active.id}/remove`, { method: 'POST' });
+      }
       if (!res.ok) throw new Error(await res.text());
       setActiveGroupIndex(null);
       await load();
@@ -277,6 +320,16 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       {active ? (
         <div className="story-modal" onClick={() => setActiveGroupIndex(null)}>
           <div className="story-frame" onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            <div className="story-progress">
+              {activeGroup.items.map((s, idx) => {
+                const width = idx < activeStoryIndex ? 100 : idx === activeStoryIndex ? Math.round(progress * 100) : 0;
+                return (
+                  <div key={s.id} className="story-bar-track">
+                    <span className="story-bar-fill" style={{ width: `${width}%` }}></span>
+                  </div>
+                );
+              })}
+            </div>
             {!imageReady ? <div className="story-loading">Yükleniyor...</div> : null}
             <img src={active.image} alt="" onLoad={() => setImageReady(true)} className={imageReady ? 'story-photo ready' : 'story-photo'} />
             <div className="story-caption">

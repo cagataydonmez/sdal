@@ -55,7 +55,12 @@ export default function ProfilePage() {
       const payload = await apiJson(`/api/new/stories/user/${targetUserId}?includeExpired=1`);
       setStories(payload.items || []);
     } catch (err) {
-      setError(err.message || 'Hikayeler yüklenemedi.');
+      try {
+        const fallback = await apiJson('/api/new/stories/mine');
+        setStories(fallback.items || []);
+      } catch (innerErr) {
+        setError(innerErr.message || err.message || 'Hikayeler yüklenemedi.');
+      }
     }
   }
 
@@ -64,10 +69,24 @@ export default function ProfilePage() {
     if (caption === null) return;
     setStoryBusy(`edit:${story.id}`);
     try {
-      await apiJson(`/api/new/stories/${story.id}/edit`, {
-        method: 'POST',
-        body: JSON.stringify({ caption })
-      });
+      try {
+        await apiJson(`/api/new/stories/${story.id}/edit`, {
+          method: 'POST',
+          body: JSON.stringify({ caption })
+        });
+      } catch {
+        try {
+          await apiJson(`/api/new/stories/${story.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ caption })
+          });
+        } catch {
+          await apiJson(`/api/new/stories/${story.id}`, {
+            method: 'POST',
+            body: JSON.stringify({ caption })
+          });
+        }
+      }
       await refreshStories();
     } catch (err) {
       setError(err.message);
@@ -80,7 +99,15 @@ export default function ProfilePage() {
     if (!window.confirm('Bu hikayeyi silmek istediğine emin misin?')) return;
     setStoryBusy(`delete:${story.id}`);
     try {
-      await apiJson(`/api/new/stories/${story.id}/delete`, { method: 'POST' });
+      try {
+        await apiJson(`/api/new/stories/${story.id}/delete`, { method: 'POST' });
+      } catch {
+        try {
+          await apiJson(`/api/new/stories/${story.id}`, { method: 'DELETE' });
+        } catch {
+          await apiJson(`/api/new/stories/${story.id}/remove`, { method: 'POST' });
+        }
+      }
       await refreshStories();
     } catch (err) {
       setError(err.message);

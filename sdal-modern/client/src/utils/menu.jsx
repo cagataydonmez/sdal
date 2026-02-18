@@ -15,14 +15,6 @@ export function useMenu() {
           ...item,
           active: location.pathname === item.url
         }));
-        const hasStories = items.some((item) => item.url === '/hikayeler');
-        if (!hasStories) {
-          items.push({
-            label: 'Hikayeler',
-            url: '/hikayeler',
-            active: location.pathname === '/hikayeler' || location.pathname === '/stories'
-          });
-        }
         setMenu(items);
       })
       .catch(() => {

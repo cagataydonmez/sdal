@@ -78,6 +78,19 @@ export default function LegacyLayout({ pageTitle, pageImage, children, showLeftC
 
                   <tr>
                     <td className="sdal-main" align="center" valign="center">
+                      <div
+                        className="sdal-alert"
+                        style={{
+                          margin: '8px 12px',
+                          textAlign: 'left',
+                          lineHeight: 1.35,
+                          fontSize: 12
+                        }}
+                      >
+                        Bu klasik görünüm SDAL&apos;ın nostaljik ruhunu yaşatıyor. Dilersen burayı temel işlemler için
+                        kullanmaya devam edebilirsin; hikayeler ve yeni sosyal özelliklerin tamamı için{' '}
+                        <a href="/new" style={{ color: '#003399', fontWeight: 700 }}>Yeni Tasarım</a> tarafı hazır.
+                      </div>
                       {isLoggedIn && sidebar.newMessagesCount > 0 ? (
                         <div className="sdal-alert" style={{ margin: '8px 12px' }}>
                           <img src="/legacy/arrow-orange.gif" border="0" alt="" />{' '}

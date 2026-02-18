@@ -1224,6 +1224,12 @@ textarea::placeholder {
   border-radius: 999px;
   box-shadow: var(--shadow);
 }
+body.story-view-open .global-feedback-bar {
+  display: none;
+}
+body.story-view-open .global-feedback {
+  display: none;
+}
 
 :root[data-theme='dark'] .g2048-cell {
   color: #f1f5ff;

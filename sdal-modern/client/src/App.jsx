@@ -35,7 +35,6 @@ import ActivationResendPage from './pages/ActivationResendPage.jsx';
 import BakimPage from './pages/BakimPage.jsx';
 import Http500Page from './pages/Http500Page.jsx';
 import KarikaturPage from './pages/KarikaturPage.jsx';
-import StoriesPage from './pages/StoriesPage.jsx';
 
 export default function App() {
   return (
@@ -75,8 +74,8 @@ export default function App() {
         <Route path="/bakim" element={<BakimPage />} />
         <Route path="/http500" element={<Http500Page />} />
         <Route path="/karikatur1" element={<RequireAuth><KarikaturPage /></RequireAuth>} />
-        <Route path="/hikayeler" element={<RequireAuth><StoriesPage /></RequireAuth>} />
-        <Route path="/stories" element={<RequireAuth><StoriesPage /></RequireAuth>} />
+        <Route path="/hikayeler" element={<Navigate to="/new" replace />} />
+        <Route path="/stories" element={<Navigate to="/new" replace />} />
 
         <Route path="/uye-kayit" element={<RegisterPage />} />
         <Route path="/sifre-hatirla" element={<PasswordResetPage />} />
