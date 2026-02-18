@@ -30,6 +30,7 @@ export default function GroupDetailPage() {
   const [joinRequests, setJoinRequests] = useState([]);
   const [pendingInvites, setPendingInvites] = useState([]);
   const [membershipStatus, setMembershipStatus] = useState('none');
+  const [managers, setManagers] = useState([]);
   const [accessDenied, setAccessDenied] = useState(false);
   const [accessMessage, setAccessMessage] = useState('');
   const [content, setContent] = useState('');
@@ -43,6 +44,7 @@ export default function GroupDetailPage() {
   const [eventForm, setEventForm] = useState({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
   const [announcementForm, setAnnouncementForm] = useState({ title: '', body: '' });
   const [visibility, setVisibility] = useState('public');
+  const [showContactHint, setShowContactHint] = useState(false);
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteResults, setInviteResults] = useState([]);
   const [selectedInviteIds, setSelectedInviteIds] = useState([]);
@@ -64,10 +66,12 @@ export default function GroupDetailPage() {
       setGroupAnnouncements([]);
       setJoinRequests([]);
       setPendingInvites([]);
+      setManagers(data.managers || []);
       setMembershipStatus(data.membershipStatus || 'none');
       setAccessDenied(true);
       setAccessMessage(data.message || 'Bu grup içeriği yalnızca üyeler için açık.');
       setVisibility(data.group?.visibility || 'public');
+      setShowContactHint(Number(data.group?.show_contact_hint || 0) === 1);
       setLoading(false);
       return;
     }
@@ -79,8 +83,10 @@ export default function GroupDetailPage() {
     setGroupAnnouncements(data.groupAnnouncements || []);
     setJoinRequests(data.joinRequests || []);
     setPendingInvites(data.pendingInvites || []);
+    setManagers(data.managers || []);
     setMembershipStatus(data.membershipStatus || 'member');
     setVisibility(data.group?.visibility || 'public');
+    setShowContactHint(Number(data.group?.show_contact_hint || 0) === 1);
     setAccessDenied(false);
     setAccessMessage('');
     setLoading(false);
@@ -160,9 +166,9 @@ export default function GroupDetailPage() {
     return row?.role || null;
   }, [members, user]);
 
-  const canManageRoles = user?.admin === 1 || myRole === 'owner';
-  const canUpdateCover = user?.admin === 1 || myRole === 'owner' || myRole === 'moderator';
-  const canReviewRequests = user?.admin === 1 || myRole === 'owner' || myRole === 'moderator';
+  const canManageRoles = myRole === 'owner';
+  const canUpdateCover = myRole === 'owner' || myRole === 'moderator';
+  const canReviewRequests = myRole === 'owner' || myRole === 'moderator';
 
   async function updateRole(targetId, role) {
     setStatus('');
@@ -253,12 +259,26 @@ export default function GroupDetailPage() {
   async function saveVisibility() {
     setStatus('');
     try {
-      await apiJson(`/api/new/groups/${id}/settings`, { method: 'POST', body: JSON.stringify({ visibility }) });
-      setStatus('Grup görünürlüğü güncellendi.');
+      await apiJson(`/api/new/groups/${id}/settings`, {
+        method: 'POST',
+        body: JSON.stringify({ visibility, showContactHint })
+      });
+      setStatus('Grup ayarları güncellendi.');
       await load();
     } catch (err) {
       setStatus(err.message);
     }
+  }
+
+  function showManagersHint() {
+    if (!managers.length) {
+      window.alert('Bu grup için henüz yönetici bilgisi paylaşılmamış.');
+      return;
+    }
+    const message = managers
+      .map((m) => `${m.role === 'owner' ? 'Sahip' : 'Moderatör'}: ${[m.isim, m.soyisim].filter(Boolean).join(' ')} (@${m.kadi || 'uye'})`)
+      .join('\n');
+    window.alert(`Grup yöneticileri:\n${message}\n\nKatılım isteğin bu kişiler tarafından onaylanır.`);
   }
 
   async function searchInviteCandidates(term) {
@@ -328,6 +348,9 @@ export default function GroupDetailPage() {
         <div className="panel">
           <div className="panel-body">
             <div className="muted">{group ? accessMessage : 'Bu grubu görüntüleme yetkin yok veya grup bulunamadı.'}</div>
+            {group && Number(group.show_contact_hint || 0) === 1 ? (
+              <button className="btn ghost" onClick={showManagersHint}>Yönetici İpucu</button>
+            ) : null}
             {group ? (
               membershipStatus === 'invited' ? (
                 <div className="composer-actions">
@@ -372,6 +395,14 @@ export default function GroupDetailPage() {
                 <option value="public">Herkese Görünür</option>
                 <option value="members_only">Sadece Üyeler ve Davetliler</option>
               </select>
+              <label className="meta" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={showContactHint}
+                  onChange={(e) => setShowContactHint(e.target.checked)}
+                />
+                Üye olmayanlara yönetici ipucu göster
+              </label>
               <button className="btn ghost" onClick={saveVisibility}>Görünürlüğü Kaydet</button>
             </div>
           </div>

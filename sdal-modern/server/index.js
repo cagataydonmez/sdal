@@ -591,6 +591,7 @@ sqlRun(`CREATE TABLE IF NOT EXISTS groups (
   created_at TEXT
 )`);
 migrateAddColumn('groups', 'visibility', "ALTER TABLE groups ADD COLUMN visibility TEXT DEFAULT 'public'");
+migrateAddColumn('groups', 'show_contact_hint', 'ALTER TABLE groups ADD COLUMN show_contact_hint INTEGER DEFAULT 0');
 sqlRun(`CREATE TABLE IF NOT EXISTS group_members (
   id INTEGER PRIMARY KEY,
   group_id INTEGER,
@@ -746,10 +747,27 @@ function getGroupMember(groupId, userId) {
   return sqlGet('SELECT id, role FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, userId]);
 }
 
+function normalizeGroupVisibility(value) {
+  const raw = String(value || 'public').trim().toLowerCase();
+  if (['members_only', 'member_only', 'members', 'private', 'invited_only', 'invite_only'].includes(raw)) {
+    return 'members_only';
+  }
+  return 'public';
+}
+
+function parseGroupVisibilityInput(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['public', 'open'].includes(raw)) return 'public';
+  if (['members_only', 'member_only', 'members', 'private', 'invited_only', 'invite_only'].includes(raw)) {
+    return 'members_only';
+  }
+  return null;
+}
+
 function isGroupManager(req, groupId) {
   const user = getCurrentUser(req);
   if (!user) return false;
-  if (user.admin === 1) return true;
+  if (user.admin === 1 && req.session?.adminOk) return true;
   const member = getGroupMember(groupId, req.session.userId);
   return !!member && (member.role === 'owner' || member.role === 'moderator');
 }
@@ -4153,18 +4171,12 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
   const memberMap = new Map(membership.map((m) => [m.group_id, m.role]));
   const pendingSet = new Set(pending.map((p) => p.group_id));
   const inviteSet = new Set(invites.map((v) => v.group_id));
-  const visible = groups.filter((g) => {
-    const membersOnly = String(g.visibility || 'public') === 'members_only';
-    if (!membersOnly) return true;
-    if (isAdmin) return true;
-    if (memberMap.has(g.id)) return true;
-    if (inviteSet.has(g.id)) return true;
-    return false;
-  });
-  const slice = visible.slice(offset, offset + limit);
+  const slice = groups.slice(offset, offset + limit);
   res.json({
     items: slice.map((g) => ({
       ...g,
+      visibility: normalizeGroupVisibility(g.visibility),
+      show_contact_hint: Number(g.show_contact_hint || 0),
       members: countMap.get(g.id) || 0,
       joined: memberMap.has(g.id),
       pending: pendingSet.has(g.id),
@@ -4172,7 +4184,7 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
       myRole: memberMap.get(g.id) || null,
       membershipStatus: memberMap.has(g.id) ? 'member' : (inviteSet.has(g.id) ? 'invited' : (pendingSet.has(g.id) ? 'pending' : 'none'))
     })),
-    hasMore: offset + slice.length < visible.length
+    hasMore: offset + slice.length < groups.length
   });
 });
 
@@ -4432,18 +4444,38 @@ app.post('/api/new/groups/:id/invitations/respond', requireAuth, (req, res) => {
 app.post('/api/new/groups/:id/settings', requireAuth, (req, res) => {
   const groupId = req.params.id;
   if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok.');
-  const visibility = String(req.body?.visibility || '').trim();
-  if (!['public', 'members_only'].includes(visibility)) return res.status(400).send('Geçersiz görünürlük.');
-  sqlRun('UPDATE groups SET visibility = ? WHERE id = ?', [visibility, groupId]);
-  return res.json({ ok: true, visibility });
+  const hasVisibility = typeof req.body?.visibility !== 'undefined';
+  const hasShowHint = typeof req.body?.showContactHint !== 'undefined';
+  if (!hasVisibility && !hasShowHint) return res.status(400).send('Ayar verisi bulunamadı.');
+
+  let visibility = null;
+  if (hasVisibility) {
+    visibility = parseGroupVisibilityInput(req.body?.visibility);
+    if (!visibility) return res.status(400).send('Geçersiz görünürlük.');
+  }
+  const showContactHint = hasShowHint && req.body?.showContactHint ? 1 : 0;
+
+  if (hasVisibility && hasShowHint) {
+    sqlRun('UPDATE groups SET visibility = ?, show_contact_hint = ? WHERE id = ?', [visibility, showContactHint, groupId]);
+  } else if (hasVisibility) {
+    sqlRun('UPDATE groups SET visibility = ? WHERE id = ?', [visibility, groupId]);
+  } else {
+    sqlRun('UPDATE groups SET show_contact_hint = ? WHERE id = ?', [showContactHint, groupId]);
+  }
+
+  const row = sqlGet('SELECT visibility, show_contact_hint FROM groups WHERE id = ?', [groupId]);
+  return res.json({
+    ok: true,
+    visibility: normalizeGroupVisibility(row?.visibility),
+    showContactHint: Number(row?.show_contact_hint || 0) === 1
+  });
 });
 
 app.post('/api/new/groups/:id/cover', requireAuth, groupUpload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
-  const member = sqlGet('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
-  if (!member || (member.role !== 'owner' && member.role !== 'moderator' && !getCurrentUser(req)?.admin)) {
+  if (!isGroupManager(req, req.params.id)) {
     return res.status(403).send('Yetki yok.');
   }
   const image = `/uploads/groups/${req.file.filename}`;
@@ -4455,7 +4487,8 @@ app.post('/api/new/groups/:id/role', requireAuth, (req, res) => {
   const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const member = sqlGet('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
-  const isAdmin = getCurrentUser(req)?.admin === 1;
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session?.adminOk;
   if (!isAdmin && (!member || member.role !== 'owner')) {
     return res.status(403).send('Yetki yok.');
   }
@@ -4489,7 +4522,17 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
      WHERE group_id = ? AND user_id = ? AND status = 'pending'`,
     [groupId, req.session.userId]
   );
-  const membersOnly = String(group.visibility || 'public') === 'members_only';
+  const membersOnly = normalizeGroupVisibility(group.visibility) === 'members_only';
+  const groupManagers = sqlAll(
+    `SELECT m.user_id AS id, m.role, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM group_members m
+     LEFT JOIN uyeler u ON u.id = m.user_id
+     WHERE m.group_id = ? AND m.role IN ('owner', 'moderator')
+     ORDER BY CASE WHEN m.role = 'owner' THEN 0 ELSE 1 END, m.id ASC`,
+    [groupId]
+  );
+  const showContactHint = Number(group.show_contact_hint || 0) === 1;
+
   if (membersOnly && !isAdmin && !member && !invite && !pending) {
     return res.status(404).send('Grup bulunamadı.');
   }
@@ -4504,8 +4547,10 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
         description: group.description,
         cover_image: group.cover_image,
         members: memberCount,
-        visibility: group.visibility || 'public'
-      }
+        visibility: normalizeGroupVisibility(group.visibility),
+        show_contact_hint: showContactHint ? 1 : 0
+      },
+      managers: showContactHint ? groupManagers : []
     });
   }
   const members = sqlAll(
@@ -4579,8 +4624,13 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
     )
     : [];
   return res.json({
-    group,
+    group: {
+      ...group,
+      visibility: normalizeGroupVisibility(group.visibility),
+      show_contact_hint: showContactHint ? 1 : 0
+    },
     members,
+    managers: groupManagers,
     membershipStatus: 'member',
     myRole: member?.role || (isAdmin ? 'admin' : null),
     canReviewRequests,
