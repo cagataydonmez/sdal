@@ -4533,10 +4533,7 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
   );
   const showContactHint = Number(group.show_contact_hint || 0) === 1;
 
-  if (membersOnly && !isAdmin && !member && !invite && !pending) {
-    return res.status(404).send('Grup bulunamadı.');
-  }
-  if (!isAdmin && !member) {
+  if (membersOnly && !isAdmin && !member) {
     const memberCount = sqlGet('SELECT COUNT(*) AS cnt FROM group_members WHERE group_id = ?', [groupId])?.cnt || 0;
     return res.status(403).json({
       message: 'Bu grup özel. İçerikleri görmek için owner/moderatör onayı ile üye olmalısın.',
@@ -4631,7 +4628,7 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
     },
     members,
     managers: groupManagers,
-    membershipStatus: 'member',
+    membershipStatus: member ? 'member' : (invite ? 'invited' : (pending ? 'pending' : 'none')),
     myRole: member?.role || (isAdmin ? 'admin' : null),
     canReviewRequests,
     joinRequests,
