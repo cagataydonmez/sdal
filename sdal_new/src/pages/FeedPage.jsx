@@ -146,7 +146,6 @@ export default function FeedPage() {
               <button className={`btn ${scope === 'following' ? 'primary' : 'ghost'}`} onClick={() => setScope('following')}>Takip Ettiklerim</button>
             </div>
           </div>
-          <StoryBar />
           {pendingPostsCount > 0 ? (
             <button
               className="btn primary"
@@ -169,6 +168,7 @@ export default function FeedPage() {
           {!hasMore && posts.length > 0 ? <div className="muted">Sonuna ulaştın.</div> : null}
         </div>
         <div className="col-side">
+          <StoryBar title="Hikayeler" />
           <NotificationPanel />
           <div className="panel">
             <h3>Yeni Mesajlar</h3>

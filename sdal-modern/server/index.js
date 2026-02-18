@@ -3825,6 +3825,50 @@ app.get('/api/new/stories/mine', requireAuth, (req, res) => {
   });
 });
 
+app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
+  const userId = Number(req.params.id || 0);
+  if (!Number.isInteger(userId) || userId <= 0) return res.status(400).send('Geçersiz üye kimliği.');
+  const includeExpired = String(req.query.includeExpired || '0') === '1';
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  const rows = sqlAll(
+    `SELECT s.id, s.user_id, s.image, s.caption, s.created_at, s.expires_at,
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM stories s
+     LEFT JOIN uyeler u ON u.id = s.user_id
+     WHERE s.user_id = ?
+       AND (? = 1 OR s.expires_at IS NULL OR s.expires_at > ?)
+     ORDER BY s.created_at DESC`,
+    [userId, includeExpired ? 1 : 0, nowIso]
+  );
+
+  const viewed = sqlAll('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
+  const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
+  const items = rows.map((r) => {
+    const timing = storyTiming(r, nowMs);
+    return {
+      id: r.id,
+      image: r.image,
+      caption: r.caption,
+      createdAt: timing.createdAt,
+      expiresAt: timing.expiresAt,
+      isExpired: timing.isExpired,
+      author: {
+        id: r.user_id,
+        kadi: r.kadi,
+        isim: r.isim,
+        soyisim: r.soyisim,
+        resim: r.resim,
+        verified: r.verified
+      },
+      viewed: viewedSet.has(Number(r.id))
+    };
+  });
+
+  res.json({ items });
+});
+
 app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   const caption = metinDuzenle(req.body?.caption || '');

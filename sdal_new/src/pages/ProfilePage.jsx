@@ -16,12 +16,15 @@ async function apiJson(url, options = {}) {
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
+  const [stories, setStories] = useState([]);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [verifyStatus, setVerifyStatus] = useState('');
+  const [storyBusy, setStoryBusy] = useState('');
 
   useEffect(() => {
     apiJson('/api/profile').then((p) => setProfile(p.user || null)).catch(() => {});
+    apiJson('/api/new/stories/mine').then((p) => setStories(p.items || [])).catch(() => {});
   }, []);
 
   async function save() {
@@ -37,6 +40,60 @@ export default function ProfilePage() {
 
   if (!profile) {
     return <Layout title="Profil"><div className="muted">Yükleniyor...</div></Layout>;
+  }
+
+  const activeStories = stories.filter((s) => !s.isExpired);
+  const expiredStories = stories.filter((s) => s.isExpired);
+
+  async function refreshStories() {
+    try {
+      const payload = await apiJson('/api/new/stories/mine');
+      setStories(payload.items || []);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function editStory(story) {
+    const caption = window.prompt('Hikaye açıklamasını güncelle:', story.caption || '');
+    if (caption === null) return;
+    setStoryBusy(`edit:${story.id}`);
+    try {
+      await apiJson(`/api/new/stories/${story.id}/edit`, {
+        method: 'POST',
+        body: JSON.stringify({ caption })
+      });
+      await refreshStories();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStoryBusy('');
+    }
+  }
+
+  async function deleteStory(story) {
+    if (!window.confirm('Bu hikayeyi silmek istediğine emin misin?')) return;
+    setStoryBusy(`delete:${story.id}`);
+    try {
+      await apiJson(`/api/new/stories/${story.id}/delete`, { method: 'POST' });
+      await refreshStories();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStoryBusy('');
+    }
+  }
+
+  async function repostStory(story) {
+    setStoryBusy(`repost:${story.id}`);
+    try {
+      await apiJson(`/api/new/stories/${story.id}/repost`, { method: 'POST' });
+      await refreshStories();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStoryBusy('');
+    }
   }
 
   return (
@@ -85,6 +142,54 @@ export default function ProfilePage() {
           {status ? <div className="ok">{status}</div> : null}
           {verifyStatus ? <div className="muted">{verifyStatus}</div> : null}
           {error ? <div className="error">{error}</div> : null}
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>Hikayelerim</h3>
+        <div className="panel-body">
+          <div className="muted">Aktif Hikayeler</div>
+          <div className="story-profile-grid">
+            {activeStories.map((s) => (
+              <article key={s.id} className="story-mini-card">
+                <img src={s.image} alt="" />
+                <div className="meta">{new Date(s.createdAt).toLocaleString()}</div>
+                <div className="story-mini-caption">{s.caption || 'Açıklama yok'}</div>
+                <div className="story-mini-actions">
+                  <button className="btn ghost" onClick={() => editStory(s)} disabled={!!storyBusy}>
+                    {storyBusy === `edit:${s.id}` ? 'Kaydediliyor...' : 'Düzenle'}
+                  </button>
+                  <button className="btn ghost delete" onClick={() => deleteStory(s)} disabled={!!storyBusy}>
+                    {storyBusy === `delete:${s.id}` ? 'Siliniyor...' : 'Sil'}
+                  </button>
+                </div>
+              </article>
+            ))}
+            {!activeStories.length ? <div className="muted">Aktif hikayen yok.</div> : null}
+          </div>
+
+          <div className="muted">Süresi Dolan Hikayeler</div>
+          <div className="story-profile-grid">
+            {expiredStories.map((s) => (
+              <article key={s.id} className="story-mini-card expired">
+                <img src={s.image} alt="" />
+                <div className="meta">{new Date(s.createdAt).toLocaleString()}</div>
+                <div className="story-mini-caption">{s.caption || 'Açıklama yok'}</div>
+                <div className="story-mini-actions">
+                  <button className="btn ghost" onClick={() => repostStory(s)} disabled={!!storyBusy}>
+                    {storyBusy === `repost:${s.id}` ? 'Paylaşılıyor...' : 'Yeniden Paylaş'}
+                  </button>
+                  <button className="btn ghost" onClick={() => editStory(s)} disabled={!!storyBusy}>
+                    {storyBusy === `edit:${s.id}` ? 'Kaydediliyor...' : 'Düzenle'}
+                  </button>
+                  <button className="btn ghost delete" onClick={() => deleteStory(s)} disabled={!!storyBusy}>
+                    {storyBusy === `delete:${s.id}` ? 'Siliniyor...' : 'Sil'}
+                  </button>
+                </div>
+              </article>
+            ))}
+            {!expiredStories.length ? <div className="muted">Süresi dolan hikaye yok.</div> : null}
+          </div>
         </div>
       </div>
     </Layout>

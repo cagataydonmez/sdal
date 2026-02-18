@@ -233,6 +233,10 @@ textarea::placeholder {
   grid-template-columns: 1.4fr 0.8fr;
   gap: 24px;
 }
+.col-main,
+.col-side {
+  min-width: 0;
+}
 .col-side .panel { margin-bottom: 16px; }
 
 .panel {
@@ -627,12 +631,21 @@ textarea::placeholder {
   display: none;
 }
 
+.story-wrap {
+  min-width: 0;
+}
+.story-wrap h3 {
+  margin: 0 0 10px;
+}
 .story-bar {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
   overflow-x: auto;
   padding: 6px 2px;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .story {
   display: flex;
@@ -642,6 +655,8 @@ textarea::placeholder {
   background: transparent;
   border: none;
   color: var(--ink);
+  flex: 0 0 auto;
+  min-width: 72px;
 }
 .story img, .story .ring {
   width: 56px;
@@ -724,6 +739,40 @@ textarea::placeholder {
 .story-actions .btn.delete {
   border-color: rgba(255, 107, 107, 0.85);
   color: #ff8d8d;
+}
+.story-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.story-mini-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.story-mini-card.expired {
+  opacity: 0.9;
+}
+.story-mini-card img {
+  width: 100%;
+  aspect-ratio: 9 / 14;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+.story-mini-caption {
+  font-size: 13px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.story-mini-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .chat-panel .chat-body {

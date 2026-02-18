@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import StoryBar from '../components/StoryBar.jsx';
 
 export default function MemberDetailPage() {
   const { id } = useParams();
@@ -58,6 +59,11 @@ export default function MemberDetailPage() {
             ) : null}
           </div>
           {status ? <div className="ok">{status}</div> : null}
+        </div>
+      </div>
+      <div className="panel">
+        <div className="panel-body">
+          <StoryBar endpoint={`/api/new/stories/user/${id}`} showUpload={false} title="Hikayeleri" />
         </div>
       </div>
     </Layout>

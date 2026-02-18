@@ -2,30 +2,65 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useAuth } from '../utils/auth.jsx';
 
-export default function StoryBar() {
+function firstUnviewedIndex(items = []) {
+  const idx = items.findIndex((s) => !s.viewed);
+  return idx >= 0 ? idx : 0;
+}
+
+export default function StoryBar({ endpoint = '/api/new/stories', showUpload = true, title = '' }) {
   const { user } = useAuth();
   const [stories, setStories] = useState([]);
-  const [activeIndex, setActiveIndex] = useState(null);
+  const [activeGroupIndex, setActiveGroupIndex] = useState(null);
+  const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [busyAction, setBusyAction] = useState('');
   const durationMs = 5000;
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/new/stories', { credentials: 'include' });
+    const res = await fetch(endpoint, { credentials: 'include' });
     if (!res.ok) return;
     const payload = await res.json();
     setStories(payload.items || []);
-  }, []);
+  }, [endpoint]);
+
+  const groups = useMemo(() => {
+    const map = new Map();
+    for (const s of stories) {
+      const authorId = Number(s?.author?.id || 0);
+      if (!authorId) continue;
+      if (!map.has(authorId)) {
+        map.set(authorId, { author: s.author, items: [] });
+      }
+      map.get(authorId).items.push(s);
+    }
+    const arr = Array.from(map.values()).map((g) => ({
+      ...g,
+      // Keep latest first to match feed recency.
+      items: [...g.items].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))),
+      viewed: g.items.every((s) => !!s.viewed),
+      latestAt: g.items.reduce((acc, s) => (String(s.createdAt || '') > acc ? String(s.createdAt || '') : acc), '')
+    }));
+    arr.sort((a, b) => {
+      if (a.viewed !== b.viewed) return a.viewed ? 1 : -1;
+      return String(b.latestAt).localeCompare(String(a.latestAt));
+    });
+    return arr;
+  }, [stories]);
+
+  const activeGroup = activeGroupIndex !== null ? groups[activeGroupIndex] : null;
+  const active = activeGroup?.items?.[activeStoryIndex] || null;
 
   async function markViewed(story) {
     if (!story?.id) return;
     await fetch(`/api/new/stories/${story.id}/view`, { method: 'POST', credentials: 'include' });
   }
 
-  async function openStory(story, index) {
-    setActiveIndex(index);
+  async function openGroup(group, groupIndex) {
+    const startIndex = firstUnviewedIndex(group?.items || []);
+    setActiveGroupIndex(groupIndex);
+    setActiveStoryIndex(startIndex);
     setProgress(0);
-    await markViewed(story);
+    await markViewed(group?.items?.[startIndex]);
   }
 
   useEffect(() => {
@@ -34,9 +69,9 @@ export default function StoryBar() {
   useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['story:created', '*'] });
 
   useEffect(() => {
-    if (activeIndex === null) return;
-    if (!stories[activeIndex]) {
-      setActiveIndex(null);
+    if (activeGroupIndex === null || !activeGroup || !active) return;
+    if (!activeGroup.items[activeStoryIndex]) {
+      setActiveGroupIndex(null);
       return;
     }
     let start = Date.now();
@@ -46,53 +81,79 @@ export default function StoryBar() {
       setProgress(ratio);
       if (ratio >= 1) {
         clearInterval(timer);
-        const nextIndex = activeIndex + 1;
-        if (nextIndex < stories.length) {
-          setActiveIndex(nextIndex);
-          markViewed(stories[nextIndex]);
+        const nextStoryIndex = activeStoryIndex + 1;
+        if (nextStoryIndex < activeGroup.items.length) {
+          setActiveStoryIndex(nextStoryIndex);
+          markViewed(activeGroup.items[nextStoryIndex]);
           start = Date.now();
         } else {
-          setActiveIndex(null);
+          const nextGroupIndex = activeGroupIndex + 1;
+          if (nextGroupIndex < groups.length) {
+            const nextStart = firstUnviewedIndex(groups[nextGroupIndex].items);
+            setActiveGroupIndex(nextGroupIndex);
+            setActiveStoryIndex(nextStart);
+            markViewed(groups[nextGroupIndex].items[nextStart]);
+            start = Date.now();
+          } else {
+            setActiveGroupIndex(null);
+          }
         }
       }
     }, 60);
     return () => clearInterval(timer);
-  }, [activeIndex, stories]);
-
-  const active = useMemo(() => (activeIndex !== null ? stories[activeIndex] : null), [activeIndex, stories]);
+  }, [activeGroupIndex, activeGroup, activeStoryIndex, active, groups]);
   const activeAuthorId = Number(active?.author?.id || 0);
   const currentUserId = Number(user?.id || 0);
   const isOwnActiveStory = !!active && !!currentUserId && activeAuthorId === currentUserId;
 
   function goNext() {
-    if (activeIndex === null) return;
-    const nextIndex = activeIndex + 1;
-    if (nextIndex < stories.length) {
-      setActiveIndex(nextIndex);
-      markViewed(stories[nextIndex]);
+    if (activeGroupIndex === null || !activeGroup) return;
+    const nextStoryIndex = activeStoryIndex + 1;
+    if (nextStoryIndex < activeGroup.items.length) {
+      setActiveStoryIndex(nextStoryIndex);
+      markViewed(activeGroup.items[nextStoryIndex]);
     } else {
-      setActiveIndex(null);
+      const nextGroupIndex = activeGroupIndex + 1;
+      if (nextGroupIndex < groups.length) {
+        const nextStart = firstUnviewedIndex(groups[nextGroupIndex].items);
+        setActiveGroupIndex(nextGroupIndex);
+        setActiveStoryIndex(nextStart);
+        markViewed(groups[nextGroupIndex].items[nextStart]);
+      } else {
+        setActiveGroupIndex(null);
+      }
     }
   }
 
   function goPrev() {
-    if (activeIndex === null) return;
-    const prevIndex = activeIndex - 1;
-    if (prevIndex >= 0) {
-      setActiveIndex(prevIndex);
-      markViewed(stories[prevIndex]);
+    if (activeGroupIndex === null || !activeGroup) return;
+    const prevStoryIndex = activeStoryIndex - 1;
+    if (prevStoryIndex >= 0) {
+      setActiveStoryIndex(prevStoryIndex);
+      markViewed(activeGroup.items[prevStoryIndex]);
     } else {
-      setActiveIndex(null);
+      const prevGroupIndex = activeGroupIndex - 1;
+      if (prevGroupIndex >= 0) {
+        const prevGroup = groups[prevGroupIndex];
+        const idx = Math.max(0, prevGroup.items.length - 1);
+        setActiveGroupIndex(prevGroupIndex);
+        setActiveStoryIndex(idx);
+        markViewed(prevGroup.items[idx]);
+      } else {
+        setActiveGroupIndex(null);
+      }
     }
   }
 
   async function upload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const caption = window.prompt('Hikaye açıklaması (opsiyonel):', '') || '';
     const form = new FormData();
     form.append('image', file);
-    form.append('caption', '');
+    form.append('caption', caption);
     await fetch('/api/new/stories/upload', { method: 'POST', credentials: 'include', body: form });
+    e.target.value = '';
     emitAppChange('story:created');
     load();
   }
@@ -130,7 +191,7 @@ export default function StoryBar() {
         credentials: 'include'
       });
       if (!res.ok) throw new Error(await res.text());
-      setActiveIndex(null);
+      setActiveGroupIndex(null);
       await load();
       emitAppChange('story:created');
     } catch (err) {
@@ -141,25 +202,31 @@ export default function StoryBar() {
   }
 
   return (
-    <div className="story-bar">
-      <label className="story add">
-        <input type="file" accept="image/*" onChange={upload} />
-        <div className="ring">+</div>
-        <span>Hikaye</span>
-      </label>
-      {stories.map((s, idx) => (
-        <button key={s.id} className={s.viewed ? 'story viewed' : 'story'} onClick={() => openStory(s, idx)}>
-          <img src={s.author?.resim ? `/api/media/vesikalik/${s.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-          <span>@{s.author?.kadi}</span>
-        </button>
-      ))}
+    <div className="story-wrap">
+      {title ? <h3>{title}</h3> : null}
+      <div className="story-bar">
+        {showUpload ? (
+          <label className="story add">
+            <input type="file" accept="image/*" onChange={upload} />
+            <div className="ring">+</div>
+            <span>Hikaye Ekle</span>
+          </label>
+        ) : null}
+        {groups.map((g, idx) => (
+          <button key={g.author?.id || idx} className={g.viewed ? 'story viewed' : 'story'} onClick={() => openGroup(g, idx)}>
+            <img src={g.author?.resim ? `/api/media/vesikalik/${g.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            <span>@{g.author?.kadi}</span>
+          </button>
+        ))}
+        {!groups.length ? <div className="muted">Gösterilecek hikaye yok.</div> : null}
+      </div>
 
       {active ? (
-        <div className="story-modal" onClick={() => setActiveIndex(null)}>
+        <div className="story-modal" onClick={() => setActiveGroupIndex(null)}>
           <div className="story-frame" onClick={(e) => e.stopPropagation()}>
             <div className="story-progress">
-              {stories.map((s, idx) => {
-                const width = idx < activeIndex ? 100 : idx === activeIndex ? Math.round(progress * 100) : 0;
+              {activeGroup.items.map((s, idx) => {
+                const width = idx < activeStoryIndex ? 100 : idx === activeStoryIndex ? Math.round(progress * 100) : 0;
                 return (
                   <div key={s.id} className="story-bar-track">
                     <span className="story-bar-fill" style={{ width: `${width}%` }}></span>
@@ -184,7 +251,7 @@ export default function StoryBar() {
                   </button>
                 </>
               ) : null}
-              <button className="btn ghost" onClick={() => setActiveIndex(null)}>Kapat</button>
+              <button className="btn ghost" onClick={() => setActiveGroupIndex(null)}>Kapat</button>
             </div>
           </div>
         </div>
