@@ -28,7 +28,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!profile?.id) return;
-    refreshStories(profile.id);
+    refreshStories();
   }, [profile?.id]);
 
   async function save() {
@@ -49,17 +49,16 @@ export default function ProfilePage() {
   const activeStories = stories.filter((s) => !s.isExpired);
   const expiredStories = stories.filter((s) => s.isExpired);
 
-  async function refreshStories(targetUserId = profile?.id) {
-    if (!targetUserId) return;
+  async function refreshStories() {
     try {
-      const payload = await apiJson(`/api/new/stories/user/${targetUserId}?includeExpired=1`);
+      const payload = await apiJson('/api/new/stories/mine');
       setStories(payload.items || []);
     } catch (err) {
-      try {
-        const fallback = await apiJson('/api/new/stories/mine');
-        setStories(fallback.items || []);
-      } catch (innerErr) {
-        setError(innerErr.message || err.message || 'Hikayeler yüklenemedi.');
+      const msg = String(err?.message || '');
+      if (msg.toLowerCase().includes('expected pattern')) {
+        setError('Hikayeler yüklenirken geçersiz medya adresi algılandı. Sayfayı yenileyip tekrar deneyin.');
+      } else {
+        setError(msg || 'Hikayeler yüklenemedi.');
       }
     }
   }
