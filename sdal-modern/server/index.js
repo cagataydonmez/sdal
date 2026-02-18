@@ -3869,21 +3869,45 @@ app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
   res.json({ items });
 });
 
-app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), (req, res) => {
+app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
-  const caption = metinDuzenle(req.body?.caption || '');
-  const image = `/uploads/stories/${req.file.filename}`;
-  const now = new Date();
-  const expires = new Date(now.getTime() + STORY_TTL_MS);
-  const result = sqlRun('INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', [
-    req.session.userId,
-    image,
-    caption,
-    now.toISOString(),
-    expires.toISOString()
-  ]);
-  scheduleEngagementRecalculation('story_created');
-  res.json({ ok: true, id: result?.lastInsertRowid, image });
+  try {
+    const caption = metinDuzenle(req.body?.caption || '');
+    const outputName = `story_${req.session.userId}_${Date.now()}.webp`;
+    const outputPath = path.join(storyDir, outputName);
+
+    // Story media standard: 9:16, 1080x1920, compressed WebP.
+    await sharp(req.file.path)
+      .rotate()
+      .resize(1080, 1920, { fit: 'cover', position: 'attention' })
+      .webp({ quality: 82, effort: 4 })
+      .toFile(outputPath);
+
+    try {
+      if (req.file.path !== outputPath && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch {
+      // no-op
+    }
+
+    const image = `/uploads/stories/${outputName}`;
+    const now = new Date();
+    const expires = new Date(now.getTime() + STORY_TTL_MS);
+    const result = sqlRun('INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', [
+      req.session.userId,
+      image,
+      caption,
+      now.toISOString(),
+      expires.toISOString()
+    ]);
+    scheduleEngagementRecalculation('story_created');
+    res.json({ ok: true, id: result?.lastInsertRowid, image });
+  } catch (err) {
+    writeAppLog('error', 'story_upload_failed', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown_error'
+    });
+    return res.status(500).send('Hikaye yükleme sırasında hata oluştu.');
+  }
 });
 
 function updateStoryCaption(req, res) {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useAuth } from '../utils/auth.jsx';
 
@@ -14,7 +14,24 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [busyAction, setBusyAction] = useState('');
+  const [imageReady, setImageReady] = useState(false);
+  const loadedImagesRef = useRef(new Set());
+  const touchStartRef = useRef({ x: 0, y: 0 });
   const durationMs = 5000;
+
+  const preloadImage = useCallback((url) => {
+    if (!url) return Promise.resolve();
+    if (loadedImagesRef.current.has(url)) return Promise.resolve();
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        loadedImagesRef.current.add(url);
+        resolve();
+      };
+      img.onerror = () => resolve();
+      img.src = url;
+    });
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch(endpoint, { credentials: 'include' });
@@ -35,7 +52,6 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     }
     const arr = Array.from(map.values()).map((g) => ({
       ...g,
-      // Keep latest first to match feed recency.
       items: [...g.items].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))),
       viewed: g.items.every((s) => !!s.viewed),
       latestAt: g.items.reduce((acc, s) => (String(s.createdAt || '') > acc ? String(s.createdAt || '') : acc), '')
@@ -49,6 +65,41 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   const activeGroup = activeGroupIndex !== null ? groups[activeGroupIndex] : null;
   const active = activeGroup?.items?.[activeStoryIndex] || null;
+
+  const goNext = useCallback(() => {
+    if (activeGroupIndex === null || !activeGroup) return;
+    const nextStoryIndex = activeStoryIndex + 1;
+    if (nextStoryIndex < activeGroup.items.length) {
+      setActiveStoryIndex(nextStoryIndex);
+      return;
+    }
+    const nextGroupIndex = activeGroupIndex + 1;
+    if (nextGroupIndex < groups.length) {
+      const nextStart = firstUnviewedIndex(groups[nextGroupIndex].items);
+      setActiveGroupIndex(nextGroupIndex);
+      setActiveStoryIndex(nextStart);
+    } else {
+      setActiveGroupIndex(null);
+    }
+  }, [activeGroupIndex, activeGroup, activeStoryIndex, groups]);
+
+  const goPrev = useCallback(() => {
+    if (activeGroupIndex === null || !activeGroup) return;
+    const prevStoryIndex = activeStoryIndex - 1;
+    if (prevStoryIndex >= 0) {
+      setActiveStoryIndex(prevStoryIndex);
+      return;
+    }
+    const prevGroupIndex = activeGroupIndex - 1;
+    if (prevGroupIndex >= 0) {
+      const prevGroup = groups[prevGroupIndex];
+      const idx = Math.max(0, prevGroup.items.length - 1);
+      setActiveGroupIndex(prevGroupIndex);
+      setActiveStoryIndex(idx);
+    } else {
+      setActiveGroupIndex(null);
+    }
+  }, [activeGroupIndex, activeGroup, activeStoryIndex, groups]);
 
   async function markViewed(story) {
     if (!story?.id) return;
@@ -66,14 +117,39 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   useEffect(() => {
     load();
   }, [load]);
+
   useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['story:created', '*'] });
 
   useEffect(() => {
-    if (activeGroupIndex === null || !activeGroup || !active) return;
-    if (!activeGroup.items[activeStoryIndex]) {
-      setActiveGroupIndex(null);
+    if (!groups.length) return;
+    groups.forEach((g) => {
+      if (g.items[0]?.image) preloadImage(g.items[0].image);
+    });
+  }, [groups, preloadImage]);
+
+  useEffect(() => {
+    if (!active) {
+      setImageReady(false);
       return;
     }
+    let cancelled = false;
+    setImageReady(loadedImagesRef.current.has(active.image));
+    preloadImage(active.image).then(() => {
+      if (!cancelled) setImageReady(true);
+    });
+
+    const nextInGroup = activeGroup?.items?.[activeStoryIndex + 1]?.image;
+    const firstNextGroup = groups?.[Number(activeGroupIndex) + 1]?.items?.[0]?.image;
+    if (nextInGroup) preloadImage(nextInGroup);
+    if (firstNextGroup) preloadImage(firstNextGroup);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active, activeGroup, activeStoryIndex, activeGroupIndex, groups, preloadImage]);
+
+  useEffect(() => {
+    if (!active || !imageReady) return;
     let start = Date.now();
     setProgress(0);
     const timer = setInterval(() => {
@@ -81,69 +157,30 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       setProgress(ratio);
       if (ratio >= 1) {
         clearInterval(timer);
-        const nextStoryIndex = activeStoryIndex + 1;
-        if (nextStoryIndex < activeGroup.items.length) {
-          setActiveStoryIndex(nextStoryIndex);
-          markViewed(activeGroup.items[nextStoryIndex]);
-          start = Date.now();
-        } else {
-          const nextGroupIndex = activeGroupIndex + 1;
-          if (nextGroupIndex < groups.length) {
-            const nextStart = firstUnviewedIndex(groups[nextGroupIndex].items);
-            setActiveGroupIndex(nextGroupIndex);
-            setActiveStoryIndex(nextStart);
-            markViewed(groups[nextGroupIndex].items[nextStart]);
-            start = Date.now();
-          } else {
-            setActiveGroupIndex(null);
-          }
-        }
+        goNext();
+        start = Date.now();
       }
     }, 60);
     return () => clearInterval(timer);
-  }, [activeGroupIndex, activeGroup, activeStoryIndex, active, groups]);
+  }, [active, imageReady, goNext]);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) return;
+    markViewed(active);
+  }, [active]);
+
   const activeAuthorId = Number(active?.author?.id || 0);
   const currentUserId = Number(user?.id || 0);
   const isOwnActiveStory = !!active && !!currentUserId && activeAuthorId === currentUserId;
-
-  function goNext() {
-    if (activeGroupIndex === null || !activeGroup) return;
-    const nextStoryIndex = activeStoryIndex + 1;
-    if (nextStoryIndex < activeGroup.items.length) {
-      setActiveStoryIndex(nextStoryIndex);
-      markViewed(activeGroup.items[nextStoryIndex]);
-    } else {
-      const nextGroupIndex = activeGroupIndex + 1;
-      if (nextGroupIndex < groups.length) {
-        const nextStart = firstUnviewedIndex(groups[nextGroupIndex].items);
-        setActiveGroupIndex(nextGroupIndex);
-        setActiveStoryIndex(nextStart);
-        markViewed(groups[nextGroupIndex].items[nextStart]);
-      } else {
-        setActiveGroupIndex(null);
-      }
-    }
-  }
-
-  function goPrev() {
-    if (activeGroupIndex === null || !activeGroup) return;
-    const prevStoryIndex = activeStoryIndex - 1;
-    if (prevStoryIndex >= 0) {
-      setActiveStoryIndex(prevStoryIndex);
-      markViewed(activeGroup.items[prevStoryIndex]);
-    } else {
-      const prevGroupIndex = activeGroupIndex - 1;
-      if (prevGroupIndex >= 0) {
-        const prevGroup = groups[prevGroupIndex];
-        const idx = Math.max(0, prevGroup.items.length - 1);
-        setActiveGroupIndex(prevGroupIndex);
-        setActiveStoryIndex(idx);
-        markViewed(prevGroup.items[idx]);
-      } else {
-        setActiveGroupIndex(null);
-      }
-    }
-  }
 
   async function upload(e) {
     const file = e.target.files?.[0];
@@ -201,6 +238,22 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     }
   }
 
+  function onTouchStart(e) {
+    const t = e.changedTouches?.[0];
+    if (!t) return;
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  }
+
+  function onTouchEnd(e) {
+    const t = e.changedTouches?.[0];
+    if (!t) return;
+    const dx = t.clientX - touchStartRef.current.x;
+    const dy = t.clientY - touchStartRef.current.y;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+    if (dx < 0) goNext();
+    else goPrev();
+  }
+
   return (
     <div className="story-wrap">
       {title ? <h3>{title}</h3> : null}
@@ -223,18 +276,9 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
       {active ? (
         <div className="story-modal" onClick={() => setActiveGroupIndex(null)}>
-          <div className="story-frame" onClick={(e) => e.stopPropagation()}>
-            <div className="story-progress">
-              {activeGroup.items.map((s, idx) => {
-                const width = idx < activeStoryIndex ? 100 : idx === activeStoryIndex ? Math.round(progress * 100) : 0;
-                return (
-                  <div key={s.id} className="story-bar-track">
-                    <span className="story-bar-fill" style={{ width: `${width}%` }}></span>
-                  </div>
-                );
-              })}
-            </div>
-            <img src={active.image} alt="" />
+          <div className="story-frame" onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            {!imageReady ? <div className="story-loading">Yükleniyor...</div> : null}
+            <img src={active.image} alt="" onLoad={() => setImageReady(true)} className={imageReady ? 'story-photo ready' : 'story-photo'} />
             <div className="story-caption">
               <b>@{active.author?.kadi}</b> {active.caption}
             </div>

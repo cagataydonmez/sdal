@@ -24,8 +24,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     apiJson('/api/profile').then((p) => setProfile(p.user || null)).catch(() => {});
-    apiJson('/api/new/stories/mine').then((p) => setStories(p.items || [])).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    refreshStories(profile.id);
+  }, [profile?.id]);
 
   async function save() {
     setError('');
@@ -45,12 +49,13 @@ export default function ProfilePage() {
   const activeStories = stories.filter((s) => !s.isExpired);
   const expiredStories = stories.filter((s) => s.isExpired);
 
-  async function refreshStories() {
+  async function refreshStories(targetUserId = profile?.id) {
+    if (!targetUserId) return;
     try {
-      const payload = await apiJson('/api/new/stories/mine');
+      const payload = await apiJson(`/api/new/stories/user/${targetUserId}?includeExpired=1`);
       setStories(payload.items || []);
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(err.message || 'Hikayeler yüklenemedi.');
     }
   }
 
