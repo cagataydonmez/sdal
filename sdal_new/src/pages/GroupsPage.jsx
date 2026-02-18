@@ -23,6 +23,7 @@ function mergeUniqueById(prev, next) {
 }
 
 export default function GroupsPage() {
+  const PAGE_SIZE = 100;
   const [groups, setGroups] = useState([]);
   const [form, setForm] = useState({ name: '', description: '' });
   const [error, setError] = useState('');
@@ -39,11 +40,11 @@ export default function GroupsPage() {
   }, [groups]);
 
   const load = useCallback(async (offset = 0, append = false) => {
-    const data = await apiJson(`/api/new/groups?limit=20&offset=${offset}`);
+    const data = await apiJson(`/api/new/groups?limit=${PAGE_SIZE}&offset=${offset}`);
     const items = data.items || [];
     setGroups((prev) => (append ? mergeUniqueById(prev, items) : mergeUniqueById([], items)));
     setHasMore(!!data.hasMore);
-  }, []);
+  }, [PAGE_SIZE]);
 
   useEffect(() => {
     load(0, false);
@@ -150,6 +151,9 @@ export default function GroupsPage() {
       </div>
       <div ref={sentinelRef} />
       {loadingMore ? <div className="muted">Daha fazla grup yükleniyor...</div> : null}
+      {!loadingMore && hasMore ? (
+        <button className="btn ghost" onClick={loadMore}>Daha Fazla Göster</button>
+      ) : null}
     </Layout>
   );
 }
