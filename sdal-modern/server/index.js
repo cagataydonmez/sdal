@@ -22,6 +22,33 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 8787;
 app.set('trust proxy', true);
+const bootedAt = new Date().toISOString();
+
+function resolveGitSha() {
+  const fromEnv = String(process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.GITHUB_SHA || '').trim();
+  if (fromEnv) return fromEnv;
+  const cwdCandidates = [
+    path.resolve(__dirname, '../..'),
+    path.resolve(__dirname, '..'),
+    process.cwd()
+  ];
+  for (const cwd of cwdCandidates) {
+    try {
+      const sha = String(execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+        cwd,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore']
+      }) || '').trim();
+      if (sha) return sha;
+    } catch {
+      // try next cwd
+    }
+  }
+  return '';
+}
+
+const runtimeGitSha = resolveGitSha();
+const runtimeVersion = String(process.env.npm_package_version || '0.0.0');
 
 app.use(morgan('dev'));
 app.use(cookieParser());
@@ -7044,6 +7071,28 @@ app.post('/api/games/arcade/:game/score', (req, res) => {
     sqlRun('UPDATE game_scores SET score = ?, created_at = ? WHERE id = ?', [score, new Date().toISOString(), existing.id]);
   }
   res.json({ ok: true });
+});
+
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    now: new Date().toISOString(),
+    uptimeSec: Math.round(process.uptime())
+  });
+});
+
+app.get('/api/version', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'sdal-modern',
+    version: runtimeVersion,
+    gitSha: runtimeGitSha || null,
+    node: process.version,
+    env: process.env.NODE_ENV || 'development',
+    bootedAt,
+    now: new Date().toISOString(),
+    uptimeSec: Math.round(process.uptime())
+  });
 });
 
 // Serve modern (sdal_new) frontend
