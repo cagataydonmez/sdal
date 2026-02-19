@@ -331,7 +331,11 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
               })}
             </div>
             {!imageReady ? <div className="story-loading">Yükleniyor...</div> : null}
-            <img src={active.image} alt="" onLoad={() => setImageReady(true)} className={imageReady ? 'story-photo ready' : 'story-photo'} />
+            <div className="story-media">
+              <button className="story-tap-zone story-tap-left" onClick={goPrev} aria-label="Önceki hikaye" />
+              <button className="story-tap-zone story-tap-right" onClick={goNext} aria-label="Sonraki hikaye" />
+              <img src={active.image} alt="" onLoad={() => setImageReady(true)} className={imageReady ? 'story-photo ready' : 'story-photo'} />
+            </div>
             <div className="story-caption">
               <b>@{active.author?.kadi}</b> {active.caption}
             </div>

@@ -171,6 +171,10 @@ textarea::placeholder {
   align-items: center;
   gap: 12px;
 }
+.language-select {
+  min-width: 132px;
+  width: auto;
+}
 .user-menu {
   position: relative;
 }
@@ -271,11 +275,41 @@ textarea::placeholder {
   gap: 10px;
   flex-wrap: wrap;
 }
+.scope-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.scope-tabs .btn {
+  white-space: nowrap;
+}
 .filter-grid {
   margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.advanced-editor {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft-panel);
+  margin-top: 8px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.advanced-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.advanced-preview {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--input-bg);
+  padding: 10px;
+  min-height: 80px;
 }
 .chip-active {
   background: var(--accent-soft-bg);
@@ -447,9 +481,10 @@ textarea::placeholder {
 .photo-grid img {
   width: 100%;
   height: 180px;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 12px;
   border: 1px solid var(--line);
+  background: var(--soft-panel);
 }
 
 .notif {
@@ -781,9 +816,10 @@ textarea::placeholder {
 .story-mini-card img {
   width: 100%;
   aspect-ratio: 9 / 14;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 10px;
   border: 1px solid var(--line);
+  background: #111827;
 }
 .story-mini-caption {
   font-size: 13px;
@@ -797,7 +833,7 @@ textarea::placeholder {
 }
 
 .chat-panel .chat-body {
-  max-height: 240px;
+  height: 280px;
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -810,9 +846,13 @@ textarea::placeholder {
   font-size: 13px;
   margin-bottom: 6px;
 }
+.chat-line:last-child {
+  margin-bottom: 0;
+}
 .chat-user {
   font-weight: 700;
   color: var(--accent-2);
+  text-decoration: underline;
 }
 .chat-form {
   display: flex;
@@ -836,8 +876,9 @@ textarea::placeholder {
   width: 160px;
   height: 120px;
   border-radius: 14px;
-  object-fit: cover;
+  object-fit: contain;
   border: 1px solid var(--line);
+  background: var(--soft-panel);
 }
 .group-cover-empty {
   width: 160px;
@@ -972,6 +1013,44 @@ textarea::placeholder {
   border-radius: 12px;
   background: linear-gradient(180deg, var(--card), var(--soft-panel));
   padding: 12px;
+}
+.admin-kpi-link {
+  border: 1px solid var(--line);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.admin-kpi-link:hover {
+  border-color: var(--accent-soft-line);
+  background: var(--accent-soft-bg);
+}
+.admin-preview {
+  background: var(--card);
+  color: var(--ink);
+  max-width: min(880px, 96vw);
+  width: 100%;
+  max-height: 88vh;
+  overflow: auto;
+}
+
+.story-media {
+  position: relative;
+}
+.story-tap-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 42%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 2;
+}
+.story-tap-left {
+  left: 0;
+}
+.story-tap-right {
+  right: 0;
 }
 .admin-kpi-card b {
   font-size: 26px;

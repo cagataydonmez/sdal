@@ -30,6 +30,8 @@ export default function EventsPage() {
   const [comments, setComments] = useState({});
   const [drafts, setDrafts] = useState({});
   const [form, setForm] = useState({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [responsePrefs, setResponsePrefs] = useState({});
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [hasMore, setHasMore] = useState(true);
@@ -91,8 +93,25 @@ export default function EventsPage() {
     setError('');
     setStatus('');
     try {
-      await apiJson('/api/new/events', { method: 'POST', body: JSON.stringify(form) });
+      if (imageFile) {
+        const payload = new FormData();
+        payload.append('title', form.title);
+        payload.append('description', form.description);
+        payload.append('location', form.location);
+        payload.append('starts_at', form.starts_at);
+        payload.append('ends_at', form.ends_at);
+        payload.append('image', imageFile);
+        const res = await fetch('/api/new/events/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: payload
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        await apiJson('/api/new/events', { method: 'POST', body: JSON.stringify(form) });
+      }
       setForm({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
+      setImageFile(null);
       setFormMentionCtx(null);
       setStatus(isAdmin ? 'Etkinlik eklendi.' : 'Etkinlik önerin admin onayına gönderildi.');
       load();
@@ -158,6 +177,25 @@ export default function EventsPage() {
     setStatus(`${res.count || 0} kişiye bildirim gönderildi.`);
   }
 
+  async function respondToEvent(eventId, response) {
+    await apiJson(`/api/new/events/${eventId}/respond`, { method: 'POST', body: JSON.stringify({ response }) });
+    await load();
+  }
+
+  async function saveResponseVisibility(eventId) {
+    const pref = responsePrefs[eventId];
+    if (!pref) return;
+    await apiJson(`/api/new/events/${eventId}/response-visibility`, {
+      method: 'POST',
+      body: JSON.stringify({
+        showCounts: pref.showCounts,
+        showAttendeeNames: pref.showAttendeeNames,
+        showDeclinerNames: pref.showDeclinerNames
+      })
+    });
+    await load();
+  }
+
   return (
     <Layout title="Etkinlikler">
       <div className="panel">
@@ -166,6 +204,7 @@ export default function EventsPage() {
           <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           <input className="input" placeholder="Konum" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           <textarea className="input" placeholder="Açıklama" value={form.description} onChange={(e) => handleDescriptionChange(e.target.value, e.target.selectionStart)} />
+          <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           {formMentionCtx ? (
             <div className="mention-box">
               {mentionUsers
@@ -191,14 +230,88 @@ export default function EventsPage() {
             <h3>{e.title}</h3>
             <div className="panel-body">
               <div className="meta">{e.location} · {formatDateTime(e.starts_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>
+              {e.image ? <img className="post-image" src={e.image} alt="" /> : null}
               <div dangerouslySetInnerHTML={{ __html: e.description || '' }} />
               <div className="meta">Ekleyen: @{e.creator_kadi || 'uye'} {Number(e.approved || 0) === 1 ? '' : '· Onay bekliyor'}</div>
+              <div className="composer-actions">
+                <button className={`btn ${e.my_response === 'attend' ? 'primary' : 'ghost'}`} onClick={() => respondToEvent(e.id, 'attend')}>Katılıyorum</button>
+                <button className={`btn ${e.my_response === 'decline' ? 'primary' : 'ghost'}`} onClick={() => respondToEvent(e.id, 'decline')}>Katılmıyorum</button>
+                {e.response_counts ? (
+                  <>
+                    <span className="chip">Katılım: {Number(e.response_counts?.attend || 0)}</span>
+                    <span className="chip">Katılmama: {Number(e.response_counts?.decline || 0)}</span>
+                  </>
+                ) : (
+                  <span className="chip">Katılım bilgileri gizli</span>
+                )}
+              </div>
+              {(e.attendees?.length || e.decliners?.length) ? (
+                <div className="panel">
+                  <div className="panel-body">
+                    {e.attendees?.length ? <div className="meta">Katılanlar: {e.attendees.map((u) => `@${u.kadi}`).join(', ')}</div> : null}
+                    {e.decliners?.length ? <div className="meta">Katılmayanlar: {e.decliners.map((u) => `@${u.kadi}`).join(', ')}</div> : null}
+                  </div>
+                </div>
+              ) : null}
+              {e.can_manage_responses ? (
+                <div className="panel">
+                  <div className="panel-body">
+                    <b>Katılım Görünürlüğü</b>
+                    <label className="chip">
+                      <input
+                        type="checkbox"
+                        checked={responsePrefs[e.id]?.showCounts ?? Boolean(e.response_visibility?.showCounts ?? true)}
+                        onChange={(ev) => setResponsePrefs((prev) => ({
+                          ...prev,
+                          [e.id]: {
+                            showCounts: ev.target.checked,
+                            showAttendeeNames: prev[e.id]?.showAttendeeNames ?? Boolean(e.response_visibility?.showAttendeeNames),
+                            showDeclinerNames: prev[e.id]?.showDeclinerNames ?? Boolean(e.response_visibility?.showDeclinerNames)
+                          }
+                        }))}
+                      />
+                      Katılım sayılarını göster
+                    </label>
+                    <label className="chip">
+                      <input
+                        type="checkbox"
+                        checked={responsePrefs[e.id]?.showAttendeeNames ?? Boolean(e.response_visibility?.showAttendeeNames)}
+                        onChange={(ev) => setResponsePrefs((prev) => ({
+                          ...prev,
+                          [e.id]: {
+                            showCounts: prev[e.id]?.showCounts ?? Boolean(e.response_visibility?.showCounts ?? true),
+                            showAttendeeNames: ev.target.checked,
+                            showDeclinerNames: prev[e.id]?.showDeclinerNames ?? Boolean(e.response_visibility?.showDeclinerNames)
+                          }
+                        }))}
+                      />
+                      Katılan isimlerini herkese aç
+                    </label>
+                    <label className="chip">
+                      <input
+                        type="checkbox"
+                        checked={responsePrefs[e.id]?.showDeclinerNames ?? Boolean(e.response_visibility?.showDeclinerNames)}
+                        onChange={(ev) => setResponsePrefs((prev) => ({
+                          ...prev,
+                          [e.id]: {
+                            showCounts: prev[e.id]?.showCounts ?? Boolean(e.response_visibility?.showCounts ?? true),
+                            showAttendeeNames: prev[e.id]?.showAttendeeNames ?? Boolean(e.response_visibility?.showAttendeeNames),
+                            showDeclinerNames: ev.target.checked
+                          }
+                        }))}
+                      />
+                      Katılmayan isimlerini herkese aç
+                    </label>
+                    <button className="btn ghost" onClick={() => saveResponseVisibility(e.id)}>Görünürlüğü Kaydet</button>
+                  </div>
+                </div>
+              ) : null}
               <div className="composer-actions">
                 <button className="btn ghost" onClick={() => notifyFollowers(e.id)}>Takipçilerime Bildir</button>
                 {isAdmin ? (
                   <>
                     {Number(e.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(e.id, true)}>Onayla</button> : null}
-                    {Number(e.approved || 0) !== 0 ? <button className="btn ghost" onClick={() => approve(e.id, false)}>Reddet</button> : null}
+                    {Number(e.approved || 0) !== 0 ? <button className="btn ghost" title="Reddetmek etkinliğin yayınlanmaması anlamına gelir." onClick={() => approve(e.id, false)}>Reddet (Yayınlama)</button> : null}
                     <button className="btn ghost" onClick={() => remove(e.id)}>Sil</button>
                   </>
                 ) : null}

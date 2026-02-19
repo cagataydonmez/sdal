@@ -8,6 +8,7 @@ import morgan from 'morgan';
 import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnection } from './db.js';
 import { mapLegacyUrl } from './legacyRoutes.js';
 import fs from 'fs';
+import os from 'os';
 import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
 import nodemailer from 'nodemailer';
@@ -35,6 +36,27 @@ app.use(
     }
   })
 );
+
+const ONLINE_HEARTBEAT_MS = 45 * 1000;
+app.use((req, _res, next) => {
+  if (!req.session?.userId) return next();
+  const nowMs = Date.now();
+  const prev = Number(req.session._presenceUpdatedAt || 0);
+  if (prev && nowMs - prev < ONLINE_HEARTBEAT_MS) return next();
+  req.session._presenceUpdatedAt = nowMs;
+  try {
+    const now = new Date(nowMs);
+    sqlRun('UPDATE uyeler SET sonislemtarih = ?, sonislemsaat = ?, sonip = ?, online = 1 WHERE id = ?', [
+      now.toISOString().slice(0, 10),
+      now.toTimeString().slice(0, 8),
+      req.ip,
+      req.session.userId
+    ]);
+  } catch {
+    // presence update is best effort
+  }
+  return next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -555,10 +577,15 @@ migrateAddColumn('events', 'approved', 'ALTER TABLE events ADD COLUMN approved I
 migrateAddColumn('events', 'created_by', 'ALTER TABLE events ADD COLUMN created_by INTEGER');
 migrateAddColumn('events', 'approved_by', 'ALTER TABLE events ADD COLUMN approved_by INTEGER');
 migrateAddColumn('events', 'approved_at', 'ALTER TABLE events ADD COLUMN approved_at TEXT');
+migrateAddColumn('events', 'image', 'ALTER TABLE events ADD COLUMN image TEXT');
+migrateAddColumn('events', 'show_response_counts', 'ALTER TABLE events ADD COLUMN show_response_counts INTEGER DEFAULT 1');
+migrateAddColumn('events', 'show_attendee_names', 'ALTER TABLE events ADD COLUMN show_attendee_names INTEGER DEFAULT 0');
+migrateAddColumn('events', 'show_decliner_names', 'ALTER TABLE events ADD COLUMN show_decliner_names INTEGER DEFAULT 0');
 migrateAddColumn('announcements', 'approved', 'ALTER TABLE announcements ADD COLUMN approved INTEGER DEFAULT 1');
 migrateAddColumn('announcements', 'created_by', 'ALTER TABLE announcements ADD COLUMN created_by INTEGER');
 migrateAddColumn('announcements', 'approved_by', 'ALTER TABLE announcements ADD COLUMN approved_by INTEGER');
 migrateAddColumn('announcements', 'approved_at', 'ALTER TABLE announcements ADD COLUMN approved_at TEXT');
+migrateAddColumn('announcements', 'image', 'ALTER TABLE announcements ADD COLUMN image TEXT');
 
 sqlRun(`CREATE TABLE IF NOT EXISTS event_comments (
   id INTEGER PRIMARY KEY,
@@ -566,6 +593,14 @@ sqlRun(`CREATE TABLE IF NOT EXISTS event_comments (
   user_id INTEGER,
   comment TEXT,
   created_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS event_responses (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER,
+  user_id INTEGER,
+  response TEXT,
+  created_at TEXT,
+  updated_at TEXT
 )`);
 
 sqlRun(`CREATE TABLE IF NOT EXISTS stories (
@@ -706,6 +741,8 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_post_comments_post_created ON post_commen
 sqlRun('CREATE INDEX IF NOT EXISTS idx_post_comments_user_created ON post_comments (user_id, created_at)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_follows_following_created ON follows (following_id, created_at)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows (follower_id, created_at)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_event_responses_event_user ON event_responses (event_id, user_id)');
+sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS idx_event_responses_unique_event_user ON event_responses (event_id, user_id)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_stories_user_created ON stories (user_id, created_at)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_story_views_story_created ON story_views (story_id, created_at)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_score ON member_engagement_scores (score DESC)');
@@ -740,6 +777,53 @@ function requireAlbumAdmin(req, res, next) {
   if (user.admin === 1 && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
   req.adminUser = user;
   return next();
+}
+
+function parseOnlineHeartbeat(row) {
+  const datePart = String(row?.sonislemtarih || '').trim();
+  const timePart = String(row?.sonislemsaat || '').trim();
+  if (!datePart || !timePart) return null;
+  const ms = Date.parse(`${datePart}T${timePart}`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function cleanupStaleOnlineUsers(maxIdleMs = 5 * 60 * 1000) {
+  const rows = sqlAll('SELECT id, sonislemtarih, sonislemsaat FROM uyeler WHERE online = 1');
+  const now = Date.now();
+  for (const row of rows) {
+    const ts = parseOnlineHeartbeat(row);
+    if (!ts) continue;
+    if (now - ts > maxIdleMs) {
+      sqlRun('UPDATE uyeler SET online = 0 WHERE id = ?', [row.id]);
+    }
+  }
+}
+
+function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
+  cleanupStaleOnlineUsers();
+  const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 100);
+  const rows = sqlAll(
+    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili, u.sonislemtarih, u.sonislemsaat,
+            COALESCE(es.score, 0) AS engagement_score
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+     WHERE COALESCE(CAST(u.online AS INTEGER), 0) = 1
+       AND (? IS NULL OR u.id != ?)
+     ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
+     LIMIT ?`,
+    [excludeUserId || null, excludeUserId || null, safeLimit]
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    kadi: row.kadi,
+    isim: row.isim,
+    soyisim: row.soyisim,
+    resim: row.resim,
+    mezuniyetyili: row.mezuniyetyili,
+    online: 1,
+    engagement_score: Number(row.engagement_score || 0),
+    lastSeenAt: row.sonislemtarih && row.sonislemsaat ? `${row.sonislemtarih}T${row.sonislemsaat}` : null
+  }));
 }
 
 function getGroupMember(groupId, userId) {
@@ -1804,6 +1888,86 @@ async function applyImageFilter(filePath, filter) {
   }
   const buf = await image.toBuffer();
   fs.writeFileSync(filePath, buf);
+}
+
+async function optimizeUploadedImage(filePath, {
+  width = 1600,
+  height = 1600,
+  fit = 'inside',
+  quality = 84,
+  background = '#121212'
+} = {}) {
+  if (!filePath || !fs.existsSync(filePath)) return filePath;
+  const parsed = path.parse(filePath);
+  const outputPath = path.join(parsed.dir, `${parsed.name}.webp`);
+  await sharp(filePath)
+    .rotate()
+    .resize(width || null, height || null, {
+      fit,
+      withoutEnlargement: true,
+      background
+    })
+    .webp({ quality, effort: 4 })
+    .toFile(outputPath);
+  if (outputPath !== filePath && fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+  return outputPath;
+}
+
+function toUploadUrl(filePath) {
+  if (!filePath) return null;
+  const rel = path.relative(uploadsDir, filePath).split(path.sep).join('/');
+  return `/uploads/${rel}`;
+}
+
+function walkDirStats(rootDir) {
+  const stack = [rootDir];
+  let files = 0;
+  let bytes = 0;
+  while (stack.length) {
+    const dir = stack.pop();
+    if (!dir || !fs.existsSync(dir)) continue;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(abs);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      files += 1;
+      try {
+        bytes += fs.statSync(abs).size || 0;
+      } catch {
+        // ignore unreadable files
+      }
+    }
+  }
+  return { files, bytes };
+}
+
+function bytesToMb(value) {
+  return Number(((Number(value) || 0) / (1024 * 1024)).toFixed(2));
+}
+
+function safeStatfs(targetPath) {
+  try {
+    return fs.statfsSync(targetPath);
+  } catch {
+    return null;
+  }
+}
+
+function sampleCpuUsagePercent() {
+  const loads = os.loadavg?.() || [0];
+  const cpuCount = Math.max((os.cpus?.() || []).length, 1);
+  const loadPct = Math.min(100, Math.max(0, (Number(loads[0] || 0) / cpuCount) * 100));
+  return Number(loadPct.toFixed(2));
 }
 
 function issueCaptcha(req, res) {
@@ -3123,9 +3287,20 @@ app.post('/api/profile/photo', (req, res, next) => {
   return next();
 }, photoUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).send('Fotoğraf seçilmedi');
-  const filename = req.file.filename;
-  sqlRun('UPDATE uyeler SET resim = ? WHERE id = ?', [filename, req.session.userId]);
-  res.json({ ok: true, photo: filename });
+  (async () => {
+    const optimizedPath = await optimizeUploadedImage(req.file.path, {
+      width: 960,
+      height: 960,
+      fit: 'inside',
+      quality: 86,
+      background: '#ffffff'
+    });
+    const filename = path.basename(optimizedPath || req.file.path);
+    sqlRun('UPDATE uyeler SET resim = ? WHERE id = ?', [filename, req.session.userId]);
+    res.json({ ok: true, photo: filename });
+  })().catch(() => {
+    res.status(500).send('Profil fotoğrafı işlenemedi.');
+  });
 });
 
 app.get('/api/menu', (req, res) => {
@@ -3401,7 +3576,7 @@ app.post('/api/album/upload', (req, res, next) => {
     if (err) return next(err);
     next();
   });
-}, (req, res) => {
+}, async (req, res) => {
   const kat = String(req.body?.kat || '').trim();
   const baslik = String(req.body?.baslik || '').trim();
   const aciklama = String(req.body?.aciklama || '').trim();
@@ -3412,14 +3587,28 @@ app.post('/api/album/upload', (req, res, next) => {
   if (!category) return res.status(400).send('Seçtiğin kategori bulunamadı.');
   if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
 
+  let storedFilename = req.file.filename;
+  try {
+    const optimizedPath = await optimizeUploadedImage(req.file.path, {
+      width: 2200,
+      height: 2200,
+      fit: 'inside',
+      quality: 86,
+      background: '#ffffff'
+    });
+    storedFilename = path.basename(optimizedPath || req.file.path);
+  } catch {
+    // fallback to original upload
+  }
+
   sqlRun('UPDATE album_kat SET sonekleme = ?, sonekleyen = ? WHERE id = ?', [new Date().toISOString(), req.session.userId, category.id]);
   sqlRun(
     `INSERT INTO album_foto (dosyaadi, katid, baslik, aciklama, aktif, ekleyenid, tarih, hit)
      VALUES (?, ?, ?, ?, 0, ?, ?, 0)`,
-    [req.file.filename, String(category.id), baslik, aciklama, req.session.userId, new Date().toISOString()]
+    [storedFilename, String(category.id), baslik, aciklama, req.session.userId, new Date().toISOString()]
   );
 
-  res.json({ ok: true, file: req.file.filename, categoryId: category.id });
+  res.json({ ok: true, file: storedFilename, categoryId: category.id });
 });
 
 app.get('/api/albums/:id', (req, res) => {
@@ -3514,6 +3703,21 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
     where = 'WHERE p.group_id IS NULL AND (p.user_id = ? OR p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?))';
     params.push(req.session.userId, req.session.userId);
   }
+  const orderBy = scope === 'popular'
+    ? `(
+        COALESCE((SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id), 0) * 2.4
+        + COALESCE((SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id), 0) * 3.2
+        + COALESCE(es.score, 0) * 0.18
+        - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 168), 0) * 0.22
+      ) DESC, p.id DESC`
+    : `(
+        COALESCE(es.score, 0) * 0.72
+        - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 72), 0) * 0.45
+        + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
+      ) DESC, p.id DESC`;
+  const queryParams = scope === 'popular'
+    ? [...params, limit, offset]
+    : [...params, req.session.userId, limit, offset];
   const rows = sqlAll(
     `SELECT p.id, p.user_id, p.content, p.image, p.created_at, p.group_id,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
@@ -3521,13 +3725,9 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
      LEFT JOIN uyeler u ON u.id = p.user_id
      LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id
      ${where}
-     ORDER BY (
-       COALESCE(es.score, 0) * 0.72
-       - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 72), 0) * 0.45
-       + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
-     ) DESC, p.id DESC
+     ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`,
-    [...params, req.session.userId, limit, offset]
+    queryParams
   );
   const postIds = rows.map((r) => r.id);
   const likes = postIds.length
@@ -3590,19 +3790,33 @@ app.post('/api/new/posts', requireAuth, (req, res) => {
   res.json({ ok: true, id: result?.lastInsertRowid });
 });
 
-app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), (req, res) => {
+app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async (req, res) => {
   const content = metinDuzenle(req.body?.content || '');
   const filter = req.body?.filter || '';
   const groupId = req.body?.group_id || null;
-  const image = req.file ? `/uploads/posts/${req.file.filename}` : null;
-  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
-  if (req.file && filter) {
+  let finalImagePath = req.file?.path || null;
+  if (finalImagePath && filter) {
     try {
-      applyImageFilter(req.file.path, filter);
+      await applyImageFilter(finalImagePath, filter);
     } catch {
       // ignore filter errors
     }
   }
+  if (finalImagePath) {
+    try {
+      finalImagePath = await optimizeUploadedImage(finalImagePath, {
+        width: 1900,
+        height: 1900,
+        fit: 'inside',
+        quality: 84,
+        background: '#ffffff'
+      });
+    } catch {
+      // fallback to original path
+    }
+  }
+  const image = finalImagePath ? toUploadUrl(finalImagePath) : null;
+  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
@@ -3715,6 +3929,8 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
 });
 
 app.get('/api/new/notifications', requireAuth, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const rows = sqlAll(
     `SELECT n.id, n.type, n.entity_id, n.source_user_id, n.message, n.read_at, n.created_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
@@ -3722,8 +3938,8 @@ app.get('/api/new/notifications', requireAuth, (req, res) => {
      LEFT JOIN uyeler u ON u.id = n.source_user_id
      WHERE n.user_id = ?
      ORDER BY n.id DESC
-     LIMIT 50`,
-    [req.session.userId]
+     LIMIT ? OFFSET ?`,
+    [req.session.userId, limit, offset]
   );
   const items = rows.map((row) => {
     if (row.type !== 'group_invite' || !row.entity_id) {
@@ -3742,7 +3958,7 @@ app.get('/api/new/notifications', requireAuth, (req, res) => {
       invite_status: String(invite?.status || 'pending')
     };
   });
-  res.json({ items });
+  res.json({ items, hasMore: items.length === limit });
 });
 
 app.post('/api/new/notifications/read', requireAuth, (req, res) => {
@@ -3894,10 +4110,10 @@ app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), as
     const outputName = `story_${req.session.userId}_${Date.now()}.webp`;
     const outputPath = path.join(storyDir, outputName);
 
-    // Story media standard: 9:16, 1080x1920, compressed WebP.
+    // Story media standard: keep full image visible on 9:16 canvas (no cropping).
     await sharp(req.file.path)
       .rotate()
-      .resize(1080, 1920, { fit: 'cover', position: 'attention' })
+      .resize(1080, 1920, { fit: 'contain', background: '#0b0f16', withoutEnlargement: true })
       .webp({ quality: 82, effort: 4 })
       .toFile(outputPath);
 
@@ -4021,19 +4237,101 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
 });
 
 app.get('/api/new/follows', requireAuth, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const sort = String(req.query.sort || 'engagement').trim().toLowerCase();
+  const orderBy = sort === 'followed_at'
+    ? 'COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC'
+    : 'COALESCE(es.score, 0) DESC, COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC';
   const rows = sqlAll(
-    `SELECT f.following_id, u.kadi, u.isim, u.soyisim, u.resim
+    `SELECT f.following_id, f.created_at AS followed_at, u.kadi, u.isim, u.soyisim, u.resim,
+            COALESCE(es.score, 0) AS engagement_score
+     FROM follows f
+     LEFT JOIN uyeler u ON u.id = f.following_id
+     LEFT JOIN member_engagement_scores es ON es.user_id = f.following_id
+     WHERE f.follower_id = ?
+     ORDER BY ${orderBy}
+     LIMIT ? OFFSET ?`,
+    [req.session.userId, limit, offset]
+  );
+  res.json({ items: rows, hasMore: rows.length === limit });
+});
+
+app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
+  const targetUserId = Number(req.params.userId || 0);
+  if (!Number.isInteger(targetUserId) || targetUserId <= 0) return res.status(400).send('Geçersiz üye kimliği.');
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+  const user = sqlGet('SELECT id, kadi, isim, soyisim FROM uyeler WHERE id = ?', [targetUserId]);
+  if (!user) return res.status(404).send('Üye bulunamadı.');
+
+  const follows = sqlAll(
+    `SELECT f.id, f.following_id, f.created_at AS followed_at,
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM follows f
      LEFT JOIN uyeler u ON u.id = f.following_id
      WHERE f.follower_id = ?
-     ORDER BY f.id DESC`,
-    [req.session.userId]
+     ORDER BY COALESCE(NULLIF(f.created_at, ''), datetime('now')) DESC, f.id DESC
+     LIMIT ? OFFSET ?`,
+    [targetUserId, limit, offset]
   );
-  res.json({ items: rows });
+
+  const items = follows.map((row) => {
+    const targetKadi = String(row.kadi || '').trim();
+    const messageCount = sqlGet(
+      'SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE kimden = ? AND kime = ?',
+      [targetUserId, row.following_id]
+    )?.cnt || 0;
+    const quoteCount = targetKadi
+      ? (
+        (sqlGet('SELECT COUNT(*) AS cnt FROM posts WHERE user_id = ? AND LOWER(COALESCE(content, \'\')) LIKE LOWER(?)', [
+          targetUserId,
+          `%@${targetKadi}%`
+        ])?.cnt || 0)
+        + (sqlGet('SELECT COUNT(*) AS cnt FROM post_comments WHERE user_id = ? AND LOWER(COALESCE(comment, \'\')) LIKE LOWER(?)', [
+          targetUserId,
+          `%@${targetKadi}%`
+        ])?.cnt || 0)
+      )
+      : 0;
+    const recentMessages = sqlAll(
+      `SELECT id, konu, mesaj, tarih
+       FROM gelenkutusu
+       WHERE kimden = ? AND kime = ?
+       ORDER BY id DESC
+       LIMIT 3`,
+      [targetUserId, row.following_id]
+    );
+    const recentQuotes = targetKadi
+      ? sqlAll(
+        `SELECT id, content, created_at, 'post' AS source
+         FROM posts
+         WHERE user_id = ? AND LOWER(COALESCE(content, '')) LIKE LOWER(?)
+         ORDER BY id DESC
+         LIMIT 3`,
+        [targetUserId, `%@${targetKadi}%`]
+      )
+      : [];
+    return {
+      ...row,
+      messageCount: Number(messageCount || 0),
+      quoteCount: Number(quoteCount || 0),
+      recentMessages,
+      recentQuotes
+    };
+  });
+
+  res.json({
+    user,
+    items,
+    hasMore: items.length === limit
+  });
 });
 
 app.get('/api/new/explore/suggestions', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 40);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const me = sqlGet(
     `SELECT id, mezuniyetyili, sehir, universite, meslek
      FROM uyeler
@@ -4125,7 +4423,7 @@ app.get('/api/new/explore/suggestions', requireAuth, (req, res) => {
     return Number(b.id || 0) - Number(a.id || 0);
   });
 
-  const items = scored.slice(0, limit).map((u) => ({
+  const items = scored.slice(offset, offset + limit).map((u) => ({
     id: u.id,
     kadi: u.kadi,
     isim: u.isim,
@@ -4136,7 +4434,7 @@ app.get('/api/new/explore/suggestions', requireAuth, (req, res) => {
     online: u.online,
     reasons: u.reasons
   }));
-  res.json({ items });
+  res.json({ items, hasMore: offset + items.length < scored.length, total: scored.length });
 });
 
 app.get('/api/new/messages/unread', requireAuth, (req, res) => {
@@ -4145,6 +4443,15 @@ app.get('/api/new/messages/unread', requireAuth, (req, res) => {
     [req.session.userId]
   );
   res.json({ count: row?.cnt || 0 });
+});
+
+app.get('/api/new/online-members', requireAuth, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 80);
+  const items = listOnlineMembers({
+    limit,
+    excludeUserId: String(req.query.excludeSelf || '1') === '1' ? req.session.userId : null
+  });
+  res.json({ items, count: items.length, now: new Date().toISOString() });
 });
 
 app.get('/api/new/groups', requireAuth, (req, res) => {
@@ -4471,14 +4778,26 @@ app.post('/api/new/groups/:id/settings', requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/new/groups/:id/cover', requireAuth, groupUpload.single('image'), (req, res) => {
+app.post('/api/new/groups/:id/cover', requireAuth, groupUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   if (!isGroupManager(req, req.params.id)) {
     return res.status(403).send('Yetki yok.');
   }
-  const image = `/uploads/groups/${req.file.filename}`;
+  let finalPath = req.file.path;
+  try {
+    finalPath = await optimizeUploadedImage(req.file.path, {
+      width: 1800,
+      height: 1000,
+      fit: 'contain',
+      quality: 84,
+      background: '#f4f1ec'
+    });
+  } catch {
+    // keep original upload
+  }
+  const image = toUploadUrl(finalPath) || `/uploads/groups/${req.file.filename}`;
   sqlRun('UPDATE groups SET cover_image = ? WHERE id = ?', [image, req.params.id]);
   res.json({ ok: true, image });
 });
@@ -4673,7 +4992,7 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('image'), (req, res) => {
+app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('image'), async (req, res) => {
   const groupId = req.params.id;
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
@@ -4684,11 +5003,25 @@ app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('ima
   const content = metinDuzenle(req.body?.content || '');
   const contentRaw = String(req.body?.content || '');
   const filter = req.body?.filter || '';
-  const image = req.file ? `/uploads/posts/${req.file.filename}` : null;
-  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
-  if (req.file && filter) {
-    try { applyImageFilter(req.file.path, filter); } catch {}
+  let finalImagePath = req.file?.path || null;
+  if (finalImagePath && filter) {
+    try { await applyImageFilter(finalImagePath, filter); } catch {}
   }
+  if (finalImagePath) {
+    try {
+      finalImagePath = await optimizeUploadedImage(finalImagePath, {
+        width: 1900,
+        height: 1900,
+        fit: 'inside',
+        quality: 84,
+        background: '#ffffff'
+      });
+    } catch {
+      // keep original image path
+    }
+  }
+  const image = finalImagePath ? toUploadUrl(finalImagePath) : null;
+  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
@@ -4803,6 +5136,110 @@ app.delete('/api/new/groups/:id/announcements/:announcementId', requireAuth, (re
   res.json({ ok: true });
 });
 
+function normalizeEventResponse(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['attend', 'joined', 'join', 'going', 'yes'].includes(raw)) return 'attend';
+  if (['decline', 'declined', 'no', 'reject', 'not_going'].includes(raw)) return 'decline';
+  return null;
+}
+
+function getEventResponseBundle(eventRow, viewerUserId, canSeePrivate = false) {
+  const eventId = Number(eventRow?.id || 0);
+  if (!eventId) {
+    return {
+      counts: { attend: 0, decline: 0 },
+      myResponse: null,
+      attendees: [],
+      decliners: []
+    };
+  }
+  const rows = sqlAll(
+    `SELECT er.response, er.updated_at, er.user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM event_responses er
+     LEFT JOIN uyeler u ON u.id = er.user_id
+     WHERE er.event_id = ?`,
+    [eventId]
+  );
+  const counts = { attend: 0, decline: 0 };
+  const attendees = [];
+  const decliners = [];
+  let myResponse = null;
+
+  for (const row of rows) {
+    const response = normalizeEventResponse(row.response);
+    if (!response) continue;
+    counts[response] += 1;
+    if (sameUserId(row.user_id, viewerUserId)) {
+      myResponse = response;
+    }
+    const member = {
+      user_id: row.user_id,
+      kadi: row.kadi,
+      isim: row.isim,
+      soyisim: row.soyisim,
+      resim: row.resim,
+      verified: row.verified,
+      updated_at: row.updated_at
+    };
+    if (response === 'attend') attendees.push(member);
+    if (response === 'decline') decliners.push(member);
+  }
+
+  const showCounts = canSeePrivate || Number(eventRow?.show_response_counts ?? 1) === 1;
+  const showAttendeeNames = canSeePrivate || Number(eventRow?.show_attendee_names ?? 0) === 1;
+  const showDeclinerNames = canSeePrivate || Number(eventRow?.show_decliner_names ?? 0) === 1;
+
+  return {
+    counts: showCounts ? counts : null,
+    myResponse,
+    attendees: showAttendeeNames ? attendees : [],
+    decliners: showDeclinerNames ? decliners : [],
+    visibility: {
+      showCounts: Number(eventRow?.show_response_counts ?? 1) === 1,
+      showAttendeeNames: Number(eventRow?.show_attendee_names ?? 0) === 1,
+      showDeclinerNames: Number(eventRow?.show_decliner_names ?? 0) === 1
+    }
+  };
+}
+
+function createEventRecord(req, { image = null } = {}) {
+  const title = String(req.body?.title || '').trim();
+  const descriptionRaw = String(req.body?.description ?? req.body?.body ?? '');
+  const location = String(req.body?.location || '').trim();
+  const startsAt = String(req.body?.starts_at ?? req.body?.date ?? '');
+  const endsAt = String(req.body?.ends_at || '');
+  if (!title) return { error: 'Başlık gerekli.' };
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const now = new Date().toISOString();
+  const result = sqlRun(
+    `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at,
+                         show_response_counts, show_attendee_names, show_decliner_names)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0)`,
+    [
+      title,
+      metinDuzenle(descriptionRaw),
+      location,
+      startsAt,
+      endsAt,
+      image || null,
+      now,
+      req.session.userId,
+      isAdmin ? 1 : 0,
+      isAdmin ? req.session.userId : null,
+      isAdmin ? now : null
+    ]
+  );
+  notifyMentions({
+    text: descriptionRaw,
+    sourceUserId: req.session.userId,
+    entityId: result?.lastInsertRowid,
+    type: 'mention_event',
+    message: 'Etkinlik açıklamasında senden bahsetti.'
+  });
+  return { ok: true, pending: !isAdmin, id: result?.lastInsertRowid };
+}
+
 app.get('/api/new/events', requireAuth, (req, res) => {
   const user = getCurrentUser(req);
   const isAdmin = user?.admin === 1 && req.session.adminOk;
@@ -4813,32 +5250,52 @@ app.get('/api/new/events', requireAuth, (req, res) => {
      FROM events e
      LEFT JOIN uyeler u ON u.id = e.created_by
      ${isAdmin ? '' : 'WHERE COALESCE(e.approved, 1) = 1'}
-     ORDER BY e.starts_at ASC`
-     + ' LIMIT ? OFFSET ?',
+     ORDER BY COALESCE(NULLIF(e.starts_at, ''), e.created_at) ASC, e.id DESC
+     LIMIT ? OFFSET ?`,
     [limit, offset]
   );
-  res.json({ items: rows, hasMore: rows.length === limit });
+
+  const items = rows.map((row) => {
+    const canSeePrivate = isAdmin || sameUserId(row.created_by, req.session.userId);
+    const bundle = getEventResponseBundle(row, req.session.userId, canSeePrivate);
+    return {
+      ...row,
+      response_counts: bundle.counts,
+      my_response: bundle.myResponse,
+      attendees: bundle.attendees,
+      decliners: bundle.decliners,
+      response_visibility: bundle.visibility,
+      can_manage_responses: canSeePrivate
+    };
+  });
+
+  res.json({ items, hasMore: rows.length === limit });
 });
 
 app.post('/api/new/events', requireAuth, (req, res) => {
-  const { title, description, location, starts_at, ends_at } = req.body || {};
-  if (!title) return res.status(400).send('Başlık gerekli.');
-  const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
-  const now = new Date().toISOString();
-  const result = sqlRun(
-    `INSERT INTO events (title, description, location, starts_at, ends_at, created_at, created_by, approved, approved_by, approved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, description || '', location || '', starts_at || '', ends_at || '', now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
-  );
-  notifyMentions({
-    text: description || '',
-    sourceUserId: req.session.userId,
-    entityId: result?.lastInsertRowid,
-    type: 'mention_event',
-    message: 'Etkinlik açıklamasında senden bahsetti.'
-  });
-  res.json({ ok: true, pending: !isAdmin });
+  const created = createEventRecord(req, { image: req.body?.image || null });
+  if (created.error) return res.status(400).send(created.error);
+  return res.json(created);
+});
+
+app.post('/api/new/events/upload', requireAuth, postUpload.single('image'), async (req, res) => {
+  let imagePath = req.file?.path || null;
+  if (imagePath) {
+    try {
+      imagePath = await optimizeUploadedImage(imagePath, {
+        width: 1900,
+        height: 1900,
+        fit: 'inside',
+        quality: 84,
+        background: '#ffffff'
+      });
+    } catch {
+      // keep original
+    }
+  }
+  const created = createEventRecord(req, { image: imagePath ? toUploadUrl(imagePath) : null });
+  if (created.error) return res.status(400).send(created.error);
+  return res.json(created);
 });
 
 app.post('/api/new/events/:id/approve', requireAdmin, (req, res) => {
@@ -4852,8 +5309,70 @@ app.post('/api/new/events/:id/approve', requireAdmin, (req, res) => {
 
 app.delete('/api/new/events/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM event_comments WHERE event_id = ?', [req.params.id]);
+  sqlRun('DELETE FROM event_responses WHERE event_id = ?', [req.params.id]);
   sqlRun('DELETE FROM events WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
+});
+
+app.post('/api/new/events/:id/respond', requireAuth, (req, res) => {
+  const event = sqlGet('SELECT * FROM events WHERE id = ?', [req.params.id]);
+  if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+  if (Number(event.approved || 1) !== 1) return res.status(400).send('Etkinlik henüz yayında değil.');
+  const response = normalizeEventResponse(req.body?.response);
+  if (!response) return res.status(400).send('Geçersiz yanıt.');
+  const now = new Date().toISOString();
+  const existing = sqlGet('SELECT id FROM event_responses WHERE event_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
+  if (existing) {
+    sqlRun('UPDATE event_responses SET response = ?, updated_at = ? WHERE id = ?', [response, now, existing.id]);
+  } else {
+    sqlRun(
+      'INSERT INTO event_responses (event_id, user_id, response, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      [req.params.id, req.session.userId, response, now, now]
+    );
+  }
+  if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
+    addNotification({
+      userId: event.created_by,
+      type: 'event_comment',
+      sourceUserId: req.session.userId,
+      entityId: req.params.id,
+      message: response === 'attend' ? 'Etkinliğine katılacağını belirtti.' : 'Etkinliğine katılamayacağını belirtti.'
+    });
+  }
+  const canSeePrivate = sameUserId(event.created_by, req.session.userId);
+  const bundle = getEventResponseBundle(event, req.session.userId, canSeePrivate);
+  res.json({ ok: true, myResponse: bundle.myResponse, counts: bundle.counts });
+});
+
+app.post('/api/new/events/:id/response-visibility', requireAuth, (req, res) => {
+  const event = sqlGet('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
+  if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  if (!sameUserId(event.created_by, req.session.userId) && !isAdmin) {
+    return res.status(403).send('Sadece etkinlik sahibi ayarları değiştirebilir.');
+  }
+  const showCounts = req.body?.showCounts ? 1 : 0;
+  const showAttendeeNames = req.body?.showAttendeeNames ? 1 : 0;
+  const showDeclinerNames = req.body?.showDeclinerNames ? 1 : 0;
+  sqlRun(
+    `UPDATE events
+     SET show_response_counts = ?, show_attendee_names = ?, show_decliner_names = ?
+     WHERE id = ?`,
+    [showCounts, showAttendeeNames, showDeclinerNames, req.params.id]
+  );
+  const updated = sqlGet(
+    'SELECT show_response_counts, show_attendee_names, show_decliner_names FROM events WHERE id = ?',
+    [req.params.id]
+  );
+  res.json({
+    ok: true,
+    visibility: {
+      showCounts: Number(updated?.show_response_counts || 0) === 1,
+      showAttendeeNames: Number(updated?.show_attendee_names || 0) === 1,
+      showDeclinerNames: Number(updated?.show_decliner_names || 0) === 1
+    }
+  });
 });
 
 app.get('/api/new/events/:id/comments', requireAuth, (req, res) => {
@@ -4935,15 +5454,53 @@ app.get('/api/new/announcements', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/announcements', requireAuth, (req, res) => {
-  const { title, body } = req.body || {};
+  const { title, body, image } = req.body || {};
   if (!title || !body) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
   const isAdmin = user?.admin === 1 && req.session.adminOk;
   const now = new Date().toISOString();
   sqlRun(
-    `INSERT INTO announcements (title, body, created_at, created_by, approved, approved_by, approved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [title, metinDuzenle(body), now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
+    `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, metinDuzenle(body), image || null, now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
+  );
+  res.json({ ok: true, pending: !isAdmin });
+});
+
+app.post('/api/new/announcements/upload', requireAuth, postUpload.single('image'), async (req, res) => {
+  const title = String(req.body?.title || '').trim();
+  const bodyRaw = String(req.body?.body || '');
+  if (!title || !bodyRaw) return res.status(400).send('Başlık ve içerik gerekli.');
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  let imagePath = req.file?.path || null;
+  if (imagePath) {
+    try {
+      imagePath = await optimizeUploadedImage(imagePath, {
+        width: 1900,
+        height: 1900,
+        fit: 'inside',
+        quality: 84,
+        background: '#ffffff'
+      });
+    } catch {
+      // keep original
+    }
+  }
+  const now = new Date().toISOString();
+  sqlRun(
+    `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      title,
+      metinDuzenle(bodyRaw),
+      imagePath ? toUploadUrl(imagePath) : null,
+      now,
+      req.session.userId,
+      isAdmin ? 1 : 0,
+      isAdmin ? req.session.userId : null,
+      isAdmin ? now : null
+    ]
   );
   res.json({ ok: true, pending: !isAdmin });
 });
@@ -4964,20 +5521,33 @@ app.delete('/api/new/announcements/:id', requireAdmin, (req, res) => {
 
 app.get('/api/new/chat/messages', requireAuth, (req, res) => {
   const sinceId = parseInt(req.query.sinceId || '0', 10) || 0;
+  const beforeId = parseInt(req.query.beforeId || '0', 10) || 0;
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
+  let where = 'WHERE 1=1';
+  const params = [];
+  if (sinceId > 0) {
+    where += ' AND c.id > ?';
+    params.push(sinceId);
+  }
+  if (beforeId > 0) {
+    where += ' AND c.id < ?';
+    params.push(beforeId);
+  }
   const rows = sqlAll(
-    `SELECT c.id, c.message, c.created_at, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+    `SELECT c.id, c.user_id, c.message, c.created_at, u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM chat_messages c
      LEFT JOIN uyeler u ON u.id = c.user_id
-     WHERE c.id > ?
+     ${where}
      ORDER BY c.id DESC
-     LIMIT 50`,
-    [sinceId]
+     LIMIT ?`,
+    [...params, limit]
   );
   res.json({ items: rows.reverse() });
 });
 
 app.post('/api/new/chat/send', requireAuth, (req, res) => {
-  const message = metinDuzenle(req.body?.message || '');
+  const rawMessage = String(req.body?.message || '').slice(0, 5000);
+  const message = metinDuzenle(rawMessage);
   if (!message) return res.status(400).send('Mesaj boş olamaz.');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
@@ -4985,7 +5555,22 @@ app.post('/api/new/chat/send', requireAuth, (req, res) => {
     message,
     now
   ]);
-  res.json({ ok: true, id: result?.lastInsertRowid });
+  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [req.session.userId]) || null;
+  res.json({
+    ok: true,
+    id: result?.lastInsertRowid,
+    item: user ? {
+      id: result?.lastInsertRowid,
+      user_id: user.id,
+      message,
+      created_at: now,
+      kadi: user.kadi,
+      isim: user.isim,
+      soyisim: user.soyisim,
+      resim: user.resim,
+      verified: user.verified
+    } : null
+  });
 });
 
 app.post('/api/new/verified/request', requireAuth, (req, res) => {
@@ -5242,6 +5827,8 @@ app.post('/api/new/admin/engagement-ab/rebalance', requireAdmin, (req, res) => {
 });
 
 app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
+  const recentLimit = Math.min(Math.max(parseInt(req.query.recentLimit || '12', 10), 1), 80);
+  cleanupStaleOnlineUsers();
   const counts = {
     users: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler')?.cnt || 0,
     activeUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE aktiv = 1 AND yasak = 0')?.cnt || 0,
@@ -5256,10 +5843,58 @@ app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
     announcements: sqlGet('SELECT COUNT(*) AS cnt FROM announcements')?.cnt || 0,
     chat: sqlGet('SELECT COUNT(*) AS cnt FROM chat_messages')?.cnt || 0
   };
-  const recentUsers = sqlAll('SELECT id, kadi, isim, soyisim, ilktarih FROM uyeler ORDER BY id DESC LIMIT 5');
-  const recentPosts = sqlAll('SELECT id, content, created_at FROM posts ORDER BY id DESC LIMIT 5');
-  const recentPhotos = sqlAll('SELECT id, dosyaadi, tarih FROM album_foto ORDER BY id DESC LIMIT 5');
-  res.json({ counts, recentUsers, recentPosts, recentPhotos });
+  const recentUsers = sqlAll(
+    `SELECT id, kadi, isim, soyisim, resim, ilktarih
+     FROM uyeler
+     ORDER BY id DESC
+     LIMIT ?`,
+    [recentLimit]
+  );
+  const recentPosts = sqlAll(
+    `SELECT p.id, p.content, p.image, p.created_at, u.kadi
+     FROM posts p
+     LEFT JOIN uyeler u ON u.id = p.user_id
+     ORDER BY p.id DESC
+     LIMIT ?`,
+    [recentLimit]
+  );
+  const recentPhotos = sqlAll(
+    `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
+     FROM album_foto f
+     LEFT JOIN uyeler u ON u.id = f.ekleyenid
+     ORDER BY f.id DESC
+     LIMIT ?`,
+    [recentLimit]
+  );
+
+  const uploadStats = walkDirStats(uploadsDir);
+  const dbSizeBytes = (() => {
+    try {
+      return fs.statSync(dbPath).size || 0;
+    } catch {
+      return 0;
+    }
+  })();
+  const statfs = safeStatfs(uploadsDir) || safeStatfs(path.dirname(dbPath));
+  const diskTotalBytes = statfs ? Number(statfs.blocks || 0) * Number(statfs.bsize || 0) : 0;
+  const diskFreeBytes = statfs ? Number(statfs.bavail || 0) * Number(statfs.bsize || 0) : 0;
+  const diskUsedBytes = Math.max(0, diskTotalBytes - diskFreeBytes);
+  const diskUsedPct = diskTotalBytes > 0 ? Number(((diskUsedBytes / diskTotalBytes) * 100).toFixed(2)) : 0;
+  const diskFreePct = diskTotalBytes > 0 ? Number(((diskFreeBytes / diskTotalBytes) * 100).toFixed(2)) : 0;
+
+  const storage = {
+    uploadedPhotoCount: Number(uploadStats.files || 0),
+    uploadedPhotoSizeMb: bytesToMb(uploadStats.bytes),
+    databaseSizeMb: bytesToMb(dbSizeBytes),
+    diskTotalMb: bytesToMb(diskTotalBytes),
+    diskUsedMb: bytesToMb(diskUsedBytes),
+    diskFreeMb: bytesToMb(diskFreeBytes),
+    diskUsedPct,
+    diskFreePct,
+    cpuUsagePct: sampleCpuUsagePercent()
+  };
+
+  res.json({ counts, storage, recentUsers, recentPosts, recentPhotos });
 });
 
 app.get('/api/new/admin/engagement-scores', requireAdmin, (req, res) => {
@@ -5370,8 +6005,14 @@ app.post('/api/new/admin/engagement-scores/recalculate', requireAdmin, (_req, re
 });
 
 app.get('/api/new/admin/live', requireAdmin, (req, res) => {
+  cleanupStaleOnlineUsers();
+  const chatLimit = Math.min(Math.max(parseInt(req.query.chatLimit || '8', 10), 1), 50);
+  const postLimit = Math.min(Math.max(parseInt(req.query.postLimit || '8', 10), 1), 50);
+  const userLimit = Math.min(Math.max(parseInt(req.query.userLimit || '8', 10), 1), 50);
+  const activityLimit = Math.min(Math.max(parseInt(req.query.activityLimit || '20', 10), 1), 120);
+  const onlineMembers = listOnlineMembers({ limit: 20, excludeUserId: null });
   const counts = {
-    onlineUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE online = 1')?.cnt || 0,
+    onlineUsers: onlineMembers.length,
     pendingVerifications: sqlGet('SELECT COUNT(*) AS cnt FROM verification_requests WHERE status = ?', ['pending'])?.cnt || 0,
     pendingEvents: sqlGet('SELECT COUNT(*) AS cnt FROM events WHERE COALESCE(approved, 1) = 0')?.cnt || 0,
     pendingAnnouncements: sqlGet('SELECT COUNT(*) AS cnt FROM announcements WHERE COALESCE(approved, 1) = 0')?.cnt || 0,
@@ -5384,7 +6025,8 @@ app.get('/api/new/admin/live', requireAdmin, (req, res) => {
      FROM chat_messages c
      LEFT JOIN uyeler u ON u.id = c.user_id
      ORDER BY c.id DESC
-     LIMIT 8`
+     LIMIT ?`,
+    [chatLimit]
   );
   for (const item of chat) {
     rows.push({
@@ -5396,11 +6038,12 @@ app.get('/api/new/admin/live', requireAdmin, (req, res) => {
   }
 
   const posts = sqlAll(
-    `SELECT p.id, p.created_at AS ts, u.kadi
+    `SELECT p.id, p.content, p.image, p.created_at AS ts, u.kadi
      FROM posts p
      LEFT JOIN uyeler u ON u.id = p.user_id
      ORDER BY p.id DESC
-     LIMIT 8`
+     LIMIT ?`,
+    [postLimit]
   );
   for (const item of posts) {
     rows.push({
@@ -5411,7 +6054,7 @@ app.get('/api/new/admin/live', requireAdmin, (req, res) => {
     });
   }
 
-  const newestUsers = sqlAll('SELECT id, kadi, ilktarih AS ts FROM uyeler ORDER BY id DESC LIMIT 8');
+  const newestUsers = sqlAll('SELECT id, kadi, isim, soyisim, resim, ilktarih AS ts FROM uyeler ORDER BY id DESC LIMIT ?', [userLimit]);
   for (const item of newestUsers) {
     rows.push({
       id: `user-${item.id}`,
@@ -5421,8 +6064,32 @@ app.get('/api/new/admin/live', requireAdmin, (req, res) => {
     });
   }
 
+  const newestPosts = posts.map((p) => ({
+    id: p.id,
+    kadi: p.kadi,
+    created_at: p.ts,
+    content: p.content || '',
+    image: p.image || null
+  }));
+  const newestPhotos = sqlAll(
+    `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
+     FROM album_foto f
+     LEFT JOIN uyeler u ON u.id = f.ekleyenid
+     ORDER BY f.id DESC
+     LIMIT ?`,
+    [userLimit]
+  );
+
   rows.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
-  res.json({ counts, activity: rows.slice(0, 20), now: new Date().toISOString() });
+  res.json({
+    counts,
+    activity: rows.slice(0, activityLimit),
+    onlineMembers,
+    newestUsers,
+    newestPosts,
+    newestPhotos,
+    now: new Date().toISOString()
+  });
 });
 
 app.get('/api/new/admin/groups', requireAdmin, (req, res) => {
@@ -5996,19 +6663,23 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (data) => {
     try {
       const payload = JSON.parse(String(data || '{}'));
-      if (!payload || !payload.userId || !payload.message) return;
-      const message = metinDuzenle(payload.message || '');
+      const userId = Number(payload?.userId || 0);
+      const rawMessage = String(payload?.message || '').slice(0, 5000);
+      if (!userId || !rawMessage) return;
+      const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [userId]) || null;
+      if (!user?.id) return;
+      const message = metinDuzenle(rawMessage || '');
       if (!message) return;
       const now = new Date().toISOString();
       const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
-        payload.userId,
+        userId,
         message,
         now
       ]);
       scheduleEngagementRecalculation('chat_message_created');
-      const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [payload.userId]) || {};
       const outgoing = JSON.stringify({
         id: result?.lastInsertRowid,
+        user_id: user.id,
         message,
         created_at: now,
         user: {

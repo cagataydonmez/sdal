@@ -36,11 +36,21 @@ export function metinDuzenle(input) {
     .replace(/\[b\]/g, '<b>').replace(/\[\/b\]/g, '</b>')
     .replace(/\[i\]/g, '<i>').replace(/\[\/i\]/g, '</i>')
     .replace(/\[u\]/g, '<u>').replace(/\[\/u\]/g, '</u>')
+    .replace(/\[s\]/g, '<s>').replace(/\[\/s\]/g, '</s>')
+    .replace(/\[strike\]/g, '<s>').replace(/\[\/strike\]/g, '</s>')
     .replace(/\[ul\]/g, '<ul>').replace(/\[\/ul\]/g, '</ul>')
+    .replace(/\[ol\]/g, '<ol>').replace(/\[\/ol\]/g, '</ol>')
+    .replace(/\[li\]/g, '<li>').replace(/\[\/li\]/g, '</li>')
     .replace(/\[sagayasla\]/g, '<div align=right>').replace(/\[\/sagayasla\]/g, '</div>')
     .replace(/\[solayasla\]/g, '<div align=left>').replace(/\[\/solayasla\]/g, '</div>')
     .replace(/\[ortala\]/g, '<center>').replace(/\[\/ortala\]/g, '</center>')
+    .replace(/\[left\]/g, '<div style="text-align:left;">').replace(/\[\/left\]/g, '</div>')
+    .replace(/\[center\]/g, '<div style="text-align:center;">').replace(/\[\/center\]/g, '</div>')
+    .replace(/\[right\]/g, '<div style="text-align:right;">').replace(/\[\/right\]/g, '</div>')
+    .replace(/\[justify\]/g, '<div style="text-align:justify;">').replace(/\[\/justify\]/g, '</div>')
     .replace(/\[listele\]/g, '<li>')
+    .replace(/\[quote\]/g, '<blockquote>').replace(/\[\/quote\]/g, '</blockquote>')
+    .replace(/\[code\]/g, '<pre><code>').replace(/\[\/code\]/g, '</code></pre>')
     .replace(/\[mavi\]/g, '<font style=color:blue;>').replace(/\[\/mavi\]/g, '</font>')
     .replace(/\[sari\]/g, '<font style=color:yellow;>').replace(/\[\/sari\]/g, '</font>')
     .replace(/\[yesil\]/g, '<font style=color:green;>').replace(/\[\/yesil\]/g, '</font>')
@@ -49,6 +59,15 @@ export function metinDuzenle(input) {
     .replace(/\[pembe\]/g, '<font style=color:pink;>').replace(/\[\/pembe\]/g, '</font>')
     .replace(/\[kirmizi\]/g, '<font style=color:red;>').replace(/\[\/kirmizi\]/g, '</font>')
     .replace(/\[portakal\]/g, '<font style=color:orange;>').replace(/\[\/portakal\]/g, '</font>');
+
+  mesaj = mesaj.replace(/\[size=(\d{1,3})\]([\s\S]*?)\[\/size\]/gi, (_m, size, text) => {
+    const px = Math.max(10, Math.min(72, Number(size || 14)));
+    return `<span style="font-size:${px}px;line-height:1.45;">${text}</span>`;
+  });
+  mesaj = mesaj.replace(/\[color=([#a-zA-Z0-9(),.\s%-]{1,30})\]([\s\S]*?)\[\/color\]/gi, (_m, color, text) => {
+    const safe = String(color || '').replace(/"/g, '').trim();
+    return `<span style="color:${safe};">${text}</span>`;
+  });
 
   for (let i = 0; i < smileyMap.length; i += 1) {
     const img = `<img src=/smiley/${i + 1}.gif border=0 width=19 height=19>`;

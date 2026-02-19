@@ -1,17 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
+import { useI18n } from '../utils/i18n.jsx';
 
-export default function NotificationPanel() {
+export default function NotificationPanel({ limit = 5, showAllLink = true }) {
   const [items, setItems] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const { t } = useI18n();
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/new/notifications', { credentials: 'include', cache: 'no-store' });
+    const res = await fetch(`/api/new/notifications?limit=${Math.max(1, Number(limit) || 5)}&offset=0`, { credentials: 'include', cache: 'no-store' });
     if (!res.ok) return;
     const payload = await res.json();
     setItems(payload.items || []);
-  }, []);
+    setHasMore(Boolean(payload.hasMore));
+  }, [limit]);
 
   function getTarget(n) {
     if ((n.type === 'like' || n.type === 'comment') && n.entity_id) return `/new?post=${n.entity_id}`;
@@ -119,6 +123,12 @@ export default function NotificationPanel() {
             </div>
           </div>
         ))}
+        {showAllLink ? (
+          <a className="btn ghost" href="/new/notifications">
+            {t('all_notifications')}
+            {hasMore ? ' +' : ''}
+          </a>
+        ) : null}
       </div>
     </div>
   );

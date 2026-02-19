@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -15,6 +16,7 @@ async function apiJson(url, options = {}) {
 }
 
 export default function ProfilePage() {
+  const { t } = useI18n();
   const [profile, setProfile] = useState(null);
   const [stories, setStories] = useState([]);
   const [status, setStatus] = useState('');
@@ -161,6 +163,7 @@ export default function ProfilePage() {
           </div>
           <button className="btn primary" onClick={save}>Kaydet</button>
           <a className="btn ghost" href="/new/profile/photo">Fotoğraf Düzenle</a>
+          {profile?.id ? <a className="btn ghost" href={`/new/members/${profile.id}`}>{t('profile_preview_members')}</a> : null}
           <button className="btn ghost" onClick={async () => {
             setVerifyStatus('');
             const res = await fetch('/api/new/verified/request', { method: 'POST', credentials: 'include' });

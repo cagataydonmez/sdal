@@ -18,6 +18,7 @@ async function apiJson(url, options = {}) {
 const tabs = [
   { key: 'dashboard', label: 'Dashboard', section: 'Genel', hint: 'Canlı metrikler ve operasyon özeti' },
   { key: 'users', label: 'Üyeler', section: 'Topluluk', hint: 'Üye yönetimi ve yetkiler' },
+  { key: 'follows', label: 'Takip İlişkileri', section: 'Topluluk', hint: 'Takip eden/edilen ilişki analizi' },
   { key: 'engagement', label: 'Etkileşim Skorları', section: 'Topluluk', hint: 'Gizli görünürlük puanları' },
   { key: 'verification', label: 'Doğrulama', section: 'Topluluk', hint: 'Rozet/kimlik doğrulama talepleri' },
   { key: 'groups', label: 'Gruplar', section: 'Topluluk', hint: 'Grup moderasyonu ve temizlik' },
@@ -162,6 +163,10 @@ export default function AdminPage() {
   const [dbRestoreInputKey, setDbRestoreInputKey] = useState(0);
   const [live, setLive] = useState({ counts: {}, activity: [], now: '' });
   const [dashboardAutoRefresh, setDashboardAutoRefresh] = useState(true);
+  const [previewModal, setPreviewModal] = useState(null);
+  const [followTargetUserId, setFollowTargetUserId] = useState('');
+  const [followInsights, setFollowInsights] = useState({ user: null, items: [], hasMore: false });
+  const [followInsightsLoading, setFollowInsightsLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -186,6 +191,7 @@ export default function AdminPage() {
     if (tab === 'dashboard') refreshDashboard();
     if (tab === 'album') loadCategories();
     if (tab === 'photos') loadPhotos();
+    if (tab === 'follows') setFollowInsights({ user: null, items: [], hasMore: false });
     if (tab === 'pages') loadPages();
     if (tab === 'logs') loadLogs();
     if (tab === 'email') loadEmailMeta();
@@ -753,6 +759,25 @@ export default function AdminPage() {
     loadAdminMessages();
   }
 
+  async function loadFollowInsights() {
+    const uid = Number(followTargetUserId || 0);
+    if (!uid) {
+      setStatus('Lütfen geçerli bir üye ID girin.');
+      return;
+    }
+    setFollowInsightsLoading(true);
+    try {
+      const data = await apiJson(`/api/new/admin/follows/${uid}?limit=80&offset=0`);
+      setFollowInsights({
+        user: data.user || null,
+        items: data.items || [],
+        hasMore: Boolean(data.hasMore)
+      });
+    } finally {
+      setFollowInsightsLoading(false);
+    }
+  }
+
   async function loadDbTables() {
     const data = await apiJson('/api/new/admin/db/tables');
     const items = data.items || [];
@@ -906,6 +931,13 @@ export default function AdminPage() {
             <div className="panel-body">
               <h3>{currentTab.label}</h3>
               <div className="muted">{currentTab.hint}</div>
+              <div className="composer-actions">
+                <select className="input" value={tab} onChange={(e) => setTab(e.target.value)}>
+                  {tabs.map((item) => (
+                    <option key={`tab-select-${item.key}`} value={item.key}>{item.section} / {item.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -932,14 +964,48 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="admin-kpi-grid">
-                <div className="admin-kpi-card"><div className="muted">Toplam Üye</div><b>{stats.counts.users}</b></div>
-                <div className="admin-kpi-card"><div className="muted">Aktif Üye</div><b>{stats.counts.activeUsers}</b></div>
-                <div className="admin-kpi-card"><div className="muted">Online Üye</div><b>{live.counts.onlineUsers || 0}</b></div>
-                <div className="admin-kpi-card"><div className="muted">Bekleyen Fotoğraf</div><b>{live.counts.pendingPhotos || 0}</b></div>
-                <div className="admin-kpi-card"><div className="muted">Bekleyen Etkinlik</div><b>{live.counts.pendingEvents || 0}</b></div>
-                <div className="admin-kpi-card"><div className="muted">Bekleyen Duyuru</div><b>{live.counts.pendingAnnouncements || 0}</b></div>
-                <div className="admin-kpi-card"><div className="muted">Bekleyen Doğrulama</div><b>{live.counts.pendingVerifications || 0}</b></div>
-                <div className="admin-kpi-card"><div className="muted">Toplam Mesaj</div><b>{stats.counts.messages}</b></div>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => { setTab('users'); setUserFilter('all'); }}>
+                  <div className="muted">Toplam Üye</div><b>{stats.counts.users}</b>
+                </button>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => { setTab('users'); setUserFilter('active'); }}>
+                  <div className="muted">Aktif Üye</div><b>{stats.counts.activeUsers}</b>
+                </button>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => { setTab('users'); setUserFilter('online'); }}>
+                  <div className="muted">Online Üye</div><b>{live.counts.onlineUsers || 0}</b>
+                </button>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => { setTab('photos'); setPhotoFilter((prev) => ({ ...prev, krt: 'onaybekleyen' })); }}>
+                  <div className="muted">Bekleyen Fotoğraf</div><b>{live.counts.pendingPhotos || 0}</b>
+                </button>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => setTab('events')}>
+                  <div className="muted">Bekleyen Etkinlik</div><b>{live.counts.pendingEvents || 0}</b>
+                </button>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => setTab('announcements')}>
+                  <div className="muted">Bekleyen Duyuru</div><b>{live.counts.pendingAnnouncements || 0}</b>
+                </button>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => setTab('verification')}>
+                  <div className="muted">Bekleyen Doğrulama</div><b>{live.counts.pendingVerifications || 0}</b>
+                </button>
+                <button className="admin-kpi-card admin-kpi-link" onClick={() => setTab('messages')}>
+                  <div className="muted">Toplam Mesaj</div><b>{stats.counts.messages}</b>
+                </button>
+                <div className="admin-kpi-card">
+                  <div className="muted">Toplam Yüklenen Fotoğraf</div><b>{stats.storage?.uploadedPhotoCount || 0}</b>
+                </div>
+                <div className="admin-kpi-card">
+                  <div className="muted">Yüklenen Medya Alanı (MB)</div><b>{Number(stats.storage?.uploadedPhotoSizeMb || 0).toFixed(2)}</b>
+                </div>
+                <div className="admin-kpi-card">
+                  <div className="muted">Veritabanı Boyutu (MB)</div><b>{Number(stats.storage?.databaseSizeMb || 0).toFixed(2)}</b>
+                </div>
+                <div className="admin-kpi-card">
+                  <div className="muted">Disk Kullanımı</div>
+                  <b>{Number(stats.storage?.diskUsedPct || 0).toFixed(1)}%</b>
+                  <div className="meta">Toplam {Number(stats.storage?.diskTotalMb || 0).toFixed(0)} MB • Boş {Number(stats.storage?.diskFreeMb || 0).toFixed(0)} MB</div>
+                </div>
+                <div className="admin-kpi-card">
+                  <div className="muted">Anlık CPU</div>
+                  <b>{Number(stats.storage?.cpuUsagePct || 0).toFixed(1)}%</b>
+                </div>
               </div>
             </div>
           </div>
@@ -948,14 +1014,17 @@ export default function AdminPage() {
               <div className="panel">
                 <h3>Canlı Aktivite</h3>
                 <div className="panel-body">
+                  <div className="composer-actions">
+                    <button className="btn ghost" onClick={() => setPreviewModal({ type: 'activity-all', data: live.activity || [] })}>Tümünü Gör</button>
+                  </div>
                   <div className="list">
-                    {(live.activity || []).map((a) => (
-                      <div key={a.id} className="list-item">
+                    {(live.activity || []).slice(0, 5).map((a) => (
+                      <button key={a.id} className="list-item" onClick={() => setPreviewModal({ type: 'activity', data: a })}>
                         <div>
                           <div className="name">{a.message}</div>
                           <div className="meta">{a.type} • {a.at ? new Date(a.at).toLocaleString('tr-TR') : '-'}</div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -965,16 +1034,22 @@ export default function AdminPage() {
               <div className="panel">
                 <h3>Yeni Üyeler</h3>
                 <div className="panel-body">
-                  {stats.recentUsers.map((u) => (
-                    <div key={u.id} className="list-item">@{u.kadi}</div>
+                  <div className="composer-actions">
+                    <button className="btn ghost" onClick={() => { setTab('users'); setUserFilter('recent'); }}>Tümünü Gör</button>
+                  </div>
+                  {stats.recentUsers.slice(0, 5).map((u) => (
+                    <button key={u.id} className="list-item" onClick={() => setPreviewModal({ type: 'user', data: u })}>@{u.kadi}</button>
                   ))}
                 </div>
               </div>
               <div className="panel">
                 <h3>Son Paylaşımlar</h3>
                 <div className="panel-body">
-                  {stats.recentPosts.map((p) => (
-                    <div key={p.id} className="list-item">{(p.content || '').slice(0, 80) || '(metin yok)'}</div>
+                  <div className="composer-actions">
+                    <button className="btn ghost" onClick={() => setPreviewModal({ type: 'post-all', data: stats.recentPosts || [] })}>Tümünü Gör</button>
+                  </div>
+                  {stats.recentPosts.slice(0, 5).map((p) => (
+                    <button key={p.id} className="list-item" onClick={() => setPreviewModal({ type: 'post', data: p })}>{(p.content || '').slice(0, 80) || '(metin yok)'}</button>
                   ))}
                 </div>
               </div>
@@ -1157,6 +1232,42 @@ export default function AdminPage() {
         </div>
       ) : null}
 
+      {tab === 'follows' ? (
+        <div className="panel">
+          <div className="panel-body">
+            <div className="form-row">
+              <label>Takiplerini incelemek istediğin üye ID</label>
+              <input className="input" value={followTargetUserId} onChange={(e) => setFollowTargetUserId(e.target.value)} placeholder="Örn: 123" />
+              <button className="btn" onClick={loadFollowInsights} disabled={followInsightsLoading}>
+                {followInsightsLoading ? 'Yükleniyor...' : 'Analizi Getir'}
+              </button>
+            </div>
+            {followInsights.user ? (
+              <div className="panel">
+                <div className="panel-body">
+                  <div className="name">{followInsights.user.isim} {followInsights.user.soyisim} (@{followInsights.user.kadi})</div>
+                  <div className="meta">Takip sayısı: {followInsights.items.length}</div>
+                </div>
+              </div>
+            ) : null}
+            <div className="list">
+              {followInsights.items.map((item) => (
+                <button key={`follow-insight-${item.id}`} className="list-item" onClick={() => setPreviewModal({ type: 'follow', data: item })}>
+                  <div>
+                    <div className="name">@{item.kadi} • {item.isim} {item.soyisim}</div>
+                    <div className="meta">
+                      Takip tarihi: {item.followed_at ? new Date(item.followed_at).toLocaleString('tr-TR') : '-'}
+                      {' '}• Gönderilen mesaj: {item.messageCount || 0}
+                      {' '}• Alıntılama: {item.quoteCount || 0}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {tab === 'engagement' ? (
         <div className="panel">
           <div className="panel-body">
@@ -1319,6 +1430,7 @@ export default function AdminPage() {
               </select>
               <button className="btn" onClick={() => loadEngagementScores(1)}>Uygula</button>
               <button className="btn ghost" onClick={recalculateEngagementScores}>Skorları Yeniden Hesapla</button>
+              <a className="btn ghost" href="/new/help#engagement-score">Yardım</a>
             </div>
             <div className="composer-actions">
               <span className="chip">Toplam: {engagementMeta.total}</span>
@@ -1734,6 +1846,7 @@ export default function AdminPage() {
               {events.map((e) => (
                 <div key={e.id} className="list-item">
                   <div>{e.title}</div>
+                  <button className="btn ghost" onClick={() => setPreviewModal({ type: 'event', data: e })}>Önizle</button>
                   <button className="btn ghost" onClick={() => deleteEvent(e.id)}>Sil</button>
                 </div>
               ))}
@@ -1752,6 +1865,7 @@ export default function AdminPage() {
               {announcements.map((a) => (
                 <div key={a.id} className="list-item">
                   <div>{a.title}</div>
+                  <button className="btn ghost" onClick={() => setPreviewModal({ type: 'announcement', data: a })}>Önizle</button>
                   <button className="btn ghost" onClick={() => deleteAnnouncement(a.id)}>Sil</button>
                 </div>
               ))}
@@ -1928,6 +2042,112 @@ export default function AdminPage() {
               </div>
               {!dbBackups.length ? <div className="muted">Henüz yedek yok.</div> : null}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {previewModal ? (
+        <div className="story-modal" onClick={() => setPreviewModal(null)}>
+          <div className="story-frame admin-preview" onClick={(e) => e.stopPropagation()}>
+            <div className="composer-actions">
+              <h3>Önizleme</h3>
+              <button className="btn ghost" onClick={() => setPreviewModal(null)}>Kapat</button>
+            </div>
+            {previewModal.type === 'activity' ? (
+              <div className="stack">
+                <div className="name">{previewModal.data?.message}</div>
+                <div className="meta">{previewModal.data?.type}</div>
+                <div className="meta">{previewModal.data?.at ? new Date(previewModal.data.at).toLocaleString('tr-TR') : '-'}</div>
+              </div>
+            ) : null}
+            {previewModal.type === 'activity-all' ? (
+              <div className="list">
+                {(previewModal.data || []).map((row) => (
+                  <div key={`a-all-${row.id}`} className="list-item">
+                    <div>
+                      <div className="name">{row.message}</div>
+                      <div className="meta">{row.type} • {row.at ? new Date(row.at).toLocaleString('tr-TR') : '-'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {previewModal.type === 'user' ? (
+              <div className="stack">
+                <div className="name">@{previewModal.data?.kadi}</div>
+                <div className="meta">{previewModal.data?.isim} {previewModal.data?.soyisim}</div>
+                <div className="meta">Kayıt: {previewModal.data?.ilktarih ? new Date(previewModal.data.ilktarih).toLocaleString('tr-TR') : '-'}</div>
+              </div>
+            ) : null}
+            {previewModal.type === 'post' ? (
+              <div className="stack">
+                <div className="meta">Paylaşım ID: {previewModal.data?.id}</div>
+                <div className="meta">Tarih: {previewModal.data?.created_at ? new Date(previewModal.data.created_at).toLocaleString('tr-TR') : '-'}</div>
+                <div>{previewModal.data?.content || '(metin yok)'}</div>
+                {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
+              </div>
+            ) : null}
+            {previewModal.type === 'post-all' ? (
+              <div className="list">
+                {(previewModal.data || []).map((p) => (
+                  <button key={`p-all-${p.id}`} className="list-item" onClick={() => setPreviewModal({ type: 'post', data: p })}>
+                    <div>{(p.content || '').slice(0, 120) || '(metin yok)'}</div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {previewModal.type === 'follow' ? (
+              <div className="stack">
+                <div className="name">@{previewModal.data?.kadi}</div>
+                <div className="meta">Takip tarihi: {previewModal.data?.followed_at ? new Date(previewModal.data.followed_at).toLocaleString('tr-TR') : '-'}</div>
+                <div className="meta">Mesaj sayısı: {previewModal.data?.messageCount || 0}</div>
+                <div className="meta">Alıntılama sayısı: {previewModal.data?.quoteCount || 0}</div>
+                <div>
+                  <b>Son Mesajlar</b>
+                  <div className="list">
+                    {(previewModal.data?.recentMessages || []).map((m) => (
+                      <div key={`fm-${m.id}`} className="list-item">
+                        <div>
+                          <div className="name">{m.konu || '(konu yok)'}</div>
+                          <div className="meta">{m.tarih ? new Date(m.tarih).toLocaleString('tr-TR') : '-'}</div>
+                          <div>{m.mesaj || ''}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <b>Son Alıntılar</b>
+                  <div className="list">
+                    {(previewModal.data?.recentQuotes || []).map((q) => (
+                      <div key={`fq-${q.id}`} className="list-item">
+                        <div>
+                          <div className="meta">{q.created_at ? new Date(q.created_at).toLocaleString('tr-TR') : '-'}</div>
+                          <div>{q.content || ''}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {previewModal.type === 'event' ? (
+              <div className="stack">
+                <div className="name">{previewModal.data?.title}</div>
+                <div className="meta">{previewModal.data?.starts_at ? new Date(previewModal.data.starts_at).toLocaleString('tr-TR') : '-'}</div>
+                <div className="meta">{previewModal.data?.location || '-'}</div>
+                <div dangerouslySetInnerHTML={{ __html: previewModal.data?.description || previewModal.data?.body || '' }} />
+                {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
+              </div>
+            ) : null}
+            {previewModal.type === 'announcement' ? (
+              <div className="stack">
+                <div className="name">{previewModal.data?.title}</div>
+                <div className="meta">{previewModal.data?.created_at ? new Date(previewModal.data.created_at).toLocaleString('tr-TR') : '-'}</div>
+                <div dangerouslySetInnerHTML={{ __html: previewModal.data?.body || previewModal.data?.description || '' }} />
+                {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

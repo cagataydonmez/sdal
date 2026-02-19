@@ -27,6 +27,7 @@ export default function AnnouncementsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: '', body: '' });
+  const [imageFile, setImageFile] = useState(null);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [hasMore, setHasMore] = useState(true);
@@ -74,8 +75,22 @@ export default function AnnouncementsPage() {
     setError('');
     setStatus('');
     try {
-      await apiJson('/api/new/announcements', { method: 'POST', body: JSON.stringify(form) });
+      if (imageFile) {
+        const payload = new FormData();
+        payload.append('title', form.title);
+        payload.append('body', form.body);
+        payload.append('image', imageFile);
+        const res = await fetch('/api/new/announcements/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: payload
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        await apiJson('/api/new/announcements', { method: 'POST', body: JSON.stringify(form) });
+      }
       setForm({ title: '', body: '' });
+      setImageFile(null);
       setStatus(isAdmin ? 'Duyuru yayınlandı.' : 'Duyuru önerin admin onayına gönderildi.');
       load();
     } catch (err) {
@@ -100,6 +115,7 @@ export default function AnnouncementsPage() {
         <div className="panel-body">
           <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           <textarea className="input" placeholder="Duyuru metni" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+          <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           <button className="btn primary" onClick={create}>{isAdmin ? 'Yayınla' : 'Öner'}</button>
           {status ? <div className="muted">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
@@ -111,12 +127,13 @@ export default function AnnouncementsPage() {
           <div key={a.id} className="panel">
             <h3>{a.title}</h3>
             <div className="panel-body">
+              {a.image ? <img className="post-image" src={a.image} alt="" /> : null}
               <div dangerouslySetInnerHTML={{ __html: a.body || '' }} />
               <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || 'uye'} {Number(a.approved || 0) === 1 ? '' : '· Onay bekliyor'}</div>
               {isAdmin ? (
                 <div className="composer-actions">
                   {Number(a.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(a.id, true)}>Onayla</button> : null}
-                  {Number(a.approved || 0) !== 0 ? <button className="btn ghost" onClick={() => approve(a.id, false)}>Reddet</button> : null}
+                  {Number(a.approved || 0) !== 0 ? <button className="btn ghost" title="Reddetmek duyurunun yayınlanmaması anlamına gelir." onClick={() => approve(a.id, false)}>Reddet (Yayınlama)</button> : null}
                   <button className="btn ghost" onClick={() => remove(a.id)}>Sil</button>
                 </div>
               ) : null}

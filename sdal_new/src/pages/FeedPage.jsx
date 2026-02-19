@@ -7,8 +7,10 @@ import NotificationPanel from '../components/NotificationPanel.jsx';
 import StoryBar from '../components/StoryBar.jsx';
 import LiveChatPanel from '../components/LiveChatPanel.jsx';
 import { useLiveRefresh } from '../utils/live.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function FeedPage() {
+  const { t } = useI18n();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -16,6 +18,7 @@ export default function FeedPage() {
   const [pendingItems, setPendingItems] = useState(null);
   const [scope, setScope] = useState('all');
   const [quickUsers, setQuickUsers] = useState([]);
+  const [onlineMembers, setOnlineMembers] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchParams] = useSearchParams();
@@ -113,6 +116,17 @@ export default function FeedPage() {
     }
   }, []);
 
+  const loadOnlineMembers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/new/online-members?limit=10&excludeSelf=1', { credentials: 'include' });
+      if (!res.ok) return;
+      const payload = await res.json();
+      setOnlineMembers(payload.items || []);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const refreshFeedSilently = useCallback(() => {
     load({ silent: true });
   }, [load]);
@@ -121,7 +135,8 @@ export default function FeedPage() {
     load({ silent: false });
     loadUnreadMessages();
     loadQuickAccess();
-  }, [load, loadUnreadMessages, loadQuickAccess, scope]);
+    loadOnlineMembers();
+  }, [load, loadUnreadMessages, loadQuickAccess, loadOnlineMembers, scope]);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -135,15 +150,20 @@ export default function FeedPage() {
 
   useLiveRefresh(refreshFeedSilently, { intervalMs: 7000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created', '*'] });
   useLiveRefresh(loadUnreadMessages, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
+  useLiveRefresh(loadOnlineMembers, { intervalMs: 8000, eventTypes: ['*'] });
 
   return (
     <Layout title="Akış">
+      <div className="panel">
+        <StoryBar title="Hikayeler" />
+      </div>
       <div className="grid">
         <div className="col-main">
           <div className="panel">
-            <div className="panel-body">
-              <button className={`btn ${scope === 'all' ? 'primary' : 'ghost'}`} onClick={() => setScope('all')}>Tümü</button>
-              <button className={`btn ${scope === 'following' ? 'primary' : 'ghost'}`} onClick={() => setScope('following')}>Takip Ettiklerim</button>
+            <div className="panel-body scope-tabs">
+              <button className={`btn ${scope === 'all' ? 'primary' : 'ghost'}`} onClick={() => setScope('all')}>{t('all')}</button>
+              <button className={`btn ${scope === 'following' ? 'primary' : 'ghost'}`} onClick={() => setScope('following')}>{t('following')}</button>
+              <button className={`btn ${scope === 'popular' ? 'primary' : 'ghost'}`} onClick={() => setScope('popular')}>{t('popular')}</button>
             </div>
           </div>
           {pendingPostsCount > 0 ? (
@@ -168,8 +188,22 @@ export default function FeedPage() {
           {!hasMore && posts.length > 0 ? <div className="muted">Sonuna ulaştın.</div> : null}
         </div>
         <div className="col-side">
-          <StoryBar title="Hikayeler" />
-          <NotificationPanel />
+          <NotificationPanel limit={5} showAllLink />
+          <div className="panel">
+            <h3>{t('online_members')}</h3>
+            <div className="panel-body">
+              {onlineMembers.map((u) => (
+                <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
+                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                  <div>
+                    <div>@{u.kadi}</div>
+                    <div className="meta">Online</div>
+                  </div>
+                </a>
+              ))}
+              {!onlineMembers.length ? <div className="muted">Şu an çevrimiçi üye yok.</div> : null}
+            </div>
+          </div>
           <div className="panel">
             <h3>Yeni Mesajlar</h3>
             <div className="panel-body">

@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
+import { useI18n } from '../utils/i18n.jsx';
 
-export default function ExplorePage() {
+export default function ExplorePage({ fullMode = false }) {
+  const { t } = useI18n();
   const [members, setMembers] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
@@ -64,7 +66,7 @@ export default function ExplorePage() {
   const loadSuggestions = useCallback(async () => {
     setLoadingSuggestions(true);
     try {
-      const res = await fetch('/api/new/explore/suggestions?limit=12', { credentials: 'include' });
+      const res = await fetch('/api/new/explore/suggestions?limit=24&offset=0', { credentials: 'include' });
       if (!res.ok) {
         setSuggestions([]);
         return;
@@ -97,11 +99,12 @@ export default function ExplorePage() {
   }, [query, filters, load]);
 
   const loadMore = useCallback(() => {
-    if (loading || page >= pages) return;
+    if (!fullMode || loading || page >= pages) return;
     load(query, page + 1, true, filters);
-  }, [loading, page, pages, load, query, filters]);
+  }, [fullMode, loading, page, pages, load, query, filters]);
 
   useEffect(() => {
+    if (!fullMode) return undefined;
     const node = sentinelRef.current;
     if (!node) return undefined;
     const io = new IntersectionObserver((entries) => {
@@ -109,7 +112,7 @@ export default function ExplorePage() {
     }, { rootMargin: '300px 0px' });
     io.observe(node);
     return () => io.disconnect();
-  }, [loadMore]);
+  }, [loadMore, fullMode]);
 
   async function toggleFollow(id) {
     const key = Number(id);
@@ -160,22 +163,34 @@ export default function ExplorePage() {
           onClick={() => toggleFollow(m.id)}
           disabled={Boolean(pendingFollow[Number(m.id)])}
         >
-          {followingIds.has(Number(m.id)) ? 'Unfollow' : 'Follow'}
+          {followingIds.has(Number(m.id)) ? t('unfollow') : t('follow')}
         </button>
       </div>
     );
   }
 
+  const suggestionItems = fullMode ? suggestions : suggestions.slice(0, 6);
+  const visibleMembers = fullMode ? members : members.slice(0, 18);
+
   return (
     <Layout title="Keşfet">
       <div className="panel">
+        <h3>Tanıyor Olabileceğin Kişiler</h3>
+        <div className="panel-body">
+          {loadingSuggestions ? <div className="muted">Öneriler hazırlanıyor...</div> : null}
+          {!loadingSuggestions && suggestions.length === 0 ? <div className="muted">Şu an öneri bulunamadı.</div> : null}
+          <div className="card-grid">
+            {suggestionItems.map((m) => renderMemberCard(m, true))}
+          </div>
+          {!fullMode ? <a className="btn ghost" href="/new/explore/suggestions">{t('see_all')}</a> : null}
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>Filtrelere Göre Üye Listesi</h3>
         <div className="panel-body stack">
-          <input
-            className="search"
-            placeholder="Üye ara..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div className="muted">Aşağıdaki filtreleri kullanarak üyeleri daraltabilirsin.</div>
+          <input className="search" placeholder="Üye ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
           <div className="composer-actions">
             <select className="input" value={filters.relation} onChange={(e) => setFilter('relation', e.target.value)}>
               <option value="all">Herkes</option>
@@ -208,26 +223,16 @@ export default function ExplorePage() {
             </label>
           </div>
           {loading ? <div className="muted">Aranıyor...</div> : null}
-        </div>
-      </div>
-
-      <div className="panel">
-        <h3>Tanıyor Olabileceğin Kişiler</h3>
-        <div className="panel-body">
-          {loadingSuggestions ? <div className="muted">Öneriler hazırlanıyor...</div> : null}
-          {!loadingSuggestions && suggestions.length === 0 ? <div className="muted">Şu an öneri bulunamadı.</div> : null}
-          <div className="card-grid">
-            {suggestions.map((m) => renderMemberCard(m, true))}
-          </div>
+          {!fullMode ? <a className="btn ghost" href="/new/explore/members">{t('see_all')}</a> : null}
         </div>
       </div>
 
       <div className="card-grid">
-        {members.map((m) => renderMemberCard(m, false))}
+        {visibleMembers.map((m) => renderMemberCard(m, false))}
       </div>
-      <div ref={sentinelRef} />
-      {loading ? <div className="muted">Yükleniyor...</div> : null}
-      {!loading && page >= pages && members.length > 0 ? <div className="muted">Sonuçların sonu.</div> : null}
+      {fullMode ? <div ref={sentinelRef} /> : null}
+      {fullMode && loading ? <div className="muted">Yükleniyor...</div> : null}
+      {fullMode && !loading && page >= pages && members.length > 0 ? <div className="muted">Sonuçların sonu.</div> : null}
     </Layout>
   );
 }

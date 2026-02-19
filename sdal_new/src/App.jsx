@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './utils/auth.jsx';
 import FeedPage from './pages/FeedPage.jsx';
 import ExplorePage from './pages/ExplorePage.jsx';
+import ExploreSuggestionsPage from './pages/ExploreSuggestionsPage.jsx';
 import GroupsPage from './pages/GroupsPage.jsx';
 import GroupDetailPage from './pages/GroupDetailPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
@@ -26,8 +27,10 @@ import MessageDetailPage from './pages/MessageDetailPage.jsx';
 import FollowingPage from './pages/FollowingPage.jsx';
 import HelpPage from './pages/HelpPage.jsx';
 import GamesPage from './pages/GamesPage.jsx';
+import NotificationsPage from './pages/NotificationsPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 import { ThemeProvider } from './utils/theme.jsx';
+import { I18nProvider } from './utils/i18n.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -39,9 +42,10 @@ function RequireAuth({ children }) {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <GlobalActionFeedback />
-        <Routes>
+      <I18nProvider>
+        <AuthProvider>
+          <GlobalActionFeedback />
+          <Routes>
           <Route path="/new/login" element={<LoginPage />} />
           <Route path="/new/register" element={<RegisterPage />} />
           <Route path="/new/activate" element={<ActivationPage />} />
@@ -49,11 +53,14 @@ export default function App() {
           <Route path="/new/password-reset" element={<PasswordResetPage />} />
           <Route path="/new" element={<RequireAuth><FeedPage /></RequireAuth>} />
           <Route path="/new/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
+          <Route path="/new/explore/members" element={<RequireAuth><ExplorePage fullMode /></RequireAuth>} />
+          <Route path="/new/explore/suggestions" element={<RequireAuth><ExploreSuggestionsPage /></RequireAuth>} />
           <Route path="/new/following" element={<RequireAuth><FollowingPage /></RequireAuth>} />
           <Route path="/new/members/:id" element={<RequireAuth><MemberDetailPage /></RequireAuth>} />
           <Route path="/new/groups" element={<RequireAuth><GroupsPage /></RequireAuth>} />
           <Route path="/new/groups/:id" element={<RequireAuth><GroupDetailPage /></RequireAuth>} />
           <Route path="/new/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
+          <Route path="/new/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
           <Route path="/new/messages/compose" element={<RequireAuth><MessageComposePage /></RequireAuth>} />
           <Route path="/new/messages/:id" element={<RequireAuth><MessageDetailPage /></RequireAuth>} />
           <Route path="/new/albums" element={<RequireAuth><AlbumsPage /></RequireAuth>} />
@@ -69,8 +76,9 @@ export default function App() {
           <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />
           <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
           <Route path="/new/*" element={<Navigate to="/new" replace />} />
-        </Routes>
-      </AuthProvider>
+          </Routes>
+        </AuthProvider>
+      </I18nProvider>
     </ThemeProvider>
   );
 }
