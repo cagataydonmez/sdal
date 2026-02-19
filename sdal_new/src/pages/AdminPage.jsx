@@ -999,12 +999,18 @@ export default function AdminPage() {
                 </div>
                 <div className="admin-kpi-card">
                   <div className="muted">Disk Kullanımı</div>
-                  <b>{Number(stats.storage?.diskUsedPct || 0).toFixed(1)}%</b>
-                  <div className="meta">Toplam {Number(stats.storage?.diskTotalMb || 0).toFixed(0)} MB • Boş {Number(stats.storage?.diskFreeMb || 0).toFixed(0)} MB</div>
+                  {stats.storage?.diskSupported ? (
+                    <>
+                      <b>{Number(stats.storage?.diskUsedPct || 0).toFixed(1)}%</b>
+                      <div className="meta">Toplam {Number(stats.storage?.diskTotalMb || 0).toFixed(0)} MB • Boş {Number(stats.storage?.diskFreeMb || 0).toFixed(0)} MB</div>
+                    </>
+                  ) : (
+                    <div className="meta">Bu sunucuda desteklenmiyor.</div>
+                  )}
                 </div>
                 <div className="admin-kpi-card">
                   <div className="muted">Anlık CPU</div>
-                  <b>{Number(stats.storage?.cpuUsagePct || 0).toFixed(1)}%</b>
+                  {stats.storage?.cpuSupported ? <b>{Number(stats.storage?.cpuUsagePct || 0).toFixed(1)}%</b> : <div className="meta">Bu sunucuda desteklenmiyor.</div>}
                 </div>
               </div>
             </div>

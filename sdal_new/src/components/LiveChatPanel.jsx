@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../utils/auth.jsx';
 import { emitAppChange } from '../utils/live.js';
+import RichTextEditor from './RichTextEditor.jsx';
+import TranslatableHtml from './TranslatableHtml.jsx';
+import { isRichTextEmpty } from '../utils/richText.js';
 
 const PAGE_SIZE = 20;
 
@@ -136,13 +139,14 @@ export default function LiveChatPanel() {
       setError('Mesaj göndermek için giriş yapın.');
       return;
     }
-    if (!text.trim()) return;
+    if (isRichTextEmpty(text)) return;
     try {
+      const message = text;
       const res = await fetch('/api/new/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message: text.trim() })
+        body: JSON.stringify({ message })
       });
       if (!res.ok) {
         throw new Error(await res.text());
@@ -152,7 +156,7 @@ export default function LiveChatPanel() {
         mergeMessages([payload.item], 'append');
       }
       if (wsRef.current && wsRef.current.readyState === 1) {
-        wsRef.current.send(JSON.stringify({ userId: user.id, message: text.trim() }));
+        wsRef.current.send(JSON.stringify({ userId: user.id, message }));
       }
       setText('');
       requestAnimationFrame(() => {
@@ -185,13 +189,13 @@ export default function LiveChatPanel() {
             <a className="chat-user" href={m.user_id ? `/new/members/${m.user_id}` : '/new/explore'}>
               @{(m.user?.kadi || m.kadi) || 'anon'}{(m.user?.verified || m.verified) ? ' ✓' : ''}
             </a>
-            <span className="chat-text" dangerouslySetInnerHTML={{ __html: m.message }} />
+            <TranslatableHtml html={m.message} className="chat-text" />
           </div>
         ))}
       </div>
       <form className="chat-form" onSubmit={send}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Mesaj yaz..." />
-        <button className="btn">Gönder</button>
+        <RichTextEditor value={text} onChange={setText} placeholder="Mesaj yaz..." minHeight={66} compact />
+        <button className="btn" disabled={isRichTextEmpty(text)}>Gönder</button>
       </form>
       {error ? <div className="error">{error}</div> : null}
     </div>

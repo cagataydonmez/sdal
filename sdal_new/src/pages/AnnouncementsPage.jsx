@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+import TranslatableHtml from '../components/TranslatableHtml.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -114,7 +116,7 @@ export default function AnnouncementsPage() {
         <h3>{isAdmin ? 'Yeni Duyuru' : 'Duyuru Önerisi'}</h3>
         <div className="panel-body">
           <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          <textarea className="input" placeholder="Duyuru metni" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+          <RichTextEditor value={form.body} onChange={(next) => setForm((prev) => ({ ...prev, body: next }))} placeholder="Duyuru metni" minHeight={120} />
           <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           <button className="btn primary" onClick={create}>{isAdmin ? 'Yayınla' : 'Öner'}</button>
           {status ? <div className="muted">{status}</div> : null}
@@ -128,7 +130,7 @@ export default function AnnouncementsPage() {
             <h3>{a.title}</h3>
             <div className="panel-body">
               {a.image ? <img className="post-image" src={a.image} alt="" /> : null}
-              <div dangerouslySetInnerHTML={{ __html: a.body || '' }} />
+              <TranslatableHtml html={a.body || ''} />
               <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || 'uye'} {Number(a.approved || 0) === 1 ? '' : '· Onay bekliyor'}</div>
               {isAdmin ? (
                 <div className="composer-actions">

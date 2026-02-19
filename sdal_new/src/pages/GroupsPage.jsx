@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
-import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+import TranslatableHtml from '../components/TranslatableHtml.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -29,8 +30,6 @@ export default function GroupsPage() {
   const [error, setError] = useState('');
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [mentionUsers, setMentionUsers] = useState([]);
-  const [mentionCtx, setMentionCtx] = useState(null);
   const sentinelRef = useRef(null);
   const groupsRef = useRef([]);
   const loadingMoreRef = useRef(false);
@@ -74,7 +73,6 @@ export default function GroupsPage() {
     try {
       await apiJson('/api/new/groups', { method: 'POST', body: JSON.stringify(form) });
       setForm({ name: '', description: '' });
-      setMentionCtx(null);
       load();
     } catch (err) {
       setError(err.message);
@@ -90,44 +88,18 @@ export default function GroupsPage() {
     }
   }
 
-  function handleDescriptionChange(value, caretPos) {
-    setForm((prev) => ({ ...prev, description: value }));
-    const ctx = detectMentionContext(value, caretPos);
-    setMentionCtx(ctx);
-    if (!ctx) setMentionUsers([]);
-  }
-
-  function insertMention(kadi) {
-    setForm((prev) => ({ ...prev, description: applyMention(prev.description, mentionCtx, kadi) }));
-    setMentionCtx(null);
-  }
-
-  useEffect(() => {
-    if (!mentionCtx?.query) {
-      setMentionUsers([]);
-      return;
-    }
-    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
-  }, [mentionCtx?.query]);
-
   return (
     <Layout title="Gruplar (Deploy Test)">
       <div className="panel">
         <h3>Yeni Grup</h3>
         <div className="panel-body">
           <input className="input" placeholder="Grup adı" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <textarea className="input" placeholder="Açıklama" value={form.description} onChange={(e) => handleDescriptionChange(e.target.value, e.target.selectionStart)} />
-          {mentionCtx ? (
-            <div className="mention-box">
-              {mentionUsers
-                .slice(0, 8)
-                .map((u) => (
-                  <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
-                    @{u.kadi}
-                  </button>
-                ))}
-            </div>
-          ) : null}
+          <RichTextEditor
+            value={form.description}
+            onChange={(next) => setForm((prev) => ({ ...prev, description: next }))}
+            placeholder="Açıklama"
+            minHeight={110}
+          />
           <button className="btn primary" onClick={create}>Oluştur</button>
           {error ? <div className="error">{error}</div> : null}
         </div>
@@ -139,7 +111,7 @@ export default function GroupsPage() {
             {g.cover_image ? <img src={g.cover_image} alt="" /> : <div className="group-cover-empty">Kapak</div>}
             <div>
               <div className="name">{g.name}</div>
-              <div className="meta">{g.description}</div>
+              <TranslatableHtml html={g.description || ''} className="meta" />
               <div className="meta">{g.members} üye {g.visibility === 'members_only' ? '· Gizli' : ''}</div>
               <a className="btn ghost" href={`/new/groups/${g.id}`}>Aç</a>
             </div>

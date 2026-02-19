@@ -3,8 +3,10 @@ import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import PostCard from '../components/PostCard.jsx';
 import { useAuth } from '../utils/auth.jsx';
-import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
 import { formatDateTime } from '../utils/date.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import { isRichTextEmpty } from '../utils/richText.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -38,8 +40,6 @@ export default function GroupDetailPage() {
   const [image, setImage] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
   const [status, setStatus] = useState('');
-  const [mentionUsers, setMentionUsers] = useState([]);
-  const [mentionCtx, setMentionCtx] = useState(null);
   const [loading, setLoading] = useState(true);
   const [eventForm, setEventForm] = useState({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
   const [announcementForm, setAnnouncementForm] = useState({ title: '', body: '' });
@@ -99,6 +99,10 @@ export default function GroupDetailPage() {
   async function submit(e) {
     e.preventDefault();
     setStatus('');
+    if (!image && isRichTextEmpty(content)) {
+      setStatus('İçerik boş olamaz.');
+      return;
+    }
     try {
       if (image) {
         const form = new FormData();
@@ -113,7 +117,6 @@ export default function GroupDetailPage() {
       setContent('');
       setImage(null);
       setFilter('');
-      setMentionCtx(null);
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -139,26 +142,6 @@ export default function GroupDetailPage() {
       setStatus(err.message);
     }
   }
-
-  function handleContentChange(value, caretPos) {
-    setContent(value);
-    const ctx = detectMentionContext(value, caretPos);
-    setMentionCtx(ctx);
-    if (!ctx) setMentionUsers([]);
-  }
-
-  function insertMention(kadi) {
-    setContent((prev) => applyMention(prev, mentionCtx, kadi));
-    setMentionCtx(null);
-  }
-
-  useEffect(() => {
-    if (!mentionCtx?.query) {
-      setMentionUsers([]);
-      return;
-    }
-    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
-  }, [mentionCtx?.query]);
 
   const myRole = useMemo(() => {
     if (!user?.id) return null;
@@ -381,7 +364,7 @@ export default function GroupDetailPage() {
           {group.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">Kapak Görseli</div>}
           <div>
             <h3>{group.name}</h3>
-            <div className="panel-body">{group.description}</div>
+            <TranslatableHtml html={group.description || ''} className="panel-body" />
           </div>
         </div>
         {canUpdateCover ? (
@@ -411,18 +394,7 @@ export default function GroupDetailPage() {
       <div className="panel">
         <div className="panel-body">
           <form onSubmit={submit} className="stack">
-            <textarea className="input" placeholder="Gruba bir şey yaz..." value={content} onChange={(e) => handleContentChange(e.target.value, e.target.selectionStart)} />
-            {mentionCtx ? (
-              <div className="mention-box">
-                {mentionUsers
-                  .slice(0, 8)
-                  .map((u) => (
-                    <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
-                      @{u.kadi}
-                    </button>
-                  ))}
-              </div>
-            ) : null}
+            <RichTextEditor value={content} onChange={setContent} placeholder="Gruba bir şey yaz..." minHeight={120} />
             <div className="composer-actions">
               <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
               <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -449,7 +421,12 @@ export default function GroupDetailPage() {
                 <div className="stack">
                   <input className="input" placeholder="Başlık" value={eventForm.title} onChange={(e) => setEventForm((prev) => ({ ...prev, title: e.target.value }))} />
                   <input className="input" placeholder="Konum" value={eventForm.location} onChange={(e) => setEventForm((prev) => ({ ...prev, location: e.target.value }))} />
-                  <textarea className="input" placeholder="Açıklama" value={eventForm.description} onChange={(e) => setEventForm((prev) => ({ ...prev, description: e.target.value }))} />
+                  <RichTextEditor
+                    value={eventForm.description}
+                    onChange={(next) => setEventForm((prev) => ({ ...prev, description: next }))}
+                    placeholder="Açıklama"
+                    minHeight={110}
+                  />
                   <input className="input" type="datetime-local" value={eventForm.starts_at} onChange={(e) => setEventForm((prev) => ({ ...prev, starts_at: e.target.value }))} />
                   <input className="input" type="datetime-local" value={eventForm.ends_at} onChange={(e) => setEventForm((prev) => ({ ...prev, ends_at: e.target.value }))} />
                   <button className="btn" onClick={createGroupEvent}>Etkinlik Ekle</button>
@@ -461,7 +438,7 @@ export default function GroupDetailPage() {
                   <h3>{e.title}</h3>
                   <div className="panel-body">
                     <div className="meta">{e.location || '-'} · {formatDateTime(e.starts_at || e.created_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>
-                    <div dangerouslySetInnerHTML={{ __html: e.description || '' }} />
+                    <TranslatableHtml html={e.description || ''} />
                     <div className="meta">@{e.creator_kadi || 'uye'}</div>
                     {canReviewRequests ? <button className="btn ghost" onClick={() => removeGroupEvent(e.id)}>Sil</button> : null}
                   </div>
@@ -476,7 +453,12 @@ export default function GroupDetailPage() {
               {canReviewRequests ? (
                 <div className="stack">
                   <input className="input" placeholder="Başlık" value={announcementForm.title} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))} />
-                  <textarea className="input" placeholder="Duyuru içeriği" value={announcementForm.body} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, body: e.target.value }))} />
+                  <RichTextEditor
+                    value={announcementForm.body}
+                    onChange={(next) => setAnnouncementForm((prev) => ({ ...prev, body: next }))}
+                    placeholder="Duyuru içeriği"
+                    minHeight={110}
+                  />
                   <button className="btn" onClick={createGroupAnnouncement}>Duyuru Ekle</button>
                 </div>
               ) : null}
@@ -486,7 +468,7 @@ export default function GroupDetailPage() {
                   <h3>{a.title}</h3>
                   <div className="panel-body">
                     <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || 'uye'}</div>
-                    <div dangerouslySetInnerHTML={{ __html: a.body || '' }} />
+                    <TranslatableHtml html={a.body || ''} />
                     {canReviewRequests ? <button className="btn ghost" onClick={() => removeGroupAnnouncement(a.id)}>Sil</button> : null}
                   </div>
                 </div>

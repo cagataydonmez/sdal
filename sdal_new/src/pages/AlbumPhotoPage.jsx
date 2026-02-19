@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
-import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import { isRichTextEmpty } from '../utils/richText.js';
 
 export default function AlbumPhotoPage() {
   const { id } = useParams();
   const [photo, setPhoto] = useState(null);
   const [comments, setComments] = useState([]);
   const [comment, setComment] = useState('');
-  const [mentionUsers, setMentionUsers] = useState([]);
-  const [mentionCtx, setMentionCtx] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +29,7 @@ export default function AlbumPhotoPage() {
   async function submit(e) {
     e.preventDefault();
     setError('');
-    if (!comment.trim()) {
+    if (isRichTextEmpty(comment)) {
       setError('Yorum yazmalısın.');
       return;
     }
@@ -46,30 +46,9 @@ export default function AlbumPhotoPage() {
       return;
     }
     setComment('');
-    setMentionCtx(null);
     await load();
     setLoading(false);
   }
-
-  function handleCommentChange(value, caretPos) {
-    setComment(value);
-    const ctx = detectMentionContext(value, caretPos);
-    setMentionCtx(ctx);
-    if (!ctx) setMentionUsers([]);
-  }
-
-  function insertMention(kadi) {
-    setComment((prev) => applyMention(prev, mentionCtx, kadi));
-    setMentionCtx(null);
-  }
-
-  useEffect(() => {
-    if (!mentionCtx?.query) {
-      setMentionUsers([]);
-      return;
-    }
-    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
-  }, [mentionCtx?.query]);
 
   if (!photo) return <Layout title="Fotoğraf">Yükleniyor...</Layout>;
 
@@ -79,25 +58,14 @@ export default function AlbumPhotoPage() {
         <img className="photo-view-image" src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(photo.dosyaadi)}`} alt="" />
           <div className="panel-body">
           <div className="meta">{formatDateTime(photo.tarih)}</div>
-          <div>{photo.aciklama}</div>
+          <TranslatableHtml html={photo.aciklama || ''} />
         </div>
       </div>
       <div className="panel">
         <div className="panel-body">
           <form className="stack" onSubmit={submit}>
-            <textarea className="input" placeholder="Yorum yaz... (@kullanici mention)" value={comment} onChange={(e) => handleCommentChange(e.target.value, e.target.selectionStart)} />
-            {mentionCtx ? (
-              <div className="mention-box">
-                {mentionUsers
-                  .slice(0, 8)
-                  .map((u) => (
-                    <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
-                      @{u.kadi}
-                    </button>
-                  ))}
-              </div>
-            ) : null}
-            <button className="btn" disabled={loading}>{loading ? 'Gönderiliyor...' : 'Yorum Ekle'}</button>
+            <RichTextEditor value={comment} onChange={setComment} placeholder="Yorum yaz..." minHeight={90} compact />
+            <button className="btn" disabled={loading || isRichTextEmpty(comment)}>{loading ? 'Gönderiliyor...' : 'Yorum Ekle'}</button>
             {error ? <div className="error">{error}</div> : null}
           </form>
         </div>
@@ -120,7 +88,7 @@ export default function AlbumPhotoPage() {
                 </div>
                 <div className="meta">{formatDateTime(c.tarih)}</div>
               </div>
-              <div dangerouslySetInnerHTML={{ __html: c.yorum || '' }} />
+              <TranslatableHtml html={c.yorum || ''} />
             </div>
           ))}
         </div>

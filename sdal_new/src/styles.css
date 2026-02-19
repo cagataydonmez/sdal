@@ -259,14 +259,6 @@ textarea::placeholder {
   box-shadow: var(--shadow);
   margin-bottom: 16px;
 }
-.composer textarea {
-  width: 100%;
-  min-height: 100px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px;
-  font-size: 14px;
-}
 .composer-actions {
   display: flex;
   justify-content: space-between;
@@ -314,6 +306,58 @@ textarea::placeholder {
 .chip-active {
   background: var(--accent-soft-bg);
   border-color: var(--accent-soft-line);
+}
+.rich-editor {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+  overflow: hidden;
+}
+.rich-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--soft-panel);
+}
+.rich-select {
+  min-width: 84px;
+  padding: 5px 8px;
+}
+.rich-color-label {
+  padding: 3px 8px;
+}
+.rich-color-label input {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.rich-editor-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  line-height: 1.45;
+  overflow-y: auto;
+}
+.rich-editor-input:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+}
+.rich-editor-input blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+  margin: 8px 0;
+}
+.rich-editor-compact .rich-toolbar {
+  padding: 6px;
+}
+.rich-editor-compact .rich-editor-input {
+  padding: 8px 10px;
 }
 .mention-box {
   margin-top: 8px;
@@ -390,14 +434,9 @@ textarea::placeholder {
 
 .comment-form {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 10px;
-}
-.comment-form input {
-  flex: 1;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px;
 }
 .comment-list {
   margin-top: 10px;
@@ -655,6 +694,23 @@ textarea::placeholder {
   background: var(--soft-panel);
   padding: 12px;
 }
+.translated-html {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.translated-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-xs {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.post-rich-body {
+  margin-bottom: 4px;
+}
 .mailbox-preview-head {
   display: flex;
   align-items: flex-start;
@@ -856,14 +912,12 @@ textarea::placeholder {
 }
 .chat-form {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-top: 8px;
 }
-.chat-form input {
-  flex: 1;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px;
+.chat-form .btn {
+  align-self: flex-end;
 }
 
 .group-hero {

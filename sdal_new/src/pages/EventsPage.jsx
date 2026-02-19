@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
-import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import { isRichTextEmpty } from '../utils/richText.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -36,9 +38,6 @@ export default function EventsPage() {
   const [status, setStatus] = useState('');
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [mentionUsers, setMentionUsers] = useState([]);
-  const [formMentionCtx, setFormMentionCtx] = useState(null);
-  const [commentMentionCtx, setCommentMentionCtx] = useState({});
   const sentinelRef = useRef(null);
   const commentsRef = useRef({});
   const eventsRef = useRef([]);
@@ -112,7 +111,6 @@ export default function EventsPage() {
       }
       setForm({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
       setImageFile(null);
-      setFormMentionCtx(null);
       setStatus(isAdmin ? 'Etkinlik eklendi.' : 'Etkinlik önerin admin onayına gönderildi.');
       load();
     } catch (err) {
@@ -131,46 +129,13 @@ export default function EventsPage() {
   }
 
   async function addComment(eventId) {
-    const text = String(drafts[eventId] || '').trim();
-    if (!text) return;
+    const text = String(drafts[eventId] || '');
+    if (isRichTextEmpty(text)) return;
     await apiJson(`/api/new/events/${eventId}/comments`, { method: 'POST', body: JSON.stringify({ comment: text }) });
     setDrafts((prev) => ({ ...prev, [eventId]: '' }));
-    setCommentMentionCtx((prev) => ({ ...prev, [eventId]: null }));
     const c = await apiJson(`/api/new/events/${eventId}/comments`);
     setComments((prev) => ({ ...prev, [eventId]: c.items || [] }));
   }
-
-  function handleDescriptionChange(value, caretPos) {
-    setForm((prev) => ({ ...prev, description: value }));
-    const ctx = detectMentionContext(value, caretPos);
-    setFormMentionCtx(ctx);
-  }
-
-  function insertDescriptionMention(kadi) {
-    setForm((prev) => ({ ...prev, description: applyMention(prev.description, formMentionCtx, kadi) }));
-    setFormMentionCtx(null);
-  }
-
-  function handleCommentDraftChange(eventId, value, caretPos) {
-    setDrafts((prev) => ({ ...prev, [eventId]: value }));
-    const ctx = detectMentionContext(value, caretPos);
-    setCommentMentionCtx((prev) => ({ ...prev, [eventId]: ctx }));
-  }
-
-  function insertCommentMention(eventId, kadi) {
-    const ctx = commentMentionCtx[eventId];
-    setDrafts((prev) => ({ ...prev, [eventId]: applyMention(prev[eventId] || '', ctx, kadi) }));
-    setCommentMentionCtx((prev) => ({ ...prev, [eventId]: null }));
-  }
-
-  useEffect(() => {
-    const q = formMentionCtx?.query || Object.values(commentMentionCtx).find((v) => v?.query)?.query || '';
-    if (!q) {
-      setMentionUsers([]);
-      return;
-    }
-    fetchMentionCandidates(q).then(setMentionUsers).catch(() => setMentionUsers([]));
-  }, [formMentionCtx?.query, commentMentionCtx]);
 
   async function notifyFollowers(eventId) {
     const res = await apiJson(`/api/new/events/${eventId}/notify`, { method: 'POST' });
@@ -203,19 +168,13 @@ export default function EventsPage() {
         <div className="panel-body">
           <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           <input className="input" placeholder="Konum" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
-          <textarea className="input" placeholder="Açıklama" value={form.description} onChange={(e) => handleDescriptionChange(e.target.value, e.target.selectionStart)} />
+          <RichTextEditor
+            value={form.description}
+            onChange={(next) => setForm((prev) => ({ ...prev, description: next }))}
+            placeholder="Açıklama"
+            minHeight={120}
+          />
           <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-          {formMentionCtx ? (
-            <div className="mention-box">
-              {mentionUsers
-                .slice(0, 8)
-                .map((u) => (
-                  <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertDescriptionMention(u.kadi)}>
-                    @{u.kadi}
-                  </button>
-                ))}
-            </div>
-          ) : null}
           <input className="input" type="datetime-local" value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
           <input className="input" type="datetime-local" value={form.ends_at} onChange={(e) => setForm({ ...form, ends_at: e.target.value })} />
           <button className="btn primary" onClick={create}>{isAdmin ? 'Ekle' : 'Öner'}</button>
@@ -231,7 +190,7 @@ export default function EventsPage() {
             <div className="panel-body">
               <div className="meta">{e.location} · {formatDateTime(e.starts_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>
               {e.image ? <img className="post-image" src={e.image} alt="" /> : null}
-              <div dangerouslySetInnerHTML={{ __html: e.description || '' }} />
+              <TranslatableHtml html={e.description || ''} />
               <div className="meta">Ekleyen: @{e.creator_kadi || 'uye'} {Number(e.approved || 0) === 1 ? '' : '· Onay bekliyor'}</div>
               <div className="composer-actions">
                 <button className={`btn ${e.my_response === 'attend' ? 'primary' : 'ghost'}`} onClick={() => respondToEvent(e.id, 'attend')}>Katılıyorum</button>
@@ -329,30 +288,21 @@ export default function EventsPage() {
                     <div>
                       <div className="name">@{c.kadi} {c.verified ? <span className="badge">✓</span> : null}</div>
                       <div className="meta">{formatDateTime(c.created_at)}</div>
-                      <div dangerouslySetInnerHTML={{ __html: c.comment || '' }} />
+                      <TranslatableHtml html={c.comment || ''} />
                     </div>
                   </div>
                 ))}
               </div>
               <form className="comment-form" onSubmit={(ev) => { ev.preventDefault(); addComment(e.id); }}>
-                <input
+                <RichTextEditor
                   value={drafts[e.id] || ''}
-                  onChange={(ev) => handleCommentDraftChange(e.id, ev.target.value, ev.target.selectionStart)}
+                  onChange={(next) => setDrafts((prev) => ({ ...prev, [e.id]: next }))}
                   placeholder="Etkinliğe yorum ekle..."
+                  minHeight={80}
+                  compact
                 />
-                <button className="btn">Gönder</button>
+                <button className="btn" disabled={isRichTextEmpty(drafts[e.id] || '')}>Gönder</button>
               </form>
-              {commentMentionCtx[e.id] ? (
-                <div className="mention-box">
-                  {mentionUsers
-                    .slice(0, 8)
-                    .map((u) => (
-                      <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertCommentMention(e.id, u.kadi)}>
-                        @{u.kadi}
-                      </button>
-                    ))}
-                </div>
-              ) : null}
             </div>
           </div>
         ))}

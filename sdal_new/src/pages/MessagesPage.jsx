@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
+import TranslatableHtml from '../components/TranslatableHtml.jsx';
 
 export default function MessagesPage() {
   const [messages, setMessages] = useState([]);
@@ -172,7 +173,7 @@ export default function MessagesPage() {
                 </div>
                 <div className="meta">{selected.kimden_kadi} → {selected.kime_kadi}</div>
                 <div className="meta">{formatDateTime(selected.tarih)}</div>
-                <div className="message-bubble" dangerouslySetInnerHTML={{ __html: selected.mesaj || '' }} />
+                <TranslatableHtml html={selected.mesaj || ''} className="message-bubble" />
               </>
             ) : null}
           </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import RichTextEditor from '../components/RichTextEditor.jsx';
 
 export default function AlbumUploadPage() {
   const [categories, setCategories] = useState([]);
@@ -45,7 +46,12 @@ export default function AlbumUploadPage() {
               {categories.map((c) => <option key={c.id} value={c.id}>{c.kategori}</option>)}
             </select>
             <input className="input" placeholder="Başlık" value={form.baslik} onChange={(e) => setForm({ ...form, baslik: e.target.value })} />
-            <textarea className="input" placeholder="Açıklama" value={form.aciklama} onChange={(e) => setForm({ ...form, aciklama: e.target.value })} />
+            <RichTextEditor
+              value={form.aciklama}
+              onChange={(next) => setForm((prev) => ({ ...prev, aciklama: next }))}
+              placeholder="Açıklama"
+              minHeight={110}
+            />
             <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             <button className="btn primary" type="submit">Yükle</button>
           </form>

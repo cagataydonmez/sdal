@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
-import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+import { isRichTextEmpty } from '../utils/richText.js';
 
 export default function MessageComposePage() {
   const [searchParams] = useSearchParams();
@@ -15,8 +16,6 @@ export default function MessageComposePage() {
   const [error, setError] = useState('');
   const [searchError, setSearchError] = useState('');
   const [searching, setSearching] = useState(false);
-  const [mentionUsers, setMentionUsers] = useState([]);
-  const [mentionCtx, setMentionCtx] = useState(null);
   const [prefilled, setPrefilled] = useState(false);
 
   useEffect(() => {
@@ -85,7 +84,7 @@ export default function MessageComposePage() {
         setSubject(raw.toLowerCase().startsWith('re:') ? raw : `Re: ${raw || 'Mesaj'}`);
       }
       const plain = String(row.mesaj || '').replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();
-      if (!body && plain) setBody(`\\n\\n---\\n${plain.slice(0, 240)}`);
+      if (!body && plain) setBody(`\n\n---\n${plain.slice(0, 240)}`);
     }
     (async () => {
       if (toId) await prefillRecipient(toId);
@@ -93,26 +92,6 @@ export default function MessageComposePage() {
       setPrefilled(true);
     })();
   }, [searchParams, prefilled, subject, body]);
-
-  function handleBodyChange(value, caretPos) {
-    setBody(value);
-    const ctx = detectMentionContext(value, caretPos);
-    setMentionCtx(ctx);
-    if (!ctx) setMentionUsers([]);
-  }
-
-  function insertMention(kadi) {
-    setBody((prev) => applyMention(prev, mentionCtx, kadi));
-    setMentionCtx(null);
-  }
-
-  useEffect(() => {
-    if (!mentionCtx?.query) {
-      setMentionUsers([]);
-      return;
-    }
-    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
-  }, [mentionCtx?.query]);
 
   async function submit(e) {
     e.preventDefault();
@@ -136,7 +115,6 @@ export default function MessageComposePage() {
     emitAppChange('message:created');
     setSubject('');
     setBody('');
-    setMentionCtx(null);
   }
 
   return (
@@ -167,19 +145,8 @@ export default function MessageComposePage() {
           </div>
           <form className="stack" onSubmit={submit}>
             <input className="input" placeholder="Konu" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            <textarea className="input" placeholder="Mesaj" value={body} onChange={(e) => handleBodyChange(e.target.value, e.target.selectionStart)} />
-            {mentionCtx ? (
-              <div className="mention-box">
-                {mentionUsers
-                  .slice(0, 8)
-                  .map((u) => (
-                    <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
-                      @{u.kadi}
-                    </button>
-                  ))}
-              </div>
-            ) : null}
-            <button className="btn primary" type="submit">Gönder</button>
+            <RichTextEditor value={body} onChange={setBody} placeholder="Mesaj" minHeight={140} />
+            <button className="btn primary" type="submit" disabled={isRichTextEmpty(body)}>Gönder</button>
             {status ? <div className="ok">{status}</div> : null}
             {error ? <div className="error">{error}</div> : null}
           </form>

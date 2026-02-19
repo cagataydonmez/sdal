@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
-import { applyMention, detectMentionContext, fetchMentionCandidates } from '../utils/mentions.js';
+import RichTextEditor from './RichTextEditor.jsx';
+import TranslatableHtml from './TranslatableHtml.jsx';
+import { isRichTextEmpty } from '../utils/richText.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function PostCard({ post, onRefresh, focused = false }) {
+  const { t } = useI18n();
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
-  const [mentionUsers, setMentionUsers] = useState([]);
-  const [mentionCtx, setMentionCtx] = useState(null);
 
   async function loadComments() {
     const res = await fetch(`/api/new/posts/${post.id}/comments`, { credentials: 'include' });
@@ -28,26 +30,6 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     loadComments();
   }, [showComments, post.commentCount]);
 
-  function handleCommentChange(value, caretPos) {
-    setComment(value);
-    const nextCtx = detectMentionContext(value, caretPos);
-    setMentionCtx(nextCtx);
-    if (!nextCtx) setMentionUsers([]);
-  }
-
-  function insertMention(kadi) {
-    setComment((prev) => applyMention(prev, mentionCtx, kadi));
-    setMentionCtx(null);
-  }
-
-  useEffect(() => {
-    if (!mentionCtx?.query) {
-      setMentionUsers([]);
-      return;
-    }
-    fetchMentionCandidates(mentionCtx.query).then(setMentionUsers).catch(() => setMentionUsers([]));
-  }, [mentionCtx?.query]);
-
   async function toggleLike() {
     await fetch(`/api/new/posts/${post.id}/like`, { method: 'POST', credentials: 'include' });
     emitAppChange('post:liked', { postId: post.id });
@@ -56,7 +38,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
 
   async function submitComment(e) {
     e.preventDefault();
-    if (!comment.trim()) return;
+    if (isRichTextEmpty(comment)) return;
     await fetch(`/api/new/posts/${post.id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -65,7 +47,6 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     });
     setComment('');
     setShowComments(true);
-    setMentionCtx(null);
     emitAppChange('post:commented', { postId: post.id });
     loadComments();
     onRefresh?.();
@@ -93,7 +74,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
         <div className="meta">{formatDateTime(post.createdAt)}</div>
       </div>
       <div className="post-body">
-        <p dangerouslySetInnerHTML={{ __html: post.content || '' }} />
+        <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
         {post.image ? <img className="post-image" src={post.image} alt="" /> : null}
       </div>
       <div className="post-actions">
@@ -109,31 +90,28 @@ export default function PostCard({ post, onRefresh, focused = false }) {
         </button>
       </div>
       <form className="comment-form" onSubmit={submitComment}>
-        <input value={comment} onChange={(e) => handleCommentChange(e.target.value, e.target.selectionStart)} placeholder="Yorum yaz..." />
-        <button className="btn">Gönder</button>
+        <RichTextEditor
+          value={comment}
+          onChange={setComment}
+          placeholder={t('comment_placeholder')}
+          minHeight={84}
+          compact
+        />
+        <button className="btn">{t('send')}</button>
       </form>
-      {mentionCtx ? (
-        <div className="mention-box">
-          {mentionUsers
-            .slice(0, 8)
-            .map((u) => (
-              <button key={u.id || u.following_id || u.kadi} type="button" className="mention-item" onClick={() => insertMention(u.kadi)}>
-                @{u.kadi}
-              </button>
-            ))}
-        </div>
-      ) : null}
       {showComments ? (
         <div className="comment-list">
-          {comments.length === 0 ? <div className="muted">Henüz yorum yok.</div> : null}
+          {comments.length === 0 ? <div className="muted">{t('no_comments_yet')}</div> : null}
           {comments.map((c) => (
-            <a key={c.id} className="comment-line" href={`/new/members/${c.user_id}`}>
-              <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            <div key={c.id} className="comment-line">
+              <a href={`/new/members/${c.user_id}`} aria-label={`${c.kadi || 'uye'} profiline git`}>
+                <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+              </a>
               <div>
-                <div className="name">@{c.kadi}</div>
-                <div dangerouslySetInnerHTML={{ __html: c.comment || '' }} />
+                <a className="name" href={`/new/members/${c.user_id}`}>@{c.kadi}</a>
+                <TranslatableHtml html={c.comment || ''} />
               </div>
-            </a>
+            </div>
           ))}
         </div>
       ) : null}

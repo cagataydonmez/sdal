@@ -9,6 +9,7 @@ import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnec
 import { mapLegacyUrl } from './legacyRoutes.js';
 import fs from 'fs';
 import os from 'os';
+import { execFileSync } from 'child_process';
 import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
 import nodemailer from 'nodemailer';
@@ -1498,6 +1499,15 @@ function notifyMentions({ text, sourceUserId, entityId, type = 'mention', messag
   }
 }
 
+function isFormattedContentEmpty(value) {
+  const plain = String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return !plain;
+}
+
 function listLogFiles(dirPath) {
   if (!fs.existsSync(dirPath)) return [];
   const entries = fs.readdirSync(dirPath);
@@ -1963,10 +1973,96 @@ function safeStatfs(targetPath) {
   }
 }
 
+function safeDf(targetPath) {
+  try {
+    const output = execFileSync('df', ['-kP', String(targetPath || '')], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    });
+    const lines = String(output || '').trim().split('\n');
+    if (lines.length < 2) return null;
+    const parts = lines[1].trim().split(/\s+/);
+    if (parts.length < 6) return null;
+    const totalKb = Number(parts[1] || 0);
+    const usedKb = Number(parts[2] || 0);
+    const freeKb = Number(parts[3] || 0);
+    if (!Number.isFinite(totalKb) || totalKb <= 0) return null;
+    return {
+      totalBytes: Math.max(0, totalKb * 1024),
+      usedBytes: Math.max(0, usedKb * 1024),
+      freeBytes: Math.max(0, freeKb * 1024),
+      source: 'df'
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getDiskMetrics(targetPath) {
+  const statfs = safeStatfs(targetPath);
+  if (statfs) {
+    const totalBytes = Number(statfs.blocks || 0) * Number(statfs.bsize || 0);
+    const freeBytes = Number(statfs.bavail || 0) * Number(statfs.bsize || 0);
+    if (Number.isFinite(totalBytes) && totalBytes > 0) {
+      const usedBytes = Math.max(0, totalBytes - Math.max(0, freeBytes));
+      return {
+        totalBytes,
+        usedBytes,
+        freeBytes: Math.max(0, freeBytes),
+        source: 'statfs'
+      };
+    }
+  }
+  return safeDf(targetPath);
+}
+
+let cpuSample = {
+  at: 0,
+  total: 0,
+  idle: 0,
+  value: null
+};
+
+function readCpuSnapshot() {
+  const cpus = os.cpus?.() || [];
+  if (!cpus.length) return null;
+  let total = 0;
+  let idle = 0;
+  for (const cpu of cpus) {
+    const times = cpu?.times || {};
+    const user = Number(times.user || 0);
+    const nice = Number(times.nice || 0);
+    const sys = Number(times.sys || 0);
+    const irq = Number(times.irq || 0);
+    const idleTime = Number(times.idle || 0);
+    total += user + nice + sys + irq + idleTime;
+    idle += idleTime;
+  }
+  return { total, idle };
+}
+
 function sampleCpuUsagePercent() {
-  const loads = os.loadavg?.() || [0];
+  const now = Date.now();
+  const snap = readCpuSnapshot();
+  if (snap) {
+    if (cpuSample.at > 0) {
+      const totalDiff = snap.total - cpuSample.total;
+      const idleDiff = snap.idle - cpuSample.idle;
+      if (totalDiff > 0) {
+        const busyRatio = 1 - (idleDiff / totalDiff);
+        const pct = Math.min(100, Math.max(0, busyRatio * 100));
+        cpuSample = { at: now, total: snap.total, idle: snap.idle, value: Number(pct.toFixed(2)) };
+        return cpuSample.value;
+      }
+    }
+    cpuSample = { at: now, total: snap.total, idle: snap.idle, value: cpuSample.value };
+    if (cpuSample.value !== null) return cpuSample.value;
+  }
+  const loads = os.loadavg?.() || [];
   const cpuCount = Math.max((os.cpus?.() || []).length, 1);
-  const loadPct = Math.min(100, Math.max(0, (Number(loads[0] || 0) / cpuCount) * 100));
+  const load1 = Number(loads[0] || 0);
+  if (!Number.isFinite(load1) || load1 <= 0) return null;
+  const loadPct = Math.min(100, Math.max(0, (load1 / cpuCount) * 100));
   return Number(loadPct.toFixed(2));
 }
 
@@ -2991,7 +3087,7 @@ app.post('/api/admin/album/photos/bulk', requireAlbumAdmin, (req, res) => {
 
 app.put('/api/admin/album/photos/:id', requireAlbumAdmin, (req, res) => {
   const baslik = String(req.body?.baslik || '').trim();
-  const aciklama = String(req.body?.aciklama || '').trim();
+  const aciklama = metinDuzenle(req.body?.aciklama || '');
   const aktif = Number(req.body?.aktif);
   const katid = String(req.body?.katid || '').trim();
   sqlRun(
@@ -3579,7 +3675,7 @@ app.post('/api/album/upload', (req, res, next) => {
 }, async (req, res) => {
   const kat = String(req.body?.kat || '').trim();
   const baslik = String(req.body?.baslik || '').trim();
-  const aciklama = String(req.body?.aciklama || '').trim();
+  const aciklama = metinDuzenle(req.body?.aciklama || '');
 
   if (!baslik) return res.status(400).send('Yüklemek üzere olduğun fotoğraf için bir başlık girmen gerekiyor.');
   if (!kat) return res.status(400).send('Kategori seçmelisin.');
@@ -3770,7 +3866,7 @@ app.post('/api/new/posts', requireAuth, (req, res) => {
   const content = metinDuzenle(req.body?.content || '');
   const image = req.body?.image || null;
   const groupId = req.body?.group_id || null;
-  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
+  if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
@@ -3816,7 +3912,7 @@ app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async
     }
   }
   const image = finalImagePath ? toUploadUrl(finalImagePath) : null;
-  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
+  if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
@@ -3900,7 +3996,7 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
     }
   }
   const comment = metinDuzenle(req.body?.comment || '');
-  if (!comment) return res.status(400).send('Yorum boş olamaz.');
+  if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO post_comments (post_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
     req.params.id,
@@ -3967,6 +4063,46 @@ app.post('/api/new/notifications/read', requireAuth, (req, res) => {
     req.session.userId
   ]);
   res.json({ ok: true });
+});
+
+app.post('/api/new/translate', requireAuth, async (req, res) => {
+  const text = String(req.body?.text || '').trim();
+  const target = String(req.body?.target || 'tr').trim().toLowerCase();
+  const source = String(req.body?.source || 'auto').trim().toLowerCase();
+  const supported = new Set(['tr', 'en', 'de', 'fr']);
+  if (typeof fetch !== 'function') return res.status(501).send('Sunucu çeviri servisini desteklemiyor.');
+  if (!supported.has(target)) return res.status(400).send('Hedef dil desteklenmiyor.');
+  if (!text) return res.json({ translatedText: '', sourceLanguage: source || 'auto' });
+  const sliced = text.slice(0, 5000);
+  try {
+    const params = new URLSearchParams({
+      client: 'gtx',
+      sl: source || 'auto',
+      tl: target,
+      dt: 't',
+      q: sliced
+    });
+    const response = await fetch(`https://translate.googleapis.com/translate_a/single?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'User-Agent': 'SDAL-New/1.0' }
+    });
+    if (!response.ok) return res.status(502).send('Çeviri servisine erişilemedi.');
+    const payload = await response.json();
+    const segments = Array.isArray(payload?.[0]) ? payload[0] : [];
+    const translatedText = segments.map((seg) => (Array.isArray(seg) ? String(seg[0] || '') : '')).join('');
+    if (!translatedText) return res.status(502).send('Çeviri sonucu alınamadı.');
+    return res.json({
+      translatedText,
+      sourceLanguage: String(payload?.[2] || source || 'auto')
+    });
+  } catch (err) {
+    writeAppLog('warn', 'translate_failed', {
+      userId: req.session?.userId || null,
+      target,
+      message: err?.message || 'unknown_error'
+    });
+    return res.status(502).send('Çeviri servisine ulaşılamadı.');
+  }
 });
 
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -4498,7 +4634,7 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
 app.post('/api/new/groups', requireAuth, (req, res) => {
   const name = String(req.body?.name || '').trim();
   if (!name) return res.status(400).send('Grup adı gerekli.');
-  const description = String(req.body?.description || '');
+  const description = metinDuzenle(req.body?.description || '');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?)', [
     name,
@@ -4973,7 +5109,7 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
   }
   const content = metinDuzenle(req.body?.content || '');
   const contentRaw = String(req.body?.content || '');
-  if (!content) return res.status(400).send('İçerik boş olamaz.');
+  if (isFormattedContentEmpty(content)) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
@@ -5021,7 +5157,7 @@ app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('ima
     }
   }
   const image = finalImagePath ? toUploadUrl(finalImagePath) : null;
-  if (!content && !image) return res.status(400).send('İçerik boş olamaz.');
+  if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
@@ -5119,7 +5255,7 @@ app.post('/api/new/groups/:id/announcements', requireAuth, (req, res) => {
   if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok. Sadece owner/moderator duyuru ekleyebilir.');
   const title = String(req.body?.title || '').trim();
   const body = metinDuzenle(req.body?.body || '');
-  if (!title || !body) return res.status(400).send('Başlık ve içerik gerekli.');
+  if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
   const now = new Date().toISOString();
   const result = sqlRun(
     `INSERT INTO group_announcements (group_id, title, body, created_at, created_by)
@@ -5392,7 +5528,7 @@ app.post('/api/new/events/:id/comments', requireAuth, (req, res) => {
   if (!event) return res.status(404).send('Etkinlik bulunamadı.');
   const commentRaw = req.body?.comment || '';
   const comment = metinDuzenle(commentRaw);
-  if (!comment) return res.status(400).send('Yorum boş olamaz.');
+  if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO event_comments (event_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
     req.params.id,
@@ -5455,14 +5591,15 @@ app.get('/api/new/announcements', requireAuth, (req, res) => {
 
 app.post('/api/new/announcements', requireAuth, (req, res) => {
   const { title, body, image } = req.body || {};
-  if (!title || !body) return res.status(400).send('Başlık ve içerik gerekli.');
+  const formattedBody = metinDuzenle(body || '');
+  if (!title || isFormattedContentEmpty(formattedBody)) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
   const isAdmin = user?.admin === 1 && req.session.adminOk;
   const now = new Date().toISOString();
   sqlRun(
     `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, metinDuzenle(body), image || null, now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
+    [title, formattedBody, image || null, now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
   );
   res.json({ ok: true, pending: !isAdmin });
 });
@@ -5470,7 +5607,8 @@ app.post('/api/new/announcements', requireAuth, (req, res) => {
 app.post('/api/new/announcements/upload', requireAuth, postUpload.single('image'), async (req, res) => {
   const title = String(req.body?.title || '').trim();
   const bodyRaw = String(req.body?.body || '');
-  if (!title || !bodyRaw) return res.status(400).send('Başlık ve içerik gerekli.');
+  const body = metinDuzenle(bodyRaw);
+  if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
   const isAdmin = user?.admin === 1 && req.session.adminOk;
   let imagePath = req.file?.path || null;
@@ -5493,7 +5631,7 @@ app.post('/api/new/announcements/upload', requireAuth, postUpload.single('image'
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title,
-      metinDuzenle(bodyRaw),
+      body,
       imagePath ? toUploadUrl(imagePath) : null,
       now,
       req.session.userId,
@@ -5548,7 +5686,7 @@ app.get('/api/new/chat/messages', requireAuth, (req, res) => {
 app.post('/api/new/chat/send', requireAuth, (req, res) => {
   const rawMessage = String(req.body?.message || '').slice(0, 5000);
   const message = metinDuzenle(rawMessage);
-  if (!message) return res.status(400).send('Mesaj boş olamaz.');
+  if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
     req.session.userId,
@@ -5875,23 +6013,29 @@ app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
       return 0;
     }
   })();
-  const statfs = safeStatfs(uploadsDir) || safeStatfs(path.dirname(dbPath));
-  const diskTotalBytes = statfs ? Number(statfs.blocks || 0) * Number(statfs.bsize || 0) : 0;
-  const diskFreeBytes = statfs ? Number(statfs.bavail || 0) * Number(statfs.bsize || 0) : 0;
-  const diskUsedBytes = Math.max(0, diskTotalBytes - diskFreeBytes);
-  const diskUsedPct = diskTotalBytes > 0 ? Number(((diskUsedBytes / diskTotalBytes) * 100).toFixed(2)) : 0;
-  const diskFreePct = diskTotalBytes > 0 ? Number(((diskFreeBytes / diskTotalBytes) * 100).toFixed(2)) : 0;
+  const diskMetrics = getDiskMetrics(uploadsDir) || getDiskMetrics(path.dirname(dbPath));
+  const diskTotalBytes = Number(diskMetrics?.totalBytes || 0);
+  const diskUsedBytes = Number(diskMetrics?.usedBytes || 0);
+  const diskFreeBytes = Number(diskMetrics?.freeBytes || 0);
+  const diskSupported = Number.isFinite(diskTotalBytes) && diskTotalBytes > 0;
+  const diskUsedPct = diskSupported ? Number(((diskUsedBytes / diskTotalBytes) * 100).toFixed(2)) : null;
+  const diskFreePct = diskSupported ? Number(((diskFreeBytes / diskTotalBytes) * 100).toFixed(2)) : null;
+  const cpuUsagePct = sampleCpuUsagePercent();
+  const cpuSupported = Number.isFinite(cpuUsagePct) && cpuUsagePct >= 0;
 
   const storage = {
     uploadedPhotoCount: Number(uploadStats.files || 0),
     uploadedPhotoSizeMb: bytesToMb(uploadStats.bytes),
     databaseSizeMb: bytesToMb(dbSizeBytes),
-    diskTotalMb: bytesToMb(diskTotalBytes),
-    diskUsedMb: bytesToMb(diskUsedBytes),
-    diskFreeMb: bytesToMb(diskFreeBytes),
+    diskTotalMb: diskSupported ? bytesToMb(diskTotalBytes) : null,
+    diskUsedMb: diskSupported ? bytesToMb(diskUsedBytes) : null,
+    diskFreeMb: diskSupported ? bytesToMb(diskFreeBytes) : null,
     diskUsedPct,
     diskFreePct,
-    cpuUsagePct: sampleCpuUsagePercent()
+    diskSupported,
+    diskSource: diskMetrics?.source || null,
+    cpuUsagePct: cpuSupported ? Number(cpuUsagePct) : null,
+    cpuSupported
   };
 
   res.json({ counts, storage, recentUsers, recentPosts, recentPhotos });
@@ -6669,7 +6813,7 @@ wss.on('connection', (ws, req) => {
       const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [userId]) || null;
       if (!user?.id) return;
       const message = metinDuzenle(rawMessage || '');
-      if (!message) return;
+      if (isFormattedContentEmpty(message)) return;
       const now = new Date().toISOString();
       const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
         userId,

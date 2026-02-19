@@ -4,6 +4,9 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
 import { useAuth } from '../utils/auth.jsx';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import { isRichTextEmpty } from '../utils/richText.js';
 
 export default function MessageDetailPage() {
   const { user } = useAuth();
@@ -43,8 +46,8 @@ export default function MessageDetailPage() {
 
   async function quickReply() {
     setError('');
-    const body = String(reply || '').trim();
-    if (!body) return;
+    if (isRichTextEmpty(reply)) return;
+    const body = reply;
     const currentId = Number(user?.id || 0);
     const senderId = Number(sender?.id || 0);
     const receiverId = Number(receiver?.id || 0);
@@ -84,9 +87,9 @@ export default function MessageDetailPage() {
           <div className="meta">Gönderen: {sender?.kadi}</div>
           <div className="meta">Alıcı: {receiver?.kadi}</div>
           <div className="meta">Tarih: {formatDateTime(message.tarih)}</div>
-          <div className="message-bubble" dangerouslySetInnerHTML={{ __html: message.mesaj || '' }} />
+          <TranslatableHtml html={message.mesaj || ''} className="message-bubble" />
           <div className="stack">
-            <textarea className="input" placeholder="Hızlı cevap yaz..." value={reply} onChange={(e) => setReply(e.target.value)} />
+            <RichTextEditor value={reply} onChange={setReply} placeholder="Hızlı cevap yaz..." minHeight={100} compact />
             <div className="composer-actions">
               <button className="btn primary" onClick={quickReply} disabled={sending}>{sending ? 'Gönderiliyor...' : 'Hızlı Cevap Gönder'}</button>
               <button className="btn ghost" onClick={remove}>Sil</button>
