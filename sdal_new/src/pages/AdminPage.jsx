@@ -22,6 +22,7 @@ const tabs = [
   { key: 'engagement', label: 'Etkileşim Skorları', section: 'Topluluk', hint: 'Gizli görünürlük puanları' },
   { key: 'verification', label: 'Doğrulama', section: 'Topluluk', hint: 'Rozet/kimlik doğrulama talepleri' },
   { key: 'groups', label: 'Gruplar', section: 'Topluluk', hint: 'Grup moderasyonu ve temizlik' },
+  { key: 'posts', label: 'Postlar', section: 'Topluluk', hint: 'Post moderasyonu ve silme' },
   { key: 'stories', label: 'Hikayeler', section: 'Topluluk', hint: 'Story denetimi' },
   { key: 'chat', label: 'Canlı Sohbet', section: 'Topluluk', hint: 'Sohbet moderasyonu' },
   { key: 'messages', label: 'Mesajlar', section: 'Topluluk', hint: 'Sistem içi mesaj denetimi' },
@@ -44,6 +45,7 @@ const commonLogActivities = [
   'admin_login_success',
   'admin_logout',
   'story_delete',
+  'post_delete',
   'chat_message_delete',
   'inbox_message_delete',
   'uncaught_route_error',
@@ -147,6 +149,7 @@ export default function AdminPage() {
   const [announcementForm, setAnnouncementForm] = useState({ title: '', body: '' });
 
   const [groups, setGroups] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [stories, setStories] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
@@ -204,6 +207,7 @@ export default function AdminPage() {
     if (tab === 'events') loadEvents();
     if (tab === 'announcements') loadAnnouncements();
     if (tab === 'groups') loadGroups();
+    if (tab === 'posts') loadPosts();
     if (tab === 'stories') loadStories();
     if (tab === 'chat') loadChat();
     if (tab === 'messages') loadAdminMessages();
@@ -714,6 +718,17 @@ export default function AdminPage() {
     setGroups(data.items || []);
   }
 
+  async function loadPosts() {
+    const data = await apiJson('/api/new/admin/posts?limit=250');
+    setPosts(data.items || []);
+  }
+
+  async function deletePost(id) {
+    await apiJson(`/api/new/admin/posts/${id}`, { method: 'DELETE' });
+    loadPosts();
+    if (tab === 'dashboard') refreshDashboard();
+  }
+
   async function deleteGroup(id) {
     await apiJson(`/api/new/admin/groups/${id}`, { method: 'DELETE' });
     loadGroups();
@@ -1001,8 +1016,11 @@ export default function AdminPage() {
                   <div className="muted">Disk Kullanımı</div>
                   {stats.storage?.diskSupported ? (
                     <>
-                      <b>{Number(stats.storage?.diskUsedPct || 0).toFixed(1)}%</b>
-                      <div className="meta">Toplam {Number(stats.storage?.diskTotalMb || 0).toFixed(0)} MB • Boş {Number(stats.storage?.diskFreeMb || 0).toFixed(0)} MB</div>
+                      <b>{Number(stats.storage?.diskUsedPct).toFixed(1)}%</b>
+                      <div className="meta">
+                        Toplam {Number(stats.storage?.diskTotalMb).toFixed(0)} MB • Boş {Number(stats.storage?.diskFreeMb).toFixed(0)} MB
+                      </div>
+                      {stats.storage?.diskSource ? <div className="meta">Kaynak: {stats.storage.diskSource}</div> : null}
                     </>
                   ) : (
                     <div className="meta">Bu sunucuda desteklenmiyor.</div>
@@ -1010,7 +1028,7 @@ export default function AdminPage() {
                 </div>
                 <div className="admin-kpi-card">
                   <div className="muted">Anlık CPU</div>
-                  {stats.storage?.cpuSupported ? <b>{Number(stats.storage?.cpuUsagePct || 0).toFixed(1)}%</b> : <div className="meta">Bu sunucuda desteklenmiyor.</div>}
+                  {stats.storage?.cpuSupported ? <b>{Number(stats.storage?.cpuUsagePct).toFixed(1)}%</b> : <div className="meta">Bu sunucuda desteklenmiyor.</div>}
                 </div>
               </div>
             </div>
@@ -1891,6 +1909,33 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'posts' ? (
+        <div className="panel">
+          <div className="panel-body">
+            <div className="composer-actions">
+              <button className="btn ghost" onClick={loadPosts}>Yenile</button>
+            </div>
+            <div className="list">
+              {posts.map((p) => (
+                <div key={p.id} className="list-item">
+                  <div>
+                    <div className="name">#{p.id} @{p.kadi || 'üye'}</div>
+                    <div className="meta">{p.created_at ? new Date(p.created_at).toLocaleString('tr-TR') : '-'}</div>
+                    <div className="meta">{(p.content || '').replace(/<[^>]+>/g, ' ').trim().slice(0, 220) || '(metin yok)'}</div>
+                    {p.image ? <a className="meta" href={p.image} target="_blank" rel="noreferrer">Görseli Aç</a> : null}
+                  </div>
+                  <div className="composer-actions">
+                    <button className="btn ghost" onClick={() => setPreviewModal({ type: 'post', data: p })}>Önizle</button>
+                    <button className="btn ghost" onClick={() => deletePost(p.id)}>Sil</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!posts.length ? <div className="muted">Gösterilecek post yok.</div> : null}
           </div>
         </div>
       ) : null}

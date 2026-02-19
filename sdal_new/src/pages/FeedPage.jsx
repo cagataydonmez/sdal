@@ -118,7 +118,7 @@ export default function FeedPage() {
 
   const loadOnlineMembers = useCallback(async () => {
     try {
-      const res = await fetch('/api/new/online-members?limit=10&excludeSelf=1', { credentials: 'include' });
+      const res = await fetch('/api/new/online-members?limit=10&excludeSelf=1', { credentials: 'include', cache: 'no-store' });
       if (!res.ok) return;
       const payload = await res.json();
       setOnlineMembers(payload.items || []);
@@ -150,7 +150,7 @@ export default function FeedPage() {
 
   useLiveRefresh(refreshFeedSilently, { intervalMs: 7000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created', '*'] });
   useLiveRefresh(loadUnreadMessages, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
-  useLiveRefresh(loadOnlineMembers, { intervalMs: 8000, eventTypes: ['*'] });
+  useLiveRefresh(loadOnlineMembers, { intervalMs: 4000, eventTypes: ['*'] });
 
   return (
     <Layout title={t('nav_feed')}>
@@ -188,7 +188,7 @@ export default function FeedPage() {
           {!hasMore && posts.length > 0 ? <div className="muted">{t('feed_end')}</div> : null}
         </div>
         <div className="col-side">
-          <NotificationPanel limit={5} showAllLink />
+          <NotificationPanel limit={3} showAllLink />
           <div className="panel">
             <h3>{t('online_members')}</h3>
             <div className="panel-body">

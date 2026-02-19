@@ -147,8 +147,14 @@ export default function RichTextEditor({
   return (
     <div className={`rich-editor ${compact ? 'rich-editor-compact' : ''} ${className}`.trim()}>
       <div className="rich-toolbar-toggle">
-        <button type="button" className={`chip ${toolbarOpen ? 'chip-active' : ''}`} onClick={() => setToolbarOpen((v) => !v)}>
-          {t('advanced_format')}
+        <button
+          type="button"
+          className={`chip rich-toolbar-toggle-btn ${toolbarOpen ? 'chip-active' : ''}`}
+          onClick={() => setToolbarOpen((v) => !v)}
+          title={t('advanced_format')}
+          aria-label={t('advanced_format')}
+        >
+          A+
         </button>
       </div>
       {toolbarOpen ? (

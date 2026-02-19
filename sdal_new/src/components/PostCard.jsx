@@ -5,12 +5,17 @@ import RichTextEditor from './RichTextEditor.jsx';
 import TranslatableHtml from './TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useAuth } from '../utils/auth.jsx';
 
 export default function PostCard({ post, onRefresh, focused = false }) {
   const { t } = useI18n();
+  const { user } = useAuth();
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post.content || '');
+  const [postBusy, setPostBusy] = useState(false);
 
   async function loadComments() {
     const res = await fetch(`/api/new/posts/${post.id}/comments`, { credentials: 'include' });
@@ -29,6 +34,10 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     if (!showComments) return;
     loadComments();
   }, [showComments, post.commentCount]);
+
+  useEffect(() => {
+    if (!editing) setEditContent(post.content || '');
+  }, [post.content, editing]);
 
   async function toggleLike() {
     await fetch(`/api/new/posts/${post.id}/like`, { method: 'POST', credentials: 'include' });
@@ -53,6 +62,46 @@ export default function PostCard({ post, onRefresh, focused = false }) {
   }
 
   const authorId = Number(post.author?.id || post.user_id || 0) || null;
+  const canManagePost = !!user?.id && (Number(user.id) === Number(authorId) || Number(user.admin || 0) === 1);
+
+  async function savePostEdit() {
+    if (isRichTextEmpty(editContent)) return;
+    setPostBusy(true);
+    try {
+      const res = await fetch(`/api/new/posts/${post.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ content: editContent })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setEditing(false);
+      emitAppChange('post:updated', { postId: post.id });
+      onRefresh?.();
+    } catch (err) {
+      window.alert(err?.message || t('post_update_failed'));
+    } finally {
+      setPostBusy(false);
+    }
+  }
+
+  async function deletePost() {
+    if (!window.confirm(t('post_confirm_delete'))) return;
+    setPostBusy(true);
+    try {
+      const res = await fetch(`/api/new/posts/${post.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(await res.text());
+      emitAppChange('post:deleted', { postId: post.id });
+      onRefresh?.();
+    } catch (err) {
+      window.alert(err?.message || t('post_delete_failed'));
+    } finally {
+      setPostBusy(false);
+    }
+  }
 
   return (
     <article className="post-card">
@@ -71,10 +120,32 @@ export default function PostCard({ post, onRefresh, focused = false }) {
           </div>
           <div className="handle">@{post.author?.kadi}</div>
         </div>
-        <div className="meta">{formatDateTime(post.createdAt)}</div>
+        <div className="post-meta-col">
+          <div className="meta">{formatDateTime(post.createdAt)}</div>
+          {canManagePost ? (
+            <div className="post-meta-actions">
+              <button className="btn ghost" disabled={postBusy} onClick={() => setEditing((v) => !v)}>
+                {editing ? t('close') : t('edit')}
+              </button>
+              <button className="btn ghost" disabled={postBusy} onClick={deletePost}>{postBusy ? t('deleting') : t('delete')}</button>
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="post-body">
-        <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
+        {editing ? (
+          <div className="comment-form">
+            <RichTextEditor value={editContent} onChange={setEditContent} placeholder={t('group_post_placeholder')} minHeight={90} compact />
+            <div className="post-edit-actions">
+              <button className="btn ghost" onClick={() => { setEditing(false); setEditContent(post.content || ''); }} disabled={postBusy}>{t('close')}</button>
+              <button className="btn primary" onClick={savePostEdit} disabled={postBusy || isRichTextEmpty(editContent)}>
+                {postBusy ? t('saving') : t('save')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
+        )}
         {post.image ? <img className="post-image" src={post.image} alt="" /> : null}
       </div>
       <div className="post-actions">

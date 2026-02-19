@@ -16,7 +16,9 @@ export default function LiveChatPanel() {
   const [error, setError] = useState('');
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
-  const wsRef = useRef(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [messageBusyId, setMessageBusyId] = useState(null);
   const chatBodyRef = useRef(null);
   const atBottomRef = useRef(true);
 
@@ -102,18 +104,24 @@ export default function LiveChatPanel() {
     const timer = setInterval(() => {
       if (document.hidden) return;
       loadNewer();
-    }, 5000);
+    }, 2000);
     return () => clearInterval(timer);
   }, [loadNewer]);
 
   useEffect(() => {
     const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/chat`;
     const ws = new WebSocket(url);
-    wsRef.current = ws;
     ws.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (!msg?.id || !msg?.message) return;
+        const eventType = String(msg?.type || 'chat:new');
+        const msgId = Number(msg?.id || 0);
+        if (!msgId) return;
+        if (eventType === 'chat:deleted') {
+          setMessages((prev) => prev.filter((m) => Number(m.id || 0) !== msgId));
+          return;
+        }
+        if (!msg?.message) return;
         mergeMessages([{
           ...msg,
           user_id: msg.user_id || msg.user?.id || null,
@@ -174,14 +182,68 @@ export default function LiveChatPanel() {
         setMessages((prev) => prev.filter((m) => Number(m.id) !== optimisticId));
         mergeMessages([payload.item], 'append');
       }
-      if (wsRef.current && wsRef.current.readyState === 1) {
-        wsRef.current.send(JSON.stringify({ userId: user.id, message }));
-      }
     } catch (err) {
       if (optimisticId !== null) {
         setMessages((prev) => prev.filter((m) => Number(m.id) !== optimisticId));
       }
       setError(err?.message || t('message_send_failed'));
+    }
+  }
+
+  function startEdit(message) {
+    setEditingId(Number(message?.id || 0) || null);
+    setEditText(message?.message || '');
+    requestAnimationFrame(() => {
+      const el = chatBodyRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  async function saveEdit(messageId) {
+    if (!messageId || isRichTextEmpty(editText)) return;
+    setMessageBusyId(messageId);
+    setError('');
+    try {
+      const res = await fetch(`/api/new/chat/messages/${messageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ message: editText })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (data?.item) mergeMessages([data.item], 'append');
+      setEditingId(null);
+      setEditText('');
+      emitAppChange('chat:updated', { messageId });
+    } catch (err) {
+      setError(err?.message || t('live_chat_edit_failed'));
+    } finally {
+      setMessageBusyId(null);
+    }
+  }
+
+  async function removeMessage(messageId) {
+    if (!messageId) return;
+    setMessageBusyId(messageId);
+    setError('');
+    try {
+      const res = await fetch(`/api/new/chat/messages/${messageId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setMessages((prev) => prev.filter((m) => Number(m.id || 0) !== Number(messageId)));
+      emitAppChange('chat:deleted', { messageId });
+      if (editingId === Number(messageId)) {
+        setEditingId(null);
+        setEditText('');
+      }
+    } catch (err) {
+      setError(err?.message || t('live_chat_delete_failed'));
+    } finally {
+      setMessageBusyId(null);
     }
   }
 
@@ -202,10 +264,32 @@ export default function LiveChatPanel() {
         {loadingOlder ? <div className="muted">{t('live_chat_loading_old')}</div> : null}
         {messages.map((m) => (
           <div key={m.id} className="chat-line">
-            <a className="chat-user" href={m.user_id ? `/new/members/${m.user_id}` : '/new/explore'}>
-              @{(m.user?.kadi || m.kadi) || t('anonymous')}{(m.user?.verified || m.verified) ? ' ✓' : ''}
-            </a>
-            <TranslatableHtml html={m.message} className="chat-text" />
+            <div className="chat-line-head">
+              <a className="chat-user" href={m.user_id ? `/new/members/${m.user_id}` : '#'}>
+                @{(m.user?.kadi || m.kadi) || t('anonymous')}{(m.user?.verified || m.verified) ? ' ✓' : ''}
+              </a>
+              {Number(user?.id || 0) === Number(m.user_id || 0) || Number(user?.admin || 0) === 1 ? (
+                <div className="chat-line-actions">
+                  <button className="btn ghost btn-xs" onClick={() => startEdit(m)} disabled={messageBusyId === m.id}>{t('edit')}</button>
+                  <button className="btn ghost btn-xs" onClick={() => removeMessage(m.id)} disabled={messageBusyId === m.id}>
+                    {messageBusyId === m.id ? t('deleting') : t('delete')}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            {editingId === Number(m.id) ? (
+              <div className="chat-edit-box">
+                <RichTextEditor value={editText} onChange={setEditText} placeholder={t('message_write')} minHeight={56} compact />
+                <div className="chat-edit-actions">
+                  <button className="btn ghost btn-xs" onClick={() => { setEditingId(null); setEditText(''); }} disabled={messageBusyId === m.id}>{t('close')}</button>
+                  <button className="btn btn-xs" onClick={() => saveEdit(m.id)} disabled={messageBusyId === m.id || isRichTextEmpty(editText)}>
+                    {messageBusyId === m.id ? t('saving') : t('save')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <TranslatableHtml html={m.message} className="chat-text" />
+            )}
           </div>
         ))}
       </div>

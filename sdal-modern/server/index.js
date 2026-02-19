@@ -38,7 +38,22 @@ app.use(
   })
 );
 
-const ONLINE_HEARTBEAT_MS = 45 * 1000;
+const ONLINE_HEARTBEAT_MS = 20 * 1000;
+
+function toLocalDateParts(now = new Date()) {
+  const pad = (v) => String(v).padStart(2, '0');
+  const y = now.getFullYear();
+  const m = pad(now.getMonth() + 1);
+  const d = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  return {
+    date: `${y}-${m}-${d}`,
+    time: `${hh}:${mm}:${ss}`
+  };
+}
+
 app.use((req, _res, next) => {
   if (!req.session?.userId) return next();
   const nowMs = Date.now();
@@ -47,9 +62,10 @@ app.use((req, _res, next) => {
   req.session._presenceUpdatedAt = nowMs;
   try {
     const now = new Date(nowMs);
+    const localParts = toLocalDateParts(now);
     sqlRun('UPDATE uyeler SET sonislemtarih = ?, sonislemsaat = ?, sonip = ?, online = 1 WHERE id = ?', [
-      now.toISOString().slice(0, 10),
-      now.toTimeString().slice(0, 8),
+      localParts.date,
+      localParts.time,
       req.ip,
       req.session.userId
     ]);
@@ -789,7 +805,11 @@ function parseOnlineHeartbeat(row) {
 }
 
 function cleanupStaleOnlineUsers(maxIdleMs = 5 * 60 * 1000) {
-  const rows = sqlAll('SELECT id, sonislemtarih, sonislemsaat FROM uyeler WHERE online = 1');
+  const rows = sqlAll(
+    `SELECT id, sonislemtarih, sonislemsaat
+     FROM uyeler
+     WHERE (COALESCE(CAST(online AS INTEGER), 0) = 1 OR LOWER(CAST(online AS TEXT)) IN ('true','evet','yes'))`
+  );
   const now = Date.now();
   for (const row of rows) {
     const ts = parseOnlineHeartbeat(row);
@@ -808,7 +828,7 @@ function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
             COALESCE(es.score, 0) AS engagement_score
      FROM uyeler u
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
-     WHERE COALESCE(CAST(u.online AS INTEGER), 0) = 1
+     WHERE (COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))
        AND (? IS NULL OR u.id != ?)
      ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
      LIMIT ?`,
@@ -2001,8 +2021,10 @@ function safeDf(targetPath) {
 function getDiskMetrics(targetPath) {
   const statfs = safeStatfs(targetPath);
   if (statfs) {
-    const totalBytes = Number(statfs.blocks || 0) * Number(statfs.bsize || 0);
-    const freeBytes = Number(statfs.bavail || 0) * Number(statfs.bsize || 0);
+    const blockSize = Number(statfs.bsize || statfs.frsize || 0);
+    const totalBytes = Number(statfs.blocks || 0) * blockSize;
+    const freeBlocks = Number(statfs.bavail || statfs.bfree || 0);
+    const freeBytes = freeBlocks * blockSize;
     if (Number.isFinite(totalBytes) && totalBytes > 0) {
       const usedBytes = Math.max(0, totalBytes - Math.max(0, freeBytes));
       return {
@@ -2013,7 +2035,9 @@ function getDiskMetrics(targetPath) {
       };
     }
   }
-  return safeDf(targetPath);
+  const primary = safeDf(targetPath);
+  if (primary) return primary;
+  return safeDf('/');
 }
 
 let cpuSample = {
@@ -2023,7 +2047,27 @@ let cpuSample = {
   value: null
 };
 
+function readProcCpuSnapshot() {
+  try {
+    const content = fs.readFileSync('/proc/stat', 'utf8');
+    const line = String(content || '')
+      .split('\n')
+      .find((entry) => entry.startsWith('cpu '));
+    if (!line) return null;
+    const parts = line.trim().split(/\s+/).slice(1).map((v) => Number(v || 0));
+    if (!parts.length || parts.some((v) => !Number.isFinite(v))) return null;
+    const idle = Number(parts[3] || 0) + Number(parts[4] || 0);
+    const total = parts.reduce((sum, v) => sum + Number(v || 0), 0);
+    if (!Number.isFinite(total) || total <= 0) return null;
+    return { total, idle };
+  } catch {
+    return null;
+  }
+}
+
 function readCpuSnapshot() {
+  const procSnapshot = readProcCpuSnapshot();
+  if (procSnapshot) return procSnapshot;
   const cpus = os.cpus?.() || [];
   if (!cpus.length) return null;
   let total = 0;
@@ -2061,7 +2105,7 @@ function sampleCpuUsagePercent() {
   const loads = os.loadavg?.() || [];
   const cpuCount = Math.max((os.cpus?.() || []).length, 1);
   const load1 = Number(loads[0] || 0);
-  if (!Number.isFinite(load1) || load1 <= 0) return null;
+  if (!Number.isFinite(load1) || load1 < 0) return null;
   const loadPct = Math.min(100, Math.max(0, (load1 / cpuCount) * 100));
   return Number(loadPct.toFixed(2));
 }
@@ -2262,9 +2306,10 @@ app.get('/hmesisle.asp', (req, res) => {
   if (mesaj && mesaj !== 'ilkgiris2222tttt') {
     const rows = sqlAll('SELECT id, kadi FROM uyeler WHERE id = ?', [req.session.userId]);
     if (rows.length) {
+      const localParts = toLocalDateParts(new Date());
       sqlRun('UPDATE uyeler SET sonislemtarih = ?, sonislemsaat = ?, sonip = ?, online = 1 WHERE id = ?', [
-        new Date().toISOString().slice(0, 10),
-        new Date().toTimeString().slice(0, 8),
+        localParts.date,
+        localParts.time,
         req.ip,
         req.session.userId
       ]);
@@ -2505,6 +2550,7 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   const now = new Date();
+  const localParts = toLocalDateParts(now);
   const prevDate = user.sonislemtarih && user.sonislemsaat ? `${user.sonislemtarih} ${user.sonislemsaat}` : null;
   sqlRun(
     `UPDATE uyeler
@@ -2516,7 +2562,7 @@ app.post('/api/auth/login', (req, res) => {
          sonislemsaat = ?,
          sonip = ?
      WHERE id = ?`,
-    [now.toISOString(), prevDate || now.toISOString(), now.toISOString().slice(0, 10), now.toTimeString().slice(0, 8), req.ip, user.id]
+    [now.toISOString(), prevDate || now.toISOString(), localParts.date, localParts.time, req.ip, user.id]
   );
 
   req.session.userId = user.id;
@@ -3932,6 +3978,68 @@ app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async
   res.json({ ok: true, id: result?.lastInsertRowid, image });
 });
 
+function canManagePost(req, postRow) {
+  if (!postRow) return false;
+  if (sameUserId(postRow.user_id, req.session.userId)) return true;
+  const currentUser = getCurrentUser(req);
+  return currentUser?.admin === 1 && !!req.session?.adminOk;
+}
+
+function deletePostById(postId) {
+  sqlRun('DELETE FROM post_likes WHERE post_id = ?', [postId]);
+  sqlRun('DELETE FROM post_comments WHERE post_id = ?', [postId]);
+  sqlRun('DELETE FROM notifications WHERE type IN (?, ?) AND entity_id = ?', ['like', 'comment', postId]);
+  sqlRun('DELETE FROM posts WHERE id = ?', [postId]);
+}
+
+app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
+  const postId = Number(req.params.id || 0);
+  if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
+  const postRow = sqlGet('SELECT id, user_id, image FROM posts WHERE id = ?', [postId]);
+  if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
+  if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
+  const content = metinDuzenle(req.body?.content || '');
+  if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
+  sqlRun('UPDATE posts SET content = ? WHERE id = ?', [content, postId]);
+  scheduleEngagementRecalculation('post_updated');
+  const item = sqlGet(
+    `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
+            u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM posts p
+     LEFT JOIN uyeler u ON u.id = p.user_id
+     WHERE p.id = ?`,
+    [postId]
+  );
+  res.json({
+    ok: true,
+    item: item ? {
+      id: item.id,
+      content: item.content,
+      image: item.image,
+      createdAt: item.created_at,
+      author: {
+        id: item.user_id,
+        kadi: item.kadi,
+        isim: item.isim,
+        soyisim: item.soyisim,
+        resim: item.resim,
+        verified: item.verified
+      }
+    } : null
+  });
+});
+
+app.delete('/api/new/posts/:id', requireAuth, (req, res) => {
+  const postId = Number(req.params.id || 0);
+  if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
+  const postRow = sqlGet('SELECT id, user_id FROM posts WHERE id = ?', [postId]);
+  if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
+  if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi silme yetkin yok.');
+  deletePostById(postId);
+  scheduleEngagementRecalculation('post_deleted');
+  res.json({ ok: true });
+});
+
 app.post('/api/new/posts/:id/like', requireAuth, (req, res) => {
   const postId = req.params.id;
   const postRow = sqlGet('SELECT id, user_id, group_id FROM posts WHERE id = ?', [postId]);
@@ -4587,6 +4695,7 @@ app.get('/api/new/online-members', requireAuth, (req, res) => {
     limit,
     excludeUserId: String(req.query.excludeSelf || '1') === '1' ? req.session.userId : null
   });
+  res.setHeader('Cache-Control', 'no-store');
   res.json({ items, count: items.length, now: new Date().toISOString() });
 });
 
@@ -5683,6 +5792,80 @@ app.get('/api/new/chat/messages', requireAuth, (req, res) => {
   res.json({ items: rows.reverse() });
 });
 
+function broadcastChatMessage(item) {
+  try {
+    if (!item || !wss || !wss.clients) return;
+    const outgoing = JSON.stringify({
+      type: 'chat:new',
+      id: item.id,
+      user_id: item.user_id,
+      message: item.message,
+      created_at: item.created_at,
+      user: {
+        id: item.user_id,
+        kadi: item.kadi,
+        isim: item.isim,
+        soyisim: item.soyisim,
+        resim: item.resim,
+        verified: item.verified
+      }
+    });
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) client.send(outgoing);
+    });
+  } catch {
+    // ignore broadcast errors
+  }
+}
+
+function broadcastChatUpdate(item) {
+  try {
+    if (!item || !wss || !wss.clients) return;
+    const outgoing = JSON.stringify({
+      type: 'chat:updated',
+      id: item.id,
+      user_id: item.user_id,
+      message: item.message,
+      created_at: item.created_at,
+      user: {
+        id: item.user_id,
+        kadi: item.kadi,
+        isim: item.isim,
+        soyisim: item.soyisim,
+        resim: item.resim,
+        verified: item.verified
+      }
+    });
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) client.send(outgoing);
+    });
+  } catch {
+    // ignore broadcast errors
+  }
+}
+
+function broadcastChatDelete(messageId) {
+  try {
+    if (!messageId || !wss || !wss.clients) return;
+    const outgoing = JSON.stringify({
+      type: 'chat:deleted',
+      id: Number(messageId)
+    });
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) client.send(outgoing);
+    });
+  } catch {
+    // ignore broadcast errors
+  }
+}
+
+function canManageChatMessage(req, messageRow) {
+  if (!messageRow) return false;
+  if (sameUserId(messageRow.user_id, req.session.userId)) return true;
+  const currentUser = getCurrentUser(req);
+  return currentUser?.admin === 1 && !!req.session?.adminOk;
+}
+
 app.post('/api/new/chat/send', requireAuth, (req, res) => {
   const rawMessage = String(req.body?.message || '').slice(0, 5000);
   const message = metinDuzenle(rawMessage);
@@ -5694,21 +5877,57 @@ app.post('/api/new/chat/send', requireAuth, (req, res) => {
     now
   ]);
   const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [req.session.userId]) || null;
+  const item = user ? {
+    id: result?.lastInsertRowid,
+    user_id: user.id,
+    message,
+    created_at: now,
+    kadi: user.kadi,
+    isim: user.isim,
+    soyisim: user.soyisim,
+    resim: user.resim,
+    verified: user.verified
+  } : null;
+  if (item) broadcastChatMessage(item);
+  scheduleEngagementRecalculation('chat_message_created');
   res.json({
     ok: true,
     id: result?.lastInsertRowid,
-    item: user ? {
-      id: result?.lastInsertRowid,
-      user_id: user.id,
-      message,
-      created_at: now,
-      kadi: user.kadi,
-      isim: user.isim,
-      soyisim: user.soyisim,
-      resim: user.resim,
-      verified: user.verified
-    } : null
+    item
   });
+});
+
+app.patch('/api/new/chat/messages/:id', requireAuth, (req, res) => {
+  const messageId = Number(req.params.id || 0);
+  if (!messageId) return res.status(400).send('Geçersiz mesaj ID.');
+  const row = sqlGet('SELECT id, user_id FROM chat_messages WHERE id = ?', [messageId]);
+  if (!row) return res.status(404).send('Mesaj bulunamadı.');
+  if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı düzenleme yetkin yok.');
+  const rawMessage = String(req.body?.message || '').slice(0, 5000);
+  const message = metinDuzenle(rawMessage);
+  if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
+  sqlRun('UPDATE chat_messages SET message = ? WHERE id = ?', [message, messageId]);
+  const item = sqlGet(
+    `SELECT c.id, c.user_id, c.message, c.created_at, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+     FROM chat_messages c
+     LEFT JOIN uyeler u ON u.id = c.user_id
+     WHERE c.id = ?`,
+    [messageId]
+  );
+  if (item) broadcastChatUpdate(item);
+  res.json({ ok: true, item });
+});
+
+app.delete('/api/new/chat/messages/:id', requireAuth, (req, res) => {
+  const messageId = Number(req.params.id || 0);
+  if (!messageId) return res.status(400).send('Geçersiz mesaj ID.');
+  const row = sqlGet('SELECT id, user_id FROM chat_messages WHERE id = ?', [messageId]);
+  if (!row) return res.status(404).send('Mesaj bulunamadı.');
+  if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı silme yetkin yok.');
+  sqlRun('DELETE FROM chat_messages WHERE id = ?', [messageId]);
+  broadcastChatDelete(messageId);
+  scheduleEngagementRecalculation('chat_message_deleted');
+  res.json({ ok: true });
 });
 
 app.post('/api/new/verified/request', requireAuth, (req, res) => {
@@ -6269,6 +6488,28 @@ app.get('/api/new/admin/stories', requireAdmin, (req, res) => {
   res.json({ items: rows });
 });
 
+app.get('/api/new/admin/posts', requireAdmin, (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '200', 10), 1), 500);
+  const rows = sqlAll(
+    `SELECT p.id, p.user_id, p.content, p.image, p.created_at, u.kadi
+     FROM posts p
+     LEFT JOIN uyeler u ON u.id = p.user_id
+     ORDER BY p.id DESC
+     LIMIT ?`,
+    [limit]
+  );
+  res.json({ items: rows });
+});
+
+app.delete('/api/new/admin/posts/:id', requireAdmin, (req, res) => {
+  const postId = Number(req.params.id || 0);
+  if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
+  deletePostById(postId);
+  logAdminAction(req, 'post_delete', { postId });
+  scheduleEngagementRecalculation('post_deleted');
+  res.json({ ok: true });
+});
+
 app.delete('/api/new/admin/stories/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM story_views WHERE story_id = ?', [req.params.id]);
   sqlRun('DELETE FROM stories WHERE id = ?', [req.params.id]);
@@ -6298,8 +6539,11 @@ app.get('/api/new/admin/chat/messages', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/new/admin/chat/messages/:id', requireAdmin, (req, res) => {
-  sqlRun('DELETE FROM chat_messages WHERE id = ?', [req.params.id]);
+  const messageId = Number(req.params.id || 0);
+  sqlRun('DELETE FROM chat_messages WHERE id = ?', [messageId]);
+  broadcastChatDelete(messageId);
   logAdminAction(req, 'chat_message_delete', { messageId: req.params.id });
+  scheduleEngagementRecalculation('chat_message_deleted');
   res.json({ ok: true });
 });
 

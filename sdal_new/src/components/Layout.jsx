@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../utils/auth.jsx';
 import { useLiveRefresh } from '../utils/live.js';
@@ -11,6 +11,7 @@ export default function Layout({ children, title, right }) {
   const { lang, setLang, t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
 
   const profileImage = useMemo(() => {
     if (!user) return '/legacy/vesikalik/nophoto.jpg';
@@ -35,6 +36,25 @@ export default function Layout({ children, title, right }) {
 
   useLiveRefresh(loadUnreadCount, { intervalMs: 7000, eventTypes: ['message:created', '*'], enabled: !!user });
   useLiveRefresh(refresh, { intervalMs: 20000, eventTypes: ['profile:updated'], enabled: !!user });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(max-width: 760px)');
+    const sync = () => setMobileThemeLabel(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
+
+  const themeLabel = mobileThemeLabel
+    ? (mode === 'auto' ? 'Auto' : (mode === 'dark' ? t('theme_dark') : t('theme_light')))
+    : (mode === 'auto'
+      ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') })
+      : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') }));
 
   async function handleLogout() {
     await logout();
@@ -88,7 +108,7 @@ export default function Layout({ children, title, right }) {
               <option value="fr">{t('lang_fr')}</option>
             </select>
             <button className="btn ghost theme-toggle" onClick={cycleMode} title={t('theme_mode_title')}>
-              {mode === 'auto' ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') }) : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') })}
+              {themeLabel}
             </button>
 	            {right}
 	            {user ? (
@@ -139,7 +159,7 @@ export default function Layout({ children, title, right }) {
           <option value="fr">{t('lang_fr')}</option>
         </select>
         <button className="linkish bottom-link" onClick={cycleMode}>
-          {mode === 'auto' ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') }) : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') })}
+          {themeLabel}
         </button>
         <a className="bottom-link" href="/">{t('layout_classic_short')}</a>
         {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
