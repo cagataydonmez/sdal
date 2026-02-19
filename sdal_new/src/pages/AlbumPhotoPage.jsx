@@ -5,8 +5,10 @@ import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function AlbumPhotoPage() {
+  const { t } = useI18n();
   const { id } = useParams();
   const [photo, setPhoto] = useState(null);
   const [comments, setComments] = useState([]);
@@ -30,7 +32,7 @@ export default function AlbumPhotoPage() {
     e.preventDefault();
     setError('');
     if (isRichTextEmpty(comment)) {
-      setError('Yorum yazmalısın.');
+      setError(t('photo_comment_error_required'));
       return;
     }
     setLoading(true);
@@ -50,10 +52,10 @@ export default function AlbumPhotoPage() {
     setLoading(false);
   }
 
-  if (!photo) return <Layout title="Fotoğraf">Yükleniyor...</Layout>;
+  if (!photo) return <Layout title={t('photo_title')}>{t('loading')}</Layout>;
 
   return (
-    <Layout title={photo.baslik || 'Fotoğraf'}>
+    <Layout title={photo.baslik || t('photo_title')}>
       <div className="panel">
         <img className="photo-view-image" src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(photo.dosyaadi)}`} alt="" />
           <div className="panel-body">
@@ -64,14 +66,14 @@ export default function AlbumPhotoPage() {
       <div className="panel">
         <div className="panel-body">
           <form className="stack" onSubmit={submit}>
-            <RichTextEditor value={comment} onChange={setComment} placeholder="Yorum yaz..." minHeight={90} compact />
-            <button className="btn" disabled={loading || isRichTextEmpty(comment)}>{loading ? 'Gönderiliyor...' : 'Yorum Ekle'}</button>
+            <RichTextEditor value={comment} onChange={setComment} placeholder={t('photo_comment_placeholder')} minHeight={90} compact />
+            <button className="btn" disabled={loading || isRichTextEmpty(comment)}>{loading ? t('sending') : t('photo_comment_add')}</button>
             {error ? <div className="error">{error}</div> : null}
           </form>
         </div>
       </div>
       <div className="panel">
-        <h3>Yorumlar</h3>
+        <h3>{t('comments')}</h3>
         <div className="panel-body">
           {comments.map((c) => (
             <div key={c.id} className="list-item">

@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function AlbumsPage() {
+  const { t } = useI18n();
   const [categories, setCategories] = useState([]);
   const [latest, setLatest] = useState([]);
   const [hasMore, setHasMore] = useState(true);
@@ -52,14 +54,14 @@ export default function AlbumsPage() {
   }, [loadMore]);
 
   return (
-    <Layout title="Fotoğraflar">
+    <Layout title={t('albums_title')}>
       <div className="panel">
-        <h3>Kategoriler</h3>
+        <h3>{t('albums_categories')}</h3>
         <div className="panel-body">
           {categories.map((c) => (
             <a key={c.id} className="chip" href={`/new/albums/${c.id}`}>{c.kategori}</a>
           ))}
-          <a className="btn primary" href="/new/albums/upload">Fotoğraf Yükle</a>
+          <a className="btn primary" href="/new/albums/upload">{t('albums_upload')}</a>
         </div>
       </div>
       <div className="photo-grid">
@@ -70,7 +72,7 @@ export default function AlbumsPage() {
         ))}
       </div>
       <div ref={sentinelRef} />
-      {loadingMore ? <div className="muted">Daha fazla fotoğraf yükleniyor...</div> : null}
+      {loadingMore ? <div className="muted">{t('albums_loading_more')}</div> : null}
     </Layout>
   );
 }

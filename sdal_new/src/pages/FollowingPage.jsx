@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function FollowingPage() {
+  const { t } = useI18n();
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -59,7 +61,7 @@ export default function FollowingPage() {
   }
 
   return (
-    <Layout title="Takip Ettiklerim">
+    <Layout title={t('nav_following')}>
       <div className="list">
         {items.map((m) => (
           <div key={m.following_id} className="list-item">
@@ -69,17 +71,17 @@ export default function FollowingPage() {
                 <div className="name">{m.isim} {m.soyisim}</div>
                 <div className="meta">@{m.kadi}</div>
                 <div className="meta">
-                  Skor: {Number(m.engagement_score || 0).toFixed(1)} • Takip: {m.followed_at ? formatDateTime(m.followed_at) : '-'}
+                  {t('score')}: {Number(m.engagement_score || 0).toFixed(1)} • {t('follow_date')}: {m.followed_at ? formatDateTime(m.followed_at) : '-'}
                 </div>
               </div>
             </a>
-            <button className="btn ghost" onClick={() => unfollow(m.following_id)}>Takibi Bırak</button>
+            <button className="btn ghost" onClick={() => unfollow(m.following_id)}>{t('unfollow')}</button>
           </div>
         ))}
         <div ref={sentinelRef} />
-        {loading ? <div className="muted">Yükleniyor...</div> : null}
-        {!hasMore && items.length > 0 ? <div className="muted">Tüm takiplerin yüklendi.</div> : null}
-        {!items.length ? <div className="muted">Henüz takip ettiğin üye yok.</div> : null}
+        {loading ? <div className="muted">{t('loading')}</div> : null}
+        {!hasMore && items.length > 0 ? <div className="muted">{t('following_all_loaded')}</div> : null}
+        {!items.length ? <div className="muted">{t('following_empty')}</div> : null}
         {error ? <div className="error">{error}</div> : null}
       </div>
     </Layout>

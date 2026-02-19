@@ -153,9 +153,9 @@ export default function FeedPage() {
   useLiveRefresh(loadOnlineMembers, { intervalMs: 8000, eventTypes: ['*'] });
 
   return (
-    <Layout title="Akış">
+    <Layout title={t('nav_feed')}>
       <div className="panel">
-        <StoryBar title="Hikayeler" />
+        <StoryBar title={t('stories_title')} />
       </div>
       <div className="grid">
         <div className="col-main">
@@ -175,17 +175,17 @@ export default function FeedPage() {
                 setPendingPostsCount(0);
               }}
             >
-              {pendingPostsCount} yeni gönderi var, yenile
+              {t('feed_new_posts_refresh', { count: pendingPostsCount })}
             </button>
           ) : null}
           <PostComposer onPost={() => load({ silent: true, force: true })} />
-          {loading ? <div className="muted">Yükleniyor...</div> : null}
+          {loading ? <div className="muted">{t('loading')}</div> : null}
           {posts.map((p) => (
             <PostCard key={p.id} post={p} onRefresh={() => load({ silent: true, force: true })} focused={focusPostId === p.id} />
           ))}
           <div ref={sentinelRef} />
-          {loadingMore ? <div className="muted">Daha fazla yükleniyor...</div> : null}
-          {!hasMore && posts.length > 0 ? <div className="muted">Sonuna ulaştın.</div> : null}
+          {loadingMore ? <div className="muted">{t('feed_loading_more')}</div> : null}
+          {!hasMore && posts.length > 0 ? <div className="muted">{t('feed_end')}</div> : null}
         </div>
         <div className="col-side">
           <NotificationPanel limit={5} showAllLink />
@@ -197,37 +197,37 @@ export default function FeedPage() {
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                   <div>
                     <div>@{u.kadi}</div>
-                    <div className="meta">Online</div>
+                    <div className="meta">{t('status_online')}</div>
                   </div>
                 </a>
               ))}
-              {!onlineMembers.length ? <div className="muted">Şu an çevrimiçi üye yok.</div> : null}
+              {!onlineMembers.length ? <div className="muted">{t('online_members_empty')}</div> : null}
             </div>
           </div>
           <div className="panel">
-            <h3>Yeni Mesajlar</h3>
+            <h3>{t('new_messages')}</h3>
             <div className="panel-body">
               <a href="/new/messages">
-                {unreadMessages > 0 ? `${unreadMessages} okunmamış mesajın var.` : 'Yeni mesaj yok.'}
+                {unreadMessages > 0 ? t('unread_messages_count', { count: unreadMessages }) : t('no_new_messages')}
               </a>
             </div>
           </div>
           <LiveChatPanel />
           <div className="panel">
-            <h3>Hızlı Erişim</h3>
+            <h3>{t('quick_access')}</h3>
             <div className="panel-body">
               {quickUsers.map((u) => (
                 <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                   <div>
                     <div>@{u.kadi}</div>
-                    <div className="meta">{Number(u.online) === 1 ? 'Çevrimiçi' : 'Offline'}</div>
+                    <div className="meta">{Number(u.online) === 1 ? t('status_online') : t('status_offline')}</div>
                   </div>
                 </a>
               ))}
-              <a href="/new/explore">Üyeleri keşfet</a>
-              <a href="/new/events">Yaklaşan etkinlikler</a>
-              <a href="/new/announcements">Duyurular</a>
+              <a href="/new/explore">{t('feed_discover_members')}</a>
+              <a href="/new/events">{t('feed_upcoming_events')}</a>
+              <a href="/new/announcements">{t('nav_announcements')}</a>
             </div>
           </div>
         </div>

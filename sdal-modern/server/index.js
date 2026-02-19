@@ -4065,7 +4065,7 @@ app.post('/api/new/notifications/read', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/new/translate', requireAuth, async (req, res) => {
+app.post('/api/new/translate', async (req, res) => {
   const text = String(req.body?.text || '').trim();
   const target = String(req.body?.target || 'tr').trim().toLowerCase();
   const source = String(req.body?.source || 'auto').trim().toLowerCase();

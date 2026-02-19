@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function ActivationPage() {
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState('Aktivasyon kontrol ediliyor...');
+  const [status, setStatus] = useState(t('activation_checking'));
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -12,7 +14,7 @@ export default function ActivationPage() {
     const akt = searchParams.get('akt');
     if (!id || !akt) {
       setStatus('');
-      setError('Aktivasyon kodu eksik.');
+      setError(t('activation_error_missing_code'));
       return;
     }
     fetch(`/api/activate?id=${encodeURIComponent(id)}&akt=${encodeURIComponent(akt)}`)
@@ -21,21 +23,21 @@ export default function ActivationPage() {
         return res.json();
       })
       .then((data) => {
-        setStatus(`Aktivasyon tamamlandı. Hoş geldin ${data.kadi}.`);
+        setStatus(t('activation_status_success', { username: data.kadi }));
       })
       .catch((err) => {
         setStatus('');
-        setError(err.message || 'Aktivasyon başarısız.');
+        setError(err.message || t('activation_error_failed'));
       });
   }, [searchParams]);
 
   return (
-    <Layout title="Aktivasyon">
+    <Layout title={t('activation_title')}>
       <div className="panel">
         <div className="panel-body">
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
-          <a className="btn ghost" href="/new/login">Giriş Yap</a>
+          <a className="btn ghost" href="/new/login">{t('login_submit')}</a>
         </div>
       </div>
     </Layout>

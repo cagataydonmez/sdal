@@ -38,9 +38,9 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
   useLiveRefresh(load, { intervalMs: 6000, eventTypes: ['notification:new', 'post:liked', 'post:commented', 'follow:changed', '*'] });
 
   function inviteStatusLabel(status) {
-    if (status === 'accepted') return 'Davet onaylandı';
-    if (status === 'rejected') return 'Davet reddedildi';
-    return 'Davet beklemede';
+    if (status === 'accepted') return t('group_invite_accepted');
+    if (status === 'rejected') return t('group_invite_rejected');
+    return t('group_invite_pending');
   }
 
   async function respondGroupInvite(notification, action) {
@@ -67,7 +67,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
         load().catch(() => {});
       }, 200);
     } catch (err) {
-      emitAppChange('toast', { type: 'error', message: err?.message || 'Davet yanıtlanamadı.' });
+      emitAppChange('toast', { type: 'error', message: err?.message || t('group_invite_respond_failed') });
     } finally {
       setBusyId(null);
     }
@@ -75,9 +75,9 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
 
   return (
     <div className="panel">
-      <h3>Bildirimler</h3>
+      <h3>{t('nav_notifications')}</h3>
       <div className="panel-body">
-        {items.length === 0 ? <div className="muted">Bildirim yok.</div> : null}
+        {items.length === 0 ? <div className="muted">{t('notifications_empty')}</div> : null}
         {items.map((n) => (
           <div key={n.id} className={`notif notif-link${n.read_at ? '' : ' unread'}`}>
             <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
@@ -98,14 +98,14 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
                         disabled={busyId === n.id}
                         onClick={() => respondGroupInvite(n, 'accept')}
                       >
-                        Onayla
+                        {t('approve')}
                       </button>
                       <button
                         className="btn ghost"
                         disabled={busyId === n.id}
                         onClick={() => respondGroupInvite(n, 'reject')}
                       >
-                        Reddet
+                        {t('reject')}
                       </button>
                     </>
                   ) : (
@@ -114,7 +114,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
                         {inviteStatusLabel(n.invite_status)}
                       </span>
                       {n.invite_status === 'accepted' ? (
-                        <a className="btn ghost" href={`/new/groups/${n.entity_id}`}>Gruba Git</a>
+                        <a className="btn ghost" href={`/new/groups/${n.entity_id}`}>{t('group_go')}</a>
                       ) : null}
                     </>
                   )}

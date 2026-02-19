@@ -151,7 +151,7 @@ export default function ExplorePage({ fullMode = false }) {
             {m.verified ? <span className="badge">✓</span> : null}
           </div>
           <div className="handle">@{m.kadi}</div>
-          <div className="meta">{m.mezuniyetyili || ''}{Number(m.online || 0) === 1 ? ' · Online' : ''}</div>
+          <div className="meta">{m.mezuniyetyili || ''}{Number(m.online || 0) === 1 ? ` · ${t('status_online')}` : ''}</div>
           {showReasons && Array.isArray(m.reasons) && m.reasons.length ? (
             <div className="composer-actions">
               {m.reasons.slice(0, 2).map((r) => <span className="chip" key={`${m.id}-${r}`}>{r}</span>)}
@@ -173,12 +173,12 @@ export default function ExplorePage({ fullMode = false }) {
   const visibleMembers = fullMode ? members : members.slice(0, 18);
 
   return (
-    <Layout title="Keşfet">
+    <Layout title={t('nav_explore')}>
       <div className="panel">
-        <h3>Tanıyor Olabileceğin Kişiler</h3>
+        <h3>{t('explore_suggestions_title')}</h3>
         <div className="panel-body">
-          {loadingSuggestions ? <div className="muted">Öneriler hazırlanıyor...</div> : null}
-          {!loadingSuggestions && suggestions.length === 0 ? <div className="muted">Şu an öneri bulunamadı.</div> : null}
+          {loadingSuggestions ? <div className="muted">{t('explore_suggestions_loading')}</div> : null}
+          {!loadingSuggestions && suggestions.length === 0 ? <div className="muted">{t('explore_suggestions_empty')}</div> : null}
           <div className="card-grid">
             {suggestionItems.map((m) => renderMemberCard(m, true))}
           </div>
@@ -187,42 +187,42 @@ export default function ExplorePage({ fullMode = false }) {
       </div>
 
       <div className="panel">
-        <h3>Filtrelere Göre Üye Listesi</h3>
+        <h3>{t('explore_filtered_title')}</h3>
         <div className="panel-body stack">
-          <div className="muted">Aşağıdaki filtreleri kullanarak üyeleri daraltabilirsin.</div>
-          <input className="search" placeholder="Üye ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className="muted">{t('explore_filtered_hint')}</div>
+          <input className="search" placeholder={t('member_search_short')} value={query} onChange={(e) => setQuery(e.target.value)} />
           <div className="composer-actions">
             <select className="input" value={filters.relation} onChange={(e) => setFilter('relation', e.target.value)}>
-              <option value="all">Herkes</option>
-              <option value="not_following">Takip Etmediklerim</option>
-              <option value="following">Takip Ettiklerim</option>
+              <option value="all">{t('everyone')}</option>
+              <option value="not_following">{t('explore_relation_not_following')}</option>
+              <option value="following">{t('nav_following')}</option>
             </select>
             <select className="input" value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
-              <option value="recommended">Önerilen</option>
-              <option value="engagement">Etkileşim Gücü</option>
-              <option value="name">Ada Göre</option>
-              <option value="recent">Yeni Üyeler</option>
-              <option value="online">Online Önce</option>
-              <option value="year">Mezuniyet Yılı</option>
+              <option value="recommended">{t('sort_recommended')}</option>
+              <option value="engagement">{t('sort_engagement')}</option>
+              <option value="name">{t('sort_name')}</option>
+              <option value="recent">{t('sort_recent_members')}</option>
+              <option value="online">{t('sort_online_first')}</option>
+              <option value="year">{t('sort_graduation_year')}</option>
             </select>
             <select className="input" value={filters.gradYear} onChange={(e) => setFilter('gradYear', e.target.value)}>
-              <option value="">Tüm Yıllar</option>
+              <option value="">{t('all_years')}</option>
               {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
             <label className="chip">
               <input type="checkbox" checked={filters.verified} onChange={(e) => setFilter('verified', e.target.checked)} />
-              Verified
+              {t('verified')}
             </label>
             <label className="chip">
               <input type="checkbox" checked={filters.withPhoto} onChange={(e) => setFilter('withPhoto', e.target.checked)} />
-              Fotoğraflı
+              {t('with_photo')}
             </label>
             <label className="chip">
               <input type="checkbox" checked={filters.online} onChange={(e) => setFilter('online', e.target.checked)} />
-              Online
+              {t('status_online')}
             </label>
           </div>
-          {loading ? <div className="muted">Aranıyor...</div> : null}
+          {loading ? <div className="muted">{t('searching')}</div> : null}
           {!fullMode ? <a className="btn ghost" href="/new/explore/members">{t('see_all')}</a> : null}
         </div>
       </div>
@@ -231,8 +231,8 @@ export default function ExplorePage({ fullMode = false }) {
         {visibleMembers.map((m) => renderMemberCard(m, false))}
       </div>
       {fullMode ? <div ref={sentinelRef} /> : null}
-      {fullMode && loading ? <div className="muted">Yükleniyor...</div> : null}
-      {fullMode && !loading && page >= pages && members.length > 0 ? <div className="muted">Sonuçların sonu.</div> : null}
+      {fullMode && loading ? <div className="muted">{t('loading')}</div> : null}
+      {fullMode && !loading && page >= pages && members.length > 0 ? <div className="muted">{t('results_end')}</div> : null}
     </Layout>
   );
 }

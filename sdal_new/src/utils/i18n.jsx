@@ -1,6 +1,363 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 const I18N_KEY = 'sdal_new_lang';
+const SUPPORTED_LANGS = ['tr', 'en', 'de', 'fr'];
+
+const trFallbackMessages = {
+  loading: 'Yükleniyor...',
+  processing: 'İşleniyor...',
+  saving: 'Kaydediliyor...',
+  deleting: 'Siliniyor...',
+  sending: 'Gönderiliyor...',
+  sharing: 'Paylaşılıyor...',
+  save: 'Kaydet',
+  upload: 'Yükle',
+  create: 'Oluştur',
+  add: 'Ekle',
+  publish: 'Yayınla',
+  suggest: 'Öner',
+  delete: 'Sil',
+  edit: 'Düzenle',
+  close: 'Kapat',
+  open: 'Aç',
+  back: 'Geri',
+  next: 'İleri',
+  select: 'Seçiniz',
+  select_action: 'Seç',
+  selected: 'Seçili',
+  approve: 'Onayla',
+  reject: 'Reddet',
+  reply: 'Cevapla',
+  back_to_list: 'Listeye Dön',
+  new: 'Yeni',
+  title: 'Başlık',
+  description: 'Açıklama',
+  location: 'Konum',
+  subject: 'Konu',
+  date: 'Tarih',
+  sender: 'Gönderen',
+  recipient: 'Alıcı',
+  comments: 'Yorumlar',
+  everyone: 'Herkes',
+  verified: 'Doğrulanmış',
+  with_photo: 'Fotoğraflı',
+  score: 'Skor',
+  search: 'Ara',
+  searching: 'Aranıyor...',
+  no_results: 'Sonuç bulunamadı.',
+  no_description: 'Açıklama yok',
+  pending_approval: 'Onay bekliyor',
+  status_online: 'Çevrimiçi',
+  status_offline: 'Çevrimdışı',
+  member_fallback: 'üye',
+  members: 'Üyeler',
+  all_years: 'Tüm Yıllar',
+  show_more: 'Daha Fazla Göster',
+  quick_access: 'Hızlı Erişim',
+  new_messages: 'Yeni Mesajlar',
+  no_new_messages: 'Yeni mesaj yok.',
+  unread_messages_count: '{count} okunmamış mesajın var.',
+  language_selector_aria: 'Dil seçimi',
+  layout_subtitle: 'SDAL sosyal hub',
+  layout_classic_view: 'Klasik Görünüm',
+  layout_classic_short: 'Klasik',
+  logout: 'Çıkış',
+  login_title: 'Giriş',
+  login_submit: 'Giriş Yap',
+  login_error_failed: 'Giriş başarısız.',
+  login_forgot_password: 'Şifremi Unuttum',
+  auth_username: 'Kullanıcı adı',
+  auth_password: 'Şifre',
+  auth_email: 'E-posta',
+  register_title: 'Üyelik',
+  register_submit: 'Üye Ol',
+  register_password_repeat: 'Şifre tekrar',
+  register_graduation_year: 'Mezuniyet Yılı',
+  register_status_success: 'Kayıt tamamlandı. E-posta aktivasyon linkini kontrol edin.',
+  register_activation_resend_prefix: 'Aktivasyon e-postası gelmediyse',
+  register_activation_resend_link: 'buradan',
+  register_activation_resend_suffix: 'tekrar gönderebilirsiniz.',
+  activation_title: 'Aktivasyon',
+  activation_checking: 'Aktivasyon kontrol ediliyor...',
+  activation_error_missing_code: 'Aktivasyon kodu eksik.',
+  activation_error_failed: 'Aktivasyon başarısız.',
+  activation_status_success: 'Aktivasyon tamamlandı. Hoş geldin {username}.',
+  activation_resend_title: 'Aktivasyon Yenile',
+  activation_resend_member_id: 'Üye ID (opsiyonel)',
+  activation_resend_status_sent: 'Aktivasyon e-postası gönderildi.',
+  password_reset_title: 'Şifre Hatırlat',
+  password_reset_status_sent: 'Şifre e-postası gönderildi.',
+  member_title: 'Üye',
+  member_send_message: 'Mesaj Gönder',
+  member_quick_access_add: "Hızlı Erişim'e Ekle",
+  member_quick_access_added: 'Hızlı Erişim listene eklendi.',
+  member_stories_title: 'Hikayeleri',
+  member_search_placeholder: 'Üye ara (@kullanici da olur)...',
+  member_search_placeholder_short: 'Üye ara (@kullanici)...',
+  member_search_short: 'Üye ara...',
+  message_title: 'Mesaj',
+  message_write: 'Mesaj yaz...',
+  message_send_failed: 'Mesaj gönderilemedi.',
+  message_compose_title: 'Yeni Mesaj',
+  message_compose_search_failed: 'Üye araması başarısız.',
+  message_compose_error_select_recipient: 'Alıcı seçmelisin.',
+  message_compose_status_sent: 'Mesaj gönderildi.',
+  message_compose_recipient: 'Alıcı',
+  message_compose_clear_recipient: 'Alıcıyı Temizle',
+  message_quick_reply_placeholder: 'Hızlı cevap yaz...',
+  message_quick_reply_send: 'Hızlı Cevap Gönder',
+  messages_title: 'Mesajlar',
+  messages_inbox: 'Gelen Kutusu',
+  messages_outbox: 'Giden Kutusu',
+  messages_all: 'Tüm Mesajlar',
+  messages_unread: 'Okunmamış',
+  messages_unread_count: '({count} yeni)',
+  messages_search_placeholder: 'Mesaj ara...',
+  messages_inbox_list: 'Gelen Mesajlar',
+  messages_outbox_list: 'Giden Mesajlar',
+  messages_empty_filtered: 'Bu filtrede mesaj bulunamadı.',
+  messages_select_prompt: 'Mesaj seç.',
+  messages_fullscreen: 'Tam Ekran',
+  photo_title: 'Fotoğraf',
+  photo_comment_placeholder: 'Yorum yaz...',
+  photo_comment_error_required: 'Yorum yazmalısın.',
+  photo_comment_add: 'Yorum Ekle',
+  albums_title: 'Fotoğraflar',
+  albums_categories: 'Kategoriler',
+  albums_upload: 'Fotoğraf Yükle',
+  albums_loading_more: 'Daha fazla fotoğraf yükleniyor...',
+  album_title: 'Albüm',
+  album_all_loaded: 'Tüm fotoğraflar yüklendi.',
+  album_upload_select_category: 'Kategori seçin',
+  album_upload_status_success: 'Fotoğraf yüklendi. Onay bekliyor (Kategori {categoryId}).',
+  notifications_empty: 'Bildirim yok.',
+  notifications_all_loaded: 'Tüm bildirimler yüklendi.',
+  following_all_loaded: 'Tüm takiplerin yüklendi.',
+  following_empty: 'Henüz takip ettiğin üye yok.',
+  follow_date: 'Takip',
+  live_chat_title: 'Canlı Sohbet',
+  live_chat_error_login_required: 'Mesaj göndermek için giriş yapın.',
+  live_chat_loading_old: 'Eski mesajlar yükleniyor...',
+  anonymous: 'anon',
+  stories_title: 'Hikayeler',
+  stories_empty: 'Gösterilecek hikaye yok.',
+  stories_load_failed: 'Hikayeler yüklenemedi.',
+  stories_invalid_media_error: 'Hikayeler yüklenirken geçersiz medya adresi algılandı. Sayfayı yenileyip tekrar deneyin.',
+  story_add: 'Hikaye Ekle',
+  story_prev: 'Önceki hikaye',
+  story_next: 'Sonraki hikaye',
+  story_prompt_upload_caption: 'Hikaye açıklaması (opsiyonel):',
+  story_prompt_edit_caption: 'Hikaye açıklamasını güncelle:',
+  story_confirm_delete: 'Bu hikayeyi silmek istediğine emin misin?',
+  story_update_failed: 'Hikaye güncellenemedi.',
+  story_delete_failed: 'Hikaye silinemedi.',
+  story_repost: 'Yeniden Paylaş',
+  profile_first_name: 'İsim',
+  profile_last_name: 'Soyisim',
+  profile_city: 'Şehir',
+  profile_job: 'Meslek',
+  profile_graduation: 'Mezuniyet',
+  profile_signature: 'İmza',
+  profile_status_updated: 'Profil güncellendi.',
+  profile_photo_title: 'Fotoğraf Düzenle',
+  profile_photo_update: 'Fotoğraf Güncelle',
+  profile_photo_error_no_file: 'Fotoğraf seçilmedi.',
+  profile_photo_status_updated: 'Fotoğraf güncellendi.',
+  profile_verify_request: 'Doğrulama Talebi',
+  profile_verify_request_received: 'Doğrulama talebiniz alındı.',
+  profile_view: 'Profili Gör',
+  my_stories: 'Hikayelerim',
+  active_stories: 'Aktif Hikayeler',
+  active_stories_empty: 'Aktif hikayen yok.',
+  expired_stories: 'Süresi Dolan Hikayeler',
+  expired_stories_empty: 'Süresi dolan hikaye yok.',
+  group_title: 'Grup',
+  group_not_found: 'Grup bulunamadı.',
+  groups_new: 'Yeni Grup',
+  groups_name: 'Grup adı',
+  groups_loading_more: 'Daha fazla grup yükleniyor...',
+  groups_member_count: '{count} üye',
+  group_access_members_only: 'Bu grup içeriği yalnızca üyeler için açık.',
+  group_access_not_allowed: 'Bu grubu görüntüleme yetkin yok veya grup bulunamadı.',
+  group_manager_hint_button: 'Yönetici İpucu',
+  group_manager_info_missing: 'Bu grup için henüz yönetici bilgisi paylaşılmamış.',
+  group_managers_label: 'Grup yöneticileri',
+  group_managers_hint: 'Katılım isteğin bu kişiler tarafından onaylanır.',
+  group_cover_image: 'Kapak Görseli',
+  group_cover_update: 'Kapak Güncelle',
+  group_visibility_public: 'Herkese Görünür',
+  group_visibility_members_only: 'Sadece Üyeler ve Davetliler',
+  group_visibility_show_contact_hint: 'Üye olmayanlara yönetici ipucu göster',
+  group_content_empty: 'İçerik boş olamaz.',
+  group_post_placeholder: 'Gruba bir şey yaz...',
+  group_role_updated: 'Rol güncellendi.',
+  group_join_approved: 'Katılım isteği onaylandı.',
+  group_join_rejected: 'Katılım isteği reddedildi.',
+  group_request_join: 'Katılım İsteği Gönder',
+  group_request_cancel: 'İsteği İptal Et',
+  group_invite_accept: 'Daveti Kabul Et',
+  group_invite_reject: 'Daveti Reddet',
+  group_invite_pending: 'Davet beklemede',
+  group_invite_accepted: 'Davet onaylandı',
+  group_invite_rejected: 'Davet reddedildi',
+  group_invite_respond_failed: 'Davet yanıtlanamadı.',
+  group_go: 'Gruba Git',
+  group_events_title: 'Grup Etkinlikleri',
+  group_event_add: 'Etkinlik Ekle',
+  group_event_added: 'Grup etkinliği eklendi.',
+  group_event_deleted: 'Grup etkinliği silindi.',
+  group_events_empty: 'Henüz grup etkinliği yok.',
+  group_announcements_title: 'Grup Duyuruları',
+  group_announcement_add: 'Duyuru Ekle',
+  group_announcement_added: 'Grup duyurusu eklendi.',
+  group_announcement_deleted: 'Grup duyurusu silindi.',
+  group_announcements_empty: 'Henüz grup duyurusu yok.',
+  group_join_requests_title: 'Katılım İstekleri',
+  group_join_requests_empty: 'Bekleyen istek yok.',
+  group_bulk_invite_title: 'Toplu Davet',
+  group_send_invites_selected: 'Seçilenlere Davet Gönder',
+  group_pending_invites_title: 'Bekleyen Davetler',
+  group_pending_invites_empty: 'Bekleyen davet yok.',
+  group_settings_updated: 'Grup ayarları güncellendi.',
+  group_invites_sent_count: '{count} kullanıcıya davet gönderildi.',
+  role_member: 'Üye',
+  role_moderator: 'Moderatör',
+  role_owner: 'Sahip',
+  events_new: 'Yeni Etkinlik',
+  events_suggestion: 'Etkinlik Önerisi',
+  events_status_added: 'Etkinlik eklendi.',
+  events_status_submitted: 'Etkinlik önerin admin onayına gönderildi.',
+  events_attend: 'Katılıyorum',
+  events_decline: 'Katılmıyorum',
+  events_attend_count: 'Katılım',
+  events_decline_count: 'Katılmama',
+  events_response_hidden: 'Katılım bilgileri gizli',
+  events_attendees: 'Katılanlar',
+  events_decliners: 'Katılmayanlar',
+  events_visibility_title: 'Katılım Görünürlüğü',
+  events_visibility_counts: 'Katılım sayılarını göster',
+  events_visibility_attendees: 'Katılan isimlerini herkese aç',
+  events_visibility_decliners: 'Katılmayan isimlerini herkese aç',
+  save_visibility: 'Görünürlüğü Kaydet',
+  events_notify_followers: 'Takipçilerime Bildir',
+  events_notify_count: '{count} kişiye bildirim gönderildi.',
+  events_comment_placeholder: 'Etkinliğe yorum ekle...',
+  events_reject_hint: 'Reddetmek etkinliğin yayınlanmaması anlamına gelir.',
+  events_reject_publish: 'Reddet (Yayınlama)',
+  events_loading_more: 'Daha fazla etkinlik yükleniyor...',
+  announcements_new: 'Yeni Duyuru',
+  announcements_suggestion: 'Duyuru Önerisi',
+  announcements_body_placeholder: 'Duyuru metni',
+  announcements_status_published: 'Duyuru yayınlandı.',
+  announcements_status_submitted: 'Duyuru önerin admin onayına gönderildi.',
+  announcements_reject_hint: 'Reddetmek duyurunun yayınlanmaması anlamına gelir.',
+  announcements_reject_publish: 'Reddet (Yayınlama)',
+  announcements_loading_more: 'Daha fazla duyuru yükleniyor...',
+  explore_suggestions_title: 'Tanıyor Olabileceğin Kişiler',
+  explore_suggestions_loading: 'Öneriler hazırlanıyor...',
+  explore_suggestions_empty: 'Şu an öneri bulunamadı.',
+  explore_suggestions_all_loaded: 'Tüm öneriler yüklendi.',
+  explore_filtered_title: 'Filtrelere Göre Üye Listesi',
+  explore_filtered_hint: 'Aşağıdaki filtreleri kullanarak üyeleri daraltabilirsin.',
+  explore_relation_not_following: 'Takip Etmediklerim',
+  sort_recommended: 'Önerilen',
+  sort_engagement: 'Etkileşim Gücü',
+  sort_name: 'Ada Göre',
+  sort_recent_members: 'Yeni Üyeler',
+  sort_online_first: 'Online Önce',
+  sort_graduation_year: 'Mezuniyet Yılı',
+  results_end: 'Sonuçların sonu.',
+  feed_new_posts_refresh: '{count} yeni gönderi var, yenile',
+  feed_loading_more: 'Daha fazla yükleniyor...',
+  feed_end: 'Sonuna ulaştın.',
+  feed_discover_members: 'Üyeleri keşfet',
+  feed_upcoming_events: 'Yaklaşan etkinlikler',
+  online_members_empty: 'Şu an çevrimiçi üye yok.',
+  help_center_title: 'Yardım Merkezi',
+  help_quick_start_title: 'Hızlı Başlangıç',
+  help_quick_1_title: '1. Profilini tamamla:',
+  help_quick_1_body: '`/new/profile` sayfasında isim, şehir, meslek ve imza bilgilerini güncelle.',
+  help_quick_2_title: '2. Akışa katıl:',
+  help_quick_2_body: '`/new` sayfasında gönderi paylaş, yorum yap, beğeni bırak.',
+  help_quick_3_title: '3. Üye keşfet:',
+  help_quick_3_body: '`/new/explore` ile takip edeceğin kişileri bul.',
+  help_quick_4_title: '4. Bildirimlerini kontrol et:',
+  help_quick_4_body: '`/new/notifications` sayfasından tüm geçmişe eriş.',
+  help_quick_5_title: '5. Etkinlik ve duyuru:',
+  help_quick_5_body: '`/new/events` ve `/new/announcements` üzerinden topluluğu takip et.',
+  help_feed_stories_title: 'Akış ve Hikayeler',
+  help_feed_filters_title: 'Gönderi filtreleri:',
+  help_feed_filters_body: 'Akışta Tümü, Takip Ettiklerim ve Popüler sekmelerini kullan.',
+  help_story_nav_title: 'Hikaye gezinme:',
+  help_story_nav_body: 'Swipe yanında fotoğrafın soluna dokunarak geri, sağına dokunarak ileri geçebilirsin.',
+  help_image_upload_title: 'Görsel yükleme:',
+  help_image_upload_body: 'Sistem görselleri kırpmadan uygun çözünürlüğe optimize eder, tam görünüm korunur.',
+  help_text_formatting_title: 'Metin Biçimlendirme',
+  help_formatting_1: 'Gönderi düzenleyicideki A+ butonu gelişmiş biçimlendirme panelini açar.',
+  help_formatting_2: 'Anlık önizleme ile yazdığın içeriği yayınlamadan görebilirsin.',
+  help_formatting_examples: 'Desteklenen etiket örnekleri:',
+  help_formatting_code_1: '[b]kalın[/b] [i]italik[/i] [u]altı çizili[/u] [s]üstü çizili[/s]',
+  help_formatting_code_2: '[left]sol[/left] [center]orta[/center] [right]sağ[/right]',
+  help_formatting_code_3: '[size=18]büyük yazı[/size] [color=#1b7f6b]renkli yazı[/color]',
+  help_formatting_code_4: '[quote]alıntı bloğu[/quote]',
+  help_engagement_title: 'Etkileşim Skoru Nasıl Kullanılır?',
+  help_engagement_1_title: 'Ne işe yarar:',
+  help_engagement_1_body: 'Üyelerin topluluk içindeki etkileşim düzeyini ölçer; öneri ve sıralama mekanizmalarında kullanılır.',
+  help_engagement_2_title: 'Skoru artırmak için:',
+  help_engagement_2_body: 'düzenli paylaşım, kaliteli yorum, doğal takip etkileşimi, hikaye ve mesaj aktivitesi önemlidir.',
+  help_engagement_3_title: 'Skoru düşürebilecek durumlar:',
+  help_engagement_3_body: 'düşük kaliteli yoğun paylaşım, agresif takip davranışı, uzun süre pasif kalma.',
+  help_engagement_4_title: 'Pratik örnek:',
+  help_engagement_4_body: 'Haftada 3 anlamlı paylaşım + ilgili yorumlar + gerçek etkileşimli takip ilişkileri, skor trendini istikrarlı artırır.',
+  help_engagement_5_title: 'Yönetim için:',
+  help_engagement_5_body: '`/new/admin` altındaki Etkileşim Skorları sekmesinden metrik kırılımı, A/B varyantları ve önerileri görüntüleyebilirsin.',
+  help_faq_title: 'Sık Sorulanlar',
+  help_faq_1_q: 'Reddet butonu ne yapar?',
+  help_faq_1_a: 'Etkinlik/duyuru önerisini yayına almadan reddeder; içerik herkese görünmez.',
+  help_faq_2_q: 'Canlı sohbette eski mesajları nasıl görürüm?',
+  help_faq_2_a: 'Sohbet kutusunda yukarı kaydırdıkça daha eski mesajlar yüklenir.',
+  help_faq_3_q: 'Dil değiştirme:',
+  help_faq_3_a: 'Üst barda bulunan dil seçiciden Türkçe, İngilizce, Almanca, Fransızca arasında geçiş yapabilirsin.',
+  theme_mode_title: 'Tema modu: Otomatik -> Koyu -> Açık',
+  theme_dark: 'Koyu',
+  theme_light: 'Açık',
+  theme_auto_with_current: 'Tema: Otomatik ({current})',
+  theme_current: 'Tema: {mode}',
+  added_by: 'Ekleyen',
+  leave: 'Ayrıl',
+  private: 'Gizli',
+  cover: 'Kapak',
+  games_game: 'Oyun',
+  games_points: 'Puan',
+  games_time: 'Süre',
+  games_moves: 'Hamle',
+  games_pause: 'Duraklat',
+  games_start: 'Başlat',
+  games_reset: 'Sıfırla',
+  games_restart: 'Yeniden Başlat',
+  games_refresh: 'Yenile',
+  games_rotate: 'Çevir',
+  games_up: 'Yukarı',
+  games_down: 'Aşağı',
+  games_left: 'Sol',
+  games_right: 'Sağ',
+  games_high_score: 'Yüksek Skor',
+  games_no_score: 'Henüz skor yok.',
+  games_controls_arrows: 'Kontrol: Ok tuşları',
+  games_controls_tetris: 'Kontrol: Sol/Sağ/Aşağı + Yukarı (çevir)',
+  games_catalog_hint: 'Ayrıca açılır, aynı sayfada high score tablosu ile oynanır.',
+  games_all_games: 'Tüm Oyunlar',
+  games_route_hint: 'Ok tuşları bu sayfada kaydırma yapmaz; sadece oyunu kontrol eder.',
+  games_score_saved: '{game} skoru kaydedildi: {score}',
+  games_not_found_title: 'Oyun bulunamadı',
+  games_not_found_error: 'Geçerli oyun bulunamadı.',
+  games_back_to_list: 'Oyunlara dön',
+  games_snake_title: 'Yılan (Klasik)',
+  games_tetris_title: 'Tetris (Klasik)',
+  games_tap_rush_title: 'Tap Rush',
+  games_memory_pairs_title: 'Memory Pairs',
+  games_2048_title: '2048'
+};
 
 const messages = {
   tr: {
@@ -252,30 +609,99 @@ const messages = {
 const I18nContext = createContext({
   lang: 'tr',
   setLang: () => {},
-  t: (key) => key
+  t: (key, params) => {
+    const text = trFallbackMessages[key] || key;
+    if (!params) return text;
+    return Object.entries(params).reduce((acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value ?? '')), text);
+  }
 });
 
 function readInitialLang() {
   if (typeof window === 'undefined') return 'tr';
   const value = String(window.localStorage.getItem(I18N_KEY) || 'tr').toLowerCase();
-  if (['tr', 'en', 'de', 'fr'].includes(value)) return value;
+  if (SUPPORTED_LANGS.includes(value)) return value;
   return 'tr';
+}
+
+function interpolate(text, params) {
+  if (!params || typeof params !== 'object') return text;
+  return Object.entries(params).reduce((acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value ?? '')), text);
+}
+
+function normalizeSourceText(key) {
+  if (messages.tr?.[key]) return messages.tr[key];
+  if (trFallbackMessages[key]) return trFallbackMessages[key];
+  if (!key.includes('_')) return key;
+  return key
+    .split('_')
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function I18nProvider({ children }) {
   const [lang, setLangState] = useState(() => readInitialLang());
+  const [runtimeMessages, setRuntimeMessages] = useState(() => ({ en: {}, de: {}, fr: {} }));
+  const runtimeRef = useRef(runtimeMessages);
+  const pendingRef = useRef(new Set());
+  const failedRef = useRef(new Set());
+
+  useEffect(() => {
+    runtimeRef.current = runtimeMessages;
+  }, [runtimeMessages]);
 
   const setLang = (value) => {
-    const next = ['tr', 'en', 'de', 'fr'].includes(value) ? value : 'tr';
+    const next = SUPPORTED_LANGS.includes(value) ? value : 'tr';
     setLangState(next);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(I18N_KEY, next);
     }
   };
 
-  const t = (key) => messages[lang]?.[key] || messages.tr?.[key] || key;
+  const t = (key, params) => {
+    const sourceText = normalizeSourceText(key);
+    let output = messages[lang]?.[key] || sourceText;
+    if (lang !== 'tr' && !messages[lang]?.[key]) {
+      const runtimeHit = runtimeRef.current[lang]?.[sourceText];
+      if (runtimeHit) {
+        output = runtimeHit;
+      } else if (sourceText && sourceText !== key) {
+        const cacheKey = `${lang}:${sourceText}`;
+        if (!pendingRef.current.has(cacheKey) && !failedRef.current.has(cacheKey) && typeof window !== 'undefined') {
+          pendingRef.current.add(cacheKey);
+          fetch('/api/new/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ text: sourceText, target: lang })
+          })
+            .then(async (res) => {
+              if (!res.ok) throw new Error(await res.text());
+              return res.json();
+            })
+            .then((payload) => {
+              const translated = String(payload?.translatedText || '').trim();
+              if (!translated) return;
+              setRuntimeMessages((prev) => ({
+                ...prev,
+                [lang]: {
+                  ...(prev[lang] || {}),
+                  [sourceText]: translated
+                }
+              }));
+            })
+            .catch(() => {
+              failedRef.current.add(cacheKey);
+            })
+            .finally(() => {
+              pendingRef.current.delete(cacheKey);
+            });
+        }
+      }
+    }
+    return interpolate(output, params);
+  };
 
-  const value = useMemo(() => ({ lang, setLang, t }), [lang]);
+  const value = useMemo(() => ({ lang, setLang, t }), [lang, runtimeMessages]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

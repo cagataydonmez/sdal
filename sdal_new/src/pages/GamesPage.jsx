@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 const BOARD_SIZE = 16;
 const SNAKE_TICK_MS = 140;
@@ -20,11 +21,11 @@ const PIECES = [
 ];
 
 const GAME_META = {
-  snake: { title: 'Yilan (Klasik)', scoreLabel: 'Skor', type: 'classic' },
-  tetris: { title: 'Tetris (Klasik)', scoreLabel: 'Puan', type: 'classic' },
-  'tap-rush': { title: 'Tap Rush', scoreLabel: 'Skor', type: 'arcade' },
-  'memory-pairs': { title: 'Memory Pairs', scoreLabel: 'Puan', type: 'arcade' },
-  'puzzle-2048': { title: '2048', scoreLabel: 'Puan', type: 'arcade' }
+  snake: { titleKey: 'games_snake_title', scoreLabelKey: 'score', type: 'classic' },
+  tetris: { titleKey: 'games_tetris_title', scoreLabelKey: 'games_points', type: 'classic' },
+  'tap-rush': { titleKey: 'games_tap_rush_title', scoreLabelKey: 'score', type: 'arcade' },
+  'memory-pairs': { titleKey: 'games_memory_pairs_title', scoreLabelKey: 'games_points', type: 'arcade' },
+  'puzzle-2048': { titleKey: 'games_2048_title', scoreLabelKey: 'games_points', type: 'arcade' }
 };
 
 function randomInt(max) {
@@ -107,11 +108,12 @@ function useLeaderboard(gameKey, endpointType = 'classic') {
 }
 
 function Leaderboard({ title, rows, scoreLabel }) {
+  const { t } = useI18n();
   return (
     <div className="panel game-leaderboard">
-      <h3>{title} - Yuksek Skor</h3>
+      <h3>{title} - {t('games_high_score')}</h3>
       <div className="panel-body">
-        {rows.length === 0 ? <div className="muted">Henuz skor yok.</div> : null}
+        {rows.length === 0 ? <div className="muted">{t('games_no_score')}</div> : null}
         {rows.map((r, idx) => (
           <div className="list-item game-score-row" key={`${r.isim}-${r.skor || r.puan}-${idx}`}>
             <div><b>{idx + 1}. @{r.isim}</b></div>
@@ -124,6 +126,7 @@ function Leaderboard({ title, rows, scoreLabel }) {
 }
 
 function SnakeGame({ onScore }) {
+  const { t } = useI18n();
   const [snake, setSnake] = useState([{ x: 7, y: 7 }]);
   const [dir, setDir] = useState({ x: 1, y: 0 });
   const [food, setFood] = useState({ x: 12, y: 10 });
@@ -180,35 +183,36 @@ function SnakeGame({ onScore }) {
 
   return (
     <div className="panel game-panel">
-      <h3>Yilan (Klasik)</h3>
+      <h3>{t('games_snake_title')}</h3>
       <div className="game-toolbar">
-        <span className="chip">Skor: {score}</span>
-        <button className="btn" onClick={() => setRunning((v) => !v)}>{running ? 'Duraklat' : 'Baslat'}</button>
+        <span className="chip">{t('score')}: {score}</span>
+        <button className="btn" onClick={() => setRunning((v) => !v)}>{running ? t('games_pause') : t('games_start')}</button>
         <button className="btn ghost" onClick={() => {
           setSnake([{ x: 7, y: 7 }]);
           setDir({ x: 1, y: 0 });
           setFood({ x: 12, y: 10 });
           setScore(0);
           setRunning(false);
-        }}>Sifirla</button>
+        }}>{t('games_reset')}</button>
       </div>
-      <div className="game-hint">Kontrol: Ok tuslari</div>
+      <div className="game-hint">{t('games_controls_arrows')}</div>
       <div className="snake-grid" style={{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)` }}>
         {cells.map((v, idx) => <div key={idx} className={`snake-cell ${v}`} />)}
       </div>
       <div className="mobile-controls">
-        <button className="btn" onClick={() => setDir((d) => (d.y === 1 ? d : { x: 0, y: -1 }))}>Yukari</button>
+        <button className="btn" onClick={() => setDir((d) => (d.y === 1 ? d : { x: 0, y: -1 }))}>{t('games_up')}</button>
         <div>
-          <button className="btn" onClick={() => setDir((d) => (d.x === 1 ? d : { x: -1, y: 0 }))}>Sol</button>
-          <button className="btn" onClick={() => setDir((d) => (d.x === -1 ? d : { x: 1, y: 0 }))}>Sag</button>
+          <button className="btn" onClick={() => setDir((d) => (d.x === 1 ? d : { x: -1, y: 0 }))}>{t('games_left')}</button>
+          <button className="btn" onClick={() => setDir((d) => (d.x === -1 ? d : { x: 1, y: 0 }))}>{t('games_right')}</button>
         </div>
-        <button className="btn" onClick={() => setDir((d) => (d.y === -1 ? d : { x: 0, y: 1 }))}>Asagi</button>
+        <button className="btn" onClick={() => setDir((d) => (d.y === -1 ? d : { x: 0, y: 1 }))}>{t('games_down')}</button>
       </div>
     </div>
   );
 }
 
 function TetrisGame({ onScore }) {
+  const { t } = useI18n();
   const [grid, setGrid] = useState(() => Array.from({ length: TETRIS_H }, () => Array(TETRIS_W).fill(0)));
   const [piece, setPiece] = useState(PIECES[randomInt(PIECES.length)]);
   const [x, setX] = useState(3);
@@ -284,10 +288,10 @@ function TetrisGame({ onScore }) {
 
   return (
     <div className="panel game-panel">
-      <h3>Tetris (Klasik)</h3>
+      <h3>{t('games_tetris_title')}</h3>
       <div className="game-toolbar">
-        <span className="chip">Puan: {score}</span>
-        <button className="btn" onClick={() => setRunning((v) => !v)}>{running ? 'Duraklat' : 'Baslat'}</button>
+        <span className="chip">{t('games_points')}: {score}</span>
+        <button className="btn" onClick={() => setRunning((v) => !v)}>{running ? t('games_pause') : t('games_start')}</button>
         <button className="btn ghost" onClick={() => {
           setGrid(Array.from({ length: TETRIS_H }, () => Array(TETRIS_W).fill(0)));
           setPiece(PIECES[randomInt(PIECES.length)]);
@@ -295,25 +299,26 @@ function TetrisGame({ onScore }) {
           setY(-1);
           setScore(0);
           setRunning(false);
-        }}>Sifirla</button>
+        }}>{t('games_reset')}</button>
       </div>
-      <div className="game-hint">Kontrol: Sol/Sag/Asagi + Yukari (cevir)</div>
+      <div className="game-hint">{t('games_controls_tetris')}</div>
       <div className="tetris-grid" style={{ gridTemplateColumns: `repeat(${TETRIS_W}, 1fr)` }}>
         {cells.map((v, i) => <div key={i} className={`tetris-cell ${v ? 'on' : ''} ${v === 2 ? 'active' : ''}`} />)}
       </div>
       <div className="mobile-controls">
-        <button className="btn" onClick={spin}>Cevir</button>
+        <button className="btn" onClick={spin}>{t('games_rotate')}</button>
         <div>
-          <button className="btn" onClick={() => move(-1)}>Sol</button>
-          <button className="btn" onClick={() => move(1)}>Sag</button>
+          <button className="btn" onClick={() => move(-1)}>{t('games_left')}</button>
+          <button className="btn" onClick={() => move(1)}>{t('games_right')}</button>
         </div>
-        <button className="btn" onClick={drop}>Asagi</button>
+        <button className="btn" onClick={drop}>{t('games_down')}</button>
       </div>
     </div>
   );
 }
 
 function TapRush({ onScore }) {
+  const { t } = useI18n();
   const [running, setRunning] = useState(false);
   const [time, setTime] = useState(20);
   const [score, setScore] = useState(0);
@@ -349,11 +354,11 @@ function TapRush({ onScore }) {
 
   return (
     <div className="panel game-panel">
-      <h3>Tap Rush</h3>
+      <h3>{t('games_tap_rush_title')}</h3>
       <div className="game-toolbar">
-        <span className="chip">Skor: {score}</span>
-        <span className="chip">Sure: {time}s</span>
-        <button className="btn" onClick={start}>{running ? 'Yeniden Baslat' : 'Baslat'}</button>
+        <span className="chip">{t('score')}: {score}</span>
+        <span className="chip">{t('games_time')}: {time}s</span>
+        <button className="btn" onClick={start}>{running ? t('games_restart') : t('games_start')}</button>
       </div>
       <div className="tap-area">
         <button className="tap-dot" style={{ left: `${dot.x}%`, top: `${dot.y}%` }} onClick={hit} disabled={!running} />
@@ -363,6 +368,7 @@ function TapRush({ onScore }) {
 }
 
 function MemoryPairs({ onScore }) {
+  const { t } = useI18n();
   const [cards, setCards] = useState([]);
   const [open, setOpen] = useState([]);
   const [matched, setMatched] = useState(new Set());
@@ -419,11 +425,11 @@ function MemoryPairs({ onScore }) {
 
   return (
     <div className="panel game-panel">
-      <h3>Memory Pairs</h3>
+      <h3>{t('games_memory_pairs_title')}</h3>
       <div className="game-toolbar">
-        <span className="chip">Hamle: {moves}</span>
-        <span className="chip">Puan: {points}</span>
-        <button className="btn" onClick={reset}>Yenile</button>
+        <span className="chip">{t('games_moves')}: {moves}</span>
+        <span className="chip">{t('games_points')}: {points}</span>
+        <button className="btn" onClick={reset}>{t('games_refresh')}</button>
       </div>
       <div className="memory-grid">
         {cards.map((c, idx) => {
@@ -458,6 +464,7 @@ function slideLine(line) {
 }
 
 function Puzzle2048({ onScore }) {
+  const { t } = useI18n();
   const [grid, setGrid] = useState(() => Array.from({ length: 4 }, () => Array(4).fill(0)));
   const [score, setScore] = useState(0);
 
@@ -535,22 +542,22 @@ function Puzzle2048({ onScore }) {
 
   return (
     <div className="panel game-panel">
-      <h3>2048</h3>
+      <h3>{t('games_2048_title')}</h3>
       <div className="game-toolbar">
-        <span className="chip">Puan: {score}</span>
-        <button className="btn" onClick={reset}>Yenile</button>
+        <span className="chip">{t('games_points')}: {score}</span>
+        <button className="btn" onClick={reset}>{t('games_refresh')}</button>
       </div>
-      <div className="game-hint">Kontrol: Ok tuslari</div>
+      <div className="game-hint">{t('games_controls_arrows')}</div>
       <div className="g2048-grid">
         {grid.flat().map((n, i) => <div className={`g2048-cell v${n}`} key={i}>{n || ''}</div>)}
       </div>
       <div className="mobile-controls">
-        <button className="btn" onClick={() => applyMove('up')}>Yukari</button>
+        <button className="btn" onClick={() => applyMove('up')}>{t('games_up')}</button>
         <div>
-          <button className="btn" onClick={() => applyMove('left')}>Sol</button>
-          <button className="btn" onClick={() => applyMove('right')}>Sag</button>
+          <button className="btn" onClick={() => applyMove('left')}>{t('games_left')}</button>
+          <button className="btn" onClick={() => applyMove('right')}>{t('games_right')}</button>
         </div>
-        <button className="btn" onClick={() => applyMove('down')}>Asagi</button>
+        <button className="btn" onClick={() => applyMove('down')}>{t('games_down')}</button>
       </div>
     </div>
   );
@@ -565,19 +572,20 @@ const GAME_COMPONENTS = {
 };
 
 function GamesCatalog() {
+  const { t } = useI18n();
   return (
-    <Layout title="Oyunlar">
+    <Layout title={t('nav_games')}>
       <div className="panel">
         <h3>Arcade</h3>
         <div className="panel-body games-catalog">
           {Object.entries(GAME_META).map(([key, meta]) => (
             <Link key={key} className="member-card game-card-link" to={`/new/games/${key}`}>
-              <div className="group-cover-empty">Oyun</div>
+              <div className="group-cover-empty">{t('games_game')}</div>
               <div>
-                <div className="name">{meta.title}</div>
-                <div className="meta">Ayrica acilir, ayni sayfada high score tablosu ile oynanir.</div>
+                <div className="name">{t(meta.titleKey)}</div>
+                <div className="meta">{t('games_catalog_hint')}</div>
               </div>
-              <span className="btn ghost">Ac</span>
+              <span className="btn ghost">{t('open')}</span>
             </Link>
           ))}
         </div>
@@ -587,10 +595,13 @@ function GamesCatalog() {
 }
 
 function GameDetailPage({ gameKey }) {
+  const { t } = useI18n();
   const meta = GAME_META[gameKey];
   const GameComponent = GAME_COMPONENTS[gameKey];
   const board = useLeaderboard(gameKey, meta.type);
   const [status, setStatus] = useState('');
+  const title = t(meta.titleKey);
+  const scoreLabel = t(meta.scoreLabelKey);
 
   const saveScore = useCallback(async (score) => {
     if (!score || score < 1) return;
@@ -602,37 +613,38 @@ function GameDetailPage({ gameKey }) {
       body: JSON.stringify({ score })
     });
     if (!res.ok) return;
-    setStatus(`${meta.title} skoru kaydedildi: ${score}`);
+    setStatus(t('games_score_saved', { game: title, score }));
     board.reload();
-  }, [meta, gameKey, board]);
+  }, [meta, gameKey, board, title, t]);
 
   return (
-    <Layout title={meta.title}>
+    <Layout title={title}>
       <div className="panel">
         <div className="panel-body game-route-head">
-          <Link className="btn ghost" to="/new/games">Tum Oyunlar</Link>
-          <span className="meta">Ok tuslari bu sayfada kaydirma yapmaz; sadece oyunu kontrol eder.</span>
+          <Link className="btn ghost" to="/new/games">{t('games_all_games')}</Link>
+          <span className="meta">{t('games_route_hint')}</span>
         </div>
       </div>
       {status ? <div className="ok">{status}</div> : null}
       <div className="games-layout game-single-layout">
         <GameComponent onScore={saveScore} />
-        <Leaderboard title={meta.title} rows={board.rows} scoreLabel={meta.scoreLabel} />
+        <Leaderboard title={title} rows={board.rows} scoreLabel={scoreLabel} />
       </div>
     </Layout>
   );
 }
 
 export default function GamesPage() {
+  const { t } = useI18n();
   const { game } = useParams();
   if (!game) return <GamesCatalog />;
   if (!GAME_META[game] || !GAME_COMPONENTS[game]) {
     return (
-      <Layout title="Oyun bulunamadi">
+      <Layout title={t('games_not_found_title')}>
         <div className="panel">
           <div className="panel-body">
-            <div className="error">Gecerli oyun bulunamadi.</div>
-            <Link className="btn ghost" to="/new/games">Oyunlara don</Link>
+            <div className="error">{t('games_not_found_error')}</div>
+            <Link className="btn ghost" to="/new/games">{t('games_back_to_list')}</Link>
           </div>
         </div>
       </Layout>

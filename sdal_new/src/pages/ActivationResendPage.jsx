@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function ActivationResendPage() {
+  const { t } = useI18n();
   const [form, setForm] = useState({ id: '', email: '' });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -20,17 +22,17 @@ export default function ActivationResendPage() {
       setError(await res.text());
       return;
     }
-    setStatus('Aktivasyon e-postası gönderildi.');
+    setStatus(t('activation_resend_status_sent'));
   }
 
   return (
-    <Layout title="Aktivasyon Yenile">
+    <Layout title={t('activation_resend_title')}>
       <div className="panel">
         <div className="panel-body">
           <form className="stack" onSubmit={submit}>
-            <input className="input" placeholder="Üye ID (opsiyonel)" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} />
-            <input className="input" placeholder="E-posta" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <button className="btn primary" type="submit">Gönder</button>
+            <input className="input" placeholder={t('activation_resend_member_id')} value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} />
+            <input className="input" placeholder={t('auth_email')} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <button className="btn primary" type="submit">{t('send')}</button>
           </form>
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}

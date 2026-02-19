@@ -64,11 +64,11 @@ export default function Layout({ children, title, right }) {
           {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="side-footer">
-          <a href="/" className="ghost">Klasik Görünüm</a>
-          {user ? <button className="linkish" onClick={handleLogout}>Çıkış</button> : (
+          <a href="/" className="ghost">{t('layout_classic_view')}</a>
+          {user ? <button className="linkish" onClick={handleLogout}>{t('logout')}</button> : (
             <>
-              <a href="/new/login">Giriş</a>
-              <a href="/new/register">Üye Ol</a>
+              <a href="/new/login">{t('login_title')}</a>
+              <a href="/new/register">{t('register_submit')}</a>
             </>
           )}
         </div>
@@ -78,17 +78,17 @@ export default function Layout({ children, title, right }) {
 	        <header className="top-bar">
           <div className="page-title">
             <h1>{title}</h1>
-            <p>SDAL sosyal hub</p>
+            <p>{t('layout_subtitle')}</p>
           </div>
 	          <div className="top-actions">
-            <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label="Dil seçimi">
+            <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>
               <option value="tr">{t('lang_tr')}</option>
               <option value="en">{t('lang_en')}</option>
               <option value="de">{t('lang_de')}</option>
               <option value="fr">{t('lang_fr')}</option>
             </select>
-            <button className="btn ghost theme-toggle" onClick={cycleMode} title="Tema modu: Otomatik -> Koyu -> Acik">
-              {mode === 'auto' ? `Tema: Otomatik (${theme === 'dark' ? 'Koyu' : 'Acik'})` : `Tema: ${mode === 'dark' ? 'Koyu' : 'Acik'}`}
+            <button className="btn ghost theme-toggle" onClick={cycleMode} title={t('theme_mode_title')}>
+              {mode === 'auto' ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') }) : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') })}
             </button>
 	            {right}
 	            {user ? (
@@ -99,15 +99,15 @@ export default function Layout({ children, title, right }) {
                 </button>
                 {menuOpen ? (
                   <div className="user-dropdown">
-                    <Link to="/new/profile" onClick={() => setMenuOpen(false)}>Profili Gör</Link>
-                    <Link to="/new/profile/photo" onClick={() => setMenuOpen(false)}>Fotoğraf Güncelle</Link>
-                    <Link to="/new/messages/compose" onClick={() => setMenuOpen(false)}>Mesaj Gönder</Link>
-                    <button className="linkish" onClick={handleLogout}>Çıkış Yap</button>
+                    <Link to="/new/profile" onClick={() => setMenuOpen(false)}>{t('profile_view')}</Link>
+                    <Link to="/new/profile/photo" onClick={() => setMenuOpen(false)}>{t('profile_photo_update')}</Link>
+                    <Link to="/new/messages/compose" onClick={() => setMenuOpen(false)}>{t('member_send_message')}</Link>
+                    <button className="linkish" onClick={handleLogout}>{t('logout')}</button>
                   </div>
                 ) : null}
               </div>
             ) : (
-              <Link className="btn" to="/new/login">Giriş</Link>
+              <Link className="btn" to="/new/login">{t('login_title')}</Link>
             )}
           </div>
         </header>
@@ -132,18 +132,18 @@ export default function Layout({ children, title, right }) {
         <NavLink to="/new/announcements">{t('nav_announcements')}</NavLink>
         <NavLink to="/new/profile">{t('nav_profile')}</NavLink>
         <NavLink to="/new/help">{t('nav_help')}</NavLink>
-        <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label="Dil seçimi">
+        <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>
           <option value="tr">{t('lang_tr')}</option>
           <option value="en">{t('lang_en')}</option>
           <option value="de">{t('lang_de')}</option>
           <option value="fr">{t('lang_fr')}</option>
         </select>
         <button className="linkish bottom-link" onClick={cycleMode}>
-          {mode === 'auto' ? `Tema: Otomatik (${theme === 'dark' ? 'Koyu' : 'Acik'})` : `Tema: ${mode === 'dark' ? 'Koyu' : 'Acik'}`}
+          {mode === 'auto' ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') }) : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') })}
         </button>
-        <a className="bottom-link" href="/">Klasik</a>
+        <a className="bottom-link" href="/">{t('layout_classic_short')}</a>
         {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
-        {user ? <button className="linkish bottom-link" onClick={handleLogout}>Çıkış</button> : null}
+        {user ? <button className="linkish bottom-link" onClick={handleLogout}>{t('logout')}</button> : null}
       </nav>
     </div>
   );

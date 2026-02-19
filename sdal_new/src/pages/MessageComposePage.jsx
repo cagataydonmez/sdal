@@ -4,8 +4,10 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function MessageComposePage() {
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -36,7 +38,7 @@ export default function MessageComposePage() {
         .then((p) => setResults(p.items || []))
         .catch((err) => {
           setResults([]);
-          setSearchError(err.message || 'Üye araması başarısız.');
+          setSearchError(err.message || t('message_compose_search_failed'));
         })
         .finally(() => setSearching(false));
     }, 250);
@@ -81,7 +83,7 @@ export default function MessageComposePage() {
       }
       if (!subject) {
         const raw = String(row.konu || '').trim();
-        setSubject(raw.toLowerCase().startsWith('re:') ? raw : `Re: ${raw || 'Mesaj'}`);
+        setSubject(raw.toLowerCase().startsWith('re:') ? raw : `Re: ${raw || t('message_title')}`);
       }
       const plain = String(row.mesaj || '').replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();
       if (!body && plain) setBody(`\n\n---\n${plain.slice(0, 240)}`);
@@ -98,7 +100,7 @@ export default function MessageComposePage() {
     setError('');
     setStatus('');
     if (!recipient?.id) {
-      setError('Alıcı seçmelisin.');
+      setError(t('message_compose_error_select_recipient'));
       return;
     }
     const res = await fetch('/api/messages', {
@@ -111,22 +113,22 @@ export default function MessageComposePage() {
       setError(await res.text());
       return;
     }
-    setStatus('Mesaj gönderildi.');
+    setStatus(t('message_compose_status_sent'));
     emitAppChange('message:created');
     setSubject('');
     setBody('');
   }
 
   return (
-    <Layout title="Yeni Mesaj">
+    <Layout title={t('message_compose_title')}>
       <div className="panel">
         <div className="panel-body">
           <div className="stack">
-            <input className="input" placeholder="Üye ara (@kullanici da olur)..." value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className="input" placeholder={t('member_search_placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
             {query.trim().replace(/^@+/, '').length >= 1 ? (
               <div className="list">
-                {searching ? <div className="muted">Aranıyor...</div> : null}
-                {!searching && !results.length ? <div className="muted">Sonuç bulunamadı.</div> : null}
+                {searching ? <div className="muted">{t('searching')}</div> : null}
+                {!searching && !results.length ? <div className="muted">{t('no_results')}</div> : null}
                 {results.map((u) => (
                   <button key={u.id} type="button" className="list-item" onClick={() => setRecipient(u)}>
                     <div className="name">{u.isim} {u.soyisim}</div>
@@ -138,15 +140,15 @@ export default function MessageComposePage() {
             ) : null}
             {recipient ? (
               <div className="composer-actions">
-                <div className="chip">Alıcı: {recipient.isim} {recipient.soyisim} (@{recipient.kadi})</div>
-                <button className="btn ghost" type="button" onClick={() => setRecipient(null)}>Alıcıyı Temizle</button>
+                <div className="chip">{t('message_compose_recipient')}: {recipient.isim} {recipient.soyisim} (@{recipient.kadi})</div>
+                <button className="btn ghost" type="button" onClick={() => setRecipient(null)}>{t('message_compose_clear_recipient')}</button>
               </div>
             ) : null}
           </div>
           <form className="stack" onSubmit={submit}>
-            <input className="input" placeholder="Konu" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            <RichTextEditor value={body} onChange={setBody} placeholder="Mesaj" minHeight={140} />
-            <button className="btn primary" type="submit" disabled={isRichTextEmpty(body)}>Gönder</button>
+            <input className="input" placeholder={t('subject')} value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <RichTextEditor value={body} onChange={setBody} placeholder={t('message_title')} minHeight={140} />
+            <button className="btn primary" type="submit" disabled={isRichTextEmpty(body)}>{t('send')}</button>
             {status ? <div className="ok">{status}</div> : null}
             {error ? <div className="error">{error}</div> : null}
           </form>

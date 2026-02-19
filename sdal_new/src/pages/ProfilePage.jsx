@@ -38,14 +38,14 @@ export default function ProfilePage() {
     setStatus('');
     try {
       await apiJson('/api/profile', { method: 'PUT', body: JSON.stringify(profile) });
-      setStatus('Profil güncellendi.');
+      setStatus(t('profile_status_updated'));
     } catch (err) {
       setError(err.message);
     }
   }
 
   if (!profile) {
-    return <Layout title="Profil"><div className="muted">Yükleniyor...</div></Layout>;
+    return <Layout title={t('nav_profile')}><div className="muted">{t('loading')}</div></Layout>;
   }
 
   const activeStories = stories.filter((s) => !s.isExpired);
@@ -58,15 +58,15 @@ export default function ProfilePage() {
     } catch (err) {
       const msg = String(err?.message || '');
       if (msg.toLowerCase().includes('expected pattern')) {
-        setError('Hikayeler yüklenirken geçersiz medya adresi algılandı. Sayfayı yenileyip tekrar deneyin.');
+        setError(t('stories_invalid_media_error'));
       } else {
-        setError(msg || 'Hikayeler yüklenemedi.');
+        setError(msg || t('stories_load_failed'));
       }
     }
   }
 
   async function editStory(story) {
-    const caption = window.prompt('Hikaye açıklamasını güncelle:', story.caption || '');
+    const caption = window.prompt(t('story_prompt_edit_caption'), story.caption || '');
     if (caption === null) return;
     setStoryBusy(`edit:${story.id}`);
     try {
@@ -97,7 +97,7 @@ export default function ProfilePage() {
   }
 
   async function deleteStory(story) {
-    if (!window.confirm('Bu hikayeyi silmek istediğine emin misin?')) return;
+    if (!window.confirm(t('story_confirm_delete'))) return;
     setStoryBusy(`delete:${story.id}`);
     try {
       try {
@@ -130,39 +130,39 @@ export default function ProfilePage() {
   }
 
   return (
-    <Layout title="Profil">
+    <Layout title={t('nav_profile')}>
       <div className="panel">
         <div className="panel-body">
           <div className="form-row">
-            <label>İsim</label>
+            <label>{t('profile_first_name')}</label>
             <input className="input" value={profile.isim || ''} onChange={(e) => setProfile({ ...profile, isim: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Soyisim</label>
+            <label>{t('profile_last_name')}</label>
             <input className="input" value={profile.soyisim || ''} onChange={(e) => setProfile({ ...profile, soyisim: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Email</label>
+            <label>{t('auth_email')}</label>
             <input className="input" value={profile.email || ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Şehir</label>
+            <label>{t('profile_city')}</label>
             <input className="input" value={profile.sehir || ''} onChange={(e) => setProfile({ ...profile, sehir: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Meslek</label>
+            <label>{t('profile_job')}</label>
             <input className="input" value={profile.meslek || ''} onChange={(e) => setProfile({ ...profile, meslek: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Mezuniyet</label>
+            <label>{t('profile_graduation')}</label>
             <input className="input" value={profile.mezuniyetyili || ''} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>İmza</label>
+            <label>{t('profile_signature')}</label>
             <textarea className="input" value={profile.imza || ''} onChange={(e) => setProfile({ ...profile, imza: e.target.value })} />
           </div>
-          <button className="btn primary" onClick={save}>Kaydet</button>
-          <a className="btn ghost" href="/new/profile/photo">Fotoğraf Düzenle</a>
+          <button className="btn primary" onClick={save}>{t('save')}</button>
+          <a className="btn ghost" href="/new/profile/photo">{t('profile_photo_title')}</a>
           {profile?.id ? <a className="btn ghost" href={`/new/members/${profile.id}`}>{t('profile_preview_members')}</a> : null}
           <button className="btn ghost" onClick={async () => {
             setVerifyStatus('');
@@ -170,9 +170,9 @@ export default function ProfilePage() {
             if (!res.ok) {
               setVerifyStatus(await res.text());
             } else {
-              setVerifyStatus('Doğrulama talebiniz alındı.');
+              setVerifyStatus(t('profile_verify_request_received'));
             }
-          }}>Doğrulama Talebi</button>
+          }}>{t('profile_verify_request')}</button>
           {status ? <div className="ok">{status}</div> : null}
           {verifyStatus ? <div className="muted">{verifyStatus}</div> : null}
           {error ? <div className="error">{error}</div> : null}
@@ -180,49 +180,49 @@ export default function ProfilePage() {
       </div>
 
       <div className="panel">
-        <h3>Hikayelerim</h3>
+        <h3>{t('my_stories')}</h3>
         <div className="panel-body">
-          <div className="muted">Aktif Hikayeler</div>
+          <div className="muted">{t('active_stories')}</div>
           <div className="story-profile-grid">
             {activeStories.map((s) => (
               <article key={s.id} className="story-mini-card">
                 <img src={s.image} alt="" />
                 <div className="meta">{new Date(s.createdAt).toLocaleString()}</div>
-                <div className="story-mini-caption">{s.caption || 'Açıklama yok'}</div>
+                <div className="story-mini-caption">{s.caption || t('no_description')}</div>
                 <div className="story-mini-actions">
                   <button className="btn ghost" onClick={() => editStory(s)} disabled={!!storyBusy}>
-                    {storyBusy === `edit:${s.id}` ? 'Kaydediliyor...' : 'Düzenle'}
+                    {storyBusy === `edit:${s.id}` ? t('saving') : t('edit')}
                   </button>
                   <button className="btn ghost delete" onClick={() => deleteStory(s)} disabled={!!storyBusy}>
-                    {storyBusy === `delete:${s.id}` ? 'Siliniyor...' : 'Sil'}
+                    {storyBusy === `delete:${s.id}` ? t('deleting') : t('delete')}
                   </button>
                 </div>
               </article>
             ))}
-            {!activeStories.length ? <div className="muted">Aktif hikayen yok.</div> : null}
+            {!activeStories.length ? <div className="muted">{t('active_stories_empty')}</div> : null}
           </div>
 
-          <div className="muted">Süresi Dolan Hikayeler</div>
+          <div className="muted">{t('expired_stories')}</div>
           <div className="story-profile-grid">
             {expiredStories.map((s) => (
               <article key={s.id} className="story-mini-card expired">
                 <img src={s.image} alt="" />
                 <div className="meta">{new Date(s.createdAt).toLocaleString()}</div>
-                <div className="story-mini-caption">{s.caption || 'Açıklama yok'}</div>
+                <div className="story-mini-caption">{s.caption || t('no_description')}</div>
                 <div className="story-mini-actions">
                   <button className="btn ghost" onClick={() => repostStory(s)} disabled={!!storyBusy}>
-                    {storyBusy === `repost:${s.id}` ? 'Paylaşılıyor...' : 'Yeniden Paylaş'}
+                    {storyBusy === `repost:${s.id}` ? t('sharing') : t('story_repost')}
                   </button>
                   <button className="btn ghost" onClick={() => editStory(s)} disabled={!!storyBusy}>
-                    {storyBusy === `edit:${s.id}` ? 'Kaydediliyor...' : 'Düzenle'}
+                    {storyBusy === `edit:${s.id}` ? t('saving') : t('edit')}
                   </button>
                   <button className="btn ghost delete" onClick={() => deleteStory(s)} disabled={!!storyBusy}>
-                    {storyBusy === `delete:${s.id}` ? 'Siliniyor...' : 'Sil'}
+                    {storyBusy === `delete:${s.id}` ? t('deleting') : t('delete')}
                   </button>
                 </div>
               </article>
             ))}
-            {!expiredStories.length ? <div className="muted">Süresi dolan hikaye yok.</div> : null}
+            {!expiredStories.length ? <div className="muted">{t('expired_stories_empty')}</div> : null}
           </div>
         </div>
       </div>

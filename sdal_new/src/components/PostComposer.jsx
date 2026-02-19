@@ -4,12 +4,12 @@ import { useI18n } from '../utils/i18n.jsx';
 import RichTextEditor from './RichTextEditor.jsx';
 
 const FILTERS = [
-  { key: '', label: 'Filtre Yok' },
-  { key: 'grayscale', label: 'Siyah Beyaz' },
-  { key: 'sepia', label: 'Sepya' },
-  { key: 'vivid', label: 'Canlı' },
-  { key: 'cool', label: 'Soğuk' },
-  { key: 'warm', label: 'Sıcak' },
+  { key: '', label: '' },
+  { key: 'grayscale', label: '' },
+  { key: 'sepia', label: '' },
+  { key: 'vivid', label: '' },
+  { key: 'cool', label: '' },
+  { key: 'warm', label: '' },
   { key: 'blur', label: 'Blur' },
   { key: 'sharp', label: 'Sharp' }
 ];
@@ -60,7 +60,7 @@ export default function PostComposer({ onPost }) {
       emitAppChange('post:created');
       onPost?.();
     } catch (err) {
-      setError(err.message || 'Paylaşım başarısız.');
+      setError(err.message || t('post_share_failed'));
     } finally {
       setLoading(false);
     }

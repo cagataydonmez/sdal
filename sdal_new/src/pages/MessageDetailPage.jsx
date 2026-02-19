@@ -7,8 +7,10 @@ import { useAuth } from '../utils/auth.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function MessageDetailPage() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -60,7 +62,7 @@ export default function MessageDetailPage() {
       credentials: 'include',
       body: JSON.stringify({
         kime: target,
-        konu: String(message?.konu || '').toLowerCase().startsWith('re:') ? message.konu : `Re: ${message?.konu || 'Mesaj'}`,
+        konu: String(message?.konu || '').toLowerCase().startsWith('re:') ? message.konu : `Re: ${message?.konu || t('message_title')}`,
         mesaj: body
       })
     });
@@ -74,25 +76,25 @@ export default function MessageDetailPage() {
     navigate('/new/messages');
   }
 
-  if (!message) return <Layout title="Mesaj">{error ? <div className="error">{error}</div> : 'Yükleniyor...'}</Layout>;
+  if (!message) return <Layout title={t('message_title')}>{error ? <div className="error">{error}</div> : t('loading')}</Layout>;
 
   return (
-    <Layout title={message.konu || 'Mesaj'}>
+    <Layout title={message.konu || t('message_title')}>
       <div className="panel">
         <div className="panel-body">
           <div className="composer-actions">
-            <a className="btn ghost" href="/new/messages">Listeye Dön</a>
-            <a className="btn primary" href={`/new/messages/compose?replyTo=${message.id}`}>Cevapla</a>
+            <a className="btn ghost" href="/new/messages">{t('back_to_list')}</a>
+            <a className="btn primary" href={`/new/messages/compose?replyTo=${message.id}`}>{t('reply')}</a>
           </div>
-          <div className="meta">Gönderen: {sender?.kadi}</div>
-          <div className="meta">Alıcı: {receiver?.kadi}</div>
-          <div className="meta">Tarih: {formatDateTime(message.tarih)}</div>
+          <div className="meta">{t('sender')}: {sender?.kadi}</div>
+          <div className="meta">{t('recipient')}: {receiver?.kadi}</div>
+          <div className="meta">{t('date')}: {formatDateTime(message.tarih)}</div>
           <TranslatableHtml html={message.mesaj || ''} className="message-bubble" />
           <div className="stack">
-            <RichTextEditor value={reply} onChange={setReply} placeholder="Hızlı cevap yaz..." minHeight={100} compact />
+            <RichTextEditor value={reply} onChange={setReply} placeholder={t('message_quick_reply_placeholder')} minHeight={100} compact />
             <div className="composer-actions">
-              <button className="btn primary" onClick={quickReply} disabled={sending}>{sending ? 'Gönderiliyor...' : 'Hızlı Cevap Gönder'}</button>
-              <button className="btn ghost" onClick={remove}>Sil</button>
+              <button className="btn primary" onClick={quickReply} disabled={sending}>{sending ? t('sending') : t('message_quick_reply_send')}</button>
+              <button className="btn ghost" onClick={remove}>{t('delete')}</button>
             </div>
           </div>
           {error ? <div className="muted">{error}</div> : null}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 const PAGE_SIZE = 20;
 
@@ -15,6 +16,7 @@ function getTarget(n) {
 }
 
 export default function NotificationsPage() {
+  const { t } = useI18n();
   const [items, setItems] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -63,10 +65,10 @@ export default function NotificationsPage() {
   }, [load, hasMore, loading]);
 
   return (
-    <Layout title="Bildirimler">
+    <Layout title={t('nav_notifications')}>
       <div className="panel">
         <div className="panel-body">
-          {items.length === 0 ? <div className="muted">Bildirim yok.</div> : null}
+          {items.length === 0 ? <div className="muted">{t('notifications_empty')}</div> : null}
           {items.map((n) => (
             <div key={n.id} className={`notif notif-link${n.read_at ? '' : ' unread'}`}>
               <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
@@ -79,8 +81,8 @@ export default function NotificationsPage() {
             </div>
           ))}
           <div ref={sentinelRef} />
-          {loading ? <div className="muted">Yükleniyor...</div> : null}
-          {!hasMore && items.length > 0 ? <div className="muted">Tüm bildirimler yüklendi.</div> : null}
+          {loading ? <div className="muted">{t('loading')}</div> : null}
+          {!hasMore && items.length > 0 ? <div className="muted">{t('notifications_all_loaded')}</div> : null}
         </div>
       </div>
     </Layout>

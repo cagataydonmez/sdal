@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useAuth } from '../utils/auth.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 function firstUnviewedIndex(items = []) {
   const idx = items.findIndex((s) => !s.viewed);
@@ -8,6 +9,7 @@ function firstUnviewedIndex(items = []) {
 }
 
 export default function StoryBar({ endpoint = '/api/new/stories', showUpload = true, title = '' }) {
+  const { t } = useI18n();
   const { user } = useAuth();
   const [stories, setStories] = useState([]);
   const [activeGroupIndex, setActiveGroupIndex] = useState(null);
@@ -212,7 +214,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   async function upload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const caption = window.prompt('Hikaye açıklaması (opsiyonel):', '') || '';
+    const caption = window.prompt(t('story_prompt_upload_caption'), '') || '';
     const form = new FormData();
     form.append('image', file);
     form.append('caption', caption);
@@ -224,7 +226,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   async function editActiveStory() {
     if (!active?.id || !isOwnActiveStory || busyAction) return;
-    const nextCaption = window.prompt('Hikaye açıklamasını güncelle:', active.caption || '');
+    const nextCaption = window.prompt(t('story_prompt_edit_caption'), active.caption || '');
     if (nextCaption === null) return;
     setBusyAction('edit');
     try {
@@ -251,7 +253,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       await load();
       emitAppChange('story:created');
     } catch (err) {
-      window.alert(err?.message || 'Hikaye güncellenemedi.');
+      window.alert(err?.message || t('story_update_failed'));
     } finally {
       setBusyAction('');
     }
@@ -259,7 +261,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   async function deleteActiveStory() {
     if (!active?.id || !isOwnActiveStory || busyAction) return;
-    const ok = window.confirm('Bu hikayeyi silmek istediğine emin misin?');
+    const ok = window.confirm(t('story_confirm_delete'));
     if (!ok) return;
     setBusyAction('delete');
     try {
@@ -275,7 +277,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       await load();
       emitAppChange('story:created');
     } catch (err) {
-      window.alert(err?.message || 'Hikaye silinemedi.');
+      window.alert(err?.message || t('story_delete_failed'));
     } finally {
       setBusyAction('');
     }
@@ -305,7 +307,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
           <label className="story add">
             <input type="file" accept="image/*" onChange={upload} />
             <div className="ring">+</div>
-            <span>Hikaye Ekle</span>
+            <span>{t('story_add')}</span>
           </label>
         ) : null}
         {groups.map((g, idx) => (
@@ -314,7 +316,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
             <span>@{g.author?.kadi}</span>
           </button>
         ))}
-        {!groups.length ? <div className="muted">Gösterilecek hikaye yok.</div> : null}
+        {!groups.length ? <div className="muted">{t('stories_empty')}</div> : null}
       </div>
 
       {active ? (
@@ -330,29 +332,29 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
                 );
               })}
             </div>
-            {!imageReady ? <div className="story-loading">Yükleniyor...</div> : null}
+            {!imageReady ? <div className="story-loading">{t('loading')}</div> : null}
             <div className="story-media">
-              <button className="story-tap-zone story-tap-left" onClick={goPrev} aria-label="Önceki hikaye" />
-              <button className="story-tap-zone story-tap-right" onClick={goNext} aria-label="Sonraki hikaye" />
+              <button className="story-tap-zone story-tap-left" onClick={goPrev} aria-label={t('story_prev')} />
+              <button className="story-tap-zone story-tap-right" onClick={goNext} aria-label={t('story_next')} />
               <img src={active.image} alt="" onLoad={() => setImageReady(true)} className={imageReady ? 'story-photo ready' : 'story-photo'} />
             </div>
             <div className="story-caption">
               <b>@{active.author?.kadi}</b> {active.caption}
             </div>
             <div className="story-actions">
-              <button className="btn ghost" onClick={goPrev}>Geri</button>
-              <button className="btn ghost" onClick={goNext}>İleri</button>
+              <button className="btn ghost" onClick={goPrev}>{t('back')}</button>
+              <button className="btn ghost" onClick={goNext}>{t('next')}</button>
               {isOwnActiveStory ? (
                 <>
                   <button className="btn ghost" onClick={editActiveStory} disabled={!!busyAction}>
-                    {busyAction === 'edit' ? 'Kaydediliyor...' : 'Düzenle'}
+                    {busyAction === 'edit' ? t('saving') : t('edit')}
                   </button>
                   <button className="btn ghost delete" onClick={deleteActiveStory} disabled={!!busyAction}>
-                    {busyAction === 'delete' ? 'Siliniyor...' : 'Sil'}
+                    {busyAction === 'delete' ? t('deleting') : t('delete')}
                   </button>
                 </>
               ) : null}
-              <button className="btn ghost" onClick={() => setActiveGroupIndex(null)}>Kapat</button>
+              <button className="btn ghost" onClick={() => setActiveGroupIndex(null)}>{t('close')}</button>
             </div>
           </div>
         </div>

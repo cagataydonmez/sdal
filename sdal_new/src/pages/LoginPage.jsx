@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const [kadi, setKadi] = useState('');
   const [sifre, setSifre] = useState('');
   const [error, setError] = useState('');
@@ -21,7 +23,7 @@ export default function LoginPage() {
     });
     if (!res.ok) {
       const msg = await res.text();
-      setError(msg || 'Giriş başarısız.');
+      setError(msg || t('login_error_failed'));
       return;
     }
     await refresh();
@@ -29,18 +31,18 @@ export default function LoginPage() {
   }
 
   return (
-    <Layout title="Giriş">
+    <Layout title={t('login_title')}>
       <div className="panel">
         <div className="panel-body">
           <form onSubmit={submit} className="stack">
-            <input className="input" placeholder="Kullanıcı adı" value={kadi} onChange={(e) => setKadi(e.target.value)} />
-            <input className="input" type="password" placeholder="Şifre" value={sifre} onChange={(e) => setSifre(e.target.value)} />
-            <button className="btn primary" type="submit">Giriş Yap</button>
+            <input className="input" placeholder={t('auth_username')} value={kadi} onChange={(e) => setKadi(e.target.value)} />
+            <input className="input" type="password" placeholder={t('auth_password')} value={sifre} onChange={(e) => setSifre(e.target.value)} />
+            <button className="btn primary" type="submit">{t('login_submit')}</button>
             {error ? <div className="error">{error}</div> : null}
           </form>
           <div className="panel-body">
-            <a className="btn ghost" href="/new/register">Üye Ol</a>
-            <a className="btn ghost" href="/new/password-reset">Şifremi Unuttum</a>
+            <a className="btn ghost" href="/new/register">{t('register_submit')}</a>
+            <a className="btn ghost" href="/new/password-reset">{t('login_forgot_password')}</a>
           </div>
         </div>
       </div>

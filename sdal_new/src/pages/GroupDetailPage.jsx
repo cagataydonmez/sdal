@@ -7,6 +7,7 @@ import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -22,6 +23,7 @@ async function apiJson(url, options = {}) {
 }
 
 export default function GroupDetailPage() {
+  const { t } = useI18n();
   const { id } = useParams();
   const { user } = useAuth();
   const [group, setGroup] = useState(null);
@@ -69,7 +71,7 @@ export default function GroupDetailPage() {
       setManagers(data.managers || []);
       setMembershipStatus(data.membershipStatus || 'none');
       setAccessDenied(true);
-      setAccessMessage(data.message || 'Bu grup içeriği yalnızca üyeler için açık.');
+      setAccessMessage(data.message || t('group_access_members_only'));
       setVisibility(data.group?.visibility || 'public');
       setShowContactHint(Number(data.group?.show_contact_hint || 0) === 1);
       setLoading(false);
@@ -100,7 +102,7 @@ export default function GroupDetailPage() {
     e.preventDefault();
     setStatus('');
     if (!image && isRichTextEmpty(content)) {
-      setStatus('İçerik boş olamaz.');
+      setStatus(t('group_content_empty'));
       return;
     }
     try {
@@ -157,7 +159,7 @@ export default function GroupDetailPage() {
     setStatus('');
     try {
       await apiJson(`/api/new/groups/${id}/role`, { method: 'POST', body: JSON.stringify({ userId: targetId, role }) });
-      setStatus('Rol güncellendi.');
+      setStatus(t('group_role_updated'));
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -171,7 +173,7 @@ export default function GroupDetailPage() {
         method: 'POST',
         body: JSON.stringify({ action })
       });
-      setStatus(action === 'approve' ? 'Katılım isteği onaylandı.' : 'Katılım isteği reddedildi.');
+      setStatus(action === 'approve' ? t('group_join_approved') : t('group_join_rejected'));
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -198,7 +200,7 @@ export default function GroupDetailPage() {
     try {
       await apiJson(`/api/new/groups/${id}/events`, { method: 'POST', body: JSON.stringify(eventForm) });
       setEventForm({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
-      setStatus('Grup etkinliği eklendi.');
+      setStatus(t('group_event_added'));
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -209,7 +211,7 @@ export default function GroupDetailPage() {
     setStatus('');
     try {
       await apiJson(`/api/new/groups/${id}/events/${eventId}`, { method: 'DELETE' });
-      setStatus('Grup etkinliği silindi.');
+      setStatus(t('group_event_deleted'));
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -221,7 +223,7 @@ export default function GroupDetailPage() {
     try {
       await apiJson(`/api/new/groups/${id}/announcements`, { method: 'POST', body: JSON.stringify(announcementForm) });
       setAnnouncementForm({ title: '', body: '' });
-      setStatus('Grup duyurusu eklendi.');
+      setStatus(t('group_announcement_added'));
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -232,7 +234,7 @@ export default function GroupDetailPage() {
     setStatus('');
     try {
       await apiJson(`/api/new/groups/${id}/announcements/${announcementId}`, { method: 'DELETE' });
-      setStatus('Grup duyurusu silindi.');
+      setStatus(t('group_announcement_deleted'));
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -246,7 +248,7 @@ export default function GroupDetailPage() {
         method: 'POST',
         body: JSON.stringify({ visibility, showContactHint })
       });
-      setStatus('Grup ayarları güncellendi.');
+      setStatus(t('group_settings_updated'));
       await load();
     } catch (err) {
       setStatus(err.message);
@@ -255,13 +257,13 @@ export default function GroupDetailPage() {
 
   function showManagersHint() {
     if (!managers.length) {
-      window.alert('Bu grup için henüz yönetici bilgisi paylaşılmamış.');
+      window.alert(t('group_manager_info_missing'));
       return;
     }
     const message = managers
-      .map((m) => `${m.role === 'owner' ? 'Sahip' : 'Moderatör'}: ${[m.isim, m.soyisim].filter(Boolean).join(' ')} (@${m.kadi || 'uye'})`)
+      .map((m) => `${m.role === 'owner' ? t('role_owner') : t('role_moderator')}: ${[m.isim, m.soyisim].filter(Boolean).join(' ')} (@${m.kadi || t('member_fallback')})`)
       .join('\n');
-    window.alert(`Grup yöneticileri:\n${message}\n\nKatılım isteğin bu kişiler tarafından onaylanır.`);
+    window.alert(`${t('group_managers_label')}:\n${message}\n\n${t('group_managers_hint')}`);
   }
 
   async function searchInviteCandidates(term) {
@@ -299,7 +301,7 @@ export default function GroupDetailPage() {
         method: 'POST',
         body: JSON.stringify({ userIds: selectedInviteIds })
       });
-      setStatus(`${payload.sent || 0} kullanıcıya davet gönderildi.`);
+      setStatus(t('group_invites_sent_count', { count: payload.sent || 0 }));
       setSelectedInviteIds([]);
       setInviteQuery('');
       setInviteResults([]);
@@ -310,39 +312,39 @@ export default function GroupDetailPage() {
   }
 
   if (loading && !group) {
-    return <Layout title="Grup">Yükleniyor...</Layout>;
+    return <Layout title={t('group_title')}>{t('loading')}</Layout>;
   }
 
   if (accessDenied) {
     return (
-      <Layout title={group?.name || 'Grup'}>
+      <Layout title={group?.name || t('group_title')}>
         {group ? (
           <div className="panel">
             <div className="group-hero">
-              {group?.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">Kapak Görseli</div>}
+              {group?.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">{t('group_cover_image')}</div>}
               <div>
-                <h3>{group?.name || 'Grup'}</h3>
+                <h3>{group?.name || t('group_title')}</h3>
                 <div className="panel-body">{group?.description || ''}</div>
-                {group?.members ? <div className="meta">{group.members} üye</div> : null}
+                {group?.members ? <div className="meta">{t('groups_member_count', { count: group.members })}</div> : null}
               </div>
             </div>
           </div>
         ) : null}
         <div className="panel">
           <div className="panel-body">
-            <div className="muted">{group ? accessMessage : 'Bu grubu görüntüleme yetkin yok veya grup bulunamadı.'}</div>
+            <div className="muted">{group ? accessMessage : t('group_access_not_allowed')}</div>
             {group && Number(group.show_contact_hint || 0) === 1 ? (
-              <button className="btn ghost" onClick={showManagersHint}>Yönetici İpucu</button>
+              <button className="btn ghost" onClick={showManagersHint}>{t('group_manager_hint_button')}</button>
             ) : null}
             {group ? (
               membershipStatus === 'invited' ? (
                 <div className="composer-actions">
-                  <button className="btn primary" onClick={() => respondInvite('accept')}>Daveti Kabul Et</button>
-                  <button className="btn ghost" onClick={() => respondInvite('reject')}>Daveti Reddet</button>
+                  <button className="btn primary" onClick={() => respondInvite('accept')}>{t('group_invite_accept')}</button>
+                  <button className="btn ghost" onClick={() => respondInvite('reject')}>{t('group_invite_reject')}</button>
                 </div>
               ) : (
                 <button className="btn primary" onClick={toggleJoinRequest}>
-                  {membershipStatus === 'pending' ? 'İsteği İptal Et' : 'Katılım İsteği Gönder'}
+                  {membershipStatus === 'pending' ? t('group_request_cancel') : t('group_request_join')}
                 </button>
               )
             ) : null}
@@ -354,14 +356,14 @@ export default function GroupDetailPage() {
   }
 
   if (!group) {
-    return <Layout title="Grup">Grup bulunamadı.</Layout>;
+    return <Layout title={t('group_title')}>{t('group_not_found')}</Layout>;
   }
 
   return (
     <Layout title={group.name}>
       <div className="panel">
         <div className="group-hero">
-          {group.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">Kapak Görseli</div>}
+          {group.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">{t('group_cover_image')}</div>}
           <div>
             <h3>{group.name}</h3>
             <TranslatableHtml html={group.description || ''} className="panel-body" />
@@ -371,12 +373,12 @@ export default function GroupDetailPage() {
           <div className="stack">
             <form className="group-cover-form" onSubmit={uploadCover}>
               <input type="file" accept="image/*" onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
-              <button className="btn ghost" type="submit">Kapak Güncelle</button>
+              <button className="btn ghost" type="submit">{t('group_cover_update')}</button>
             </form>
             <div className="composer-actions">
               <select className="input" value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-                <option value="public">Herkese Görünür</option>
-                <option value="members_only">Sadece Üyeler ve Davetliler</option>
+                <option value="public">{t('group_visibility_public')}</option>
+                <option value="members_only">{t('group_visibility_members_only')}</option>
               </select>
               <label className="meta" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                 <input
@@ -384,9 +386,9 @@ export default function GroupDetailPage() {
                   checked={showContactHint}
                   onChange={(e) => setShowContactHint(e.target.checked)}
                 />
-                Üye olmayanlara yönetici ipucu göster
+                {t('group_visibility_show_contact_hint')}
               </label>
-              <button className="btn ghost" onClick={saveVisibility}>Görünürlüğü Kaydet</button>
+              <button className="btn ghost" onClick={saveVisibility}>{t('save_visibility')}</button>
             </div>
           </div>
         ) : null}
@@ -394,20 +396,20 @@ export default function GroupDetailPage() {
       <div className="panel">
         <div className="panel-body">
           <form onSubmit={submit} className="stack">
-            <RichTextEditor value={content} onChange={setContent} placeholder="Gruba bir şey yaz..." minHeight={120} />
+            <RichTextEditor value={content} onChange={setContent} placeholder={t('group_post_placeholder')} minHeight={120} />
             <div className="composer-actions">
               <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
               <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)}>
-                <option value="">Filtre yok</option>
-                <option value="grayscale">Siyah Beyaz</option>
-                <option value="sepia">Sepya</option>
-                <option value="vivid">Canlı</option>
-                <option value="cool">Soğuk</option>
-                <option value="warm">Sıcak</option>
-                <option value="blur">Blur</option>
-                <option value="sharp">Sharp</option>
+                <option value="">{t('filter_none')}</option>
+                <option value="grayscale">{t('filter_grayscale')}</option>
+                <option value="sepia">{t('filter_sepia')}</option>
+                <option value="vivid">{t('filter_vivid')}</option>
+                <option value="cool">{t('filter_cool')}</option>
+                <option value="warm">{t('filter_warm')}</option>
+                <option value="blur">{t('filter_blur')}</option>
+                <option value="sharp">{t('filter_sharp')}</option>
               </select>
-              <button className="btn primary">Paylaş</button>
+              <button className="btn primary">{t('post_share')}</button>
             </div>
           </form>
         </div>
@@ -415,32 +417,32 @@ export default function GroupDetailPage() {
       <div className="grid">
         <div className="col-main">
           <div className="panel">
-            <h3>Grup Etkinlikleri</h3>
+            <h3>{t('group_events_title')}</h3>
             <div className="panel-body">
               {canReviewRequests ? (
                 <div className="stack">
-                  <input className="input" placeholder="Başlık" value={eventForm.title} onChange={(e) => setEventForm((prev) => ({ ...prev, title: e.target.value }))} />
-                  <input className="input" placeholder="Konum" value={eventForm.location} onChange={(e) => setEventForm((prev) => ({ ...prev, location: e.target.value }))} />
+                  <input className="input" placeholder={t('title')} value={eventForm.title} onChange={(e) => setEventForm((prev) => ({ ...prev, title: e.target.value }))} />
+                  <input className="input" placeholder={t('location')} value={eventForm.location} onChange={(e) => setEventForm((prev) => ({ ...prev, location: e.target.value }))} />
                   <RichTextEditor
                     value={eventForm.description}
                     onChange={(next) => setEventForm((prev) => ({ ...prev, description: next }))}
-                    placeholder="Açıklama"
+                    placeholder={t('description')}
                     minHeight={110}
                   />
                   <input className="input" type="datetime-local" value={eventForm.starts_at} onChange={(e) => setEventForm((prev) => ({ ...prev, starts_at: e.target.value }))} />
                   <input className="input" type="datetime-local" value={eventForm.ends_at} onChange={(e) => setEventForm((prev) => ({ ...prev, ends_at: e.target.value }))} />
-                  <button className="btn" onClick={createGroupEvent}>Etkinlik Ekle</button>
+                  <button className="btn" onClick={createGroupEvent}>{t('group_event_add')}</button>
                 </div>
               ) : null}
-              {!groupEvents.length ? <div className="muted">Henüz grup etkinliği yok.</div> : null}
+              {!groupEvents.length ? <div className="muted">{t('group_events_empty')}</div> : null}
               {groupEvents.map((e) => (
                 <div key={e.id} className="panel">
                   <h3>{e.title}</h3>
                   <div className="panel-body">
                     <div className="meta">{e.location || '-'} · {formatDateTime(e.starts_at || e.created_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>
                     <TranslatableHtml html={e.description || ''} />
-                    <div className="meta">@{e.creator_kadi || 'uye'}</div>
-                    {canReviewRequests ? <button className="btn ghost" onClick={() => removeGroupEvent(e.id)}>Sil</button> : null}
+                    <div className="meta">@{e.creator_kadi || t('member_fallback')}</div>
+                    {canReviewRequests ? <button className="btn ghost" onClick={() => removeGroupEvent(e.id)}>{t('delete')}</button> : null}
                   </div>
                 </div>
               ))}
@@ -448,28 +450,28 @@ export default function GroupDetailPage() {
           </div>
 
           <div className="panel">
-            <h3>Grup Duyuruları</h3>
+            <h3>{t('group_announcements_title')}</h3>
             <div className="panel-body">
               {canReviewRequests ? (
                 <div className="stack">
-                  <input className="input" placeholder="Başlık" value={announcementForm.title} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))} />
+                  <input className="input" placeholder={t('title')} value={announcementForm.title} onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))} />
                   <RichTextEditor
                     value={announcementForm.body}
                     onChange={(next) => setAnnouncementForm((prev) => ({ ...prev, body: next }))}
-                    placeholder="Duyuru içeriği"
+                    placeholder={t('announcements_body_placeholder')}
                     minHeight={110}
                   />
-                  <button className="btn" onClick={createGroupAnnouncement}>Duyuru Ekle</button>
+                  <button className="btn" onClick={createGroupAnnouncement}>{t('group_announcement_add')}</button>
                 </div>
               ) : null}
-              {!groupAnnouncements.length ? <div className="muted">Henüz grup duyurusu yok.</div> : null}
+              {!groupAnnouncements.length ? <div className="muted">{t('group_announcements_empty')}</div> : null}
               {groupAnnouncements.map((a) => (
                 <div key={a.id} className="panel">
                   <h3>{a.title}</h3>
                   <div className="panel-body">
-                    <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || 'uye'}</div>
+                    <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || t('member_fallback')}</div>
                     <TranslatableHtml html={a.body || ''} />
-                    {canReviewRequests ? <button className="btn ghost" onClick={() => removeGroupAnnouncement(a.id)}>Sil</button> : null}
+                    {canReviewRequests ? <button className="btn ghost" onClick={() => removeGroupAnnouncement(a.id)}>{t('delete')}</button> : null}
                   </div>
                 </div>
               ))}
@@ -495,11 +497,11 @@ export default function GroupDetailPage() {
         </div>
         <div className="col-side">
           <div className="panel">
-            <h3>Üyeler</h3>
+            <h3>{t('members')}</h3>
             <div className="panel-body">
               {members.map((m) => (
                 <div key={m.id} className="notif">
-                  <a href={`/new/members/${m.id}`} aria-label={`${m.kadi || 'uye'} profiline git`}>
+                  <a href={`/new/members/${m.id}`} aria-label={t('go_profile_aria', { username: m.kadi || t('member_fallback') })}>
                     <img className="avatar" src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                   </a>
                   <div>
@@ -508,9 +510,9 @@ export default function GroupDetailPage() {
                     <div className="meta role">{m.role}</div>
                     {canManageRoles && m.id !== user?.id ? (
                       <select className="input role-select" value={m.role} onChange={(e) => updateRole(m.id, e.target.value)}>
-                        <option value="member">Üye</option>
-                        <option value="moderator">Moderatör</option>
-                        <option value="owner">Sahip</option>
+                        <option value="member">{t('role_member')}</option>
+                        <option value="moderator">{t('role_moderator')}</option>
+                        <option value="owner">{t('role_owner')}</option>
                       </select>
                     ) : null}
                   </div>
@@ -521,20 +523,20 @@ export default function GroupDetailPage() {
 
           {canReviewRequests ? (
             <div className="panel">
-              <h3>Katılım İstekleri</h3>
+              <h3>{t('group_join_requests_title')}</h3>
               <div className="panel-body">
-                {!joinRequests.length ? <div className="muted">Bekleyen istek yok.</div> : null}
+                {!joinRequests.length ? <div className="muted">{t('group_join_requests_empty')}</div> : null}
                 {joinRequests.map((r) => (
                   <div key={r.id} className="notif">
-                    <a href={`/new/members/${r.user_id}`} aria-label={`${r.kadi || 'uye'} profiline git`}>
+                    <a href={`/new/members/${r.user_id}`} aria-label={t('go_profile_aria', { username: r.kadi || t('member_fallback') })}>
                       <img className="avatar" src={r.resim ? `/api/media/vesikalik/${r.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                     </a>
                     <div>
                       <b>{r.isim} {r.soyisim}</b>{r.verified ? <span className="badge">✓</span> : null}
                       <div className="meta">@{r.kadi}</div>
                       <div className="composer-actions">
-                        <button className="btn" onClick={() => reviewJoinRequest(r.id, 'approve')}>Onayla</button>
-                        <button className="btn ghost" onClick={() => reviewJoinRequest(r.id, 'reject')}>Reddet</button>
+                        <button className="btn" onClick={() => reviewJoinRequest(r.id, 'approve')}>{t('approve')}</button>
+                        <button className="btn ghost" onClick={() => reviewJoinRequest(r.id, 'reject')}>{t('reject')}</button>
                       </div>
                     </div>
                   </div>
@@ -544,9 +546,9 @@ export default function GroupDetailPage() {
           ) : null}
           {canReviewRequests ? (
             <div className="panel">
-              <h3>Toplu Davet</h3>
+              <h3>{t('group_bulk_invite_title')}</h3>
               <div className="panel-body stack">
-                <input className="input" placeholder="Üye ara (@kullanici)..." value={inviteQuery} onChange={(e) => setInviteQuery(e.target.value)} />
+                <input className="input" placeholder={t('member_search_placeholder_short')} value={inviteQuery} onChange={(e) => setInviteQuery(e.target.value)} />
                 <div className="list">
                   {inviteResults.map((u) => (
                     <button
@@ -559,23 +561,23 @@ export default function GroupDetailPage() {
                         <div className="name">{u.isim} {u.soyisim}</div>
                         <div className="meta">@{u.kadi}</div>
                       </div>
-                      <span className="chip">{selectedInviteIds.includes(Number(u.id)) ? 'Seçili' : 'Seç'}</span>
+                      <span className="chip">{selectedInviteIds.includes(Number(u.id)) ? t('selected') : t('select_action')}</span>
                     </button>
                   ))}
-                  {!inviteResults.length && inviteQuery.trim() ? <div className="muted">Sonuç bulunamadı.</div> : null}
+                  {!inviteResults.length && inviteQuery.trim() ? <div className="muted">{t('no_results')}</div> : null}
                 </div>
-                <button className="btn" onClick={sendInvites} disabled={!selectedInviteIds.length}>Seçilenlere Davet Gönder</button>
+                <button className="btn" onClick={sendInvites} disabled={!selectedInviteIds.length}>{t('group_send_invites_selected')}</button>
               </div>
             </div>
           ) : null}
           {canReviewRequests ? (
             <div className="panel">
-              <h3>Bekleyen Davetler</h3>
+              <h3>{t('group_pending_invites_title')}</h3>
               <div className="panel-body">
-                {!pendingInvites.length ? <div className="muted">Bekleyen davet yok.</div> : null}
+                {!pendingInvites.length ? <div className="muted">{t('group_pending_invites_empty')}</div> : null}
                 {pendingInvites.map((inv) => (
                   <div key={inv.id} className="notif">
-                    <a href={`/new/members/${inv.invited_user_id}`} aria-label={`${inv.kadi || 'uye'} profiline git`}>
+                    <a href={`/new/members/${inv.invited_user_id}`} aria-label={t('go_profile_aria', { username: inv.kadi || t('member_fallback') })}>
                       <img className="avatar" src={inv.resim ? `/api/media/vesikalik/${inv.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                     </a>
                     <div>

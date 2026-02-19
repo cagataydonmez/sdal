@@ -3,8 +3,10 @@ import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import StoryBar from '../components/StoryBar.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function MemberDetailPage() {
+  const { t } = useI18n();
   const { id } = useParams();
   const { user } = useAuth();
   const [member, setMember] = useState(null);
@@ -21,7 +23,7 @@ export default function MemberDetailPage() {
       .catch((err) => setError(err.message));
   }, [id]);
 
-  if (!member) return <Layout title="Üye">{error ? <div className="error">{error}</div> : 'Yükleniyor...'}</Layout>;
+  if (!member) return <Layout title={t('member_title')}>{error ? <div className="error">{error}</div> : t('loading')}</Layout>;
 
   return (
     <Layout title={`${member.isim} ${member.soyisim}`}>
@@ -36,7 +38,7 @@ export default function MemberDetailPage() {
           <div className="meta">{member.websitesi || ''}</div>
           <div>{member.imza}</div>
           <div className="composer-actions">
-            <a className="btn primary" href={`/new/messages/compose?to=${member.id}`}>Mesaj Gönder</a>
+            <a className="btn primary" href={`/new/messages/compose?to=${member.id}`}>{t('member_send_message')}</a>
             {String(user?.id || '') !== String(member.id || '') ? (
               <button className="btn ghost" onClick={async () => {
                 setError('');
@@ -51,10 +53,10 @@ export default function MemberDetailPage() {
                   setError(await res.text());
                   return;
                 }
-                setStatus('Hızlı Erişim listene eklendi.');
+                setStatus(t('member_quick_access_added'));
               }}
               >
-                Hızlı Erişim'e Ekle
+                {t('member_quick_access_add')}
               </button>
             ) : null}
           </div>
@@ -63,7 +65,7 @@ export default function MemberDetailPage() {
       </div>
       <div className="panel">
         <div className="panel-body">
-          <StoryBar endpoint={`/api/new/stories/user/${id}`} showUpload={false} title="Hikayeleri" />
+          <StoryBar endpoint={`/api/new/stories/user/${id}`} showUpload={false} title={t('member_stories_title')} />
         </div>
       </div>
     </Layout>

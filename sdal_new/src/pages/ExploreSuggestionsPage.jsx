@@ -83,7 +83,7 @@ export default function ExploreSuggestionsPage() {
   }
 
   return (
-    <Layout title="Tanıyor Olabileceğin Kişiler">
+    <Layout title={t('explore_suggestions_title')}>
       <div className="card-grid">
         {items.map((m) => (
           <div className="member-card" key={m.id}>
@@ -96,7 +96,7 @@ export default function ExploreSuggestionsPage() {
                 {m.verified ? <span className="badge">✓</span> : null}
               </div>
               <div className="handle">@{m.kadi}</div>
-              <div className="meta">{m.mezuniyetyili || ''}{Number(m.online || 0) === 1 ? ' · Online' : ''}</div>
+              <div className="meta">{m.mezuniyetyili || ''}{Number(m.online || 0) === 1 ? ` · ${t('status_online')}` : ''}</div>
             </div>
             <button className="btn ghost" onClick={() => toggleFollow(m.id)} disabled={Boolean(pendingFollow[Number(m.id)])}>
               {followingIds.has(Number(m.id)) ? t('unfollow') : t('follow')}
@@ -105,8 +105,8 @@ export default function ExploreSuggestionsPage() {
         ))}
       </div>
       <div ref={sentinelRef} />
-      {loading ? <div className="muted">Yükleniyor...</div> : null}
-      {!hasMore && items.length > 0 ? <div className="muted">Tüm öneriler yüklendi.</div> : null}
+      {loading ? <div className="muted">{t('loading')}</div> : null}
+      {!hasMore && items.length > 0 ? <div className="muted">{t('explore_suggestions_all_loaded')}</div> : null}
     </Layout>
   );
 }

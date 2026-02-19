@@ -4,10 +4,12 @@ import { emitAppChange } from '../utils/live.js';
 import RichTextEditor from './RichTextEditor.jsx';
 import TranslatableHtml from './TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 const PAGE_SIZE = 20;
 
 export default function LiveChatPanel() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
@@ -135,13 +137,29 @@ export default function LiveChatPanel() {
   async function send(e) {
     e.preventDefault();
     setError('');
+    let optimisticId = null;
     if (!user?.id) {
-      setError('Mesaj göndermek için giriş yapın.');
+      setError(t('live_chat_error_login_required'));
       return;
     }
     if (isRichTextEmpty(text)) return;
     try {
       const message = text;
+      optimisticId = Date.now() * -1;
+      mergeMessages([{
+        id: optimisticId,
+        message,
+        created_at: new Date().toISOString(),
+        user_id: Number(user.id || 0) || null,
+        kadi: user.kadi,
+        verified: Number(user.verified || 0) === 1
+      }], 'append');
+      setText('');
+      requestAnimationFrame(() => {
+        const el = chatBodyRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+      });
       const res = await fetch('/api/new/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,25 +171,23 @@ export default function LiveChatPanel() {
       }
       const payload = await res.json();
       if (payload?.item) {
+        setMessages((prev) => prev.filter((m) => Number(m.id) !== optimisticId));
         mergeMessages([payload.item], 'append');
       }
       if (wsRef.current && wsRef.current.readyState === 1) {
         wsRef.current.send(JSON.stringify({ userId: user.id, message }));
       }
-      setText('');
-      requestAnimationFrame(() => {
-        const el = chatBodyRef.current;
-        if (!el) return;
-        el.scrollTop = el.scrollHeight;
-      });
     } catch (err) {
-      setError(err?.message || 'Mesaj gönderilemedi.');
+      if (optimisticId !== null) {
+        setMessages((prev) => prev.filter((m) => Number(m.id) !== optimisticId));
+      }
+      setError(err?.message || t('message_send_failed'));
     }
   }
 
   return (
     <div className="panel chat-panel">
-      <h3>Canlı Sohbet</h3>
+      <h3>{t('live_chat_title')}</h3>
       <div
         ref={chatBodyRef}
         className="chat-body"
@@ -183,19 +199,19 @@ export default function LiveChatPanel() {
           }
         }}
       >
-        {loadingOlder ? <div className="muted">Eski mesajlar yükleniyor...</div> : null}
+        {loadingOlder ? <div className="muted">{t('live_chat_loading_old')}</div> : null}
         {messages.map((m) => (
           <div key={m.id} className="chat-line">
             <a className="chat-user" href={m.user_id ? `/new/members/${m.user_id}` : '/new/explore'}>
-              @{(m.user?.kadi || m.kadi) || 'anon'}{(m.user?.verified || m.verified) ? ' ✓' : ''}
+              @{(m.user?.kadi || m.kadi) || t('anonymous')}{(m.user?.verified || m.verified) ? ' ✓' : ''}
             </a>
             <TranslatableHtml html={m.message} className="chat-text" />
           </div>
         ))}
       </div>
       <form className="chat-form" onSubmit={send}>
-        <RichTextEditor value={text} onChange={setText} placeholder="Mesaj yaz..." minHeight={66} compact />
-        <button className="btn" disabled={isRichTextEmpty(text)}>Gönder</button>
+        <RichTextEditor value={text} onChange={setText} placeholder={t('message_write')} minHeight={66} compact />
+        <button className="btn" disabled={isRichTextEmpty(text)}>{t('send')}</button>
       </form>
       {error ? <div className="error">{error}</div> : null}
     </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -26,6 +27,7 @@ function mergeUniqueById(prev, next) {
 }
 
 export default function AnnouncementsPage() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: '', body: '' });
@@ -93,7 +95,7 @@ export default function AnnouncementsPage() {
       }
       setForm({ title: '', body: '' });
       setImageFile(null);
-      setStatus(isAdmin ? 'Duyuru yayınlandı.' : 'Duyuru önerin admin onayına gönderildi.');
+      setStatus(isAdmin ? t('announcements_status_published') : t('announcements_status_submitted'));
       load();
     } catch (err) {
       setError(err.message);
@@ -111,14 +113,14 @@ export default function AnnouncementsPage() {
   }
 
   return (
-    <Layout title="Duyurular">
+    <Layout title={t('nav_announcements')}>
       <div className="panel">
-        <h3>{isAdmin ? 'Yeni Duyuru' : 'Duyuru Önerisi'}</h3>
+        <h3>{isAdmin ? t('announcements_new') : t('announcements_suggestion')}</h3>
         <div className="panel-body">
-          <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          <RichTextEditor value={form.body} onChange={(next) => setForm((prev) => ({ ...prev, body: next }))} placeholder="Duyuru metni" minHeight={120} />
+          <input className="input" placeholder={t('title')} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <RichTextEditor value={form.body} onChange={(next) => setForm((prev) => ({ ...prev, body: next }))} placeholder={t('announcements_body_placeholder')} minHeight={120} />
           <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
-          <button className="btn primary" onClick={create}>{isAdmin ? 'Yayınla' : 'Öner'}</button>
+          <button className="btn primary" onClick={create}>{isAdmin ? t('publish') : t('suggest')}</button>
           {status ? <div className="muted">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
         </div>
@@ -131,12 +133,12 @@ export default function AnnouncementsPage() {
             <div className="panel-body">
               {a.image ? <img className="post-image" src={a.image} alt="" /> : null}
               <TranslatableHtml html={a.body || ''} />
-              <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || 'uye'} {Number(a.approved || 0) === 1 ? '' : '· Onay bekliyor'}</div>
+              <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || t('member_fallback')} {Number(a.approved || 0) === 1 ? '' : `· ${t('pending_approval')}`}</div>
               {isAdmin ? (
                 <div className="composer-actions">
-                  {Number(a.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(a.id, true)}>Onayla</button> : null}
-                  {Number(a.approved || 0) !== 0 ? <button className="btn ghost" title="Reddetmek duyurunun yayınlanmaması anlamına gelir." onClick={() => approve(a.id, false)}>Reddet (Yayınlama)</button> : null}
-                  <button className="btn ghost" onClick={() => remove(a.id)}>Sil</button>
+                  {Number(a.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(a.id, true)}>{t('approve')}</button> : null}
+                  {Number(a.approved || 0) !== 0 ? <button className="btn ghost" title={t('announcements_reject_hint')} onClick={() => approve(a.id, false)}>{t('announcements_reject_publish')}</button> : null}
+                  <button className="btn ghost" onClick={() => remove(a.id)}>{t('delete')}</button>
                 </div>
               ) : null}
             </div>
@@ -144,7 +146,7 @@ export default function AnnouncementsPage() {
         ))}
       </div>
       <div ref={sentinelRef} />
-      {loadingMore ? <div className="muted">Daha fazla duyuru yükleniyor...</div> : null}
+      {loadingMore ? <div className="muted">{t('announcements_loading_more')}</div> : null}
     </Layout>
   );
 }

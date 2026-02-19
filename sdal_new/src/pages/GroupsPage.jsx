@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -24,6 +25,7 @@ function mergeUniqueById(prev, next) {
 }
 
 export default function GroupsPage() {
+  const { t } = useI18n();
   const PAGE_SIZE = 100;
   const [groups, setGroups] = useState([]);
   const [form, setForm] = useState({ name: '', description: '' });
@@ -89,18 +91,18 @@ export default function GroupsPage() {
   }
 
   return (
-    <Layout title="Gruplar (Deploy Test)">
+    <Layout title={t('nav_groups')}>
       <div className="panel">
-        <h3>Yeni Grup</h3>
+        <h3>{t('groups_new')}</h3>
         <div className="panel-body">
-          <input className="input" placeholder="Grup adı" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="input" placeholder={t('groups_name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <RichTextEditor
             value={form.description}
             onChange={(next) => setForm((prev) => ({ ...prev, description: next }))}
-            placeholder="Açıklama"
+            placeholder={t('description')}
             minHeight={110}
           />
-          <button className="btn primary" onClick={create}>Oluştur</button>
+          <button className="btn primary" onClick={create}>{t('create')}</button>
           {error ? <div className="error">{error}</div> : null}
         </div>
       </div>
@@ -108,23 +110,23 @@ export default function GroupsPage() {
       <div className="card-grid">
         {groups.map((g) => (
           <div className="member-card" key={g.id}>
-            {g.cover_image ? <img src={g.cover_image} alt="" /> : <div className="group-cover-empty">Kapak</div>}
+            {g.cover_image ? <img src={g.cover_image} alt="" /> : <div className="group-cover-empty">{t('cover')}</div>}
             <div>
               <div className="name">{g.name}</div>
               <TranslatableHtml html={g.description || ''} className="meta" />
-              <div className="meta">{g.members} üye {g.visibility === 'members_only' ? '· Gizli' : ''}</div>
-              <a className="btn ghost" href={`/new/groups/${g.id}`}>Aç</a>
+              <div className="meta">{t('groups_member_count', { count: g.members })} {g.visibility === 'members_only' ? `· ${t('private')}` : ''}</div>
+              <a className="btn ghost" href={`/new/groups/${g.id}`}>{t('open')}</a>
             </div>
             <button className="btn" onClick={() => toggleJoin(g.id)}>
-              {g.joined ? 'Ayrıl' : (g.invited ? 'Daveti Kabul Et' : (g.pending ? 'İsteği İptal Et' : 'Katılım İsteği'))}
+              {g.joined ? t('leave') : (g.invited ? t('group_invite_accept') : (g.pending ? t('group_request_cancel') : t('group_request_join')))}
             </button>
           </div>
         ))}
       </div>
       <div ref={sentinelRef} />
-      {loadingMore ? <div className="muted">Daha fazla grup yükleniyor...</div> : null}
+      {loadingMore ? <div className="muted">{t('groups_loading_more')}</div> : null}
       {!loadingMore && hasMore ? (
-        <button className="btn ghost" onClick={loadMore}>Daha Fazla Göster</button>
+        <button className="btn ghost" onClick={loadMore}>{t('show_more')}</button>
       ) : null}
     </Layout>
   );

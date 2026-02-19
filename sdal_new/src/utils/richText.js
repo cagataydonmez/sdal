@@ -14,6 +14,10 @@ function hasHtmlTag(value) {
   return /<\/?[a-z][^>]*>/i.test(String(value || ''));
 }
 
+function hasEscapedHtmlTag(value) {
+  return /&lt;\/?[a-z][^&]*&gt;/i.test(String(value || ''));
+}
+
 function hasBbcode(value) {
   return BB_TAG_REGEX.test(String(value || ''));
 }
@@ -59,6 +63,22 @@ function filterStyle(styleText) {
     }
   }
   return safe.join(';');
+}
+
+function decodeHtmlEntities(value) {
+  const text = String(value || '');
+  if (!text.includes('&')) return text;
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    const el = document.createElement('textarea');
+    el.innerHTML = text;
+    return el.value;
+  }
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
 }
 
 function cleanElement(node, doc) {
@@ -177,6 +197,9 @@ function bbcodeToHtml(input) {
 export function renderRichTextHtml(value) {
   const raw = String(value || '');
   if (!raw.trim()) return '';
+  if (hasEscapedHtmlTag(raw)) {
+    return sanitizeRichTextHtml(decodeHtmlEntities(raw));
+  }
   if (hasHtmlTag(raw)) return sanitizeRichTextHtml(raw);
   if (hasBbcode(raw)) return sanitizeRichTextHtml(bbcodeToHtml(raw));
   return sanitizeRichTextHtml(escapeHtml(raw).replace(/\r?\n/g, '<br>'));

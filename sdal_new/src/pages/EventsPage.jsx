@@ -5,6 +5,7 @@ import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
+import { useI18n } from '../utils/i18n.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -27,6 +28,7 @@ function mergeUniqueById(prev, next) {
 }
 
 export default function EventsPage() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [comments, setComments] = useState({});
@@ -111,7 +113,7 @@ export default function EventsPage() {
       }
       setForm({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
       setImageFile(null);
-      setStatus(isAdmin ? 'Etkinlik eklendi.' : 'Etkinlik önerin admin onayına gönderildi.');
+      setStatus(isAdmin ? t('events_status_added') : t('events_status_submitted'));
       load();
     } catch (err) {
       setError(err.message);
@@ -139,7 +141,7 @@ export default function EventsPage() {
 
   async function notifyFollowers(eventId) {
     const res = await apiJson(`/api/new/events/${eventId}/notify`, { method: 'POST' });
-    setStatus(`${res.count || 0} kişiye bildirim gönderildi.`);
+    setStatus(t('events_notify_count', { count: res.count || 0 }));
   }
 
   async function respondToEvent(eventId, response) {
@@ -162,22 +164,22 @@ export default function EventsPage() {
   }
 
   return (
-    <Layout title="Etkinlikler">
+    <Layout title={t('nav_events')}>
       <div className="panel">
-        <h3>{isAdmin ? 'Yeni Etkinlik' : 'Etkinlik Önerisi'}</h3>
+        <h3>{isAdmin ? t('events_new') : t('events_suggestion')}</h3>
         <div className="panel-body">
-          <input className="input" placeholder="Başlık" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          <input className="input" placeholder="Konum" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+          <input className="input" placeholder={t('title')} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <input className="input" placeholder={t('location')} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           <RichTextEditor
             value={form.description}
             onChange={(next) => setForm((prev) => ({ ...prev, description: next }))}
-            placeholder="Açıklama"
+            placeholder={t('description')}
             minHeight={120}
           />
           <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           <input className="input" type="datetime-local" value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
           <input className="input" type="datetime-local" value={form.ends_at} onChange={(e) => setForm({ ...form, ends_at: e.target.value })} />
-          <button className="btn primary" onClick={create}>{isAdmin ? 'Ekle' : 'Öner'}</button>
+          <button className="btn primary" onClick={create}>{isAdmin ? t('add') : t('suggest')}</button>
           {error ? <div className="error">{error}</div> : null}
           {status ? <div className="muted">{status}</div> : null}
         </div>
@@ -191,31 +193,31 @@ export default function EventsPage() {
               <div className="meta">{e.location} · {formatDateTime(e.starts_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>
               {e.image ? <img className="post-image" src={e.image} alt="" /> : null}
               <TranslatableHtml html={e.description || ''} />
-              <div className="meta">Ekleyen: @{e.creator_kadi || 'uye'} {Number(e.approved || 0) === 1 ? '' : '· Onay bekliyor'}</div>
+              <div className="meta">{t('added_by')}: @{e.creator_kadi || t('member_fallback')} {Number(e.approved || 0) === 1 ? '' : `· ${t('pending_approval')}`}</div>
               <div className="composer-actions">
-                <button className={`btn ${e.my_response === 'attend' ? 'primary' : 'ghost'}`} onClick={() => respondToEvent(e.id, 'attend')}>Katılıyorum</button>
-                <button className={`btn ${e.my_response === 'decline' ? 'primary' : 'ghost'}`} onClick={() => respondToEvent(e.id, 'decline')}>Katılmıyorum</button>
+                <button className={`btn ${e.my_response === 'attend' ? 'primary' : 'ghost'}`} onClick={() => respondToEvent(e.id, 'attend')}>{t('events_attend')}</button>
+                <button className={`btn ${e.my_response === 'decline' ? 'primary' : 'ghost'}`} onClick={() => respondToEvent(e.id, 'decline')}>{t('events_decline')}</button>
                 {e.response_counts ? (
                   <>
-                    <span className="chip">Katılım: {Number(e.response_counts?.attend || 0)}</span>
-                    <span className="chip">Katılmama: {Number(e.response_counts?.decline || 0)}</span>
+                    <span className="chip">{t('events_attend_count')}: {Number(e.response_counts?.attend || 0)}</span>
+                    <span className="chip">{t('events_decline_count')}: {Number(e.response_counts?.decline || 0)}</span>
                   </>
                 ) : (
-                  <span className="chip">Katılım bilgileri gizli</span>
+                  <span className="chip">{t('events_response_hidden')}</span>
                 )}
               </div>
               {(e.attendees?.length || e.decliners?.length) ? (
                 <div className="panel">
                   <div className="panel-body">
-                    {e.attendees?.length ? <div className="meta">Katılanlar: {e.attendees.map((u) => `@${u.kadi}`).join(', ')}</div> : null}
-                    {e.decliners?.length ? <div className="meta">Katılmayanlar: {e.decliners.map((u) => `@${u.kadi}`).join(', ')}</div> : null}
+                    {e.attendees?.length ? <div className="meta">{t('events_attendees')}: {e.attendees.map((u) => `@${u.kadi}`).join(', ')}</div> : null}
+                    {e.decliners?.length ? <div className="meta">{t('events_decliners')}: {e.decliners.map((u) => `@${u.kadi}`).join(', ')}</div> : null}
                   </div>
                 </div>
               ) : null}
               {e.can_manage_responses ? (
                 <div className="panel">
                   <div className="panel-body">
-                    <b>Katılım Görünürlüğü</b>
+                    <b>{t('events_visibility_title')}</b>
                     <label className="chip">
                       <input
                         type="checkbox"
@@ -229,7 +231,7 @@ export default function EventsPage() {
                           }
                         }))}
                       />
-                      Katılım sayılarını göster
+                      {t('events_visibility_counts')}
                     </label>
                     <label className="chip">
                       <input
@@ -244,7 +246,7 @@ export default function EventsPage() {
                           }
                         }))}
                       />
-                      Katılan isimlerini herkese aç
+                      {t('events_visibility_attendees')}
                     </label>
                     <label className="chip">
                       <input
@@ -259,19 +261,19 @@ export default function EventsPage() {
                           }
                         }))}
                       />
-                      Katılmayan isimlerini herkese aç
+                      {t('events_visibility_decliners')}
                     </label>
-                    <button className="btn ghost" onClick={() => saveResponseVisibility(e.id)}>Görünürlüğü Kaydet</button>
+                    <button className="btn ghost" onClick={() => saveResponseVisibility(e.id)}>{t('save_visibility')}</button>
                   </div>
                 </div>
               ) : null}
               <div className="composer-actions">
-                <button className="btn ghost" onClick={() => notifyFollowers(e.id)}>Takipçilerime Bildir</button>
+                <button className="btn ghost" onClick={() => notifyFollowers(e.id)}>{t('events_notify_followers')}</button>
                 {isAdmin ? (
                   <>
-                    {Number(e.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(e.id, true)}>Onayla</button> : null}
-                    {Number(e.approved || 0) !== 0 ? <button className="btn ghost" title="Reddetmek etkinliğin yayınlanmaması anlamına gelir." onClick={() => approve(e.id, false)}>Reddet (Yayınlama)</button> : null}
-                    <button className="btn ghost" onClick={() => remove(e.id)}>Sil</button>
+                    {Number(e.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(e.id, true)}>{t('approve')}</button> : null}
+                    {Number(e.approved || 0) !== 0 ? <button className="btn ghost" title={t('events_reject_hint')} onClick={() => approve(e.id, false)}>{t('events_reject_publish')}</button> : null}
+                    <button className="btn ghost" onClick={() => remove(e.id)}>{t('delete')}</button>
                   </>
                 ) : null}
               </div>
@@ -279,7 +281,7 @@ export default function EventsPage() {
                 {(comments[e.id] || []).map((c) => (
                   <div key={c.id} className="comment-line">
                     {(Number(c.user_id || c.uye_id || 0) || null) ? (
-                      <a href={`/new/members/${Number(c.user_id || c.uye_id || 0)}`} aria-label={`${c.kadi || 'uye'} profiline git`}>
+                      <a href={`/new/members/${Number(c.user_id || c.uye_id || 0)}`} aria-label={t('go_profile_aria', { username: c.kadi || t('member_fallback') })}>
                         <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                       </a>
                     ) : (
@@ -297,18 +299,18 @@ export default function EventsPage() {
                 <RichTextEditor
                   value={drafts[e.id] || ''}
                   onChange={(next) => setDrafts((prev) => ({ ...prev, [e.id]: next }))}
-                  placeholder="Etkinliğe yorum ekle..."
+                  placeholder={t('events_comment_placeholder')}
                   minHeight={80}
                   compact
                 />
-                <button className="btn" disabled={isRichTextEmpty(drafts[e.id] || '')}>Gönder</button>
+                <button className="btn" disabled={isRichTextEmpty(drafts[e.id] || '')}>{t('send')}</button>
               </form>
             </div>
           </div>
         ))}
       </div>
       <div ref={sentinelRef} />
-      {loadingMore ? <div className="muted">Daha fazla etkinlik yükleniyor...</div> : null}
+      {loadingMore ? <div className="muted">{t('events_loading_more')}</div> : null}
     </Layout>
   );
 }

@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function MessagesPage() {
+  const { t } = useI18n();
   const [messages, setMessages] = useState([]);
   const [box, setBox] = useState('inbox');
   const [mode, setMode] = useState('all');
@@ -88,11 +90,11 @@ export default function MessagesPage() {
   );
 
   return (
-    <Layout title="Mesajlar">
+    <Layout title={t('messages_title')}>
       <div className="message-mailbox">
         <aside className="panel mailbox-sidebar">
           <div className="panel-body stack">
-            <a className="btn primary" href="/new/messages/compose">Yeni Mesaj</a>
+            <a className="btn primary" href="/new/messages/compose">{t('message_compose_title')}</a>
             <button
               className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`}
               onClick={() => {
@@ -103,7 +105,7 @@ export default function MessagesPage() {
                 setSelectedId(null);
               }}
             >
-              Gelen Kutusu {box === 'inbox' ? `(${unreadCount} yeni)` : ''}
+              {t('messages_inbox')} {box === 'inbox' ? t('messages_unread_count', { count: unreadCount }) : ''}
             </button>
             <button
               className={`btn ${box === 'outbox' ? 'primary' : 'ghost'}`}
@@ -115,24 +117,24 @@ export default function MessagesPage() {
                 setSelectedId(null);
               }}
             >
-              Giden Kutusu
+              {t('messages_outbox')}
             </button>
             <div className="composer-actions">
-              <button className={`btn ${mode === 'all' ? 'primary' : 'ghost'}`} onClick={() => setMode('all')}>Tum Mesajlar</button>
-              {box === 'inbox' ? <button className={`btn ${mode === 'unread' ? 'primary' : 'ghost'}`} onClick={() => setMode('unread')}>Okunmamis</button> : null}
+              <button className={`btn ${mode === 'all' ? 'primary' : 'ghost'}`} onClick={() => setMode('all')}>{t('messages_all')}</button>
+              {box === 'inbox' ? <button className={`btn ${mode === 'unread' ? 'primary' : 'ghost'}`} onClick={() => setMode('unread')}>{t('messages_unread')}</button> : null}
             </div>
-            <input className="input" placeholder="Mesaj ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className="input" placeholder={t('messages_search_placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
         </aside>
 
         <section className="panel mailbox-list">
           <div className="panel-body">
             <div className="mailbox-list-head">
-              <h3>{box === 'inbox' ? 'Gelen Mesajlar' : 'Giden Mesajlar'}</h3>
-              {loading ? <span className="meta">Yukleniyor...</span> : null}
+              <h3>{box === 'inbox' ? t('messages_inbox_list') : t('messages_outbox_list')}</h3>
+              {loading ? <span className="meta">{t('loading')}</span> : null}
             </div>
             <div className="list mailbox-items">
-              {!loading && filtered.length === 0 ? <div className="muted">Bu filtrede mesaj bulunamadi.</div> : null}
+              {!loading && filtered.length === 0 ? <div className="muted">{t('messages_empty_filtered')}</div> : null}
               {filtered.map((m) => {
                 const unread = box === 'inbox' && Number(m.yeni) === 1;
                 const active = selected && String(selected.id) === String(m.id);
@@ -144,8 +146,8 @@ export default function MessagesPage() {
                     onClick={() => setSelectedId(m.id)}
                   >
                     <div className="message-list-main">
-                      <div className="name">{m.konu || 'Mesaj'}</div>
-                      <div className="meta">{m.kimden_kadi} → {m.kime_kadi}{unread ? ' • Yeni' : ''}</div>
+                      <div className="name">{m.konu || t('message_title')}</div>
+                      <div className="meta">{m.kimden_kadi} → {m.kime_kadi}{unread ? ` • ${t('new')}` : ''}</div>
                       <div className="message-snippet">{String(m.mesaj || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 130)}</div>
                     </div>
                     <div className="message-list-side">
@@ -161,14 +163,14 @@ export default function MessagesPage() {
 
         <section className="panel mailbox-preview">
           <div className="panel-body">
-            {!selected ? <div className="muted">Mesaj sec.</div> : null}
+            {!selected ? <div className="muted">{t('messages_select_prompt')}</div> : null}
             {selected ? (
               <>
                 <div className="mailbox-preview-head">
-                  <h3>{selected.konu || 'Mesaj'}</h3>
+                  <h3>{selected.konu || t('message_title')}</h3>
                   <div className="composer-actions">
-                    <a className="btn ghost" href={`/new/messages/${selected.id}`}>Tam Ekran</a>
-                    <a className="btn primary" href={`/new/messages/compose?to=${box === 'inbox' ? selected.kimden : selected.kime}&replyTo=${selected.id}`}>Cevapla</a>
+                    <a className="btn ghost" href={`/new/messages/${selected.id}`}>{t('messages_fullscreen')}</a>
+                    <a className="btn primary" href={`/new/messages/compose?to=${box === 'inbox' ? selected.kimden : selected.kime}&replyTo=${selected.id}`}>{t('reply')}</a>
                   </div>
                 </div>
                 <div className="meta">{selected.kimden_kadi} → {selected.kime_kadi}</div>

@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function AlbumCategoryPage() {
+  const { t } = useI18n();
   const { id } = useParams();
   const [category, setCategory] = useState(null);
   const [photos, setPhotos] = useState([]);
@@ -44,7 +46,7 @@ export default function AlbumCategoryPage() {
     return () => io.disconnect();
   }, [loadMore]);
 
-  if (!category) return <Layout title="Albüm">Yükleniyor...</Layout>;
+  if (!category) return <Layout title={t('album_title')}>{t('loading')}</Layout>;
 
   return (
     <Layout title={category.kategori}>
@@ -59,8 +61,8 @@ export default function AlbumCategoryPage() {
         ))}
       </div>
       <div ref={sentinelRef} />
-      {loading ? <div className="muted">Yükleniyor...</div> : null}
-      {!loading && page >= pages && photos.length > 0 ? <div className="muted">Tüm fotoğraflar yüklendi.</div> : null}
+      {loading ? <div className="muted">{t('loading')}</div> : null}
+      {!loading && page >= pages && photos.length > 0 ? <div className="muted">{t('album_all_loaded')}</div> : null}
     </Layout>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../utils/i18n.jsx';
 
 const NET_START = 'sdal:net:start';
 const NET_END = 'sdal:net:end';
@@ -30,6 +31,7 @@ function patchFetchOnce() {
 }
 
 export default function GlobalActionFeedback() {
+  const { t } = useI18n();
   const [pending, setPending] = useState(0);
   const [pulseVisible, setPulseVisible] = useState(false);
   const pulseTimerRef = useRef(null);
@@ -74,10 +76,10 @@ export default function GlobalActionFeedback() {
 
   const active = pending > 0 || pulseVisible;
   const label = useMemo(() => {
-    if (pending > 0) return 'Yükleniyor...';
-    if (pulseVisible) return 'İşleniyor...';
+    if (pending > 0) return t('loading');
+    if (pulseVisible) return t('processing');
     return '';
-  }, [pending, pulseVisible]);
+  }, [pending, pulseVisible, t]);
 
   return (
     <div className={`global-feedback ${active ? 'visible' : ''}`} aria-live="polite" aria-atomic="true">

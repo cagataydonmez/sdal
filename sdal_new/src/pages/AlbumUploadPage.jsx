@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function AlbumUploadPage() {
+  const { t } = useI18n();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({ kat: '', baslik: '', aciklama: '' });
   const [file, setFile] = useState(null);
@@ -31,29 +33,29 @@ export default function AlbumUploadPage() {
       return;
     }
     const data = await res.json();
-    setStatus(`Fotoğraf yüklendi. Onay bekliyor (Kategori ${data.categoryId}).`);
+    setStatus(t('album_upload_status_success', { categoryId: data.categoryId }));
     setForm({ kat: '', baslik: '', aciklama: '' });
     setFile(null);
   }
 
   return (
-    <Layout title="Fotoğraf Yükle">
+    <Layout title={t('albums_upload')}>
       <div className="panel">
         <div className="panel-body">
           <form className="stack" onSubmit={submit}>
             <select className="input" value={form.kat} onChange={(e) => setForm({ ...form, kat: e.target.value })}>
-              <option value="">Kategori seçin</option>
+              <option value="">{t('album_upload_select_category')}</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.kategori}</option>)}
             </select>
-            <input className="input" placeholder="Başlık" value={form.baslik} onChange={(e) => setForm({ ...form, baslik: e.target.value })} />
+            <input className="input" placeholder={t('title')} value={form.baslik} onChange={(e) => setForm({ ...form, baslik: e.target.value })} />
             <RichTextEditor
               value={form.aciklama}
               onChange={(next) => setForm((prev) => ({ ...prev, aciklama: next }))}
-              placeholder="Açıklama"
+              placeholder={t('description')}
               minHeight={110}
             />
             <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-            <button className="btn primary" type="submit">Yükle</button>
+            <button className="btn primary" type="submit">{t('upload')}</button>
           </form>
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
