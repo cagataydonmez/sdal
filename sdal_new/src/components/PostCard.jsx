@@ -62,18 +62,26 @@ export default function PostCard({ post, onRefresh, focused = false }) {
   }
 
   const authorId = Number(post.author?.id || post.user_id || 0) || null;
-  const canManagePost = !!user?.id && (Number(user.id) === Number(authorId) || Number(user.admin || 0) === 1);
+  const canManagePost = !!user?.id && Number(user.id) === Number(authorId);
 
   async function savePostEdit() {
     if (isRichTextEmpty(editContent)) return;
     setPostBusy(true);
     try {
-      const res = await fetch(`/api/new/posts/${post.id}`, {
+      let res = await fetch(`/api/new/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ content: editContent })
       });
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await fetch(`/api/new/posts/${post.id}/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ content: editContent })
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       setEditing(false);
       emitAppChange('post:updated', { postId: post.id });
@@ -89,10 +97,16 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     if (!window.confirm(t('post_confirm_delete'))) return;
     setPostBusy(true);
     try {
-      const res = await fetch(`/api/new/posts/${post.id}`, {
+      let res = await fetch(`/api/new/posts/${post.id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await fetch(`/api/new/posts/${post.id}/delete`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       emitAppChange('post:deleted', { postId: post.id });
       onRefresh?.();

@@ -181,6 +181,11 @@ export default function LiveChatPanel() {
       if (payload?.item) {
         setMessages((prev) => prev.filter((m) => Number(m.id) !== optimisticId));
         mergeMessages([payload.item], 'append');
+        requestAnimationFrame(() => {
+          const el = chatBodyRef.current;
+          if (!el) return;
+          el.scrollTop = el.scrollHeight;
+        });
       }
     } catch (err) {
       if (optimisticId !== null) {
@@ -205,12 +210,20 @@ export default function LiveChatPanel() {
     setMessageBusyId(messageId);
     setError('');
     try {
-      const res = await fetch(`/api/new/chat/messages/${messageId}`, {
+      let res = await fetch(`/api/new/chat/messages/${messageId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ message: editText })
       });
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await fetch(`/api/new/chat/messages/${messageId}/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ message: editText })
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       if (data?.item) mergeMessages([data.item], 'append');
@@ -229,10 +242,16 @@ export default function LiveChatPanel() {
     setMessageBusyId(messageId);
     setError('');
     try {
-      const res = await fetch(`/api/new/chat/messages/${messageId}`, {
+      let res = await fetch(`/api/new/chat/messages/${messageId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await fetch(`/api/new/chat/messages/${messageId}/delete`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       setMessages((prev) => prev.filter((m) => Number(m.id || 0) !== Number(messageId)));
       emitAppChange('chat:deleted', { messageId });
@@ -268,7 +287,7 @@ export default function LiveChatPanel() {
               <a className="chat-user" href={m.user_id ? `/new/members/${m.user_id}` : '#'}>
                 @{(m.user?.kadi || m.kadi) || t('anonymous')}{(m.user?.verified || m.verified) ? ' ✓' : ''}
               </a>
-              {Number(user?.id || 0) === Number(m.user_id || 0) || Number(user?.admin || 0) === 1 ? (
+              {Number(user?.id || 0) === Number(m.user_id || 0) ? (
                 <div className="chat-line-actions">
                   <button className="btn ghost btn-xs" onClick={() => startEdit(m)} disabled={messageBusyId === m.id}>{t('edit')}</button>
                   <button className="btn ghost btn-xs" onClick={() => removeMessage(m.id)} disabled={messageBusyId === m.id}>
