@@ -1496,51 +1496,29 @@ textarea::placeholder {
 
 .global-feedback {
   position: fixed;
-  top: 10px;
-  right: 14px;
-  left: 14px;
+  top: 12px;
+  right: 12px;
   z-index: 9999;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(-6px);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .global-feedback.visible {
   opacity: 1;
   transform: translateY(0);
 }
-.global-feedback-bar {
-  width: 100%;
-  height: 3px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--line);
-  position: relative;
-}
-.global-feedback-bar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -35%;
-  width: 35%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent 0%, var(--accent) 40%, #ff9d86 100%);
-  animation: global-loading-slide 1s ease-in-out infinite;
-}
 .global-feedback-chip {
   margin-left: auto;
-  margin-top: 6px;
   width: fit-content;
-  font-size: 12px;
-  font-weight: 700;
-  background: var(--button-bg);
-  color: var(--button-ink);
-  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: 4px 9px;
   border-radius: 999px;
-  box-shadow: var(--shadow);
-}
-body.story-view-open .global-feedback-bar {
-  display: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
 }
 body.story-view-open .global-feedback {
   display: none;
@@ -1555,11 +1533,6 @@ body.story-view-open .global-feedback {
 :root[data-theme='dark'] .g2048-cell.v16 { background: #67506f; }
 :root[data-theme='dark'] .g2048-cell.v32,
 :root[data-theme='dark'] .g2048-cell.v64 { background: #81596c; }
-
-@keyframes global-loading-slide {
-  0% { left: -35%; }
-  100% { left: 100%; }
-}
 
 @media (max-width: 1024px) {
   .app-shell { grid-template-columns: 1fr; }

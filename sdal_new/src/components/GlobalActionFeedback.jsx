@@ -3,7 +3,7 @@ import { useI18n } from '../utils/i18n.jsx';
 
 const NET_START = 'sdal:net:start';
 const NET_END = 'sdal:net:end';
-const PULSE = 'sdal:action:pulse';
+const FEEDBACK_DELAY_MS = 3000;
 
 function emit(name, detail) {
   window.dispatchEvent(new CustomEvent(name, { detail }));
@@ -33,8 +33,8 @@ function patchFetchOnce() {
 export default function GlobalActionFeedback() {
   const { t } = useI18n();
   const [pending, setPending] = useState(0);
-  const [pulseVisible, setPulseVisible] = useState(false);
-  const pulseTimerRef = useRef(null);
+  const [delayedVisible, setDelayedVisible] = useState(false);
+  const delayTimerRef = useRef(null);
 
   useEffect(() => {
     patchFetchOnce();
@@ -46,44 +46,40 @@ export default function GlobalActionFeedback() {
       if (e?.detail?.interactive !== true) return;
       setPending((v) => Math.max(0, v - 1));
     };
-    const onPulse = () => {
-      if (pulseTimerRef.current) window.clearTimeout(pulseTimerRef.current);
-      setPulseVisible(true);
-      pulseTimerRef.current = window.setTimeout(() => setPulseVisible(false), 650);
-    };
-
-    const onClick = (e) => {
-      const target = e.target;
-      if (!(target instanceof Element)) return;
-      const clickable = target.closest('button, [role="button"], .btn, a.btn');
-      if (!clickable) return;
-      window.__sdalLastActionAt = Date.now();
-      emit(PULSE);
-    };
 
     window.addEventListener(NET_START, onStart);
     window.addEventListener(NET_END, onEnd);
-    window.addEventListener(PULSE, onPulse);
-    document.addEventListener('click', onClick, true);
     return () => {
       window.removeEventListener(NET_START, onStart);
       window.removeEventListener(NET_END, onEnd);
-      window.removeEventListener(PULSE, onPulse);
-      document.removeEventListener('click', onClick, true);
-      if (pulseTimerRef.current) window.clearTimeout(pulseTimerRef.current);
+      if (delayTimerRef.current) window.clearTimeout(delayTimerRef.current);
     };
   }, []);
 
-  const active = pending > 0 || pulseVisible;
+  useEffect(() => {
+    if (pending > 0) {
+      if (delayTimerRef.current) return;
+      delayTimerRef.current = window.setTimeout(() => {
+        setDelayedVisible(true);
+        delayTimerRef.current = null;
+      }, FEEDBACK_DELAY_MS);
+      return;
+    }
+    if (delayTimerRef.current) {
+      window.clearTimeout(delayTimerRef.current);
+      delayTimerRef.current = null;
+    }
+    setDelayedVisible(false);
+  }, [pending]);
+
+  const active = delayedVisible && pending > 0;
   const label = useMemo(() => {
-    if (pending > 0) return t('loading');
-    if (pulseVisible) return t('processing');
+    if (active) return t('loading');
     return '';
-  }, [pending, pulseVisible, t]);
+  }, [active, t]);
 
   return (
     <div className={`global-feedback ${active ? 'visible' : ''}`} aria-live="polite" aria-atomic="true">
-      <div className="global-feedback-bar" />
       <div className="global-feedback-chip">{label}</div>
     </div>
   );
