@@ -688,6 +688,10 @@ sqlRun(`CREATE TABLE IF NOT EXISTS group_announcements (
   created_at TEXT,
   created_by INTEGER
 )`);
+sqlRun(`CREATE TABLE IF NOT EXISTS filtre (
+  id INTEGER PRIMARY KEY,
+  kufur TEXT
+)`);
 sqlRun(`CREATE TABLE IF NOT EXISTS chat_messages (
   id INTEGER PRIMARY KEY,
   user_id INTEGER,
@@ -1828,14 +1832,78 @@ function extractEmails(input) {
     .filter(Boolean);
 }
 
-function filterKufur(text) {
+const bannedWordsCache = {
+  words: [],
+  expiresAt: 0
+};
+
+function normalizeBannedWord(word) {
+  return String(word || '').trim().toLocaleLowerCase('tr-TR');
+}
+
+function getBannedWords() {
+  const now = Date.now();
+  if (bannedWordsCache.expiresAt > now) return bannedWordsCache.words;
   try {
     const rows = sqlAll('SELECT kufur FROM filtre');
-    if (!rows.length) return null;
-    const words = String(text || '').split(/\\s+/);
+    const unique = new Set();
     for (const row of rows) {
-      if (words.includes(row.kufur)) {
-        return row.kufur;
+      const normalized = normalizeBannedWord(row?.kufur);
+      if (normalized) unique.add(normalized);
+    }
+    bannedWordsCache.words = Array.from(unique).sort((a, b) => b.length - a.length);
+  } catch {
+    bannedWordsCache.words = [];
+  }
+  bannedWordsCache.expiresAt = now + 30 * 1000;
+  return bannedWordsCache.words;
+}
+
+function invalidateBannedWordsCache() {
+  bannedWordsCache.words = [];
+  bannedWordsCache.expiresAt = 0;
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function censorBannedWords(text) {
+  let value = String(text ?? '');
+  if (!value) return value;
+  const words = getBannedWords();
+  if (!words.length) return value;
+  for (const word of words) {
+    const pattern = new RegExp(`(^|[^\\p{L}\\p{N}_])(${escapeRegExp(word)})(?=[^\\p{L}\\p{N}_]|$)`, 'giu');
+    value = value.replace(pattern, (_full, prefix, matched) => {
+      const stars = '*'.repeat(Array.from(String(matched || '')).length);
+      return `${prefix}${stars}`;
+    });
+  }
+  return value;
+}
+
+function formatUserText(text) {
+  return metinDuzenle(censorBannedWords(text));
+}
+
+function sanitizePlainUserText(text, maxLength = null) {
+  const masked = censorBannedWords(String(text ?? ''));
+  if (typeof maxLength === 'number') return masked.slice(0, maxLength);
+  return masked;
+}
+
+function filterKufur(text) {
+  try {
+    const bannedWords = getBannedWords();
+    if (!bannedWords.length) return null;
+    const words = String(text || '')
+      .toLocaleLowerCase('tr-TR')
+      .split(/\\s+/)
+      .filter(Boolean);
+    for (const banned of bannedWords) {
+      if (words.includes(banned)) {
+        return banned;
       }
     }
     return null;
@@ -2462,7 +2530,7 @@ app.post('/albumyorumekle.asp', (req, res) => {
   if (!req.session.userId) return res.redirect(302, '/login');
   const fid = req.body.fid;
   if (!fid) return res.redirect(302, '/album');
-  const yorum = metinDuzenle(req.body.yorum || '');
+  const yorum = formatUserText(req.body.yorum || '');
   if (!yorum) return res.status(400).send('Yorum girmedin');
   const user = getCurrentUser(req);
   sqlRun('INSERT INTO album_fotoyorum (fotoid, uyeadi, yorum, tarih) VALUES (?, ?, ?, ?)', [
@@ -3149,8 +3217,8 @@ app.post('/api/admin/album/photos/bulk', requireAlbumAdmin, (req, res) => {
 });
 
 app.put('/api/admin/album/photos/:id', requireAlbumAdmin, (req, res) => {
-  const baslik = String(req.body?.baslik || '').trim();
-  const aciklama = metinDuzenle(req.body?.aciklama || '');
+  const baslik = sanitizePlainUserText(String(req.body?.baslik || '').trim(), 255);
+  const aciklama = formatUserText(req.body?.aciklama || '');
   const aktif = Number(req.body?.aktif);
   const katid = String(req.body?.katid || '').trim();
   sqlRun(
@@ -3675,8 +3743,10 @@ app.post('/api/messages', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const { kime, konu, mesaj } = req.body || {};
   if (!kime) return res.status(400).send('Alıcı seçilmedi');
-  const subject = (konu && String(konu).trim()) ? String(konu).slice(0, 50) : 'Konusuz';
-  const body = (mesaj && String(mesaj).trim()) ? metinDuzenle(String(mesaj)) : 'Sistem Bilgisi : [b]Boş Mesaj Gönderildi![/b]';
+  const subject = (konu && String(konu).trim())
+    ? sanitizePlainUserText(String(konu).trim(), 50)
+    : 'Konusuz';
+  const body = (mesaj && String(mesaj).trim()) ? formatUserText(String(mesaj)) : 'Sistem Bilgisi : [b]Boş Mesaj Gönderildi![/b]';
   const now = new Date().toISOString();
 
   const result = sqlRun(
@@ -3737,8 +3807,8 @@ app.post('/api/album/upload', (req, res, next) => {
   });
 }, async (req, res) => {
   const kat = String(req.body?.kat || '').trim();
-  const baslik = String(req.body?.baslik || '').trim();
-  const aciklama = metinDuzenle(req.body?.aciklama || '');
+  const baslik = sanitizePlainUserText(String(req.body?.baslik || '').trim(), 255);
+  const aciklama = formatUserText(req.body?.aciklama || '');
 
   if (!baslik) return res.status(400).send('Yüklemek üzere olduğun fotoğraf için bir başlık girmen gerekiyor.');
   if (!kat) return res.status(400).send('Kategori seçmelisin.');
@@ -3822,7 +3892,7 @@ app.post('/api/photos/:id/comments', (req, res) => {
   if (!photo) return res.status(404).send('Fotoğraf bulunamadı');
   if (Number(photo.aktif || 0) !== 1) return res.status(400).send('Fotoğraf yoruma açık değil');
   const yorumRaw = String(req.body?.yorum || '');
-  const yorum = metinDuzenle(yorumRaw);
+  const yorum = formatUserText(yorumRaw);
   if (!yorum) return res.status(400).send('Yorum girmedin');
   const user = getCurrentUser(req);
   sqlRun('INSERT INTO album_fotoyorum (fotoid, uyeadi, yorum, tarih) VALUES (?, ?, ?, ?)', [
@@ -3926,7 +3996,7 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/posts', requireAuth, (req, res) => {
-  const content = metinDuzenle(req.body?.content || '');
+  const content = formatUserText(req.body?.content || '');
   const image = req.body?.image || null;
   const groupId = req.body?.group_id || null;
   if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
@@ -3950,7 +4020,7 @@ app.post('/api/new/posts', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async (req, res) => {
-  const content = metinDuzenle(req.body?.content || '');
+  const content = formatUserText(req.body?.content || '');
   const filter = req.body?.filter || '';
   const groupId = req.body?.group_id || null;
   let finalImagePath = req.file?.path || null;
@@ -4015,7 +4085,7 @@ app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
   const postRow = sqlGet('SELECT id, user_id, image FROM posts WHERE id = ?', [postId]);
   if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
-  const content = metinDuzenle(req.body?.content || '');
+  const content = formatUserText(req.body?.content || '');
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
   sqlRun('UPDATE posts SET content = ? WHERE id = ?', [content, postId]);
   scheduleEngagementRecalculation('post_updated');
@@ -4052,7 +4122,7 @@ app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
   const postRow = sqlGet('SELECT id, user_id, image FROM posts WHERE id = ?', [postId]);
   if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
-  const content = metinDuzenle(req.body?.content || '');
+  const content = formatUserText(req.body?.content || '');
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
   sqlRun('UPDATE posts SET content = ? WHERE id = ?', [content, postId]);
   scheduleEngagementRecalculation('post_updated');
@@ -4168,7 +4238,7 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
       if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
     }
   }
-  const comment = metinDuzenle(req.body?.comment || '');
+  const comment = formatUserText(req.body?.comment || '');
   if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO post_comments (post_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
@@ -4415,7 +4485,7 @@ app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
 app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   try {
-    const caption = metinDuzenle(req.body?.caption || '');
+    const caption = formatUserText(req.body?.caption || '');
     const outputName = `story_${req.session.userId}_${Date.now()}.webp`;
     const outputPath = path.join(storyDir, outputName);
 
@@ -4458,7 +4528,7 @@ function updateStoryCaption(req, res) {
   if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
   const story = sqlGet('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
   if (!story) return res.status(404).send('Hikaye bulunamadı.');
-  const caption = metinDuzenle(req.body?.caption || '');
+  const caption = formatUserText(req.body?.caption || '');
   sqlRun('UPDATE stories SET caption = ? WHERE id = ?', [caption, storyId]);
   res.json({ ok: true });
 }
@@ -4806,9 +4876,9 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/groups', requireAuth, (req, res) => {
-  const name = String(req.body?.name || '').trim();
+  const name = sanitizePlainUserText(String(req.body?.name || '').trim(), 120);
   if (!name) return res.status(400).send('Grup adı gerekli.');
-  const description = metinDuzenle(req.body?.description || '');
+  const description = formatUserText(req.body?.description || '');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?)', [
     name,
@@ -5281,7 +5351,7 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
   if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
     return res.status(403).send('Bu grup özel. Paylaşım için onaylı üyelik gerekli.');
   }
-  const content = metinDuzenle(req.body?.content || '');
+  const content = formatUserText(req.body?.content || '');
   const contentRaw = String(req.body?.content || '');
   if (isFormattedContentEmpty(content)) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
@@ -5310,7 +5380,7 @@ app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('ima
   if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
     return res.status(403).send('Bu grup özel. Paylaşım için onaylı üyelik gerekli.');
   }
-  const content = metinDuzenle(req.body?.content || '');
+  const content = formatUserText(req.body?.content || '');
   const contentRaw = String(req.body?.content || '');
   const filter = req.body?.filter || '';
   let finalImagePath = req.file?.path || null;
@@ -5375,7 +5445,7 @@ app.post('/api/new/groups/:id/events', requireAuth, (req, res) => {
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok. Sadece owner/moderator etkinlik ekleyebilir.');
-  const title = String(req.body?.title || '').trim();
+  const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   if (!title) return res.status(400).send('Başlık gerekli.');
   const now = new Date().toISOString();
   const result = sqlRun(
@@ -5384,8 +5454,8 @@ app.post('/api/new/groups/:id/events', requireAuth, (req, res) => {
     [
       groupId,
       title,
-      metinDuzenle(req.body?.description || ''),
-      String(req.body?.location || ''),
+      formatUserText(req.body?.description || ''),
+      sanitizePlainUserText(String(req.body?.location || '').trim(), 180),
       String(req.body?.starts_at || ''),
       String(req.body?.ends_at || ''),
       now,
@@ -5427,8 +5497,8 @@ app.post('/api/new/groups/:id/announcements', requireAuth, (req, res) => {
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   if (!isGroupManager(req, groupId)) return res.status(403).send('Yetki yok. Sadece owner/moderator duyuru ekleyebilir.');
-  const title = String(req.body?.title || '').trim();
-  const body = metinDuzenle(req.body?.body || '');
+  const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+  const body = formatUserText(req.body?.body || '');
   if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
   const now = new Date().toISOString();
   const result = sqlRun(
@@ -5513,9 +5583,9 @@ function getEventResponseBundle(eventRow, viewerUserId, canSeePrivate = false) {
 }
 
 function createEventRecord(req, { image = null } = {}) {
-  const title = String(req.body?.title || '').trim();
+  const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   const descriptionRaw = String(req.body?.description ?? req.body?.body ?? '');
-  const location = String(req.body?.location || '').trim();
+  const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 180);
   const startsAt = String(req.body?.starts_at ?? req.body?.date ?? '');
   const endsAt = String(req.body?.ends_at || '');
   if (!title) return { error: 'Başlık gerekli.' };
@@ -5528,7 +5598,7 @@ function createEventRecord(req, { image = null } = {}) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0)`,
     [
       title,
-      metinDuzenle(descriptionRaw),
+      formatUserText(descriptionRaw),
       location,
       startsAt,
       endsAt,
@@ -5701,7 +5771,7 @@ app.post('/api/new/events/:id/comments', requireAuth, (req, res) => {
   const event = sqlGet('SELECT * FROM events WHERE id = ?', [req.params.id]);
   if (!event) return res.status(404).send('Etkinlik bulunamadı.');
   const commentRaw = req.body?.comment || '';
-  const comment = metinDuzenle(commentRaw);
+  const comment = formatUserText(commentRaw);
   if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO event_comments (event_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
@@ -5764,8 +5834,9 @@ app.get('/api/new/announcements', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/announcements', requireAuth, (req, res) => {
-  const { title, body, image } = req.body || {};
-  const formattedBody = metinDuzenle(body || '');
+  const { body, image } = req.body || {};
+  const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+  const formattedBody = formatUserText(body || '');
   if (!title || isFormattedContentEmpty(formattedBody)) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
   const isAdmin = user?.admin === 1 && req.session.adminOk;
@@ -5779,9 +5850,9 @@ app.post('/api/new/announcements', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/announcements/upload', requireAuth, postUpload.single('image'), async (req, res) => {
-  const title = String(req.body?.title || '').trim();
+  const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   const bodyRaw = String(req.body?.body || '');
-  const body = metinDuzenle(bodyRaw);
+  const body = formatUserText(bodyRaw);
   if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
   const isAdmin = user?.admin === 1 && req.session.adminOk;
@@ -5933,7 +6004,7 @@ function canManageChatMessage(req, messageRow) {
 
 app.post('/api/new/chat/send', requireAuth, (req, res) => {
   const rawMessage = String(req.body?.message || '').slice(0, 5000);
-  const message = metinDuzenle(rawMessage);
+  const message = formatUserText(rawMessage);
   if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
   const now = new Date().toISOString();
   const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
@@ -5969,7 +6040,7 @@ app.patch('/api/new/chat/messages/:id', requireAuth, (req, res) => {
   if (!row) return res.status(404).send('Mesaj bulunamadı.');
   if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı düzenleme yetkin yok.');
   const rawMessage = String(req.body?.message || '').slice(0, 5000);
-  const message = metinDuzenle(rawMessage);
+  const message = formatUserText(rawMessage);
   if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
   sqlRun('UPDATE chat_messages SET message = ? WHERE id = ?', [message, messageId]);
   const item = sqlGet(
@@ -5990,7 +6061,7 @@ app.post('/api/new/chat/messages/:id/edit', requireAuth, (req, res) => {
   if (!row) return res.status(404).send('Mesaj bulunamadı.');
   if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı düzenleme yetkin yok.');
   const rawMessage = String(req.body?.message || '').slice(0, 5000);
-  const message = metinDuzenle(rawMessage);
+  const message = formatUserText(rawMessage);
   if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
   sqlRun('UPDATE chat_messages SET message = ? WHERE id = ?', [message, messageId]);
   const item = sqlGet(
@@ -6663,6 +6734,43 @@ app.delete('/api/new/admin/messages/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/new/admin/filters', requireAdmin, (_req, res) => {
+  const items = sqlAll('SELECT id, kufur FROM filtre ORDER BY id DESC');
+  res.json({ items });
+});
+
+app.post('/api/new/admin/filters', requireAdmin, (req, res) => {
+  const kufur = normalizeBannedWord(req.body?.kufur);
+  if (!kufur) return res.status(400).send('Kelime gerekli.');
+  const exists = sqlGet('SELECT id FROM filtre WHERE LOWER(kufur) = LOWER(?)', [kufur]);
+  if (exists?.id) return res.status(400).send('Kelime zaten var.');
+  const result = sqlRun('INSERT INTO filtre (kufur) VALUES (?)', [kufur]);
+  invalidateBannedWordsCache();
+  res.json({ ok: true, id: result?.lastInsertRowid });
+});
+
+app.put('/api/new/admin/filters/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) return res.status(400).send('Geçersiz kelime ID.');
+  const kufur = normalizeBannedWord(req.body?.kufur);
+  if (!kufur) return res.status(400).send('Kelime gerekli.');
+  const row = sqlGet('SELECT id FROM filtre WHERE id = ?', [id]);
+  if (!row) return res.status(404).send('Kelime bulunamadı.');
+  const exists = sqlGet('SELECT id FROM filtre WHERE LOWER(kufur) = LOWER(?) AND id <> ?', [kufur, id]);
+  if (exists?.id) return res.status(400).send('Kelime zaten var.');
+  sqlRun('UPDATE filtre SET kufur = ? WHERE id = ?', [kufur, id]);
+  invalidateBannedWordsCache();
+  res.json({ ok: true });
+});
+
+app.delete('/api/new/admin/filters/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) return res.status(400).send('Geçersiz kelime ID.');
+  sqlRun('DELETE FROM filtre WHERE id = ?', [id]);
+  invalidateBannedWordsCache();
+  res.json({ ok: true });
+});
+
 app.get('/api/new/admin/db/tables', requireAdmin, (_req, res) => {
   const rows = sqlAll(
     `SELECT name
@@ -6911,7 +7019,7 @@ app.post('/api/panolar', (req, res) => {
     if (!cat) katid = '0';
   }
   if (!mesaj) return res.status(400).send('Mesaj yazmadın.');
-  const formatted = metinDuzenle(mesaj);
+  const formatted = formatUserText(mesaj);
   sqlRun(
     'INSERT INTO mesaj (gonderenid, mesaj, tarih, kategori) VALUES (?, ?, ?, ?)',
     [req.session.userId, formatted, new Date().toISOString(), Number(katid)]
@@ -7162,7 +7270,7 @@ wss.on('connection', (ws, req) => {
       if (!userId || !rawMessage) return;
       const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [userId]) || null;
       if (!user?.id) return;
-      const message = metinDuzenle(rawMessage || '');
+      const message = formatUserText(rawMessage || '');
       if (isFormattedContentEmpty(message)) return;
       const now = new Date().toISOString();
       const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [

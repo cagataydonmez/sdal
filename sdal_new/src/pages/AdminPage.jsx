@@ -34,6 +34,7 @@ const tabs = [
   { key: 'email', label: 'E-Posta', section: 'İletişim', hint: 'Tekil ve toplu gönderimler' },
   { key: 'tournament', label: 'Turnuva', section: 'İçerik', hint: 'Turnuva kayıt yönetimi' },
   { key: 'logs', label: 'Loglar', section: 'Sistem', hint: 'Hata/sayfa/üye log dosyaları' },
+  { key: 'filters', label: 'Yasaklı Kelimeler', section: 'Sistem', hint: 'Filtre tablosu yönetimi' },
   { key: 'database', label: 'Veritabanı', section: 'Sistem', hint: 'Tablo ve kayıt gözlemleme' }
 ];
 
@@ -154,6 +155,8 @@ export default function AdminPage() {
   const [stories, setStories] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
+  const [bannedWords, setBannedWords] = useState([]);
+  const [bannedWordForm, setBannedWordForm] = useState({ kufur: '' });
   const [dbTables, setDbTables] = useState([]);
   const [dbTableName, setDbTableName] = useState('');
   const [dbColumns, setDbColumns] = useState([]);
@@ -212,6 +215,7 @@ export default function AdminPage() {
     if (tab === 'stories') loadStories();
     if (tab === 'chat') loadChat();
     if (tab === 'messages') loadAdminMessages();
+    if (tab === 'filters') loadBannedWords();
     if (tab === 'database') {
       loadDbTables();
       loadDbBackups();
@@ -777,6 +781,35 @@ export default function AdminPage() {
   async function deleteAdminMessage(id) {
     await apiJson(`/api/new/admin/messages/${id}`, { method: 'DELETE' });
     loadAdminMessages();
+  }
+
+  async function loadBannedWords() {
+    const data = await apiJson('/api/new/admin/filters');
+    setBannedWords(data.items || []);
+  }
+
+  async function addBannedWord() {
+    const kufur = String(bannedWordForm.kufur || '').trim();
+    if (!kufur) return;
+    await apiJson('/api/new/admin/filters', {
+      method: 'POST',
+      body: JSON.stringify({ kufur })
+    });
+    setBannedWordForm({ kufur: '' });
+    loadBannedWords();
+  }
+
+  async function updateBannedWord(item) {
+    await apiJson(`/api/new/admin/filters/${item.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ kufur: String(item.kufur || '').trim() })
+    });
+    loadBannedWords();
+  }
+
+  async function deleteBannedWord(id) {
+    await apiJson(`/api/new/admin/filters/${id}`, { method: 'DELETE' });
+    loadBannedWords();
   }
 
   async function loadFollowInsights() {
@@ -1986,6 +2019,38 @@ export default function AdminPage() {
               ))}
             </div>
             {!chatMessages.length ? <div className="muted">Gösterilecek sohbet mesajı yok.</div> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'filters' ? (
+        <div className="panel">
+          <div className="panel-body">
+            <div className="form-row">
+              <label>Yeni Yasaklı Kelime</label>
+              <input
+                className="input"
+                placeholder="Kelime"
+                value={bannedWordForm.kufur}
+                onChange={(e) => setBannedWordForm({ kufur: e.target.value })}
+              />
+              <button className="btn primary" onClick={addBannedWord}>Ekle</button>
+              <button className="btn ghost" onClick={loadBannedWords}>Yenile</button>
+            </div>
+            <div className="list">
+              {bannedWords.map((item) => (
+                <div key={item.id} className="list-item">
+                  <input
+                    className="input"
+                    value={item.kufur || ''}
+                    onChange={(e) => setBannedWords((prev) => prev.map((x) => (x.id === item.id ? { ...x, kufur: e.target.value } : x)))}
+                  />
+                  <button className="btn" onClick={() => updateBannedWord(item)}>Kaydet</button>
+                  <button className="btn ghost" onClick={() => deleteBannedWord(item.id)}>Sil</button>
+                </div>
+              ))}
+            </div>
+            {!bannedWords.length ? <div className="muted">Henüz yasaklı kelime eklenmemiş.</div> : null}
           </div>
         </div>
       ) : null}
