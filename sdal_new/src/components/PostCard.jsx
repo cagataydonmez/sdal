@@ -13,6 +13,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
+  const [showCommentForm, setShowCommentForm] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content || '');
   const [postBusy, setPostBusy] = useState(false);
@@ -56,6 +57,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     });
     setComment('');
     setShowComments(true);
+    setShowCommentForm(true);
     emitAppChange('post:commented', { postId: post.id });
     loadComments();
     onRefresh?.();
@@ -167,23 +169,26 @@ export default function PostCard({ post, onRefresh, focused = false }) {
           ♥ {post.likeCount}
         </button>
         <button className="pill" onClick={() => {
-          const next = !showComments;
+          const next = !showCommentForm;
+          setShowCommentForm(next);
           setShowComments(next);
           if (next) loadComments();
         }}>
           💬 {post.commentCount}
         </button>
       </div>
-      <form className="comment-form" onSubmit={submitComment}>
-        <RichTextEditor
-          value={comment}
-          onChange={setComment}
-          placeholder={t('comment_placeholder')}
-          minHeight={84}
-          compact
-        />
-        <button className="btn">{t('send')}</button>
-      </form>
+      {showCommentForm ? (
+        <form className="comment-form" onSubmit={submitComment}>
+          <RichTextEditor
+            value={comment}
+            onChange={setComment}
+            placeholder={t('comment_placeholder')}
+            minHeight={84}
+            compact
+          />
+          <button className="btn">{t('send')}</button>
+        </form>
+      ) : null}
       {showComments ? (
         <div className="comment-list">
           {comments.length === 0 ? <div className="muted">{t('no_comments_yet')}</div> : null}

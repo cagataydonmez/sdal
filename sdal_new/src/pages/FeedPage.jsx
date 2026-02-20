@@ -33,15 +33,15 @@ export default function FeedPage() {
     { key: 'popular', label: t('popular'), icon: '🔥' }
   ];
   const feedTabOptions = [
-    { key: 'posts', label: 'Posts', icon: '📰' },
-    { key: 'notifications', label: 'Notifications', icon: '🔔' },
-    { key: 'livechat', label: 'Live Chat', icon: '💬' },
-    { key: 'online', label: 'Online', icon: '🟢' },
-    { key: 'messages', label: 'Messages', icon: '✉️' },
-    { key: 'quick', label: 'Quick Access', icon: '⚡' }
+    { key: 'posts', label: t('nav_feed'), icon: '📰' },
+    { key: 'notifications', label: t('nav_notifications'), icon: '🔔' },
+    { key: 'livechat', label: t('live_chat_title'), icon: '💬' },
+    { key: 'online', label: t('online_members'), icon: '🟢' },
+    { key: 'messages', label: t('new_messages'), icon: '✉️' },
+    { key: 'quick', label: t('quick_access'), icon: '⚡' }
   ];
   const activeScopeLabel = scopeOptions.find((item) => item.key === scope)?.label || t('all');
-  const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || 'Posts';
+  const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
 
   useEffect(() => {
     postsRef.current = posts;
