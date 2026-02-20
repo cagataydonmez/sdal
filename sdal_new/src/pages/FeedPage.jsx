@@ -8,9 +8,11 @@ import StoryBar from '../components/StoryBar.jsx';
 import LiveChatPanel from '../components/LiveChatPanel.jsx';
 import { useLiveRefresh } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useAuth } from '../utils/auth.jsx';
 
 export default function FeedPage() {
   const { t } = useI18n();
+  const { user } = useAuth();
   const [mobileTab, setMobileTab] = useState('posts');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,7 @@ export default function FeedPage() {
   const focusPostId = Number(searchParams.get('post') || 0) || null;
   const postsRef = useRef([]);
   const loadingRef = useRef(false);
+  const requestSeqRef = useRef(0);
   const sentinelRef = useRef(null);
   const initializedRef = useRef(false);
   const scopeOptions = [
@@ -49,13 +52,18 @@ export default function FeedPage() {
   }, [posts]);
 
   const load = useCallback(async ({ silent = false, force = false } = {}) => {
-    if (loadingRef.current) return;
+    if (loadingRef.current && !force) return;
+    const requestSeq = ++requestSeqRef.current;
     loadingRef.current = true;
     try {
       if (!silent) setLoading(true);
       const res = await fetch(`/api/new/feed?limit=20&offset=0&scope=${scope}`, { credentials: 'include' });
       const payload = await res.json();
-      const items = payload.items || [];
+      if (requestSeq !== requestSeqRef.current) return;
+      let items = payload.items || [];
+      if (scope !== 'all' && user?.id) {
+        items = items.filter((p) => Number(p?.author?.id || p?.user_id || 0) !== Number(user.id));
+      }
       const prev = postsRef.current;
       const prevMap = new Map(prev.map((p) => [p.id, p]));
       const hasNewPosts = items.some((p) => !prevMap.has(p.id));
@@ -81,10 +89,12 @@ export default function FeedPage() {
     } catch {
       // ignore fetch errors in background refresh
     } finally {
-      if (!silent) setLoading(false);
-      loadingRef.current = false;
+      if (requestSeq === requestSeqRef.current) {
+        if (!silent) setLoading(false);
+        loadingRef.current = false;
+      }
     }
-  }, [scope]);
+  }, [scope, user?.id]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || loadingRef.current) return;
