@@ -27,6 +27,21 @@ export default function FeedPage() {
   const postsRef = useRef([]);
   const loadingRef = useRef(false);
   const sentinelRef = useRef(null);
+  const scopeOptions = [
+    { key: 'all', label: t('all'), icon: '🌐' },
+    { key: 'following', label: t('following'), icon: '👥' },
+    { key: 'popular', label: t('popular'), icon: '🔥' }
+  ];
+  const feedTabOptions = [
+    { key: 'posts', label: 'Posts', icon: '📰' },
+    { key: 'notifications', label: 'Notifications', icon: '🔔' },
+    { key: 'livechat', label: 'Live Chat', icon: '💬' },
+    { key: 'online', label: 'Online', icon: '🟢' },
+    { key: 'messages', label: 'Messages', icon: '✉️' },
+    { key: 'quick', label: 'Quick Access', icon: '⚡' }
+  ];
+  const activeScopeLabel = scopeOptions.find((item) => item.key === scope)?.label || t('all');
+  const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || 'Posts';
 
   useEffect(() => {
     postsRef.current = posts;
@@ -160,22 +175,39 @@ export default function FeedPage() {
       </div>
       <div className="panel feed-mobile-tabs-wrap">
         <div className="panel-body feed-mobile-tabs">
-          <button className={`btn ${mobileTab === 'posts' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('posts')}>Posts</button>
-          <button className={`btn ${mobileTab === 'notifications' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('notifications')}>Notifications</button>
-          <button className={`btn ${mobileTab === 'livechat' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('livechat')}>Live Chat</button>
-          <button className={`btn ${mobileTab === 'online' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('online')}>Online</button>
-          <button className={`btn ${mobileTab === 'messages' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('messages')}>Messages</button>
-          <button className={`btn ${mobileTab === 'quick' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('quick')}>Quick Access</button>
+          {feedTabOptions.map((tabItem) => (
+            <button
+              key={`feed-tab-${tabItem.key}`}
+              className={`btn feed-tab-btn ${mobileTab === tabItem.key ? 'primary' : 'ghost'}`}
+              onClick={() => setMobileTab(tabItem.key)}
+              title={tabItem.label}
+              aria-label={tabItem.label}
+            >
+              <span className="feed-tab-btn-icon" aria-hidden="true">{tabItem.icon}</span>
+              <span className="feed-tab-btn-label">{tabItem.label}</span>
+            </button>
+          ))}
         </div>
+        <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
       </div>
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
           <div className="panel">
             <div className="panel-body scope-tabs">
-              <button className={`btn ${scope === 'all' ? 'primary' : 'ghost'}`} onClick={() => setScope('all')}>{t('all')}</button>
-              <button className={`btn ${scope === 'following' ? 'primary' : 'ghost'}`} onClick={() => setScope('following')}>{t('following')}</button>
-              <button className={`btn ${scope === 'popular' ? 'primary' : 'ghost'}`} onClick={() => setScope('popular')}>{t('popular')}</button>
+              {scopeOptions.map((scopeItem) => (
+                <button
+                  key={`scope-${scopeItem.key}`}
+                  className={`btn scope-btn ${scope === scopeItem.key ? 'primary' : 'ghost'}`}
+                  onClick={() => setScope(scopeItem.key)}
+                  title={scopeItem.label}
+                  aria-label={scopeItem.label}
+                >
+                  <span className="scope-btn-icon" aria-hidden="true">{scopeItem.icon}</span>
+                  <span className="scope-btn-label">{scopeItem.label}</span>
+                </button>
+              ))}
             </div>
+            <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
           </div>
           {pendingPostsCount > 0 ? (
             <button

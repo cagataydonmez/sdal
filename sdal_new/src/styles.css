@@ -295,25 +295,48 @@ textarea::placeholder {
   flex-wrap: wrap;
 }
 .scope-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
 }
 .feed-mobile-tabs-wrap {
   display: none;
 }
 .feed-mobile-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  overflow: hidden;
+}
+.feed-mobile-tabs .btn,
+.scope-tabs .btn {
+  min-width: 0;
 }
 .feed-mobile-tabs .btn {
   white-space: nowrap;
 }
 .scope-tabs .btn {
   white-space: nowrap;
+}
+.scope-btn,
+.feed-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.scope-btn-icon,
+.feed-tab-btn-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+.scope-mobile-selected-title,
+.feed-mobile-selected-title {
+  display: none;
+  margin-top: 8px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink);
 }
 .filter-grid {
   margin-top: 10px;
@@ -1743,6 +1766,23 @@ body.story-view-open .global-feedback {
     justify-content: space-between;
   }
   .feed-mobile-tabs-wrap {
+    display: block;
+  }
+  .scope-btn-label,
+  .feed-tab-btn-label {
+    display: none;
+  }
+  .scope-btn,
+  .feed-tab-btn {
+    padding: 8px 4px;
+    gap: 0;
+  }
+  .scope-btn-icon,
+  .feed-tab-btn-icon {
+    font-size: 16px;
+  }
+  .scope-mobile-selected-title,
+  .feed-mobile-selected-title {
     display: block;
   }
   .feed-tab-panel {
