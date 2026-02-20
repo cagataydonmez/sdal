@@ -149,7 +149,8 @@ export default function FeedPage() {
   }, [load]);
 
   useEffect(() => {
-    load({ silent: initializedRef.current });
+    const isSubsequentScopeLoad = initializedRef.current;
+    load({ silent: isSubsequentScopeLoad, force: isSubsequentScopeLoad });
     loadUnreadMessages();
     loadQuickAccess();
     loadOnlineMembers();

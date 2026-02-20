@@ -3929,8 +3929,11 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
   let where = 'WHERE p.group_id IS NULL';
   const params = [];
   if (scope === 'following') {
-    where = 'WHERE p.group_id IS NULL AND (p.user_id = ? OR p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?))';
+    where = 'WHERE p.group_id IS NULL AND p.user_id <> ? AND p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)';
     params.push(req.session.userId, req.session.userId);
+  } else if (scope === 'popular') {
+    where = 'WHERE p.group_id IS NULL AND p.user_id <> ?';
+    params.push(req.session.userId);
   }
   const orderBy = scope === 'popular'
     ? `(
