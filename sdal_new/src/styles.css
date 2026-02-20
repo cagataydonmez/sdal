@@ -1726,6 +1726,27 @@ body.story-view-open .global-feedback {
     flex-wrap: wrap;
     justify-content: space-between;
   }
+  .feed-main {
+    order: 2;
+  }
+  .feed-side {
+    order: 1;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+    scroll-snap-type: x proximity;
+  }
+  .feed-side .panel {
+    margin-bottom: 0;
+    min-width: min(84vw, 320px);
+    scroll-snap-align: start;
+  }
+  .feed-side .panel-body {
+    max-height: 220px;
+    overflow: auto;
+  }
 }
 
 @media (min-width: 1025px) and (max-width: 1366px) {

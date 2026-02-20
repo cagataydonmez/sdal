@@ -158,7 +158,7 @@ export default function FeedPage() {
         <StoryBar title={t('stories_title')} />
       </div>
       <div className="grid">
-        <div className="col-main">
+        <div className="col-main feed-main">
           <div className="panel">
             <div className="panel-body scope-tabs">
               <button className={`btn ${scope === 'all' ? 'primary' : 'ghost'}`} onClick={() => setScope('all')}>{t('all')}</button>
@@ -187,7 +187,7 @@ export default function FeedPage() {
           {loadingMore ? <div className="muted">{t('feed_loading_more')}</div> : null}
           {!hasMore && posts.length > 0 ? <div className="muted">{t('feed_end')}</div> : null}
         </div>
-        <div className="col-side">
+        <div className="col-side feed-side">
           <NotificationPanel limit={3} showAllLink />
           <div className="panel">
             <h3>{t('online_members')}</h3>
