@@ -27,6 +27,7 @@ export default function FeedPage() {
   const postsRef = useRef([]);
   const loadingRef = useRef(false);
   const sentinelRef = useRef(null);
+  const initializedRef = useRef(false);
   const scopeOptions = [
     { key: 'all', label: t('all'), icon: '○' },
     { key: 'following', label: t('following'), icon: '◎' },
@@ -148,10 +149,11 @@ export default function FeedPage() {
   }, [load]);
 
   useEffect(() => {
-    load({ silent: false });
+    load({ silent: initializedRef.current });
     loadUnreadMessages();
     loadQuickAccess();
     loadOnlineMembers();
+    initializedRef.current = true;
   }, [load, loadUnreadMessages, loadQuickAccess, loadOnlineMembers, scope]);
 
   useEffect(() => {
