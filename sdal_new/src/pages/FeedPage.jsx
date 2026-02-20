@@ -11,6 +11,7 @@ import { useI18n } from '../utils/i18n.jsx';
 
 export default function FeedPage() {
   const { t } = useI18n();
+  const [mobileTab, setMobileTab] = useState('posts');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -157,8 +158,18 @@ export default function FeedPage() {
       <div className="panel">
         <StoryBar title={t('stories_title')} />
       </div>
+      <div className="panel feed-mobile-tabs-wrap">
+        <div className="panel-body feed-mobile-tabs">
+          <button className={`btn ${mobileTab === 'posts' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('posts')}>Posts</button>
+          <button className={`btn ${mobileTab === 'notifications' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('notifications')}>Notifications</button>
+          <button className={`btn ${mobileTab === 'livechat' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('livechat')}>Live Chat</button>
+          <button className={`btn ${mobileTab === 'online' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('online')}>Online</button>
+          <button className={`btn ${mobileTab === 'messages' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('messages')}>Messages</button>
+          <button className={`btn ${mobileTab === 'quick' ? 'primary' : 'ghost'}`} onClick={() => setMobileTab('quick')}>Quick Access</button>
+        </div>
+      </div>
       <div className="grid">
-        <div className="col-main feed-main">
+        <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
           <div className="panel">
             <div className="panel-body scope-tabs">
               <button className={`btn ${scope === 'all' ? 'primary' : 'ghost'}`} onClick={() => setScope('all')}>{t('all')}</button>
@@ -188,8 +199,10 @@ export default function FeedPage() {
           {!hasMore && posts.length > 0 ? <div className="muted">{t('feed_end')}</div> : null}
         </div>
         <div className="col-side feed-side">
-          <NotificationPanel limit={3} showAllLink />
-          <div className="panel">
+          <div className={`feed-tab-panel ${mobileTab === 'notifications' ? 'is-active' : ''}`}>
+            <NotificationPanel limit={3} showAllLink />
+          </div>
+          <div className={`panel feed-tab-panel ${mobileTab === 'online' ? 'is-active' : ''}`}>
             <h3>{t('online_members')}</h3>
             <div className="panel-body">
               {onlineMembers.map((u) => (
@@ -204,7 +217,7 @@ export default function FeedPage() {
               {!onlineMembers.length ? <div className="muted">{t('online_members_empty')}</div> : null}
             </div>
           </div>
-          <div className="panel">
+          <div className={`panel feed-tab-panel ${mobileTab === 'messages' ? 'is-active' : ''}`}>
             <h3>{t('new_messages')}</h3>
             <div className="panel-body">
               <a href="/new/messages">
@@ -212,8 +225,10 @@ export default function FeedPage() {
               </a>
             </div>
           </div>
-          <LiveChatPanel />
-          <div className="panel">
+          <div className={`feed-tab-panel ${mobileTab === 'livechat' ? 'is-active' : ''}`}>
+            <LiveChatPanel />
+          </div>
+          <div className={`panel feed-tab-panel ${mobileTab === 'quick' ? 'is-active' : ''}`}>
             <h3>{t('quick_access')}</h3>
             <div className="panel-body">
               {quickUsers.map((u) => (

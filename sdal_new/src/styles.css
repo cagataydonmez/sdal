@@ -300,6 +300,18 @@ textarea::placeholder {
   flex-wrap: nowrap;
   overflow-x: auto;
 }
+.feed-mobile-tabs-wrap {
+  display: none;
+}
+.feed-mobile-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.feed-mobile-tabs .btn {
+  white-space: nowrap;
+}
 .scope-tabs .btn {
   white-space: nowrap;
 }
@@ -1730,26 +1742,17 @@ body.story-view-open .global-feedback {
     flex-wrap: wrap;
     justify-content: space-between;
   }
-  .feed-main {
-    order: 2;
+  .feed-mobile-tabs-wrap {
+    display: block;
+  }
+  .feed-tab-panel {
+    display: none;
+  }
+  .feed-tab-panel.is-active {
+    display: block;
   }
   .feed-side {
-    order: 1;
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    margin-bottom: 10px;
-    scroll-snap-type: x proximity;
-  }
-  .feed-side .panel {
-    margin-bottom: 0;
-    min-width: min(84vw, 320px);
-    scroll-snap-align: start;
-  }
-  .feed-side .panel-body {
-    max-height: 220px;
-    overflow: auto;
+    margin-top: 12px;
   }
 }
 
