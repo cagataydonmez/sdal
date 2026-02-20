@@ -28,17 +28,17 @@ export default function FeedPage() {
   const loadingRef = useRef(false);
   const sentinelRef = useRef(null);
   const scopeOptions = [
-    { key: 'all', label: t('all'), icon: '🌐' },
-    { key: 'following', label: t('following'), icon: '👥' },
-    { key: 'popular', label: t('popular'), icon: '🔥' }
+    { key: 'all', label: t('all'), icon: '○' },
+    { key: 'following', label: t('following'), icon: '◎' },
+    { key: 'popular', label: t('popular'), icon: '▲' }
   ];
   const feedTabOptions = [
-    { key: 'posts', label: t('nav_feed'), icon: '📰' },
-    { key: 'notifications', label: t('nav_notifications'), icon: '🔔' },
-    { key: 'livechat', label: t('live_chat_title'), icon: '💬' },
-    { key: 'online', label: t('online_members'), icon: '🟢' },
-    { key: 'messages', label: t('new_messages'), icon: '✉️' },
-    { key: 'quick', label: t('quick_access'), icon: '⚡' }
+    { key: 'posts', label: t('nav_feed'), icon: '▤' },
+    { key: 'notifications', label: t('nav_notifications'), icon: '◔' },
+    { key: 'livechat', label: t('live_chat_title'), icon: '◡' },
+    { key: 'online', label: t('online_members'), icon: '●' },
+    { key: 'messages', label: t('new_messages'), icon: '▭' },
+    { key: 'quick', label: t('quick_access'), icon: '◇' }
   ];
   const activeScopeLabel = scopeOptions.find((item) => item.key === scope)?.label || t('all');
   const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
