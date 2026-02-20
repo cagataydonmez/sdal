@@ -1072,7 +1072,7 @@ textarea::placeholder {
 }
 .admin-shell {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -1117,6 +1117,48 @@ textarea::placeholder {
 .admin-content {
   width: 100%;
   max-width: 1080px;
+}
+.admin-page-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.admin-hamburger {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.admin-hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+.admin-hamburger.open {
+  border-color: var(--accent-soft-line);
+  background: var(--accent-soft-bg);
+}
+.admin-hamburger-menu {
+  display: none;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--card);
+  gap: 12px;
+}
+.admin-hamburger-menu.open {
+  display: grid;
 }
 .admin-page-wrap {
   width: 100%;

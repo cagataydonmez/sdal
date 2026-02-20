@@ -58,6 +58,7 @@ const commonLogActivities = [
 export default function AdminPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState('dashboard');
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [status, setStatus] = useState('');
   const [adminOk, setAdminOk] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
@@ -234,6 +235,10 @@ export default function AdminPage() {
     if (tab !== 'logs' || user?.admin !== 1 || !adminOk) return;
     loadLogs().catch(() => {});
   }, [logType, tab, user, adminOk]);
+
+  useEffect(() => {
+    setAdminMenuOpen(false);
+  }, [tab]);
 
   async function adminLogin(e) {
     e.preventDefault();
@@ -920,38 +925,42 @@ export default function AdminPage() {
   return (
     <Layout title="Yönetim">
       <div className="admin-shell">
-        <aside className="panel admin-nav">
-          <h3>Admin Menü</h3>
-          <div className="panel-body">
-            {Object.entries(groupedTabs).map(([section, sectionTabs]) => (
-              <div key={section} className="admin-nav-group">
-                <div className="admin-nav-title">{section}</div>
-                {sectionTabs.map((t) => (
-                  <button
-                    key={t.key}
-                    className={`admin-nav-item ${tab === t.key ? 'active' : ''}`}
-                    onClick={() => setTab(t.key)}
-                  >
-                    <div className="name">{t.label}</div>
-                    <div className="meta">{t.hint}</div>
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-        </aside>
-
         <div className="admin-content">
           <div className="panel admin-page-header">
             <div className="panel-body">
-              <h3>{currentTab.label}</h3>
-              <div className="muted">{currentTab.hint}</div>
-              <div className="composer-actions">
-                <select className="input" value={tab} onChange={(e) => setTab(e.target.value)}>
-                  {tabs.map((item) => (
-                    <option key={`tab-select-${item.key}`} value={item.key}>{item.section} / {item.label}</option>
-                  ))}
-                </select>
+              <div className="admin-page-top">
+                <button
+                  type="button"
+                  className={`admin-hamburger ${adminMenuOpen ? 'open' : ''}`}
+                  aria-label="Admin menüsünü aç"
+                  aria-expanded={adminMenuOpen}
+                  onClick={() => setAdminMenuOpen((v) => !v)}
+                >
+                  <span />
+                  <span />
+                  <span />
+                </button>
+                <div>
+                  <h3>{currentTab.label}</h3>
+                  <div className="muted">{currentTab.hint}</div>
+                </div>
+              </div>
+              <div className={`admin-hamburger-menu ${adminMenuOpen ? 'open' : ''}`}>
+                {Object.entries(groupedTabs).map(([section, sectionTabs]) => (
+                  <div key={`menu-${section}`} className="admin-nav-group">
+                    <div className="admin-nav-title">{section}</div>
+                    {sectionTabs.map((menuTab) => (
+                      <button
+                        key={menuTab.key}
+                        className={`admin-nav-item ${tab === menuTab.key ? 'active' : ''}`}
+                        onClick={() => setTab(menuTab.key)}
+                      >
+                        <div className="name">{menuTab.label}</div>
+                        <div className="meta">{menuTab.hint}</div>
+                      </button>
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
