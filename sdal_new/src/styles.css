@@ -997,13 +997,17 @@ textarea::placeholder {
   gap: 6px;
 }
 .chat-form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
   margin-top: 8px;
 }
 .chat-form .btn {
-  align-self: flex-end;
+  align-self: center;
+}
+.chat-single-input {
+  width: 100%;
 }
 
 .group-hero {

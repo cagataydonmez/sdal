@@ -145,14 +145,14 @@ export default function LiveChatPanel() {
   async function send(e) {
     e.preventDefault();
     setError('');
+    const message = String(text || '').trim();
     let optimisticId = null;
     if (!user?.id) {
       setError(t('live_chat_error_login_required'));
       return;
     }
-    if (isRichTextEmpty(text)) return;
+    if (!message) return;
     try {
-      const message = text;
       optimisticId = Date.now() * -1;
       mergeMessages([{
         id: optimisticId,
@@ -313,8 +313,15 @@ export default function LiveChatPanel() {
         ))}
       </div>
       <form className="chat-form" onSubmit={send}>
-        <RichTextEditor value={text} onChange={setText} placeholder={t('message_write')} minHeight={66} compact />
-        <button className="btn" disabled={isRichTextEmpty(text)}>{t('send')}</button>
+        <input
+          className="input chat-single-input"
+          type="text"
+          value={text}
+          placeholder={t('message_write')}
+          onChange={(e) => setText(e.target.value)}
+          autoComplete="off"
+        />
+        <button className="btn" disabled={!String(text || '').trim()}>{t('send')}</button>
       </form>
       {error ? <div className="error">{error}</div> : null}
     </div>
