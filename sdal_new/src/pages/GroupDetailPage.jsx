@@ -6,6 +6,7 @@ import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -372,6 +373,7 @@ export default function GroupDetailPage() {
         {canUpdateCover ? (
           <div className="stack">
             <form className="group-cover-form" onSubmit={uploadCover}>
+              <NativeImageButtons onPick={setCoverFile} onError={setStatus} />
               <input type="file" accept="image/*" onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
               <button className="btn ghost" type="submit">{t('group_cover_update')}</button>
             </form>
@@ -398,6 +400,7 @@ export default function GroupDetailPage() {
           <form onSubmit={submit} className="stack">
             <RichTextEditor value={content} onChange={setContent} placeholder={t('group_post_placeholder')} minHeight={120} />
             <div className="composer-actions">
+              <NativeImageButtons onPick={setImage} onError={setStatus} />
               <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
               <select className="input" value={filter} onChange={(e) => setFilter(e.target.value)}>
                 <option value="">{t('filter_none')}</option>

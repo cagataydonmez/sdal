@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../utils/auth.jsx';
 import { useLiveRefresh } from '../utils/live.js';
 import { useTheme } from '../utils/theme.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
 export default function Layout({ children, title, right }) {
+  const location = useLocation();
   const { user, logout, refresh } = useAuth();
   const { mode, theme, cycleMode } = useTheme();
   const { lang, setLang, t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
 
@@ -55,11 +57,40 @@ export default function Layout({ children, title, right }) {
     : (mode === 'auto'
       ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') })
       : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') }));
+  const navItems = useMemo(() => ([
+    { to: '/new', label: t('nav_feed'), end: true },
+    { to: '/new/explore', label: t('nav_explore') },
+    { to: '/new/following', label: t('nav_following') },
+    { to: '/new/groups', label: t('nav_groups') },
+    { to: '/new/messages', label: `${t('nav_messages')}${unreadCount > 0 ? ` (${unreadCount})` : ''}` },
+    { to: '/new/notifications', label: t('nav_notifications') },
+    { to: '/new/albums', label: t('nav_photos') },
+    { to: '/new/games', label: t('nav_games') },
+    { to: '/new/events', label: t('nav_events') },
+    { to: '/new/announcements', label: t('nav_announcements') },
+    { to: '/new/profile', label: t('nav_profile') },
+    { to: '/new/help', label: t('nav_help') }
+  ]), [t, unreadCount]);
 
   async function handleLogout() {
     await logout();
     window.location.href = '/new/login';
   }
+
+  useEffect(() => {
+    setMenuOpen(false);
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const previous = document.body.style.overflow;
+    if (mobileNavOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = previous || '';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [mobileNavOpen]);
 
   return (
     <div className="app-shell">
@@ -69,18 +100,9 @@ export default function Layout({ children, title, right }) {
           <div className="brand-sub">Yeni</div>
         </div>
         <nav>
-          <NavLink to="/new" end>{t('nav_feed')}</NavLink>
-          <NavLink to="/new/explore">{t('nav_explore')}</NavLink>
-          <NavLink to="/new/following">{t('nav_following')}</NavLink>
-          <NavLink to="/new/groups">{t('nav_groups')}</NavLink>
-          <NavLink to="/new/messages">{t('nav_messages')}</NavLink>
-          <NavLink to="/new/notifications">{t('nav_notifications')}</NavLink>
-          <NavLink to="/new/albums">{t('nav_photos')}</NavLink>
-          <NavLink to="/new/games">{t('nav_games')}</NavLink>
-          <NavLink to="/new/events">{t('nav_events')}</NavLink>
-          <NavLink to="/new/announcements">{t('nav_announcements')}</NavLink>
-          <NavLink to="/new/profile">{t('nav_profile')}</NavLink>
-          <NavLink to="/new/help">{t('nav_help')}</NavLink>
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>
+          ))}
           {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="side-footer">
@@ -94,13 +116,23 @@ export default function Layout({ children, title, right }) {
         </div>
       </aside>
 
-      <main className="main-area">
+	      <main className="main-area">
 	        <header className="top-bar">
           <div className="page-title">
             <h1>{title}</h1>
             <p>{t('layout_subtitle')}</p>
           </div>
 	          <div className="top-actions">
+            <button
+              className={`mobile-hamburger ${mobileNavOpen ? 'open' : ''}`}
+              aria-label={mobileNavOpen ? t('close') : t('open')}
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen((prev) => !prev)}
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
             <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>
               <option value="tr">{t('lang_tr')}</option>
               <option value="en">{t('lang_en')}</option>
@@ -137,34 +169,33 @@ export default function Layout({ children, title, right }) {
         </div>
       </main>
 
-      <nav className="bottom-nav">
-        <NavLink to="/new" end>{t('nav_feed')}</NavLink>
-        <NavLink to="/new/explore">{t('nav_explore')}</NavLink>
-        <NavLink to="/new/following">{t('nav_following')}</NavLink>
-        <NavLink to="/new/groups">{t('nav_groups')}</NavLink>
-        <NavLink to="/new/messages">
-          {t('nav_messages')} {unreadCount > 0 ? <span className="mini-badge">{unreadCount}</span> : null}
-        </NavLink>
-        <NavLink to="/new/notifications">{t('nav_notifications')}</NavLink>
-        <NavLink to="/new/albums">{t('nav_photos')}</NavLink>
-        <NavLink to="/new/games">{t('nav_games')}</NavLink>
-        <NavLink to="/new/events">{t('nav_events')}</NavLink>
-        <NavLink to="/new/announcements">{t('nav_announcements')}</NavLink>
-        <NavLink to="/new/profile">{t('nav_profile')}</NavLink>
-        <NavLink to="/new/help">{t('nav_help')}</NavLink>
-        <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>
-          <option value="tr">{t('lang_tr')}</option>
-          <option value="en">{t('lang_en')}</option>
-          <option value="de">{t('lang_de')}</option>
-          <option value="fr">{t('lang_fr')}</option>
-        </select>
-        <button className="linkish bottom-link" onClick={cycleMode}>
-          {themeLabel}
-        </button>
-        <a className="bottom-link" href="/">{t('layout_classic_short')}</a>
-        {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
-        {user ? <button className="linkish bottom-link" onClick={handleLogout}>{t('logout')}</button> : null}
-      </nav>
+      <div className={`mobile-nav-overlay ${mobileNavOpen ? 'open' : ''}`} onClick={() => setMobileNavOpen(false)} />
+      <aside className={`mobile-nav-drawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
+        <div className="mobile-nav-head">
+          <div className="brand">
+            <div className="brand-mark">SDAL</div>
+            <div className="brand-sub">Yeni</div>
+          </div>
+          <button className="btn ghost" onClick={() => setMobileNavOpen(false)}>{t('close')}</button>
+        </div>
+        <nav className="mobile-nav-links">
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>
+          ))}
+          {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
+        </nav>
+        <div className="mobile-nav-foot">
+          <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>
+            <option value="tr">{t('lang_tr')}</option>
+            <option value="en">{t('lang_en')}</option>
+            <option value="de">{t('lang_de')}</option>
+            <option value="fr">{t('lang_fr')}</option>
+          </select>
+          <button className="btn ghost" onClick={cycleMode}>{themeLabel}</button>
+          <a className="btn ghost" href="/">{t('layout_classic_short')}</a>
+          {user ? <button className="btn" onClick={handleLogout}>{t('logout')}</button> : null}
+        </div>
+      </aside>
     </div>
   );
 }

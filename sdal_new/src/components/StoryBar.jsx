@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import NativeImageButtons from './NativeImageButtons.jsx';
 
 function firstUnviewedIndex(items = []) {
   const idx = items.findIndex((s) => !s.viewed);
@@ -211,17 +212,21 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   const currentUserId = Number(user?.id || 0);
   const isOwnActiveStory = !!active && !!currentUserId && activeAuthorId === currentUserId;
 
-  async function upload(e) {
-    const file = e.target.files?.[0];
+  async function upload(file) {
     if (!file) return;
     const caption = window.prompt(t('story_prompt_upload_caption'), '') || '';
     const form = new FormData();
     form.append('image', file);
     form.append('caption', caption);
     await storyRequest('/api/new/stories/upload', { method: 'POST', body: form });
-    e.target.value = '';
     emitAppChange('story:created');
     load();
+  }
+
+  function handleUploadChange(e) {
+    const file = e.target.files?.[0];
+    upload(file);
+    e.target.value = '';
   }
 
   async function editActiveStory() {
@@ -305,11 +310,12 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       <div className="story-bar">
         {showUpload ? (
           <label className="story add">
-            <input type="file" accept="image/*" onChange={upload} />
+            <input type="file" accept="image/*" onChange={handleUploadChange} />
             <div className="ring">+</div>
             <span>{t('story_add')}</span>
           </label>
         ) : null}
+        {showUpload ? <NativeImageButtons onPick={upload} onError={(message) => window.alert(message)} className="story-native-picker" /> : null}
         {groups.map((g, idx) => (
           <button key={g.author?.id || idx} className={g.viewed ? 'story viewed' : 'story'} onClick={() => openGroup(g, idx)}>
             <img src={g.author?.resim ? `/api/media/vesikalik/${g.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />

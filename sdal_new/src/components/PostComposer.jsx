@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 import RichTextEditor from './RichTextEditor.jsx';
+import NativeImageButtons from './NativeImageButtons.jsx';
 
 const FILTERS = [
   { key: '', label: '' },
@@ -75,6 +76,7 @@ export default function PostComposer({ onPost }) {
         minHeight={130}
       />
       <div className="composer-actions">
+        <NativeImageButtons onPick={setImage} onError={setError} />
         <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
         <button className="btn primary" disabled={loading}>{t('post_share')}</button>
       </div>

@@ -5,6 +5,7 @@ sdal-modern/client/node_modules/
 sdal-modern/server/node_modules/
 sdal-modern/node_modules/
 sdal_new/node_modules/
+sdal_new/ios
 dist/
 sdal-modern/client/dist/
 sdal-modern/uploads/

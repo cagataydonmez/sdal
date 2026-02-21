@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
@@ -31,6 +32,7 @@ export default function ProfilePhotoPage() {
     <Layout title={t('profile_photo_title')}>
       <div className="panel">
         <div className="panel-body">
+          <NativeImageButtons onPick={setFile} onError={setError} />
           <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
           <button className="btn primary" onClick={upload}>{t('upload')}</button>
           {status ? <div className="ok">{status}</div> : null}

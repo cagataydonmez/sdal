@@ -1,0 +1,9 @@
+{
+  "appId": "com.sdal.new",
+  "appName": "SDAL New",
+  "webDir": "dist",
+  "server": {
+    "url": "https://sdalsosyal.mywire.org/new",
+    "cleartext": false
+  }
+}

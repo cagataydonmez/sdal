@@ -4,6 +4,7 @@ import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
+import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
 async function apiJson(url, options = {}) {
@@ -119,6 +120,7 @@ export default function AnnouncementsPage() {
         <div className="panel-body">
           <input className="input" placeholder={t('title')} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           <RichTextEditor value={form.body} onChange={(next) => setForm((prev) => ({ ...prev, body: next }))} placeholder={t('announcements_body_placeholder')} minHeight={120} />
+          <NativeImageButtons onPick={setImageFile} onError={setError} />
           <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           <button className="btn primary" onClick={create}>{isAdmin ? t('publish') : t('suggest')}</button>
           {status ? <div className="muted">{status}</div> : null}

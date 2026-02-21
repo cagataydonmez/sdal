@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
+import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
 export default function AlbumUploadPage() {
@@ -54,6 +55,7 @@ export default function AlbumUploadPage() {
               placeholder={t('description')}
               minHeight={110}
             />
+            <NativeImageButtons onPick={setFile} onError={setError} />
             <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             <button className="btn primary" type="submit">{t('upload')}</button>
           </form>
