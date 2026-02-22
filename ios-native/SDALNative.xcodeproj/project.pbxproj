@@ -1,0 +1,464 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000000000000000000000201 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000101 /* AppDelegate.swift */; };
+		000000000000000000000202 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000102 /* RootView.swift */; };
+		000000000000000000000203 /* SDALNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000103 /* SDALNativeApp.swift */; };
+		000000000000000000000204 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000104 /* APIClient.swift */; };
+		000000000000000000000205 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000105 /* AppConfig.swift */; };
+		000000000000000000000206 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000106 /* AppState.swift */; };
+		000000000000000000000207 /* MultipartFormData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000107 /* MultipartFormData.swift */; };
+		000000000000000000000208 /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000108 /* PushNotificationService.swift */; };
+		000000000000000000000209 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000109 /* LoginView.swift */; };
+		000000000000000000000210 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000110 /* ExploreView.swift */; };
+		000000000000000000000211 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000111 /* FeedView.swift */; };
+		000000000000000000000212 /* PostComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000112 /* PostComposerView.swift */; };
+		000000000000000000000213 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000113 /* MessagesView.swift */; };
+		000000000000000000000214 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000114 /* ProfileView.swift */; };
+		000000000000000000000215 /* StoryBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000115 /* StoryBarView.swift */; };
+		000000000000000000000216 /* AuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000116 /* AuthModels.swift */; };
+		000000000000000000000217 /* FeedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000117 /* FeedModels.swift */; };
+		000000000000000000000218 /* MemberModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000118 /* MemberModels.swift */; };
+		000000000000000000000219 /* MessageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000119 /* MessageModels.swift */; };
+		000000000000000000000220 /* ProfileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000120 /* ProfileModels.swift */; };
+		000000000000000000000221 /* StoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000121 /* StoryModels.swift */; };
+		000000000000000000000222 /* AsyncAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000122 /* AsyncAvatarView.swift */; };
+		000000000000000000000223 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000123 /* GlassCard.swift */; };
+		000000000000000000000224 /* SDALTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000124 /* SDALTheme.swift */; };
+		000000000000000000000225 /* ScreenErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000125 /* ScreenErrorView.swift */; };
+		000000000000000000000226 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000126 /* AdminView.swift */; };
+		000000000000000000000227 /* AdminModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000127 /* AdminModels.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		000000000000000000000010 /* SDALNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SDALNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		000000000000000000000012 /* SDALNative.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SDALNative.entitlements; sourceTree = "<group>"; };
+		000000000000000000000101 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		000000000000000000000102 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		000000000000000000000103 /* SDALNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDALNativeApp.swift; sourceTree = "<group>"; };
+		000000000000000000000104 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		000000000000000000000105 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		000000000000000000000106 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		000000000000000000000107 /* MultipartFormData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipartFormData.swift; sourceTree = "<group>"; };
+		000000000000000000000108 /* PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationService.swift; sourceTree = "<group>"; };
+		000000000000000000000109 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		000000000000000000000110 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
+		000000000000000000000111 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		000000000000000000000112 /* PostComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostComposerView.swift; sourceTree = "<group>"; };
+		000000000000000000000113 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		000000000000000000000114 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		000000000000000000000115 /* StoryBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryBarView.swift; sourceTree = "<group>"; };
+		000000000000000000000116 /* AuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthModels.swift; sourceTree = "<group>"; };
+		000000000000000000000117 /* FeedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedModels.swift; sourceTree = "<group>"; };
+		000000000000000000000118 /* MemberModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberModels.swift; sourceTree = "<group>"; };
+		000000000000000000000119 /* MessageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageModels.swift; sourceTree = "<group>"; };
+		000000000000000000000120 /* ProfileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileModels.swift; sourceTree = "<group>"; };
+		000000000000000000000121 /* StoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryModels.swift; sourceTree = "<group>"; };
+		000000000000000000000122 /* AsyncAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncAvatarView.swift; sourceTree = "<group>"; };
+		000000000000000000000123 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		000000000000000000000124 /* SDALTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDALTheme.swift; sourceTree = "<group>"; };
+		000000000000000000000125 /* ScreenErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenErrorView.swift; sourceTree = "<group>"; };
+		000000000000000000000126 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
+		000000000000000000000127 /* AdminModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminModels.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		000000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000020 /* SDALNative/App */,
+				000000000000000000000021 /* SDALNative/Core */,
+				000000000000000000000022 /* SDALNative/Features */,
+				000000000000000000000029 /* SDALNative/Models */,
+				00000000000000000000002A /* SDALNative/UI */,
+				00000000000000000000002B /* SDALNative/Resources */,
+				000000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000010 /* SDALNative.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		000000000000000000000020 /* SDALNative/App */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000101 /* AppDelegate.swift */,
+				000000000000000000000102 /* RootView.swift */,
+				000000000000000000000103 /* SDALNativeApp.swift */,
+			);
+			path = SDALNative/App;
+			sourceTree = "<group>";
+		};
+		000000000000000000000021 /* SDALNative/Core */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000104 /* APIClient.swift */,
+				000000000000000000000105 /* AppConfig.swift */,
+				000000000000000000000106 /* AppState.swift */,
+				000000000000000000000107 /* MultipartFormData.swift */,
+				000000000000000000000108 /* PushNotificationService.swift */,
+			);
+			path = SDALNative/Core;
+			sourceTree = "<group>";
+		};
+		000000000000000000000022 /* SDALNative/Features */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000023 /* Auth */,
+				000000000000000000000024 /* Feed */,
+				000000000000000000000025 /* Explore */,
+				000000000000000000000026 /* Messages */,
+				000000000000000000000027 /* Profile */,
+				000000000000000000000028 /* Stories */,
+				00000000000000000000002C /* Admin */,
+			);
+			path = SDALNative/Features;
+			sourceTree = "<group>";
+		};
+		000000000000000000000023 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000109 /* LoginView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		000000000000000000000024 /* Feed */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000111 /* FeedView.swift */,
+				000000000000000000000112 /* PostComposerView.swift */,
+			);
+			path = Feed;
+			sourceTree = "<group>";
+		};
+		000000000000000000000025 /* Explore */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000110 /* ExploreView.swift */,
+			);
+			path = Explore;
+			sourceTree = "<group>";
+		};
+		000000000000000000000026 /* Messages */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000113 /* MessagesView.swift */,
+			);
+			path = Messages;
+			sourceTree = "<group>";
+		};
+		000000000000000000000027 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000114 /* ProfileView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		000000000000000000000028 /* Stories */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000115 /* StoryBarView.swift */,
+			);
+			path = Stories;
+			sourceTree = "<group>";
+		};
+		000000000000000000000029 /* SDALNative/Models */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000116 /* AuthModels.swift */,
+				000000000000000000000117 /* FeedModels.swift */,
+				000000000000000000000118 /* MemberModels.swift */,
+				000000000000000000000119 /* MessageModels.swift */,
+				000000000000000000000120 /* ProfileModels.swift */,
+				000000000000000000000121 /* StoryModels.swift */,
+				000000000000000000000127 /* AdminModels.swift */,
+			);
+			path = SDALNative/Models;
+			sourceTree = "<group>";
+		};
+		00000000000000000000002A /* SDALNative/UI */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000122 /* AsyncAvatarView.swift */,
+				000000000000000000000123 /* GlassCard.swift */,
+				000000000000000000000124 /* SDALTheme.swift */,
+				000000000000000000000125 /* ScreenErrorView.swift */,
+			);
+			path = SDALNative/UI;
+			sourceTree = "<group>";
+		};
+		00000000000000000000002B /* SDALNative/Resources */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000011 /* Info.plist */,
+				000000000000000000000012 /* SDALNative.entitlements */,
+			);
+			path = SDALNative/Resources;
+			sourceTree = "<group>";
+		};
+		00000000000000000000002C /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000126 /* AdminView.swift */,
+			);
+			path = Admin;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000004 /* SDALNative */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000006 /* Build configuration list for PBXNativeTarget "SDALNative" */;
+			buildPhases = (
+				000000000000000000000007 /* Sources */,
+				000000000000000000000008 /* Frameworks */,
+				000000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SDALNative;
+			productName = SDALNative;
+			productReference = 000000000000000000000010 /* SDALNative.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					000000000000000000000004 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 000000000000000000000005 /* Build configuration list for PBXProject "SDALNative" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 000000000000000000000002;
+			productRefGroup = 000000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000004 /* SDALNative */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		000000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000201 /* AppDelegate.swift in Sources */,
+				000000000000000000000202 /* RootView.swift in Sources */,
+				000000000000000000000203 /* SDALNativeApp.swift in Sources */,
+				000000000000000000000204 /* APIClient.swift in Sources */,
+				000000000000000000000205 /* AppConfig.swift in Sources */,
+				000000000000000000000206 /* AppState.swift in Sources */,
+				000000000000000000000207 /* MultipartFormData.swift in Sources */,
+				000000000000000000000208 /* PushNotificationService.swift in Sources */,
+				000000000000000000000209 /* LoginView.swift in Sources */,
+				000000000000000000000210 /* ExploreView.swift in Sources */,
+				000000000000000000000211 /* FeedView.swift in Sources */,
+				000000000000000000000212 /* PostComposerView.swift in Sources */,
+				000000000000000000000213 /* MessagesView.swift in Sources */,
+				000000000000000000000214 /* ProfileView.swift in Sources */,
+				000000000000000000000215 /* StoryBarView.swift in Sources */,
+				000000000000000000000216 /* AuthModels.swift in Sources */,
+				000000000000000000000217 /* FeedModels.swift in Sources */,
+				000000000000000000000218 /* MemberModels.swift in Sources */,
+				000000000000000000000219 /* MessageModels.swift in Sources */,
+				000000000000000000000220 /* ProfileModels.swift in Sources */,
+				000000000000000000000221 /* StoryModels.swift in Sources */,
+				000000000000000000000222 /* AsyncAvatarView.swift in Sources */,
+				000000000000000000000223 /* GlassCard.swift in Sources */,
+				000000000000000000000224 /* SDALTheme.swift in Sources */,
+				000000000000000000000225 /* ScreenErrorView.swift in Sources */,
+				000000000000000000000226 /* AdminView.swift in Sources */,
+				000000000000000000000227 /* AdminModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		000000000000000000000013 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		000000000000000000000014 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		000000000000000000000015 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SDALNative/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.sdal.native;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		000000000000000000000016 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SDALNative/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.sdal.native;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000000005 /* Build configuration list for PBXProject "SDALNative" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000013 /* Debug */,
+				000000000000000000000014 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000006 /* Build configuration list for PBXNativeTarget "SDALNative" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000015 /* Debug */,
+				000000000000000000000016 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 000000000000000000000001 /* Project object */;
+}

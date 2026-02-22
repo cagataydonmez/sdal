@@ -1,0 +1,193 @@
+# SDAL New Client Feature Inventory (Exhaustive)
+
+Source files: `sdal_new/src/App.jsx`, `sdal_new/src/pages/*`, `sdal_new/src/components/*`
+
+Total routes: **30**
+Total API patterns consumed in client code: **103**
+
+## Implementation Gate
+- Every route/page/component listed here is a parity scope item.
+- Finalization rule: after all implementations are done, update Xcode project metadata to include all files/resources/build phases cleanly.
+- Route/page/component checks in this file are tracked as native-equivalent parity in iOS (not 1:1 JSX file reuse).
+
+## Route map
+- [x] `/new/login` -> `<LoginPage />`
+- [x] `/new/register` -> `<RegisterPage />`
+- [x] `/new/activate` -> `<ActivationPage />`
+- [x] `/new/activation/resend` -> `<ActivationResendPage />`
+- [x] `/new/password-reset` -> `<PasswordResetPage />`
+- [x] `/new` -> `<RequireAuth><FeedPage /></RequireAuth>`
+- [x] `/new/explore` -> `<RequireAuth><ExplorePage /></RequireAuth>`
+- [x] `/new/explore/members` -> `<RequireAuth><ExplorePage fullMode /></RequireAuth>`
+- [x] `/new/explore/suggestions` -> `<RequireAuth><ExploreSuggestionsPage /></RequireAuth>`
+- [x] `/new/following` -> `<RequireAuth><FollowingPage /></RequireAuth>`
+- [x] `/new/members/:id` -> `<RequireAuth><MemberDetailPage /></RequireAuth>`
+- [x] `/new/groups` -> `<RequireAuth><GroupsPage /></RequireAuth>`
+- [x] `/new/groups/:id` -> `<RequireAuth><GroupDetailPage /></RequireAuth>`
+- [x] `/new/messages` -> `<RequireAuth><MessagesPage /></RequireAuth>`
+- [x] `/new/notifications` -> `<RequireAuth><NotificationsPage /></RequireAuth>`
+- [x] `/new/messages/compose` -> `<RequireAuth><MessageComposePage /></RequireAuth>`
+- [x] `/new/messages/:id` -> `<RequireAuth><MessageDetailPage /></RequireAuth>`
+- [x] `/new/albums` -> `<RequireAuth><AlbumsPage /></RequireAuth>`
+- [x] `/new/albums/upload` -> `<RequireAuth><AlbumUploadPage /></RequireAuth>`
+- [x] `/new/albums/photo/:id` -> `<RequireAuth><AlbumPhotoPage /></RequireAuth>`
+- [x] `/new/albums/:id` -> `<RequireAuth><AlbumCategoryPage /></RequireAuth>`
+- [x] `/new/events` -> `<RequireAuth><EventsPage /></RequireAuth>`
+- [x] `/new/announcements` -> `<RequireAuth><AnnouncementsPage /></RequireAuth>`
+- [x] `/new/games` -> `<RequireAuth><GamesPage /></RequireAuth>`
+- [x] `/new/games/:game` -> `<RequireAuth><GamesPage /></RequireAuth>`
+- [x] `/new/profile` -> `<RequireAuth><ProfilePage /></RequireAuth>`
+- [x] `/new/profile/photo` -> `<RequireAuth><ProfilePhotoPage /></RequireAuth>`
+- [x] `/new/help` -> `<RequireAuth><HelpPage /></RequireAuth>`
+- [x] `/new/admin` -> `<RequireAuth><AdminPage /></RequireAuth>`
+- [x] `/new/*` -> `<Navigate to="/new" replace />`
+
+## Pages
+- [x] `sdal_new/src/pages/ActivationPage.jsx`
+- [x] `sdal_new/src/pages/ActivationResendPage.jsx`
+- [x] `sdal_new/src/pages/AdminPage.jsx`
+- [x] `sdal_new/src/pages/AlbumCategoryPage.jsx`
+- [x] `sdal_new/src/pages/AlbumPhotoPage.jsx`
+- [x] `sdal_new/src/pages/AlbumUploadPage.jsx`
+- [x] `sdal_new/src/pages/AlbumsPage.jsx`
+- [x] `sdal_new/src/pages/AnnouncementsPage.jsx`
+- [x] `sdal_new/src/pages/EventsPage.jsx`
+- [x] `sdal_new/src/pages/ExplorePage.jsx`
+- [x] `sdal_new/src/pages/ExploreSuggestionsPage.jsx`
+- [x] `sdal_new/src/pages/FeedPage.jsx`
+- [x] `sdal_new/src/pages/FollowingPage.jsx`
+- [x] `sdal_new/src/pages/GamesPage.jsx`
+- [x] `sdal_new/src/pages/GroupDetailPage.jsx`
+- [x] `sdal_new/src/pages/GroupsPage.jsx`
+- [x] `sdal_new/src/pages/HelpPage.jsx`
+- [x] `sdal_new/src/pages/LoginPage.jsx`
+- [x] `sdal_new/src/pages/MemberDetailPage.jsx`
+- [x] `sdal_new/src/pages/MessageComposePage.jsx`
+- [x] `sdal_new/src/pages/MessageDetailPage.jsx`
+- [x] `sdal_new/src/pages/MessagesPage.jsx`
+- [x] `sdal_new/src/pages/NotificationsPage.jsx`
+- [x] `sdal_new/src/pages/PasswordResetPage.jsx`
+- [x] `sdal_new/src/pages/ProfilePage.jsx`
+- [x] `sdal_new/src/pages/ProfilePhotoPage.jsx`
+- [x] `sdal_new/src/pages/RegisterPage.jsx`
+
+## Components
+- [x] `sdal_new/src/components/GlobalActionFeedback.jsx`
+- [x] `sdal_new/src/components/Layout.jsx`
+- [x] `sdal_new/src/components/LiveChatPanel.jsx`
+- [x] `sdal_new/src/components/NativeImageButtons.jsx`
+- [x] `sdal_new/src/components/NotificationPanel.jsx`
+- [x] `sdal_new/src/components/PostCard.jsx`
+- [x] `sdal_new/src/components/PostComposer.jsx`
+- [x] `sdal_new/src/components/RichTextEditor.jsx`
+- [x] `sdal_new/src/components/StoryBar.jsx`
+- [x] `sdal_new/src/components/TranslatableHtml.jsx`
+
+## Client-consumed API endpoint patterns
+- [x] `/api/activate`
+- [x] `/api/activation/resend`
+- [x] `/api/admin/album/categories`
+- [x] `/api/admin/album/categories/`
+- [x] `/api/admin/album/photos`
+- [x] `/api/admin/album/photos/`
+- [x] `/api/admin/album/photos/bulk`
+- [x] `/api/admin/email/bulk`
+- [x] `/api/admin/email/categories`
+- [x] `/api/admin/email/categories/`
+- [x] `/api/admin/email/send`
+- [x] `/api/admin/email/templates`
+- [x] `/api/admin/email/templates/`
+- [x] `/api/admin/login`
+- [x] `/api/admin/logs`
+- [x] `/api/admin/pages`
+- [x] `/api/admin/pages/`
+- [x] `/api/admin/session`
+- [x] `/api/admin/tournament`
+- [x] `/api/admin/tournament/`
+- [x] `/api/admin/users/`
+- [x] `/api/admin/users/lists`
+- [x] `/api/album/categories/active`
+- [x] `/api/album/latest`
+- [x] `/api/album/upload`
+- [x] `/api/albums`
+- [x] `/api/albums/`
+- [x] `/api/auth/login`
+- [x] `/api/auth/logout`
+- [x] `/api/games/`
+- [x] `/api/games/arcade/`
+- [x] `/api/media/kucukresim`
+- [x] `/api/media/vesikalik/`
+- [x] `/api/members`
+- [x] `/api/members/`
+- [x] `/api/messages`
+- [x] `/api/messages/`
+- [x] `/api/messages/recipients`
+- [x] `/api/new/admin/chat/messages`
+- [x] `/api/new/admin/chat/messages/`
+- [x] `/api/new/admin/db/backups`
+- [x] `/api/new/admin/db/backups/`
+- [x] `/api/new/admin/db/restore`
+- [x] `/api/new/admin/db/table/`
+- [x] `/api/new/admin/db/tables`
+- [x] `/api/new/admin/engagement-ab`
+- [x] `/api/new/admin/engagement-ab/`
+- [x] `/api/new/admin/engagement-ab/rebalance`
+- [x] `/api/new/admin/engagement-scores`
+- [x] `/api/new/admin/engagement-scores/recalculate`
+- [x] `/api/new/admin/filters`
+- [x] `/api/new/admin/filters/`
+- [x] `/api/new/admin/follows/`
+- [x] `/api/new/admin/groups`
+- [x] `/api/new/admin/groups/`
+- [x] `/api/new/admin/live`
+- [x] `/api/new/admin/messages`
+- [x] `/api/new/admin/messages/`
+- [x] `/api/new/admin/posts`
+- [x] `/api/new/admin/posts/`
+- [x] `/api/new/admin/stats`
+- [x] `/api/new/admin/stories`
+- [x] `/api/new/admin/stories/`
+- [x] `/api/new/admin/verification-requests`
+- [x] `/api/new/admin/verification-requests/`
+- [x] `/api/new/admin/verify`
+- [x] `/api/new/announcements`
+- [x] `/api/new/announcements/`
+- [x] `/api/new/announcements/upload`
+- [x] `/api/new/chat/messages`
+- [x] `/api/new/chat/messages/`
+- [x] `/api/new/chat/send`
+- [x] `/api/new/events`
+- [x] `/api/new/events/`
+- [x] `/api/new/events/upload`
+- [x] `/api/new/explore/suggestions`
+- [x] `/api/new/feed`
+- [x] `/api/new/follow/`
+- [x] `/api/new/follows`
+- [x] `/api/new/groups`
+- [x] `/api/new/groups/`
+- [x] `/api/new/messages/unread`
+- [x] `/api/new/notifications`
+- [x] `/api/new/notifications/read`
+- [x] `/api/new/online-members`
+- [x] `/api/new/posts`
+- [x] `/api/new/posts/`
+- [x] `/api/new/posts/upload`
+- [x] `/api/new/stories`
+- [x] `/api/new/stories/`
+- [x] `/api/new/stories/mine`
+- [x] `/api/new/stories/upload`
+- [x] `/api/new/stories/user/`
+- [x] `/api/new/translate`
+- [x] `/api/new/verified/request`
+- [x] `/api/password-reset`
+- [x] `/api/photos/`
+- [x] `/api/profile`
+- [x] `/api/profile/photo`
+- [x] `/api/quick-access`
+- [x] `/api/quick-access/add`
+- [x] `/api/register`
+- [x] `/api/session`
+
+## Notes
+- Dynamic URL segments (e.g. `/api/new/groups/:id/...`) appear as prefix patterns in this inventory.
+- This file tracks parity scope, not implementation status of each sub-action yet.
