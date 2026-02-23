@@ -95,6 +95,7 @@ export default function MessagesPage() {
         <aside className="panel mailbox-sidebar">
           <div className="panel-body stack">
             <a className="btn primary" href="/new/messages/compose">{t('message_compose_title')}</a>
+            <a className="btn ghost" href="/new/whatsapp">{t('whatsapp_open_module')}</a>
             <button
               className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`}
               onClick={() => {

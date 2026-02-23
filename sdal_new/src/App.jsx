@@ -28,6 +28,7 @@ import FollowingPage from './pages/FollowingPage.jsx';
 import HelpPage from './pages/HelpPage.jsx';
 import GamesPage from './pages/GamesPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
+import WhatsappChatPage from './pages/WhatsappChatPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 import { ThemeProvider } from './utils/theme.jsx';
 import { I18nProvider } from './utils/i18n.jsx';
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/new/groups" element={<RequireAuth><GroupsPage /></RequireAuth>} />
           <Route path="/new/groups/:id" element={<RequireAuth><GroupDetailPage /></RequireAuth>} />
           <Route path="/new/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
+          <Route path="/new/whatsapp" element={<RequireAuth><WhatsappChatPage /></RequireAuth>} />
           <Route path="/new/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
           <Route path="/new/messages/compose" element={<RequireAuth><MessageComposePage /></RequireAuth>} />
           <Route path="/new/messages/:id" element={<RequireAuth><MessageDetailPage /></RequireAuth>} />

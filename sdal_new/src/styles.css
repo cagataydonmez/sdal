@@ -1940,3 +1940,51 @@ body.story-view-open .global-feedback {
     padding: 0 5px;
   }
 }
+
+
+.wa-page-head {
+  margin-bottom: 12px;
+}
+
+.wa-page-head h3 {
+  margin-bottom: 6px;
+}
+
+.wa-page-chat .chat-panel {
+  min-height: 68vh;
+}
+
+.wa-page-chat .chat-body {
+  min-height: 52vh;
+  background: linear-gradient(180deg, rgba(84, 194, 118, 0.10), rgba(16, 20, 32, 0.02));
+  border-radius: 14px;
+}
+
+.wa-page-chat .chat-line {
+  margin-bottom: 8px;
+}
+
+.wa-page-chat .chat-line .chat-text {
+  display: inline-block;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  padding: 8px 11px;
+}
+
+.theme-dark .wa-page-chat .chat-line .chat-text {
+  background: #212a3b;
+  color: #eef4ff;
+  border-color: rgba(200, 220, 255, 0.12);
+}
+
+@media (max-width: 760px) {
+  .wa-page-chat .chat-panel {
+    min-height: 60vh;
+  }
+
+  .wa-page-chat .chat-body {
+    min-height: 50vh;
+  }
+}
