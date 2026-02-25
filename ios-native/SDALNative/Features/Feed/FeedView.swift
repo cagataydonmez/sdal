@@ -280,6 +280,7 @@ struct FeedView: View {
             pendingPosts = nil
             pendingPostsCount = 0
         } catch {
+            if isCancelledRequest(error) { return }
             if posts.isEmpty {
                 errorMessage = error.localizedDescription
             } else {
@@ -335,6 +336,10 @@ struct FeedView: View {
                 }
                 await loadPanels()
             } catch {
+                if isCancelledRequest(error) {
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    continue
+                }
                 await MainActor.run {
                     if posts.isEmpty {
                         errorMessage = error.localizedDescription
@@ -345,6 +350,14 @@ struct FeedView: View {
             }
             try? await Task.sleep(nanoseconds: 7_000_000_000)
         }
+    }
+
+    private func isCancelledRequest(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return true }
+        return ns.localizedDescription.lowercased().contains("cancel")
+            || ns.localizedDescription.lowercased().contains("iptal")
     }
 
     private func consumeRefreshedPosts(_ latest: [FeedPost]) {
