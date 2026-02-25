@@ -13,6 +13,9 @@ fi
 echo "[deploy] app_dir=$APP_DIR branch=$BRANCH"
 cd "$APP_DIR"
 
+# Lower Node heap to avoid OOM on small droplets during Vite build.
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"
+
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"
 git pull --ff-only origin "$BRANCH"
