@@ -10,6 +10,7 @@ import { mapLegacyUrl } from './legacyRoutes.js';
 import fs from 'fs';
 import os from 'os';
 import { execFileSync } from 'child_process';
+import crypto from 'crypto';
 import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
 import nodemailer from 'nodemailer';
@@ -771,6 +772,31 @@ sqlRun(`CREATE TABLE IF NOT EXISTS email_sablon (
   icerik TEXT,
   olusturma DateTime
 )`);
+sqlRun(`CREATE TABLE IF NOT EXISTS oauth_accounts (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  provider TEXT,
+  provider_user_id TEXT,
+  email TEXT,
+  profile_json TEXT,
+  created_at TEXT,
+  updated_at TEXT
+)`);
+migrateAddColumn('oauth_accounts', 'email', 'ALTER TABLE oauth_accounts ADD COLUMN email TEXT');
+migrateAddColumn('oauth_accounts', 'profile_json', 'ALTER TABLE oauth_accounts ADD COLUMN profile_json TEXT');
+migrateAddColumn('oauth_accounts', 'created_at', 'ALTER TABLE oauth_accounts ADD COLUMN created_at TEXT');
+migrateAddColumn('oauth_accounts', 'updated_at', 'ALTER TABLE oauth_accounts ADD COLUMN updated_at TEXT');
+migrateAddColumn('uyeler', 'oauth_provider', 'ALTER TABLE uyeler ADD COLUMN oauth_provider TEXT');
+migrateAddColumn('uyeler', 'oauth_subject', 'ALTER TABLE uyeler ADD COLUMN oauth_subject TEXT');
+migrateAddColumn('uyeler', 'oauth_email_verified', 'ALTER TABLE uyeler ADD COLUMN oauth_email_verified INTEGER DEFAULT 0');
+
+runMigration('2026_02_oauth_accounts_unique_provider_subject', () => {
+  if (dbDriver === 'postgres') {
+    sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS oauth_accounts_provider_subject_uq ON oauth_accounts(provider, provider_user_id)');
+  } else {
+    sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS oauth_accounts_provider_subject_uq ON oauth_accounts(provider, provider_user_id)');
+  }
+});
 
 // Modern (sdal_new) social tables
 sqlRun(`CREATE TABLE IF NOT EXISTS posts (
@@ -2000,6 +2026,298 @@ function createActivation() {
   return out;
 }
 
+function base64Url(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function randomState(size = 32) {
+  return base64Url(crypto.randomBytes(size));
+}
+
+function normalizeHandleSeed(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase();
+}
+
+function uniqueUsernameFromSeed(seed) {
+  const base = normalizeHandleSeed(seed).slice(0, 12) || 'uye';
+  for (let i = 0; i < 20; i += 1) {
+    const suffix = String(Math.floor(1000 + Math.random() * 9000));
+    const candidate = `${base}${suffix}`.slice(0, 15);
+    const exists = sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [candidate]);
+    if (!exists) return candidate;
+  }
+  return `uye${Date.now().toString().slice(-8)}`.slice(0, 15);
+}
+
+function getOAuthProviderConfig(provider, req) {
+  const p = String(provider || '').toLowerCase();
+  const commonBase = resolvePublicBaseUrl(req);
+  if (p === 'google') {
+    const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+    const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+    const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim() || `${commonBase}/api/auth/oauth/google/callback`;
+    return {
+      provider: 'google',
+      title: 'Google',
+      enabled: !!(clientId && clientSecret),
+      clientId,
+      clientSecret,
+      redirectUri,
+      authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      userInfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
+      scope: 'openid email profile'
+    };
+  }
+  if (p === 'facebook') {
+    const clientId = String(process.env.FACEBOOK_OAUTH_CLIENT_ID || '').trim();
+    const clientSecret = String(process.env.FACEBOOK_OAUTH_CLIENT_SECRET || '').trim();
+    const redirectUri = String(process.env.FACEBOOK_OAUTH_REDIRECT_URI || '').trim() || `${commonBase}/api/auth/oauth/facebook/callback`;
+    return {
+      provider: 'facebook',
+      title: 'Facebook',
+      enabled: !!(clientId && clientSecret),
+      clientId,
+      clientSecret,
+      redirectUri,
+      authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
+      tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token',
+      userInfoUrl: 'https://graph.facebook.com/me',
+      scope: 'email,public_profile'
+    };
+  }
+  if (p === 'x') {
+    const clientId = String(process.env.X_OAUTH_CLIENT_ID || '').trim();
+    const clientSecret = String(process.env.X_OAUTH_CLIENT_SECRET || '').trim();
+    const redirectUri = String(process.env.X_OAUTH_REDIRECT_URI || '').trim() || `${commonBase}/api/auth/oauth/x/callback`;
+    return {
+      provider: 'x',
+      title: 'X',
+      enabled: !!(clientId && clientSecret),
+      clientId,
+      clientSecret,
+      redirectUri,
+      authUrl: 'https://twitter.com/i/oauth2/authorize',
+      tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+      userInfoUrl: 'https://api.twitter.com/2/users/me',
+      scope: 'users.read tweet.read'
+    };
+  }
+  return null;
+}
+
+function getEnabledOAuthProviders(req) {
+  const providers = ['google', 'facebook', 'x']
+    .map((provider) => getOAuthProviderConfig(provider, req))
+    .filter(Boolean);
+  return providers
+    .filter((cfg) => cfg.enabled)
+    .map((cfg) => ({ provider: cfg.provider, title: cfg.title, startUrl: `/api/auth/oauth/${cfg.provider}/start` }));
+}
+
+async function oauthFetchToken(config, code, verifier) {
+  if (config.provider === 'google') {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      redirect_uri: config.redirectUri
+    });
+    const resp = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    if (!resp.ok) throw new Error(`Google token failed (${resp.status})`);
+    const json = await resp.json();
+    return String(json.access_token || '');
+  }
+  if (config.provider === 'facebook') {
+    const params = new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      redirect_uri: config.redirectUri,
+      code
+    });
+    const resp = await fetch(`${config.tokenUrl}?${params.toString()}`);
+    if (!resp.ok) throw new Error(`Facebook token failed (${resp.status})`);
+    const json = await resp.json();
+    return String(json.access_token || '');
+  }
+  if (config.provider === 'x') {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: config.clientId,
+      redirect_uri: config.redirectUri,
+      code_verifier: verifier || ''
+    });
+    const basic = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+    const resp = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basic}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+    if (!resp.ok) throw new Error(`X token failed (${resp.status})`);
+    const json = await resp.json();
+    return String(json.access_token || '');
+  }
+  throw new Error('Unsupported provider');
+}
+
+async function oauthFetchProfile(config, accessToken) {
+  if (config.provider === 'google') {
+    const resp = await fetch(config.userInfoUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!resp.ok) throw new Error(`Google profile failed (${resp.status})`);
+    const json = await resp.json();
+    return {
+      providerUserId: String(json.sub || ''),
+      email: normalizeEmail(json.email || ''),
+      emailVerified: !!json.email_verified,
+      firstName: String(json.given_name || '').trim(),
+      lastName: String(json.family_name || '').trim(),
+      displayName: String(json.name || '').trim(),
+      usernameSeed: String(json.name || json.email || json.sub || ''),
+      raw: json
+    };
+  }
+  if (config.provider === 'facebook') {
+    const params = new URLSearchParams({
+      fields: 'id,name,first_name,last_name,email',
+      access_token: accessToken
+    });
+    const resp = await fetch(`${config.userInfoUrl}?${params.toString()}`);
+    if (!resp.ok) throw new Error(`Facebook profile failed (${resp.status})`);
+    const json = await resp.json();
+    return {
+      providerUserId: String(json.id || ''),
+      email: normalizeEmail(json.email || ''),
+      emailVerified: !!json.email,
+      firstName: String(json.first_name || '').trim(),
+      lastName: String(json.last_name || '').trim(),
+      displayName: String(json.name || '').trim(),
+      usernameSeed: String(json.name || json.email || json.id || ''),
+      raw: json
+    };
+  }
+  if (config.provider === 'x') {
+    const params = new URLSearchParams({ 'user.fields': 'name,username,profile_image_url' });
+    const resp = await fetch(`${config.userInfoUrl}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!resp.ok) throw new Error(`X profile failed (${resp.status})`);
+    const json = await resp.json();
+    const data = json?.data || {};
+    return {
+      providerUserId: String(data.id || ''),
+      email: '',
+      emailVerified: false,
+      firstName: String(data.name || '').trim(),
+      lastName: '',
+      displayName: String(data.name || '').trim(),
+      usernameSeed: String(data.username || data.name || data.id || ''),
+      raw: json
+    };
+  }
+  throw new Error('Unsupported provider');
+}
+
+function applyUserSession(req, user) {
+  const now = new Date();
+  const localParts = toLocalDateParts(now);
+  const prevDate = user.sonislemtarih && user.sonislemsaat ? `${user.sonislemtarih} ${user.sonislemsaat}` : null;
+  sqlRun(
+    `UPDATE uyeler
+     SET online = 1,
+         hit = COALESCE(hit, 0) + 1,
+         sontarih = ?,
+         oncekisontarih = ?,
+         sonislemtarih = ?,
+         sonislemsaat = ?,
+         sonip = ?
+     WHERE id = ?`,
+    [now.toISOString(), prevDate || now.toISOString(), localParts.date, localParts.time, req.ip, user.id]
+  );
+  req.session.userId = user.id;
+}
+
+function findOrCreateOAuthUser({ provider, profile }) {
+  const providerUserId = String(profile.providerUserId || '').trim();
+  if (!providerUserId) throw new Error('OAuth provider user id missing');
+
+  const nowIso = new Date().toISOString();
+  const existingByAccount = sqlGet(
+    `SELECT u.*
+     FROM oauth_accounts oa
+     JOIN uyeler u ON u.id = oa.user_id
+     WHERE oa.provider = ? AND oa.provider_user_id = ?`,
+    [provider, providerUserId]
+  );
+  let user = existingByAccount || null;
+  if (!user && profile.email) {
+    user = sqlGet('SELECT * FROM uyeler WHERE lower(email) = lower(?)', [profile.email]);
+  }
+  if (!user) {
+    const firstName = String(profile.firstName || '').trim() || 'SDAL';
+    const lastName = String(profile.lastName || '').trim() || 'Üye';
+    const email = profile.email || `${provider}_${providerUserId}@oauth.local`;
+    const kadi = uniqueUsernameFromSeed(profile.usernameSeed || email);
+    const result = sqlRun(
+      `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verified, oauth_provider, oauth_subject, oauth_email_verified)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'yok', '0', 1, 1, ?, ?, ?)`,
+      [
+        kadi,
+        randomState(18),
+        email,
+        firstName.slice(0, 20),
+        lastName.slice(0, 20),
+        createActivation(),
+        nowIso,
+        provider,
+        providerUserId,
+        profile.emailVerified ? 1 : 0
+      ]
+    );
+    const userId = result?.lastInsertRowid || sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [kadi])?.id;
+    user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [userId]);
+  }
+
+  const existingAccount = sqlGet('SELECT id, user_id FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?', [provider, providerUserId]);
+  if (existingAccount) {
+    sqlRun(
+      'UPDATE oauth_accounts SET user_id = ?, email = ?, profile_json = ?, updated_at = ? WHERE id = ?',
+      [user.id, profile.email || '', JSON.stringify(profile.raw || {}), nowIso, existingAccount.id]
+    );
+  } else {
+    sqlRun(
+      `INSERT INTO oauth_accounts (user_id, provider, provider_user_id, email, profile_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [user.id, provider, providerUserId, profile.email || '', JSON.stringify(profile.raw || {}), nowIso, nowIso]
+    );
+  }
+
+  sqlRun(
+    'UPDATE uyeler SET oauth_provider = ?, oauth_subject = ?, oauth_email_verified = ? WHERE id = ?',
+    [provider, providerUserId, profile.emailVerified ? 1 : 0, user.id]
+  );
+
+  return user;
+}
+
 async function sendMail({ to, subject, html, from }) {
   const sender =
     from ||
@@ -2854,6 +3172,78 @@ app.get('/api/session', (req, res) => {
   res.json({ user: user || null });
 });
 
+app.get('/api/auth/oauth/providers', (req, res) => {
+  res.json({ providers: getEnabledOAuthProviders(req) });
+});
+
+app.get('/api/auth/oauth/:provider/start', (req, res) => {
+  const config = getOAuthProviderConfig(req.params.provider, req);
+  if (!config || !config.enabled) return res.status(404).send('OAuth provider aktif değil.');
+
+  const state = randomState();
+  req.session.oauthState = state;
+  req.session.oauthProvider = config.provider;
+
+  if (config.provider === 'x') {
+    const verifier = base64Url(crypto.randomBytes(32));
+    const challenge = base64Url(crypto.createHash('sha256').update(verifier).digest());
+    req.session.oauthPkceVerifier = verifier;
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: config.clientId,
+      redirect_uri: config.redirectUri,
+      scope: config.scope,
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256'
+    });
+    return res.redirect(`${config.authUrl}?${params.toString()}`);
+  }
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
+    scope: config.scope,
+    state
+  });
+  res.redirect(`${config.authUrl}?${params.toString()}`);
+});
+
+app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
+  const config = getOAuthProviderConfig(req.params.provider, req);
+  if (!config || !config.enabled) return res.redirect('/new/login?oauth=disabled');
+  const state = String(req.query.state || '');
+  const code = String(req.query.code || '');
+  if (!code || !state) return res.redirect('/new/login?oauth=invalid');
+  if (state !== String(req.session.oauthState || '') || config.provider !== String(req.session.oauthProvider || '')) {
+    return res.redirect('/new/login?oauth=state');
+  }
+
+  try {
+    const accessToken = await oauthFetchToken(config, code, String(req.session.oauthPkceVerifier || ''));
+    const profile = await oauthFetchProfile(config, accessToken);
+    const user = findOrCreateOAuthUser({ provider: config.provider, profile });
+    if (!user || user.yasak === 1) return res.redirect('/new/login?oauth=blocked');
+    if (user.aktiv === 0) {
+      sqlRun('UPDATE uyeler SET aktiv = 1 WHERE id = ?', [user.id]);
+      user.aktiv = 1;
+    }
+    applyUserSession(req, user);
+    res.cookie('uyegiris', 'evet');
+    res.cookie('uyeid', String(user.id));
+    res.cookie('kadi', user.kadi);
+    res.redirect('/new');
+  } catch (err) {
+    console.error('OAuth callback error:', config.provider, err);
+    res.redirect('/new/login?oauth=failed');
+  } finally {
+    req.session.oauthState = null;
+    req.session.oauthProvider = null;
+    req.session.oauthPkceVerifier = null;
+  }
+});
+
 app.post('/api/auth/login', (req, res) => {
   const { kadi, sifre } = req.body || {};
   if (!kadi) return res.status(400).send('Kullanıcı adını yazmazsan siteye giremezsin.');
@@ -2873,23 +3263,7 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).send('Girdiğin şifre yanlış!');
   }
 
-  const now = new Date();
-  const localParts = toLocalDateParts(now);
-  const prevDate = user.sonislemtarih && user.sonislemsaat ? `${user.sonislemtarih} ${user.sonislemsaat}` : null;
-  sqlRun(
-    `UPDATE uyeler
-     SET online = 1,
-         hit = COALESCE(hit, 0) + 1,
-         sontarih = ?,
-         oncekisontarih = ?,
-         sonislemtarih = ?,
-         sonislemsaat = ?,
-         sonip = ?
-     WHERE id = ?`,
-    [now.toISOString(), prevDate || now.toISOString(), localParts.date, localParts.time, req.ip, user.id]
-  );
-
-  req.session.userId = user.id;
+  applyUserSession(req, user);
   res.cookie('uyegiris', 'evet');
   res.cookie('uyeid', String(user.id));
   res.cookie('kadi', user.kadi);
@@ -3613,9 +3987,21 @@ app.post('/api/register', async (req, res) => {
     user: { kadi: cleanKadi, isim: cleanIsim, soyisim: cleanSoyisim }
   });
 
-  await sendMail({ to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html });
+  let mailSent = true;
+  try {
+    await sendMail({ to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html });
+  } catch (err) {
+    mailSent = false;
+    console.error('Register activation mail send failed:', err);
+  }
 
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    mailSent,
+    message: mailSent
+      ? 'Kayıt tamamlandı. Aktivasyon e-postası gönderildi.'
+      : 'Kayıt tamamlandı fakat aktivasyon e-postası şu an gönderilemedi. Daha sonra aktivasyon e-postasını tekrar gönderin.'
+  });
 });
 
 app.get('/api/activate', (req, res) => {
