@@ -453,6 +453,12 @@ textarea::placeholder {
 .messenger-bubble-row.theirs {
   justify-content: flex-start;
 }
+.messenger-bubble-row.mine .messenger-bubble {
+  margin-left: auto;
+}
+.messenger-bubble-row.theirs .messenger-bubble {
+  margin-right: auto;
+}
 .messenger-bubble {
   appearance: none;
   text-align: left;
