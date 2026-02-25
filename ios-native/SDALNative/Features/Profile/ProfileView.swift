@@ -777,7 +777,6 @@ private struct HelpView: View {
 }
 
 private struct SDALMessengerView: View {
-    @EnvironmentObject private var appState: AppState
     @State private var threads: [MessengerThread] = []
     @State private var isLoading = false
     @State private var error: String?
@@ -789,7 +788,7 @@ private struct SDALMessengerView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(red: 0.06, green: 0.48, blue: 0.43), Color(red: 0.03, green: 0.27, blue: 0.24)],
+                colors: [SDALTheme.secondary.opacity(0.34), SDALTheme.cardAlt],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -799,13 +798,13 @@ private struct SDALMessengerView: View {
                 HStack {
                     Text("SDAL Messenger")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(SDALTheme.ink)
                     Spacer()
                     Button {
                         showNewChat = true
                     } label: {
                         Image(systemName: "square.and.pencil")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(SDALTheme.ink)
                             .font(.title3.weight(.semibold))
                     }
                 }
@@ -815,14 +814,18 @@ private struct SDALMessengerView: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(SDALTheme.muted)
                     TextField("Sohbet ara", text: $searchText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(SDALTheme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(SDALTheme.line, lineWidth: 1)
+                )
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
                 .onChange(of: searchText) { _, _ in
@@ -833,18 +836,18 @@ private struct SDALMessengerView: View {
                     if isLoading && threads.isEmpty {
                         Spacer()
                         ProgressView("Yukleniyor...")
-                            .tint(.white)
-                            .foregroundStyle(.white)
+                            .tint(SDALTheme.secondary)
+                            .foregroundStyle(SDALTheme.ink)
                         Spacer()
                     } else if let error, threads.isEmpty {
                         Spacer()
                         VStack(spacing: 10) {
-                            Text(error).foregroundStyle(.white)
+                            Text(error).foregroundStyle(SDALTheme.danger)
                             Button("Tekrar Dene") {
                                 Task { await loadThreads() }
                             }
                             .buttonStyle(.borderedProminent)
-                            .tint(Color.white)
+                            .tint(SDALTheme.primary)
                         }
                         Spacer()
                     } else if threads.isEmpty {
@@ -852,13 +855,13 @@ private struct SDALMessengerView: View {
                         VStack(spacing: 8) {
                             Image(systemName: "message.fill")
                                 .font(.system(size: 42))
-                                .foregroundStyle(.white.opacity(0.88))
+                                .foregroundStyle(SDALTheme.secondary.opacity(0.86))
                             Text("Henuz sohbet yok")
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(SDALTheme.ink)
                             Text("Yeni sohbet baslatmak icin kalem ikonuna dokun.")
                                 .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.9))
+                                .foregroundStyle(SDALTheme.muted)
                         }
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
@@ -911,31 +914,35 @@ private struct SDALMessengerView: View {
                 HStack {
                     Text("@\(peer?.kadi ?? "uye")")
                         .font(.system(size: 16, weight: unread > 0 ? .bold : .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(SDALTheme.ink)
                     Spacer()
                     Text(thread.lastMessage?.createdAt ?? "")
                         .font(.caption2)
-                        .foregroundStyle(unread > 0 ? Color(red: 0.05, green: 0.6, blue: 0.36) : .secondary)
+                        .foregroundStyle(unread > 0 ? SDALTheme.secondary : SDALTheme.muted)
                 }
                 HStack(spacing: 8) {
                     Text(thread.lastMessage?.body ?? "Mesajlasma baslat")
                         .lineLimit(1)
                         .font(.subheadline)
-                        .foregroundStyle(unread > 0 ? .primary : .secondary)
+                        .foregroundStyle(unread > 0 ? SDALTheme.ink : SDALTheme.muted)
                     Spacer()
                     if unread > 0 {
                         Text("\(unread)")
                             .font(.caption2.weight(.bold))
                             .padding(.horizontal, 7)
                             .padding(.vertical, 4)
-                            .background(Color(red: 0.05, green: 0.7, blue: 0.43), in: Capsule())
+                            .background(SDALTheme.secondary, in: Capsule())
                             .foregroundStyle(.white)
                     }
                 }
             }
         }
         .padding(10)
-        .background(.white.opacity(0.97), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(SDALTheme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(SDALTheme.line, lineWidth: 1)
+        )
     }
 
     private func loadThreads() async {
@@ -963,7 +970,7 @@ private struct SDALMessengerThreadView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.93, green: 0.93, blue: 0.9).ignoresSafeArea()
+            SDALTheme.softPanel.ignoresSafeArea()
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -988,7 +995,7 @@ private struct SDALMessengerThreadView: View {
                 if let error {
                     Text(error)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(SDALTheme.danger)
                         .padding(.horizontal, 12)
                         .padding(.top, 6)
                 }
@@ -1012,7 +1019,11 @@ private struct SDALMessengerThreadView: View {
                 .lineLimit(1...4)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(SDALTheme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(SDALTheme.line, lineWidth: 1)
+                )
             Button {
                 Task { await send() }
             } label: {
@@ -1020,7 +1031,7 @@ private struct SDALMessengerThreadView: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 42, height: 42)
-                    .background(Color(red: 0.05, green: 0.68, blue: 0.4), in: Circle())
+                    .background(SDALTheme.secondary, in: Circle())
             }
             .disabled(isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
@@ -1034,21 +1045,25 @@ private struct SDALMessengerThreadView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(msg.body ?? "")
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.black.opacity(0.88))
                 HStack(spacing: 4) {
                     Text(msg.createdAt ?? "")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.black.opacity(0.52))
                     if isMine {
                         Image(systemName: (msg.readAt?.isEmpty == false) ? "checkmark.circle.fill" : "checkmark")
                             .font(.caption2)
-                            .foregroundStyle((msg.readAt?.isEmpty == false) ? Color.blue : .secondary)
+                            .foregroundStyle((msg.readAt?.isEmpty == false) ? Color.blue : Color.black.opacity(0.45))
                     }
                 }
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 8)
-            .background(isMine ? Color(red: 0.84, green: 0.96, blue: 0.74) : Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(isMine ? Color(red: 0.86, green: 0.96, blue: 0.78) : Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+            )
             if !isMine { Spacer(minLength: 44) }
         }
     }

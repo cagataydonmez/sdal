@@ -1,0 +1,262 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Layout from '../components/Layout.jsx';
+import { useAuth } from '../utils/auth.jsx';
+
+function stripHtml(value) {
+  return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export default function MessengerPage() {
+  const { user } = useAuth();
+  const [threads, setThreads] = useState([]);
+  const [selectedThreadId, setSelectedThreadId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [loadingThreads, setLoadingThreads] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+
+  const selectedThread = useMemo(
+    () => threads.find((t) => String(t.id) === String(selectedThreadId)) || null,
+    [threads, selectedThreadId]
+  );
+
+  const loadThreads = useCallback(async (silent = false) => {
+    if (!silent) setLoadingThreads(true);
+    try {
+      const res = await fetch(`/api/sdal-messenger/threads?limit=80&offset=0&q=${encodeURIComponent(search.trim())}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      const payload = await res.json();
+      const next = payload.items || [];
+      setThreads(next);
+      if (!selectedThreadId && next.length) {
+        setSelectedThreadId(next[0].id);
+      } else if (selectedThreadId && !next.find((t) => String(t.id) === String(selectedThreadId))) {
+        setSelectedThreadId(next[0]?.id || null);
+      }
+    } catch (err) {
+      if (!silent) setError(String(err?.message || 'Sohbet listesi yüklenemedi.'));
+    } finally {
+      if (!silent) setLoadingThreads(false);
+    }
+  }, [search, selectedThreadId]);
+
+  const loadMessages = useCallback(async (threadId) => {
+    if (!threadId) {
+      setMessages([]);
+      return;
+    }
+    setLoadingMessages(true);
+    try {
+      const res = await fetch(`/api/sdal-messenger/threads/${threadId}/messages?limit=120`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const payload = await res.json();
+      setMessages(payload.items || []);
+      await fetch(`/api/sdal-messenger/threads/${threadId}/read`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      await loadThreads(true);
+    } catch (err) {
+      setError(String(err?.message || 'Mesajlar yüklenemedi.'));
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [loadThreads]);
+
+  useEffect(() => {
+    loadThreads(false);
+  }, [loadThreads]);
+
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    loadMessages(selectedThreadId);
+  }, [selectedThreadId, loadMessages]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      loadThreads(true);
+      if (selectedThreadId) loadMessages(selectedThreadId);
+    }, 7000);
+    return () => clearInterval(id);
+  }, [loadThreads, loadMessages, selectedThreadId]);
+
+  useEffect(() => {
+    if (!contactSearch.trim()) {
+      setContacts([]);
+      return;
+    }
+    const id = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/sdal-messenger/contacts?q=${encodeURIComponent(contactSearch.trim())}&limit=12`, {
+          credentials: 'include'
+        });
+        if (!res.ok) return;
+        const payload = await res.json();
+        setContacts(payload.items || []);
+      } catch {
+        setContacts([]);
+      }
+    }, 260);
+    return () => clearTimeout(id);
+  }, [contactSearch]);
+
+  async function createThread(userId) {
+    try {
+      const res = await fetch('/api/sdal-messenger/threads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const payload = await res.json();
+      setContactSearch('');
+      setContacts([]);
+      await loadThreads(true);
+      if (payload.threadId) {
+        setSelectedThreadId(payload.threadId);
+        await loadMessages(payload.threadId);
+      }
+    } catch (err) {
+      setError(String(err?.message || 'Sohbet başlatılamadı.'));
+    }
+  }
+
+  async function sendMessage() {
+    const text = draft.trim();
+    if (!text || !selectedThreadId) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/sdal-messenger/threads/${selectedThreadId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ text })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const payload = await res.json();
+      if (payload.item) {
+        setMessages((prev) => [...prev, payload.item]);
+      } else {
+        await loadMessages(selectedThreadId);
+      }
+      setDraft('');
+      await loadThreads(true);
+    } catch (err) {
+      setError(String(err?.message || 'Mesaj gönderilemedi.'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Layout title="SDAL Messenger">
+      <div className="messenger-shell">
+        <aside className="messenger-sidebar panel">
+          <div className="panel-body">
+            <input
+              className="input"
+              placeholder="Sohbet ara"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="Yeni sohbet için üye ara"
+              value={contactSearch}
+              onChange={(e) => setContactSearch(e.target.value)}
+            />
+            {contacts.length ? (
+              <div className="list messenger-contacts">
+                {contacts.map((c) => (
+                  <button key={c.id} className="list-item messenger-contact" onClick={() => createThread(c.id)}>
+                    <strong>@{c.kadi || 'uye'}</strong>
+                    <span>{[c.isim, c.soyisim].filter(Boolean).join(' ') || '-'}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="list messenger-thread-list">
+              {loadingThreads ? <div className="muted">Yükleniyor...</div> : null}
+              {!loadingThreads && !threads.length ? <div className="muted">Sohbet bulunamadı.</div> : null}
+              {threads.map((thread) => {
+                const active = String(thread.id) === String(selectedThreadId);
+                return (
+                  <button
+                    key={thread.id}
+                    className={`list-item messenger-thread ${active ? 'messenger-thread-active' : ''}`}
+                    onClick={() => setSelectedThreadId(thread.id)}
+                  >
+                    <div className="row">
+                      <strong>@{thread?.peer?.kadi || 'uye'}</strong>
+                      <span className="meta">{thread?.lastMessage?.createdAt || ''}</span>
+                    </div>
+                    <div className="row">
+                      <span className="message-snippet">{stripHtml(thread?.lastMessage?.body || 'Mesajlaşma başlat')}</span>
+                      {(thread?.unreadCount || 0) > 0 ? <span className="messenger-badge">{thread.unreadCount}</span> : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+
+        <section className="messenger-main panel">
+          <div className="panel-body messenger-main-body">
+            <div className="messenger-main-head">
+              <h3>{selectedThread ? `@${selectedThread?.peer?.kadi || 'uye'}` : 'Sohbet seçin'}</h3>
+            </div>
+            <div className="messenger-messages">
+              {loadingMessages ? <div className="muted">Mesajlar yükleniyor...</div> : null}
+              {!loadingMessages && !messages.length ? <div className="muted">Henüz mesaj yok.</div> : null}
+              {messages.map((m) => {
+                const mine = String(m.senderId) === String(user?.id);
+                return (
+                  <div key={m.id} className={`messenger-bubble-row ${mine ? 'mine' : 'theirs'}`}>
+                    <div className="messenger-bubble">
+                      <div>{stripHtml(m.body)}</div>
+                      <div className="meta">{m.createdAt || ''}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="messenger-composer">
+              <textarea
+                className="input"
+                rows={2}
+                placeholder="Mesaj yaz"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                disabled={!selectedThreadId}
+              />
+              <button className="btn primary" onClick={sendMessage} disabled={!selectedThreadId || !draft.trim() || sending}>
+                {sending ? 'Gönderiliyor...' : 'Gönder'}
+              </button>
+            </div>
+            {error ? <div className="error">{error}</div> : null}
+          </div>
+        </section>
+      </div>
+    </Layout>
+  );
+}

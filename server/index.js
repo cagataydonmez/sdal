@@ -4524,7 +4524,7 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
   const term = q ? `%${q.toLowerCase()}%` : null;
   const userId = req.session.userId;
 
-  const queryParams = [userId, userId];
+  const filterParams = [];
   let filterSql = '';
   if (term) {
     filterSql = `
@@ -4534,9 +4534,19 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
         OR LOWER(COALESCE(u.soyisim, '')) LIKE ?
       )
     `;
-    queryParams.push(term, term, term);
+    filterParams.push(term, term, term);
   }
-  queryParams.push(limit, offset);
+  const queryParams = [
+    userId, // unread_count
+    userId, // peer selector
+    userId, // last message visible if sender
+    userId, // last message visible if receiver
+    userId, // thread user_a check
+    userId, // thread user_b check
+    ...filterParams,
+    limit,
+    offset
+  ];
 
   const rows = sqlAll(
     `SELECT
@@ -4589,7 +4599,7 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
      ${filterSql}
      ORDER BY COALESCE(lm.created_at, t.last_message_at, t.updated_at, t.created_at) DESC
      LIMIT ? OFFSET ?`,
-    [userId, userId, userId, userId, ...queryParams]
+    queryParams
   );
 
   const items = rows.map((row) => ({

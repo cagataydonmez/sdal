@@ -63,6 +63,7 @@ export default function Layout({ children, title, right }) {
     { to: '/new/following', label: t('nav_following') },
     { to: '/new/groups', label: t('nav_groups') },
     { to: '/new/messages', label: `${t('nav_messages')}${unreadCount > 0 ? ` (${unreadCount})` : ''}` },
+    { to: '/new/messenger', label: t('nav_messenger') },
     { to: '/new/notifications', label: t('nav_notifications') },
     { to: '/new/albums', label: t('nav_photos') },
     { to: '/new/games', label: t('nav_games') },

@@ -7,6 +7,7 @@ import ExploreSuggestionsPage from './pages/ExploreSuggestionsPage.jsx';
 import GroupsPage from './pages/GroupsPage.jsx';
 import GroupDetailPage from './pages/GroupDetailPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
+import MessengerPage from './pages/MessengerPage.jsx';
 import MemberDetailPage from './pages/MemberDetailPage.jsx';
 import AlbumsPage from './pages/AlbumsPage.jsx';
 import AlbumCategoryPage from './pages/AlbumCategoryPage.jsx';
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/new/groups" element={<RequireAuth><GroupsPage /></RequireAuth>} />
           <Route path="/new/groups/:id" element={<RequireAuth><GroupDetailPage /></RequireAuth>} />
           <Route path="/new/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
+          <Route path="/new/messenger" element={<RequireAuth><MessengerPage /></RequireAuth>} />
           <Route path="/new/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
           <Route path="/new/messages/compose" element={<RequireAuth><MessageComposePage /></RequireAuth>} />
           <Route path="/new/messages/:id" element={<RequireAuth><MessageDetailPage /></RequireAuth>} />
