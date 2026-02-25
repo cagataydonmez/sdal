@@ -253,7 +253,7 @@ export default function MessengerPage() {
                 const peerId = asInt(selectedThread?.peer?.id);
                 const mineBySession = currentUserId > 0 && senderId === currentUserId;
                 const mineByPeer = peerId > 0 && senderId > 0 && senderId !== peerId;
-                const mineByApi = m?.isMine === true || m?.isMine === 1 || m?.is_mine === 1 || m?.is_mine === true;
+                const mineByApi = asInt(m?.isMine ?? m?.is_mine ?? m?.ismine) === 1;
                 const mine = mineByApi || mineBySession || mineByPeer;
                 const state = deliveryState(m, mine);
                 const stateLabel = state === 'read' ? 'okundu' : state === 'delivered' ? 'iletildi' : 'gonderildi';
