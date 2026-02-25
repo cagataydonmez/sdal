@@ -236,6 +236,23 @@ struct ProfileView: View {
                             GlassCard {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
+                                        Text("SDAL Messenger")
+                                            .font(.headline)
+                                        Text("WhatsApp benzeri anlik mesajlasma")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    NavigationLink(i18n.t("open")) {
+                                        SDALMessengerView()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                }
+                            }
+
+                            GlassCard {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
                                         Text(i18n.t("help"))
                                             .font(.headline)
                                         Text(i18n.t("help_desc"))
@@ -755,6 +772,391 @@ private struct HelpView: View {
             statusText = i18n.t("test_mail_sent")
         } catch {
             errorText = error.localizedDescription
+        }
+    }
+}
+
+private struct SDALMessengerView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var threads: [MessengerThread] = []
+    @State private var isLoading = false
+    @State private var error: String?
+    @State private var searchText = ""
+    @State private var showNewChat = false
+
+    private let api = APIClient.shared
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.06, green: 0.48, blue: 0.43), Color(red: 0.03, green: 0.27, blue: 0.24)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text("SDAL Messenger")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Button {
+                        showNewChat = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                            .foregroundStyle(.white)
+                            .font(.title3.weight(.semibold))
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Sohbet ara", text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
+                .onChange(of: searchText) { _, _ in
+                    Task { await loadThreads() }
+                }
+
+                Group {
+                    if isLoading && threads.isEmpty {
+                        Spacer()
+                        ProgressView("Yukleniyor...")
+                            .tint(.white)
+                            .foregroundStyle(.white)
+                        Spacer()
+                    } else if let error, threads.isEmpty {
+                        Spacer()
+                        VStack(spacing: 10) {
+                            Text(error).foregroundStyle(.white)
+                            Button("Tekrar Dene") {
+                                Task { await loadThreads() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.white)
+                        }
+                        Spacer()
+                    } else if threads.isEmpty {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "message.fill")
+                                .font(.system(size: 42))
+                                .foregroundStyle(.white.opacity(0.88))
+                            Text("Henuz sohbet yok")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                            Text("Yeni sohbet baslatmak icin kalem ikonuna dokun.")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        Spacer()
+                    } else {
+                        List(threads) { thread in
+                            NavigationLink(value: thread.id) {
+                                messengerRow(thread)
+                            }
+                            .listRowInsets(EdgeInsets(top: 9, leading: 12, bottom: 9, trailing: 12))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .background(Color.clear)
+                    }
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: Int.self) { threadId in
+            if let selected = threads.first(where: { $0.id == threadId }) {
+                SDALMessengerThreadView(thread: selected)
+            } else {
+                Text("Sohbet bulunamadi")
+            }
+        }
+        .sheet(isPresented: $showNewChat) {
+            SDALMessengerNewChatView { threadId in
+                showNewChat = false
+                Task {
+                    await loadThreads()
+                }
+            }
+        }
+        .task {
+            if threads.isEmpty {
+                await loadThreads()
+            }
+        }
+    }
+
+    private func messengerRow(_ thread: MessengerThread) -> some View {
+        let peer = thread.peer
+        let unread = thread.unreadCount ?? 0
+        return HStack(spacing: 12) {
+            AsyncAvatarView(imageName: peer?.resim, size: 52)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("@\(peer?.kadi ?? "uye")")
+                        .font(.system(size: 16, weight: unread > 0 ? .bold : .semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text(thread.lastMessage?.createdAt ?? "")
+                        .font(.caption2)
+                        .foregroundStyle(unread > 0 ? Color(red: 0.05, green: 0.6, blue: 0.36) : .secondary)
+                }
+                HStack(spacing: 8) {
+                    Text(thread.lastMessage?.body ?? "Mesajlasma baslat")
+                        .lineLimit(1)
+                        .font(.subheadline)
+                        .foregroundStyle(unread > 0 ? .primary : .secondary)
+                    Spacer()
+                    if unread > 0 {
+                        Text("\(unread)")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(Color(red: 0.05, green: 0.7, blue: 0.43), in: Capsule())
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(.white.opacity(0.97), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func loadThreads() async {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        do {
+            threads = try await api.fetchMessengerThreads(query: searchText, limit: 60, offset: 0)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+private struct SDALMessengerThreadView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var messages: [MessengerMessage] = []
+    @State private var draft = ""
+    @State private var isLoading = false
+    @State private var isSending = false
+    @State private var error: String?
+
+    let thread: MessengerThread
+    private let api = APIClient.shared
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.93, green: 0.93, blue: 0.9).ignoresSafeArea()
+            VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(messages) { message in
+                                bubble(message)
+                                    .id(message.id)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 8)
+                        .padding(.bottom, 6)
+                    }
+                    .onChange(of: messages.count) { _, _ in
+                        if let last = messages.last?.id {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                proxy.scrollTo(last, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+                if let error {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 6)
+                }
+                composer
+                    .padding(8)
+                    .background(.ultraThinMaterial)
+            }
+        }
+        .navigationTitle("@\(thread.peer?.kadi ?? "uye")")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if messages.isEmpty {
+                await load()
+            }
+        }
+    }
+
+    private var composer: some View {
+        HStack(spacing: 8) {
+            TextField("Mesaj yaz", text: $draft, axis: .vertical)
+                .lineLimit(1...4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            Button {
+                Task { await send() }
+            } label: {
+                Image(systemName: isSending ? "hourglass" : "paperplane.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 42, height: 42)
+                    .background(Color(red: 0.05, green: 0.68, blue: 0.4), in: Circle())
+            }
+            .disabled(isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+    }
+
+    @ViewBuilder
+    private func bubble(_ msg: MessengerMessage) -> some View {
+        let isMine = (msg.senderId ?? 0) == (appState.session?.id ?? -1)
+        HStack {
+            if isMine { Spacer(minLength: 44) }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(msg.body ?? "")
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                HStack(spacing: 4) {
+                    Text(msg.createdAt ?? "")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if isMine {
+                        Image(systemName: (msg.readAt?.isEmpty == false) ? "checkmark.circle.fill" : "checkmark")
+                            .font(.caption2)
+                            .foregroundStyle((msg.readAt?.isEmpty == false) ? Color.blue : .secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(isMine ? Color(red: 0.84, green: 0.96, blue: 0.74) : Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            if !isMine { Spacer(minLength: 44) }
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        do {
+            messages = try await api.fetchMessengerMessages(threadId: thread.id, limit: 90)
+            try? await api.markMessengerThreadRead(threadId: thread.id)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func send() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { return }
+        isSending = true
+        error = nil
+        defer { isSending = false }
+        do {
+            if let created = try await api.sendMessengerMessage(threadId: thread.id, text: text) {
+                messages.append(created)
+            } else {
+                await load()
+            }
+            draft = ""
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+private struct SDALMessengerNewChatView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var items: [MessageRecipient] = []
+    @State private var error: String?
+    @State private var loading = false
+    private let api = APIClient.shared
+    let onCreated: (Int) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List(items) { item in
+                Button {
+                    Task { await openThread(item.id) }
+                } label: {
+                    HStack(spacing: 10) {
+                        AsyncAvatarView(imageName: item.resim, size: 40)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("@\(item.kadi ?? "uye")").font(.headline)
+                            Text("\(item.isim ?? "") \(item.soyisim ?? "")")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .listStyle(.plain)
+            .searchable(text: $query, prompt: "Uye ara")
+            .navigationTitle("Yeni Sohbet")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Kapat") { dismiss() }
+                }
+            }
+            .overlay {
+                if loading {
+                    ProgressView("Yukleniyor...")
+                } else if let error, items.isEmpty {
+                    Text(error).foregroundStyle(.red)
+                } else if items.isEmpty {
+                    Text("Arama yaparak kisi sec.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onChange(of: query) { _, _ in
+                Task { await search() }
+            }
+        }
+    }
+
+    private func search() async {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty {
+            items = []
+            return
+        }
+        loading = true
+        error = nil
+        defer { loading = false }
+        do {
+            items = try await api.searchMessengerContacts(query: text, limit: 30)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func openThread(_ userId: Int) async {
+        do {
+            let threadId = try await api.createMessengerThread(userId: userId)
+            onCreated(threadId)
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 }

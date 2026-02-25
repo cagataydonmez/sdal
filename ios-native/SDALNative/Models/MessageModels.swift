@@ -256,3 +256,98 @@ struct AppNotification: Decodable, Identifiable {
             ?? container.decodeLossyString(forKey: .invite_status)
     }
 }
+
+struct MessengerContactsEnvelope: Decodable {
+    let items: [MessageRecipient]
+}
+
+struct MessengerThreadsEnvelope: Decodable {
+    let items: [MessengerThread]
+    let hasMore: Bool?
+}
+
+struct MessengerMessagesEnvelope: Decodable {
+    let items: [MessengerMessage]
+}
+
+struct MessengerThreadCreateEnvelope: Decodable {
+    let ok: Bool?
+    let threadId: Int?
+}
+
+struct MessengerMessageCreateEnvelope: Decodable {
+    let ok: Bool?
+    let item: MessengerMessage?
+}
+
+struct MessengerPeer: Decodable {
+    let id: Int?
+    let kadi: String?
+    let isim: String?
+    let soyisim: String?
+    let resim: String?
+    let verified: Bool?
+}
+
+struct MessengerThread: Decodable, Identifiable {
+    let id: Int
+    let peer: MessengerPeer?
+    let lastMessage: MessengerMessage?
+    let unreadCount: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, peer, lastMessage, unreadCount
+        case last_message, unread_count
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard let id = c.decodeLossyInt(forKey: .id) else {
+            throw DecodingError.dataCorruptedError(forKey: .id, in: c, debugDescription: "Missing thread id")
+        }
+        self.id = id
+        self.peer = try? c.decodeIfPresent(MessengerPeer.self, forKey: .peer)
+        self.lastMessage = (try? c.decodeIfPresent(MessengerMessage.self, forKey: .lastMessage))
+            ?? (try? c.decodeIfPresent(MessengerMessage.self, forKey: .last_message))
+        self.unreadCount = c.decodeLossyInt(forKey: .unreadCount) ?? c.decodeLossyInt(forKey: .unread_count)
+    }
+}
+
+struct MessengerMessage: Decodable, Identifiable {
+    let id: Int
+    let threadId: Int?
+    let senderId: Int?
+    let receiverId: Int?
+    let body: String?
+    let createdAt: String?
+    let readAt: String?
+    let kadi: String?
+    let isim: String?
+    let soyisim: String?
+    let resim: String?
+    let verified: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, threadId, senderId, receiverId, body, createdAt, readAt, kadi, isim, soyisim, resim, verified
+        case thread_id, sender_id, receiver_id, created_at, read_at
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard let id = c.decodeLossyInt(forKey: .id) else {
+            throw DecodingError.dataCorruptedError(forKey: .id, in: c, debugDescription: "Missing messenger message id")
+        }
+        self.id = id
+        self.threadId = c.decodeLossyInt(forKey: .threadId) ?? c.decodeLossyInt(forKey: .thread_id)
+        self.senderId = c.decodeLossyInt(forKey: .senderId) ?? c.decodeLossyInt(forKey: .sender_id)
+        self.receiverId = c.decodeLossyInt(forKey: .receiverId) ?? c.decodeLossyInt(forKey: .receiver_id)
+        self.body = c.decodeLossyString(forKey: .body)
+        self.createdAt = c.decodeLossyString(forKey: .createdAt) ?? c.decodeLossyString(forKey: .created_at)
+        self.readAt = c.decodeLossyString(forKey: .readAt) ?? c.decodeLossyString(forKey: .read_at)
+        self.kadi = c.decodeLossyString(forKey: .kadi)
+        self.isim = c.decodeLossyString(forKey: .isim)
+        self.soyisim = c.decodeLossyString(forKey: .soyisim)
+        self.resim = c.decodeLossyString(forKey: .resim)
+        self.verified = c.decodeLossyBool(forKey: .verified)
+    }
+}

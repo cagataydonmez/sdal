@@ -302,6 +302,46 @@ final class APIClient {
         _ = try await request("/messages/\(id)", method: "DELETE", as: APIWriteResponse.self)
     }
 
+    func fetchMessengerThreads(query: String = "", limit: Int = 40, offset: Int = 0) async throws -> [MessengerThread] {
+        var parts = ["limit=\(limit)", "offset=\(offset)"]
+        if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            parts.append("q=\(encoded)")
+        }
+        let payload = try await request("/sdal-messenger/threads?\(parts.joined(separator: "&"))", as: MessengerThreadsEnvelope.self)
+        return payload.items
+    }
+
+    func searchMessengerContacts(query: String, limit: Int = 20) async throws -> [MessageRecipient] {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let payload = try await request("/sdal-messenger/contacts?q=\(encoded)&limit=\(limit)", as: MessengerContactsEnvelope.self)
+        return payload.items
+    }
+
+    func createMessengerThread(userId: Int) async throws -> Int {
+        struct Body: Encodable { let userId: Int }
+        let payload = try await request("/sdal-messenger/threads", method: "POST", body: Body(userId: userId), as: MessengerThreadCreateEnvelope.self)
+        guard let id = payload.threadId else { throw APIError.invalidResponse }
+        return id
+    }
+
+    func fetchMessengerMessages(threadId: Int, beforeId: Int? = nil, limit: Int = 60) async throws -> [MessengerMessage] {
+        var parts = ["limit=\(limit)"]
+        if let beforeId, beforeId > 0 { parts.append("beforeId=\(beforeId)") }
+        let payload = try await request("/sdal-messenger/threads/\(threadId)/messages?\(parts.joined(separator: "&"))", as: MessengerMessagesEnvelope.self)
+        return payload.items
+    }
+
+    func sendMessengerMessage(threadId: Int, text: String) async throws -> MessengerMessage? {
+        struct Body: Encodable { let text: String }
+        let payload = try await request("/sdal-messenger/threads/\(threadId)/messages", method: "POST", body: Body(text: text), as: MessengerMessageCreateEnvelope.self)
+        return payload.item
+    }
+
+    func markMessengerThreadRead(threadId: Int) async throws {
+        _ = try await request("/sdal-messenger/threads/\(threadId)/read", method: "POST", as: APIWriteResponse.self)
+    }
+
     func searchRecipients(query: String, limit: Int = 12) async throws -> [MessageRecipient] {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let path = "/messages/recipients?q=\(encoded)&limit=\(limit)"
