@@ -588,6 +588,127 @@ function migrateAddColumn(table, column, ddl) {
   });
 }
 
+function getPgColumnType(table, column) {
+  if (dbDriver !== 'postgres') return '';
+  const row = sqlGet(
+    `SELECT data_type AS type
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = ? AND column_name = ?`,
+    [String(table || '').toLowerCase(), String(column || '').toLowerCase()]
+  );
+  return String(row?.type || '').toLowerCase();
+}
+
+function isPgNumericType(type) {
+  const t = String(type || '').toLowerCase();
+  return t === 'integer' || t === 'bigint' || t === 'smallint' || t === 'numeric' || t === 'double precision' || t === 'real';
+}
+
+function normalizePostgresIdColumn(table, column) {
+  if (dbDriver !== 'postgres') return;
+  const currentType = getPgColumnType(table, column);
+  if (!currentType || isPgNumericType(currentType)) return;
+  const qTable = quoteIdentifier(table);
+  const qColumn = quoteIdentifier(column);
+  sqlRun(
+    `ALTER TABLE ${qTable}
+     ALTER COLUMN ${qColumn} TYPE BIGINT
+     USING CASE
+       WHEN NULLIF(TRIM(CAST(${qColumn} AS TEXT)), '') IS NULL THEN NULL
+       WHEN TRIM(CAST(${qColumn} AS TEXT)) ~ '^-?[0-9]+$' THEN TRIM(CAST(${qColumn} AS TEXT))::BIGINT
+       ELSE NULL
+     END`
+  );
+}
+
+function normalizePostgresIdColumns() {
+  if (dbDriver !== 'postgres') return;
+  const columns = [
+    ['uyeler', 'id'],
+    ['album_foto', 'id'],
+    ['album_foto', 'katid'],
+    ['album_foto', 'ekleyenid'],
+    ['album_fotoyorum', 'id'],
+    ['album_fotoyorum', 'fotoid'],
+    ['gelenkutusu', 'id'],
+    ['gelenkutusu', 'kime'],
+    ['gelenkutusu', 'kimden'],
+    ['posts', 'id'],
+    ['posts', 'user_id'],
+    ['posts', 'group_id'],
+    ['post_comments', 'id'],
+    ['post_comments', 'post_id'],
+    ['post_comments', 'user_id'],
+    ['post_likes', 'id'],
+    ['post_likes', 'post_id'],
+    ['post_likes', 'user_id'],
+    ['follows', 'id'],
+    ['follows', 'follower_id'],
+    ['follows', 'following_id'],
+    ['notifications', 'id'],
+    ['notifications', 'user_id'],
+    ['notifications', 'source_user_id'],
+    ['notifications', 'entity_id'],
+    ['events', 'id'],
+    ['events', 'created_by'],
+    ['events', 'approved_by'],
+    ['announcements', 'id'],
+    ['announcements', 'created_by'],
+    ['announcements', 'approved_by'],
+    ['event_comments', 'id'],
+    ['event_comments', 'event_id'],
+    ['event_comments', 'user_id'],
+    ['event_responses', 'id'],
+    ['event_responses', 'event_id'],
+    ['event_responses', 'user_id'],
+    ['stories', 'id'],
+    ['stories', 'user_id'],
+    ['story_views', 'id'],
+    ['story_views', 'story_id'],
+    ['story_views', 'user_id'],
+    ['groups', 'id'],
+    ['groups', 'owner_id'],
+    ['group_members', 'id'],
+    ['group_members', 'group_id'],
+    ['group_members', 'user_id'],
+    ['group_join_requests', 'id'],
+    ['group_join_requests', 'group_id'],
+    ['group_join_requests', 'user_id'],
+    ['group_join_requests', 'reviewed_by'],
+    ['group_invites', 'id'],
+    ['group_invites', 'group_id'],
+    ['group_invites', 'invited_user_id'],
+    ['group_invites', 'invited_by'],
+    ['group_events', 'id'],
+    ['group_events', 'group_id'],
+    ['group_events', 'created_by'],
+    ['group_announcements', 'id'],
+    ['group_announcements', 'group_id'],
+    ['group_announcements', 'created_by'],
+    ['chat_messages', 'id'],
+    ['chat_messages', 'user_id'],
+    ['verification_requests', 'id'],
+    ['verification_requests', 'user_id'],
+    ['verification_requests', 'reviewer_id'],
+    ['member_engagement_scores', 'user_id'],
+    ['engagement_ab_assignments', 'user_id']
+  ];
+
+  runMigration('2026_02_pg_normalize_id_columns_bigint', () => {
+    for (const [table, column] of columns) {
+      try {
+        normalizePostgresIdColumn(table, column);
+      } catch (err) {
+        writeAppLog('error', 'pg_column_normalize_failed', {
+          table,
+          column,
+          message: err?.message || 'unknown'
+        });
+      }
+    }
+  });
+}
+
 // Ensure admin email tables exist
 sqlRun(`CREATE TABLE IF NOT EXISTS email_kategori (
   id INTEGER PRIMARY KEY,
@@ -840,6 +961,7 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_updated ON member_engag
 sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_variant ON member_engagement_scores (ab_variant, score DESC)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON engagement_ab_assignments (variant)');
 migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
+normalizePostgresIdColumns();
 
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
