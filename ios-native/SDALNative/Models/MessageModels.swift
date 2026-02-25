@@ -318,6 +318,7 @@ struct MessengerMessage: Decodable, Identifiable {
     let threadId: Int?
     let senderId: Int?
     let receiverId: Int?
+    let isMine: Bool?
     let body: String?
     let clientWrittenAt: String?
     let serverReceivedAt: String?
@@ -331,10 +332,10 @@ struct MessengerMessage: Decodable, Identifiable {
     let verified: Bool?
 
     private enum CodingKeys: String, CodingKey {
-        case id, threadId, senderId, receiverId, body
+        case id, threadId, senderId, receiverId, isMine, body
         case clientWrittenAt, serverReceivedAt, deliveredAt
         case createdAt, readAt, kadi, isim, soyisim, resim, verified
-        case thread_id, sender_id, receiver_id, client_written_at, server_received_at, delivered_at, created_at, read_at
+        case thread_id, sender_id, receiver_id, is_mine, client_written_at, server_received_at, delivered_at, created_at, read_at
     }
 
     init(from decoder: Decoder) throws {
@@ -346,6 +347,11 @@ struct MessengerMessage: Decodable, Identifiable {
         self.threadId = c.decodeLossyInt(forKey: .threadId) ?? c.decodeLossyInt(forKey: .thread_id)
         self.senderId = c.decodeLossyInt(forKey: .senderId) ?? c.decodeLossyInt(forKey: .sender_id)
         self.receiverId = c.decodeLossyInt(forKey: .receiverId) ?? c.decodeLossyInt(forKey: .receiver_id)
+        if let mineInt = c.decodeLossyInt(forKey: .isMine) ?? c.decodeLossyInt(forKey: .is_mine) {
+            self.isMine = mineInt == 1
+        } else {
+            self.isMine = c.decodeLossyBool(forKey: .isMine) ?? c.decodeLossyBool(forKey: .is_mine)
+        }
         self.body = c.decodeLossyString(forKey: .body)
         self.clientWrittenAt = c.decodeLossyString(forKey: .clientWrittenAt) ?? c.decodeLossyString(forKey: .client_written_at)
         self.serverReceivedAt = c.decodeLossyString(forKey: .serverReceivedAt) ?? c.decodeLossyString(forKey: .server_received_at)

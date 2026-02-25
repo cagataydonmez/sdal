@@ -1028,10 +1028,10 @@ private struct SDALMessengerThreadView: View {
             NavigationStack {
                 List {
                     Section("Zaman Bilgileri") {
-                        detailRow("Yazildi (cihaz)", msg.clientWrittenAt)
+                        detailRow("Yazildi (cihaz)", msg.clientWrittenAt ?? msg.createdAt)
                         detailRow("Sunucuya ulasti", msg.serverReceivedAt ?? msg.createdAt)
-                        detailRow("Karsiya iletildi", msg.deliveredAt)
-                        detailRow("Okundu", msg.readAt)
+                        detailRow("Karsiya iletildi", msg.deliveredAt ?? "henuz iletilmedi")
+                        detailRow("Okundu", msg.readAt ?? "henuz okunmadi")
                     }
                     Section("Mesaj") {
                         Text(msg.body ?? "")
@@ -1072,7 +1072,11 @@ private struct SDALMessengerThreadView: View {
 
     @ViewBuilder
     private func bubble(_ msg: MessengerMessage) -> some View {
-        let isMine = (msg.senderId ?? 0) == (appState.session?.id ?? -1)
+        let sessionId = appState.session?.id ?? -1
+        let isMine = msg.isMine ?? ((msg.senderId ?? 0) == sessionId)
+        let isRead = (msg.readAt?.isEmpty == false)
+        let isDelivered = isRead || (msg.deliveredAt?.isEmpty == false)
+        let stateText = isRead ? "okundu" : (isDelivered ? "iletildi" : "gonderildi")
         HStack {
             if isMine { Spacer(minLength: 44) }
             VStack(alignment: .leading, spacing: 4) {
@@ -1084,9 +1088,12 @@ private struct SDALMessengerThreadView: View {
                         .font(.caption2)
                         .foregroundStyle(SDALTheme.muted)
                     if isMine {
-                        Image(systemName: (msg.readAt?.isEmpty == false) ? "checkmark.circle.fill" : ((msg.deliveredAt?.isEmpty == false) ? "checkmark.circle" : "checkmark"))
+                        Image(systemName: isRead ? "checkmark.circle.fill" : (isDelivered ? "checkmark.circle" : "checkmark"))
                             .font(.caption2)
-                            .foregroundStyle((msg.readAt?.isEmpty == false) ? SDALTheme.secondary : SDALTheme.muted)
+                            .foregroundStyle(isRead ? SDALTheme.secondary : SDALTheme.muted)
+                        Text(stateText)
+                            .font(.caption2)
+                            .foregroundStyle(isRead ? SDALTheme.secondary : SDALTheme.muted)
                     }
                 }
             }
@@ -1108,6 +1115,8 @@ private struct SDALMessengerThreadView: View {
         do {
             messages = try await api.fetchMessengerMessages(threadId: thread.id, limit: 90)
             try? await api.markMessengerThreadRead(threadId: thread.id)
+            // Refresh once more so read/delivered timestamps are visible immediately.
+            messages = try await api.fetchMessengerMessages(threadId: thread.id, limit: 90)
         } catch {
             self.error = error.localizedDescription
         }
