@@ -4675,6 +4675,7 @@ app.get('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => {
        m.thread_id AS threadId,
        m.sender_id AS senderId,
        m.receiver_id AS receiverId,
+       CASE WHEN CAST(m.sender_id AS INTEGER) = CAST(? AS INTEGER) THEN 1 ELSE 0 END AS isMine,
        m.body,
        m.client_written_at AS clientWrittenAt,
        m.server_received_at AS serverReceivedAt,
@@ -4693,7 +4694,7 @@ app.get('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => {
        ${beforeSql}
      ORDER BY m.created_at DESC, CAST(m.id AS INTEGER) DESC
      LIMIT ?`,
-    params
+    [req.session.userId, ...params]
   ).reverse();
 
   res.json({ items });
@@ -4725,6 +4726,7 @@ app.post('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => 
        m.thread_id AS threadId,
        m.sender_id AS senderId,
        m.receiver_id AS receiverId,
+       CASE WHEN CAST(m.sender_id AS INTEGER) = CAST(? AS INTEGER) THEN 1 ELSE 0 END AS isMine,
        m.body,
        m.client_written_at AS clientWrittenAt,
        m.server_received_at AS serverReceivedAt,
@@ -4735,7 +4737,7 @@ app.post('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => 
      FROM sdal_messenger_messages m
      LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(m.sender_id AS INTEGER)
      WHERE m.id = ?`,
-    [id]
+    [req.session.userId, id]
   );
   if (item) {
     broadcastMessengerEvent([thread.user_a_id, thread.user_b_id], {
