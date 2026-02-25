@@ -140,7 +140,11 @@ function normalizePgSql(sql) {
     .replace(/\bINTEGER\s+PRIMARY\s+KEY\b/gi, 'BIGSERIAL PRIMARY KEY')
     .replace(/\bDATETIME\b/gi, 'TIMESTAMP')
     .replace(/\bIFNULL\s*\(/gi, 'COALESCE(')
-    .replace(/datetime\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP');
+    .replace(/datetime\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
+    .replace(
+      /LEFT\s+JOIN\s+uyeler\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+\1\.id\s*=\s*([a-zA-Z_][a-zA-Z0-9_.]*)/gi,
+      'LEFT JOIN uyeler $1 ON $1.id::text = $2::text'
+    );
 }
 
 function runPsqlQuery(sql) {

@@ -327,6 +327,7 @@ if (!fs.existsSync(dbBackupDir)) {
 }
 const isPostgresDb = dbDriver === 'postgres';
 const joinUserOnPhotoOwnerExpr = isPostgresDb ? 'u.id::text = f.ekleyenid::text' : 'u.id = f.ekleyenid';
+const joinUserOnPostAuthorExpr = isPostgresDb ? 'u.id::text = p.user_id::text' : 'u.id = p.user_id';
 
 function backupTimestamp(date = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -4174,17 +4175,32 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
     params.push(req.session.userId);
   }
   const orderBy = scope === 'popular'
-    ? `(
-        COALESCE((SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id), 0) * 2.4
-        + COALESCE((SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id), 0) * 3.2
-        + COALESCE(es.score, 0) * 0.18
-        - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 168), 0) * 0.22
-      ) DESC, p.id DESC`
-    : `(
-        COALESCE(es.score, 0) * 0.72
-        - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 72), 0) * 0.45
-        + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
-      ) DESC, p.id DESC`;
+    ? (
+      isPostgresDb
+        ? `(
+            COALESCE((SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id), 0) * 2.4
+            + COALESCE((SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id), 0) * 3.2
+            + COALESCE(es.score, 0) * 0.18
+          ) DESC, p.id DESC`
+        : `(
+            COALESCE((SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id), 0) * 2.4
+            + COALESCE((SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id), 0) * 3.2
+            + COALESCE(es.score, 0) * 0.18
+            - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 168), 0) * 0.22
+          ) DESC, p.id DESC`
+    )
+    : (
+      isPostgresDb
+        ? `(
+            COALESCE(es.score, 0) * 0.72
+            + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
+          ) DESC, p.id DESC`
+        : `(
+            COALESCE(es.score, 0) * 0.72
+            - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 72), 0) * 0.45
+            + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
+          ) DESC, p.id DESC`
+    );
   const queryParams = scope === 'popular'
     ? [...params, limit, offset]
     : [...params, req.session.userId, limit, offset];
@@ -4192,7 +4208,7 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
     `SELECT p.id, p.user_id, p.content, p.image, p.created_at, p.group_id,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
-     LEFT JOIN uyeler u ON u.id = p.user_id
+     LEFT JOIN uyeler u ON ${joinUserOnPostAuthorExpr}
      LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id
      ${where}
      ORDER BY ${orderBy}
