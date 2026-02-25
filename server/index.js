@@ -2163,6 +2163,25 @@ function randomState(size = 32) {
   return base64Url(crypto.randomBytes(size));
 }
 
+const mobileOAuthTokens = new Map();
+
+function issueMobileOAuthToken(userId) {
+  const token = randomState(36);
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  mobileOAuthTokens.set(token, { userId: Number(userId || 0), expiresAt });
+  return token;
+}
+
+function consumeMobileOAuthToken(token) {
+  const key = String(token || '').trim();
+  if (!key) return null;
+  const row = mobileOAuthTokens.get(key);
+  if (!row) return null;
+  mobileOAuthTokens.delete(key);
+  if (!row.userId || row.expiresAt < Date.now()) return null;
+  return Number(row.userId);
+}
+
 function normalizeHandleSeed(value) {
   return String(value || '')
     .normalize('NFKD')
@@ -3260,6 +3279,7 @@ app.get('/api/auth/oauth/:provider/start', (req, res) => {
   const state = randomState();
   req.session.oauthState = state;
   req.session.oauthProvider = config.provider;
+  req.session.oauthNative = String(req.query.native || '') === '1' ? 1 : 0;
 
   if (config.provider === 'x') {
     const verifier = base64Url(crypto.randomBytes(32));
@@ -3290,35 +3310,57 @@ app.get('/api/auth/oauth/:provider/start', (req, res) => {
 app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
   const config = getOAuthProviderConfig(req.params.provider, req);
   if (!config || !config.enabled) return res.redirect('/new/login?oauth=disabled');
+  const isNative = Number(req.session.oauthNative || 0) === 1;
   const state = String(req.query.state || '');
   const code = String(req.query.code || '');
-  if (!code || !state) return res.redirect('/new/login?oauth=invalid');
+  if (!code || !state) return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=invalid' : '/new/login?oauth=invalid');
   if (state !== String(req.session.oauthState || '') || config.provider !== String(req.session.oauthProvider || '')) {
-    return res.redirect('/new/login?oauth=state');
+    return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=state' : '/new/login?oauth=state');
   }
 
   try {
     const accessToken = await oauthFetchToken(config, code, String(req.session.oauthPkceVerifier || ''));
     const profile = await oauthFetchProfile(config, accessToken);
     const user = findOrCreateOAuthUser({ provider: config.provider, profile });
-    if (!user || user.yasak === 1) return res.redirect('/new/login?oauth=blocked');
+    if (!user || user.yasak === 1) {
+      return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=blocked' : '/new/login?oauth=blocked');
+    }
     if (user.aktiv === 0) {
       sqlRun('UPDATE uyeler SET aktiv = 1 WHERE id = ?', [user.id]);
       user.aktiv = 1;
     }
-    applyUserSession(req, user);
-    res.cookie('uyegiris', 'evet');
-    res.cookie('uyeid', String(user.id));
-    res.cookie('kadi', user.kadi);
-    res.redirect('/new');
+    if (isNative) {
+      const token = issueMobileOAuthToken(user.id);
+      res.redirect(`sdalnative://oauth-callback?token=${encodeURIComponent(token)}`);
+    } else {
+      applyUserSession(req, user);
+      res.cookie('uyegiris', 'evet');
+      res.cookie('uyeid', String(user.id));
+      res.cookie('kadi', user.kadi);
+      res.redirect('/new');
+    }
   } catch (err) {
     console.error('OAuth callback error:', config.provider, err);
-    res.redirect('/new/login?oauth=failed');
+    res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=failed' : '/new/login?oauth=failed');
   } finally {
     req.session.oauthState = null;
     req.session.oauthProvider = null;
     req.session.oauthPkceVerifier = null;
+    req.session.oauthNative = null;
   }
+});
+
+app.post('/api/auth/oauth/mobile/exchange', (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const userId = consumeMobileOAuthToken(token);
+  if (!userId) return res.status(400).send('OAuth token gecersiz veya suresi dolmus.');
+  const user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [userId]);
+  if (!user || user.yasak === 1) return res.status(400).send('Kullanici gecersiz.');
+  applyUserSession(req, user);
+  res.cookie('uyegiris', 'evet');
+  res.cookie('uyeid', String(user.id));
+  res.cookie('kadi', user.kadi);
+  res.json({ ok: true, user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim } });
 });
 
 app.post('/api/auth/login', (req, res) => {

@@ -1,5 +1,6 @@
 import SwiftUI
-import WebKit
+import AuthenticationServices
+import UIKit
 
 private enum AuthSheet: String, Identifiable {
     case register
@@ -20,8 +21,8 @@ struct LoginView: View {
     @State private var errorMessage: String?
     @State private var sheet: AuthSheet?
     @State private var oauthProviders: [OAuthProvider] = []
-    @State private var oauthURL: URL?
     @State private var loadingOAuth = false
+    @StateObject private var oauthCoordinator = NativeOAuthCoordinator()
 
     private let api = APIClient.shared
 
@@ -121,18 +122,6 @@ struct LoginView: View {
                 case .reset: PasswordResetSheet()
                 }
             }
-            .sheet(isPresented: Binding(
-                get: { oauthURL != nil },
-                set: { presented in if !presented { oauthURL = nil } }
-            )) {
-                OAuthWebSheet(startURL: oauthURL ?? AppConfig.baseURL) { completed in
-                    oauthURL = nil
-                    loadingOAuth = false
-                    if completed {
-                        Task { await appState.refreshSession() }
-                    }
-                }
-            }
             .task {
                 await loadOAuthProviders()
             }
@@ -162,97 +151,70 @@ struct LoginView: View {
     private func startOAuth(_ provider: OAuthProvider) {
         let base = AppConfig.baseURL.absoluteString
         let path = provider.startUrl ?? "/api/auth/oauth/\(provider.provider)/start"
-        guard let url = URL(string: path.hasPrefix("http") ? path : (base + path)) else {
+        guard var components = URLComponents(string: path.hasPrefix("http") ? path : (base + path)) else {
             return
         }
+        var items = components.queryItems ?? []
+        items.append(URLQueryItem(name: "native", value: "1"))
+        components.queryItems = items
+        guard let url = components.url else { return }
         loadingOAuth = true
-        oauthURL = url
-    }
-}
-
-private struct OAuthWebSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let startURL: URL
-    let onComplete: (Bool) -> Void
-
-    var body: some View {
-        NavigationStack {
-            OAuthWebView(startURL: startURL) { success in
-                onComplete(success)
-                dismiss()
-            }
-            .navigationTitle("Sosyal Giris")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Kapat") {
-                        onComplete(false)
-                        dismiss()
-                    }
+        oauthCoordinator.start(url: url, callbackScheme: "sdalnative") { callbackURL, oauthError in
+            Task { @MainActor in
+                defer { loadingOAuth = false }
+                if let oauthError {
+                    errorMessage = oauthError.localizedDescription
+                    return
+                }
+                guard let callbackURL else {
+                    errorMessage = "Sosyal giris tamamlanamadi."
+                    return
+                }
+                guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false) else {
+                    errorMessage = "Gecersiz callback."
+                    return
+                }
+                let token = components.queryItems?.first(where: { $0.name == "token" })?.value
+                let oauthFail = components.queryItems?.first(where: { $0.name == "oauth" })?.value
+                if let oauthFail, !oauthFail.isEmpty {
+                    errorMessage = "Sosyal giris basarisiz (\(oauthFail))."
+                    return
+                }
+                guard let token, !token.isEmpty else {
+                    errorMessage = "Sosyal giris tokeni alinamadi."
+                    return
+                }
+                do {
+                    try await api.exchangeMobileOAuthToken(token)
+                    await appState.refreshSession()
+                } catch {
+                    errorMessage = error.localizedDescription
                 }
             }
         }
     }
 }
 
-private struct OAuthWebView: UIViewRepresentable {
-    let startURL: URL
-    let onComplete: (Bool) -> Void
+private final class NativeOAuthCoordinator: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
+    private var session: ASWebAuthenticationSession?
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onComplete: onComplete)
+    func start(url: URL, callbackScheme: String, completion: @escaping (URL?, Error?) -> Void) {
+        session?.cancel()
+        let auth = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackScheme) { callbackURL, error in
+            completion(callbackURL, error)
+        }
+        auth.presentationContextProvider = self
+        auth.prefersEphemeralWebBrowserSession = false
+        session = auth
+        auth.start()
     }
 
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = context.coordinator
-        context.coordinator.webView = webView
-        webView.load(URLRequest(url: startURL))
-        return webView
-    }
-
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
-
-    final class Coordinator: NSObject, WKNavigationDelegate {
-        weak var webView: WKWebView?
-        let onComplete: (Bool) -> Void
-        var completed = false
-
-        init(onComplete: @escaping (Bool) -> Void) {
-            self.onComplete = onComplete
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = scene.windows.first {
+            return window
         }
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            syncCookies(from: webView)
-        }
-
-        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            guard let url = navigationAction.request.url else {
-                decisionHandler(.allow)
-                return
-            }
-            let path = url.path.lowercased()
-            let query = url.query?.lowercased() ?? ""
-            if !completed && (path == "/new" || (path == "/new/login" && !query.contains("oauth="))) {
-                completed = true
-                syncCookies(from: webView)
-                onComplete(true)
-                decisionHandler(.cancel)
-                return
-            }
-            decisionHandler(.allow)
-        }
-
-        private func syncCookies(from webView: WKWebView) {
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                let storage = HTTPCookieStorage.shared
-                for cookie in cookies {
-                    storage.setCookie(cookie)
-                }
-            }
-        }
+        return ASPresentationAnchor()
     }
 }
 

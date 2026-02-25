@@ -226,6 +226,11 @@ final class APIClient {
         return payload.providers
     }
 
+    func exchangeMobileOAuthToken(_ token: String) async throws {
+        struct Body: Encodable { let token: String }
+        _ = try await request("/auth/oauth/mobile/exchange", method: "POST", body: Body(token: token), as: APIWriteResponse.self)
+    }
+
     func logout() async throws {
         _ = try await request("/auth/logout", method: "POST", as: EmptyResponse.self)
     }

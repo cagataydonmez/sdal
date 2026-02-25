@@ -35,5 +35,18 @@
     <string>Profil fotografi ve gorsel yuklemeleri icin gerekli.</string>
     <key>NSCameraUsageDescription</key>
     <string>Kamera ile fotograf cekip SDAL iceriklerine yukleyebilmek icin gerekli.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLName</key>
+            <string>org.sdal.native.oauth</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>sdalnative</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
