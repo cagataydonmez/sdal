@@ -326,6 +326,7 @@ if (!fs.existsSync(dbBackupDir)) {
   fs.mkdirSync(dbBackupDir, { recursive: true });
 }
 const isPostgresDb = dbDriver === 'postgres';
+const joinUserOnPhotoOwnerExpr = isPostgresDb ? 'u.id::text = f.ekleyenid::text' : 'u.id = f.ekleyenid';
 
 function backupTimestamp(date = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -6458,7 +6459,7 @@ app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
   const recentPhotos = sqlAll(
     `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
      FROM album_foto f
-     LEFT JOIN uyeler u ON u.id = f.ekleyenid
+     LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
      ORDER BY f.id DESC
      LIMIT ?`,
     [recentLimit]
@@ -6677,7 +6678,7 @@ app.get('/api/new/admin/live', requireAdmin, (req, res) => {
   const newestPhotos = sqlAll(
     `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
      FROM album_foto f
-     LEFT JOIN uyeler u ON u.id = f.ekleyenid
+     LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
      ORDER BY f.id DESC
      LIMIT ?`,
     [userLimit]
