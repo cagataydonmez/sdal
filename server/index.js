@@ -552,6 +552,15 @@ function runMigration(name, apply) {
   ensureSchemaMigrationsTable();
   if (hasMigration(name)) return;
 
+  if (dbDriver === 'postgres') {
+    apply();
+    sqlRun(
+      'INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)',
+      [name, new Date().toISOString()]
+    );
+    return;
+  }
+
   const db = getDb();
   const tx = db.transaction(() => {
     apply();
