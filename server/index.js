@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnection } from './db.js';
+import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnection, dbDriver } from './db.js';
 import { mapLegacyUrl } from './legacyRoutes.js';
 import fs from 'fs';
 import os from 'os';
@@ -273,7 +273,7 @@ const dbBackupUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, dbBackupIncomingDir),
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '').toLowerCase() || '.sqlite';
+      const ext = path.extname(file.originalname || '').toLowerCase() || (dbDriver === 'postgres' ? '.dump' : '.sqlite');
       cb(null, `incoming-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
     }
   }),
@@ -325,6 +325,7 @@ const dbBackupDir = path.join(path.dirname(dbPath), 'backups');
 if (!fs.existsSync(dbBackupDir)) {
   fs.mkdirSync(dbBackupDir, { recursive: true });
 }
+const isPostgresDb = dbDriver === 'postgres';
 
 function backupTimestamp(date = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -335,6 +336,10 @@ function normalizeBackupName(value) {
   const base = path.basename(String(value || ''));
   const safe = base.replace(/[^a-zA-Z0-9._-]/g, '_');
   if (!safe) return '';
+  if (isPostgresDb) {
+    if (!/\.(dump|sql|backup)$/i.test(safe)) return `${safe}.dump`;
+    return safe;
+  }
   if (!safe.endsWith('.sqlite')) return `${safe}.sqlite`;
   return safe;
 }
@@ -366,8 +371,11 @@ function isSqliteFile(filePath) {
 
 function listDbBackups() {
   if (!fs.existsSync(dbBackupDir)) return [];
+  const backupExtPattern = isPostgresDb
+    ? /\.(dump|sql|backup)$/i
+    : /\.(sqlite|db|backup|bak)$/i;
   return fs.readdirSync(dbBackupDir)
-    .filter((name) => /\.(sqlite|db|backup|bak)$/i.test(name))
+    .filter((name) => backupExtPattern.test(name))
     .map((name) => {
       const fullPath = path.join(dbBackupDir, name);
       const st = fs.statSync(fullPath);
@@ -382,6 +390,20 @@ function listDbBackups() {
 
 async function createDbBackup(label = 'manual') {
   const safeLabel = String(label || 'manual').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32) || 'manual';
+  if (isPostgresDb) {
+    const databaseUrl = String(process.env.DATABASE_URL || '').trim();
+    if (!databaseUrl) throw new Error('DATABASE_URL eksik. PostgreSQL yedeği alınamadı.');
+    const name = `sdal-backup-${backupTimestamp()}-${safeLabel}.dump`;
+    const fullPath = path.join(dbBackupDir, name);
+    execFileSync('pg_dump', ['--format=custom', '--file', fullPath, databaseUrl], { stdio: 'pipe' });
+    const st = fs.statSync(fullPath);
+    return {
+      name,
+      size: st.size,
+      mtime: st.mtime.toISOString()
+    };
+  }
+
   const name = `sdal-backup-${backupTimestamp()}-${safeLabel}.sqlite`;
   const fullPath = path.join(dbBackupDir, name);
   const db = getDb();
@@ -396,6 +418,39 @@ async function createDbBackup(label = 'manual') {
 }
 
 function restoreDbFromUploadedFile(incomingPath) {
+  if (isPostgresDb) {
+    const databaseUrl = String(process.env.DATABASE_URL || '').trim();
+    if (!databaseUrl) throw new Error('DATABASE_URL eksik. PostgreSQL geri yükleme yapılamadı.');
+    const stamp = backupTimestamp();
+    const uploadedName = `uploaded-${stamp}.dump`;
+    const uploadedPath = path.join(dbBackupDir, uploadedName);
+    fs.copyFileSync(incomingPath, uploadedPath);
+
+    const preRestoreName = `pre-restore-${stamp}.dump`;
+    const preRestorePath = path.join(dbBackupDir, preRestoreName);
+    execFileSync('pg_dump', ['--format=custom', '--file', preRestorePath, databaseUrl], { stdio: 'pipe' });
+
+    try {
+      execFileSync(
+        'pg_restore',
+        ['--clean', '--if-exists', '--no-owner', '--no-privileges', '--dbname', databaseUrl, uploadedPath],
+        { stdio: 'pipe' }
+      );
+    } catch (err) {
+      try {
+        execFileSync(
+          'pg_restore',
+          ['--clean', '--if-exists', '--no-owner', '--no-privileges', '--dbname', databaseUrl, preRestorePath],
+          { stdio: 'pipe' }
+        );
+      } catch {
+        // best effort rollback
+      }
+      throw err;
+    }
+    return { uploadedName, preRestoreName };
+  }
+
   if (!isSqliteFile(incomingPath)) {
     throw new Error('Yüklenen dosya geçerli bir SQLite yedeği değil.');
   }
@@ -6832,7 +6887,8 @@ app.get('/api/new/admin/db/table/:name', requireAdmin, (req, res) => {
 app.get('/api/new/admin/db/backups', requireAdmin, (_req, res) => {
   res.json({
     items: listDbBackups(),
-    dbPath
+    dbPath,
+    dbDriver
   });
 });
 
