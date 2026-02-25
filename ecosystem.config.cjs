@@ -3,9 +3,7 @@ module.exports = {
     {
       name: 'sdal',
       cwd: '/var/www/sdal',
-      script: 'npm',
-      args: 'run start',
-      env_file: '/etc/sdal/sdal.env',
+      script: '/var/www/sdal/ops/start-sdal.sh',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
