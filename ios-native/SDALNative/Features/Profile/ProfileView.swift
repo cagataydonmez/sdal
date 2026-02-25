@@ -965,6 +965,9 @@ private struct SDALMessengerThreadView: View {
     @State private var isSending = false
     @State private var error: String?
     @State private var selectedMessageMeta: MessengerMessage?
+    @State private var wsTask: URLSessionWebSocketTask?
+    @State private var wsListenerTask: Task<Void, Never>?
+    @State private var wsActive = false
 
     let thread: MessengerThread
     private let api = APIClient.shared
@@ -1011,15 +1014,15 @@ private struct SDALMessengerThreadView: View {
         .navigationTitle("@\(thread.peer?.kadi ?? "uye")")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            wsActive = true
+            connectMessengerSocket()
             if messages.isEmpty {
                 await load()
             }
         }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
-                await load()
-            }
+        .onDisappear {
+            wsActive = false
+            disconnectMessengerSocket()
         }
         .sheet(item: $selectedMessageMeta) { msg in
             NavigationStack {
@@ -1108,6 +1111,66 @@ private struct SDALMessengerThreadView: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private func connectMessengerSocket() {
+        if wsTask != nil { return }
+        guard let userId = appState.session?.id else { return }
+        guard var comps = URLComponents(url: AppConfig.baseURL, resolvingAgainstBaseURL: false) else { return }
+        comps.scheme = comps.scheme == "https" ? "wss" : "ws"
+        comps.path = "/ws/messenger"
+        comps.queryItems = [
+            URLQueryItem(name: "userId", value: String(userId)),
+            URLQueryItem(name: "threadId", value: String(thread.id))
+        ]
+        guard let url = comps.url else { return }
+        let task = URLSession.shared.webSocketTask(with: url)
+        wsTask = task
+        task.resume()
+        wsListenerTask?.cancel()
+        wsListenerTask = Task { await listenMessengerSocket(task) }
+    }
+
+    private func disconnectMessengerSocket() {
+        wsListenerTask?.cancel()
+        wsListenerTask = nil
+        wsTask?.cancel(with: .normalClosure, reason: nil)
+        wsTask = nil
+    }
+
+    private func listenMessengerSocket(_ task: URLSessionWebSocketTask) async {
+        while !Task.isCancelled {
+            do {
+                let message = try await task.receive()
+                switch message {
+                case .string(let text):
+                    await handleMessengerSocketPayload(text)
+                case .data(let data):
+                    if let text = String(data: data, encoding: .utf8) {
+                        await handleMessengerSocketPayload(text)
+                    }
+                @unknown default:
+                    break
+                }
+            } catch {
+                break
+            }
+        }
+        wsTask = nil
+        if wsActive {
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            connectMessengerSocket()
+        }
+    }
+
+    private func handleMessengerSocketPayload(_ text: String) async {
+        guard let data = text.data(using: .utf8) else { return }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        let type = String(json["type"] as? String ?? "")
+        if type == "messenger:hello" { return }
+        let eventThreadId = Int("\(json["threadId"] ?? "")") ?? 0
+        if eventThreadId != thread.id { return }
+        await load()
     }
 
     private func send() async {

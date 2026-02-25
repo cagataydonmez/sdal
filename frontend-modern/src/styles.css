@@ -425,9 +425,12 @@ textarea::placeholder {
   border-bottom: 1px solid var(--line);
   margin-bottom: 8px;
   padding-bottom: 6px;
-  background: var(--messenger-head);
+  background: color-mix(in srgb, var(--messenger-head) 82%, #075e54 18%);
   border-radius: 10px;
   padding: 10px 12px;
+}
+.messenger-main-head h3 {
+  margin: 0;
 }
 .messenger-messages {
   flex: 1;
@@ -435,8 +438,9 @@ textarea::placeholder {
   overflow: auto;
   padding: 10px;
   background:
-    radial-gradient(circle at 20% 20%, rgba(255,255,255,0.07), transparent 38%),
-    radial-gradient(circle at 80% 80%, rgba(0,0,0,0.08), transparent 40%),
+    radial-gradient(circle at 20% 20%, rgba(255,255,255,0.12), transparent 34%),
+    radial-gradient(circle at 80% 80%, rgba(0,0,0,0.12), transparent 40%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 6px, transparent 6px 12px),
     var(--messenger-bg);
 }
 .messenger-bubble-row {
@@ -460,14 +464,38 @@ textarea::placeholder {
   padding: 8px 10px;
   background: var(--messenger-bubble-theirs);
   color: var(--messenger-bubble-text);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
 }
 .messenger-bubble-row.mine .messenger-bubble {
   background: var(--messenger-bubble-mine);
 }
 .messenger-bubble .meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   color: var(--messenger-bubble-meta);
   font-size: 12px;
   margin-top: 4px;
+}
+.msg-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.msg-state .ticks {
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+.msg-state .state-label {
+  text-transform: lowercase;
+}
+.msg-state.sent .ticks,
+.msg-state.delivered .ticks {
+  color: var(--messenger-bubble-meta);
+}
+.msg-state.read .ticks {
+  color: #1da1f2;
 }
 .messenger-composer {
   margin-top: 10px;
@@ -476,10 +504,15 @@ textarea::placeholder {
   gap: 8px;
   align-items: end;
 }
+.messenger-composer .btn.primary {
+  min-width: 118px;
+  border-radius: 999px;
+}
 .messenger-composer textarea.input {
   resize: vertical;
   min-height: 44px;
   max-height: 140px;
+  border-radius: 22px;
 }
 .messenger-meta-overlay {
   position: fixed;

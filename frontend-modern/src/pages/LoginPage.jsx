@@ -71,7 +71,7 @@ export default function LoginPage() {
               <div className="muted">{t('login_social_divider')}</div>
               {oauthProviders.map((p) => (
                 <a key={p.provider} className="btn ghost" href={p.startUrl}>
-                  {p.provider === 'google' ? t('login_social_google') : p.provider === 'facebook' ? t('login_social_facebook') : t('login_social_x')}
+                  {p.provider === 'google' ? t('login_social_google') : t('login_social_x')}
                 </a>
               ))}
             </div>

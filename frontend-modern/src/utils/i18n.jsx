@@ -71,7 +71,6 @@ const trFallbackMessages = {
   login_error_oauth_failed: 'Sosyal giriş başarısız. Lütfen tekrar deneyin.',
   login_social_divider: 'veya sosyal hesap ile devam et',
   login_social_google: 'Google ile devam et',
-  login_social_facebook: 'Facebook ile devam et',
   login_social_x: 'X ile devam et',
   login_forgot_password: 'Şifremi Unuttum',
   auth_username: 'Kullanıcı adı',

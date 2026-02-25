@@ -6,6 +6,13 @@ function stripHtml(value) {
   return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function deliveryState(message, mine) {
+  if (!mine) return '';
+  if (message?.readAt) return 'read';
+  if (message?.deliveredAt) return 'delivered';
+  return 'sent';
+}
+
 export default function MessengerPage() {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
@@ -237,11 +244,21 @@ export default function MessengerPage() {
               {!loadingMessages && !messages.length ? <div className="muted">Henüz mesaj yok.</div> : null}
               {messages.map((m) => {
                 const mine = String(m.senderId) === String(user?.id);
+                const state = deliveryState(m, mine);
+                const stateLabel = state === 'read' ? 'okundu' : state === 'delivered' ? 'iletildi' : 'gonderildi';
                 return (
                   <div key={m.id} className={`messenger-bubble-row ${mine ? 'mine' : 'theirs'}`}>
                     <button className="messenger-bubble" onClick={() => setSelectedMessageMeta(m)}>
                       <div>{stripHtml(m.body)}</div>
-                      <div className="meta">{m.createdAt || ''} {mine ? (m.readAt ? '✓✓' : (m.deliveredAt ? '✓✓' : '✓')) : ''}</div>
+                      <div className="meta">
+                        <span>{m.createdAt || ''}</span>
+                        {mine ? (
+                          <span className={`msg-state ${state}`}>
+                            <span className="ticks">{state === 'sent' ? '✓' : '✓✓'}</span>
+                            <span className="state-label">{stateLabel}</span>
+                          </span>
+                        ) : null}
+                      </div>
                     </button>
                   </div>
                 );
@@ -274,10 +291,10 @@ export default function MessengerPage() {
         <div className="messenger-meta-overlay" onClick={() => setSelectedMessageMeta(null)}>
           <div className="messenger-meta-card" onClick={(e) => e.stopPropagation()}>
             <h4>Mesaj detayı</h4>
-            <div className="messenger-meta-row"><span>Yazıldı (cihaz)</span><strong>{selectedMessageMeta.clientWrittenAt || '-'}</strong></div>
-            <div className="messenger-meta-row"><span>Sunucuya ulaştı</span><strong>{selectedMessageMeta.serverReceivedAt || selectedMessageMeta.createdAt || '-'}</strong></div>
-            <div className="messenger-meta-row"><span>Karşıya iletildi</span><strong>{selectedMessageMeta.deliveredAt || '-'}</strong></div>
-            <div className="messenger-meta-row"><span>Okundu</span><strong>{selectedMessageMeta.readAt || '-'}</strong></div>
+            <div className="messenger-meta-row"><span>Yazıldı (cihaz)</span><strong>{selectedMessageMeta.clientWrittenAt || selectedMessageMeta.createdAt || 'bilgi yok'}</strong></div>
+            <div className="messenger-meta-row"><span>Sunucuya ulaştı</span><strong>{selectedMessageMeta.serverReceivedAt || selectedMessageMeta.createdAt || 'bilgi yok'}</strong></div>
+            <div className="messenger-meta-row"><span>Karşıya iletildi</span><strong>{selectedMessageMeta.deliveredAt || 'henüz iletilmedi'}</strong></div>
+            <div className="messenger-meta-row"><span>Okundu</span><strong>{selectedMessageMeta.readAt || 'henüz okunmadı'}</strong></div>
             <button className="btn" onClick={() => setSelectedMessageMeta(null)}>Kapat</button>
           </div>
         </div>

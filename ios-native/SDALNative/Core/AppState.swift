@@ -22,6 +22,14 @@ final class AppState: ObservableObject {
         session = try await api.fetchSession()
     }
 
+    func refreshSession() async {
+        do {
+            session = try await api.fetchSession()
+        } catch {
+            session = nil
+        }
+    }
+
     func logout() async {
         do {
             try await api.logout()

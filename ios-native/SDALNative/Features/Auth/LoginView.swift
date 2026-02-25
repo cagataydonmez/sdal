@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 private enum AuthSheet: String, Identifiable {
     case register
@@ -18,6 +19,11 @@ struct LoginView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var sheet: AuthSheet?
+    @State private var oauthProviders: [OAuthProvider] = []
+    @State private var oauthURL: URL?
+    @State private var loadingOAuth = false
+
+    private let api = APIClient.shared
 
     var body: some View {
         NavigationStack {
@@ -62,6 +68,30 @@ struct LoginView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(isLoading || username.isEmpty || password.isEmpty)
 
+                            if !oauthProviders.isEmpty {
+                                Divider()
+                                    .padding(.vertical, 4)
+
+                                VStack(spacing: 8) {
+                                    ForEach(oauthProviders) { provider in
+                                        Button {
+                                            startOAuth(provider)
+                                        } label: {
+                                            HStack {
+                                                Text("\(provider.provider == "google" ? "Google" : "X") ile devam et")
+                                                Spacer()
+                                                if loadingOAuth {
+                                                    ProgressView()
+                                                }
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .disabled(loadingOAuth)
+                                    }
+                                }
+                            }
+
                             HStack {
                                 Button(i18n.t("register")) { sheet = .register }
                                 Spacer()
@@ -91,6 +121,21 @@ struct LoginView: View {
                 case .reset: PasswordResetSheet()
                 }
             }
+            .sheet(isPresented: Binding(
+                get: { oauthURL != nil },
+                set: { presented in if !presented { oauthURL = nil } }
+            )) {
+                OAuthWebSheet(startURL: oauthURL ?? AppConfig.baseURL) { completed in
+                    oauthURL = nil
+                    loadingOAuth = false
+                    if completed {
+                        Task { await appState.refreshSession() }
+                    }
+                }
+            }
+            .task {
+                await loadOAuthProviders()
+            }
         }
     }
 
@@ -103,6 +148,111 @@ struct LoginView: View {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    private func loadOAuthProviders() async {
+        do {
+            let providers = try await api.fetchOAuthProviders()
+            oauthProviders = providers.filter { $0.provider == "google" || $0.provider == "x" }
+        } catch {
+            oauthProviders = []
+        }
+    }
+
+    private func startOAuth(_ provider: OAuthProvider) {
+        let base = AppConfig.baseURL.absoluteString
+        let path = provider.startUrl ?? "/api/auth/oauth/\(provider.provider)/start"
+        guard let url = URL(string: path.hasPrefix("http") ? path : (base + path)) else {
+            return
+        }
+        loadingOAuth = true
+        oauthURL = url
+    }
+}
+
+private struct OAuthWebSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let startURL: URL
+    let onComplete: (Bool) -> Void
+
+    var body: some View {
+        NavigationStack {
+            OAuthWebView(startURL: startURL) { success in
+                onComplete(success)
+                dismiss()
+            }
+            .navigationTitle("Sosyal Giris")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Kapat") {
+                        onComplete(false)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct OAuthWebView: UIViewRepresentable {
+    let startURL: URL
+    let onComplete: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onComplete: onComplete)
+    }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = context.coordinator
+        context.coordinator.webView = webView
+        webView.load(URLRequest(url: startURL))
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        weak var webView: WKWebView?
+        let onComplete: (Bool) -> Void
+        var completed = false
+
+        init(onComplete: @escaping (Bool) -> Void) {
+            self.onComplete = onComplete
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            syncCookies(from: webView)
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+            let path = url.path.lowercased()
+            let query = url.query?.lowercased() ?? ""
+            if !completed && (path == "/new" || (path == "/new/login" && !query.contains("oauth="))) {
+                completed = true
+                syncCookies(from: webView)
+                onComplete(true)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
+
+        private func syncCookies(from webView: WKWebView) {
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                let storage = HTTPCookieStorage.shared
+                for cookie in cookies {
+                    storage.setCookie(cookie)
+                }
+            }
+        }
     }
 }
 

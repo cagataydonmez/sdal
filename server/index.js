@@ -896,6 +896,15 @@ runMigration('2026_02_sdal_messenger_indexes', () => {
   sqlRun('CREATE INDEX IF NOT EXISTS sdal_messenger_messages_receiver_delivered_idx ON sdal_messenger_messages(receiver_id, delivered_at)');
 });
 
+runMigration('2026_02_sdal_messenger_timestamp_backfill', () => {
+  sqlRun(
+    `UPDATE sdal_messenger_messages
+     SET client_written_at = COALESCE(client_written_at, created_at),
+         server_received_at = COALESCE(server_received_at, created_at)
+     WHERE client_written_at IS NULL OR server_received_at IS NULL`
+  );
+});
+
 migrateAddColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
 migrateAddColumn('posts', 'group_id', 'ALTER TABLE posts ADD COLUMN group_id INTEGER');
 migrateAddColumn('events', 'approved', 'ALTER TABLE events ADD COLUMN approved INTEGER DEFAULT 1');
@@ -2013,7 +2022,7 @@ function getMessengerThreadForUser(threadId, userId) {
 
 function markMessengerMessagesDelivered(threadId, receiverId) {
   const now = new Date().toISOString();
-  sqlRun(
+  const result = sqlRun(
     `UPDATE sdal_messenger_messages
      SET delivered_at = COALESCE(delivered_at, ?)
      WHERE CAST(thread_id AS INTEGER) = CAST(? AS INTEGER)
@@ -2022,6 +2031,31 @@ function markMessengerMessagesDelivered(threadId, receiverId) {
        AND COALESCE(CAST(deleted_by_receiver AS INTEGER), 0) = 0`,
     [now, threadId, receiverId]
   );
+  return {
+    deliveredAt: now,
+    changed: Number(result?.changes || 0)
+  };
+}
+
+function broadcastMessengerEvent(userIds, payload) {
+  try {
+    if (!payload || !wssMessenger || !wssMessenger.clients) return;
+    const targets = new Set(
+      (userIds || [])
+        .map((id) => Number(id || 0))
+        .filter((id) => id > 0)
+    );
+    if (!targets.size) return;
+    const outgoing = JSON.stringify(payload);
+    wssMessenger.clients.forEach((client) => {
+      if (client.readyState !== 1) return;
+      const clientUserId = Number(client.sdalUserId || 0);
+      if (!clientUserId || !targets.has(clientUserId)) return;
+      client.send(outgoing);
+    });
+  } catch {
+    // ignore ws publish errors
+  }
 }
 
 function ensureMessengerThread(userId, peerId) {
@@ -2168,23 +2202,6 @@ function getOAuthProviderConfig(provider, req) {
       scope: 'openid email profile'
     };
   }
-  if (p === 'facebook') {
-    const clientId = String(process.env.FACEBOOK_OAUTH_CLIENT_ID || '').trim();
-    const clientSecret = String(process.env.FACEBOOK_OAUTH_CLIENT_SECRET || '').trim();
-    const redirectUri = String(process.env.FACEBOOK_OAUTH_REDIRECT_URI || '').trim() || `${commonBase}/api/auth/oauth/facebook/callback`;
-    return {
-      provider: 'facebook',
-      title: 'Facebook',
-      enabled: !!(clientId && clientSecret),
-      clientId,
-      clientSecret,
-      redirectUri,
-      authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
-      tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token',
-      userInfoUrl: 'https://graph.facebook.com/me',
-      scope: 'email,public_profile'
-    };
-  }
   if (p === 'x') {
     const clientId = String(process.env.X_OAUTH_CLIENT_ID || '').trim();
     const clientSecret = String(process.env.X_OAUTH_CLIENT_SECRET || '').trim();
@@ -2206,7 +2223,7 @@ function getOAuthProviderConfig(provider, req) {
 }
 
 function getEnabledOAuthProviders(req) {
-  const providers = ['google', 'facebook', 'x']
+  const providers = ['google', 'x']
     .map((provider) => getOAuthProviderConfig(provider, req))
     .filter(Boolean);
   return providers
@@ -2229,18 +2246,6 @@ async function oauthFetchToken(config, code, verifier) {
       body: body.toString()
     });
     if (!resp.ok) throw new Error(`Google token failed (${resp.status})`);
-    const json = await resp.json();
-    return String(json.access_token || '');
-  }
-  if (config.provider === 'facebook') {
-    const params = new URLSearchParams({
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      redirect_uri: config.redirectUri,
-      code
-    });
-    const resp = await fetch(`${config.tokenUrl}?${params.toString()}`);
-    if (!resp.ok) throw new Error(`Facebook token failed (${resp.status})`);
     const json = await resp.json();
     return String(json.access_token || '');
   }
@@ -2283,25 +2288,6 @@ async function oauthFetchProfile(config, accessToken) {
       lastName: String(json.family_name || '').trim(),
       displayName: String(json.name || '').trim(),
       usernameSeed: String(json.name || json.email || json.sub || ''),
-      raw: json
-    };
-  }
-  if (config.provider === 'facebook') {
-    const params = new URLSearchParams({
-      fields: 'id,name,first_name,last_name,email',
-      access_token: accessToken
-    });
-    const resp = await fetch(`${config.userInfoUrl}?${params.toString()}`);
-    if (!resp.ok) throw new Error(`Facebook profile failed (${resp.status})`);
-    const json = await resp.json();
-    return {
-      providerUserId: String(json.id || ''),
-      email: normalizeEmail(json.email || ''),
-      emailVerified: !!json.email,
-      firstName: String(json.first_name || '').trim(),
-      lastName: String(json.last_name || '').trim(),
-      displayName: String(json.name || '').trim(),
-      usernameSeed: String(json.name || json.email || json.id || ''),
       raw: json
     };
   }
@@ -4664,7 +4650,15 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
 app.get('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => {
   const thread = getMessengerThreadForUser(req.params.id, req.session.userId);
   if (!thread) return res.status(404).send('Sohbet bulunamadı.');
-  markMessengerMessagesDelivered(thread.id, req.session.userId);
+  const delivered = markMessengerMessagesDelivered(thread.id, req.session.userId);
+  if (delivered.changed > 0) {
+    broadcastMessengerEvent([thread.user_a_id, thread.user_b_id], {
+      type: 'messenger:delivered',
+      threadId: Number(thread.id),
+      byUserId: Number(req.session.userId),
+      deliveredAt: delivered.deliveredAt
+    });
+  }
   const limit = Math.min(Math.max(parseInt(req.query.limit || '60', 10), 1), 120);
   const beforeId = parseInt(req.query.beforeId || '0', 10) || 0;
   const params = [thread.id, req.session.userId, req.session.userId];
@@ -4743,6 +4737,13 @@ app.post('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => 
      WHERE m.id = ?`,
     [id]
   );
+  if (item) {
+    broadcastMessengerEvent([thread.user_a_id, thread.user_b_id], {
+      type: 'messenger:new',
+      threadId: Number(thread.id),
+      item
+    });
+  }
   res.status(201).json({ ok: true, item });
 });
 
@@ -4750,15 +4751,24 @@ app.post('/api/sdal-messenger/threads/:id/read', requireAuth, (req, res) => {
   const thread = getMessengerThreadForUser(req.params.id, req.session.userId);
   if (!thread) return res.status(404).send('Sohbet bulunamadı.');
   const now = new Date().toISOString();
-  sqlRun(
+  const result = sqlRun(
     `UPDATE sdal_messenger_messages
-     SET read_at = ?
+     SET read_at = ?,
+         delivered_at = COALESCE(delivered_at, ?)
      WHERE CAST(thread_id AS INTEGER) = CAST(? AS INTEGER)
        AND CAST(receiver_id AS INTEGER) = CAST(? AS INTEGER)
        AND read_at IS NULL
        AND COALESCE(CAST(deleted_by_receiver AS INTEGER), 0) = 0`,
-    [now, thread.id, req.session.userId]
+    [now, now, thread.id, req.session.userId]
   );
+  if (Number(result?.changes || 0) > 0) {
+    broadcastMessengerEvent([thread.user_a_id, thread.user_b_id], {
+      type: 'messenger:read',
+      threadId: Number(thread.id),
+      byUserId: Number(req.session.userId),
+      readAt: now
+    });
+  }
   res.json({ ok: true });
 });
 
@@ -8299,4 +8309,20 @@ wss.on('connection', (ws, req) => {
       // ignore
     }
   });
+});
+
+const wssMessenger = new WebSocketServer({ server, path: '/ws/messenger' });
+wssMessenger.on('connection', (ws, req) => {
+  try {
+    const url = new URL(req.url || '/ws/messenger', 'http://localhost');
+    const userId = Number(url.searchParams.get('userId') || 0);
+    ws.sdalUserId = userId > 0 ? userId : 0;
+  } catch {
+    ws.sdalUserId = 0;
+  }
+  try {
+    ws.send(JSON.stringify({ type: 'messenger:hello' }));
+  } catch {
+    // ignore
+  }
 });

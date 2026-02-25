@@ -15,6 +15,16 @@ enum APIError: Error, LocalizedError {
 }
 
 struct EmptyResponse: Decodable {}
+struct OAuthProvidersEnvelope: Decodable {
+    let providers: [OAuthProvider]
+}
+struct OAuthProvider: Decodable, Identifiable {
+    let provider: String
+    let title: String?
+    let startUrl: String?
+
+    var id: String { provider }
+}
 
 struct DownloadedFile {
     let fileName: String
@@ -209,6 +219,11 @@ final class APIClient {
             throw APIError.invalidResponse
         }
         return user
+    }
+
+    func fetchOAuthProviders() async throws -> [OAuthProvider] {
+        let payload = try await request("/auth/oauth/providers", as: OAuthProvidersEnvelope.self)
+        return payload.providers
     }
 
     func logout() async throws {
