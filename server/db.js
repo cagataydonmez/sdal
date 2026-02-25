@@ -138,6 +138,7 @@ function normalizePgSql(sql) {
   return String(sql || '')
     .replace(/\bAUTOINCREMENT\b/gi, '')
     .replace(/\bINTEGER\s+PRIMARY\s+KEY\b/gi, 'BIGSERIAL PRIMARY KEY')
+    .replace(/\bDATETIME\b/gi, 'TIMESTAMP')
     .replace(/\bIFNULL\s*\(/gi, 'COALESCE(')
     .replace(/datetime\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP');
 }
