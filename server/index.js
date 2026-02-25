@@ -21,6 +21,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 8787;
+const isProd = process.env.NODE_ENV === 'production';
 app.set('trust proxy', true);
 
 app.use(morgan('dev'));
@@ -33,7 +34,10 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 2
+      maxAge: 1000 * 60 * 60 * 2,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProd
     }
   })
 );
@@ -130,7 +134,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const legacyDir = path.resolve(__dirname, '../client/public/legacy');
+const legacyDir = path.resolve(__dirname, '../frontend-classic/public/legacy');
 app.use('/legacy', express.static(legacyDir));
 app.use('/smiley', express.static(path.join(legacyDir, 'smiley')));
 
@@ -1912,7 +1916,7 @@ function filterKufur(text) {
   }
 }
 
-const legacyMediaDir = path.resolve(__dirname, '../client/public/legacy');
+const legacyMediaDir = path.resolve(__dirname, '../frontend-classic/public/legacy');
 
 function resolveMediaFile(file) {
   if (!file) return null;
@@ -7157,8 +7161,8 @@ app.post('/api/games/arcade/:game/score', (req, res) => {
   res.json({ ok: true });
 });
 
-// Serve modern (sdal_new) frontend
-const modernDist = path.resolve(__dirname, '../../sdal_new/dist');
+// Serve modern frontend
+const modernDist = path.resolve(__dirname, '../frontend-modern/dist');
 if (fs.existsSync(modernDist)) {
   app.use('/new', express.static(modernDist));
   app.use('/sdal_new', express.static(modernDist));
@@ -7201,7 +7205,7 @@ app.get(/\/*.asp$/i, (req, res) => {
 });
 
 // Serve frontend build in production
-const clientDist = path.resolve(__dirname, '../client/dist');
+const clientDist = path.resolve(__dirname, '../frontend-classic/dist');
 app.use(express.static(clientDist));
 app.get('*', (req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));

@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "npm --prefix sdal-modern run build && npm --prefix sdal_new run build",
-    "start": "npm --prefix sdal-modern run start"
+    "build": "npm --prefix frontend-classic run build && npm --prefix frontend-modern run build",
+    "start": "npm --prefix server run start"
   },
   "engines": {
     "node": ">=20"

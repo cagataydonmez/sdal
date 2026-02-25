@@ -1,4 +1,4 @@
-name: Deploy To Oracle
+name: Deploy To DigitalOcean
 
 on:
   push:
@@ -18,11 +18,13 @@ jobs:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ${{ secrets.ORACLE_USER }}
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: ${{ secrets.ORACLE_PORT }}
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: ${{ secrets.DO_PORT }}
           script_stop: true
           script: |
             set -euo pipefail
-            bash "apps/deploy-sdal.sh"
+            export APP_DIR="${{ secrets.DO_APP_DIR }}"
+            export BRANCH="main"
+            bash "$APP_DIR/ops/deploy-sdal.sh"

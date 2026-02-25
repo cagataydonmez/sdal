@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",
@@ -16,6 +17,7 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^8.0.1",
+    "pg": "^8.13.1",
     "sharp": "^0.33.4",
     "ws": "^8.17.0"
   }
