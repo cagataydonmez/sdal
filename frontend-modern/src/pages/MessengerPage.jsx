@@ -35,6 +35,8 @@ export default function MessengerPage() {
   const [selectedMessageMeta, setSelectedMessageMeta] = useState(null);
   const threadsReq = useRef(0);
   const messagesReq = useRef(0);
+  const wsRef = useRef(null);
+  const wsRetryRef = useRef(null);
 
   const selectedThread = useMemo(
     () => threads.find((t) => String(t.id) === String(selectedThreadId)) || null,
@@ -110,6 +112,50 @@ export default function MessengerPage() {
     }, 7000);
     return () => clearInterval(id);
   }, [loadThreads, loadMessages, selectedThreadId]);
+
+  useEffect(() => {
+    if (!currentUserId) return undefined;
+    let closed = false;
+
+    const connect = () => {
+      if (closed) return;
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${proto}://${window.location.host}/ws/messenger?userId=${encodeURIComponent(String(currentUserId))}`);
+      wsRef.current = ws;
+      ws.onmessage = (evt) => {
+        try {
+          const payload = JSON.parse(String(evt?.data || '{}'));
+          if (!String(payload?.type || '').startsWith('messenger:')) return;
+          const eventThreadId = asInt(payload?.threadId ?? payload?.item?.threadId ?? payload?.item?.thread_id);
+          if (eventThreadId && selectedThreadId && String(eventThreadId) === String(selectedThreadId)) {
+            loadMessages(selectedThreadId);
+          } else {
+            loadThreads(true);
+          }
+        } catch {
+          // no-op
+        }
+      };
+      ws.onclose = () => {
+        if (closed) return;
+        clearTimeout(wsRetryRef.current);
+        wsRetryRef.current = setTimeout(connect, 1200);
+      };
+      ws.onerror = () => {
+        try { ws.close(); } catch {}
+      };
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      clearTimeout(wsRetryRef.current);
+      wsRetryRef.current = null;
+      try { wsRef.current?.close(); } catch {}
+      wsRef.current = null;
+    };
+  }, [currentUserId, selectedThreadId, loadMessages, loadThreads]);
 
   useEffect(() => {
     if (!contactSearch.trim()) {
@@ -246,7 +292,6 @@ export default function MessengerPage() {
               <h3>{selectedThread ? `@${selectedThread?.peer?.kadi || 'uye'}` : 'Sohbet seçin'}</h3>
             </div>
             <div className="messenger-messages">
-              {loadingMessages ? <div className="muted">Mesajlar yükleniyor...</div> : null}
               {!loadingMessages && !messages.length ? <div className="muted">Henüz mesaj yok.</div> : null}
               {messages.map((m) => {
                 const senderId = asInt(m?.senderId ?? m?.sender_id);
