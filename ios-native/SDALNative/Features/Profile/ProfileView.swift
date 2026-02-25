@@ -776,7 +776,7 @@ private struct HelpView: View {
     }
 }
 
-private struct SDALMessengerView: View {
+struct SDALMessengerView: View {
     @State private var threads: [MessengerThread] = []
     @State private var isLoading = false
     @State private var error: String?
@@ -964,6 +964,7 @@ private struct SDALMessengerThreadView: View {
     @State private var isLoading = false
     @State private var isSending = false
     @State private var error: String?
+    @State private var selectedMessageMeta: MessengerMessage?
 
     let thread: MessengerThread
     private let api = APIClient.shared
@@ -978,6 +979,9 @@ private struct SDALMessengerThreadView: View {
                             ForEach(messages) { message in
                                 bubble(message)
                                     .id(message.id)
+                                    .onTapGesture {
+                                        selectedMessageMeta = message
+                                    }
                             }
                         }
                         .padding(.horizontal, 10)
@@ -1010,6 +1014,32 @@ private struct SDALMessengerThreadView: View {
             if messages.isEmpty {
                 await load()
             }
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                await load()
+            }
+        }
+        .sheet(item: $selectedMessageMeta) { msg in
+            NavigationStack {
+                List {
+                    Section("Zaman Bilgileri") {
+                        detailRow("Yazildi (cihaz)", msg.clientWrittenAt)
+                        detailRow("Sunucuya ulasti", msg.serverReceivedAt ?? msg.createdAt)
+                        detailRow("Karsiya iletildi", msg.deliveredAt)
+                        detailRow("Okundu", msg.readAt)
+                    }
+                    Section("Mesaj") {
+                        Text(msg.body ?? "")
+                            .font(.body)
+                            .foregroundStyle(SDALTheme.ink)
+                    }
+                }
+                .navigationTitle("Mesaj Detayi")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+            .presentationDetents([.fraction(0.35), .medium])
         }
     }
 
@@ -1045,24 +1075,24 @@ private struct SDALMessengerThreadView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(msg.body ?? "")
                     .font(.body)
-                    .foregroundStyle(Color.black.opacity(0.88))
+                    .foregroundStyle(SDALTheme.ink)
                 HStack(spacing: 4) {
                     Text(msg.createdAt ?? "")
                         .font(.caption2)
-                        .foregroundStyle(Color.black.opacity(0.52))
+                        .foregroundStyle(SDALTheme.muted)
                     if isMine {
-                        Image(systemName: (msg.readAt?.isEmpty == false) ? "checkmark.circle.fill" : "checkmark")
+                        Image(systemName: (msg.readAt?.isEmpty == false) ? "checkmark.circle.fill" : ((msg.deliveredAt?.isEmpty == false) ? "checkmark.circle" : "checkmark"))
                             .font(.caption2)
-                            .foregroundStyle((msg.readAt?.isEmpty == false) ? Color.blue : Color.black.opacity(0.45))
+                            .foregroundStyle((msg.readAt?.isEmpty == false) ? SDALTheme.secondary : SDALTheme.muted)
                     }
                 }
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 8)
-            .background(isMine ? Color(red: 0.86, green: 0.96, blue: 0.78) : Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(isMine ? SDALTheme.success.opacity(0.22) : SDALTheme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                    .stroke(SDALTheme.line, lineWidth: 1)
             )
             if !isMine { Spacer(minLength: 44) }
         }
@@ -1093,8 +1123,20 @@ private struct SDALMessengerThreadView: View {
                 await load()
             }
             draft = ""
+            try? await api.markMessengerThreadRead(threadId: thread.id)
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    @ViewBuilder
+    private func detailRow(_ title: String, _ value: String?) -> some View {
+        let text = (value?.isEmpty == false) ? (value ?? "-") : "-"
+        HStack {
+            Text(title)
+            Spacer()
+            Text(text)
+                .foregroundStyle(.secondary)
         }
     }
 }

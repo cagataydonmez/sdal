@@ -319,6 +319,9 @@ struct MessengerMessage: Decodable, Identifiable {
     let senderId: Int?
     let receiverId: Int?
     let body: String?
+    let clientWrittenAt: String?
+    let serverReceivedAt: String?
+    let deliveredAt: String?
     let createdAt: String?
     let readAt: String?
     let kadi: String?
@@ -328,8 +331,10 @@ struct MessengerMessage: Decodable, Identifiable {
     let verified: Bool?
 
     private enum CodingKeys: String, CodingKey {
-        case id, threadId, senderId, receiverId, body, createdAt, readAt, kadi, isim, soyisim, resim, verified
-        case thread_id, sender_id, receiver_id, created_at, read_at
+        case id, threadId, senderId, receiverId, body
+        case clientWrittenAt, serverReceivedAt, deliveredAt
+        case createdAt, readAt, kadi, isim, soyisim, resim, verified
+        case thread_id, sender_id, receiver_id, client_written_at, server_received_at, delivered_at, created_at, read_at
     }
 
     init(from decoder: Decoder) throws {
@@ -342,6 +347,9 @@ struct MessengerMessage: Decodable, Identifiable {
         self.senderId = c.decodeLossyInt(forKey: .senderId) ?? c.decodeLossyInt(forKey: .sender_id)
         self.receiverId = c.decodeLossyInt(forKey: .receiverId) ?? c.decodeLossyInt(forKey: .receiver_id)
         self.body = c.decodeLossyString(forKey: .body)
+        self.clientWrittenAt = c.decodeLossyString(forKey: .clientWrittenAt) ?? c.decodeLossyString(forKey: .client_written_at)
+        self.serverReceivedAt = c.decodeLossyString(forKey: .serverReceivedAt) ?? c.decodeLossyString(forKey: .server_received_at)
+        self.deliveredAt = c.decodeLossyString(forKey: .deliveredAt) ?? c.decodeLossyString(forKey: .delivered_at)
         self.createdAt = c.decodeLossyString(forKey: .createdAt) ?? c.decodeLossyString(forKey: .created_at)
         self.readAt = c.decodeLossyString(forKey: .readAt) ?? c.decodeLossyString(forKey: .read_at)
         self.kadi = c.decodeLossyString(forKey: .kadi)

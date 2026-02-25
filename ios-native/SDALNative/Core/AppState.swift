@@ -35,6 +35,7 @@ final class AppState: ObservableObject {
 enum AppTab: Hashable {
     case feed
     case explore
+    case messenger
     case messages
     case notifications
     case profile
@@ -99,6 +100,10 @@ final class AppRouter: ObservableObject {
         if normalized.contains("/chat") {
             selectedTab = .messages
             openMessagesDestination = .chat
+            return
+        }
+        if normalized.contains("/new/messenger") || normalized.contains("/messenger") {
+            selectedTab = .messenger
             return
         }
         if normalized.contains("/notifications") {
@@ -233,6 +238,7 @@ final class LocalizationManager: ObservableObject {
             "password": "Sifre",
             "feed": "Akis",
             "explore": "Kesfet",
+            "messenger": "Messenger",
             "messages": "Mesajlar",
             "notifications": "Bildirimler",
             "profile": "Profil",
@@ -621,6 +627,7 @@ final class LocalizationManager: ObservableObject {
             "password": "Password",
             "feed": "Feed",
             "explore": "Explore",
+            "messenger": "Messenger",
             "messages": "Messages",
             "notifications": "Notifications",
             "profile": "Profile",

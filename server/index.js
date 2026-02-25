@@ -777,7 +777,7 @@ sqlRun(`CREATE TABLE IF NOT EXISTS email_sablon (
   ad TEXT,
   konu TEXT,
   icerik TEXT,
-  olusturma DateTime
+  olusturma TEXT
 )`);
 sqlRun(`CREATE TABLE IF NOT EXISTS oauth_accounts (
   id INTEGER PRIMARY KEY,
@@ -871,11 +871,17 @@ sqlRun(`CREATE TABLE IF NOT EXISTS sdal_messenger_messages (
   sender_id INTEGER,
   receiver_id INTEGER,
   body TEXT,
+  client_written_at TEXT,
+  server_received_at TEXT,
+  delivered_at TEXT,
   created_at TEXT,
   read_at TEXT,
   deleted_by_sender INTEGER DEFAULT 0,
   deleted_by_receiver INTEGER DEFAULT 0
 )`);
+migrateAddColumn('sdal_messenger_messages', 'client_written_at', 'ALTER TABLE sdal_messenger_messages ADD COLUMN client_written_at TEXT');
+migrateAddColumn('sdal_messenger_messages', 'server_received_at', 'ALTER TABLE sdal_messenger_messages ADD COLUMN server_received_at TEXT');
+migrateAddColumn('sdal_messenger_messages', 'delivered_at', 'ALTER TABLE sdal_messenger_messages ADD COLUMN delivered_at TEXT');
 migrateAddColumn('sdal_messenger_threads', 'created_at', 'ALTER TABLE sdal_messenger_threads ADD COLUMN created_at TEXT');
 migrateAddColumn('sdal_messenger_threads', 'updated_at', 'ALTER TABLE sdal_messenger_threads ADD COLUMN updated_at TEXT');
 migrateAddColumn('sdal_messenger_threads', 'last_message_at', 'ALTER TABLE sdal_messenger_threads ADD COLUMN last_message_at TEXT');
@@ -887,6 +893,7 @@ runMigration('2026_02_sdal_messenger_indexes', () => {
   sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS sdal_messenger_threads_user_pair_uq ON sdal_messenger_threads(user_a_id, user_b_id)');
   sqlRun('CREATE INDEX IF NOT EXISTS sdal_messenger_messages_thread_created_idx ON sdal_messenger_messages(thread_id, created_at DESC)');
   sqlRun('CREATE INDEX IF NOT EXISTS sdal_messenger_messages_receiver_read_idx ON sdal_messenger_messages(receiver_id, read_at)');
+  sqlRun('CREATE INDEX IF NOT EXISTS sdal_messenger_messages_receiver_delivered_idx ON sdal_messenger_messages(receiver_id, delivered_at)');
 });
 
 migrateAddColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
@@ -2002,6 +2009,19 @@ function getMessengerThreadForUser(threadId, userId) {
   if (!thread) return null;
   if (!sameUserId(thread.user_a_id, userId) && !sameUserId(thread.user_b_id, userId)) return null;
   return thread;
+}
+
+function markMessengerMessagesDelivered(threadId, receiverId) {
+  const now = new Date().toISOString();
+  sqlRun(
+    `UPDATE sdal_messenger_messages
+     SET delivered_at = COALESCE(delivered_at, ?)
+     WHERE CAST(thread_id AS INTEGER) = CAST(? AS INTEGER)
+       AND CAST(receiver_id AS INTEGER) = CAST(? AS INTEGER)
+       AND delivered_at IS NULL
+       AND COALESCE(CAST(deleted_by_receiver AS INTEGER), 0) = 0`,
+    [now, threadId, receiverId]
+  );
 }
 
 function ensureMessengerThread(userId, peerId) {
@@ -4523,6 +4543,15 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
   const q = String(req.query.q || '').trim();
   const term = q ? `%${q.toLowerCase()}%` : null;
   const userId = req.session.userId;
+  const deliveredNow = new Date().toISOString();
+  sqlRun(
+    `UPDATE sdal_messenger_messages
+     SET delivered_at = COALESCE(delivered_at, ?)
+     WHERE CAST(receiver_id AS INTEGER) = CAST(? AS INTEGER)
+       AND delivered_at IS NULL
+       AND COALESCE(CAST(deleted_by_receiver AS INTEGER), 0) = 0`,
+    [deliveredNow, userId]
+  );
 
   const filterParams = [];
   let filterSql = '';
@@ -4565,6 +4594,10 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
        lm.body AS last_message_body,
        lm.created_at AS last_message_created_at,
        lm.sender_id AS last_message_sender_id,
+       lm.client_written_at AS last_message_client_written_at,
+       lm.server_received_at AS last_message_server_received_at,
+       lm.delivered_at AS last_message_delivered_at,
+       lm.read_at AS last_message_read_at,
        (
          SELECT COUNT(*)
          FROM sdal_messenger_messages um
@@ -4616,7 +4649,11 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
       id: row.last_message_id,
       body: row.last_message_body,
       createdAt: row.last_message_created_at,
-      senderId: row.last_message_sender_id
+      senderId: row.last_message_sender_id,
+      clientWrittenAt: row.last_message_client_written_at,
+      serverReceivedAt: row.last_message_server_received_at,
+      deliveredAt: row.last_message_delivered_at,
+      readAt: row.last_message_read_at
     } : null,
     unreadCount: Number(row.unread_count || 0)
   }));
@@ -4627,6 +4664,7 @@ app.get('/api/sdal-messenger/threads', requireAuth, (req, res) => {
 app.get('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => {
   const thread = getMessengerThreadForUser(req.params.id, req.session.userId);
   if (!thread) return res.status(404).send('Sohbet bulunamadı.');
+  markMessengerMessagesDelivered(thread.id, req.session.userId);
   const limit = Math.min(Math.max(parseInt(req.query.limit || '60', 10), 1), 120);
   const beforeId = parseInt(req.query.beforeId || '0', 10) || 0;
   const params = [thread.id, req.session.userId, req.session.userId];
@@ -4639,7 +4677,16 @@ app.get('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => {
 
   const items = sqlAll(
     `SELECT
-       m.id, m.thread_id, m.sender_id, m.receiver_id, m.body, m.created_at, m.read_at,
+       m.id,
+       m.thread_id AS threadId,
+       m.sender_id AS senderId,
+       m.receiver_id AS receiverId,
+       m.body,
+       m.client_written_at AS clientWrittenAt,
+       m.server_received_at AS serverReceivedAt,
+       m.delivered_at AS deliveredAt,
+       m.created_at AS createdAt,
+       m.read_at AS readAt,
        u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM sdal_messenger_messages m
      LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(m.sender_id AS INTEGER)
@@ -4663,13 +4710,15 @@ app.post('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => 
   if (!thread) return res.status(404).send('Sohbet bulunamadı.');
   const text = sanitizePlainUserText(String(req.body?.text || '').trim(), 4000);
   if (!text) return res.status(400).send('Mesaj boş olamaz.');
+  const clientWrittenAtRaw = String(req.body?.clientWrittenAt || '').trim();
+  const clientWrittenAt = clientWrittenAtRaw || null;
   const receiverId = sameUserId(thread.user_a_id, req.session.userId) ? thread.user_b_id : thread.user_a_id;
   const now = new Date().toISOString();
   const result = sqlRun(
     `INSERT INTO sdal_messenger_messages
-      (thread_id, sender_id, receiver_id, body, created_at, read_at, deleted_by_sender, deleted_by_receiver)
-     VALUES (?, ?, ?, ?, ?, NULL, 0, 0)`,
-    [thread.id, req.session.userId, receiverId, text, now]
+      (thread_id, sender_id, receiver_id, body, client_written_at, server_received_at, delivered_at, created_at, read_at, deleted_by_sender, deleted_by_receiver)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, 0, 0)`,
+    [thread.id, req.session.userId, receiverId, text, clientWrittenAt, now, now]
   );
   sqlRun(
     'UPDATE sdal_messenger_threads SET updated_at = ?, last_message_at = ? WHERE id = ?',
@@ -4678,7 +4727,16 @@ app.post('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => 
   const id = result?.lastInsertRowid;
   const item = sqlGet(
     `SELECT
-       m.id, m.thread_id, m.sender_id, m.receiver_id, m.body, m.created_at, m.read_at,
+       m.id,
+       m.thread_id AS threadId,
+       m.sender_id AS senderId,
+       m.receiver_id AS receiverId,
+       m.body,
+       m.client_written_at AS clientWrittenAt,
+       m.server_received_at AS serverReceivedAt,
+       m.delivered_at AS deliveredAt,
+       m.created_at AS createdAt,
+       m.read_at AS readAt,
        u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM sdal_messenger_messages m
      LEFT JOIN uyeler u ON CAST(u.id AS INTEGER) = CAST(m.sender_id AS INTEGER)

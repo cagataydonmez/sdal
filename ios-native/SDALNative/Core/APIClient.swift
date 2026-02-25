@@ -333,8 +333,17 @@ final class APIClient {
     }
 
     func sendMessengerMessage(threadId: Int, text: String) async throws -> MessengerMessage? {
-        struct Body: Encodable { let text: String }
-        let payload = try await request("/sdal-messenger/threads/\(threadId)/messages", method: "POST", body: Body(text: text), as: MessengerMessageCreateEnvelope.self)
+        struct Body: Encodable {
+            let text: String
+            let clientWrittenAt: String
+        }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let payload = try await request(
+            "/sdal-messenger/threads/\(threadId)/messages",
+            method: "POST",
+            body: Body(text: text, clientWrittenAt: now),
+            as: MessengerMessageCreateEnvelope.self
+        )
         return payload.item
     }
 

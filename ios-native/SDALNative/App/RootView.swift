@@ -38,6 +38,12 @@ private struct MainTabView: View {
                 .tabItem { Label(i18n.t("explore"), systemImage: "person.3.fill") }
                 .tag(AppTab.explore)
 
+            NavigationStack {
+                SDALMessengerView()
+            }
+            .tabItem { Label(i18n.t("messenger"), systemImage: "message.fill") }
+            .tag(AppTab.messenger)
+
             if unreadMessages > 0 {
                 MessagesView()
                     .tabItem { Label(i18n.t("messages"), systemImage: "bubble.left.and.bubble.right.fill") }

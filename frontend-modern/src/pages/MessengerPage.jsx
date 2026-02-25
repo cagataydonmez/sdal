@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
@@ -19,6 +19,9 @@ export default function MessengerPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [selectedMessageMeta, setSelectedMessageMeta] = useState(null);
+  const threadsReq = useRef(0);
+  const messagesReq = useRef(0);
 
   const selectedThread = useMemo(
     () => threads.find((t) => String(t.id) === String(selectedThreadId)) || null,
@@ -26,6 +29,7 @@ export default function MessengerPage() {
   );
 
   const loadThreads = useCallback(async (silent = false) => {
+    const reqId = ++threadsReq.current;
     if (!silent) setLoadingThreads(true);
     try {
       const res = await fetch(`/api/sdal-messenger/threads?limit=80&offset=0&q=${encodeURIComponent(search.trim())}`, {
@@ -35,6 +39,7 @@ export default function MessengerPage() {
         throw new Error(await res.text());
       }
       const payload = await res.json();
+      if (reqId !== threadsReq.current) return;
       const next = payload.items || [];
       setThreads(next);
       if (!selectedThreadId && next.length) {
@@ -50,6 +55,7 @@ export default function MessengerPage() {
   }, [search, selectedThreadId]);
 
   const loadMessages = useCallback(async (threadId) => {
+    const reqId = ++messagesReq.current;
     if (!threadId) {
       setMessages([]);
       return;
@@ -61,6 +67,7 @@ export default function MessengerPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       const payload = await res.json();
+      if (reqId !== messagesReq.current) return;
       setMessages(payload.items || []);
       await fetch(`/api/sdal-messenger/threads/${threadId}/read`, {
         method: 'POST',
@@ -136,13 +143,14 @@ export default function MessengerPage() {
   async function sendMessage() {
     const text = draft.trim();
     if (!text || !selectedThreadId) return;
+    const clientWrittenAt = new Date().toISOString();
     setSending(true);
     try {
       const res = await fetch(`/api/sdal-messenger/threads/${selectedThreadId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text, clientWrittenAt })
       });
       if (!res.ok) throw new Error(await res.text());
       const payload = await res.json();
@@ -152,7 +160,12 @@ export default function MessengerPage() {
         await loadMessages(selectedThreadId);
       }
       setDraft('');
+      await fetch(`/api/sdal-messenger/threads/${selectedThreadId}/read`, {
+        method: 'POST',
+        credentials: 'include'
+      });
       await loadThreads(true);
+      await loadMessages(selectedThreadId);
     } catch (err) {
       setError(String(err?.message || 'Mesaj gönderilemedi.'));
     } finally {
@@ -226,10 +239,10 @@ export default function MessengerPage() {
                 const mine = String(m.senderId) === String(user?.id);
                 return (
                   <div key={m.id} className={`messenger-bubble-row ${mine ? 'mine' : 'theirs'}`}>
-                    <div className="messenger-bubble">
+                    <button className="messenger-bubble" onClick={() => setSelectedMessageMeta(m)}>
                       <div>{stripHtml(m.body)}</div>
-                      <div className="meta">{m.createdAt || ''}</div>
-                    </div>
+                      <div className="meta">{m.createdAt || ''} {mine ? (m.readAt ? '✓✓' : (m.deliveredAt ? '✓✓' : '✓')) : ''}</div>
+                    </button>
                   </div>
                 );
               })}
@@ -257,6 +270,18 @@ export default function MessengerPage() {
           </div>
         </section>
       </div>
+      {selectedMessageMeta ? (
+        <div className="messenger-meta-overlay" onClick={() => setSelectedMessageMeta(null)}>
+          <div className="messenger-meta-card" onClick={(e) => e.stopPropagation()}>
+            <h4>Mesaj detayı</h4>
+            <div className="messenger-meta-row"><span>Yazıldı (cihaz)</span><strong>{selectedMessageMeta.clientWrittenAt || '-'}</strong></div>
+            <div className="messenger-meta-row"><span>Sunucuya ulaştı</span><strong>{selectedMessageMeta.serverReceivedAt || selectedMessageMeta.createdAt || '-'}</strong></div>
+            <div className="messenger-meta-row"><span>Karşıya iletildi</span><strong>{selectedMessageMeta.deliveredAt || '-'}</strong></div>
+            <div className="messenger-meta-row"><span>Okundu</span><strong>{selectedMessageMeta.readAt || '-'}</strong></div>
+            <button className="btn" onClick={() => setSelectedMessageMeta(null)}>Kapat</button>
+          </div>
+        </div>
+      ) : null}
     </Layout>
   );
 }
