@@ -185,12 +185,25 @@ export default function AdminPage() {
 
   const refreshDashboard = useCallback(async () => {
     if (user?.admin !== 1 || !adminOk) return;
-    const [statsData, liveData] = await Promise.all([
+    const [statsResult, liveResult] = await Promise.allSettled([
       apiJson('/api/new/admin/stats'),
       apiJson('/api/new/admin/live')
     ]);
-    setStats(statsData);
-    setLive(liveData || { counts: {}, activity: [], now: '' });
+
+    if (statsResult.status === 'fulfilled') {
+      setStats(statsResult.value);
+    } else {
+      setStatus(statsResult.reason?.message || 'Dashboard istatistikleri yuklenemedi.');
+    }
+
+    if (liveResult.status === 'fulfilled') {
+      setLive(liveResult.value || { counts: {}, activity: [], now: '' });
+    } else {
+      setLive({ counts: {}, activity: [], now: '' });
+      if (statsResult.status === 'fulfilled') {
+        setStatus(liveResult.reason?.message || 'Canli veriler yuklenemedi.');
+      }
+    }
   }, [user, adminOk]);
 
   useEffect(() => {
@@ -999,7 +1012,8 @@ export default function AdminPage() {
           </div>
 
           <div className="admin-page-wrap">
-      {tab === 'dashboard' && stats ? (
+      {tab === 'dashboard' ? (
+        stats ? (
         <div className="stack">
           <div className="panel">
             <h3>Yönetim Dashboard</h3>
@@ -1122,6 +1136,14 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+        ) : (
+          <div className="panel">
+            <div className="panel-body">
+              <div className="muted">Dashboard verileri yuklenemedi. "Simdi Yenile" ile tekrar deneyin.</div>
+              <button className="btn ghost" onClick={() => refreshDashboard().catch(() => {})}>Simdi Yenile</button>
+            </div>
+          </div>
+        )
       ) : null}
 
       {tab === 'users' ? (
