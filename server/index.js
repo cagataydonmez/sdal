@@ -709,6 +709,52 @@ function normalizePostgresIdColumns() {
   });
 }
 
+function ensurePostgresIdSequences() {
+  if (dbDriver !== 'postgres') return;
+  runMigration('2026_02_pg_ensure_id_sequences', () => {
+    const rows = sqlAll(
+      `SELECT c.table_name AS table_name,
+              c.column_name AS column_name,
+              c.data_type AS data_type,
+              c.column_default AS column_default
+       FROM information_schema.columns c
+       JOIN information_schema.tables t
+         ON t.table_schema = c.table_schema
+        AND t.table_name = c.table_name
+       WHERE c.table_schema = 'public'
+         AND t.table_type = 'BASE TABLE'
+         AND c.column_name = 'id'
+         AND c.data_type IN ('smallint', 'integer', 'bigint')
+       ORDER BY c.table_name ASC`
+    );
+
+    for (const row of rows) {
+      const table = String(row?.table_name || '');
+      const defaultExpr = String(row?.column_default || '').toLowerCase();
+      if (!table) continue;
+      if (defaultExpr.includes('nextval(')) continue;
+
+      const qTable = quoteIdentifier(table);
+      const qColumn = quoteIdentifier('id');
+      const seqName = `${table}_id_seq`;
+      const qSeq = quoteIdentifier(seqName);
+      try {
+        sqlRun(`CREATE SEQUENCE IF NOT EXISTS ${qSeq}`);
+        sqlRun(`ALTER TABLE ${qTable} ALTER COLUMN ${qColumn} SET DEFAULT nextval('${seqName}')`);
+        sqlRun(
+          `SELECT setval('${seqName}', GREATEST(COALESCE((SELECT MAX(${qColumn}) FROM ${qTable}), 0), 1), true)`
+        );
+      } catch (err) {
+        writeAppLog('error', 'pg_id_sequence_ensure_failed', {
+          table,
+          sequence: seqName,
+          message: err?.message || 'unknown'
+        });
+      }
+    }
+  });
+}
+
 // Ensure admin email tables exist
 sqlRun(`CREATE TABLE IF NOT EXISTS email_kategori (
   id INTEGER PRIMARY KEY,
@@ -962,6 +1008,7 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_variant ON member_engag
 sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON engagement_ab_assignments (variant)');
 migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
 normalizePostgresIdColumns();
+ensurePostgresIdSequences();
 
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
