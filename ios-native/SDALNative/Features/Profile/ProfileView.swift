@@ -786,6 +786,7 @@ struct SDALMessengerView: View {
     @State private var wsTask: URLSessionWebSocketTask?
     @State private var wsListenerTask: Task<Void, Never>?
     @State private var wsActive = false
+    @State private var liveRefreshTask: Task<Void, Never>?
 
     private let api = APIClient.shared
 
@@ -906,10 +907,12 @@ struct SDALMessengerView: View {
             wsActive = true
             connectMessengerSocket()
             await loadThreads()
+            startLiveRefresh()
         }
         .onDisappear {
             wsActive = false
             disconnectMessengerSocket()
+            stopLiveRefresh()
         }
     }
 
@@ -987,6 +990,22 @@ struct SDALMessengerView: View {
         wsListenerTask = Task { await listenMessengerSocket(task) }
     }
 
+    private func startLiveRefresh() {
+        liveRefreshTask?.cancel()
+        liveRefreshTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if Task.isCancelled { break }
+                await loadThreads(silent: true)
+            }
+        }
+    }
+
+    private func stopLiveRefresh() {
+        liveRefreshTask?.cancel()
+        liveRefreshTask = nil
+    }
+
     private func disconnectMessengerSocket() {
         wsListenerTask?.cancel()
         wsListenerTask = nil
@@ -1040,6 +1059,7 @@ private struct SDALMessengerThreadView: View {
     @State private var wsTask: URLSessionWebSocketTask?
     @State private var wsListenerTask: Task<Void, Never>?
     @State private var wsActive = false
+    @State private var liveRefreshTask: Task<Void, Never>?
 
     let thread: MessengerThread
     private let api = APIClient.shared
@@ -1091,10 +1111,12 @@ private struct SDALMessengerThreadView: View {
             if messages.isEmpty {
                 await load()
             }
+            startLiveRefresh()
         }
         .onDisappear {
             wsActive = false
             disconnectMessengerSocket()
+            stopLiveRefresh()
         }
         .sheet(item: $selectedMessageMeta) { msg in
             NavigationStack {
@@ -1210,6 +1232,22 @@ private struct SDALMessengerThreadView: View {
         task.resume()
         wsListenerTask?.cancel()
         wsListenerTask = Task { await listenMessengerSocket(task) }
+    }
+
+    private func startLiveRefresh() {
+        liveRefreshTask?.cancel()
+        liveRefreshTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                if Task.isCancelled { break }
+                await load()
+            }
+        }
+    }
+
+    private func stopLiveRefresh() {
+        liveRefreshTask?.cancel()
+        liveRefreshTask = nil
     }
 
     private func disconnectMessengerSocket() {
