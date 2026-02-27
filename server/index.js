@@ -2250,6 +2250,29 @@ function getEnabledOAuthProviders(req) {
     .map((cfg) => ({ provider: cfg.provider, title: cfg.title, startUrl: `/api/auth/oauth/${cfg.provider}/start` }));
 }
 
+function sanitizeOAuthReturnTo(value, fallback = '/new/login') {
+  const out = String(value || '').trim();
+  if (!out.startsWith('/')) return fallback;
+  if (out.startsWith('//')) return fallback;
+  if (out.includes('\r') || out.includes('\n')) return fallback;
+  return out;
+}
+
+function withOAuthError(pathname, code) {
+  const safePath = sanitizeOAuthReturnTo(pathname, '/new/login');
+  const sep = safePath.includes('?') ? '&' : '?';
+  return `${safePath}${sep}oauth=${encodeURIComponent(String(code || 'failed'))}`;
+}
+
+function oauthLoginToSuccessPath(loginPath) {
+  const safePath = sanitizeOAuthReturnTo(loginPath, '/new/login');
+  if (safePath.endsWith('/login')) {
+    const root = safePath.slice(0, -'/login'.length);
+    return root || '/';
+  }
+  return '/new';
+}
+
 async function oauthFetchToken(config, code, verifier) {
   if (config.provider === 'google') {
     const body = new URLSearchParams({
@@ -3280,6 +3303,7 @@ app.get('/api/auth/oauth/:provider/start', (req, res) => {
   req.session.oauthState = state;
   req.session.oauthProvider = config.provider;
   req.session.oauthNative = String(req.query.native || '') === '1' ? 1 : 0;
+  req.session.oauthReturnTo = sanitizeOAuthReturnTo(req.query.returnTo, '/new/login');
 
   if (config.provider === 'x') {
     const verifier = base64Url(crypto.randomBytes(32));
@@ -3309,13 +3333,16 @@ app.get('/api/auth/oauth/:provider/start', (req, res) => {
 
 app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
   const config = getOAuthProviderConfig(req.params.provider, req);
-  if (!config || !config.enabled) return res.redirect('/new/login?oauth=disabled');
   const isNative = Number(req.session.oauthNative || 0) === 1;
+  const loginRedirectPath = sanitizeOAuthReturnTo(req.session.oauthReturnTo, '/new/login');
+  if (!config || !config.enabled) {
+    return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=disabled' : withOAuthError(loginRedirectPath, 'disabled'));
+  }
   const state = String(req.query.state || '');
   const code = String(req.query.code || '');
-  if (!code || !state) return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=invalid' : '/new/login?oauth=invalid');
+  if (!code || !state) return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=invalid' : withOAuthError(loginRedirectPath, 'invalid'));
   if (state !== String(req.session.oauthState || '') || config.provider !== String(req.session.oauthProvider || '')) {
-    return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=state' : '/new/login?oauth=state');
+    return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=state' : withOAuthError(loginRedirectPath, 'state'));
   }
 
   try {
@@ -3323,7 +3350,7 @@ app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
     const profile = await oauthFetchProfile(config, accessToken);
     const user = findOrCreateOAuthUser({ provider: config.provider, profile });
     if (!user || user.yasak === 1) {
-      return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=blocked' : '/new/login?oauth=blocked');
+      return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=blocked' : withOAuthError(loginRedirectPath, 'blocked'));
     }
     if (user.aktiv === 0) {
       sqlRun('UPDATE uyeler SET aktiv = 1 WHERE id = ?', [user.id]);
@@ -3337,16 +3364,17 @@ app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
       res.cookie('uyegiris', 'evet');
       res.cookie('uyeid', String(user.id));
       res.cookie('kadi', user.kadi);
-      res.redirect('/new');
+      res.redirect(oauthLoginToSuccessPath(loginRedirectPath));
     }
   } catch (err) {
     console.error('OAuth callback error:', config.provider, err);
-    res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=failed' : '/new/login?oauth=failed');
+    res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=failed' : withOAuthError(loginRedirectPath, 'failed'));
   } finally {
     req.session.oauthState = null;
     req.session.oauthProvider = null;
     req.session.oauthPkceVerifier = null;
     req.session.oauthNative = null;
+    req.session.oauthReturnTo = null;
   }
 });
 
