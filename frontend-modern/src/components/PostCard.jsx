@@ -162,7 +162,17 @@ export default function PostCard({ post, onRefresh, focused = false }) {
         ) : (
           <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
         )}
-        {post.image ? <img className="post-image" src={post.image} alt="" /> : null}
+        {post.image ? (
+          post.variants ? (
+            <img className="post-image"
+              src={post.variants.feedUrl}
+              srcSet={`${post.variants.thumbUrl} 200w, ${post.variants.feedUrl} 800w, ${post.variants.fullUrl} 1600w`}
+              sizes="(max-width: 600px) 200px, (max-width: 1200px) 800px, 1600px"
+              loading="lazy" alt="" />
+          ) : (
+            <img className="post-image" src={post.image} loading="lazy" alt="" />
+          )
+        ) : null}
       </div>
       <div className="post-actions">
         <button className={post.liked ? 'pill liked' : 'pill'} onClick={toggleLike}>

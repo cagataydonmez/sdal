@@ -29,6 +29,7 @@ const tabs = [
   { key: 'pages', label: 'Sayfalar', section: 'İçerik', hint: 'Legacy sayfa yönetimi' },
   { key: 'events', label: 'Etkinlikler', section: 'İçerik', hint: 'Etkinlik içerikleri ve onaylar' },
   { key: 'announcements', label: 'Duyurular', section: 'İçerik', hint: 'Duyuru yayın yönetimi' },
+  { key: 'media', label: 'Medya Depolama', section: 'Sistem', hint: 'Görsel işleme ve depolama ayarları' },
   { key: 'album', label: 'Albüm Kategorileri', section: 'Medya', hint: 'Albüm kategori yönetimi' },
   { key: 'photos', label: 'Fotoğraf Moderasyon', section: 'Medya', hint: 'Fotoğraf onay/silme işlemleri' },
   { key: 'email', label: 'E-Posta', section: 'İletişim', hint: 'Tekil ve toplu gönderimler' },
@@ -175,6 +176,11 @@ export default function AdminPage() {
   const [followInsights, setFollowInsights] = useState({ user: null, items: [], hasMore: false });
   const [followInsightsLoading, setFollowInsightsLoading] = useState(false);
 
+  const [mediaSettings, setMediaSettings] = useState(null);
+  const [mediaSpacesConfigured, setMediaSpacesConfigured] = useState(false);
+  const [mediaSpacesInfo, setMediaSpacesInfo] = useState({ region: '', bucket: '', endpoint: '' });
+  const [mediaSettingsBusy, setMediaSettingsBusy] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     fetch('/api/admin/session', { credentials: 'include' })
@@ -233,6 +239,7 @@ export default function AdminPage() {
       loadDbTables();
       loadDbBackups();
     }
+    if (tab === 'media') loadMediaSettings();
   }, [tab, user, adminOk, refreshDashboard]);
 
   useEffect(() => {
@@ -799,6 +806,52 @@ export default function AdminPage() {
   async function loadBannedWords() {
     const data = await apiJson('/api/new/admin/filters');
     setBannedWords(data.items || []);
+  }
+
+  async function loadMediaSettings() {
+    setMediaSettingsBusy(true);
+    try {
+      const data = await apiJson('/api/admin/media-settings');
+      setMediaSettings(data.settings || {});
+      setMediaSpacesConfigured(data.spacesConfigured || false);
+      setMediaSpacesInfo({ region: data.spacesRegion, bucket: data.spacesBucket, endpoint: data.spacesEndpoint });
+    } catch (err) {
+      setStatus(err.message || 'Medya ayarları alınamadı.');
+    } finally {
+      setMediaSettingsBusy(false);
+    }
+  }
+
+  async function saveMediaSettings() {
+    setMediaSettingsBusy(true);
+    try {
+      const data = await apiJson('/api/admin/media-settings', {
+        method: 'PUT',
+        body: JSON.stringify(mediaSettings)
+      });
+      setMediaSettings(data.settings || {});
+      setStatus('Medya ayarları kaydedildi.');
+    } catch (err) {
+      setStatus(err.message || 'Medya ayarları kaydedilemedi.');
+    } finally {
+      setMediaSettingsBusy(false);
+    }
+  }
+
+  async function testSpacesConnection() {
+    setMediaSettingsBusy(true);
+    try {
+      const data = await apiJson('/api/admin/media-settings/test', { method: 'POST' });
+      if (data.ok) {
+        setStatus(data.message || 'Spaces bağlantı testi başarılı! Dosya yüklenebiliyor ve silinebiliyor.');
+      } else {
+        setStatus('Bağlantı testi başarısız: ' + (data.error || 'Bilinmeyen hata.'));
+      }
+    } catch (err) {
+      setStatus('Bağlantı testi hatası: ' + err.message);
+    } finally {
+      setMediaSettingsBusy(false);
+    }
   }
 
   async function addBannedWord() {
@@ -2041,6 +2094,110 @@ export default function AdminPage() {
               ))}
             </div>
             {!chatMessages.length ? <div className="muted">Gösterilecek sohbet mesajı yok.</div> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'media' && mediaSettings ? (
+        <div className="panel">
+          <div className="panel-header">
+            <h4>Medya ve Depolama Ayarları</h4>
+            <div className="text-sm muted" style={{ marginTop: 4 }}>
+              Görsel varyant boyutları, kalite ve depolama arabirimleri.
+            </div>
+          </div>
+          <div className="panel-body">
+            <div className="form-row">
+              <label>Depolama Sağlayıcısı</label>
+              <select
+                value={mediaSettings.storage_provider || 'local'}
+                onChange={(e) => setMediaSettings((prev) => ({ ...prev, storage_provider: e.target.value }))}
+                style={{ width: '100%', padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border)' }}
+                disabled={mediaSettingsBusy}
+              >
+                <option value="local">Yerel Sunucu (Local Filesystem)</option>
+                <option value="spaces">DigitalOcean Spaces (S3 Uyumlu)</option>
+              </select>
+            </div>
+            {mediaSettings.storage_provider === 'spaces' && !mediaSpacesConfigured ? (
+              <div className="alert-box" style={{ background: 'var(--red-tint)', color: 'var(--red)', padding: '0.5rem', marginBottom: '1rem', borderRadius: 4 }}>
+                <strong>Dikkat:</strong> S3/Spaces bilgileri <code>.env</code> dosyasında eksik! Lütfen SPACES_KEY, SPACES_SECRET, SPACES_ENDPOINT ve SPACES_BUCKET bilgilerini tamamlayın.
+              </div>
+            ) : null}
+            {mediaSettings.storage_provider === 'spaces' && mediaSpacesConfigured ? (
+              <div style={{ background: 'var(--bg-elevated)', padding: '0.8rem', borderRadius: 4, marginBottom: '1rem', fontSize: '0.9rem' }}>
+                <p style={{ margin: '0 0 0.5rem 0' }}><strong>Bucket:</strong> {mediaSpacesInfo.bucket}</p>
+                <p style={{ margin: '0 0 0.5rem 0' }}><strong>Endpoint:</strong> {mediaSpacesInfo.endpoint}</p>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <button className="btn ghost" disabled={mediaSettingsBusy} onClick={testSpacesConnection}>
+                    Bağlantıyı Test Et
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="form-row" style={{ marginTop: '1.5rem' }}>
+              <h4>Görsel Boyutları (Genişlik bazlı, orantılı küçültme)</h4>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label>Küçük (Thumb) Px</label>
+                <input
+                  type="number"
+                  value={mediaSettings.thumb_width || 200}
+                  onChange={(e) => setMediaSettings((prev) => ({ ...prev, thumb_width: Math.max(50, Math.min(1000, Number(e.target.value))) }))}
+                  disabled={mediaSettingsBusy}
+                />
+              </div>
+              <div>
+                <label>Orta (Feed) Px</label>
+                <input
+                  type="number"
+                  value={mediaSettings.feed_width || 800}
+                  onChange={(e) => setMediaSettings((prev) => ({ ...prev, feed_width: Math.max(200, Math.min(2000, Number(e.target.value))) }))}
+                  disabled={mediaSettingsBusy}
+                />
+              </div>
+              <div>
+                <label>Büyük (Full) Px</label>
+                <input
+                  type="number"
+                  value={mediaSettings.full_width || 1600}
+                  onChange={(e) => setMediaSettings((prev) => ({ ...prev, full_width: Math.max(400, Math.min(4000, Number(e.target.value))) }))}
+                  disabled={mediaSettingsBusy}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <label>WebP Kalitesi (10-100)</label>
+              <input
+                type="number"
+                value={mediaSettings.webp_quality || 80}
+                onChange={(e) => setMediaSettings((prev) => ({ ...prev, webp_quality: Math.max(10, Math.min(100, Number(e.target.value))) }))}
+                disabled={mediaSettingsBusy}
+              />
+            </div>
+
+            <div className="form-row">
+              <label>Maksimum Yükleme Boyutu (MB)</label>
+              <input
+                type="number"
+                step="0.5"
+                value={(mediaSettings.max_upload_bytes || 10485760) / 1048576}
+                onChange={(e) => {
+                  const mb = Math.max(1, Math.min(50, Number(e.target.value)));
+                  setMediaSettings((prev) => ({ ...prev, max_upload_bytes: mb * 1048576 }));
+                }}
+                disabled={mediaSettingsBusy}
+              />
+            </div>
+
+            <div className="form-row" style={{ marginTop: '1.5rem' }}>
+              <button className="btn primary block" onClick={saveMediaSettings} disabled={mediaSettingsBusy || (mediaSettings.storage_provider === 'spaces' && !mediaSpacesConfigured)}>
+                {mediaSettingsBusy ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

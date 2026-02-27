@@ -16,6 +16,8 @@ import { metinDuzenle } from './textFormat.js';
 import nodemailer from 'nodemailer';
 import multer from 'multer';
 import { WebSocketServer } from 'ws';
+import { processUpload, deleteImageRecord, getImageVariants, loadMediaSettings } from './media/uploadPipeline.js';
+import { SpacesStorageProvider, getStorageProvider } from './media/storageProvider.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -140,7 +142,22 @@ app.use('/legacy', express.static(legacyDir));
 app.use('/smiley', express.static(path.join(legacyDir, 'smiley')));
 
 const uploadsDir = path.resolve(__dirname, String(process.env.SDAL_UPLOADS_DIR || '../uploads'));
+
+// Cache headers for new variant images (UUID-based, immutable)
+app.use('/uploads/images', (_req, res, next) => {
+  res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  next();
+}, express.static(path.join(uploadsDir, 'images')));
+
+// Serve all other uploads normally
 app.use('/uploads', express.static(uploadsDir));
+
+// Ensure new images directory exists
+const imagesDir = path.join(uploadsDir, 'images');
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true });
+}
+
 const vesikalikDir = path.join(uploadsDir, 'vesikalik');
 if (!fs.existsSync(vesikalikDir)) {
   fs.mkdirSync(vesikalikDir, { recursive: true });
@@ -1090,6 +1107,92 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON enga
 migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
 normalizePostgresIdColumns();
 ensurePostgresIdSequences();
+
+// --- Image pipeline migrations ---
+sqlRun(`CREATE TABLE IF NOT EXISTS media_settings (
+  id INTEGER PRIMARY KEY,
+  storage_provider TEXT DEFAULT 'local',
+  local_base_path TEXT DEFAULT '/var/www/sdal/uploads',
+  thumb_width INTEGER DEFAULT 200,
+  feed_width INTEGER DEFAULT 800,
+  full_width INTEGER DEFAULT 1600,
+  webp_quality INTEGER DEFAULT 80,
+  max_upload_bytes INTEGER DEFAULT 10485760,
+  avif_enabled INTEGER DEFAULT 0,
+  updated_at TEXT
+)`);
+// Ensure a default row exists
+runMigration('2026_02_media_settings_default_row', () => {
+  const existing = sqlGet('SELECT id FROM media_settings WHERE id = 1');
+  if (!existing) {
+    sqlRun(
+      `INSERT INTO media_settings (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
+       VALUES (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, ?)`,
+      [uploadsDir, new Date().toISOString()]
+    );
+  }
+});
+
+sqlRun(`CREATE TABLE IF NOT EXISTS image_records (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER,
+  entity_type TEXT,
+  entity_id INTEGER,
+  provider TEXT DEFAULT 'local',
+  thumb_path TEXT,
+  feed_path TEXT,
+  full_path TEXT,
+  width INTEGER,
+  height INTEGER,
+  created_at TEXT
+)`);
+sqlRun('CREATE INDEX IF NOT EXISTS idx_image_records_entity ON image_records (entity_type, entity_id)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_image_records_user ON image_records (user_id)');
+
+migrateAddColumn('posts', 'image_record_id', 'ALTER TABLE posts ADD COLUMN image_record_id TEXT');
+migrateAddColumn('stories', 'image_record_id', 'ALTER TABLE stories ADD COLUMN image_record_id TEXT');
+
+// --- Upload rate limiter (in-memory, per-IP) ---
+const uploadRateLimits = new Map();
+const UPLOAD_RATE_WINDOW_MS = 60 * 1000;
+const UPLOAD_RATE_MAX = 10;
+
+function checkUploadRateLimit(ip) {
+  const now = Date.now();
+  const key = String(ip || 'unknown');
+  let entry = uploadRateLimits.get(key);
+  if (!entry || now - entry.windowStart > UPLOAD_RATE_WINDOW_MS) {
+    entry = { windowStart: now, count: 0 };
+    uploadRateLimits.set(key, entry);
+  }
+  entry.count++;
+  if (entry.count > UPLOAD_RATE_MAX) return false;
+  return true;
+}
+
+// Clean up old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of uploadRateLimits) {
+    if (now - entry.windowStart > UPLOAD_RATE_WINDOW_MS * 2) {
+      uploadRateLimits.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// --- Multer memory storage for new image pipeline ---
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }, // slightly above max to let our pipeline give a nicer error
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/tiff'];
+    if (!allowed.includes(file.mimetype?.toLowerCase())) {
+      cb(new Error('Desteklenmeyen dosya türü.'));
+    } else {
+      cb(null, true);
+    }
+  }
+});
 
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
@@ -3474,6 +3577,130 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Admin Media Settings Endpoints ---
+
+app.get('/api/admin/media-settings', requireAdmin, (_req, res) => {
+  const settings = sqlGet('SELECT * FROM media_settings WHERE id = 1');
+  const spacesConfigured = !!(process.env.SPACES_KEY && process.env.SPACES_SECRET && process.env.SPACES_BUCKET && process.env.SPACES_ENDPOINT);
+  res.json({
+    settings: settings || {},
+    spacesConfigured,
+    spacesRegion: process.env.SPACES_REGION || '',
+    spacesBucket: process.env.SPACES_BUCKET || '',
+    spacesEndpoint: process.env.SPACES_ENDPOINT || ''
+  });
+});
+
+app.put('/api/admin/media-settings', requireAdmin, (req, res) => {
+  const {
+    storage_provider,
+    thumb_width,
+    feed_width,
+    full_width,
+    webp_quality,
+    max_upload_bytes,
+    avif_enabled
+  } = req.body || {};
+
+  // Validate provider switch
+  if (storage_provider === 'spaces') {
+    const hasKeys = !!(process.env.SPACES_KEY && process.env.SPACES_SECRET && process.env.SPACES_BUCKET && process.env.SPACES_ENDPOINT);
+    if (!hasKeys) {
+      return res.status(400).json({ error: 'Spaces ortam değişkenleri ayarlanmamış. SPACES_KEY, SPACES_SECRET, SPACES_BUCKET, SPACES_ENDPOINT gerekli.' });
+    }
+  }
+
+  const updates = {};
+  if (storage_provider && (storage_provider === 'local' || storage_provider === 'spaces')) updates.storage_provider = storage_provider;
+  if (thumb_width && Number(thumb_width) >= 50 && Number(thumb_width) <= 1000) updates.thumb_width = Number(thumb_width);
+  if (feed_width && Number(feed_width) >= 200 && Number(feed_width) <= 2000) updates.feed_width = Number(feed_width);
+  if (full_width && Number(full_width) >= 400 && Number(full_width) <= 4000) updates.full_width = Number(full_width);
+  if (webp_quality && Number(webp_quality) >= 10 && Number(webp_quality) <= 100) updates.webp_quality = Number(webp_quality);
+  if (max_upload_bytes && Number(max_upload_bytes) >= 1048576 && Number(max_upload_bytes) <= 52428800) updates.max_upload_bytes = Number(max_upload_bytes);
+  if (avif_enabled !== undefined) updates.avif_enabled = avif_enabled ? 1 : 0;
+
+  const setClauses = Object.keys(updates).map((k) => `${k} = ?`);
+  const params = Object.values(updates);
+  if (setClauses.length > 0) {
+    setClauses.push('updated_at = ?');
+    params.push(new Date().toISOString());
+    params.push(1); // WHERE id = 1
+    sqlRun(`UPDATE media_settings SET ${setClauses.join(', ')} WHERE id = ?`, params);
+  }
+
+  writeAppLog('info', 'media_settings_updated', { userId: req.session?.userId, changes: updates });
+  const updated = sqlGet('SELECT * FROM media_settings WHERE id = 1');
+  res.json({ ok: true, settings: updated });
+});
+
+app.post('/api/admin/media-settings/test', requireAdmin, async (_req, res) => {
+  const settings = sqlGet('SELECT * FROM media_settings WHERE id = 1');
+  if (!settings || settings.storage_provider !== 'spaces') {
+    return res.json({ ok: true, message: 'Yerel depolama aktif, test gerekmez.' });
+  }
+
+  try {
+    const provider = getStorageProvider(settings, uploadsDir);
+    if (provider instanceof SpacesStorageProvider) {
+      const result = await provider.testConnection();
+      return res.json(result);
+    }
+    res.json({ ok: true, message: 'Yerel depolama aktif.' });
+  } catch (err) {
+    res.json({ ok: false, error: err?.message || 'Bağlantı testi başarısız.' });
+  }
+});
+
+// --- Standalone Image Upload Endpoint ---
+
+app.post('/api/upload-image', requireAuth, (req, res, next) => {
+  if (!checkUploadRateLimit(req.ip)) {
+    return res.status(429).send('Çok fazla yükleme isteği. Lütfen biraz bekleyin.');
+  }
+  next();
+}, imageUpload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).send('Görsel seçilmedi.');
+  try {
+    const entityType = String(req.body?.entityType || 'misc');
+    const entityId = req.body?.entityId || '0';
+    const result = await processUpload({
+      buffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      userId: req.session.userId,
+      entityType,
+      entityId,
+      sqlGet,
+      sqlRun,
+      uploadsDir,
+      writeAppLog
+    });
+    res.json(result);
+  } catch (err) {
+    writeAppLog('error', 'upload_image_failed', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown'
+    });
+    const status = err?.message?.includes('Desteklenmeyen') || err?.message?.includes('boyut') ? 400 : 500;
+    return res.status(status).send(err?.message || 'Görsel yükleme başarısız.');
+  }
+});
+
+// --- Helper: enrich a post/story row with image variants ---
+function enrichWithVariants(row) {
+  if (!row) return row;
+  if (row.image_record_id) {
+    const variants = getImageVariants(row.image_record_id, sqlGet, uploadsDir);
+    if (variants) {
+      row.variants = {
+        thumbUrl: variants.thumbUrl,
+        feedUrl: variants.feedUrl,
+        fullUrl: variants.fullUrl
+      };
+    }
+  }
+  return row;
+}
+
 function queryAdminUsers(rawQuery = {}) {
   const filter = String(rawQuery.filter || 'all').trim();
   const q = String(rawQuery.q || '').trim();
@@ -5028,7 +5255,7 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
     ? [...params, limit, offset]
     : [...params, req.session.userId, limit, offset];
   const rows = sqlAll(
-    `SELECT p.id, p.user_id, p.content, p.image, p.created_at, p.group_id,
+    `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.group_id,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
      LEFT JOIN uyeler u ON ${joinUserOnPostAuthorExpr}
@@ -5053,24 +5280,32 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
   const likedSet = new Set(liked.map((l) => l.post_id));
 
   res.json({
-    items: rows.map((r) => ({
-      id: r.id,
-      content: r.content,
-      image: r.image,
-      createdAt: r.created_at,
-      author: {
-        id: r.user_id,
-        kadi: r.kadi,
-        isim: r.isim,
-        soyisim: r.soyisim,
-        resim: r.resim,
-        verified: r.verified
-      },
-      groupId: r.group_id,
-      likeCount: likeMap.get(r.id) || 0,
-      commentCount: commentMap.get(r.id) || 0,
-      liked: likedSet.has(r.id)
-    })),
+    items: rows.map((r) => {
+      const item = {
+        id: r.id,
+        content: r.content,
+        image: r.image,
+        createdAt: r.created_at,
+        author: {
+          id: r.user_id,
+          kadi: r.kadi,
+          isim: r.isim,
+          soyisim: r.soyisim,
+          resim: r.resim,
+          verified: r.verified
+        },
+        groupId: r.group_id,
+        likeCount: likeMap.get(r.id) || 0,
+        commentCount: commentMap.get(r.id) || 0,
+        liked: likedSet.has(r.id)
+      };
+      enrichWithVariants({ ...r, ...item });
+      if (r.image_record_id) {
+        const variants = getImageVariants(r.image_record_id, sqlGet, uploadsDir);
+        if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
+      }
+      return item;
+    }),
     hasMore: rows.length === limit
   });
 });
@@ -5127,23 +5362,62 @@ app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async
   const image = finalImagePath ? toUploadUrl(finalImagePath) : null;
   if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
-  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
+
+  // Also generate variants via new pipeline (if file buffer or file exists)
+  let imageRecordId = null;
+  let variants = null;
+  try {
+    const fileBuffer = req.file?.path && fs.existsSync(req.file.path)
+      ? fs.readFileSync(req.file.path)
+      : (finalImagePath && fs.existsSync(finalImagePath) ? fs.readFileSync(finalImagePath) : null);
+    if (fileBuffer) {
+      const uploadResult = await processUpload({
+        buffer: fileBuffer,
+        mimeType: req.file?.mimetype || 'image/jpeg',
+        userId: req.session.userId,
+        entityType: 'post',
+        entityId: '0', // will be updated after insert
+        sqlGet,
+        sqlRun,
+        uploadsDir,
+        writeAppLog
+      });
+      imageRecordId = uploadResult.imageId;
+      variants = uploadResult.variants;
+    }
+  } catch (err) {
+    writeAppLog('error', 'post_variant_generation_failed', { message: err?.message });
+    // Non-fatal: the legacy single image is still saved
+  }
+
+  const result = sqlRun('INSERT INTO posts (user_id, content, image, image_record_id, created_at, group_id) VALUES (?, ?, ?, ?, ?, ?)', [
     req.session.userId,
     content,
     image,
+    imageRecordId,
     now,
     groupId
   ]);
+
+  // Update the image record with the actual post ID
+  const postId = result?.lastInsertRowid;
+  if (imageRecordId && postId) {
+    try {
+      sqlRun('UPDATE image_records SET entity_id = ? WHERE id = ?', [postId, imageRecordId]);
+    } catch { /* best effort */ }
+  }
+
   notifyMentions({
     text: req.body?.content || '',
     sourceUserId: req.session.userId,
-    entityId: result?.lastInsertRowid,
+    entityId: postId,
     type: 'mention_post',
     message: 'Gönderide senden bahsetti.'
   });
   scheduleEngagementRecalculation('post_created');
-  res.json({ ok: true, id: result?.lastInsertRowid, image });
+  res.json({ ok: true, id: postId, image, variants });
 });
+
 
 function canManagePost(req, postRow) {
   if (!postRow) return false;
@@ -5153,6 +5427,11 @@ function canManagePost(req, postRow) {
 }
 
 function deletePostById(postId) {
+  // Clean up image variants if present
+  const post = sqlGet('SELECT image_record_id FROM posts WHERE id = ?', [postId]);
+  if (post?.image_record_id) {
+    deleteImageRecord(post.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+  }
   sqlRun('DELETE FROM post_likes WHERE post_id = ?', [postId]);
   sqlRun('DELETE FROM post_comments WHERE post_id = ?', [postId]);
   sqlRun('DELETE FROM notifications WHERE type IN (?, ?) AND entity_id = ?', ['like', 'comment', postId]);
@@ -5585,15 +5864,47 @@ app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), as
     const image = `/uploads/stories/${outputName}`;
     const now = new Date();
     const expires = new Date(now.getTime() + STORY_TTL_MS);
-    const result = sqlRun('INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', [
+
+    // Also generate variants via new pipeline
+    let imageRecordId = null;
+    let variants = null;
+    try {
+      const storyBuffer = fs.readFileSync(outputPath);
+      const uploadResult = await processUpload({
+        buffer: storyBuffer,
+        mimeType: 'image/webp',
+        userId: req.session.userId,
+        entityType: 'story',
+        entityId: '0',
+        sqlGet,
+        sqlRun,
+        uploadsDir,
+        writeAppLog
+      });
+      imageRecordId = uploadResult.imageId;
+      variants = uploadResult.variants;
+    } catch (err) {
+      writeAppLog('error', 'story_variant_generation_failed', { message: err?.message });
+    }
+
+    const result = sqlRun('INSERT INTO stories (user_id, image, image_record_id, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [
       req.session.userId,
       image,
+      imageRecordId,
       caption,
       now.toISOString(),
       expires.toISOString()
     ]);
+
+    const storyId = result?.lastInsertRowid;
+    if (imageRecordId && storyId) {
+      try {
+        sqlRun('UPDATE image_records SET entity_id = ? WHERE id = ?', [storyId, imageRecordId]);
+      } catch { /* best effort */ }
+    }
+
     scheduleEngagementRecalculation('story_created');
-    res.json({ ok: true, id: result?.lastInsertRowid, image });
+    res.json({ ok: true, id: storyId, image, variants });
   } catch (err) {
     writeAppLog('error', 'story_upload_failed', {
       userId: req.session?.userId || null,
@@ -5616,8 +5927,12 @@ function updateStoryCaption(req, res) {
 function deleteStory(req, res) {
   const storyId = parseStoryId(req.params.id);
   if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
-  const story = sqlGet('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
+  const story = sqlGet('SELECT id, image_record_id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
   if (!story) return res.status(404).send('Hikaye bulunamadı.');
+  // Clean up image variants if present
+  if (story.image_record_id) {
+    deleteImageRecord(story.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+  }
   sqlRun('DELETE FROM story_views WHERE story_id = ?', [storyId]);
   sqlRun('DELETE FROM stories WHERE id = ?', [storyId]);
   res.json({ ok: true });
