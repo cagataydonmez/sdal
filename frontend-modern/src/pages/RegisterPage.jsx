@@ -11,8 +11,10 @@ export default function RegisterPage() {
     email: '',
     isim: '',
     soyisim: '',
-    mezuniyetyili: '',
-    gkodu: ''
+    mezuniyetyili: '0',
+    gkodu: '',
+    kvkk_consent: false,
+    directory_consent: false
   });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -29,6 +31,14 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     setStatus('');
+    if (!form.kvkk_consent) {
+      setError('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
+      return;
+    }
+    if (!form.directory_consent) {
+      setError('Mezun Rehberi açık rıza onayı gerekmektedir.');
+      return;
+    }
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -65,8 +75,8 @@ export default function RegisterPage() {
             <input className="input" placeholder={t('auth_email')} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             <div className="form-row">
               <label>{t('register_graduation_year')}</label>
-              <select className="input" value={form.mezuniyetyili} onChange={(e) => setForm({ ...form, mezuniyetyili: e.target.value })}>
-                <option value="">{t('select')}</option>
+              <select className="input" value={form.mezuniyetyili} onChange={(e) => setForm({ ...form, mezuniyetyili: e.target.value })} required>
+                <option value="0">Mezuniyet yılı seçiniz (Zorunlu)</option>
                 {years.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
@@ -80,14 +90,14 @@ export default function RegisterPage() {
             </div>
 
             <div className="form-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginTop: '16px' }}>
-               <input type="checkbox" id="kvkk" required style={{ marginTop: '4px' }} />
+               <input type="checkbox" id="kvkk" checked={form.kvkk_consent} onChange={(e) => setForm({ ...form, kvkk_consent: e.target.checked })} style={{ marginTop: '4px' }} />
                <label htmlFor="kvkk" style={{ fontSize: '0.9em', lineHeight: '1.4', fontWeight: 'normal' }}>
                  Okudum ve anladım: <a href="/kvkk" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>Kişisel Verilerin Korunması ve Aydınlatma Metni</a> (Zorunlu)
                </label>
             </div>
 
             <div className="form-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '16px' }}>
-               <input type="checkbox" id="directory_consent" required style={{ marginTop: '4px' }} />
+               <input type="checkbox" id="directory_consent" checked={form.directory_consent} onChange={(e) => setForm({ ...form, directory_consent: e.target.checked })} style={{ marginTop: '4px' }} />
                <label htmlFor="directory_consent" style={{ fontSize: '0.9em', lineHeight: '1.4', fontWeight: 'normal' }}>
                  Mezuniyet yılı, okul ve ad-soyad bilgilerimin yalnızca SDAL mezunlarına özel <strong>Mezun Rehberi'nde (Alumni Directory)</strong> listelenmesine açık rıza veriyorum. (Zorunlu)
                </label>

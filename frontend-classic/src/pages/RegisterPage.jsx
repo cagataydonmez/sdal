@@ -14,7 +14,9 @@ export default function RegisterPage() {
     mezuniyetyili: '0',
     isim: '',
     soyisim: '',
-    gkodu: ''
+    gkodu: '',
+    kvkk_consent: false,
+    directory_consent: false
   });
   const [step, setStep] = useState('form');
   const [preview, setPreview] = useState(null);
@@ -41,6 +43,14 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     setStatus('');
+    if (!form.kvkk_consent) {
+      setError('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
+      return;
+    }
+    if (!form.directory_consent) {
+      setError('Mezun Rehberi açık rıza onayı gerekmektedir.');
+      return;
+    }
     const res = await fetch('/api/register/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -183,6 +193,19 @@ export default function RegisterPage() {
                     <tr>
                       <td align="right"><b>Güvenlik Kodu : </b></td>
                       <td align="left"><input type="text" name="gkodu" size="20" className="inptxt" value={form.gkodu} onChange={(e) => updateField('gkodu', e.target.value)} /></td>
+                    </tr>
+                    <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
+                    <tr>
+                      <td align="left" colSpan="2" style={{ fontSize: 10 }}>
+                        <input type="checkbox" id="kvkk_legacy" checked={form.kvkk_consent} onChange={(e) => updateField('kvkk_consent', e.target.checked)} />
+                        <label htmlFor="kvkk_legacy"> <a href="/kvkk" target="_blank" rel="noreferrer">KVKK Aydınlatma Metni</a>ni okudum, anladım. (Zorunlu)</label>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="left" colSpan="2" style={{ fontSize: 10 }}>
+                        <input type="checkbox" id="dir_legacy" checked={form.directory_consent} onChange={(e) => updateField('directory_consent', e.target.checked)} />
+                        <label htmlFor="dir_legacy"> Mezun Rehberi&apos;nde listelenmesine açık rıza veriyorum. (Zorunlu)</label>
+                      </td>
                     </tr>
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
                     <tr>

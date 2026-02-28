@@ -603,9 +603,14 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
   if (hasTable('group_join_requests')) sqlRun('DELETE FROM group_join_requests WHERE user_id = ? OR reviewed_by = ?', [userId, userId]);
   if (hasTable('group_invites')) sqlRun('DELETE FROM group_invites WHERE invited_user_id = ? OR invited_by = ?', [userId, userId]);
 
-  // 6. Album
+  // 6. Album (delete comments on user's photos first, then comments by user, then photos)
+  if (hasTable('album_fotoyorum') && hasTable('album_foto')) {
+    sqlRun('DELETE FROM album_fotoyorum WHERE fotoid IN (SELECT id FROM album_foto WHERE ekleyenid = ?)', [userId]);
+  }
+  if (hasTable('album_fotoyorum')) {
+    sqlRun('DELETE FROM album_fotoyorum WHERE uyeadi = ?', [user.kadi]);
+  }
   if (hasTable('album_foto')) sqlRun('DELETE FROM album_foto WHERE ekleyenid = ?', [userId]);
-  if (hasTable('album_fotoyorum')) sqlRun('DELETE FROM album_fotoyorum WHERE id IN (SELECT id FROM album_fotoyorum WHERE ekleyenid = ?)', [userId]);
 
   // 7. Messaging
   if (hasTable('gelenkutusu')) sqlRun('DELETE FROM gelenkutusu WHERE kime = ? OR kimden = ?', [userIdStr, userIdStr]);
@@ -1033,6 +1038,8 @@ runMigration('2026_02_sdal_messenger_timestamp_backfill', () => {
 // Phase 1 - SDAL Alumni Hub
 migrateAddColumn('uyeler', 'verification_status', "ALTER TABLE uyeler ADD COLUMN verification_status TEXT DEFAULT 'pending'");
 migrateAddColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
+migrateAddColumn('uyeler', 'kvkk_consent_at', 'ALTER TABLE uyeler ADD COLUMN kvkk_consent_at TEXT');
+migrateAddColumn('uyeler', 'directory_consent_at', 'ALTER TABLE uyeler ADD COLUMN directory_consent_at TEXT');
 
 runMigration('2026_02_sdal_alumni_hub_backfill', () => {
   // Enforce everyone to go through the new verification queue
@@ -3955,7 +3962,7 @@ app.get('/api/admin/users/:id', requireAdmin, (req, res) => {
   res.json({ user });
 });
 
-app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+async function handleMemberDelete(req, res) {
   const userId = req.params.id;
   const user = sqlGet('SELECT id, kadi FROM uyeler WHERE id = ?', [userId]);
   if (!user) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
@@ -3970,9 +3977,12 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     res.json({ ok: true, message: `@${user.kadi} ve tüm verileri başarıyla silindi.` });
   } catch (err) {
     console.error('Hard delete failed:', err);
-    res.status(500).send('Kullanıcı silinirken bir hata oluştu.');
+    res.status(500).send(err?.message || 'Kullanıcı silinirken bir hata oluştu.');
   }
-});
+}
+
+app.delete('/api/admin/users/:id', requireAdmin, handleMemberDelete);
+app.delete('/api/new/admin/members/:id', requireAdmin, handleMemberDelete);
 
 app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
   const target = sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.params.id]);
@@ -4402,7 +4412,9 @@ app.post('/api/register/preview', (req, res) => {
     isim = '',
     soyisim = '',
     mezuniyetyili = '0',
-    gkodu = ''
+    gkodu = '',
+    kvkk_consent = false,
+    directory_consent = false
   } = req.body || {};
   const cleanKadi = String(kadi || '').trim();
   const cleanEmail = normalizeEmail(email);
@@ -4423,6 +4435,8 @@ app.post('/api/register/preview', (req, res) => {
   if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
   if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
   if (mezuniyetyili == '0') return res.status(400).send('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+  if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
+  if (!directory_consent) return res.status(400).send('Mezun Rehberi açık rıza onayı gerekmektedir.');
   if (!cleanIsim) return res.status(400).send('İsmini girmedin.');
   if (String(cleanIsim).length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
   if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
@@ -4449,7 +4463,9 @@ app.post('/api/register', async (req, res) => {
     isim = '',
     soyisim = '',
     mezuniyetyili = '0',
-    gkodu = ''
+    gkodu = '',
+    kvkk_consent = false,
+    directory_consent = false
   } = req.body || {};
   const cleanKadi = String(kadi || '').trim();
   const cleanEmail = normalizeEmail(email);
@@ -4468,6 +4484,8 @@ app.post('/api/register', async (req, res) => {
   if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
   if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
   if (mezuniyetyili == '0') return res.status(400).send('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+  if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
+  if (!directory_consent) return res.status(400).send('Mezun Rehberi açık rıza onayı gerekmektedir.');
   if (!cleanIsim) return res.status(400).send('İsmini girmedin.');
   if (String(cleanIsim).length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
   if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
@@ -4486,9 +4504,9 @@ app.post('/api/register', async (req, res) => {
   const aktivasyon = createActivation();
   const now = new Date().toISOString();
   const result = sqlRun(
-    `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'yok', ?, 0, 'pending')`,
-    [cleanKadi, sifre, cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, parsedYear]
+    `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'yok', ?, 0, 'pending', ?, ?)`,
+    [cleanKadi, sifre, cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, parsedYear, now, now]
   );
   const newId = result?.lastInsertRowid;
 
@@ -5907,7 +5925,7 @@ app.get('/api/new/stories', requireAuth, (req, res) => {
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
   const rows = sqlAll(
-    `SELECT s.id, s.user_id, s.image, s.caption, s.created_at, s.expires_at,
+    `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM stories s
      LEFT JOIN uyeler u ON u.id = s.user_id
@@ -5920,7 +5938,7 @@ app.get('/api/new/stories', requireAuth, (req, res) => {
   const items = rows
     .map((r) => {
       const timing = storyTiming(r, nowMs);
-      return {
+      const item = {
         id: r.id,
         image: r.image,
         caption: r.caption,
@@ -5937,6 +5955,11 @@ app.get('/api/new/stories', requireAuth, (req, res) => {
         },
         viewed: viewedSet.has(Number(r.id))
       };
+      if (r.image_record_id) {
+        const variants = getImageVariants(r.image_record_id, sqlGet, uploadsDir);
+        if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
+      }
+      return item;
     })
     .filter((story) => !story.isExpired);
   res.json({ items });
@@ -5944,7 +5967,7 @@ app.get('/api/new/stories', requireAuth, (req, res) => {
 
 app.get('/api/new/stories/mine', requireAuth, (req, res) => {
   const rows = sqlAll(
-    `SELECT s.id, s.image, s.caption, s.created_at, s.expires_at,
+    `SELECT s.id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
             COUNT(v.id) AS view_count
      FROM stories s
      LEFT JOIN story_views v ON v.story_id = s.id
@@ -5957,7 +5980,7 @@ app.get('/api/new/stories/mine', requireAuth, (req, res) => {
   res.json({
     items: rows.map((row) => {
       const timing = storyTiming(row, nowMs);
-      return {
+      const item = {
         id: row.id,
         image: row.image,
         caption: row.caption,
@@ -5966,6 +5989,11 @@ app.get('/api/new/stories/mine', requireAuth, (req, res) => {
         isExpired: timing.isExpired,
         viewCount: Number(row.view_count || 0)
       };
+      if (row.image_record_id) {
+        const variants = getImageVariants(row.image_record_id, sqlGet, uploadsDir);
+        if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
+      }
+      return item;
     })
   });
 });
@@ -5978,7 +6006,7 @@ app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
   const nowIso = new Date(nowMs).toISOString();
 
   const rows = sqlAll(
-    `SELECT s.id, s.user_id, s.image, s.caption, s.created_at, s.expires_at,
+    `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM stories s
      LEFT JOIN uyeler u ON u.id = s.user_id
@@ -5992,7 +6020,7 @@ app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
   const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
   const items = rows.map((r) => {
     const timing = storyTiming(r, nowMs);
-    return {
+    const item = {
       id: r.id,
       image: r.image,
       caption: r.caption,
@@ -6009,6 +6037,11 @@ app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
       },
       viewed: viewedSet.has(Number(r.id))
     };
+    if (r.image_record_id) {
+      const variants = getImageVariants(r.image_record_id, sqlGet, uploadsDir);
+      if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
+    }
+    return item;
   });
 
   res.json({ items });

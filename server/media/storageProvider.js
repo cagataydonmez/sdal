@@ -254,6 +254,6 @@ export function getStorageProvider(settings, uploadsDir) {
     });
   }
 
-  // Default: local storage
+  // Default: local storage (uploadsDir; local_base_path in settings is for display/migration)
   return new LocalStorageProvider(uploadsDir);
 }

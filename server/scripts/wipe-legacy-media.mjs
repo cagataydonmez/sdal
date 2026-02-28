@@ -12,17 +12,24 @@
  *    - uploads/groups
  *
  * It leaves the new `uploads/images` directory intact where the variant pipeline operates.
+ *
+ * Paths: Use SDAL_DB_PATH / SDAL_UPLOADS_DIR env vars, or resolve from script location.
  */
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '../..');
 
 console.log('--- SDAL Legacy Media Wipe Script ---');
 
-// Setup Paths
-const dbPath = '/Users/cagataydonmez/Desktop/SDAL/db/sdal.sqlite';
-const uploadsDir = '/Users/cagataydonmez/Desktop/SDAL/server/uploads';
+// Setup Paths (env vars or project-relative defaults)
+const dbPath = process.env.SDAL_DB_PATH || path.join(projectRoot, 'db', 'sdal.sqlite');
+const uploadsDir = process.env.SDAL_UPLOADS_DIR || path.join(projectRoot, 'server', 'uploads');
 
 const targets = [
   path.join(uploadsDir, 'posts'),

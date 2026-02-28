@@ -342,15 +342,24 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
             <div className="story-media">
               <button className="story-tap-zone story-tap-left" onClick={goPrev} aria-label={t('story_prev')} />
               <button className="story-tap-zone story-tap-right" onClick={goNext} aria-label={t('story_next')} />
-              {active.variants ? (
-                <img
-                  src={active.variants.fullUrl}
-                  srcSet={`${active.variants.feedUrl} 800w, ${active.variants.fullUrl} 1080w`}
-                  sizes="(max-width: 800px) 800px, 1080px"
-                  alt=""
-                  onLoad={() => setImageReady(true)}
-                  className={imageReady ? 'story-photo ready' : 'story-photo'}
-                />
+              {(active.variants || active.image) ? (
+                active.variants ? (
+                  <img
+                    src={active.variants.fullUrl}
+                    srcSet={`${active.variants.feedUrl} 800w, ${active.variants.fullUrl} 1080w`}
+                    sizes="(max-width: 800px) 800px, 1080px"
+                    alt=""
+                    onLoad={() => setImageReady(true)}
+                    className={imageReady ? 'story-photo ready' : 'story-photo'}
+                  />
+                ) : (
+                  <img
+                    src={active.image}
+                    alt=""
+                    onLoad={() => setImageReady(true)}
+                    className={imageReady ? 'story-photo ready' : 'story-photo'}
+                  />
+                )
               ) : null}
             </div>
             <div className="story-caption">

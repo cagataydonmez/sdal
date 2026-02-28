@@ -69,11 +69,10 @@ export async function generateVariants(buffer, settings = {}) {
   // Validate first
   const metadata = await validateImageBuffer(buffer);
 
-  // Create a base pipeline: auto-rotate + strip metadata
+  // Create a base pipeline: auto-rotate based on EXIF (output has no metadata by default)
   const basePipeline = () =>
     sharp(buffer, { failOn: 'error' })
-      .rotate()                    // auto-rotate based on EXIF
-      .withMetadata({ orientation: undefined }); // strip EXIF but keep rotation fix
+      .rotate(); // auto-rotate based on EXIF, strips metadata in output
 
   // Generate variants in parallel (limited concurrency for low-resource servers)
   const [thumb, feed, full] = await Promise.all([

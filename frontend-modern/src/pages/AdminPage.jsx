@@ -79,6 +79,7 @@ export default function AdminPage() {
   const [userDetail, setUserDetail] = useState(null);
   const [userForm, setUserForm] = useState(null);
   const [usersMeta, setUsersMeta] = useState({ total: 0, returned: 0 });
+  const [userDeleteBusy, setUserDeleteBusy] = useState(false);
 
   const [engagementRows, setEngagementRows] = useState([]);
   const [engagementLoading, setEngagementLoading] = useState(false);
@@ -333,19 +334,29 @@ export default function AdminPage() {
   }
 
   async function deleteUserProfile() {
-    if (!userForm?.id) return;
+    if (!userForm?.id || userDeleteBusy) return;
     const ok = window.confirm(`DİKKAT! @${userForm.kadi} kullanıcısını ve tüm verilerini (postlar, mesajlar, gruplar vb.) KALICI OLARAK silmek istediğinize emin misiniz? BU İŞLEM GERİ ALINAMAZ.`);
     if (!ok) return;
 
+    setUserDeleteBusy(true);
     setStatus('Kullanıcı siliniyor...');
     try {
-      await apiJson(`/api/admin/users/${userForm.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/users/${userForm.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(text || `İstek başarısız: ${res.status}`);
+      }
       setStatus(`@${userForm.kadi} başarıyla silindi.`);
       setUserForm(null);
       setUserDetail(null);
       loadUsers();
     } catch (err) {
       setStatus(`Hata: ${err.message}`);
+    } finally {
+      setUserDeleteBusy(false);
     }
   }
 
@@ -1376,8 +1387,8 @@ export default function AdminPage() {
                 </div>
                 <div className="composer-actions">
                   <button className="btn primary" onClick={saveUser}>Kaydet</button>
-                  <button className="btn ghost delete" onClick={deleteUserProfile} style={{ color: '#ef4444' }}>
-                    Kullanıcıyı Tamamen Sil (Hard Delete)
+                  <button className="btn ghost delete" onClick={deleteUserProfile} disabled={userDeleteBusy} style={{ color: '#ef4444' }}>
+                    {userDeleteBusy ? 'Siliniyor...' : 'Kullanıcıyı Tamamen Sil (Hard Delete)'}
                   </button>
                 </div>
               </div>
