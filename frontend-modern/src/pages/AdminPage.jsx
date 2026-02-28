@@ -332,6 +332,23 @@ export default function AdminPage() {
     loadUsers();
   }
 
+  async function deleteUserProfile() {
+    if (!userForm?.id) return;
+    const ok = window.confirm(`DİKKAT! @${userForm.kadi} kullanıcısını ve tüm verilerini (postlar, mesajlar, gruplar vb.) KALICI OLARAK silmek istediğinize emin misiniz? BU İŞLEM GERİ ALINAMAZ.`);
+    if (!ok) return;
+
+    setStatus('Kullanıcı siliniyor...');
+    try {
+      await apiJson(`/api/admin/users/${userForm.id}`, { method: 'DELETE' });
+      setStatus(`@${userForm.kadi} başarıyla silindi.`);
+      setUserForm(null);
+      setUserDetail(null);
+      loadUsers();
+    } catch (err) {
+      setStatus(`Hata: ${err.message}`);
+    }
+  }
+
   async function loadEngagementScores(pageValue = engagementFilters.page) {
     setEngagementLoading(true);
     try {
@@ -1357,7 +1374,12 @@ export default function AdminPage() {
                     <option value={1}>Evet</option>
                   </select>
                 </div>
-                <button className="btn primary" onClick={saveUser}>Kaydet</button>
+                <div className="composer-actions">
+                  <button className="btn primary" onClick={saveUser}>Kaydet</button>
+                  <button className="btn ghost delete" onClick={deleteUserProfile} style={{ color: '#ef4444' }}>
+                    Kullanıcıyı Tamamen Sil (Hard Delete)
+                  </button>
+                </div>
               </div>
             ) : null}
             <div className="form-row">

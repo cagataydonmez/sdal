@@ -351,9 +351,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
                   onLoad={() => setImageReady(true)}
                   className={imageReady ? 'story-photo ready' : 'story-photo'}
                 />
-              ) : (
-                <img src={active.image} alt="" onLoad={() => setImageReady(true)} className={imageReady ? 'story-photo ready' : 'story-photo'} />
-              )}
+              ) : null}
             </div>
             <div className="story-caption">
               <b>@{active.author?.kadi}</b> {active.caption}
