@@ -558,69 +558,75 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
   }
 
   // 2. Posts & variants
-  const userPosts = sqlAll('SELECT id, image_record_id FROM posts WHERE user_id = ?', [userId]);
-  for (const p of userPosts) {
-    if (p.image_record_id) {
-      await deleteImageRecord(p.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+  if (hasTable('posts')) {
+    const userPosts = sqlAll('SELECT id, image_record_id FROM posts WHERE user_id = ?', [userId]);
+    for (const p of userPosts) {
+      if (p.image_record_id) {
+        await deleteImageRecord(p.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+      }
     }
+    sqlRun('DELETE FROM posts WHERE user_id = ?', [userId]);
   }
-  sqlRun('DELETE FROM posts WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM post_comments WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM post_likes WHERE user_id = ?', [userId]);
+  if (hasTable('post_comments')) sqlRun('DELETE FROM post_comments WHERE user_id = ?', [userId]);
+  if (hasTable('post_likes')) sqlRun('DELETE FROM post_likes WHERE user_id = ?', [userId]);
 
   // 3. Stories & variants
-  const userStories = sqlAll('SELECT id, image_record_id FROM stories WHERE user_id = ?', [userId]);
-  for (const s of userStories) {
-    if (s.image_record_id) {
-      await deleteImageRecord(s.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+  if (hasTable('stories')) {
+    const userStories = sqlAll('SELECT id, image_record_id FROM stories WHERE user_id = ?', [userId]);
+    for (const s of userStories) {
+      if (s.image_record_id) {
+        await deleteImageRecord(s.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+      }
     }
+    sqlRun('DELETE FROM stories WHERE user_id = ?', [userId]);
   }
-  sqlRun('DELETE FROM stories WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM story_views WHERE user_id = ?', [userId]);
+  if (hasTable('story_views')) sqlRun('DELETE FROM story_views WHERE user_id = ?', [userId]);
 
   // 4. Events
-  sqlRun('DELETE FROM events WHERE created_by = ?', [userId]);
-  sqlRun('DELETE FROM event_responses WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM event_comments WHERE user_id = ?', [userId]);
+  if (hasTable('events')) sqlRun('DELETE FROM events WHERE created_by = ?', [userId]);
+  if (hasTable('event_responses')) sqlRun('DELETE FROM event_responses WHERE user_id = ?', [userId]);
+  if (hasTable('event_comments')) sqlRun('DELETE FROM event_comments WHERE user_id = ?', [userId]);
 
   // 5. Groups (Delete if owned)
-  const ownedGroups = sqlAll('SELECT id FROM groups WHERE owner_id = ?', [userId]);
-  for (const g of ownedGroups) {
-    sqlRun('DELETE FROM group_members WHERE group_id = ?', [g.id]);
-    sqlRun('DELETE FROM group_join_requests WHERE group_id = ?', [g.id]);
-    sqlRun('DELETE FROM group_invites WHERE group_id = ?', [g.id]);
-    sqlRun('DELETE FROM group_events WHERE group_id = ?', [g.id]);
-    sqlRun('DELETE FROM group_announcements WHERE group_id = ?', [g.id]);
-    sqlRun('DELETE FROM groups WHERE id = ?', [g.id]);
+  if (hasTable('groups')) {
+    const ownedGroups = sqlAll('SELECT id FROM groups WHERE owner_id = ?', [userId]);
+    for (const g of ownedGroups) {
+      if (hasTable('group_members')) sqlRun('DELETE FROM group_members WHERE group_id = ?', [g.id]);
+      if (hasTable('group_join_requests')) sqlRun('DELETE FROM group_join_requests WHERE group_id = ?', [g.id]);
+      if (hasTable('group_invites')) sqlRun('DELETE FROM group_invites WHERE group_id = ?', [g.id]);
+      if (hasTable('group_events')) sqlRun('DELETE FROM group_events WHERE group_id = ?', [g.id]);
+      if (hasTable('group_announcements')) sqlRun('DELETE FROM group_announcements WHERE group_id = ?', [g.id]);
+      sqlRun('DELETE FROM groups WHERE id = ?', [g.id]);
+    }
   }
-  sqlRun('DELETE FROM group_members WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM group_join_requests WHERE user_id = ? OR reviewed_by = ?', [userId, userId]);
-  sqlRun('DELETE FROM group_invites WHERE invited_user_id = ? OR invited_by = ?', [userId, userId]);
+  if (hasTable('group_members')) sqlRun('DELETE FROM group_members WHERE user_id = ?', [userId]);
+  if (hasTable('group_join_requests')) sqlRun('DELETE FROM group_join_requests WHERE user_id = ? OR reviewed_by = ?', [userId, userId]);
+  if (hasTable('group_invites')) sqlRun('DELETE FROM group_invites WHERE invited_user_id = ? OR invited_by = ?', [userId, userId]);
 
   // 6. Album
-  sqlRun('DELETE FROM album_foto WHERE ekleyenid = ?', [userId]);
-  sqlRun('DELETE FROM album_fotoyorum WHERE id IN (SELECT id FROM album_fotoyorum WHERE ekleyenid = ?)', [userId]);
+  if (hasTable('album_foto')) sqlRun('DELETE FROM album_foto WHERE ekleyenid = ?', [userId]);
+  if (hasTable('album_fotoyorum')) sqlRun('DELETE FROM album_fotoyorum WHERE id IN (SELECT id FROM album_fotoyorum WHERE ekleyenid = ?)', [userId]);
 
   // 7. Messaging
-  sqlRun('DELETE FROM gelenkutusu WHERE kime = ? OR kimden = ?', [userIdStr, userIdStr]);
-  sqlRun('DELETE FROM sdal_messenger_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
-  sqlRun('DELETE FROM sdal_messenger_threads WHERE user_a_id = ? OR user_b_id = ?', [userId, userId]);
+  if (hasTable('gelenkutusu')) sqlRun('DELETE FROM gelenkutusu WHERE kime = ? OR kimden = ?', [userIdStr, userIdStr]);
+  if (hasTable('sdal_messenger_messages')) sqlRun('DELETE FROM sdal_messenger_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+  if (hasTable('sdal_messenger_threads')) sqlRun('DELETE FROM sdal_messenger_threads WHERE user_a_id = ? OR user_b_id = ?', [userId, userId]);
 
   // 8. Follows & Notifs
-  sqlRun('DELETE FROM follows WHERE follower_id = ? OR following_id = ?', [userId, userId]);
-  sqlRun('DELETE FROM notifications WHERE user_id = ? OR source_user_id = ?', [userId, userId]);
+  if (hasTable('follows')) sqlRun('DELETE FROM follows WHERE follower_id = ? OR following_id = ?', [userId, userId]);
+  if (hasTable('notifications')) sqlRun('DELETE FROM notifications WHERE user_id = ? OR source_user_id = ?', [userId, userId]);
 
   // 9. Games
-  sqlRun('DELETE FROM oyun_yilan WHERE isim = ?', [user.kadi]);
-  sqlRun('DELETE FROM oyun_tetris WHERE isim = ?', [user.kadi]);
-  sqlRun('DELETE FROM game_scores WHERE user_id = ?', [userId]);
+  if (hasTable('oyun_yilan')) sqlRun('DELETE FROM oyun_yilan WHERE isim = ?', [user.kadi]);
+  if (hasTable('oyun_tetris')) sqlRun('DELETE FROM oyun_tetris WHERE isim = ?', [user.kadi]);
+  if (hasTable('game_scores')) sqlRun('DELETE FROM game_scores WHERE user_id = ?', [userId]);
 
   // 10. System
-  sqlRun('DELETE FROM verification_requests WHERE user_id = ? OR reviewer_id = ?', [userId, userId]);
-  sqlRun('DELETE FROM member_engagement_scores WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM engagement_ab_assignments WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM oauth_accounts WHERE user_id = ?', [userId]);
-  sqlRun('DELETE FROM chat_messages WHERE user_id = ?', [userId]);
+  if (hasTable('verification_requests')) sqlRun('DELETE FROM verification_requests WHERE user_id = ? OR reviewer_id = ?', [userId, userId]);
+  if (hasTable('member_engagement_scores')) sqlRun('DELETE FROM member_engagement_scores WHERE user_id = ?', [userId]);
+  if (hasTable('engagement_ab_assignments')) sqlRun('DELETE FROM engagement_ab_assignments WHERE user_id = ?', [userId]);
+  if (hasTable('oauth_accounts')) sqlRun('DELETE FROM oauth_accounts WHERE user_id = ?', [userId]);
+  if (hasTable('chat_messages')) sqlRun('DELETE FROM chat_messages WHERE user_id = ?', [userId]);
 
   // 11. Final purge
   sqlRun('DELETE FROM uyeler WHERE id = ?', [userId]);
@@ -643,6 +649,23 @@ function hasColumn(table, column) {
     const safeTable = quoteIdentifier(table);
     const cols = sqlAll(`PRAGMA table_info(${safeTable})`);
     return cols.some((c) => c.name === column);
+  } catch {
+    return false;
+  }
+}
+
+function hasTable(table) {
+  try {
+    const safeTable = quoteIdentifier(table);
+    if (dbDriver === 'postgres') {
+      const row = sqlGet(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ?",
+        [String(table || '').toLowerCase()]
+      );
+      return !!row;
+    }
+    const cols = sqlAll(`PRAGMA table_info(${safeTable})`);
+    return cols && cols.length > 0;
   } catch {
     return false;
   }
