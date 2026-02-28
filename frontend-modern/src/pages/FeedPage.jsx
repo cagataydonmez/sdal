@@ -34,6 +34,7 @@ export default function FeedPage() {
   const scopeOptions = [
     { key: 'all', label: t('all'), icon: '○' },
     { key: 'following', label: t('following'), icon: '◎' },
+    { key: 'cohort', label: t('my_cohort') || 'Dönemim', icon: '◓' },
     { key: 'popular', label: t('popular'), icon: '▲' }
   ];
   const feedTabOptions = [

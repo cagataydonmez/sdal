@@ -78,6 +78,21 @@ export default function RegisterPage() {
               <input className="input" placeholder={t('register_captcha_placeholder')} value={form.gkodu} onChange={(e) => setForm({ ...form, gkodu: e.target.value })} />
               <button className="btn ghost" type="button" onClick={() => setCaptchaTs(Date.now())}>{t('register_captcha_refresh')}</button>
             </div>
+
+            <div className="form-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginTop: '16px' }}>
+               <input type="checkbox" id="kvkk" required style={{ marginTop: '4px' }} />
+               <label htmlFor="kvkk" style={{ fontSize: '0.9em', lineHeight: '1.4', fontWeight: 'normal' }}>
+                 Okudum ve anladım: <a href="/kvkk" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>Kişisel Verilerin Korunması ve Aydınlatma Metni</a> (Zorunlu)
+               </label>
+            </div>
+
+            <div className="form-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '16px' }}>
+               <input type="checkbox" id="directory_consent" required style={{ marginTop: '4px' }} />
+               <label htmlFor="directory_consent" style={{ fontSize: '0.9em', lineHeight: '1.4', fontWeight: 'normal' }}>
+                 Mezuniyet yılı, okul ve ad-soyad bilgilerimin yalnızca SDAL mezunlarına özel <strong>Mezun Rehberi'nde (Alumni Directory)</strong> listelenmesine açık rıza veriyorum. (Zorunlu)
+               </label>
+            </div>
+
             <button className="btn primary" type="submit">{t('register_submit')}</button>
             {status ? <div className="ok">{status}</div> : null}
             {error ? <div className="error">{error}</div> : null}

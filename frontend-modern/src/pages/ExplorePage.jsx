@@ -16,6 +16,8 @@ export default function ExplorePage({ fullMode = false }) {
     withPhoto: false,
     online: false,
     gradYear: '',
+    location: '',
+    profession: '',
     sort: 'recommended'
   });
   const [loading, setLoading] = useState(false);
@@ -44,6 +46,8 @@ export default function ExplorePage({ fullMode = false }) {
     if (activeFilters.withPhoto) params.set('withPhoto', '1');
     if (activeFilters.online) params.set('online', '1');
     if (activeFilters.gradYear && Number(activeFilters.gradYear) > 0) params.set('gradYear', String(activeFilters.gradYear));
+    if (activeFilters.location && activeFilters.location.trim()) params.set('location', activeFilters.location.trim());
+    if (activeFilters.profession && activeFilters.profession.trim()) params.set('profession', activeFilters.profession.trim());
 
     const res = await fetch(`/api/members?${params.toString()}`, { credentials: 'include' });
     const payload = await res.json();
@@ -221,6 +225,10 @@ export default function ExplorePage({ fullMode = false }) {
               <input type="checkbox" checked={filters.online} onChange={(e) => setFilter('online', e.target.checked)} />
               {t('status_online')}
             </label>
+          </div>
+          <div className="composer-actions">
+            <input className="input" placeholder={t('location') || 'Şehir'} value={filters.location} onChange={(e) => setFilter('location', e.target.value)} />
+            <input className="input" placeholder={t('profession') || 'Meslek'} value={filters.profession} onChange={(e) => setFilter('profession', e.target.value)} />
           </div>
           {loading ? <div className="muted">{t('searching')}</div> : null}
           {!fullMode ? <a className="btn ghost" href="/new/explore/members">{t('see_all')}</a> : null}

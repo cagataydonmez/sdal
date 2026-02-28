@@ -922,7 +922,23 @@ runMigration('2026_02_sdal_messenger_timestamp_backfill', () => {
   );
 });
 
+// Phase 1 - SDAL Alumni Hub
+migrateAddColumn('uyeler', 'verification_status', "ALTER TABLE uyeler ADD COLUMN verification_status TEXT DEFAULT 'pending'");
 migrateAddColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
+
+runMigration('2026_02_sdal_alumni_hub_backfill', () => {
+  // Enforce everyone to go through the new verification queue
+  // If they have no valid graduation year, they get '0'.
+  sqlRun(
+    `UPDATE uyeler
+     SET verification_status = 'pending',
+         mezuniyetyili = CASE
+           WHEN CAST(mezuniyetyili AS INTEGER) >= 1960 AND CAST(mezuniyetyili AS INTEGER) <= 2030 THEN mezuniyetyili
+           ELSE '0'
+         END
+     WHERE verification_status IS NULL OR verification_status = ''`
+  );
+});
 migrateAddColumn('posts', 'group_id', 'ALTER TABLE posts ADD COLUMN group_id INTEGER');
 migrateAddColumn('events', 'approved', 'ALTER TABLE events ADD COLUMN approved INTEGER DEFAULT 1');
 migrateAddColumn('events', 'created_by', 'ALTER TABLE events ADD COLUMN created_by INTEGER');
@@ -2499,8 +2515,8 @@ function findOrCreateOAuthUser({ provider, profile }) {
     const email = profile.email || `${provider}_${providerUserId}@oauth.local`;
     const kadi = uniqueUsernameFromSeed(profile.usernameSeed || email);
     const result = sqlRun(
-      `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verified, oauth_provider, oauth_subject, oauth_email_verified)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'yok', '0', 1, 1, ?, ?, ?)`,
+      `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verified, oauth_provider, oauth_subject, oauth_email_verified, verification_status)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'yok', '0', 1, 1, ?, ?, ?, 'pending')`,
       [
         kadi,
         randomState(18),
@@ -4335,12 +4351,17 @@ app.post('/api/register', async (req, res) => {
   const existingMail = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
   if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
 
+  const parsedYear = parseInt(mezuniyetyili, 10);
+  if (isNaN(parsedYear) || parsedYear < 1960 || parsedYear > new Date().getFullYear()) {
+    return res.status(400).send('Geçerli bir mezuniyet yılı seçmeniz gerekmektedir.');
+  }
+
   const aktivasyon = createActivation();
   const now = new Date().toISOString();
   const result = sqlRun(
-    `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'yok', ?, 0)`,
-    [cleanKadi, sifre, cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, mezuniyetyili]
+    `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'yok', ?, 0, 'pending')`,
+    [cleanKadi, sifre, cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, parsedYear]
   );
   const newId = result?.lastInsertRowid;
 
@@ -4577,6 +4598,8 @@ app.get('/api/members', (req, res) => {
   const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 50);
   const term = req.query.term ? String(req.query.term).replace(/'/g, '') : '';
   const gradYear = parseInt(String(req.query.gradYear || '0'), 10) || 0;
+  const location = req.query.location ? String(req.query.location).trim().toLowerCase() : '';
+  const profession = req.query.profession ? String(req.query.profession).trim().toLowerCase() : '';
   const verifiedOnly = String(req.query.verified || '').trim() === '1';
   const withPhoto = String(req.query.withPhoto || '').trim() === '1';
   const onlineOnly = String(req.query.online || '').trim() === '1';
@@ -4599,6 +4622,14 @@ app.get('/api/members', (req, res) => {
   if (gradYear > 0) {
     whereParts.push('CAST(COALESCE(mezuniyetyili, 0) AS INTEGER) = ?');
     params.push(gradYear);
+  }
+  if (location) {
+    whereParts.push('LOWER(sehir) LIKE ?');
+    params.push(`%${location}%`);
+  }
+  if (profession) {
+    whereParts.push('LOWER(meslek) LIKE ?');
+    params.push(`%${profession}%`);
   }
   if (verifiedOnly) {
     whereParts.push('COALESCE(CAST(verified AS INTEGER), 0) = 1');
@@ -5223,6 +5254,21 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
   } else if (scope === 'popular') {
     where = 'WHERE p.group_id IS NULL AND p.user_id <> ?';
     params.push(req.session.userId);
+  } else if (scope === 'cohort') {
+    const userRow = sqlGet('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
+    const year = parseInt(userRow?.mezuniyetyili || '0', 10);
+    if (!isNaN(year) && year > 1900) {
+      const cohortName = `${year} Mezunları`;
+      const groupRow = sqlGet('SELECT id FROM groups WHERE name = ?', [cohortName]);
+      if (groupRow) {
+        where = 'WHERE p.group_id = ?';
+        params.push(groupRow.id);
+      } else {
+        where = 'WHERE 1=0';
+      }
+    } else {
+      where = 'WHERE 1=0';
+    }
   }
   const orderBy = scope === 'popular'
     ? (
@@ -7495,25 +7541,64 @@ app.post('/api/new/chat/messages/:id/delete', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/verified/request', requireAuth, (req, res) => {
-  const existing = sqlGet('SELECT * FROM verification_requests WHERE user_id = ? AND status = ?', [req.session.userId, 'pending']);
+  const existing = sqlGet('SELECT id FROM verification_requests WHERE user_id = ? AND status = ?', [req.session.userId, 'pending']);
   if (existing) return res.status(400).send('Zaten bekleyen bir talebiniz var.');
   sqlRun('INSERT INTO verification_requests (user_id, status, created_at) VALUES (?, ?, ?)', [
     req.session.userId,
     'pending',
     new Date().toISOString()
   ]);
+  sqlRun('UPDATE uyeler SET verification_status = ? WHERE id = ?', ['pending', req.session.userId]);
   res.json({ ok: true });
 });
 
 app.get('/api/new/admin/verification-requests', requireAdmin, (req, res) => {
   const rows = sqlAll(
-    `SELECT r.id, r.user_id, r.status, r.created_at, u.kadi, u.isim, u.soyisim, u.resim
+    `SELECT r.id, r.user_id, r.status, r.created_at, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
      FROM verification_requests r
      LEFT JOIN uyeler u ON u.id = r.user_id
      ORDER BY r.id DESC`
   );
   res.json({ items: rows });
 });
+
+function assignUserToCohort(userId) {
+  const user = sqlGet('SELECT id, mezuniyetyili FROM uyeler WHERE id = ?', [userId]);
+  if (!user || !user.mezuniyetyili || user.mezuniyetyili === '0') return;
+  const year = parseInt(user.mezuniyetyili, 10);
+  if (isNaN(year) || year < 1960 || year > new Date().getFullYear() + 5) return;
+  
+  const cohortName = `${year} Mezunları`;
+  let group = sqlGet('SELECT id FROM groups WHERE name = ?', [cohortName]);
+  if (!group) {
+    const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility, show_contact_hint) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+      cohortName,
+      `SDAL ${year} yılı mezunlarına özel iletişim ağı.`,
+      '/images/cohort_default.jpg',
+      1,
+      new Date().toISOString(),
+      'public',
+      1
+    ]);
+    group = { id: result.lastInsertRowid };
+    sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+      group.id,
+      1,
+      'owner',
+      new Date().toISOString()
+    ]);
+  }
+  
+  const isMember = sqlGet('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?', [group.id, user.id]);
+  if (!isMember) {
+    sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+      group.id,
+      user.id,
+      'member',
+      new Date().toISOString()
+    ]);
+  }
+}
 
 app.post('/api/new/admin/verification-requests/:id', requireAdmin, (req, res) => {
   const status = req.body?.status;
@@ -7526,9 +7611,13 @@ app.post('/api/new/admin/verification-requests/:id', requireAdmin, (req, res) =>
     req.session.userId,
     req.params.id
   ]);
+  const newVerificationStatus = status === 'approved' ? 'verified' : 'rejected';
+  sqlRun('UPDATE uyeler SET verified = ?, verification_status = ? WHERE id = ?', [status === 'approved' ? 1 : 0, newVerificationStatus, row.user_id]);
+  
   if (status === 'approved') {
-    sqlRun('UPDATE uyeler SET verified = 1 WHERE id = ?', [row.user_id]);
+    assignUserToCohort(row.user_id);
   }
+  
   res.json({ ok: true });
 });
 
@@ -7536,7 +7625,12 @@ app.post('/api/new/admin/verify', requireAdmin, (req, res) => {
   const userId = req.body?.userId;
   const value = String(req.body?.verified || '0') === '1' ? 1 : 0;
   if (!userId) return res.status(400).send('User ID gerekli.');
-  sqlRun('UPDATE uyeler SET verified = ? WHERE id = ?', [value, userId]);
+  sqlRun('UPDATE uyeler SET verified = ?, verification_status = ? WHERE id = ?', [value, value === 1 ? 'verified' : 'pending', userId]);
+  
+  if (value === 1) {
+    assignUserToCohort(userId);
+  }
+  
   res.json({ ok: true });
 });
 
