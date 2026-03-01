@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout.jsx';
+import AccessDeniedView from '../components/admin/AccessDeniedView.jsx';
+import AdminLoginView from '../components/admin/AdminLoginView.jsx';
+import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
+import AdminPreviewModal from '../components/admin/AdminPreviewModal.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
 async function apiJson(url, options = {}) {
@@ -1026,9 +1030,7 @@ export default function AdminPage() {
   if (user?.admin !== 1) {
     return (
       <Layout title="Yönetim">
-        <div className="panel">
-          <div className="panel-body">Bu sayfaya erişiminiz yok.</div>
-        </div>
+        <AccessDeniedView />
       </Layout>
     );
   }
@@ -1036,15 +1038,12 @@ export default function AdminPage() {
   if (!adminOk) {
     return (
       <Layout title="Yönetim">
-        <div className="panel">
-          <div className="panel-body">
-            <form className="stack" onSubmit={adminLogin}>
-              <input className="input" type="password" placeholder="Admin şifresi" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
-              <button className="btn primary" type="submit">Admin Giriş</button>
-              {status ? <div className="muted">{status}</div> : null}
-            </form>
-          </div>
-        </div>
+        <AdminLoginView
+          adminLogin={adminLogin}
+          adminPassword={adminPassword}
+          setAdminPassword={setAdminPassword}
+          status={status}
+        />
       </Layout>
     );
   }
@@ -1053,44 +1052,14 @@ export default function AdminPage() {
     <Layout title="Yönetim">
       <div className="admin-shell">
         <div className="admin-content">
-          <div className="panel admin-page-header">
-            <div className="panel-body">
-              <div className="admin-page-top">
-                <button
-                  type="button"
-                  className={`admin-hamburger ${adminMenuOpen ? 'open' : ''}`}
-                  aria-label="Admin menüsünü aç"
-                  aria-expanded={adminMenuOpen}
-                  onClick={() => setAdminMenuOpen((v) => !v)}
-                >
-                  <span />
-                  <span />
-                  <span />
-                </button>
-                <div>
-                  <h3>{currentTab.label}</h3>
-                  <div className="muted">{currentTab.hint}</div>
-                </div>
-              </div>
-              <div className={`admin-hamburger-menu ${adminMenuOpen ? 'open' : ''}`}>
-                {Object.entries(groupedTabs).map(([section, sectionTabs]) => (
-                  <div key={`menu-${section}`} className="admin-nav-group">
-                    <div className="admin-nav-title">{section}</div>
-                    {sectionTabs.map((menuTab) => (
-                      <button
-                        key={menuTab.key}
-                        className={`admin-nav-item ${tab === menuTab.key ? 'active' : ''}`}
-                        onClick={() => setTab(menuTab.key)}
-                      >
-                        <div className="name">{menuTab.label}</div>
-                        <div className="meta">{menuTab.hint}</div>
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <AdminPageHeader
+            currentTab={currentTab}
+            adminMenuOpen={adminMenuOpen}
+            setAdminMenuOpen={setAdminMenuOpen}
+            groupedTabs={groupedTabs}
+            tab={tab}
+            setTab={setTab}
+          />
 
           <div className="admin-page-wrap">
       {tab === 'dashboard' ? (
@@ -2383,111 +2352,7 @@ export default function AdminPage() {
         </div>
       ) : null}
 
-      {previewModal ? (
-        <div className="story-modal" onClick={() => setPreviewModal(null)}>
-          <div className="story-frame admin-preview" onClick={(e) => e.stopPropagation()}>
-            <div className="composer-actions">
-              <h3>Önizleme</h3>
-              <button className="btn ghost" onClick={() => setPreviewModal(null)}>Kapat</button>
-            </div>
-            {previewModal.type === 'activity' ? (
-              <div className="stack">
-                <div className="name">{previewModal.data?.message}</div>
-                <div className="meta">{previewModal.data?.type}</div>
-                <div className="meta">{previewModal.data?.at ? new Date(previewModal.data.at).toLocaleString('tr-TR') : '-'}</div>
-              </div>
-            ) : null}
-            {previewModal.type === 'activity-all' ? (
-              <div className="list">
-                {(previewModal.data || []).map((row) => (
-                  <div key={`a-all-${row.id}`} className="list-item">
-                    <div>
-                      <div className="name">{row.message}</div>
-                      <div className="meta">{row.type} • {row.at ? new Date(row.at).toLocaleString('tr-TR') : '-'}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {previewModal.type === 'user' ? (
-              <div className="stack">
-                <div className="name">@{previewModal.data?.kadi}</div>
-                <div className="meta">{previewModal.data?.isim} {previewModal.data?.soyisim}</div>
-                <div className="meta">Kayıt: {previewModal.data?.ilktarih ? new Date(previewModal.data.ilktarih).toLocaleString('tr-TR') : '-'}</div>
-              </div>
-            ) : null}
-            {previewModal.type === 'post' ? (
-              <div className="stack">
-                <div className="meta">Paylaşım ID: {previewModal.data?.id}</div>
-                <div className="meta">Tarih: {previewModal.data?.created_at ? new Date(previewModal.data.created_at).toLocaleString('tr-TR') : '-'}</div>
-                <div>{previewModal.data?.content || '(metin yok)'}</div>
-                {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
-              </div>
-            ) : null}
-            {previewModal.type === 'post-all' ? (
-              <div className="list">
-                {(previewModal.data || []).map((p) => (
-                  <button key={`p-all-${p.id}`} className="list-item" onClick={() => setPreviewModal({ type: 'post', data: p })}>
-                    <div>{(p.content || '').slice(0, 120) || '(metin yok)'}</div>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {previewModal.type === 'follow' ? (
-              <div className="stack">
-                <div className="name">@{previewModal.data?.kadi}</div>
-                <div className="meta">Takip tarihi: {previewModal.data?.followed_at ? new Date(previewModal.data.followed_at).toLocaleString('tr-TR') : '-'}</div>
-                <div className="meta">Mesaj sayısı: {previewModal.data?.messageCount || 0}</div>
-                <div className="meta">Alıntılama sayısı: {previewModal.data?.quoteCount || 0}</div>
-                <div>
-                  <b>Son Mesajlar</b>
-                  <div className="list">
-                    {(previewModal.data?.recentMessages || []).map((m) => (
-                      <div key={`fm-${m.id}`} className="list-item">
-                        <div>
-                          <div className="name">{m.konu || '(konu yok)'}</div>
-                          <div className="meta">{m.tarih ? new Date(m.tarih).toLocaleString('tr-TR') : '-'}</div>
-                          <div>{m.mesaj || ''}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <b>Son Alıntılar</b>
-                  <div className="list">
-                    {(previewModal.data?.recentQuotes || []).map((q) => (
-                      <div key={`fq-${q.id}`} className="list-item">
-                        <div>
-                          <div className="meta">{q.created_at ? new Date(q.created_at).toLocaleString('tr-TR') : '-'}</div>
-                          <div>{q.content || ''}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-            {previewModal.type === 'event' ? (
-              <div className="stack">
-                <div className="name">{previewModal.data?.title}</div>
-                <div className="meta">{previewModal.data?.starts_at ? new Date(previewModal.data.starts_at).toLocaleString('tr-TR') : '-'}</div>
-                <div className="meta">{previewModal.data?.location || '-'}</div>
-                <div dangerouslySetInnerHTML={{ __html: previewModal.data?.description || previewModal.data?.body || '' }} />
-                {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
-              </div>
-            ) : null}
-            {previewModal.type === 'announcement' ? (
-              <div className="stack">
-                <div className="name">{previewModal.data?.title}</div>
-                <div className="meta">{previewModal.data?.created_at ? new Date(previewModal.data.created_at).toLocaleString('tr-TR') : '-'}</div>
-                <div dangerouslySetInnerHTML={{ __html: previewModal.data?.body || previewModal.data?.description || '' }} />
-                {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      <AdminPreviewModal previewModal={previewModal} setPreviewModal={setPreviewModal} />
 
       {status ? <div className="muted">{status}</div> : null}
           </div>
