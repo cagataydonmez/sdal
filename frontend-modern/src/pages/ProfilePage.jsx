@@ -174,32 +174,32 @@ export default function ProfilePage() {
             <input className="input" value={profile.meslek || ''} onChange={(e) => setProfile({ ...profile, meslek: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Şirket</label>
+            <label>{t('profile_company')}</label>
             <input className="input" value={profile.sirket || ''} onChange={(e) => setProfile({ ...profile, sirket: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Unvan</label>
+            <label>{t('profile_title')}</label>
             <input className="input" value={profile.unvan || ''} onChange={(e) => setProfile({ ...profile, unvan: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Uzmanlık Alanları</label>
+            <label>{t('profile_expertise')}</label>
             <input className="input" value={profile.uzmanlik || ''} onChange={(e) => setProfile({ ...profile, uzmanlik: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>LinkedIn</label>
+            <label>{t('profile_linkedin')}</label>
             <input className="input" value={profile.linkedin_url || ''} onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/..." />
           </div>
           <div className="form-row">
-            <label>Üniversite Bölüm</label>
+            <label>{t('profile_university_department')}</label>
             <input className="input" value={profile.universite_bolum || ''} onChange={(e) => setProfile({ ...profile, universite_bolum: e.target.value })} />
           </div>
           <div className="form-row">
-            <label>Mentorluk Konuları</label>
+            <label>{t('profile_mentor_topics')}</label>
             <textarea className="input" value={profile.mentor_konulari || ''} onChange={(e) => setProfile({ ...profile, mentor_konulari: e.target.value })} />
           </div>
           <label className="chip" style={{ marginBottom: 12 }}>
             <input type="checkbox" checked={Boolean(profile.mentor_opt_in)} onChange={(e) => setProfile({ ...profile, mentor_opt_in: e.target.checked })} />
-            Mentor olarak görün
+            {t('profile_mentor_opt_in')}
           </label>
           <div className="form-row">
             <label>{t('profile_graduation')}</label>
