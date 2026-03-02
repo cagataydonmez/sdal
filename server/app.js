@@ -1356,6 +1356,26 @@ function isOAuthProfileIncomplete(user) {
 
 function requireAuth(req, res, next) {
   if (!req.session.userId) return res.status(401).send('Login required');
+  const writeMethod = new Set(['POST', 'PUT', 'PATCH', 'DELETE']).has(String(req.method || '').toUpperCase());
+  const writeAllowedWithoutVerification = [
+    '/api/profile',
+    '/api/profile/password',
+    '/api/profile/photo',
+    '/api/new/verified/request',
+    '/api/new/verified/proof'
+  ];
+  if (writeMethod) {
+    const user = getCurrentUser(req);
+    const isVerified = Number(user?.verified || 0) === 1;
+    const canWriteWithoutVerification = writeAllowedWithoutVerification.some((item) => req.path === item || req.path.startsWith(`${item}/`));
+    if (!isVerified && !canWriteWithoutVerification) {
+      return res.status(403).json({
+        error: 'VERIFICATION_REQUIRED',
+        message: 'Yazma işlemleri için önce profilinizi doğrulamanız gerekiyor.',
+        verificationUrl: '/new/profile/verification'
+      });
+    }
+  }
   if (req.path.startsWith('/api/new/')) {
     const user = getCurrentUser(req);
     if (isOAuthProfileIncomplete(user)) {
@@ -7837,6 +7857,10 @@ app.post('/api/new/chat/messages/:id/delete', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/verified/request', requireAuth, (req, res) => {
+  const user = getCurrentUser(req);
+  if (Number(user?.verified || 0) === 1) {
+    return res.status(403).send('Profilin zaten doğrulanmış.');
+  }
   const existing = sqlGet('SELECT id FROM verification_requests WHERE user_id = ? AND status = ?', [req.session.userId, 'pending']);
   if (existing) return res.status(400).send('Zaten bekleyen bir talebiniz var.');
   const proofPath = String(req.body?.proof_path || '').trim();
@@ -7864,6 +7888,10 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/verified/proof', requireAuth, verificationProofUpload.single('proof'), async (req, res) => {
+  const user = getCurrentUser(req);
+  if (Number(user?.verified || 0) === 1) {
+    return res.status(403).send('Profilin zaten doğrulanmış.');
+  }
   if (!req.file?.filename) return res.status(400).send('Dosya yüklenemedi.');
   const ext = path.extname(req.file.filename || '').toLowerCase();
   if (ext === '.pdf') {
