@@ -22,6 +22,8 @@ export default function ProfilePage() {
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [verifyStatus, setVerifyStatus] = useState('');
+  const [verificationProofFile, setVerificationProofFile] = useState(null);
+  const [verificationProofPath, setVerificationProofPath] = useState('');
   const [storyBusy, setStoryBusy] = useState('');
 
   useEffect(() => {
@@ -50,6 +52,24 @@ export default function ProfilePage() {
 
   const activeStories = stories.filter((s) => !s.isExpired);
   const expiredStories = stories.filter((s) => s.isExpired);
+
+
+  async function uploadVerificationProof() {
+    if (!verificationProofFile) return '';
+    const form = new FormData();
+    form.append('proof', verificationProofFile);
+    const res = await fetch('/api/new/verified/proof', {
+      method: 'POST',
+      credentials: 'include',
+      body: form
+    });
+    if (!res.ok) {
+      const message = await res.text();
+      throw new Error(message || 'Kanıt dosyası yüklenemedi.');
+    }
+    const payload = await res.json();
+    return String(payload.proof_path || '').trim();
+  }
 
   async function refreshStories() {
     try {
@@ -192,13 +212,39 @@ export default function ProfilePage() {
           <button className="btn primary" onClick={save}>{t('save')}</button>
           <a className="btn ghost" href="/new/profile/photo">{t('profile_photo_title')}</a>
           {profile?.id ? <a className="btn ghost" href={`/new/members/${profile.id}`}>{t('profile_preview_members')}</a> : null}
+          <div className="form-row">
+            <label>Doğrulama Kanıtı (opsiyonel: JPG, PNG, PDF)</label>
+            <input
+              className="input"
+              type="file"
+              accept=".jpg,.jpeg,.png,.pdf"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setVerificationProofFile(file);
+                setVerificationProofPath('');
+              }}
+            />
+          </div>
           <button className="btn ghost" onClick={async () => {
             setVerifyStatus('');
-            const res = await fetch('/api/new/verified/request', { method: 'POST', credentials: 'include' });
-            if (!res.ok) {
-              setVerifyStatus(await res.text());
-            } else {
-              setVerifyStatus(t('profile_verify_request_received'));
+            setError('');
+            try {
+              const proofPath = await uploadVerificationProof();
+              if (proofPath) setVerificationProofPath(proofPath);
+              const res = await fetch('/api/new/verified/request', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proof_path: proofPath || verificationProofPath || '' })
+              });
+              if (!res.ok) {
+                setVerifyStatus(await res.text());
+              } else {
+                setVerifyStatus(t('profile_verify_request_received'));
+                setVerificationProofFile(null);
+              }
+            } catch (err) {
+              setError(err.message || 'Doğrulama talebi gönderilemedi.');
             }
           }}>{t('profile_verify_request')}</button>
           {status ? <div className="ok">{status}</div> : null}

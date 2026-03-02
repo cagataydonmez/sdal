@@ -24,7 +24,7 @@ This document audits the current implementation against the roadmap and provides
 | ~~Blueprint~~ | ~~`sdal_professional_hub_strategy.md` does not exist~~ | ✅ Created at `docs/sdal_professional_hub_strategy.md` |
 | ~~Graduation year mandatory in UI~~ | ~~RegisterPage select has empty default~~ | ✅ Placeholder "Mezuniyet yılı seçiniz (Zorunlu)" with `value="0"`, `required` |
 | ~~KVKK consents~~ | ~~Checkboxes not sent/stored~~ | ✅ `kvkk_consent_at`, `directory_consent_at` in DB; required in register; stored on signup |
-| **Verification diploma/proof** | Admin approves by status only; no file upload or proof attachment | Add optional `proof_url` / `proof_path` to `verification_requests`; admin can view before approving |
+| **Verification diploma/proof** | ✅ Optional proof upload now supported | `proof_path` stored in `verification_requests`; profile supports JPG/PNG/PDF upload; admin queue includes proof link |
 | **Cohort assignment on activation** | Cohort assigned only on verification approval | Roadmap says "assign incoming **verified** users" – current behavior is correct |
 
 ---
@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 | **1** | Blueprint doc | ❌ Create |
 | **1** | graduation_year mandatory UX | ⚠️ Tighten |
 | **1** | KVKK + directory consent storage | ❌ Implement |
-| **1** | Verification proof upload | ⚠️ Optional |
+| **1** | Verification proof upload | ✅ Implemented |
 | **1.5** | Legacy wipe script | ✅ Done |
 | **1.5** | Recursive member delete | ✅ Done |
 | **2** | Profile extensions | ❌ Implement |
@@ -238,4 +238,4 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 ---
 
-*Last updated: 2026-02*
+*Last updated: 2026-03*
