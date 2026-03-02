@@ -196,7 +196,7 @@ export default function RegisterPage() {
                     </tr>
                     <tr>
                       <td align="right"><b>Güvenlik Kodu : </b></td>
-                      <td align="left"><input type="text" name="gkodu" size="20" className="inptxt" required inputMode="numeric" pattern="[0-9]*" maxLength={6} value={form.gkodu} onChange={(e) => updateField('gkodu', e.target.value.replace(/\D/g, ''))} /></td>
+                      <td align="left"><input type="text" name="gkodu" size="20" className="inptxt" required inputMode="numeric" pattern="[0-9]*" maxLength={8} value={form.gkodu} onChange={(e) => updateField('gkodu', e.target.value.replace(/\D/g, ''))} /></td>
                     </tr>
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
                     <tr>

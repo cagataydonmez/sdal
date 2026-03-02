@@ -94,7 +94,7 @@ export default function RegisterPage() {
                 required
                 inputMode="numeric"
                 pattern="[0-9]*"
-                maxLength={6}
+                maxLength={8}
                 placeholder={t('register_captcha_placeholder')}
                 value={form.gkodu}
                 onChange={(e) => setForm({ ...form, gkodu: e.target.value.replace(/\D/g, '') })}
