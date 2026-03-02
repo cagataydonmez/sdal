@@ -790,3 +790,31 @@
   border-radius: 14px;
   padding: 16px;
 }
+
+@media (max-width: 640px) {
+  .verification-popup {
+    width: min(360px, calc(100vw - 24px));
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .verification-popup h3 {
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  .verification-popup .muted {
+    font-size: 13px;
+    line-height: 1.35;
+    margin-bottom: 10px;
+  }
+
+  .verification-popup .story-actions {
+    gap: 6px;
+  }
+
+  .verification-popup .story-actions .btn {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+}
