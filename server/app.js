@@ -927,6 +927,13 @@ migrateAddColumn('uyeler', 'verification_status', "ALTER TABLE uyeler ADD COLUMN
 migrateAddColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
 migrateAddColumn('uyeler', 'kvkk_consent_at', 'ALTER TABLE uyeler ADD COLUMN kvkk_consent_at TEXT');
 migrateAddColumn('uyeler', 'directory_consent_at', 'ALTER TABLE uyeler ADD COLUMN directory_consent_at TEXT');
+migrateAddColumn('uyeler', 'sirket', 'ALTER TABLE uyeler ADD COLUMN sirket TEXT');
+migrateAddColumn('uyeler', 'unvan', 'ALTER TABLE uyeler ADD COLUMN unvan TEXT');
+migrateAddColumn('uyeler', 'uzmanlik', 'ALTER TABLE uyeler ADD COLUMN uzmanlik TEXT');
+migrateAddColumn('uyeler', 'linkedin_url', 'ALTER TABLE uyeler ADD COLUMN linkedin_url TEXT');
+migrateAddColumn('uyeler', 'universite_bolum', 'ALTER TABLE uyeler ADD COLUMN universite_bolum TEXT');
+migrateAddColumn('uyeler', 'mentor_opt_in', 'ALTER TABLE uyeler ADD COLUMN mentor_opt_in INTEGER DEFAULT 0');
+migrateAddColumn('uyeler', 'mentor_konulari', 'ALTER TABLE uyeler ADD COLUMN mentor_konulari TEXT');
 
 runMigration('2026_02_sdal_alumni_hub_backfill', () => {
   // Enforce everyone to go through the new verification queue
@@ -4508,7 +4515,8 @@ app.get('/api/profile', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const user = sqlGet(`
     SELECT id, kadi, isim, soyisim, email, mezuniyetyili, sehir, meslek, websitesi, universite,
-           dogumgun, dogumay, dogumyil, mailkapali, imza, resim, ilkbd
+           dogumgun, dogumay, dogumyil, mailkapali, imza, resim, ilkbd,
+           sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari
     FROM uyeler WHERE id = ?`, [req.session.userId]);
   res.json({ user });
 });
@@ -4526,6 +4534,13 @@ app.put('/api/profile', (req, res) => {
   const meslek = String(req.body.meslek || '');
   const websitesi = String(req.body.websitesi || '');
   const universite = String(req.body.universite || '');
+  const sirket = String(req.body.sirket || '').trim();
+  const unvan = String(req.body.unvan || '').trim();
+  const uzmanlik = String(req.body.uzmanlik || '').trim();
+  const linkedinUrl = String(req.body.linkedin_url || '').trim();
+  const universiteBolum = String(req.body.universite_bolum || '').trim();
+  const mentorOptIn = req.body.mentor_opt_in ? 1 : 0;
+  const mentorKonulari = String(req.body.mentor_konulari || '').trim();
   const dogumgun = parseInt(req.body.dogumgun || '0', 10) || 0;
   const dogumay = parseInt(req.body.dogumay || '0', 10) || 0;
   const dogumyil = parseInt(req.body.dogumyil || '0', 10) || 0;
@@ -4538,9 +4553,15 @@ app.put('/api/profile', (req, res) => {
   sqlRun(`
     UPDATE uyeler
     SET isim = ?, soyisim = ?, sehir = ?, meslek = ?, websitesi = ?, universite = ?,
-        dogumgun = ?, dogumay = ?, dogumyil = ?, mailkapali = ?, imza = ?, ilkbd = ?
+        dogumgun = ?, dogumay = ?, dogumyil = ?, mailkapali = ?, imza = ?, ilkbd = ?,
+        sirket = ?, unvan = ?, uzmanlik = ?, linkedin_url = ?, universite_bolum = ?, mentor_opt_in = ?, mentor_konulari = ?
     WHERE id = ?`,
-    [isim, soyisim, sehir, meslek, websitesi, universite, dogumgun, dogumay, dogumyil, mailkapali, imza, nextIlkbd, req.session.userId]
+    [
+      isim, soyisim, sehir, meslek, websitesi, universite,
+      dogumgun, dogumay, dogumyil, mailkapali, imza, nextIlkbd,
+      sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, mentorOptIn, mentorKonulari,
+      req.session.userId
+    ]
   );
   res.json({ ok: true });
 });
@@ -4632,6 +4653,9 @@ app.get('/api/members', (req, res) => {
   const gradYear = parseInt(String(req.query.gradYear || '0'), 10) || 0;
   const location = req.query.location ? String(req.query.location).trim().toLowerCase() : '';
   const profession = req.query.profession ? String(req.query.profession).trim().toLowerCase() : '';
+  const expertise = req.query.expertise ? String(req.query.expertise).trim().toLowerCase() : '';
+  const title = req.query.title ? String(req.query.title).trim().toLowerCase() : '';
+  const mentorsOnly = String(req.query.mentors || '').trim() === '1';
   const verifiedOnly = String(req.query.verified || '').trim() === '1';
   const withPhoto = String(req.query.withPhoto || '').trim() === '1';
   const onlineOnly = String(req.query.online || '').trim() === '1';
@@ -4662,6 +4686,17 @@ app.get('/api/members', (req, res) => {
   if (profession) {
     whereParts.push('LOWER(meslek) LIKE ?');
     params.push(`%${profession}%`);
+  }
+  if (expertise) {
+    whereParts.push('LOWER(uzmanlik) LIKE ?');
+    params.push(`%${expertise}%`);
+  }
+  if (title) {
+    whereParts.push('LOWER(unvan) LIKE ?');
+    params.push(`%${title}%`);
+  }
+  if (mentorsOnly) {
+    whereParts.push('COALESCE(CAST(mentor_opt_in AS INTEGER), 0) = 1');
   }
   if (verifiedOnly) {
     whereParts.push('COALESCE(CAST(verified AS INTEGER), 0) = 1');
@@ -4698,7 +4733,8 @@ app.get('/api/members', (req, res) => {
   const offset = (safePage - 1) * pageSize;
   const rows = sqlAll(`
     SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.mailkapali, u.mezuniyetyili, u.dogumgun, u.dogumay, u.dogumyil,
-           u.sehir, u.universite, u.meslek, u.websitesi, u.imza, u.resim, u.online, u.sontarih, u.verified
+           u.sehir, u.universite, u.meslek, u.websitesi, u.imza, u.resim, u.online, u.sontarih, u.verified,
+           u.sirket, u.unvan, u.uzmanlik, u.linkedin_url, u.universite_bolum, u.mentor_opt_in, u.mentor_konulari
     FROM uyeler u
     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
     WHERE ${where}
@@ -4714,14 +4750,15 @@ app.get('/api/members', (req, res) => {
     ranges.push({ start, end });
   }
 
-  res.json({ rows, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort } });
+  res.json({ rows, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly } });
 });
 
 app.get('/api/members/:id', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const row = sqlGet(`
     SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
-           sehir, universite, meslek, websitesi, imza, resim, online, sontarih
+           sehir, universite, meslek, websitesi, imza, resim, online, sontarih,
+           sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari
     FROM uyeler
     WHERE id = ?
   `, [req.params.id]);

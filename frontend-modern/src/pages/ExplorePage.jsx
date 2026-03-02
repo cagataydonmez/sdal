@@ -18,6 +18,9 @@ export default function ExplorePage({ fullMode = false }) {
     gradYear: '',
     location: '',
     profession: '',
+    expertise: '',
+    title: '',
+    mentors: false,
     sort: 'recommended'
   });
   const [loading, setLoading] = useState(false);
@@ -48,6 +51,9 @@ export default function ExplorePage({ fullMode = false }) {
     if (activeFilters.gradYear && Number(activeFilters.gradYear) > 0) params.set('gradYear', String(activeFilters.gradYear));
     if (activeFilters.location && activeFilters.location.trim()) params.set('location', activeFilters.location.trim());
     if (activeFilters.profession && activeFilters.profession.trim()) params.set('profession', activeFilters.profession.trim());
+    if (activeFilters.expertise && activeFilters.expertise.trim()) params.set('expertise', activeFilters.expertise.trim());
+    if (activeFilters.title && activeFilters.title.trim()) params.set('title', activeFilters.title.trim());
+    if (activeFilters.mentors) params.set('mentors', '1');
 
     const res = await fetch(`/api/members?${params.toString()}`, { credentials: 'include' });
     const payload = await res.json();
@@ -156,6 +162,8 @@ export default function ExplorePage({ fullMode = false }) {
           </div>
           <div className="handle">@{m.kadi}</div>
           <div className="meta">{m.mezuniyetyili || ''}{Number(m.online || 0) === 1 ? ` · ${t('status_online')}` : ''}</div>
+          {m.unvan || m.sirket ? <div className="meta">{[m.unvan, m.sirket].filter(Boolean).join(' @ ')}</div> : null}
+          {m.uzmanlik ? <div className="meta">{m.uzmanlik}</div> : null}
           {showReasons && Array.isArray(m.reasons) && m.reasons.length ? (
             <div className="composer-actions">
               {m.reasons.slice(0, 2).map((r) => <span className="chip" key={`${m.id}-${r}`}>{r}</span>)}
@@ -225,10 +233,16 @@ export default function ExplorePage({ fullMode = false }) {
               <input type="checkbox" checked={filters.online} onChange={(e) => setFilter('online', e.target.checked)} />
               {t('status_online')}
             </label>
+            <label className="chip">
+              <input type="checkbox" checked={filters.mentors} onChange={(e) => setFilter('mentors', e.target.checked)} />
+              Mentorlar
+            </label>
           </div>
           <div className="composer-actions">
             <input className="input" placeholder={t('location') || 'Şehir'} value={filters.location} onChange={(e) => setFilter('location', e.target.value)} />
             <input className="input" placeholder={t('profession') || 'Meslek'} value={filters.profession} onChange={(e) => setFilter('profession', e.target.value)} />
+            <input className="input" placeholder="Uzmanlık" value={filters.expertise} onChange={(e) => setFilter('expertise', e.target.value)} />
+            <input className="input" placeholder="Unvan" value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
           </div>
           {loading ? <div className="muted">{t('searching')}</div> : null}
           {!fullMode ? <a className="btn ghost" href="/new/explore/members">{t('see_all')}</a> : null}
