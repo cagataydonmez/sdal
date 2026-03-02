@@ -34,8 +34,17 @@ export default function MemberDetailPage() {
           <div className="meta">{member.mezuniyetyili || ''}</div>
           <div className="meta">{member.sehir || ''}</div>
           <div className="meta">{member.meslek || ''}</div>
+          {member.unvan || member.sirket ? <div className="meta">{[member.unvan, member.sirket].filter(Boolean).join(' @ ')}</div> : null}
+          {member.uzmanlik ? <div className="meta">{member.uzmanlik}</div> : null}
+          {Number(member.mentor_opt_in || 0) === 1 ? <div className="meta">{t('profile_mentor_opt_in')}</div> : null}
           <div className="meta">{member.universite || ''}</div>
+          {member.universite_bolum ? <div className="meta">{member.universite_bolum}</div> : null}
           <div className="meta">{member.websitesi || ''}</div>
+          {member.linkedin_url ? (
+            <div className="meta">
+              <a href={member.linkedin_url} target="_blank" rel="noreferrer">{t('profile_linkedin')}</a>
+            </div>
+          ) : null}
           <div>{member.imza}</div>
           <div className="composer-actions">
             <a className="btn primary" href={`/new/messages/compose?to=${member.id}`}>{t('member_send_message')}</a>

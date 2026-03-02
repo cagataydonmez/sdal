@@ -235,14 +235,14 @@ export default function ExplorePage({ fullMode = false }) {
             </label>
             <label className="chip">
               <input type="checkbox" checked={filters.mentors} onChange={(e) => setFilter('mentors', e.target.checked)} />
-              Mentorlar
+              {t('mentors')}
             </label>
           </div>
           <div className="composer-actions">
             <input className="input" placeholder={t('location') || 'Şehir'} value={filters.location} onChange={(e) => setFilter('location', e.target.value)} />
             <input className="input" placeholder={t('profession') || 'Meslek'} value={filters.profession} onChange={(e) => setFilter('profession', e.target.value)} />
-            <input className="input" placeholder="Uzmanlık" value={filters.expertise} onChange={(e) => setFilter('expertise', e.target.value)} />
-            <input className="input" placeholder="Unvan" value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
+            <input className="input" placeholder={t('profile_expertise')} value={filters.expertise} onChange={(e) => setFilter('expertise', e.target.value)} />
+            <input className="input" placeholder={t('profile_title')} value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
           </div>
           {loading ? <div className="muted">{t('searching')}</div> : null}
           {!fullMode ? <a className="btn ghost" href="/new/explore/members">{t('see_all')}</a> : null}
