@@ -557,6 +557,8 @@
   background: var(--overlay);
   display: grid;
   place-items: center;
+  padding: 16px;
+  box-sizing: border-box;
   z-index: 50;
 }
 .story-frame {
@@ -784,16 +786,20 @@
 }
 
 .verification-popup {
-  width: min(520px, 92vw);
+  width: min(420px, calc(100vw - 32px));
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
+  max-height: min(78vh, 360px);
+  overflow: auto;
+  margin: 0 auto;
 }
 
 @media (max-width: 640px) {
   .verification-popup {
-    width: min(360px, calc(100vw - 24px));
+    width: min(320px, calc(100vw - 40px));
+    max-height: min(68vh, 300px);
     border-radius: 12px;
     padding: 12px;
   }
@@ -816,5 +822,12 @@
   .verification-popup .story-actions .btn {
     padding: 8px 10px;
     font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .verification-popup {
+    width: min(280px, calc(100vw - 44px));
+    max-height: min(62vh, 270px);
   }
 }
