@@ -6,6 +6,38 @@ const NET_END = 'sdal:net:end';
 const VERIFICATION_REQUIRED = 'sdal:verification-required';
 const FEEDBACK_DELAY_MS = 3000;
 
+function extractErrorMessage(rawText) {
+  const text = String(rawText || '').trim();
+  if (!text) return '';
+  if (!(text.startsWith('{') || text.startsWith('['))) return text;
+  try {
+    const payload = JSON.parse(text);
+    if (typeof payload === 'string') return payload;
+    if (payload && typeof payload === 'object') {
+      const candidate = payload.message || payload.error || payload.detail || payload.title;
+      if (candidate != null) return String(candidate);
+    }
+  } catch {
+    return text;
+  }
+  return text;
+}
+
+function withSanitizedErrorText(response) {
+  if (response.ok) return response;
+  return new Proxy(response, {
+    get(target, prop, receiver) {
+      if (prop === 'text') {
+        return async () => {
+          const raw = await target.clone().text();
+          return extractErrorMessage(raw);
+        };
+      }
+      return Reflect.get(target, prop, receiver);
+    }
+  });
+}
+
 function emit(name, detail) {
   window.dispatchEvent(new CustomEvent(name, { detail }));
 }
@@ -38,7 +70,7 @@ function patchFetchOnce() {
           // ignore non-json responses
         }
       }
-      return response;
+      return withSanitizedErrorText(response);
     } finally {
       if (interactive) emit(NET_END, { interactive: true });
     }
