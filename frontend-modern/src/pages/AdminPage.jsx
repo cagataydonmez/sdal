@@ -25,6 +25,7 @@ const tabs = [
   { key: 'follows', label: 'Takip İlişkileri', section: 'Topluluk', hint: 'Takip eden/edilen ilişki analizi' },
   { key: 'engagement', label: 'Etkileşim Skorları', section: 'Topluluk', hint: 'Gizli görünürlük puanları' },
   { key: 'verification', label: 'Doğrulama', section: 'Topluluk', hint: 'Rozet/kimlik doğrulama talepleri' },
+  { key: 'memberRequests', label: 'Yönetim Talepleri', section: 'Topluluk', hint: 'Üye talepleri ve kategori bildirimleri' },
   { key: 'groups', label: 'Gruplar', section: 'Topluluk', hint: 'Grup moderasyonu ve temizlik' },
   { key: 'posts', label: 'Postlar', section: 'Topluluk', hint: 'Post moderasyonu ve silme' },
   { key: 'stories', label: 'Hikayeler', section: 'Topluluk', hint: 'Story denetimi' },
@@ -185,6 +186,9 @@ export default function AdminPage() {
   const [mediaSpacesConfigured, setMediaSpacesConfigured] = useState(false);
   const [mediaSpacesInfo, setMediaSpacesInfo] = useState({ region: '', bucket: '', endpoint: '' });
   const [mediaSettingsBusy, setMediaSettingsBusy] = useState(false);
+  const [adminRequestNotifications, setAdminRequestNotifications] = useState([]);
+  const [adminRequestItems, setAdminRequestItems] = useState([]);
+  const [adminRequestCategoryFilter, setAdminRequestCategoryFilter] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -228,6 +232,7 @@ export default function AdminPage() {
     if (tab === 'email') loadEmailMeta();
     if (tab === 'tournament') loadTeams();
     if (tab === 'verification') loadVerification();
+    if (tab === 'memberRequests') loadAdminRequests();
     if (tab === 'engagement') {
       loadEngagementScores();
       loadEngagementAb();
@@ -738,6 +743,21 @@ export default function AdminPage() {
   async function reviewRequest(id, statusValue) {
     await apiJson(`/api/new/admin/verification-requests/${id}`, { method: 'POST', body: JSON.stringify({ status: statusValue }) });
     loadVerification();
+  }
+
+
+  async function loadAdminRequests() {
+    const [notifications, items] = await Promise.all([
+      apiJson('/api/new/admin/requests/notifications'),
+      apiJson(`/api/new/admin/requests?status=pending${adminRequestCategoryFilter ? `&category=${encodeURIComponent(adminRequestCategoryFilter)}` : ''}`)
+    ]);
+    setAdminRequestNotifications(notifications.items || []);
+    setAdminRequestItems(items.items || []);
+  }
+
+  async function reviewAdminRequest(id, statusValue) {
+    await apiJson(`/api/new/admin/requests/${id}/review`, { method: 'POST', body: JSON.stringify({ status: statusValue }) });
+    loadAdminRequests();
   }
 
   async function loadEvents() {
@@ -1978,6 +1998,40 @@ export default function AdminPage() {
                 </div>
                 <button className="btn" onClick={() => reviewRequest(r.id, 'approved')}>Onayla</button>
                 <button className="btn ghost" onClick={() => reviewRequest(r.id, 'rejected')}>Reddet</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+
+      {tab === 'memberRequests' ? (
+        <div className="panel">
+          <div className="panel-body">
+            <h3>Talep Bildirimleri</h3>
+            <div className="list">
+              {adminRequestNotifications.map((n) => (
+                <div key={n.category_key} className="list-item">
+                  <div>
+                    <strong>{n.label}</strong>
+                    <div className="muted">{n.description}</div>
+                  </div>
+                  <button className="btn ghost" onClick={() => { setAdminRequestCategoryFilter(n.category_key); setTimeout(() => loadAdminRequests(), 0); }}>
+                    Bekleyen: {n.pending_count}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <h3 style={{ marginTop: 16 }}>Bekleyen Talepler</h3>
+            {adminRequestItems.map((r) => (
+              <div key={r.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+                <div>
+                  <div><strong>{r.category_label || r.category_key}</strong> • @{r.kadi}</div>
+                  <div className="muted">#{r.id} • {new Date(r.created_at).toLocaleString()}</div>
+                  {r.payload_json ? <pre className="muted" style={{ whiteSpace: 'pre-wrap' }}>{r.payload_json}</pre> : null}
+                </div>
+                <button className="btn" onClick={() => reviewAdminRequest(r.id, 'approved')}>Onayla</button>
+                <button className="btn ghost" onClick={() => reviewAdminRequest(r.id, 'rejected')}>Reddet</button>
               </div>
             ))}
           </div>

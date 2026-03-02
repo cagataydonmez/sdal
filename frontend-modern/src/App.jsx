@@ -18,6 +18,8 @@ import AnnouncementsPage from './pages/AnnouncementsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ProfilePhotoPage from './pages/ProfilePhotoPage.jsx';
 import ProfileVerificationPage from './pages/ProfileVerificationPage.jsx';
+import ProfileEmailChangePage from './pages/ProfileEmailChangePage.jsx';
+import MemberRequestsPage from './pages/MemberRequestsPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -46,7 +48,7 @@ function RequireAuth({ children }) {
   }
 
   function canAccessRouteDuringCompletion() {
-    return location.pathname === '/new/profile' || location.pathname === '/new/profile/photo' || location.pathname === '/new/profile/verification';
+    return location.pathname === '/new/profile' || location.pathname === '/new/profile/photo' || location.pathname === '/new/profile/verification' || location.pathname === '/new/profile/email-change' || location.pathname === '/new/requests';
   }
 
   if (loading) return children;
@@ -97,6 +99,8 @@ export default function App() {
           <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
           <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
           <Route path="/new/profile/verification" element={<RequireAuth><ProfileVerificationPage /></RequireAuth>} />
+          <Route path="/new/profile/email-change" element={<RequireAuth><ProfileEmailChangePage /></RequireAuth>} />
+          <Route path="/new/requests" element={<RequireAuth><MemberRequestsPage /></RequireAuth>} />
           <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />
           <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
           <Route path="/new/*" element={<Navigate to="/new" replace />} />
