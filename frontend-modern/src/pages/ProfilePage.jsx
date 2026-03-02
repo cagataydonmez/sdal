@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import { useAuth } from '../utils/auth.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -17,6 +18,7 @@ async function apiJson(url, options = {}) {
 
 export default function ProfilePage() {
   const { t } = useI18n();
+  const { user, refresh } = useAuth();
   const [profile, setProfile] = useState(null);
   const [stories, setStories] = useState([]);
   const [status, setStatus] = useState('');
@@ -39,8 +41,13 @@ export default function ProfilePage() {
   async function save() {
     setError('');
     setStatus('');
+    if (String(profile.mezuniyetyili || '').trim() === '') {
+      setError(t('profile_error_graduation_required'));
+      return;
+    }
     try {
       await apiJson('/api/profile', { method: 'PUT', body: JSON.stringify(profile) });
+      await refresh();
       setStatus(t('profile_status_updated'));
     } catch (err) {
       setError(err.message);
@@ -157,6 +164,7 @@ export default function ProfilePage() {
     <Layout title={t('nav_profile')}>
       <div className="panel">
         <div className="panel-body">
+          {String(user?.state || '').toLowerCase() === 'incomplete' ? <div className="muted">{t('profile_completion_required')}</div> : null}
           <div className="form-row">
             <label>{t('profile_first_name')}</label>
             <input className="input" value={profile.isim || ''} onChange={(e) => setProfile({ ...profile, isim: e.target.value })} />

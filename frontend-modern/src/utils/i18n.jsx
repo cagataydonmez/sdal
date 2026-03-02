@@ -184,6 +184,8 @@ const trFallbackMessages = {
   profile_graduation: 'Mezuniyet',
   profile_signature: 'İmza',
   profile_status_updated: 'Profil güncellendi.',
+  profile_completion_required: 'Hesabını kullanmaya devam etmek için mezuniyet yılını girip profili kaydetmelisin.',
+  profile_error_graduation_required: 'Mezuniyet yılı zorunludur.',
   profile_photo_title: 'Fotoğraf Düzenle',
   profile_photo_update: 'Fotoğraf Güncelle',
   profile_photo_error_no_file: 'Fotoğraf seçilmedi.',

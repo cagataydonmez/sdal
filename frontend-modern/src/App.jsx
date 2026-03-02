@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './utils/auth.jsx';
 import FeedPage from './pages/FeedPage.jsx';
 import ExplorePage from './pages/ExplorePage.jsx';
@@ -36,8 +36,23 @@ import { I18nProvider } from './utils/i18n.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
+
+  function isProfileCompletionRequired() {
+    if (!user) return false;
+    const state = String(user.state || '').toLowerCase();
+    return state === 'incomplete';
+  }
+
+  function canAccessRouteDuringCompletion() {
+    return location.pathname === '/new/profile' || location.pathname === '/new/profile/photo';
+  }
+
   if (loading) return children;
   if (!user) return <Navigate to="/new/login" replace />;
+  if (isProfileCompletionRequired() && !canAccessRouteDuringCompletion()) {
+    return <Navigate to="/new/profile?complete=1" replace />;
+  }
   return children;
 }
 
