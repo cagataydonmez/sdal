@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
@@ -10,7 +10,14 @@ async function apiJson(url, options = {}) {
     ...options
   });
   if (!res.ok) {
-    const message = await res.text();
+    const body = await res.text();
+    let parsed = null;
+    try {
+      parsed = body ? JSON.parse(body) : null;
+    } catch {
+      parsed = null;
+    }
+    const message = parsed?.message || parsed?.error || body;
     throw new Error(message || `Request failed: ${res.status}`);
   }
   return res.json();
@@ -61,6 +68,12 @@ export default function ProfilePage() {
 
   const activeStories = stories.filter((s) => !s.isExpired);
   const expiredStories = stories.filter((s) => s.isExpired);
+  const graduationYears = useMemo(() => {
+    const years = [];
+    const now = new Date().getFullYear();
+    for (let y = now; y >= 1960; y -= 1) years.push(String(y));
+    return years;
+  }, []);
 
 
   async function uploadVerificationProof() {
@@ -216,7 +229,10 @@ export default function ProfilePage() {
           </label>
           <div className="form-row">
             <label>{t('profile_graduation')}</label>
-            <input className="input" value={profile.mezuniyetyili || ''} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })} />
+            <select className="input" value={String(profile.mezuniyetyili || '0')} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })}>
+              <option value="0">Mezuniyet yılı seçiniz</option>
+              {graduationYears.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
           </div>
           <div className="form-row">
             <label>{t('profile_signature')}</label>
