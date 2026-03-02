@@ -24,6 +24,24 @@ SDAL'ı yalnızca bir mezunlar topluluğu olmaktan çıkarıp, **topluluk**, **p
 
 ### Phase 1: Foundation Reset (MVP)
 
+**Status:** 🚧 Started (Execution window: immediately)
+
+#### Phase 1 Kickoff Plan (Start)
+
+| Workstream | First Action | Owner | Target |
+|---|---|---|---|
+| Identity & Signup | Mezuniyet yılı + KVKK onay alanlarının production doğrulamasını checklist ile doğrula | Product + Backend | Week 1 |
+| Verification | Admin onay akışında kanıt dokümanı (`proof`) alanı için teknik tasarımı çıkar | Backend | Week 1 |
+| Community Core | Dönem topluluklarının otomatik oluşumunu canlı veride smoke test ile doğrula | Backend + QA | Week 1 |
+| Directory | Rehber filtreleri (yıl/konum/meslek) için kullanım metriği dashboard'unu aç | Product + Data | Week 2 |
+
+#### Phase 1 Definition of Done
+
+- Kayıt olan kullanıcılarda mezuniyet yılı ve gerekli rıza alanları eksiksiz tutulur.
+- Doğrulama tamamlanmadan rehber erişimi kapalı kalır.
+- Doğrulanan mezunlar doğru dönem topluluğuna otomatik atanır.
+- Rehber arama kullanım metriği haftalık takip edilir.
+
 #### 1) Identity & Signup Strategy
 - Mezuniyet yılı zorunlu alan
 - KVKK ve rehber açık rıza kaydı
@@ -79,4 +97,4 @@ SDAL'ı yalnızca bir mezunlar topluluğu olmaktan çıkarıp, **topluluk**, **p
 
 ---
 
-*Last updated: 2026-03*
+*Last updated: 2026-03 (Phase 1 started)*
