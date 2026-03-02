@@ -2681,7 +2681,7 @@ function findOrCreateOAuthUser({ provider, profile }) {
     const kadi = uniqueUsernameFromSeed(profile.usernameSeed || email);
     const result = sqlRun(
       `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verified, oauth_provider, oauth_subject, oauth_email_verified, verification_status)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'yok', '0', 1, 1, ?, ?, ?, 'pending')`,
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'yok', '0', 1, 0, ?, ?, ?, 'pending')`,
       [
         kadi,
         randomState(18),
@@ -3955,6 +3955,10 @@ function queryAdminUsers(rawQuery = {}) {
   const users = sqlAll(
     `SELECT u.id, u.kadi, u.isim, u.soyisim, u.aktiv, u.yasak, u.online, u.sontarih, u.resim, u.verified,
             u.mezuniyetyili, u.email, u.admin,
+            CASE
+              WHEN CAST(COALESCE(u.mezuniyetyili, 0) AS INTEGER) BETWEEN 1999 AND 2030 THEN 1
+              ELSE 0
+            END AS has_graduation_info,
             COALESCE(es.score, 0) AS engagement_score,
             es.updated_at AS engagement_updated_at
      FROM uyeler u
@@ -4004,7 +4008,11 @@ app.get('/api/admin/users/search', requireAdmin, (req, res) => {
 
 app.get('/api/admin/users/:id', requireAdmin, (req, res) => {
   const user = sqlGet(
-    `SELECT u.*, COALESCE(es.score, 0) AS engagement_score, es.updated_at AS engagement_updated_at
+    `SELECT u.*, COALESCE(es.score, 0) AS engagement_score, es.updated_at AS engagement_updated_at,
+            CASE
+              WHEN CAST(COALESCE(u.mezuniyetyili, 0) AS INTEGER) BETWEEN 1999 AND 2030 THEN 1
+              ELSE 0
+            END AS has_graduation_info
      FROM uyeler u
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
      WHERE u.id = ?`,
@@ -4058,6 +4066,7 @@ app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
     sehir: String(payload.sehir || '').trim(),
     mailkapali: Number(payload.mailkapali),
     hit: Number(payload.hit),
+    verified: Number(payload.verified),
     mezuniyetyili: String(payload.mezuniyetyili || '').trim(),
     universite: String(payload.universite || '').trim(),
     dogumgun: String(payload.dogumgun || '').trim(),
@@ -4072,7 +4081,7 @@ app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
   if (!fields.aktivasyon) return res.status(400).send('Aktivasyon Kodu girmedin.');
   if (!fields.email) return res.status(400).send('E-mail girmedin.');
   if (!validateEmail(fields.email)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
-  const numericFields = ['aktiv', 'yasak', 'ilkbd', 'mailkapali', 'hit', 'admin'];
+  const numericFields = ['aktiv', 'yasak', 'ilkbd', 'mailkapali', 'hit', 'verified', 'admin'];
   for (const key of numericFields) {
     if (Number.isNaN(fields[key])) return res.status(400).send(`${key} bir sayı olmalıdır.`);
   }
@@ -4086,13 +4095,13 @@ app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
     `UPDATE uyeler
      SET isim = ?, soyisim = ?, aktivasyon = ?, email = ?, aktiv = ?, yasak = ?, ilkbd = ?, websitesi = ?,
          imza = ?, meslek = ?, sehir = ?, mailkapali = ?, hit = ?, mezuniyetyili = ?, universite = ?,
-         dogumgun = ?, dogumay = ?, dogumyil = ?, admin = ?, resim = ?
+         dogumgun = ?, dogumay = ?, dogumyil = ?, verified = ?, admin = ?, resim = ?
      WHERE id = ?`,
     [
       fields.isim, fields.soyisim, fields.aktivasyon, fields.email, fields.aktiv, fields.yasak, fields.ilkbd,
       fields.websitesi, fields.imza, fields.meslek, fields.sehir, fields.mailkapali, fields.hit,
       fields.mezuniyetyili, fields.universite, fields.dogumgun, fields.dogumay, fields.dogumyil,
-      fields.admin, fields.resim, target.id
+      fields.verified, fields.admin, fields.resim, target.id
     ]
   );
   scheduleEngagementRecalculation('admin_user_updated');

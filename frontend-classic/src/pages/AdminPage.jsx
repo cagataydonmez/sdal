@@ -496,7 +496,9 @@ export default function AdminPage() {
               <select className="inptxt" value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
                 <option value="">Üye seç</option>
                 {members.map((m, idx) => (
-                  <option key={m.id} value={m.id}>{idx + 1} - {m.kadi} ({m.isim} {m.soyisim})</option>
+                  <option key={m.id} value={m.id}>
+                    {idx + 1} - {m.kadi} ({m.isim} {m.soyisim}) · Doğrulama: {Number(m.verified || 0) === 1 ? 'Evet' : 'Hayır'} · Mezuniyet: {Number(m.has_graduation_info || 0) === 1 ? 'Var' : 'Yok'}
+                  </option>
                 ))}
               </select>
               <button className="sub" onClick={() => selectedMemberId && loadMemberDetail(selectedMemberId)}>Göster</button>
@@ -520,6 +522,8 @@ export default function AdminPage() {
                     <tr><td>Mail Kapalı</td><td><input type="text" className="inptxt" value={memberDetail.mailkapali ?? ''} onChange={(e) => setMemberDetail({ ...memberDetail, mailkapali: e.target.value })} /></td></tr>
                     <tr><td>Hit</td><td><input type="text" className="inptxt" value={memberDetail.hit ?? ''} onChange={(e) => setMemberDetail({ ...memberDetail, hit: e.target.value })} /></td></tr>
                     <tr><td>Mezuniyet</td><td><input type="text" className="inptxt" value={memberDetail.mezuniyetyili || ''} onChange={(e) => setMemberDetail({ ...memberDetail, mezuniyetyili: e.target.value })} /></td></tr>
+                    <tr><td>Mezuniyet Bilgisi Girilmiş</td><td><input type="text" className="inptxt" value={Number(memberDetail.has_graduation_info || 0) === 1 ? 'Evet' : 'Hayır'} readOnly /></td></tr>
+                    <tr><td>Doğrulanmış</td><td><input type="text" className="inptxt" value={memberDetail.verified ?? ''} onChange={(e) => setMemberDetail({ ...memberDetail, verified: e.target.value })} /></td></tr>
                     <tr><td>Üniversite</td><td><input type="text" className="inptxt" value={memberDetail.universite || ''} onChange={(e) => setMemberDetail({ ...memberDetail, universite: e.target.value })} /></td></tr>
                     <tr><td>Doğum</td><td><input type="text" className="inptxt" value={memberDetail.dogumgun || ''} onChange={(e) => setMemberDetail({ ...memberDetail, dogumgun: e.target.value })} /> . <input type="text" className="inptxt" value={memberDetail.dogumay || ''} onChange={(e) => setMemberDetail({ ...memberDetail, dogumay: e.target.value })} /> . <input type="text" className="inptxt" value={memberDetail.dogumyil || ''} onChange={(e) => setMemberDetail({ ...memberDetail, dogumyil: e.target.value })} /></td></tr>
                     <tr><td>Admin</td><td><input type="text" className="inptxt" value={memberDetail.admin ?? ''} onChange={(e) => setMemberDetail({ ...memberDetail, admin: e.target.value })} /></td></tr>
