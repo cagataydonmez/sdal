@@ -24,6 +24,7 @@ export default function ProfilePage() {
   const [verifyStatus, setVerifyStatus] = useState('');
   const [verificationProofFile, setVerificationProofFile] = useState(null);
   const [verificationProofPath, setVerificationProofPath] = useState('');
+  const [verificationProofImageRecordId, setVerificationProofImageRecordId] = useState('');
   const [storyBusy, setStoryBusy] = useState('');
 
   useEffect(() => {
@@ -68,7 +69,10 @@ export default function ProfilePage() {
       throw new Error(message || 'Kanıt dosyası yüklenemedi.');
     }
     const payload = await res.json();
-    return String(payload.proof_path || '').trim();
+    return {
+      proof_path: String(payload.proof_path || '').trim(),
+      proof_image_record_id: String(payload.proof_image_record_id || '').trim()
+    };
   }
 
   async function refreshStories() {
@@ -222,6 +226,7 @@ export default function ProfilePage() {
                 const file = e.target.files?.[0] || null;
                 setVerificationProofFile(file);
                 setVerificationProofPath('');
+                setVerificationProofImageRecordId('');
               }}
             />
           </div>
@@ -229,13 +234,19 @@ export default function ProfilePage() {
             setVerifyStatus('');
             setError('');
             try {
-              const proofPath = await uploadVerificationProof();
+              const proof = await uploadVerificationProof();
+              const proofPath = proof?.proof_path || '';
+              const proofImageRecordId = proof?.proof_image_record_id || '';
               if (proofPath) setVerificationProofPath(proofPath);
+              if (proofImageRecordId) setVerificationProofImageRecordId(proofImageRecordId);
               const res = await fetch('/api/new/verified/request', {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ proof_path: proofPath || verificationProofPath || '' })
+                body: JSON.stringify({
+                  proof_path: proofPath || verificationProofPath || '',
+                  proof_image_record_id: proofImageRecordId || verificationProofImageRecordId || ''
+                })
               });
               if (!res.ok) {
                 setVerifyStatus(await res.text());

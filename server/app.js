@@ -540,8 +540,12 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
 
   // 10. System
   if (hasTable('verification_requests')) {
-    const proofRows = sqlAll('SELECT proof_path FROM verification_requests WHERE user_id = ?', [userId]);
+    const proofRows = sqlAll('SELECT proof_path, proof_image_record_id FROM verification_requests WHERE user_id = ?', [userId]);
     for (const row of proofRows) {
+      if (row?.proof_image_record_id) {
+        await deleteImageRecord(row.proof_image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+        continue;
+      }
       const proofPath = String(row?.proof_path || '').trim();
       if (!proofPath.startsWith('/uploads/verification-proofs/')) continue;
       const relativeProof = proofPath.replace(/^\/+/, '').replace(/^uploads\//, '');
@@ -985,6 +989,7 @@ migrateAddColumn('uyeler', 'universite_bolum', 'ALTER TABLE uyeler ADD COLUMN un
 migrateAddColumn('uyeler', 'mentor_opt_in', 'ALTER TABLE uyeler ADD COLUMN mentor_opt_in INTEGER DEFAULT 0');
 migrateAddColumn('uyeler', 'mentor_konulari', 'ALTER TABLE uyeler ADD COLUMN mentor_konulari TEXT');
 migrateAddColumn('verification_requests', 'proof_path', 'ALTER TABLE verification_requests ADD COLUMN proof_path TEXT');
+migrateAddColumn('verification_requests', 'proof_image_record_id', 'ALTER TABLE verification_requests ADD COLUMN proof_image_record_id TEXT');
 
 runMigration('2026_02_sdal_alumni_hub_backfill', () => {
   // Enforce everyone to go through the new verification queue
@@ -1113,6 +1118,7 @@ sqlRun(`CREATE TABLE IF NOT EXISTS verification_requests (
   user_id INTEGER,
   status TEXT,
   proof_path TEXT,
+  proof_image_record_id TEXT,
   created_at TEXT,
   reviewed_at TEXT,
   reviewer_id INTEGER
@@ -7749,30 +7755,76 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
   const existing = sqlGet('SELECT id FROM verification_requests WHERE user_id = ? AND status = ?', [req.session.userId, 'pending']);
   if (existing) return res.status(400).send('Zaten bekleyen bir talebiniz var.');
   const proofPath = String(req.body?.proof_path || '').trim();
-  if (proofPath && !proofPath.startsWith('/uploads/verification-proofs/')) {
-    return res.status(400).send('Geçersiz kanıt dosyası yolu.');
+  const proofImageRecordId = String(req.body?.proof_image_record_id || '').trim();
+  if (proofPath) {
+    const isLegacyProof = proofPath.startsWith('/uploads/verification-proofs/');
+    const isVariantProof = proofPath.startsWith('/uploads/images/') || proofPath.startsWith('/api/media/image/');
+    if (!isLegacyProof && !isVariantProof) {
+      return res.status(400).send('Geçersiz kanıt dosyası yolu.');
+    }
   }
-  sqlRun('INSERT INTO verification_requests (user_id, status, proof_path, created_at) VALUES (?, ?, ?, ?)', [
+  if (proofImageRecordId) {
+    const proofVariants = getImageVariants(proofImageRecordId, sqlGet, uploadsDir);
+    if (!proofVariants) return res.status(400).send('Kanıt görseli bulunamadı.');
+  }
+  sqlRun('INSERT INTO verification_requests (user_id, status, proof_path, proof_image_record_id, created_at) VALUES (?, ?, ?, ?, ?)', [
     req.session.userId,
     'pending',
     proofPath || null,
+    proofImageRecordId || null,
     new Date().toISOString()
   ]);
   sqlRun('UPDATE uyeler SET verification_status = ? WHERE id = ?', ['pending', req.session.userId]);
   res.json({ ok: true });
 });
 
-app.post('/api/new/verified/proof', requireAuth, verificationProofUpload.single('proof'), (req, res) => {
+app.post('/api/new/verified/proof', requireAuth, verificationProofUpload.single('proof'), async (req, res) => {
   if (!req.file?.filename) return res.status(400).send('Dosya yüklenemedi.');
-  res.json({
-    ok: true,
-    proof_path: `/uploads/verification-proofs/${req.file.filename}`
-  });
+  const ext = path.extname(req.file.filename || '').toLowerCase();
+  if (ext === '.pdf') {
+    return res.json({
+      ok: true,
+      proof_path: `/uploads/verification-proofs/${req.file.filename}`,
+      proof_image_record_id: null
+    });
+  }
+
+  try {
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const uploadResult = await processUpload({
+      buffer: fileBuffer,
+      mimeType: req.file.mimetype || 'image/jpeg',
+      userId: req.session.userId,
+      entityType: 'verification_proof',
+      entityId: String(req.session.userId),
+      sqlGet,
+      sqlRun,
+      uploadsDir,
+      writeAppLog
+    });
+    try {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch {
+      // best effort
+    }
+    return res.json({
+      ok: true,
+      proof_path: uploadResult?.variants?.fullUrl || `/uploads/verification-proofs/${req.file.filename}`,
+      proof_image_record_id: uploadResult?.imageId || null
+    });
+  } catch (err) {
+    writeAppLog('error', 'verification_proof_variant_generation_failed', { userId: req.session.userId, message: err?.message });
+    return res.json({
+      ok: true,
+      proof_path: `/uploads/verification-proofs/${req.file.filename}`,
+      proof_image_record_id: null
+    });
+  }
 });
 
 app.get('/api/new/admin/verification-requests', requireAdmin, (req, res) => {
   const rows = sqlAll(
-    `SELECT r.id, r.user_id, r.status, r.proof_path, r.created_at, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
+    `SELECT r.id, r.user_id, r.status, r.proof_path, r.proof_image_record_id, r.created_at, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
      FROM verification_requests r
      LEFT JOIN uyeler u ON u.id = r.user_id
      ORDER BY r.id DESC`
