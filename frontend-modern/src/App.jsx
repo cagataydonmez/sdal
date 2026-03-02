@@ -29,6 +29,7 @@ import FollowingPage from './pages/FollowingPage.jsx';
 import HelpPage from './pages/HelpPage.jsx';
 import GamesPage from './pages/GamesPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
+import JobsPage from './pages/JobsPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 import { ThemeProvider } from './utils/theme.jsx';
 import { I18nProvider } from './utils/i18n.jsx';
@@ -71,6 +72,7 @@ export default function App() {
           <Route path="/new/albums/:id" element={<RequireAuth><AlbumCategoryPage /></RequireAuth>} />
           <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
           <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
+          <Route path="/new/jobs" element={<RequireAuth><JobsPage /></RequireAuth>} />
           <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
           <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />
           <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />

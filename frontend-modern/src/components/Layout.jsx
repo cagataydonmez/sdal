@@ -69,6 +69,7 @@ export default function Layout({ children, title, right }) {
     { to: '/new/games', label: t('nav_games') },
     { to: '/new/events', label: t('nav_events') },
     { to: '/new/announcements', label: t('nav_announcements') },
+    { to: '/new/jobs', label: t('nav_jobs') },
     { to: '/new/profile', label: t('nav_profile') },
     { to: '/new/help', label: t('nav_help') }
   ]), [t, unreadCount]);
