@@ -155,6 +155,7 @@ export default function Layout({ children, title, right }) {
                   <div className="user-dropdown">
                     <Link to="/new/profile" onClick={() => setMenuOpen(false)}>{t('profile_view')}</Link>
                     <Link to="/new/profile/photo" onClick={() => setMenuOpen(false)}>{t('profile_photo_update')}</Link>
+                    <Link to="/new/requests" onClick={() => setMenuOpen(false)}>{t('member_requests_title')}</Link>
                     <Link to="/new/messages/compose" onClick={() => setMenuOpen(false)}>{t('member_send_message')}</Link>
                     <button className="linkish" onClick={handleLogout}>{t('logout')}</button>
                   </div>
