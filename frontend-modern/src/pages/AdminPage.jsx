@@ -345,15 +345,13 @@ export default function AdminPage() {
     setUserDeleteBusy(true);
     setStatus('Kullanıcı siliniyor...');
     try {
-      const res = await fetch(`/api/admin/users/${userForm.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        throw new Error(text || `İstek başarısız: ${res.status}`);
+      let response = null;
+      try {
+        response = await apiJson(`/api/admin/users/${userForm.id}`, { method: 'DELETE' });
+      } catch (legacyErr) {
+        response = await apiJson(`/api/new/admin/members/${userForm.id}`, { method: 'DELETE' });
       }
-      setStatus(`@${userForm.kadi} başarıyla silindi.`);
+      setStatus(response?.message || `@${userForm.kadi} başarıyla silindi.`);
       setUserForm(null);
       setUserDetail(null);
       loadUsers();
