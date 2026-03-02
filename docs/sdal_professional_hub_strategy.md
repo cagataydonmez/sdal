@@ -22,11 +22,21 @@ SDAL'ı yalnızca bir mezunlar topluluğu olmaktan çıkarıp, **topluluk**, **p
 
 ## Phased Rollout
 
-### Phase 1: Strengthen Alumni Network (MVP)
+### Phase 1: Foundation Reset (MVP)
+
+#### 1) Identity & Signup Strategy
 - Mezuniyet yılı zorunlu alan
 - KVKK ve rehber açık rıza kaydı
+- Kayıt stratejisi:
+  1. Okuldan alınacak veritabanı üzerinden mezun doğrulaması
+  2. Web üzerinden serbest kayda izin verilmezse, mobil uygulamada çipli T.C. kimlik kartının NFC ile okutulması
+
+#### 2) Verification & Access
 - Admin onaylı doğrulama akışı
-- Dönem (cohort) toplulukları otomatik oluşturma
+- Doğrulama tamamlanmadan rehber/listeme erişiminin kısıtlanması
+
+#### 3) Core Community Experience
+- Dönem (cohort) topluluklarının otomatik oluşturulması
 - Dönem feed’leri
 - Mezun Rehberi (isim, yıl, konum, meslek filtreleri)
 
@@ -69,4 +79,4 @@ SDAL'ı yalnızca bir mezunlar topluluğu olmaktan çıkarıp, **topluluk**, **p
 
 ---
 
-*Last updated: 2026-02*
+*Last updated: 2026-03*
