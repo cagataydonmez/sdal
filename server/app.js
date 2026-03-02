@@ -539,7 +539,21 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
   if (hasTable('game_scores')) sqlRun('DELETE FROM game_scores WHERE user_id = ?', [userId]);
 
   // 10. System
-  if (hasTable('verification_requests')) sqlRun('DELETE FROM verification_requests WHERE user_id = ? OR reviewer_id = ?', [userId, userId]);
+  if (hasTable('verification_requests')) {
+    const proofRows = sqlAll('SELECT proof_path FROM verification_requests WHERE user_id = ?', [userId]);
+    for (const row of proofRows) {
+      const proofPath = String(row?.proof_path || '').trim();
+      if (!proofPath.startsWith('/uploads/verification-proofs/')) continue;
+      const relativeProof = proofPath.replace(/^\/+/, '').replace(/^uploads\//, '');
+      const absoluteProof = path.join(uploadsDir, relativeProof);
+      try {
+        if (fs.existsSync(absoluteProof)) fs.unlinkSync(absoluteProof);
+      } catch (e) {
+        writeAppLog('error', 'verification_proof_delete_failed', { userId, path: absoluteProof, error: e.message });
+      }
+    }
+    sqlRun('DELETE FROM verification_requests WHERE user_id = ? OR reviewer_id = ?', [userId, userId]);
+  }
   if (hasTable('member_engagement_scores')) sqlRun('DELETE FROM member_engagement_scores WHERE user_id = ?', [userId]);
   if (hasTable('engagement_ab_assignments')) sqlRun('DELETE FROM engagement_ab_assignments WHERE user_id = ?', [userId]);
   if (hasTable('oauth_accounts')) sqlRun('DELETE FROM oauth_accounts WHERE user_id = ?', [userId]);
@@ -4367,6 +4381,10 @@ app.post('/api/register/preview', (req, res) => {
   if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
   if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
   if (mezuniyetyili == '0') return res.status(400).send('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+  const parsedYear = parseInt(mezuniyetyili, 10);
+  if (isNaN(parsedYear) || parsedYear < 1960 || parsedYear > new Date().getFullYear()) {
+    return res.status(400).send('Geçerli bir mezuniyet yılı seçmeniz gerekmektedir.');
+  }
   if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
   if (!directory_consent) return res.status(400).send('Mezun Rehberi açık rıza onayı gerekmektedir.');
   if (!cleanIsim) return res.status(400).send('İsmini girmedin.');

@@ -9,6 +9,11 @@ function firstUnviewedIndex(items = []) {
   return idx >= 0 ? idx : 0;
 }
 
+function getStoryMediaUrl(story) {
+  if (!story) return '';
+  return String(story?.variants?.fullUrl || story?.variants?.feedUrl || story?.image || '').trim();
+}
+
 export default function StoryBar({ endpoint = '/api/new/stories', showUpload = true, title = '' }) {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -151,7 +156,8 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   useEffect(() => {
     if (!groups.length) return;
     groups.forEach((g) => {
-      if (g.items[0]?.image) preloadImage(g.items[0].image);
+      const cover = getStoryMediaUrl(g.items[0]);
+      if (cover) preloadImage(cover);
     });
   }, [groups, preloadImage]);
 
@@ -160,14 +166,15 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       setImageReady(false);
       return;
     }
+    const activeUrl = getStoryMediaUrl(active);
     let cancelled = false;
-    setImageReady(loadedImagesRef.current.has(active.image));
-    preloadImage(active.image).then(() => {
+    setImageReady(loadedImagesRef.current.has(activeUrl));
+    preloadImage(activeUrl).then(() => {
       if (!cancelled) setImageReady(true);
     });
 
-    const nextInGroup = activeGroup?.items?.[activeStoryIndex + 1]?.image;
-    const firstNextGroup = groups?.[Number(activeGroupIndex) + 1]?.items?.[0]?.image;
+    const nextInGroup = getStoryMediaUrl(activeGroup?.items?.[activeStoryIndex + 1]);
+    const firstNextGroup = getStoryMediaUrl(groups?.[Number(activeGroupIndex) + 1]?.items?.[0]);
     if (nextInGroup) preloadImage(nextInGroup);
     if (firstNextGroup) preloadImage(firstNextGroup);
 
