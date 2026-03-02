@@ -874,6 +874,17 @@ sqlRun(`CREATE TABLE IF NOT EXISTS announcements (
   body TEXT,
   created_at TEXT
 )`);
+sqlRun(`CREATE TABLE IF NOT EXISTS jobs (
+  id INTEGER PRIMARY KEY,
+  poster_id INTEGER,
+  company TEXT,
+  title TEXT,
+  description TEXT,
+  location TEXT,
+  job_type TEXT,
+  link TEXT,
+  created_at TEXT
+)`);
 sqlRun(`CREATE TABLE IF NOT EXISTS sdal_messenger_threads (
   id INTEGER PRIMARY KEY,
   user_a_id INTEGER,
@@ -7424,6 +7435,71 @@ app.post('/api/new/announcements/:id/approve', requireAdmin, (req, res) => {
 
 app.delete('/api/new/announcements/:id', requireAdmin, (req, res) => {
   sqlRun('DELETE FROM announcements WHERE id = ?', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/new/jobs', requireAuth, (req, res) => {
+  const search = sanitizePlainUserText(String(req.query.search || '').trim(), 120).toLowerCase();
+  const location = sanitizePlainUserText(String(req.query.location || '').trim(), 120).toLowerCase();
+  const jobType = sanitizePlainUserText(String(req.query.job_type || '').trim(), 60).toLowerCase();
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+  const where = [];
+  const params = [];
+  if (search) {
+    where.push('(LOWER(j.title) LIKE ? OR LOWER(j.company) LIKE ? OR LOWER(j.description) LIKE ?)');
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  if (location) {
+    where.push('LOWER(j.location) LIKE ?');
+    params.push(`%${location}%`);
+  }
+  if (jobType) {
+    where.push('LOWER(j.job_type) = ?');
+    params.push(jobType);
+  }
+
+  const rows = sqlAll(
+    `SELECT j.*, u.kadi AS poster_kadi, u.isim AS poster_isim, u.soyisim AS poster_soyisim
+     FROM jobs j
+     LEFT JOIN uyeler u ON u.id = j.poster_id
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY j.id DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+
+  res.json({ items: rows, hasMore: rows.length === limit });
+});
+
+app.post('/api/new/jobs', requireAuth, (req, res) => {
+  const company = sanitizePlainUserText(String(req.body?.company || '').trim(), 140);
+  const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+  const description = formatUserText(String(req.body?.description || ''));
+  const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 120);
+  const jobType = sanitizePlainUserText(String(req.body?.job_type || '').trim(), 60);
+  const link = sanitizePlainUserText(String(req.body?.link || '').trim(), 500);
+  if (!company || !title || isFormattedContentEmpty(description)) {
+    return res.status(400).send('Şirket, başlık ve açıklama gerekli.');
+  }
+  if (link && !/^https?:\/\//i.test(link)) return res.status(400).send('Link http:// veya https:// ile başlamalı.');
+  const now = new Date().toISOString();
+  const result = sqlRun(
+    `INSERT INTO jobs (poster_id, company, title, description, location, job_type, link, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.session.userId, company, title, description, location, jobType, link || null, now]
+  );
+  res.json({ ok: true, id: result?.lastInsertRowid });
+});
+
+app.delete('/api/new/jobs/:id', requireAuth, (req, res) => {
+  const user = getCurrentUser(req);
+  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const row = sqlGet('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).send('İş ilanı bulunamadı.');
+  if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı silme yetkin yok.');
+  sqlRun('DELETE FROM jobs WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
 });
 
