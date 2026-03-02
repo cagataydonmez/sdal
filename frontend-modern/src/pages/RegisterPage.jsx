@@ -31,6 +31,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     setStatus('');
+    if (form.mezuniyetyili === '0') {
+      setError('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+      return;
+    }
     if (!form.kvkk_consent) {
       setError('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
       return;
@@ -85,7 +89,16 @@ export default function RegisterPage() {
             <div className="form-row">
               <label>{t('register_captcha_label')}</label>
               <img src={`/api/captcha?ts=${captchaTs}`} alt="captcha" style={{ width: 200, height: 40, borderRadius: 8 }} />
-              <input className="input" required placeholder={t('register_captcha_placeholder')} value={form.gkodu} onChange={(e) => setForm({ ...form, gkodu: e.target.value })} />
+              <input
+                className="input"
+                required
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                placeholder={t('register_captcha_placeholder')}
+                value={form.gkodu}
+                onChange={(e) => setForm({ ...form, gkodu: e.target.value.replace(/\D/g, '') })}
+              />
               <button className="btn ghost" type="button" onClick={() => setCaptchaTs(Date.now())}>{t('register_captcha_refresh')}</button>
             </div>
 
