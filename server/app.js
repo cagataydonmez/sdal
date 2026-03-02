@@ -4759,11 +4759,12 @@ app.get('/api/activate', (req, res) => {
 });
 
 app.post('/api/activation/resend', async (req, res) => {
-  const { id, email } = req.body || {};
-  let user = null;
-  if (id) user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [id]);
-  if (!user && email) user = sqlGet('SELECT * FROM uyeler WHERE email = ?', [email]);
-  if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
+  const email = normalizeEmail(req.body?.email);
+  if (!email) return res.status(400).send('E-mail adresini girmedin.');
+  if (!validateEmail(email)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
+  const user = sqlGet('SELECT * FROM uyeler WHERE lower(email) = lower(?)', [email]);
+  if (!user) return res.status(404).send('Bu e-mail adresiyle kayıtlı bir kullanıcı bulunamadı.');
+  if (Number(user.aktiv || 0) === 1) return res.status(400).send('Bu hesap zaten aktif edildi.');
   const publicBaseUrl = resolvePublicBaseUrl(req);
   const activationLink = `${publicBaseUrl}/aktivet?id=${user.id}&akt=${user.aktivasyon}`;
   const html = buildActivationEmailHtml({

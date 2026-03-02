@@ -109,7 +109,7 @@ export default function RegisterPage() {
           <b>Mezuniyet Yılı : </b> {preview.mezuniyetyili}<br /><br />
           <input type="button" value="Hayır" onClick={() => setStep('form')} className="sub" />&nbsp;
           <input type="button" value="EVET" onClick={onConfirm} className="sub" />
-          {error ? <div className="hatamsg1">{error}</div> : null}
+          {error ? <div className="sdal-alert sdal-alert-error" role="alert">{error}</div> : null}
         </div>
       </LegacyLayout>
     );
@@ -142,32 +142,32 @@ export default function RegisterPage() {
                     <tr>
                       <td align="right"><b>Kullanıcı Adı : </b></td>
                       <td align="left">
-                        <input type="text" name="kadi" size="20" className="inptxt" value={form.kadi} onChange={(e) => updateField('kadi', e.target.value)} /> <font style={{ color: 'red' }}><sup>1</sup></font>
+                        <input type="text" name="kadi" size="20" className="inptxt" required value={form.kadi} onChange={(e) => updateField('kadi', e.target.value)} /> <font style={{ color: 'red' }}><sup>1</sup></font>
                       </td>
                     </tr>
                     <tr>
                       <td align="right"><b>Şifre : </b></td>
                       <td align="left">
-                        <input type="password" name="sifre" size="20" className="inptxt" value={form.sifre} onChange={(e) => updateField('sifre', e.target.value)} />
+                        <input type="password" name="sifre" size="20" className="inptxt" required value={form.sifre} onChange={(e) => updateField('sifre', e.target.value)} />
                       </td>
                     </tr>
                     <tr>
                       <td align="right"><b>Şifre Tekrar : </b></td>
                       <td align="left">
-                        <input type="password" name="sifre2" size="20" className="inptxt" value={form.sifre2} onChange={(e) => updateField('sifre2', e.target.value)} />
+                        <input type="password" name="sifre2" size="20" className="inptxt" required value={form.sifre2} onChange={(e) => updateField('sifre2', e.target.value)} />
                       </td>
                     </tr>
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
                     <tr>
                       <td align="right"><b>E-Mail : </b></td>
                       <td align="left">
-                        <input type="text" name="email" size="20" className="inptxt" value={form.email} onChange={(e) => updateField('email', e.target.value)} /> <font style={{ color: 'red' }}><sup>2</sup></font>
+                        <input type="email" name="email" size="20" className="inptxt" required value={form.email} onChange={(e) => updateField('email', e.target.value)} /> <font style={{ color: 'red' }}><sup>2</sup></font>
                       </td>
                     </tr>
                     <tr>
                       <td align="right"><b><small>SDAL Mezuniyet Yılı : </small></b></td>
                       <td align="left">
-                        <select name="mezuniyetyili" className="inptxt" value={form.mezuniyetyili} onChange={(e) => updateField('mezuniyetyili', e.target.value)}>
+                        <select name="mezuniyetyili" className="inptxt" required value={form.mezuniyetyili} onChange={(e) => updateField('mezuniyetyili', e.target.value)}>
                           <option value="0">Seçiniz</option>
                           {years.map((y) => <option key={y} value={y}>{y}</option>)}
                         </select> <font style={{ color: 'red' }}><sup>3</sup></font>
@@ -176,11 +176,11 @@ export default function RegisterPage() {
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
                     <tr>
                       <td align="right"><b>İsim : </b></td>
-                      <td align="left"><input type="text" name="isim" size="20" className="inptxt" value={form.isim} onChange={(e) => updateField('isim', e.target.value)} /></td>
+                      <td align="left"><input type="text" name="isim" size="20" className="inptxt" required value={form.isim} onChange={(e) => updateField('isim', e.target.value)} /></td>
                     </tr>
                     <tr>
                       <td align="right"><b>Soyisim : </b></td>
-                      <td align="left"><input type="text" name="soyisim" size="20" className="inptxt" value={form.soyisim} onChange={(e) => updateField('soyisim', e.target.value)} /></td>
+                      <td align="left"><input type="text" name="soyisim" size="20" className="inptxt" required value={form.soyisim} onChange={(e) => updateField('soyisim', e.target.value)} /></td>
                     </tr>
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
                     <tr>
@@ -192,7 +192,7 @@ export default function RegisterPage() {
                     </tr>
                     <tr>
                       <td align="right"><b>Güvenlik Kodu : </b></td>
-                      <td align="left"><input type="text" name="gkodu" size="20" className="inptxt" value={form.gkodu} onChange={(e) => updateField('gkodu', e.target.value)} /></td>
+                      <td align="left"><input type="text" name="gkodu" size="20" className="inptxt" required value={form.gkodu} onChange={(e) => updateField('gkodu', e.target.value)} /></td>
                     </tr>
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
                     <tr>
@@ -223,8 +223,8 @@ export default function RegisterPage() {
                     </tr>
                   </tbody>
                 </table>
-                {error ? <div className="hatamsg1">{error}</div> : null}
-                {status ? <div>{status}</div> : null}
+                {error ? <div className="sdal-alert sdal-alert-error" role="alert">{error}</div> : null}
+                {status ? <div className="sdal-alert sdal-alert-success" role="status">{status}</div> : null}
               </td>
               <td width="15" height="150" style={{ background: '#FFFFCC' }}></td>
             </tr>
