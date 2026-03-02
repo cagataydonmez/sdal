@@ -37,7 +37,7 @@ export default function ProfilePage() {
   const graduationYears = useMemo(() => {
     const years = [];
     const now = new Date().getFullYear();
-    for (let y = now; y >= 1960; y -= 1) years.push(String(y));
+    for (let y = now; y >= 1999; y -= 1) years.push(String(y));
     return years;
   }, []);
 

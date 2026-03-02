@@ -69,6 +69,59 @@ const verificationProofDir = path.join(uploadsDir, 'verification-proofs');
 if (!fs.existsSync(verificationProofDir)) {
   fs.mkdirSync(verificationProofDir, { recursive: true });
 }
+const requestAttachmentDir = path.join(uploadsDir, 'request-attachments');
+if (!fs.existsSync(requestAttachmentDir)) {
+  fs.mkdirSync(requestAttachmentDir, { recursive: true });
+}
+
+const EICAR_SIGNATURE = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
+const BLOCKED_EXECUTABLE_SIGNATURES = [
+  Buffer.from([0x4d, 0x5a]), // MZ
+  Buffer.from([0x7f, 0x45, 0x4c, 0x46]), // ELF
+  Buffer.from([0xcf, 0xfa, 0xed, 0xfe]), // Mach-O
+  Buffer.from([0xca, 0xfe, 0xba, 0xbe]) // Java class
+];
+
+function bufferStartsWith(buffer, signature) {
+  if (!Buffer.isBuffer(buffer) || !Buffer.isBuffer(signature)) return false;
+  if (buffer.length < signature.length) return false;
+  return buffer.subarray(0, signature.length).equals(signature);
+}
+
+function detectMimeByMagicBytes(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return '';
+  const bytes = fs.readFileSync(filePath);
+  if (bytes.length >= 3 && bufferStartsWith(bytes, Buffer.from([0xff, 0xd8, 0xff]))) return 'image/jpeg';
+  if (bytes.length >= 8 && bufferStartsWith(bytes, Buffer.from([0x89, 0x50, 0x4e, 0x47]))) return 'image/png';
+  if (bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  if (bytes.length >= 6 && (bytes.subarray(0, 6).toString('ascii') === 'GIF87a' || bytes.subarray(0, 6).toString('ascii') === 'GIF89a')) return 'image/gif';
+  if (bytes.length >= 4 && bufferStartsWith(bytes, Buffer.from([0x25, 0x50, 0x44, 0x46]))) return 'application/pdf';
+  return '';
+}
+
+function validateUploadedFileSafety(filePath, { allowedMimes = [] } = {}) {
+  if (!filePath || !fs.existsSync(filePath)) return { ok: false, reason: 'Dosya bulunamadı.' };
+  const bytes = fs.readFileSync(filePath);
+  const sniffedMime = detectMimeByMagicBytes(filePath);
+  if (allowedMimes.length && (!sniffedMime || !allowedMimes.includes(sniffedMime))) {
+    return { ok: false, reason: 'Dosya içeriği beklenen türle eşleşmiyor.' };
+  }
+  for (const sig of BLOCKED_EXECUTABLE_SIGNATURES) {
+    if (bufferStartsWith(bytes, sig)) return { ok: false, reason: 'Yüklenen dosya yürütülebilir içerik içeriyor.' };
+  }
+  if (bytes.toString('latin1').includes(EICAR_SIGNATURE)) {
+    return { ok: false, reason: 'Yüklenen dosya zararlı içerik testi imzası içeriyor.' };
+  }
+  return { ok: true, mime: sniffedMime };
+}
+
+function cleanupUploadedFile(filePath) {
+  try {
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {
+    // best effort
+  }
+}
 
 const allowedImageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif']);
 const photoUpload = multer({
@@ -188,6 +241,26 @@ const verificationProofUpload = multer({
     const ext = path.extname(file.originalname || '').toLowerCase();
     if (!allowedProofExts.has(ext)) {
       cb(new Error('Sadece JPG, PNG veya PDF dosyaları yükleyebilirsiniz.'));
+      return;
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const allowedRequestAttachmentExts = new Set(['.jpg', '.jpeg', '.png', '.pdf']);
+const requestAttachmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, requestAttachmentDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      cb(null, `request_${req.session.userId || 'anon'}_${Date.now()}_${Math.round(Math.random() * 1e6)}${ext || '.jpg'}`);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!allowedRequestAttachmentExts.has(ext)) {
+      cb(new Error('Sadece JPG, PNG veya PDF yükleyebilirsiniz.'));
       return;
     }
     cb(null, true);
@@ -1423,7 +1496,9 @@ function requireAuth(req, res, next) {
     '/api/profile/password',
     '/api/profile/photo',
     '/api/new/verified/request',
-    '/api/new/verified/proof'
+    '/api/new/verified/proof',
+    '/api/new/requests',
+    '/api/new/requests/upload'
   ];
   if (writeMethod) {
     const user = getCurrentUser(req);
@@ -4935,6 +5010,25 @@ app.get('/api/new/requests/my', requireAuth, (req, res) => {
   res.json({ items });
 });
 
+
+app.post('/api/new/requests/upload', requireAuth, requestAttachmentUpload.single('file'), (req, res) => {
+  if (!req.file?.path) return res.status(400).send('Dosya yüklenemedi.');
+  const validation = validateUploadedFileSafety(req.file.path, { allowedMimes: ['image/jpeg', 'image/png', 'application/pdf'] });
+  if (!validation.ok) {
+    cleanupUploadedFile(req.file.path);
+    return res.status(400).send(validation.reason || 'Dosya güvenlik kontrolünden geçemedi.');
+  }
+  res.json({
+    ok: true,
+    attachment: {
+      name: req.file.originalname,
+      mime: validation.mime,
+      size: Number(req.file.size || 0),
+      url: `/uploads/request-attachments/${req.file.filename}`
+    }
+  });
+});
+
 app.post('/api/new/requests', requireAuth, (req, res) => {
   const categoryKey = String(req.body?.category_key || '').trim();
   const payload = req.body?.payload || {};
@@ -4971,6 +5065,11 @@ app.post('/api/profile/photo', (req, res, next) => {
   return next();
 }, photoUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).send('Fotoğraf seçilmedi');
+  const uploadValidation = validateUploadedFileSafety(req.file.path, { allowedMimes: ['image/jpeg', 'image/png', 'image/gif'] });
+  if (!uploadValidation.ok) {
+    cleanupUploadedFile(req.file.path);
+    return res.status(400).send(uploadValidation.reason);
+  }
   (async () => {
     const optimizedPath = await optimizeUploadedImage(req.file.path, {
       width: 960,
@@ -8110,6 +8209,11 @@ app.post('/api/new/verified/proof', requireAuth, verificationProofUpload.single(
     return res.status(403).send('Profilin zaten doğrulanmış.');
   }
   if (!req.file?.filename) return res.status(400).send('Dosya yüklenemedi.');
+  const uploadValidation = validateUploadedFileSafety(req.file.path, { allowedMimes: ['image/jpeg', 'image/png', 'application/pdf'] });
+  if (!uploadValidation.ok) {
+    cleanupUploadedFile(req.file.path);
+    return res.status(400).send(uploadValidation.reason);
+  }
   const ext = path.extname(req.file.filename || '').toLowerCase();
   if (ext === '.pdf') {
     return res.json({
@@ -9012,6 +9116,11 @@ app.get('/api/new/admin/db/backups/:name/download', requireAdmin, (req, res) => 
 app.post('/api/new/admin/db/restore', requireAdmin, dbBackupUpload.single('backup'), (req, res) => {
   try {
     if (!req.file?.path) return res.status(400).send('Yedek dosyası gerekli.');
+  const backupValidation = validateUploadedFileSafety(req.file.path, { allowedMimes: [] });
+  if (!backupValidation.ok) {
+    cleanupUploadedFile(req.file.path);
+    return res.status(400).send(backupValidation.reason);
+  }
     const restored = restoreDbFromUploadedFile(req.file.path);
     logAdminAction(req, 'db_restore', {
       sourceName: String(req.file.originalname || ''),
