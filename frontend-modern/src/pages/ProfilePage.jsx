@@ -30,10 +30,6 @@ export default function ProfilePage() {
   const [stories, setStories] = useState([]);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [verifyStatus, setVerifyStatus] = useState('');
-  const [verificationProofFile, setVerificationProofFile] = useState(null);
-  const [verificationProofPath, setVerificationProofPath] = useState('');
-  const [verificationProofImageRecordId, setVerificationProofImageRecordId] = useState('');
   const [storyBusy, setStoryBusy] = useState('');
   const graduationYears = useMemo(() => {
     const years = [];
@@ -74,27 +70,6 @@ export default function ProfilePage() {
 
   const activeStories = stories.filter((s) => !s.isExpired);
   const expiredStories = stories.filter((s) => s.isExpired);
-
-
-  async function uploadVerificationProof() {
-    if (!verificationProofFile) return '';
-    const form = new FormData();
-    form.append('proof', verificationProofFile);
-    const res = await fetch('/api/new/verified/proof', {
-      method: 'POST',
-      credentials: 'include',
-      body: form
-    });
-    if (!res.ok) {
-      const message = await res.text();
-      throw new Error(message || 'Kanıt dosyası yüklenemedi.');
-    }
-    const payload = await res.json();
-    return {
-      proof_path: String(payload.proof_path || '').trim(),
-      proof_image_record_id: String(payload.proof_image_record_id || '').trim()
-    };
-  }
 
   async function refreshStories() {
     try {
@@ -241,50 +216,8 @@ export default function ProfilePage() {
           <button className="btn primary" onClick={save}>{t('save')}</button>
           <a className="btn ghost" href="/new/profile/photo">{t('profile_photo_title')}</a>
           {profile?.id ? <a className="btn ghost" href={`/new/members/${profile.id}`}>{t('profile_preview_members')}</a> : null}
-          <div className="form-row">
-            <label>Doğrulama Kanıtı (opsiyonel: JPG, PNG, PDF)</label>
-            <input
-              className="input"
-              type="file"
-              accept=".jpg,.jpeg,.png,.pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                setVerificationProofFile(file);
-                setVerificationProofPath('');
-                setVerificationProofImageRecordId('');
-              }}
-            />
-          </div>
-          <button className="btn ghost" onClick={async () => {
-            setVerifyStatus('');
-            setError('');
-            try {
-              const proof = await uploadVerificationProof();
-              const proofPath = proof?.proof_path || '';
-              const proofImageRecordId = proof?.proof_image_record_id || '';
-              if (proofPath) setVerificationProofPath(proofPath);
-              if (proofImageRecordId) setVerificationProofImageRecordId(proofImageRecordId);
-              const res = await fetch('/api/new/verified/request', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  proof_path: proofPath || verificationProofPath || '',
-                  proof_image_record_id: proofImageRecordId || verificationProofImageRecordId || ''
-                })
-              });
-              if (!res.ok) {
-                setVerifyStatus(await res.text());
-              } else {
-                setVerifyStatus(t('profile_verify_request_received'));
-                setVerificationProofFile(null);
-              }
-            } catch (err) {
-              setError(err.message || 'Doğrulama talebi gönderilemedi.');
-            }
-          }}>{t('profile_verify_request')}</button>
+          {Number(user?.verified || 0) !== 1 ? <a className="btn ghost" href="/new/profile/verification">{t('profile_verification_page_cta')}</a> : null}
           {status ? <div className="ok">{status}</div> : null}
-          {verifyStatus ? <div className="muted">{verifyStatus}</div> : null}
           {error ? <div className="error">{error}</div> : null}
         </div>
       </div>

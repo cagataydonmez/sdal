@@ -782,3 +782,11 @@
   gap: 8px;
   align-items: center;
 }
+
+.verification-popup {
+  width: min(520px, 92vw);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}

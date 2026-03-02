@@ -3,6 +3,7 @@ import { useI18n } from '../utils/i18n.jsx';
 
 const NET_START = 'sdal:net:start';
 const NET_END = 'sdal:net:end';
+const VERIFICATION_REQUIRED = 'sdal:verification-required';
 const FEEDBACK_DELAY_MS = 3000;
 
 function emit(name, detail) {
@@ -23,7 +24,21 @@ function patchFetchOnce() {
     const interactive = method !== 'GET' || (Date.now() - lastActionAt) < 1800;
     if (interactive) emit(NET_START, { interactive: true });
     try {
-      return await originalFetch(...args);
+      const response = await originalFetch(...args);
+      if (!response.ok && response.status === 403 && method !== 'GET') {
+        try {
+          const payload = await response.clone().json();
+          if (String(payload?.error || '').toUpperCase() === 'VERIFICATION_REQUIRED') {
+            emit(VERIFICATION_REQUIRED, {
+              message: payload?.message,
+              verificationUrl: payload?.verificationUrl || '/new/profile/verification'
+            });
+          }
+        } catch {
+          // ignore non-json responses
+        }
+      }
+      return response;
     } finally {
       if (interactive) emit(NET_END, { interactive: true });
     }
@@ -34,6 +49,7 @@ export default function GlobalActionFeedback() {
   const { t } = useI18n();
   const [pending, setPending] = useState(0);
   const [delayedVisible, setDelayedVisible] = useState(false);
+  const [verificationModal, setVerificationModal] = useState({ open: false, message: '', verificationUrl: '/new/profile/verification' });
   const delayTimerRef = useRef(null);
 
   useEffect(() => {
@@ -49,12 +65,21 @@ export default function GlobalActionFeedback() {
 
     window.addEventListener(NET_START, onStart);
     window.addEventListener(NET_END, onEnd);
+    const onVerificationRequired = (event) => {
+      setVerificationModal({
+        open: true,
+        message: String(event?.detail?.message || t('verification_required_popup_message')),
+        verificationUrl: String(event?.detail?.verificationUrl || '/new/profile/verification')
+      });
+    };
+    window.addEventListener(VERIFICATION_REQUIRED, onVerificationRequired);
     return () => {
       window.removeEventListener(NET_START, onStart);
       window.removeEventListener(NET_END, onEnd);
+      window.removeEventListener(VERIFICATION_REQUIRED, onVerificationRequired);
       if (delayTimerRef.current) window.clearTimeout(delayTimerRef.current);
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (pending > 0) {
@@ -79,8 +104,22 @@ export default function GlobalActionFeedback() {
   }, [active, t]);
 
   return (
-    <div className={`global-feedback ${active ? 'visible' : ''}`} aria-live="polite" aria-atomic="true">
-      <div className="global-feedback-chip">{label}</div>
-    </div>
+    <>
+      <div className={`global-feedback ${active ? 'visible' : ''}`} aria-live="polite" aria-atomic="true">
+        <div className="global-feedback-chip">{label}</div>
+      </div>
+      {verificationModal.open ? (
+        <div className="story-modal" onClick={() => setVerificationModal((prev) => ({ ...prev, open: false }))}>
+          <div className="verification-popup" onClick={(e) => e.stopPropagation()}>
+            <h3>{t('verification_required_popup_title')}</h3>
+            <p className="muted">{verificationModal.message}</p>
+            <div className="story-actions">
+              <button className="btn ghost" onClick={() => setVerificationModal((prev) => ({ ...prev, open: false }))}>{t('close')}</button>
+              <a className="btn primary" href={verificationModal.verificationUrl}>{t('verification_required_popup_cta')}</a>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

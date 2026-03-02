@@ -17,6 +17,7 @@ import EventsPage from './pages/EventsPage.jsx';
 import AnnouncementsPage from './pages/AnnouncementsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ProfilePhotoPage from './pages/ProfilePhotoPage.jsx';
+import ProfileVerificationPage from './pages/ProfileVerificationPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -45,11 +46,14 @@ function RequireAuth({ children }) {
   }
 
   function canAccessRouteDuringCompletion() {
-    return location.pathname === '/new/profile' || location.pathname === '/new/profile/photo';
+    return location.pathname === '/new/profile' || location.pathname === '/new/profile/photo' || location.pathname === '/new/profile/verification';
   }
 
   if (loading) return children;
   if (!user) return <Navigate to="/new/login" replace />;
+  if (location.pathname === '/new/profile/verification' && Number(user?.verified || 0) === 1) {
+    return <Navigate to="/new/profile" replace />;
+  }
   if (isProfileCompletionRequired() && !canAccessRouteDuringCompletion()) {
     return <Navigate to="/new/profile?complete=1" replace />;
   }
@@ -92,6 +96,7 @@ export default function App() {
           <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />
           <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
           <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
+          <Route path="/new/profile/verification" element={<RequireAuth><ProfileVerificationPage /></RequireAuth>} />
           <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />
           <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
           <Route path="/new/*" element={<Navigate to="/new" replace />} />
