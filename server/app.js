@@ -650,6 +650,33 @@ function migrateAddColumn(table, column, ddl) {
   });
 }
 
+function migrateLegacyUserIdColumns() {
+  const tables = [
+    'posts',
+    'post_comments',
+    'post_likes',
+    'event_comments',
+    'event_responses',
+    'stories',
+    'story_views',
+    'group_members',
+    'group_join_requests',
+    'chat_messages',
+    'verification_requests',
+    'member_engagement_scores',
+    'engagement_ab_assignments'
+  ];
+
+  runMigration('2026_03_legacy_uye_id_to_user_id', () => {
+    for (const table of tables) {
+      if (!hasTable(table) || hasColumn(table, 'user_id') || !hasColumn(table, 'uye_id')) continue;
+      const qTable = quoteIdentifier(table);
+      sqlRun(`ALTER TABLE ${qTable} ADD COLUMN user_id INTEGER`);
+      sqlRun(`UPDATE ${qTable} SET user_id = uye_id WHERE user_id IS NULL`);
+    }
+  });
+}
+
 function getPgColumnType(table, column) {
   if (dbDriver !== 'postgres') return '';
   const row = sqlGet(
@@ -1189,6 +1216,7 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_variant ON member_engag
 sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON engagement_ab_assignments (variant)');
 migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
 normalizePostgresIdColumns();
+migrateLegacyUserIdColumns();
 ensurePostgresIdSequences();
 
 // --- Image pipeline migrations ---
