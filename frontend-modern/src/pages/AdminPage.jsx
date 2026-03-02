@@ -1968,8 +1968,16 @@ export default function AdminPage() {
         <div className="panel">
           <div className="panel-body">
             {verifRequests.map((r) => (
-              <div key={r.id} className="list-item">
-                <div>@{r.kadi} • {r.status}</div>
+              <div key={r.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+                <div>
+                  <div>@{r.kadi} • {r.status}</div>
+                  <div className="muted">Mezuniyet: {r.mezuniyetyili || '-'}</div>
+                  {r.proof_path ? (
+                    <a href={r.proof_path} target="_blank" rel="noreferrer">Kanıt dosyasını aç</a>
+                  ) : (
+                    <div className="muted">Kanıt dosyası yüklenmemiş.</div>
+                  )}
+                </div>
                 <button className="btn" onClick={() => reviewRequest(r.id, 'approved')}>Onayla</button>
                 <button className="btn ghost" onClick={() => reviewRequest(r.id, 'rejected')}>Reddet</button>
               </div>

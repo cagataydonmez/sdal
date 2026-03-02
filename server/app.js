@@ -65,6 +65,10 @@ const groupDir = path.join(uploadsDir, 'groups');
 if (!fs.existsSync(groupDir)) {
   fs.mkdirSync(groupDir, { recursive: true });
 }
+const verificationProofDir = path.join(uploadsDir, 'verification-proofs');
+if (!fs.existsSync(verificationProofDir)) {
+  fs.mkdirSync(verificationProofDir, { recursive: true });
+}
 
 const allowedImageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif']);
 const photoUpload = multer({
@@ -166,6 +170,27 @@ const groupUpload = multer({
     } else {
       cb(null, true);
     }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const allowedProofExts = new Set(['.jpg', '.jpeg', '.png', '.pdf']);
+const verificationProofUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, verificationProofDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const stamp = `${Date.now()}_${Math.round(Math.random() * 1e9)}`;
+      cb(null, `proof_${req.session.userId || 'anon'}_${stamp}${ext || '.jpg'}`);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!allowedProofExts.has(ext)) {
+      cb(new Error('Sadece JPG, PNG veya PDF dosyaları yükleyebilirsiniz.'));
+      return;
+    }
+    cb(null, true);
   },
   limits: { fileSize: 10 * 1024 * 1024 }
 });
@@ -945,6 +970,7 @@ migrateAddColumn('uyeler', 'linkedin_url', 'ALTER TABLE uyeler ADD COLUMN linked
 migrateAddColumn('uyeler', 'universite_bolum', 'ALTER TABLE uyeler ADD COLUMN universite_bolum TEXT');
 migrateAddColumn('uyeler', 'mentor_opt_in', 'ALTER TABLE uyeler ADD COLUMN mentor_opt_in INTEGER DEFAULT 0');
 migrateAddColumn('uyeler', 'mentor_konulari', 'ALTER TABLE uyeler ADD COLUMN mentor_konulari TEXT');
+migrateAddColumn('verification_requests', 'proof_path', 'ALTER TABLE verification_requests ADD COLUMN proof_path TEXT');
 
 runMigration('2026_02_sdal_alumni_hub_backfill', () => {
   // Enforce everyone to go through the new verification queue
@@ -1072,6 +1098,7 @@ sqlRun(`CREATE TABLE IF NOT EXISTS verification_requests (
   id INTEGER PRIMARY KEY,
   user_id INTEGER,
   status TEXT,
+  proof_path TEXT,
   created_at TEXT,
   reviewed_at TEXT,
   reviewer_id INTEGER
@@ -7703,18 +7730,31 @@ app.post('/api/new/chat/messages/:id/delete', requireAuth, (req, res) => {
 app.post('/api/new/verified/request', requireAuth, (req, res) => {
   const existing = sqlGet('SELECT id FROM verification_requests WHERE user_id = ? AND status = ?', [req.session.userId, 'pending']);
   if (existing) return res.status(400).send('Zaten bekleyen bir talebiniz var.');
-  sqlRun('INSERT INTO verification_requests (user_id, status, created_at) VALUES (?, ?, ?)', [
+  const proofPath = String(req.body?.proof_path || '').trim();
+  if (proofPath && !proofPath.startsWith('/uploads/verification-proofs/')) {
+    return res.status(400).send('Geçersiz kanıt dosyası yolu.');
+  }
+  sqlRun('INSERT INTO verification_requests (user_id, status, proof_path, created_at) VALUES (?, ?, ?, ?)', [
     req.session.userId,
     'pending',
+    proofPath || null,
     new Date().toISOString()
   ]);
   sqlRun('UPDATE uyeler SET verification_status = ? WHERE id = ?', ['pending', req.session.userId]);
   res.json({ ok: true });
 });
 
+app.post('/api/new/verified/proof', requireAuth, verificationProofUpload.single('proof'), (req, res) => {
+  if (!req.file?.filename) return res.status(400).send('Dosya yüklenemedi.');
+  res.json({
+    ok: true,
+    proof_path: `/uploads/verification-proofs/${req.file.filename}`
+  });
+});
+
 app.get('/api/new/admin/verification-requests', requireAdmin, (req, res) => {
   const rows = sqlAll(
-    `SELECT r.id, r.user_id, r.status, r.created_at, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
+    `SELECT r.id, r.user_id, r.status, r.proof_path, r.created_at, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
      FROM verification_requests r
      LEFT JOIN uyeler u ON u.id = r.user_id
      ORDER BY r.id DESC`
