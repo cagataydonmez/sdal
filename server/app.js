@@ -1050,7 +1050,7 @@ runMigration('2026_02_sdal_alumni_hub_backfill', () => {
     `UPDATE uyeler
      SET verification_status = 'pending',
          mezuniyetyili = CASE
-           WHEN CAST(mezuniyetyili AS INTEGER) >= 1960 AND CAST(mezuniyetyili AS INTEGER) <= 2030 THEN mezuniyetyili
+           WHEN CAST(mezuniyetyili AS INTEGER) >= 1999 AND CAST(mezuniyetyili AS INTEGER) <= 2030 THEN mezuniyetyili
            ELSE '0'
          END
      WHERE verification_status IS NULL OR verification_status = ''`
@@ -1335,8 +1335,33 @@ function getCurrentUser(req) {
   return sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.session.userId]);
 }
 
+const MIN_GRADUATION_YEAR = 1999;
+const MAX_GRADUATION_YEAR = 2100;
+
+function parseGraduationYear(value) {
+  const year = parseInt(String(value || '').trim(), 10);
+  return Number.isFinite(year) ? year : NaN;
+}
+
+function hasValidGraduationYear(value) {
+  const year = parseGraduationYear(value);
+  return Number.isFinite(year) && year >= MIN_GRADUATION_YEAR && year <= MAX_GRADUATION_YEAR;
+}
+
+function isOAuthProfileIncomplete(user) {
+  const oauthProvider = String(user?.oauth_provider || '').trim();
+  if (!oauthProvider) return false;
+  return !hasValidGraduationYear(user?.mezuniyetyili);
+}
+
 function requireAuth(req, res, next) {
   if (!req.session.userId) return res.status(401).send('Login required');
+  if (req.path.startsWith('/api/new/')) {
+    const user = getCurrentUser(req);
+    if (isOAuthProfileIncomplete(user)) {
+      return res.status(403).json({ error: 'PROFILE_INCOMPLETE', message: 'Mezuniyet yılını (en az 1999) girmeden bu özelliği kullanamazsın.' });
+    }
+  }
   return next();
 }
 
@@ -3526,8 +3551,10 @@ app.get('/api/session', (req, res) => {
   if (!req.session.userId) {
     return res.json({ user: null });
   }
-  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, verified FROM uyeler WHERE id = ?', [req.session.userId]);
-  res.json({ user: user || null });
+  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, verified, mezuniyetyili, oauth_provider FROM uyeler WHERE id = ?', [req.session.userId]);
+  if (!user) return res.json({ user: null });
+  const state = isOAuthProfileIncomplete(user) ? 'incomplete' : 'active';
+  res.json({ user: { ...user, state } });
 });
 
 app.get('/api/auth/oauth/providers', (req, res) => {
@@ -4440,8 +4467,8 @@ app.post('/api/register/preview', (req, res) => {
   if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
   if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
   if (mezuniyetyili == '0') return res.status(400).send('Bir mezuniyet yılı seçmeniz gerekmektedir.');
-  const parsedYear = parseInt(mezuniyetyili, 10);
-  if (isNaN(parsedYear) || parsedYear < 1960 || parsedYear > new Date().getFullYear()) {
+  const parsedYear = parseGraduationYear(mezuniyetyili);
+  if (!hasValidGraduationYear(parsedYear) || parsedYear > new Date().getFullYear()) {
     return res.status(400).send('Geçerli bir mezuniyet yılı seçmeniz gerekmektedir.');
   }
   if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
@@ -4505,8 +4532,8 @@ app.post('/api/register', async (req, res) => {
   const existingMail = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
   if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
 
-  const parsedYear = parseInt(mezuniyetyili, 10);
-  if (isNaN(parsedYear) || parsedYear < 1960 || parsedYear > new Date().getFullYear()) {
+  const parsedYear = parseGraduationYear(mezuniyetyili);
+  if (!hasValidGraduationYear(parsedYear) || parsedYear > new Date().getFullYear()) {
     return res.status(400).send('Geçerli bir mezuniyet yılı seçmeniz gerekmektedir.');
   }
 
@@ -4649,6 +4676,7 @@ app.put('/api/profile', (req, res) => {
   const meslek = String(req.body.meslek || '');
   const websitesi = String(req.body.websitesi || '');
   const universite = String(req.body.universite || '');
+  const mezuniyetyili = String(req.body.mezuniyetyili || '').trim();
   const sirket = String(req.body.sirket || '').trim();
   const unvan = String(req.body.unvan || '').trim();
   const uzmanlik = String(req.body.uzmanlik || '').trim();
@@ -4665,14 +4693,18 @@ app.put('/api/profile', (req, res) => {
   const current = sqlGet('SELECT ilkbd FROM uyeler WHERE id = ?', [req.session.userId]);
   const nextIlkbd = current && current.ilkbd === 0 ? 1 : (current?.ilkbd || 1);
 
+  if (!hasValidGraduationYear(mezuniyetyili)) {
+    return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR} veya daha büyük olmalıdır.`);
+  }
+
   sqlRun(`
     UPDATE uyeler
-    SET isim = ?, soyisim = ?, sehir = ?, meslek = ?, websitesi = ?, universite = ?,
+    SET isim = ?, soyisim = ?, sehir = ?, meslek = ?, websitesi = ?, universite = ?, mezuniyetyili = ?,
         dogumgun = ?, dogumay = ?, dogumyil = ?, mailkapali = ?, imza = ?, ilkbd = ?,
         sirket = ?, unvan = ?, uzmanlik = ?, linkedin_url = ?, universite_bolum = ?, mentor_opt_in = ?, mentor_konulari = ?
     WHERE id = ?`,
     [
-      isim, soyisim, sehir, meslek, websitesi, universite,
+      isim, soyisim, sehir, meslek, websitesi, universite, mezuniyetyili,
       dogumgun, dogumay, dogumyil, mailkapali, imza, nextIlkbd,
       sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, mentorOptIn, mentorKonulari,
       req.session.userId

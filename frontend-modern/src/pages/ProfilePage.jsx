@@ -41,7 +41,8 @@ export default function ProfilePage() {
   async function save() {
     setError('');
     setStatus('');
-    if (String(profile.mezuniyetyili || '').trim() === '') {
+    const gradYear = parseInt(String(profile.mezuniyetyili || '').trim(), 10);
+    if (!Number.isFinite(gradYear) || gradYear < 1999) {
       setError(t('profile_error_graduation_required'));
       return;
     }
