@@ -4,6 +4,7 @@ import AccessDeniedView from '../components/admin/AccessDeniedView.jsx';
 import AdminLoginView from '../components/admin/AdminLoginView.jsx';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import AdminPreviewModal from '../components/admin/AdminPreviewModal.jsx';
+import RequestPayloadCard from '../components/RequestPayloadCard.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
 async function apiJson(url, options = {}) {
@@ -2028,7 +2029,7 @@ export default function AdminPage() {
                 <div>
                   <div><strong>{r.category_label || r.category_key}</strong> • @{r.kadi}</div>
                   <div className="muted">#{r.id} • {new Date(r.created_at).toLocaleString()}</div>
-                  {r.payload_json ? <pre className="muted" style={{ whiteSpace: 'pre-wrap' }}>{r.payload_json}</pre> : null}
+                  {r.payload_json ? <RequestPayloadCard payloadJson={r.payload_json} /> : null}
                 </div>
                 <button className="btn" onClick={() => reviewAdminRequest(r.id, 'approved')}>Onayla</button>
                 <button className="btn ghost" onClick={() => reviewAdminRequest(r.id, 'rejected')}>Reddet</button>

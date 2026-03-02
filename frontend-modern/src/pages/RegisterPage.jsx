@@ -23,7 +23,7 @@ export default function RegisterPage() {
   const years = useMemo(() => {
     const list = [];
     const now = new Date().getFullYear();
-    for (let y = now; y >= 1960; y -= 1) list.push(String(y));
+    for (let y = now; y >= 1999; y -= 1) list.push(String(y));
     return list;
   }, []);
 

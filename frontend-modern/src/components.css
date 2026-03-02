@@ -831,3 +831,21 @@
     max-height: min(62vh, 270px);
   }
 }
+
+.request-payload-card {
+  margin-top: 8px;
+  border: 1px solid #e7dccb;
+  border-radius: 12px;
+  background: #fffaf3;
+  padding: 10px;
+}
+.request-payload-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.request-payload-key { color: #7c6f5f; font-weight: 700; }
+.request-payload-value { color: #2d2620; word-break: break-word; }
+.request-payload-attachments { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }

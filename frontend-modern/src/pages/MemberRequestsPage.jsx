@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import RequestPayloadCard from '../components/RequestPayloadCard.jsx';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -23,6 +24,7 @@ export default function MemberRequestsPage() {
   const [note, setNote] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [attachments, setAttachments] = useState([]);
 
   async function load() {
     const [myReq, cats] = await Promise.all([apiJson('/api/new/requests/my'), apiJson('/api/new/request-categories')]);
@@ -37,11 +39,20 @@ export default function MemberRequestsPage() {
     load().catch(() => {});
   }, [location.search]);
 
+  async function uploadAttachment(file) {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/new/requests/upload', { method: 'POST', body: form, credentials: 'include' });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    return data?.attachment;
+  }
+
   async function createRequest() {
     setStatus('');
     setError('');
     try {
-      const payload = { note };
+      const payload = { note, attachments };
       if (categoryKey === 'graduation_year_change') payload.requestedGraduationYear = requestedGraduationYear;
       await apiJson('/api/new/requests', {
         method: 'POST',
@@ -50,6 +61,7 @@ export default function MemberRequestsPage() {
       setStatus(t('member_requests_created'));
       setNote('');
       setRequestedGraduationYear('');
+      setAttachments([]);
       await load();
     } catch (err) {
       setError(err.message);
@@ -70,13 +82,38 @@ export default function MemberRequestsPage() {
           {categoryKey === 'graduation_year_change' ? (
             <div className="form-row">
               <label>{t('profile_graduation')}</label>
-              <input className="input" value={requestedGraduationYear} onChange={(e) => setRequestedGraduationYear(e.target.value)} placeholder="2012" />
+              <select className="input" value={requestedGraduationYear} onChange={(e) => setRequestedGraduationYear(e.target.value)}>
+                <option value="">Yıl seçiniz</option>
+                {Array.from({ length: new Date().getFullYear() - 1999 + 1 }, (_, i) => String(new Date().getFullYear() - i)).map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
             </div>
           ) : null}
           <div className="form-row">
             <label>{t('description')}</label>
             <textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
+
+          <div className="form-row">
+            <label>Dosya / Fotoğraf Eki</label>
+            <input
+              className="input"
+              type="file"
+              accept=".jpg,.jpeg,.png,.pdf"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const attachment = await uploadAttachment(file);
+                  if (attachment) setAttachments((prev) => [...prev, attachment]);
+                } catch (err) {
+                  setError(err.message);
+                }
+                e.target.value = '';
+              }}
+            />
+            {attachments.length ? <RequestPayloadCard payloadJson={{ attachments }} /> : null}
+          </div>
+
           <button className="btn primary" onClick={createRequest}>{t('member_requests_submit')}</button>
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
@@ -92,7 +129,7 @@ export default function MemberRequestsPage() {
               <div>
                 <strong>{item.category_label || item.category_key}</strong>
                 <div className="muted">#{item.id} • {item.status} • {new Date(item.created_at).toLocaleString()}</div>
-                {item.payload_json ? <pre className="muted" style={{ whiteSpace: 'pre-wrap' }}>{item.payload_json}</pre> : null}
+                {item.payload_json ? <RequestPayloadCard payloadJson={item.payload_json} /> : null}
               </div>
             </div>
           ))}
