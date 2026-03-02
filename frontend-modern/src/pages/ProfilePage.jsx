@@ -35,6 +35,12 @@ export default function ProfilePage() {
   const [verificationProofPath, setVerificationProofPath] = useState('');
   const [verificationProofImageRecordId, setVerificationProofImageRecordId] = useState('');
   const [storyBusy, setStoryBusy] = useState('');
+  const graduationYears = useMemo(() => {
+    const years = [];
+    const now = new Date().getFullYear();
+    for (let y = now; y >= 1960; y -= 1) years.push(String(y));
+    return years;
+  }, []);
 
   useEffect(() => {
     apiJson('/api/profile').then((p) => setProfile(p.user || null)).catch(() => {});
@@ -68,12 +74,6 @@ export default function ProfilePage() {
 
   const activeStories = stories.filter((s) => !s.isExpired);
   const expiredStories = stories.filter((s) => s.isExpired);
-  const graduationYears = useMemo(() => {
-    const years = [];
-    const now = new Date().getFullYear();
-    for (let y = now; y >= 1960; y -= 1) years.push(String(y));
-    return years;
-  }, []);
 
 
   async function uploadVerificationProof() {
