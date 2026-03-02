@@ -459,6 +459,31 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
   const user = sqlGet('SELECT kadi, resim FROM uyeler WHERE id = ?', [userId]);
   if (!user) return;
 
+  const getUserColumn = (table) => {
+    if (hasColumn(table, 'user_id')) return 'user_id';
+    if (hasColumn(table, 'uye_id')) return 'uye_id';
+    return '';
+  };
+
+  const userColumn = {
+    posts: getUserColumn('posts'),
+    postComments: getUserColumn('post_comments'),
+    postLikes: getUserColumn('post_likes'),
+    stories: getUserColumn('stories'),
+    storyViews: getUserColumn('story_views'),
+    eventResponses: getUserColumn('event_responses'),
+    eventComments: getUserColumn('event_comments'),
+    groupMembers: getUserColumn('group_members'),
+    groupJoinRequests: getUserColumn('group_join_requests'),
+    notifications: getUserColumn('notifications'),
+    gameScores: getUserColumn('game_scores'),
+    verificationRequests: getUserColumn('verification_requests'),
+    memberEngagementScores: getUserColumn('member_engagement_scores'),
+    engagementAbAssignments: getUserColumn('engagement_ab_assignments'),
+    oauthAccounts: getUserColumn('oauth_accounts'),
+    chatMessages: getUserColumn('chat_messages')
+  };
+
   // 1. Avatar
   if (user.resim && user.resim !== 'yok' && user.resim.trim() !== '') {
     const avatarPath = path.join(uploadsDir, 'vesikalik', user.resim);
@@ -470,34 +495,34 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
   }
 
   // 2. Posts & variants
-  if (hasTable('posts')) {
-    const userPosts = sqlAll('SELECT id, image_record_id FROM posts WHERE user_id = ?', [userId]);
+  if (hasTable('posts') && userColumn.posts) {
+    const userPosts = sqlAll(`SELECT id, image_record_id FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
     for (const p of userPosts) {
       if (p.image_record_id) {
         await deleteImageRecord(p.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
       }
     }
-    sqlRun('DELETE FROM posts WHERE user_id = ?', [userId]);
+    sqlRun(`DELETE FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
   }
-  if (hasTable('post_comments')) sqlRun('DELETE FROM post_comments WHERE user_id = ?', [userId]);
-  if (hasTable('post_likes')) sqlRun('DELETE FROM post_likes WHERE user_id = ?', [userId]);
+  if (hasTable('post_comments') && userColumn.postComments) sqlRun(`DELETE FROM post_comments WHERE ${userColumn.postComments} = ?`, [userId]);
+  if (hasTable('post_likes') && userColumn.postLikes) sqlRun(`DELETE FROM post_likes WHERE ${userColumn.postLikes} = ?`, [userId]);
 
   // 3. Stories & variants
-  if (hasTable('stories')) {
-    const userStories = sqlAll('SELECT id, image_record_id FROM stories WHERE user_id = ?', [userId]);
+  if (hasTable('stories') && userColumn.stories) {
+    const userStories = sqlAll(`SELECT id, image_record_id FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
     for (const s of userStories) {
       if (s.image_record_id) {
         await deleteImageRecord(s.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
       }
     }
-    sqlRun('DELETE FROM stories WHERE user_id = ?', [userId]);
+    sqlRun(`DELETE FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
   }
-  if (hasTable('story_views')) sqlRun('DELETE FROM story_views WHERE user_id = ?', [userId]);
+  if (hasTable('story_views') && userColumn.storyViews) sqlRun(`DELETE FROM story_views WHERE ${userColumn.storyViews} = ?`, [userId]);
 
   // 4. Events
   if (hasTable('events')) sqlRun('DELETE FROM events WHERE created_by = ?', [userId]);
-  if (hasTable('event_responses')) sqlRun('DELETE FROM event_responses WHERE user_id = ?', [userId]);
-  if (hasTable('event_comments')) sqlRun('DELETE FROM event_comments WHERE user_id = ?', [userId]);
+  if (hasTable('event_responses') && userColumn.eventResponses) sqlRun(`DELETE FROM event_responses WHERE ${userColumn.eventResponses} = ?`, [userId]);
+  if (hasTable('event_comments') && userColumn.eventComments) sqlRun(`DELETE FROM event_comments WHERE ${userColumn.eventComments} = ?`, [userId]);
 
   // 5. Groups (Delete if owned)
   if (hasTable('groups')) {
@@ -511,8 +536,8 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
       sqlRun('DELETE FROM groups WHERE id = ?', [g.id]);
     }
   }
-  if (hasTable('group_members')) sqlRun('DELETE FROM group_members WHERE user_id = ?', [userId]);
-  if (hasTable('group_join_requests')) sqlRun('DELETE FROM group_join_requests WHERE user_id = ? OR reviewed_by = ?', [userId, userId]);
+  if (hasTable('group_members') && userColumn.groupMembers) sqlRun(`DELETE FROM group_members WHERE ${userColumn.groupMembers} = ?`, [userId]);
+  if (hasTable('group_join_requests') && userColumn.groupJoinRequests) sqlRun(`DELETE FROM group_join_requests WHERE ${userColumn.groupJoinRequests} = ? OR reviewed_by = ?`, [userId, userId]);
   if (hasTable('group_invites')) sqlRun('DELETE FROM group_invites WHERE invited_user_id = ? OR invited_by = ?', [userId, userId]);
 
   // 6. Album (delete comments on user's photos first, then comments by user, then photos)
@@ -531,16 +556,16 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
 
   // 8. Follows & Notifs
   if (hasTable('follows')) sqlRun('DELETE FROM follows WHERE follower_id = ? OR following_id = ?', [userId, userId]);
-  if (hasTable('notifications')) sqlRun('DELETE FROM notifications WHERE user_id = ? OR source_user_id = ?', [userId, userId]);
+  if (hasTable('notifications') && userColumn.notifications) sqlRun(`DELETE FROM notifications WHERE ${userColumn.notifications} = ? OR source_user_id = ?`, [userId, userId]);
 
   // 9. Games
   if (hasTable('oyun_yilan')) sqlRun('DELETE FROM oyun_yilan WHERE isim = ?', [user.kadi]);
   if (hasTable('oyun_tetris')) sqlRun('DELETE FROM oyun_tetris WHERE isim = ?', [user.kadi]);
-  if (hasTable('game_scores')) sqlRun('DELETE FROM game_scores WHERE user_id = ?', [userId]);
+  if (hasTable('game_scores') && userColumn.gameScores) sqlRun(`DELETE FROM game_scores WHERE ${userColumn.gameScores} = ?`, [userId]);
 
   // 10. System
-  if (hasTable('verification_requests')) {
-    const proofRows = sqlAll('SELECT proof_path, proof_image_record_id FROM verification_requests WHERE user_id = ?', [userId]);
+  if (hasTable('verification_requests') && userColumn.verificationRequests) {
+    const proofRows = sqlAll(`SELECT proof_path, proof_image_record_id FROM verification_requests WHERE ${userColumn.verificationRequests} = ?`, [userId]);
     for (const row of proofRows) {
       if (row?.proof_image_record_id) {
         await deleteImageRecord(row.proof_image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
@@ -556,12 +581,12 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
         writeAppLog('error', 'verification_proof_delete_failed', { userId, path: absoluteProof, error: e.message });
       }
     }
-    sqlRun('DELETE FROM verification_requests WHERE user_id = ? OR reviewer_id = ?', [userId, userId]);
+    sqlRun(`DELETE FROM verification_requests WHERE ${userColumn.verificationRequests} = ? OR reviewer_id = ?`, [userId, userId]);
   }
-  if (hasTable('member_engagement_scores')) sqlRun('DELETE FROM member_engagement_scores WHERE user_id = ?', [userId]);
-  if (hasTable('engagement_ab_assignments')) sqlRun('DELETE FROM engagement_ab_assignments WHERE user_id = ?', [userId]);
-  if (hasTable('oauth_accounts')) sqlRun('DELETE FROM oauth_accounts WHERE user_id = ?', [userId]);
-  if (hasTable('chat_messages')) sqlRun('DELETE FROM chat_messages WHERE user_id = ?', [userId]);
+  if (hasTable('member_engagement_scores') && userColumn.memberEngagementScores) sqlRun(`DELETE FROM member_engagement_scores WHERE ${userColumn.memberEngagementScores} = ?`, [userId]);
+  if (hasTable('engagement_ab_assignments') && userColumn.engagementAbAssignments) sqlRun(`DELETE FROM engagement_ab_assignments WHERE ${userColumn.engagementAbAssignments} = ?`, [userId]);
+  if (hasTable('oauth_accounts') && userColumn.oauthAccounts) sqlRun(`DELETE FROM oauth_accounts WHERE ${userColumn.oauthAccounts} = ?`, [userId]);
+  if (hasTable('chat_messages') && userColumn.chatMessages) sqlRun(`DELETE FROM chat_messages WHERE ${userColumn.chatMessages} = ?`, [userId]);
 
   // 11. Final purge
   sqlRun('DELETE FROM uyeler WHERE id = ?', [userId]);
