@@ -204,7 +204,7 @@ export default function RegisterPage() {
                     <tr>
                       <td align="left" colSpan="2" style={{ fontSize: 10 }}>
                         <input type="checkbox" id="dir_legacy" checked={form.directory_consent} onChange={(e) => updateField('directory_consent', e.target.checked)} />
-                        <label htmlFor="dir_legacy"> Mezun Rehberi&apos;nde listelenmesine açık rıza veriyorum. (Zorunlu)</label>
+                        <label htmlFor="dir_legacy"> Mezun Rehberi&apos;nde listelenmesine açık rıza veriyorum. <a href="/kvkk/acik-riza" target="_blank" rel="noreferrer">Açık rıza metnini</a> okudum. (Zorunlu)</label>
                       </td>
                     </tr>
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>

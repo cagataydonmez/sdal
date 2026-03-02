@@ -58,6 +58,16 @@ export default function ProfilePage() {
       setError(t('profile_error_graduation_required'));
       return;
     }
+    if (String(user?.oauth_provider || '').trim()) {
+      if (!profile.kvkk_consent) {
+        setError('Sosyal üyelik için KVKK Aydınlatma Metni onayı zorunludur.');
+        return;
+      }
+      if (!profile.directory_consent) {
+        setError('Sosyal üyelik için Mezun Rehberi açık rıza onayı zorunludur.');
+        return;
+      }
+    }
     try {
       await apiJson('/api/profile', { method: 'PUT', body: JSON.stringify(profile) });
       await refresh();
@@ -227,6 +237,22 @@ export default function ProfilePage() {
             <label>{t('profile_signature')}</label>
             <textarea className="input" value={profile.imza || ''} onChange={(e) => setProfile({ ...profile, imza: e.target.value })} />
           </div>
+          {String(user?.oauth_provider || '').trim() ? (
+            <>
+              <label className="chip" style={{ marginBottom: 12, display: 'block' }}>
+                <input type="checkbox" checked={Boolean(profile.kvkk_consent)} onChange={(e) => setProfile({ ...profile, kvkk_consent: e.target.checked })} />
+                <span>
+                  KVKK Aydınlatma Metni'ni okudum ve onaylıyorum (<a href="/kvkk" target="_blank" rel="noreferrer">metni görüntüle</a>).
+                </span>
+              </label>
+              <label className="chip" style={{ marginBottom: 12, display: 'block' }}>
+                <input type="checkbox" checked={Boolean(profile.directory_consent)} onChange={(e) => setProfile({ ...profile, directory_consent: e.target.checked })} />
+                <span>
+                  Mezun Rehberi açık rıza metnini okudum ve onaylıyorum (<a href="/kvkk/acik-riza" target="_blank" rel="noreferrer">metni görüntüle</a>).
+                </span>
+              </label>
+            </>
+          ) : null}
           <button className="btn primary" onClick={save}>{t('save')}</button>
           <a className="btn ghost" href="/new/profile/email-change">{t('profile_email_change_cta')}</a>
           {Number(user?.verified || 0) === 1 ? <a className="btn ghost" href="/new/requests?category=graduation_year_change">{t('profile_graduation_change_request_cta')}</a> : null}

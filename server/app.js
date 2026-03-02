@@ -1401,10 +1401,18 @@ function hasValidGraduationYear(value) {
   return Number.isFinite(year) && year >= MIN_GRADUATION_YEAR && year <= MAX_GRADUATION_YEAR;
 }
 
+function hasKvkkConsent(user) {
+  return Boolean(user?.kvkk_consent_at);
+}
+
+function hasDirectoryConsent(user) {
+  return Boolean(user?.directory_consent_at);
+}
+
 function isOAuthProfileIncomplete(user) {
   const oauthProvider = String(user?.oauth_provider || '').trim();
   if (!oauthProvider) return false;
-  return !hasValidGraduationYear(user?.mezuniyetyili);
+  return !hasValidGraduationYear(user?.mezuniyetyili) || !hasKvkkConsent(user) || !hasDirectoryConsent(user);
 }
 
 function requireAuth(req, res, next) {
@@ -3624,7 +3632,7 @@ app.get('/api/session', (req, res) => {
   if (!req.session.userId) {
     return res.json({ user: null });
   }
-  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, verified, mezuniyetyili, oauth_provider FROM uyeler WHERE id = ?', [req.session.userId]);
+  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, verified, mezuniyetyili, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
   if (!user) return res.json({ user: null });
   const state = isOAuthProfileIncomplete(user) ? 'incomplete' : 'active';
   res.json({ user: { ...user, state } });
@@ -4735,13 +4743,48 @@ app.post('/api/mail/test', async (req, res) => {
   }
 });
 
+app.get('/kvkk', (_req, res) => {
+  res.type('html').send(`<!doctype html>
+<html lang="tr">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>SDAL KVKK Aydınlatma Metni</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;max-width:920px;margin:24px auto;padding:0 16px;color:#1f2937">
+<h1>SDAL Platformu KVKK Aydınlatma Metni</h1>
+<p><b>Veri Sorumlusu:</b> SDAL mezun platformu yöneticileri ("SDAL"). Bu metin 6698 sayılı Kişisel Verilerin Korunması Kanunu m.10 kapsamında bilgilendirme amacıyla hazırlanmıştır.</p>
+<h2>1. İşlenen Kişisel Veriler</h2><p>Kimlik ve iletişim (ad, soyad, e-posta), hesap bilgileri (kullanıcı adı, mezuniyet yılı, profil fotoğrafı), kullanım/veri güvenliği kayıtları (IP, oturum, işlem kayıtları), isteğe bağlı profil alanları ve üyeler arası mesajlaşma içerikleri.</p>
+<h2>2. İşleme Amaçları</h2><p>Üyelik hesabının kurulması ve yönetimi, mezunlar arası iletişim, platform güvenliğinin sağlanması, kötüye kullanımın önlenmesi, yasal yükümlülüklerin yerine getirilmesi, teknik destek ve topluluk yönetimi süreçlerinin yürütülmesi.</p>
+<h2>3. Hukuki Sebepler</h2><p>KVKK m.5/2-c (sözleşmenin kurulması/ifası), m.5/2-ç (hukuki yükümlülük), m.5/2-f (meşru menfaat) ve gerekli hallerde açık rıza (m.5/1) kapsamında işleme yapılır.</p>
+<h2>4. Aktarım</h2><p>Kişisel veriler; barındırma, e-posta, güvenlik ve yedekleme hizmeti sağlayıcılarına, sadece hizmetin gerektirdiği ölçüde aktarılabilir. Kanunen yetkili kamu kurumlarına hukuki zorunluluk halinde paylaşım yapılabilir.</p>
+<h2>5. Saklama Süreleri</h2><p>Veriler ilgili mevzuat, uyuşmazlık zamanaşımı ve platform operasyon ihtiyaçlarına göre gerekli süre boyunca saklanır; süresi dolan veriler silinir, yok edilir veya anonimleştirilir.</p>
+<h2>6. Haklarınız</h2><p>KVKK m.11 kapsamındaki; işlenip işlenmediğini öğrenme, bilgi talep etme, düzeltme, silme/yok etme, aktarılan tarafları öğrenme, itiraz ve zarar halinde tazminat talep haklarınızı kullanabilirsiniz.</p>
+<p>Başvuru ve talepler için: <a href="mailto:kvkk@sdal.org">kvkk@sdal.org</a></p>
+<hr /><p>Bu metin, platform süreçlerindeki değişikliklere göre güncellenebilir. Güncel metin her zaman bu bağlantıda yayımlanır.</p>
+</body></html>`);
+});
+
+app.get('/kvkk/acik-riza', (_req, res) => {
+  res.type('html').send(`<!doctype html>
+<html lang="tr">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>SDAL Mezun Rehberi Açık Rıza Metni</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;max-width:920px;margin:24px auto;padding:0 16px;color:#1f2937">
+<h1>SDAL Mezun Rehberi Açık Rıza Metni</h1>
+<p>Bu açık rıza; ad-soyad, mezuniyet yılı, okul/üniversite ve profilde paylaştığınız sınırlı mesleki bilgilerin, yalnızca SDAL üyelerine açık Mezun Rehberi alanında görüntülenmesine ilişkindir.</p>
+<ul><li>Rıza vermeniz üyelik sözleşmesinin zorunlu unsuru değildir; ancak ilgili rehber özelliğinin çalışması için gereklidir.</li><li>Rızanızı dilediğiniz zaman profil ve destek kanalları üzerinden geri alabilirsiniz.</li><li>Geri alma, geri alma öncesi hukuka uygun işleme faaliyetlerini etkilemez.</li></ul>
+<p>İrtibat: <a href="mailto:kvkk@sdal.org">kvkk@sdal.org</a></p>
+</body></html>`);
+});
+
 app.get('/api/profile', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const user = sqlGet(`
     SELECT id, kadi, isim, soyisim, email, mezuniyetyili, sehir, meslek, websitesi, universite,
            dogumgun, dogumay, dogumyil, mailkapali, imza, resim, ilkbd,
-           sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari
+           sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari,
+           kvkk_consent_at, directory_consent_at
     FROM uyeler WHERE id = ?`, [req.session.userId]);
+  if (user) {
+    user.kvkk_consent = Boolean(user.kvkk_consent_at);
+    user.directory_consent = Boolean(user.directory_consent_at);
+  }
   res.json({ user });
 });
 
@@ -4759,6 +4802,8 @@ app.put('/api/profile', (req, res) => {
   const websitesi = String(req.body.websitesi || '');
   const universite = String(req.body.universite || '');
   const mezuniyetyili = String(req.body.mezuniyetyili || '').trim();
+  const kvkkConsent = Boolean(req.body.kvkk_consent);
+  const directoryConsent = Boolean(req.body.directory_consent);
   const sirket = String(req.body.sirket || '').trim();
   const unvan = String(req.body.unvan || '').trim();
   const uzmanlik = String(req.body.uzmanlik || '').trim();
@@ -4772,12 +4817,22 @@ app.put('/api/profile', (req, res) => {
   const mailkapali = String(req.body.mailkapali || '0') === '1' ? 1 : 0;
   const imza = String(req.body.imza || '');
 
-  const current = sqlGet('SELECT ilkbd, mezuniyetyili, verified FROM uyeler WHERE id = ?', [req.session.userId]);
+  const current = sqlGet('SELECT ilkbd, mezuniyetyili, verified, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
   const nextIlkbd = current && current.ilkbd === 0 ? 1 : (current?.ilkbd || 1);
 
   if (!hasValidGraduationYear(mezuniyetyili)) {
     return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR} veya daha büyük olmalıdır.`);
   }
+  const isOAuthUser = Boolean(String(current?.oauth_provider || '').trim());
+  const nextKvkkConsent = Boolean(current?.kvkk_consent_at) || kvkkConsent;
+  const nextDirectoryConsent = Boolean(current?.directory_consent_at) || directoryConsent;
+  if (isOAuthUser && !nextKvkkConsent) {
+    return res.status(400).send('Sosyal üyelik için KVKK Aydınlatma Metni onayı zorunludur.');
+  }
+  if (isOAuthUser && !nextDirectoryConsent) {
+    return res.status(400).send('Sosyal üyelik için Mezun Rehberi açık rıza onayı zorunludur.');
+  }
+
   if (Number(current?.verified || 0) === 1 && String(current?.mezuniyetyili || '') !== mezuniyetyili) {
     return res.status(403).json({
       error: 'GRADUATION_YEAR_LOCKED',
@@ -4790,12 +4845,16 @@ app.put('/api/profile', (req, res) => {
     UPDATE uyeler
     SET isim = ?, soyisim = ?, sehir = ?, meslek = ?, websitesi = ?, universite = ?, mezuniyetyili = ?,
         dogumgun = ?, dogumay = ?, dogumyil = ?, mailkapali = ?, imza = ?, ilkbd = ?,
-        sirket = ?, unvan = ?, uzmanlik = ?, linkedin_url = ?, universite_bolum = ?, mentor_opt_in = ?, mentor_konulari = ?
+        sirket = ?, unvan = ?, uzmanlik = ?, linkedin_url = ?, universite_bolum = ?, mentor_opt_in = ?, mentor_konulari = ?,
+        kvkk_consent_at = COALESCE(kvkk_consent_at, CASE WHEN ? THEN ? ELSE NULL END),
+        directory_consent_at = COALESCE(directory_consent_at, CASE WHEN ? THEN ? ELSE NULL END)
     WHERE id = ?`,
     [
       isim, soyisim, sehir, meslek, websitesi, universite, mezuniyetyili,
       dogumgun, dogumay, dogumyil, mailkapali, imza, nextIlkbd,
       sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, mentorOptIn, mentorKonulari,
+      kvkkConsent ? 1 : 0, new Date().toISOString(),
+      directoryConsent ? 1 : 0, new Date().toISOString(),
       req.session.userId
     ]
   );
