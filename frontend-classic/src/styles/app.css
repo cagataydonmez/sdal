@@ -102,7 +102,21 @@
 .sdal-alert {
   border: 2px solid #660000;
   background: #ffffcc;
-  padding: 4px 6px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+.sdal-alert-error {
+  background: #ffe2e2;
+  border-color: #a31010;
+  color: #6e0000;
+}
+
+.sdal-alert-success {
+  background: #e7ffe9;
+  border-color: #1f7c29;
+  color: #0f4f16;
 }
 
 .sdal-page-title {

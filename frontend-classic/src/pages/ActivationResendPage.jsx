@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import LegacyLayout from '../components/LegacyLayout.jsx';
 
 export default function ActivationResendPage() {
-  const [params] = useSearchParams();
   const [email, setEmail] = useState('');
-  const [id] = useState(params.get('id') || '');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -17,7 +14,7 @@ export default function ActivationResendPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ id: id || undefined, email: email || undefined })
+      body: JSON.stringify({ email: email || undefined })
     });
     if (!res.ok) {
       setError(await res.text());
@@ -31,17 +28,13 @@ export default function ActivationResendPage() {
       <form onSubmit={submit}>
         <div style={{ padding: 12 }}>
           <b>Aktivasyon maili gönder</b><br /><br />
-          {id ? (
-            <div>Üye ID: <b>{id}</b></div>
-          ) : (
-            <div>
-              E-mail adresiniz: <input type="text" className="inptxt" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-          )}
+          <div>
+            E-mail adresiniz: <input type="email" required className="inptxt" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
           <br />
           <input type="submit" className="sub" value="Gönder" />
-          {message ? <div>{message}</div> : null}
-          {error ? <div className="hatamsg1">{error}</div> : null}
+          {message ? <div className="sdal-alert sdal-alert-success" role="status">{message}</div> : null}
+          {error ? <div className="sdal-alert sdal-alert-error" role="alert">{error}</div> : null}
         </div>
       </form>
     </LegacyLayout>
