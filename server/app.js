@@ -4618,7 +4618,11 @@ app.post('/api/register/preview', (req, res) => {
   const cleanIsim = String(isim || '').trim();
   const cleanSoyisim = String(soyisim || '').trim();
 
-  if (String(req.session.captcha || '') !== String(gkodu || '')) {
+  const cleanCaptcha = String(gkodu || '').trim();
+  if (!/^\d+$/.test(cleanCaptcha)) {
+    return res.status(400).send('Güvenlik kodu sadece sayı olmalıdır.');
+  }
+  if (String(req.session.captcha || '') !== cleanCaptcha) {
     return res.status(400).send('Güvenlik kodu yanlış girildi.');
   }
   if (!cleanKadi) return res.status(400).send('Kullanıcı adını girmedin.');
@@ -4673,7 +4677,9 @@ app.post('/api/register', async (req, res) => {
   const cleanIsim = String(isim || '').trim();
   const cleanSoyisim = String(soyisim || '').trim();
 
-  if (String(req.session.captcha || '') !== String(gkodu || '')) return res.status(400).send('Güvenlik kodu yanlış girildi.');
+  const cleanCaptcha = String(gkodu || '').trim();
+  if (!/^\d+$/.test(cleanCaptcha)) return res.status(400).send('Güvenlik kodu sadece sayı olmalıdır.');
+  if (String(req.session.captcha || '') !== cleanCaptcha) return res.status(400).send('Güvenlik kodu yanlış girildi.');
   if (!cleanKadi) return res.status(400).send('Kullanıcı adını girmedin.');
   if (String(cleanKadi).length > 15) return res.status(400).send('Kullanıcı adı 15 karakterden fazla olmamalıdır.');
   const kufur = filterKufur(cleanKadi);
