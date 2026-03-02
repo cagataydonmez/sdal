@@ -17,6 +17,9 @@ async function apiJson(url, options = {}) {
     } catch {
       parsed = null;
     }
+    if (parsed?.requestUrl) {
+      throw new Error(JSON.stringify(parsed));
+    }
     const message = parsed?.message || parsed?.error || body;
     throw new Error(message || `Request failed: ${res.status}`);
   }
@@ -60,6 +63,17 @@ export default function ProfilePage() {
       await refresh();
       setStatus(t('profile_status_updated'));
     } catch (err) {
+      const msg = String(err?.message || '');
+      if (msg.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(msg);
+          if (parsed?.requestUrl) setStatus(`${parsed.message} (${parsed.requestUrl})`);
+          setError(parsed?.message || msg);
+          return;
+        } catch {
+          // fallthrough
+        }
+      }
       setError(err.message);
     }
   }
@@ -164,7 +178,7 @@ export default function ProfilePage() {
           </div>
           <div className="form-row">
             <label>{t('auth_email')}</label>
-            <input className="input" value={profile.email || ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
+            <input className="input" value={profile.email || ''} disabled />
           </div>
           <div className="form-row">
             <label>{t('profile_city')}</label>
@@ -204,7 +218,7 @@ export default function ProfilePage() {
           </label>
           <div className="form-row">
             <label>{t('profile_graduation')}</label>
-            <select className="input" value={String(profile.mezuniyetyili || '0')} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })}>
+            <select className="input" value={String(profile.mezuniyetyili || '0')} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })} disabled={Number(user?.verified || 0) === 1}>
               <option value="0">Mezuniyet yılı seçiniz</option>
               {graduationYears.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
@@ -214,6 +228,8 @@ export default function ProfilePage() {
             <textarea className="input" value={profile.imza || ''} onChange={(e) => setProfile({ ...profile, imza: e.target.value })} />
           </div>
           <button className="btn primary" onClick={save}>{t('save')}</button>
+          <a className="btn ghost" href="/new/profile/email-change">{t('profile_email_change_cta')}</a>
+          {Number(user?.verified || 0) === 1 ? <a className="btn ghost" href="/new/requests?category=graduation_year_change">{t('profile_graduation_change_request_cta')}</a> : null}
           <a className="btn ghost" href="/new/profile/photo">{t('profile_photo_title')}</a>
           {profile?.id ? <a className="btn ghost" href={`/new/members/${profile.id}`}>{t('profile_preview_members')}</a> : null}
           {Number(user?.verified || 0) !== 1 ? <a className="btn ghost" href="/new/profile/verification">{t('profile_verification_page_cta')}</a> : null}

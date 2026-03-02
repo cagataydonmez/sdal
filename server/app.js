@@ -1175,6 +1175,59 @@ sqlRun(`CREATE TABLE IF NOT EXISTS verification_requests (
   reviewed_at TEXT,
   reviewer_id INTEGER
 )`);
+sqlRun(`CREATE TABLE IF NOT EXISTS request_categories (
+  id INTEGER PRIMARY KEY,
+  category_key TEXT UNIQUE,
+  label TEXT,
+  description TEXT,
+  active INTEGER DEFAULT 1,
+  created_at TEXT,
+  updated_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS member_requests (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  category_key TEXT,
+  payload_json TEXT,
+  status TEXT,
+  created_at TEXT,
+  reviewed_at TEXT,
+  reviewer_id INTEGER,
+  resolution_note TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS email_change_requests (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER,
+  current_email TEXT,
+  new_email TEXT,
+  token TEXT,
+  status TEXT,
+  created_at TEXT,
+  expires_at TEXT,
+  verified_at TEXT,
+  ip TEXT,
+  user_agent TEXT
+)`);
+
+const defaultRequestCategories = [
+  ['graduation_year_change', 'Mezuniyet Yılı Değişikliği', 'Doğrulanmış üyelerin mezuniyet yılı değişiklik talepleri.'],
+  ['profile_data_correction', 'Profil Veri Düzeltme', 'Kişisel profil bilgilerinde manuel düzenleme talepleri.'],
+  ['account_status_review', 'Hesap Durumu İncelemesi', 'Hesap erişimi/yetki/ban inceleme talepleri.'],
+  ['content_moderation_appeal', 'İçerik Moderasyon İtirazı', 'Silinen veya kısıtlanan içeriklere itiraz talepleri.'],
+  ['group_management_support', 'Grup Yönetim Desteği', 'Grup moderasyonu veya sahiplik desteği talepleri.'],
+  ['feature_access_request', 'Özellik Erişim Talebi', 'Yeni veya kısıtlı özelliklere erişim talepleri.']
+];
+for (const [categoryKey, label, description] of defaultRequestCategories) {
+  sqlRun(
+    `INSERT INTO request_categories (category_key, label, description, active, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, ?)
+     ON CONFLICT(category_key) DO UPDATE SET
+       label = excluded.label,
+       description = excluded.description,
+       updated_at = excluded.updated_at`,
+    [categoryKey, label, description, new Date().toISOString(), new Date().toISOString()]
+  );
+}
 sqlRun(`CREATE TABLE IF NOT EXISTS game_scores (
   id INTEGER PRIMARY KEY,
   game_key TEXT,
@@ -4719,11 +4772,18 @@ app.put('/api/profile', (req, res) => {
   const mailkapali = String(req.body.mailkapali || '0') === '1' ? 1 : 0;
   const imza = String(req.body.imza || '');
 
-  const current = sqlGet('SELECT ilkbd FROM uyeler WHERE id = ?', [req.session.userId]);
+  const current = sqlGet('SELECT ilkbd, mezuniyetyili, verified FROM uyeler WHERE id = ?', [req.session.userId]);
   const nextIlkbd = current && current.ilkbd === 0 ? 1 : (current?.ilkbd || 1);
 
   if (!hasValidGraduationYear(mezuniyetyili)) {
     return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR} veya daha büyük olmalıdır.`);
+  }
+  if (Number(current?.verified || 0) === 1 && String(current?.mezuniyetyili || '') !== mezuniyetyili) {
+    return res.status(403).json({
+      error: 'GRADUATION_YEAR_LOCKED',
+      message: 'Doğrulanmış üyelerde mezuniyet yılı değiştirilemez. Yönetim talebi oluşturun.',
+      requestUrl: '/new/requests?category=graduation_year_change'
+    });
   }
 
   sqlRun(`
@@ -4738,6 +4798,95 @@ app.put('/api/profile', (req, res) => {
       sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, mentorOptIn, mentorKonulari,
       req.session.userId
     ]
+  );
+  res.json({ ok: true });
+});
+
+app.post('/api/profile/email-change/request', requireAuth, async (req, res) => {
+  const user = getCurrentUser(req);
+  const nextEmail = normalizeEmail(req.body?.email);
+  if (!nextEmail) return res.status(400).send('Yeni e-posta adresi gerekli.');
+  if (!validateEmail(nextEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
+  if (String(user?.email || '').toLowerCase() === nextEmail.toLowerCase()) {
+    return res.status(400).send('Mevcut e-posta ile aynı adresi girdiniz.');
+  }
+  const duplicate = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?) AND id != ?', [nextEmail, req.session.userId]);
+  if (duplicate) return res.status(400).send('Bu e-posta adresi başka bir üyede kayıtlı.');
+
+  sqlRun('UPDATE email_change_requests SET status = ? WHERE user_id = ? AND status = ?', ['replaced', req.session.userId, 'pending']);
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+  sqlRun(
+    `INSERT INTO email_change_requests
+    (user_id, current_email, new_email, token, status, created_at, expires_at, ip, user_agent)
+    VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+    [req.session.userId, user.email || '', nextEmail, token, now.toISOString(), expiresAt.toISOString(), req.ip || '', req.headers['user-agent'] || '']
+  );
+
+  const base = resolvePublicBaseUrl(req);
+  const verifyLink = `${base}/api/profile/email-change/verify?token=${encodeURIComponent(token)}`;
+  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f4efe8;padding:24px;color:#1f2937;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;">
+    <tr><td style="padding:20px 24px;">
+      <h2 style="margin:0 0 12px;font-size:18px;">SDAL E-posta Değişikliği</h2>
+      <p style="margin:0 0 12px;">Merhaba ${escapeHtml(user?.isim || user?.kadi || 'Üye')},</p>
+      <p style="margin:0 0 16px;">Yeni e-posta adresini onaylamak için aşağıdaki butona tıkla:</p>
+      <a href="${escapeHtml(verifyLink)}" style="display:inline-block;padding:10px 14px;border-radius:999px;background:#ff6b4a;color:#111827;text-decoration:none;font-weight:700;">E-postamı Doğrula</a>
+      <p style="margin:16px 0 0;color:#6b7280;font-size:13px;">Bu link 24 saat geçerlidir.</p>
+    </td></tr>
+  </table>
+  </body></html>`;
+  await sendMail({ to: nextEmail, subject: 'SDAL - E-posta değişikliği doğrulama', html });
+  res.json({ ok: true });
+});
+
+app.get('/api/profile/email-change/verify', (req, res) => {
+  const token = String(req.query?.token || '').trim();
+  if (!token) return res.status(400).send('Doğrulama tokeni eksik.');
+  const row = sqlGet('SELECT * FROM email_change_requests WHERE token = ?', [token]);
+  if (!row) return res.status(404).send('Doğrulama kaydı bulunamadı.');
+  if (row.status !== 'pending') return res.status(400).send('Bu doğrulama linki zaten kullanılmış veya iptal edilmiş.');
+  if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
+    sqlRun('UPDATE email_change_requests SET status = ? WHERE id = ?', ['expired', row.id]);
+    return res.status(400).send('Doğrulama linkinin süresi dolmuş.');
+  }
+  const duplicate = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?) AND id != ?', [row.new_email, row.user_id]);
+  if (duplicate) return res.status(400).send('Bu e-posta adresi artık kullanımda olduğu için değişiklik tamamlanamadı.');
+  sqlRun('UPDATE uyeler SET email = ? WHERE id = ?', [row.new_email, row.user_id]);
+  sqlRun('UPDATE email_change_requests SET status = ?, verified_at = ? WHERE id = ?', ['verified', new Date().toISOString(), row.id]);
+  return res.redirect('/new/profile?emailChanged=1');
+});
+
+app.get('/api/new/request-categories', requireAuth, (_req, res) => {
+  const items = sqlAll('SELECT category_key, label, description FROM request_categories WHERE active = 1 ORDER BY id');
+  res.json({ items });
+});
+
+app.get('/api/new/requests/my', requireAuth, (req, res) => {
+  const items = sqlAll(
+    `SELECT r.id, r.category_key, r.payload_json, r.status, r.created_at, r.reviewed_at, r.resolution_note,
+            c.label AS category_label
+     FROM member_requests r
+     LEFT JOIN request_categories c ON c.category_key = r.category_key
+     WHERE r.user_id = ?
+     ORDER BY r.id DESC`,
+    [req.session.userId]
+  );
+  res.json({ items });
+});
+
+app.post('/api/new/requests', requireAuth, (req, res) => {
+  const categoryKey = String(req.body?.category_key || '').trim();
+  const payload = req.body?.payload || {};
+  if (!categoryKey) return res.status(400).send('Talep kategorisi gerekli.');
+  const category = sqlGet('SELECT category_key FROM request_categories WHERE category_key = ? AND active = 1', [categoryKey]);
+  if (!category) return res.status(400).send('Geçersiz talep kategorisi.');
+  const existing = sqlGet('SELECT id FROM member_requests WHERE user_id = ? AND category_key = ? AND status = ?', [req.session.userId, categoryKey, 'pending']);
+  if (existing) return res.status(400).send('Bu kategori için bekleyen bir talebiniz zaten var.');
+  sqlRun(
+    'INSERT INTO member_requests (user_id, category_key, payload_json, status, created_at) VALUES (?, ?, ?, ?, ?)',
+    [req.session.userId, categoryKey, JSON.stringify(payload || {}), 'pending', new Date().toISOString()]
   );
   res.json({ ok: true });
 });
@@ -8010,6 +8159,77 @@ app.post('/api/new/admin/verification-requests/:id', requireAdmin, (req, res) =>
     assignUserToCohort(row.user_id);
   }
   
+  res.json({ ok: true });
+});
+
+app.get('/api/new/admin/requests/notifications', requireAdmin, (_req, res) => {
+  const categories = sqlAll(
+    `SELECT c.category_key, c.label, c.description,
+            COUNT(r.id) AS pending_count,
+            MAX(r.created_at) AS latest_at
+     FROM request_categories c
+     LEFT JOIN member_requests r ON r.category_key = c.category_key AND r.status = 'pending'
+     WHERE c.active = 1
+     GROUP BY c.category_key, c.label, c.description
+     ORDER BY pending_count DESC, c.id ASC`
+  );
+  res.json({ items: categories });
+});
+
+app.get('/api/new/admin/requests', requireAdmin, (req, res) => {
+  const categoryKey = String(req.query.category || '').trim();
+  const status = String(req.query.status || 'pending').trim();
+  const where = ['1=1'];
+  const params = [];
+  if (categoryKey) {
+    where.push('r.category_key = ?');
+    params.push(categoryKey);
+  }
+  if (status) {
+    where.push('r.status = ?');
+    params.push(status);
+  }
+  const items = sqlAll(
+    `SELECT r.id, r.user_id, r.category_key, r.payload_json, r.status, r.created_at, r.reviewed_at, r.resolution_note,
+            c.label AS category_label,
+            u.kadi, u.isim, u.soyisim,
+            reviewer.kadi AS reviewer_kadi
+     FROM member_requests r
+     LEFT JOIN request_categories c ON c.category_key = r.category_key
+     LEFT JOIN uyeler u ON u.id = r.user_id
+     LEFT JOIN uyeler reviewer ON reviewer.id = r.reviewer_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY r.id DESC
+     LIMIT 300`,
+    params
+  );
+  res.json({ items });
+});
+
+app.post('/api/new/admin/requests/:id/review', requireAdmin, (req, res) => {
+  const status = String(req.body?.status || '').trim();
+  const resolutionNote = String(req.body?.resolution_note || '').trim();
+  if (!['approved', 'rejected'].includes(status)) return res.status(400).send('Geçersiz durum.');
+  const row = sqlGet('SELECT * FROM member_requests WHERE id = ?', [req.params.id]);
+  if (!row) return res.status(404).send('Talep bulunamadı.');
+  if (row.status !== 'pending') return res.status(400).send('Talep zaten sonuçlandırılmış.');
+
+  sqlRun(
+    'UPDATE member_requests SET status = ?, reviewed_at = ?, reviewer_id = ?, resolution_note = ? WHERE id = ?',
+    [status, new Date().toISOString(), req.session.userId, resolutionNote || null, req.params.id]
+  );
+  if (status === 'approved' && row.category_key === 'graduation_year_change') {
+    let payload = {};
+    try {
+      payload = JSON.parse(String(row.payload_json || '{}')) || {};
+    } catch {
+      payload = {};
+    }
+    const nextYear = String(payload?.requestedGraduationYear || '').trim();
+    if (hasValidGraduationYear(nextYear)) {
+      sqlRun('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [nextYear, row.user_id]);
+    }
+  }
   res.json({ ok: true });
 });
 
