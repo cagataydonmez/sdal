@@ -1424,6 +1424,7 @@ migrateLegacyUserIdColumns();
 
 runMigration('2026_03_backfill_roles', () => {
   sqlRun("UPDATE uyeler SET role = CASE WHEN COALESCE(CAST(admin AS INTEGER),0)=1 THEN 'admin' ELSE 'user' END WHERE role IS NULL OR role = ''");
+  sqlRun("UPDATE uyeler SET admin = CASE WHEN LOWER(COALESCE(role, 'user')) IN ('admin', 'root') THEN 1 ELSE 0 END WHERE COALESCE(CAST(admin AS INTEGER),0) != CASE WHEN LOWER(COALESCE(role, 'user')) IN ('admin', 'root') THEN 1 ELSE 0 END");
 });
 
 async function ensureRootBootstrapAccount() {
@@ -1603,6 +1604,15 @@ function getUserRole(user) {
   if (explicit !== 'user') return explicit;
   if (Number(user?.admin || 0) === 1) return 'admin';
   return 'user';
+}
+
+function hasAdminRole(user) {
+  return roleAtLeast(getUserRole(user), 'admin');
+}
+
+function hasAdminSession(req, user = null) {
+  const targetUser = user || getCurrentUser(req);
+  return hasAdminRole(targetUser) && !!req.session?.adminOk;
 }
 
 async function hashPassword(password) {
@@ -1815,7 +1825,7 @@ app.use((req, res, next) => {
   const siteControl = getSiteControl();
   if (!siteControl.siteOpen) {
     const user = getCurrentUser(req);
-    const isAdminBypass = Number(user?.admin || 0) === 1 && !!req.session?.adminOk;
+    const isAdminBypass = hasAdminSession(req, user);
     if (!isAdminBypass) {
       if (req.path.startsWith('/api/')) {
         return res.status(503).json({
@@ -1836,7 +1846,7 @@ app.use((req, res, next) => {
   const moduleMap = getModuleControlMap();
   if (moduleMap[moduleKey]) return next();
   const user = getCurrentUser(req);
-  const isAdminBypass = Number(user?.admin || 0) === 1 && !!req.session?.adminOk;
+  const isAdminBypass = hasAdminSession(req, user);
   if (isAdminBypass) return next();
   if (req.path.startsWith('/api/')) {
     return res.status(403).json({ error: 'MODULE_CLOSED', moduleKey, message: 'Bu modül geçici olarak kapatıldı.' });
@@ -1858,8 +1868,8 @@ function requireAdmin(req, res, next) {
 function requireAlbumAdmin(req, res, next) {
   const user = getCurrentUser(req);
   if (!user) return res.status(401).send('Login required');
-  if (user.albumadmin !== 1 && user.admin !== 1) return res.status(403).send('Albüm yönetimi yetkisi gerekli.');
-  if (user.admin === 1 && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
+  if (user.albumadmin !== 1 && !hasAdminRole(user)) return res.status(403).send('Albüm yönetimi yetkisi gerekli.');
+  if (hasAdminRole(user) && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
   req.adminUser = user;
   return next();
 }
@@ -1954,7 +1964,7 @@ function parseGroupVisibilityInput(value) {
 function isGroupManager(req, groupId) {
   const user = getCurrentUser(req);
   if (!user) return false;
-  if (user.admin === 1 && req.session?.adminOk) return true;
+  if (hasAdminSession(req, user)) return true;
   const member = getGroupMember(groupId, req.session.userId);
   return !!member && (member.role === 'owner' || member.role === 'moderator');
 }
@@ -4067,7 +4077,8 @@ app.get('/api/session', (req, res) => {
   const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, role, verified, mezuniyetyili, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
   if (!user) return res.json({ user: null });
   const state = isOAuthProfileIncomplete(user) ? 'incomplete' : 'active';
-  res.json({ user: { ...user, state } });
+  const role = getUserRole(user);
+  res.json({ user: { ...user, role, admin: roleAtLeast(role, 'admin') ? 1 : 0, state } });
 });
 
 app.get('/api/auth/oauth/providers', (req, res) => {
@@ -4197,7 +4208,7 @@ app.post('/api/auth/login', async (req, res) => {
   res.cookie('kadi', user.kadi);
 
   res.json({
-    user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim, photo: user.resim, admin: user.admin },
+    user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim, photo: user.resim, role: getUserRole(user), admin: hasAdminRole(user) ? 1 : 0 },
     needsProfile: user.ilkbd === 0
   });
 });
@@ -4217,8 +4228,10 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/admin/session', (req, res) => {
   if (!req.session.userId) return res.json({ user: null, adminOk: false });
-  const user = sqlGet('SELECT id, kadi, isim, soyisim, admin, albumadmin FROM uyeler WHERE id = ?', [req.session.userId]);
-  res.json({ user: user || null, adminOk: !!req.session.adminOk });
+  const user = sqlGet('SELECT id, kadi, isim, soyisim, admin, albumadmin, role FROM uyeler WHERE id = ?', [req.session.userId]);
+  if (!user) return res.json({ user: null, adminOk: false });
+  const role = getUserRole(user);
+  res.json({ user: { ...user, role, admin: hasAdminRole(user) ? 1 : 0 }, adminOk: !!req.session.adminOk });
 });
 
 app.get('/api/admin/root-status', requireAdmin, (_req, res) => {
@@ -4261,7 +4274,7 @@ app.post('/admin/moderators/:id/scopes', requireAuth, requireRole('admin'), (req
   if (normalizeRole(target.role) === 'root') return res.status(400).send('Root için kapsam atanamaz.');
   const normalizedYears = Array.from(new Set(years.map(parseGraduationYear).filter((y) => Number.isFinite(y) && y >= MIN_GRADUATION_YEAR && y <= MAX_GRADUATION_YEAR)));
   if (!normalizedYears.length) return res.status(400).send('Geçerli mezuniyet yılı bulunamadı.');
-  sqlRun('UPDATE uyeler SET role = ? WHERE id = ?', ['mod', targetId]);
+  sqlRun('UPDATE uyeler SET role = ?, admin = 0 WHERE id = ?', ['mod', targetId]);
   const created = [];
   for (const year of normalizedYears) {
     sqlRun(`INSERT INTO moderator_scopes (user_id, scope_type, scope_value, graduation_year, created_by, created_at)
@@ -4300,7 +4313,7 @@ app.post('/api/admin/login', (req, res) => {
     writeAppLog('warn', 'admin_login_denied', { reason: 'unauthenticated', ip: req.ip });
     return res.status(401).send('Login required');
   }
-  if (user.admin !== 1) {
+  if (!hasAdminRole(user)) {
     writeLegacyLog('error', 'admin_login_denied', { reason: 'not_admin', userId: user.id, ip: req.ip });
     writeAppLog('warn', 'admin_login_denied', { reason: 'not_admin', userId: user.id, ip: req.ip });
     return res.status(403).send('Admin erişimi gerekli.');
@@ -6520,7 +6533,7 @@ function canManagePost(req, postRow) {
   if (!postRow) return false;
   if (sameUserId(postRow.user_id, req.session.userId)) return true;
   const currentUser = getCurrentUser(req);
-  return currentUser?.admin === 1 && !!req.session?.adminOk;
+  return hasAdminSession(req, currentUser);
 }
 
 function deletePostById(postId) {
@@ -6637,7 +6650,7 @@ app.post('/api/new/posts/:id/like', requireAuth, (req, res) => {
   if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
   if (postRow.group_id) {
     const user = getCurrentUser(req);
-    if (user?.admin !== 1) {
+    if (!hasAdminRole(user)) {
       const member = getGroupMember(postRow.group_id, req.session.userId);
       if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
     }
@@ -6668,7 +6681,7 @@ app.get('/api/new/posts/:id/comments', requireAuth, (req, res) => {
   if (!post) return res.status(404).send('Gönderi bulunamadı.');
   if (post.group_id) {
     const user = getCurrentUser(req);
-    if (user?.admin !== 1) {
+    if (!hasAdminRole(user)) {
       const member = getGroupMember(post.group_id, req.session.userId);
       if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
     }
@@ -6689,7 +6702,7 @@ app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
   if (!postTarget) return res.status(404).send('Gönderi bulunamadı.');
   if (postTarget.group_id) {
     const user = getCurrentUser(req);
-    if (user?.admin !== 1) {
+    if (!hasAdminRole(user)) {
       const member = getGroupMember(postTarget.group_id, req.session.userId);
       if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
     }
@@ -7360,7 +7373,7 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
     [req.session.userId]
   );
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1;
+  const isAdmin = hasAdminRole(user);
   const countMap = new Map(memberCounts.map((c) => [c.group_id, c.cnt]));
   const memberMap = new Map(membership.map((m) => [m.group_id, m.role]));
   const pendingSet = new Set(pending.map((p) => p.group_id));
@@ -7417,7 +7430,7 @@ app.post('/api/new/groups/:id/join', requireAuth, (req, res) => {
   const group = sqlGet('SELECT id, name, visibility FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1;
+  const isAdmin = hasAdminRole(user);
   const pendingInvite = sqlGet(
     `SELECT id
      FROM group_invites
@@ -7694,7 +7707,7 @@ app.post('/api/new/groups/:id/role', requireAuth, (req, res) => {
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const member = sqlGet('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session?.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   if (!isAdmin && (!member || member.role !== 'owner')) {
     return res.status(403).send('Yetki yok.');
   }
@@ -7714,7 +7727,7 @@ app.get('/api/new/groups/:id', requireAuth, (req, res) => {
   const group = sqlGet('SELECT * FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1;
+  const isAdmin = hasAdminRole(user);
   const member = getGroupMember(groupId, req.session.userId);
   const invite = sqlGet(
     `SELECT id, status
@@ -7855,7 +7868,7 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const user = getCurrentUser(req);
-  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+  if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) {
     return res.status(403).send('Bu grup özel. Paylaşım için onaylı üyelik gerekli.');
   }
   const content = formatUserText(req.body?.content || '');
@@ -7884,7 +7897,7 @@ app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('ima
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const user = getCurrentUser(req);
-  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+  if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) {
     return res.status(403).send('Bu grup özel. Paylaşım için onaylı üyelik gerekli.');
   }
   const content = formatUserText(req.body?.content || '');
@@ -7932,7 +7945,7 @@ app.get('/api/new/groups/:id/events', requireAuth, (req, res) => {
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const user = getCurrentUser(req);
-  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+  if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) {
     return res.status(403).send('Bu grup özel. Etkinlikler yalnızca üyelere açık.');
   }
   const rows = sqlAll(
@@ -7984,7 +7997,7 @@ app.get('/api/new/groups/:id/announcements', requireAuth, (req, res) => {
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
   const user = getCurrentUser(req);
-  if (user?.admin !== 1 && !getGroupMember(groupId, req.session.userId)) {
+  if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) {
     return res.status(403).send('Bu grup özel. Duyurular yalnızca üyelere açık.');
   }
   const rows = sqlAll(
@@ -8097,7 +8110,7 @@ function createEventRecord(req, { image = null } = {}) {
   const endsAt = String(req.body?.ends_at || '');
   if (!title) return { error: 'Başlık gerekli.' };
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   const now = new Date().toISOString();
   const result = sqlRun(
     `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at,
@@ -8129,7 +8142,7 @@ function createEventRecord(req, { image = null } = {}) {
 
 app.get('/api/new/events', requireAuth, (req, res) => {
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const rows = sqlAll(
@@ -8235,7 +8248,7 @@ app.post('/api/new/events/:id/response-visibility', requireAuth, (req, res) => {
   const event = sqlGet('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
   if (!event) return res.status(404).send('Etkinlik bulunamadı.');
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   if (!sameUserId(event.created_by, req.session.userId) && !isAdmin) {
     return res.status(403).send('Sadece etkinlik sahibi ayarları değiştirebilir.');
   }
@@ -8325,7 +8338,7 @@ app.post('/api/new/events/:id/notify', requireAuth, (req, res) => {
 
 app.get('/api/new/announcements', requireAuth, (req, res) => {
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const rows = sqlAll(
@@ -8346,7 +8359,7 @@ app.post('/api/new/announcements', requireAuth, (req, res) => {
   const formattedBody = formatUserText(body || '');
   if (!title || isFormattedContentEmpty(formattedBody)) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   const now = new Date().toISOString();
   sqlRun(
     `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
@@ -8362,7 +8375,7 @@ app.post('/api/new/announcements/upload', requireAuth, postUpload.single('image'
   const body = formatUserText(bodyRaw);
   if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   let imagePath = req.file?.path || null;
   if (imagePath) {
     try {
@@ -8466,7 +8479,7 @@ app.post('/api/new/jobs', requireAuth, (req, res) => {
 
 app.delete('/api/new/jobs/:id', requireAuth, (req, res) => {
   const user = getCurrentUser(req);
-  const isAdmin = user?.admin === 1 && req.session.adminOk;
+  const isAdmin = hasAdminSession(req, user);
   const row = sqlGet('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
   if (!row) return res.status(404).send('İş ilanı bulunamadı.');
   if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı silme yetkin yok.');
@@ -8571,7 +8584,7 @@ function canManageChatMessage(req, messageRow) {
   if (!messageRow) return false;
   if (sameUserId(messageRow.user_id, req.session.userId)) return true;
   const currentUser = getCurrentUser(req);
-  return currentUser?.admin === 1 && !!req.session?.adminOk;
+  return hasAdminSession(req, currentUser);
 }
 
 app.post('/api/new/chat/send', requireAuth, (req, res) => {
@@ -9774,7 +9787,7 @@ app.get('/api/panolar', (req, res) => {
     pages,
     pageSize,
     pageList,
-    canDelete: !!req.session.adminOk && user?.admin === 1
+    canDelete: hasAdminSession(req, user)
   });
 });
 

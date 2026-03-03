@@ -73,7 +73,8 @@ export default function AdminPage() {
   const [status, setStatus] = useState('');
   const [adminOk, setAdminOk] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const canUseAdminApis = Number(user?.admin || 0) === 1 && (isRootUser || adminOk);
+  const isAdminUser = ['admin', 'root'].includes(String(user?.role || '').toLowerCase()) || Number(user?.admin || 0) === 1;
+  const canUseAdminApis = isAdminUser && (isRootUser || adminOk);
 
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -1113,7 +1114,7 @@ export default function AdminPage() {
     return { total, active, pending, banned, online };
   }, [users]);
 
-  if (user?.admin !== 1) {
+  if (!isAdminUser) {
     return (
       <Layout title="Yönetim">
         <AccessDeniedView />
