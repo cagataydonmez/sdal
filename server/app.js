@@ -8,6 +8,7 @@ import fs from 'fs';
 import os from 'os';
 import { execFileSync } from 'child_process';
 import crypto from 'crypto';
+import { promisify } from 'util';
 import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
 import nodemailer from 'nodemailer';
@@ -331,7 +332,7 @@ if (!mailProviderStatus.configured) {
   }
 }
 
-const adminPassword = process.env.SDAL_ADMIN_PASSWORD || 'guuk';
+const adminPassword = String(process.env.SDAL_ADMIN_PASSWORD || '').trim();
 const legacyRoot = path.resolve(__dirname, '../..');
 const hatalogDir = path.join(legacyRoot, 'hatalog');
 const sayfalogDir = path.join(legacyRoot, 'sayfalog');
@@ -1138,6 +1139,33 @@ migrateAddColumn('uyeler', 'linkedin_url', 'ALTER TABLE uyeler ADD COLUMN linked
 migrateAddColumn('uyeler', 'universite_bolum', 'ALTER TABLE uyeler ADD COLUMN universite_bolum TEXT');
 migrateAddColumn('uyeler', 'mentor_opt_in', 'ALTER TABLE uyeler ADD COLUMN mentor_opt_in INTEGER DEFAULT 0');
 migrateAddColumn('uyeler', 'mentor_konulari', 'ALTER TABLE uyeler ADD COLUMN mentor_konulari TEXT');
+migrateAddColumn('uyeler', 'role', "ALTER TABLE uyeler ADD COLUMN role TEXT DEFAULT 'user'");
+runMigration('2026_03_create_moderator_scopes', () => {
+  sqlRun(`CREATE TABLE IF NOT EXISTS moderator_scopes (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    scope_type TEXT NOT NULL DEFAULT 'graduation_year',
+    scope_value TEXT NOT NULL,
+    graduation_year INTEGER,
+    created_by INTEGER,
+    created_at TEXT
+  )`);
+  sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS moderator_scopes_unique_idx ON moderator_scopes(user_id, scope_type, scope_value)');
+});
+runMigration('2026_03_create_audit_log', () => {
+  sqlRun(`CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY,
+    actor_user_id INTEGER,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    metadata TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    created_at TEXT
+  )`);
+  sqlRun('CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON audit_log(created_at DESC)');
+});
 migrateAddColumn('verification_requests', 'proof_path', 'ALTER TABLE verification_requests ADD COLUMN proof_path TEXT');
 migrateAddColumn('verification_requests', 'proof_image_record_id', 'ALTER TABLE verification_requests ADD COLUMN proof_image_record_id TEXT');
 
@@ -1393,6 +1421,30 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON enga
 migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
 normalizePostgresIdColumns();
 migrateLegacyUserIdColumns();
+
+runMigration('2026_03_backfill_roles', () => {
+  sqlRun("UPDATE uyeler SET role = CASE WHEN COALESCE(CAST(admin AS INTEGER),0)=1 THEN 'admin' ELSE 'user' END WHERE role IS NULL OR role = ''");
+});
+
+async function ensureRootBootstrapAccount() {
+  const existingRoot = sqlGet("SELECT id FROM uyeler WHERE lower(role) = 'root' LIMIT 1");
+  if (existingRoot) return;
+  const rootPassword = String(process.env.ROOT_BOOTSTRAP_PASSWORD || '').trim();
+  if (!rootPassword) {
+    console.warn('ROOT_BOOTSTRAP_PASSWORD missing; root bootstrap skipped.');
+    return;
+  }
+  const now = new Date().toISOString();
+  const hashed = await hashPassword(rootPassword);
+  const result = sqlRun(`INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?, '', '0', 1, 'root', 1, 1, 'approved')`,
+    ['root', hashed, 'root@localhost', 'System', 'Root', 'root-bootstrap', now]);
+  const rootId = result?.lastInsertRowid || sqlGet("SELECT id FROM uyeler WHERE kadi = 'root'")?.id;
+  if (rootId) {
+    sqlRun("UPDATE uyeler SET role = 'root', admin = 1 WHERE id = ?", [rootId]);
+    sqlRun('INSERT INTO audit_log (actor_user_id, action, target_type, target_id, metadata, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [rootId, 'root_bootstrap', 'user', String(rootId), JSON.stringify({ bootstrap: true }), null, 'system', now]);
+  }
+}
 ensurePostgresIdSequences();
 
 // --- Image pipeline migrations ---
@@ -1533,6 +1585,70 @@ const imageUpload = multer({
   }
 });
 
+const scryptAsync = promisify(crypto.scrypt);
+const PASSWORD_HASH_PREFIX = 'scrypt$';
+const ROLE_PRIORITY = Object.freeze({ user: 0, mod: 1, admin: 2, root: 3 });
+
+function normalizeRole(value) {
+  const role = String(value || '').trim().toLowerCase();
+  return ROLE_PRIORITY[role] !== undefined ? role : 'user';
+}
+
+function roleAtLeast(role, minRole) {
+  return (ROLE_PRIORITY[normalizeRole(role)] || 0) >= (ROLE_PRIORITY[normalizeRole(minRole)] || 0);
+}
+
+function getUserRole(user) {
+  const explicit = normalizeRole(user?.role);
+  if (explicit !== 'user') return explicit;
+  if (Number(user?.admin || 0) === 1) return 'admin';
+  return 'user';
+}
+
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = await scryptAsync(String(password), salt, 64);
+  return `${PASSWORD_HASH_PREFIX}${salt}$${Buffer.from(derived).toString('hex')}`;
+}
+
+async function verifyPassword(stored, candidate) {
+  const storedText = String(stored || '');
+  const rawCandidate = String(candidate || '');
+  if (!storedText.startsWith(PASSWORD_HASH_PREFIX)) {
+    return { ok: storedText === rawCandidate, needsRehash: storedText === rawCandidate };
+  }
+  const parts = storedText.split('$');
+  if (parts.length !== 3) return { ok: false, needsRehash: false };
+  const [, salt, expectedHex] = parts;
+  const derived = await scryptAsync(rawCandidate, salt, 64);
+  const expected = Buffer.from(expectedHex, 'hex');
+  const actual = Buffer.from(derived);
+  if (expected.length !== actual.length) return { ok: false, needsRehash: false };
+  return { ok: crypto.timingSafeEqual(expected, actual), needsRehash: false };
+}
+
+function isRootUser(user) {
+  return getUserRole(user) === 'root';
+}
+
+function writeAuditLog(req, { actorUserId = null, action, targetType = null, targetId = null, metadata = {} } = {}) {
+  if (!action) return;
+  sqlRun(
+    `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, metadata, ip, user_agent, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      actorUserId,
+      action,
+      targetType,
+      targetId,
+      JSON.stringify(metadata || {}),
+      req.ip || null,
+      String(req.headers['user-agent'] || '').slice(0, 500) || null,
+      new Date().toISOString()
+    ]
+  );
+}
+
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
   return sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.session.userId]);
@@ -1565,8 +1681,11 @@ function isOAuthProfileIncomplete(user) {
   return !hasValidGraduationYear(user?.mezuniyetyili) || !hasKvkkConsent(user) || !hasDirectoryConsent(user);
 }
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   if (!req.session.userId) return res.status(401).send('Login required');
+  const user = getCurrentUser(req);
+  if (!user) return res.status(401).send('Login required');
+  req.authUser = user;
   const writeMethod = new Set(['POST', 'PUT', 'PATCH', 'DELETE']).has(String(req.method || '').toUpperCase());
   const writeAllowedWithoutVerification = [
     '/api/profile',
@@ -1578,7 +1697,7 @@ function requireAuth(req, res, next) {
     '/api/new/requests/upload'
   ];
   if (writeMethod) {
-    const user = getCurrentUser(req);
+    const user = req.authUser;
     const isVerified = Number(user?.verified || 0) === 1;
     const canWriteWithoutVerification = writeAllowedWithoutVerification.some((item) => req.path === item || req.path.startsWith(`${item}/`));
     if (!isVerified && !canWriteWithoutVerification) {
@@ -1590,12 +1709,44 @@ function requireAuth(req, res, next) {
     }
   }
   if (req.path.startsWith('/api/new/')) {
-    const user = getCurrentUser(req);
+    const user = req.authUser;
     if (isOAuthProfileIncomplete(user)) {
       return res.status(403).json({ error: 'PROFILE_INCOMPLETE', message: 'Mezuniyet yılını (en az 1999) girmeden bu özelliği kullanamazsın.' });
     }
   }
+  if (isRootUser(user) && writeMethod) {
+    const allowedRootPaths = ['/admin/users/', '/admin/moderators/', '/api/admin/login', '/api/admin/logout', '/api/auth/logout'];
+    const allowed = allowedRootPaths.some((prefix) => req.path.startsWith(prefix));
+    if (!allowed) return res.status(403).send('ROOT hesabı normal kullanıcı işlemleri yapamaz.');
+  }
+
   return next();
+}
+
+function requireRole(role) {
+  return (req, res, next) => {
+    const user = req.authUser || getCurrentUser(req);
+    if (!user) return res.status(401).send('Login required');
+    if (!roleAtLeast(getUserRole(user), role)) return res.status(403).send('Yetki yok.');
+    req.authUser = user;
+    return next();
+  };
+}
+
+function requireScopedModeration(graduationYearSelector = (req) => req.body?.graduationYear ?? req.params?.graduationYear ?? req.query?.graduationYear) {
+  return (req, res, next) => {
+    const user = req.authUser || getCurrentUser(req);
+    if (!user) return res.status(401).send('Login required');
+    const role = getUserRole(user);
+    if (role === 'root' || role === 'admin') return next();
+    if (role !== 'mod') return res.status(403).send('Moderasyon yetkisi gerekli.');
+    const graduationYear = parseGraduationYear(typeof graduationYearSelector === 'function' ? graduationYearSelector(req) : graduationYearSelector);
+    if (!Number.isFinite(graduationYear)) return res.status(400).send('Geçerli mezuniyet yılı gerekli.');
+    const scope = sqlGet('SELECT id FROM moderator_scopes WHERE user_id = ? AND scope_type = ? AND scope_value = ?', [user.id, 'graduation_year', String(graduationYear)]);
+    if (!scope) return res.status(403).send('Bu mezuniyet yılı için moderasyon yetkin yok.');
+    req.authUser = user;
+    return next();
+  };
 }
 
 function getSiteControl() {
@@ -1697,8 +1848,9 @@ app.use((req, res, next) => {
 function requireAdmin(req, res, next) {
   const user = getCurrentUser(req);
   if (!user) return res.status(401).send('Login required');
-  if (user.admin !== 1) return res.status(403).send('Admin erişimi gerekli.');
-  if (!req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
+  const role = getUserRole(user);
+  if (!roleAtLeast(role, 'admin')) return res.status(403).send('Admin erişimi gerekli.');
+  if (role !== 'root' && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
   req.adminUser = user;
   return next();
 }
@@ -1759,6 +1911,7 @@ function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
      FROM uyeler u
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
      WHERE (? IS NULL OR u.id != ?)
+       AND (u.role IS NULL OR LOWER(u.role) != 'root')
      ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
      LIMIT ?`,
     [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 3, 24)]
@@ -3703,7 +3856,7 @@ app.get('/hmesisle.asp', (req, res) => {
 });
 
 app.get('/onlineuyekontrol.asp', (req, res) => {
-  const rows = sqlAll('SELECT id, kadi FROM uyeler WHERE online = 1 ORDER BY kadi');
+  const rows = sqlAll("SELECT id, kadi FROM uyeler WHERE online = 1 AND (role IS NULL OR LOWER(role) != 'root') ORDER BY kadi");
   if (!rows.length) return res.send(' Şu an sitede online üye bulunmamaktadır.');
   let html = '<br>&nbsp;Şu anda sitede dolaşanlar : ';
   rows.forEach((row, idx) => {
@@ -3718,7 +3871,7 @@ app.get('/onlineuyekontrol.asp', (req, res) => {
 });
 
 app.get('/onlineuyekontrol2.asp', (req, res) => {
-  const rows = sqlAll('SELECT id, kadi, resim, mezuniyetyili, isim, soyisim, sonislemtarih, sonislemsaat, online FROM uyeler WHERE online = 1 ORDER BY kadi');
+  const rows = sqlAll("SELECT id, kadi, resim, mezuniyetyili, isim, soyisim, sonislemtarih, sonislemsaat, online FROM uyeler WHERE online = 1 AND (role IS NULL OR LOWER(role) != 'root') ORDER BY kadi");
   if (!rows.length) return res.send(' Şu an sitede online üye bulunmamaktadır.');
   const now = new Date();
   let html = '';
@@ -3911,7 +4064,7 @@ app.get('/api/session', (req, res) => {
   if (!req.session.userId) {
     return res.json({ user: null });
   }
-  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, verified, mezuniyetyili, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
+  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, role, verified, mezuniyetyili, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
   if (!user) return res.json({ user: null });
   const state = isOAuthProfileIncomplete(user) ? 'incomplete' : 'active';
   res.json({ user: { ...user, state } });
@@ -4017,7 +4170,7 @@ app.post('/api/auth/oauth/mobile/exchange', (req, res) => {
   res.json({ ok: true, user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim } });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { kadi, sifre } = req.body || {};
   if (!kadi) return res.status(400).send('Kullanıcı adını yazmazsan siteye giremezsin.');
   if (!sifre) return res.status(400).send('Siteye girmek için şifreni de yazman gerekiyor.');
@@ -4032,8 +4185,10 @@ app.post('/api/auth/login', (req, res) => {
   if (user.aktiv === 0) {
     return res.status(400).send(`Onay işleminizi henüz tamamlamamışsınız. Aktivasyon maili için /aktivasyon-gonder?id=${user.id}`);
   }
-  if (String(user.sifre || '') !== String(sifre)) {
-    return res.status(400).send('Girdiğin şifre yanlış!');
+  const verify = await verifyPassword(user.sifre, sifre);
+  if (!verify.ok) return res.status(400).send('Girdiğin şifre yanlış!');
+  if (verify.needsRehash) {
+    sqlRun('UPDATE uyeler SET sifre = ? WHERE id = ?', [await hashPassword(sifre), user.id]);
   }
 
   applyUserSession(req, user);
@@ -4066,6 +4221,69 @@ app.get('/api/admin/session', (req, res) => {
   res.json({ user: user || null, adminOk: !!req.session.adminOk });
 });
 
+
+app.post('/admin/users/:id/role', requireAuth, requireRole('root'), (req, res) => {
+  const targetId = Number(req.params.id || 0);
+  const nextRole = normalizeRole(req.body?.role);
+  if (!targetId) return res.status(400).send('Geçersiz kullanıcı.');
+  if (!['admin', 'mod', 'user'].includes(nextRole)) return res.status(400).send('Geçersiz rol.');
+  const target = sqlGet('SELECT id, role, admin FROM uyeler WHERE id = ?', [targetId]);
+  if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
+  if (normalizeRole(target.role) === 'root') return res.status(400).send('Root rolü değiştirilemez.');
+  sqlRun('UPDATE uyeler SET role = ?, admin = ? WHERE id = ?', [nextRole, nextRole === 'admin' ? 1 : 0, targetId]);
+  writeAuditLog(req, {
+    actorUserId: req.authUser.id,
+    action: 'role_changed',
+    targetType: 'user',
+    targetId: String(targetId),
+    metadata: { previousRole: normalizeRole(target.role), nextRole }
+  });
+  res.json({ ok: true, userId: targetId, role: nextRole });
+});
+
+app.post('/admin/moderators/:id/scopes', requireAuth, requireRole('admin'), (req, res) => {
+  const actor = req.authUser;
+  const targetId = Number(req.params.id || 0);
+  const years = Array.isArray(req.body?.graduationYears) ? req.body.graduationYears : [];
+  if (!targetId) return res.status(400).send('Geçersiz kullanıcı.');
+  if (!years.length) return res.status(400).send('En az bir mezuniyet yılı gerekli.');
+  const target = sqlGet('SELECT id, role FROM uyeler WHERE id = ?', [targetId]);
+  if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
+  if (normalizeRole(target.role) === 'root') return res.status(400).send('Root için kapsam atanamaz.');
+  const normalizedYears = Array.from(new Set(years.map(parseGraduationYear).filter((y) => Number.isFinite(y) && y >= MIN_GRADUATION_YEAR && y <= MAX_GRADUATION_YEAR)));
+  if (!normalizedYears.length) return res.status(400).send('Geçerli mezuniyet yılı bulunamadı.');
+  sqlRun('UPDATE uyeler SET role = ? WHERE id = ?', ['mod', targetId]);
+  const created = [];
+  for (const year of normalizedYears) {
+    sqlRun(`INSERT INTO moderator_scopes (user_id, scope_type, scope_value, graduation_year, created_by, created_at)
+      VALUES (?, 'graduation_year', ?, ?, ?, ?)
+      ON CONFLICT(user_id, scope_type, scope_value) DO NOTHING`, [targetId, String(year), year, actor.id, new Date().toISOString()]);
+    created.push(year);
+  }
+  writeAuditLog(req, { actorUserId: actor.id, action: 'moderator_scope_assigned', targetType: 'user', targetId: String(targetId), metadata: { graduationYears: created } });
+  res.json({ ok: true, userId: targetId, scopes: created });
+});
+
+app.post('/admin/moderation/check/:graduationYear', requireAuth, requireScopedModeration((req) => req.params.graduationYear), (req, res) => {
+  res.json({ ok: true, graduationYear: Number(req.params.graduationYear) });
+});
+
+app.get('/admin/moderators', requireAuth, requireRole('admin'), (_req, res) => {
+  const rows = sqlAll(
+    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.role, ms.scope_value AS graduation_year
+     FROM uyeler u
+     LEFT JOIN moderator_scopes ms ON ms.user_id = u.id AND ms.scope_type = 'graduation_year'
+     WHERE LOWER(COALESCE(u.role, 'user')) = 'mod' AND (u.role IS NULL OR LOWER(u.role) != 'root')
+     ORDER BY u.id ASC, ms.scope_value ASC`
+  );
+  const map = new Map();
+  for (const row of rows) {
+    if (!map.has(row.id)) map.set(row.id, { id: row.id, kadi: row.kadi, isim: row.isim, soyisim: row.soyisim, role: row.role, graduationYears: [] });
+    if (row.graduation_year) map.get(row.id).graduationYears.push(Number(row.graduation_year));
+  }
+  res.json({ moderators: Array.from(map.values()) });
+});
+
 app.post('/api/admin/login', (req, res) => {
   const user = getCurrentUser(req);
   if (!user) {
@@ -4080,7 +4298,7 @@ app.post('/api/admin/login', (req, res) => {
   }
   const password = String(req.body?.password || '');
   if (!password) return res.status(400).send('Şifre girmedin.');
-  if (password !== adminPassword) {
+  if (!adminPassword || password !== adminPassword) {
     writeLegacyLog('error', 'admin_login_denied', { reason: 'bad_password', userId: user.id, ip: req.ip });
     writeAppLog('warn', 'admin_login_denied', { reason: 'bad_password', userId: user.id, ip: req.ip });
     return res.status(400).send('Şifre yanlış.');
@@ -4276,6 +4494,7 @@ function queryAdminUsers(rawQuery = {}) {
   const onlineExpr = "(COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))";
 
   const whereParts = [];
+  whereParts.push("(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')");
   const params = [];
   if (filter === 'active') whereParts.push(`${activeExpr} AND NOT ${bannedExpr}`);
   if (filter === 'pending') whereParts.push(`NOT ${activeExpr} AND NOT ${bannedExpr}`);
@@ -4976,7 +5195,7 @@ app.post('/api/register', async (req, res) => {
   const result = sqlRun(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at)
      VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'yok', ?, 0, 'pending', ?, ?)`,
-    [cleanKadi, sifre, cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, parsedYear, now, now]
+    [cleanKadi, await hashPassword(sifre), cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, parsedYear, now, now]
   );
   const newId = result?.lastInsertRowid;
 
@@ -5314,7 +5533,7 @@ app.post('/api/new/requests', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/profile/password', (req, res) => {
+app.post('/api/profile/password', async (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const { eskisifre = '', yenisifre = '', yenisifretekrar = '' } = req.body || {};
   if (!eskisifre) return res.status(400).send('Şifreni değiştirebilmek için eski şifreni girmen gerekiyor');
@@ -5323,10 +5542,11 @@ app.post('/api/profile/password', (req, res) => {
   if (String(yenisifre).length > 20) return res.status(400).send('Yeni şifre 20 karakterden fazla olmamalıdır.');
 
   const user = sqlGet('SELECT sifre FROM uyeler WHERE id = ?', [req.session.userId]);
-  if (user?.sifre !== eskisifre) return res.status(400).send('Şifreni yanlış girdin');
+  const verify = await verifyPassword(user?.sifre, eskisifre);
+  if (!verify.ok) return res.status(400).send('Şifreni yanlış girdin');
   if (yenisifre !== yenisifretekrar) return res.status(400).send('Girdiğin şifreler birbirleriyle uyuşmuyor');
 
-  sqlRun('UPDATE uyeler SET sifre = ? WHERE id = ?', [yenisifre, req.session.userId]);
+  sqlRun('UPDATE uyeler SET sifre = ? WHERE id = ?', [await hashPassword(yenisifre), req.session.userId]);
   res.json({ ok: true });
 });
 
@@ -9581,8 +9801,8 @@ app.get('/api/quick-access', (req, res) => {
     .filter((v) => v && v !== '0');
   const unique = Array.from(new Set(list));
   const users = unique
-    .map((id) => sqlGet('SELECT id, kadi, resim, mezuniyetyili, online, sonislemtarih, sonislemsaat FROM uyeler WHERE id = ?', [id]))
-    .filter(Boolean)
+    .map((id) => sqlGet('SELECT id, kadi, resim, mezuniyetyili, online, sonislemtarih, sonislemsaat, role FROM uyeler WHERE id = ?', [id]))
+    .filter((row) => row && normalizeRole(row.role) !== 'root')
     .map((row) => ({
       id: row.id,
       kadi: row.kadi,
@@ -9597,8 +9817,8 @@ app.post('/api/quick-access/add', (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   const id = String(req.body?.id || '').trim();
   if (!/^\d+$/.test(id)) return res.status(400).send('Üye bulunamadı.');
-  const target = sqlGet('SELECT id FROM uyeler WHERE id = ?', [id]);
-  if (!target) return res.status(404).send('Üye bulunamadı.');
+  const target = sqlGet('SELECT id, role FROM uyeler WHERE id = ?', [id]);
+  if (!target || normalizeRole(target.role) === 'root') return res.status(404).send('Üye bulunamadı.');
   const row = sqlGet('SELECT hizliliste FROM uyeler WHERE id = ?', [req.session.userId]);
   const list = String(row?.hizliliste || '0')
     .split(',')
@@ -9767,7 +9987,8 @@ app.use((err, req, res, _next) => {
 setTimeout(() => recalculateMemberEngagementScores('startup'), 2500);
 setInterval(() => recalculateMemberEngagementScores('interval_10m'), 10 * 60 * 1000);
 
-function onServerStarted() {
+async function onServerStarted() {
+  await ensureRootBootstrapAccount();
   const uyelerExists = !!sqlGet(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'uyeler'"
   );
