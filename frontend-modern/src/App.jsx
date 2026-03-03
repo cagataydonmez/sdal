@@ -22,6 +22,7 @@ import ProfileEmailChangePage from './pages/ProfileEmailChangePage.jsx';
 import MemberRequestsPage from './pages/MemberRequestsPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import RootLoginPage from './pages/RootLoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import ActivationPage from './pages/ActivationPage.jsx';
 import ActivationResendPage from './pages/ActivationResendPage.jsx';
@@ -70,6 +71,7 @@ export default function App() {
           <GlobalActionFeedback />
           <Routes>
           <Route path="/new/login" element={<LoginPage />} />
+          <Route path="/new/root-login" element={<RootLoginPage />} />
           <Route path="/new/register" element={<RegisterPage />} />
           <Route path="/new/activate" element={<ActivationPage />} />
           <Route path="/new/activation/resend" element={<ActivationResendPage />} />

@@ -4221,6 +4221,15 @@ app.get('/api/admin/session', (req, res) => {
   res.json({ user: user || null, adminOk: !!req.session.adminOk });
 });
 
+app.get('/api/admin/root-status', requireAdmin, (_req, res) => {
+  const rootUser = sqlGet("SELECT id, kadi, ilktarih, role FROM uyeler WHERE LOWER(COALESCE(role, '')) = 'root' ORDER BY id ASC LIMIT 1");
+  res.json({
+    hasRoot: !!rootUser,
+    rootUser: rootUser || null,
+    bootstrapPasswordConfigured: Boolean(String(process.env.ROOT_BOOTSTRAP_PASSWORD || '').trim())
+  });
+});
+
 
 app.post('/admin/users/:id/role', requireAuth, requireRole('root'), (req, res) => {
   const targetId = Number(req.params.id || 0);
