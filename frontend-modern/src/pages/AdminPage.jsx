@@ -36,6 +36,7 @@ const tabs = [
   { key: 'events', label: 'Etkinlikler', section: 'İçerik', hint: 'Etkinlik içerikleri ve onaylar' },
   { key: 'announcements', label: 'Duyurular', section: 'İçerik', hint: 'Duyuru yayın yönetimi' },
   { key: 'media', label: 'Medya Depolama', section: 'Sistem', hint: 'Görsel işleme ve depolama ayarları' },
+  { key: 'siteControls', label: 'Site/Modül Erişimi', section: 'Sistem', hint: 'Bakım modu ve modül aç/kapat' },
   { key: 'album', label: 'Albüm Kategorileri', section: 'Medya', hint: 'Albüm kategori yönetimi' },
   { key: 'photos', label: 'Fotoğraf Moderasyon', section: 'Medya', hint: 'Fotoğraf onay/silme işlemleri' },
   { key: 'email', label: 'E-Posta', section: 'İletişim', hint: 'Tekil ve toplu gönderimler' },
@@ -187,6 +188,8 @@ export default function AdminPage() {
   const [mediaSpacesConfigured, setMediaSpacesConfigured] = useState(false);
   const [mediaSpacesInfo, setMediaSpacesInfo] = useState({ region: '', bucket: '', endpoint: '' });
   const [mediaSettingsBusy, setMediaSettingsBusy] = useState(false);
+  const [siteControls, setSiteControls] = useState({ siteOpen: true, maintenanceMessage: '', modules: {}, moduleDefinitions: [] });
+  const [siteControlsBusy, setSiteControlsBusy] = useState(false);
   const [adminRequestNotifications, setAdminRequestNotifications] = useState([]);
   const [adminRequestItems, setAdminRequestItems] = useState([]);
   const [adminRequestCategoryFilter, setAdminRequestCategoryFilter] = useState('');
@@ -251,6 +254,7 @@ export default function AdminPage() {
       loadDbBackups();
     }
     if (tab === 'media') loadMediaSettings();
+    if (tab === 'siteControls') loadSiteControls();
   }, [tab, user, adminOk, refreshDashboard]);
 
   useEffect(() => {
@@ -902,6 +906,45 @@ export default function AdminPage() {
       setStatus('Bağlantı testi hatası: ' + err.message);
     } finally {
       setMediaSettingsBusy(false);
+    }
+  }
+
+
+
+  async function loadSiteControls() {
+    setSiteControlsBusy(true);
+    try {
+      const data = await apiJson('/api/admin/site-controls');
+      setSiteControls({
+        siteOpen: data.siteOpen !== false,
+        maintenanceMessage: data.maintenanceMessage || '',
+        modules: data.modules || {},
+        moduleDefinitions: data.moduleDefinitions || []
+      });
+    } catch (err) {
+      setStatus(err.message || 'Site/modül ayarları alınamadı.');
+    } finally {
+      setSiteControlsBusy(false);
+    }
+  }
+
+  async function saveSiteControls() {
+    setSiteControlsBusy(true);
+    try {
+      await apiJson('/api/admin/site-controls', {
+        method: 'PUT',
+        body: JSON.stringify({
+          siteOpen: siteControls.siteOpen,
+          maintenanceMessage: siteControls.maintenanceMessage,
+          modules: siteControls.modules
+        })
+      });
+      setStatus('Site/modül ayarları kaydedildi.');
+      await loadSiteControls();
+    } catch (err) {
+      setStatus(err.message || 'Site/modül ayarları kaydedilemedi.');
+    } finally {
+      setSiteControlsBusy(false);
     }
   }
 
@@ -2259,6 +2302,66 @@ export default function AdminPage() {
             <div className="form-row" style={{ marginTop: '1.5rem' }}>
               <button className="btn primary block" onClick={saveMediaSettings} disabled={mediaSettingsBusy || (mediaSettings.storage_provider === 'spaces' && !mediaSpacesConfigured)}>
                 {mediaSettingsBusy ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
+      {tab === 'siteControls' ? (
+        <div className="panel">
+          <div className="panel-header">
+            <h4>Site ve Modül Erişimi</h4>
+          </div>
+          <div className="panel-body">
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <label className="admin-switch" style={{ gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!siteControls.siteOpen}
+                  onChange={(e) => setSiteControls((prev) => ({ ...prev, siteOpen: e.target.checked }))}
+                  disabled={siteControlsBusy}
+                />
+                <span>Tüm siteyi açık tut</span>
+              </label>
+              <small className="muted">Kapalıyken admin hariç tüm kullanıcılar bakım ekranı görür.</small>
+            </div>
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <label>Bakım Mesajı</label>
+              <textarea
+                className="input"
+                rows={4}
+                value={siteControls.maintenanceMessage || ''}
+                onChange={(e) => setSiteControls((prev) => ({ ...prev, maintenanceMessage: e.target.value }))}
+                disabled={siteControlsBusy}
+              />
+            </div>
+            <div className="list">
+              {(siteControls.moduleDefinitions || []).map((m) => (
+                <div key={m.key} className="list-item">
+                  <div>
+                    <div className="name">{m.label}</div>
+                    <div className="meta">{m.key}</div>
+                  </div>
+                  <label className="admin-switch" style={{ gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={siteControls.modules?.[m.key] !== false}
+                      onChange={(e) => setSiteControls((prev) => ({
+                        ...prev,
+                        modules: { ...(prev.modules || {}), [m.key]: e.target.checked }
+                      }))}
+                      disabled={siteControlsBusy}
+                    />
+                    <span>{siteControls.modules?.[m.key] !== false ? 'Açık' : 'Kapalı'}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="form-row" style={{ marginTop: '1rem' }}>
+              <button className="btn primary" onClick={saveSiteControls} disabled={siteControlsBusy}>
+                {siteControlsBusy ? 'Kaydediliyor...' : 'Site/Modül Ayarlarını Kaydet'}
               </button>
             </div>
           </div>

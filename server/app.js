@@ -1408,6 +1408,58 @@ sqlRun(`CREATE TABLE IF NOT EXISTS media_settings (
   avif_enabled INTEGER DEFAULT 0,
   updated_at TEXT
 )`);
+
+sqlRun(`CREATE TABLE IF NOT EXISTS site_controls (
+  id INTEGER PRIMARY KEY,
+  site_open INTEGER DEFAULT 1,
+  maintenance_message TEXT,
+  updated_at TEXT
+)`);
+sqlRun(`CREATE TABLE IF NOT EXISTS module_controls (
+  module_key TEXT PRIMARY KEY,
+  is_open INTEGER DEFAULT 1,
+  updated_at TEXT
+)`);
+
+const MODULE_DEFINITIONS = [
+  { key: 'feed', label: 'Akış' },
+  { key: 'explore', label: 'Keşfet' },
+  { key: 'following', label: 'Takip' },
+  { key: 'groups', label: 'Gruplar' },
+  { key: 'messages', label: 'Mesajlar' },
+  { key: 'messenger', label: 'Canlı Mesajlaşma' },
+  { key: 'notifications', label: 'Bildirimler' },
+  { key: 'albums', label: 'Albüm/Fotolar' },
+  { key: 'games', label: 'Oyunlar' },
+  { key: 'events', label: 'Etkinlikler' },
+  { key: 'announcements', label: 'Duyurular' },
+  { key: 'jobs', label: 'İş İlanları' },
+  { key: 'profile', label: 'Profil' },
+  { key: 'help', label: 'Yardım' },
+  { key: 'requests', label: 'Üye Talepleri' }
+];
+
+runMigration('2026_03_site_controls_default_row', () => {
+  const existing = sqlGet('SELECT id FROM site_controls WHERE id = 1');
+  if (!existing) {
+    sqlRun('INSERT INTO site_controls (id, site_open, maintenance_message, updated_at) VALUES (1, 1, ?, ?)', [
+      'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.',
+      new Date().toISOString()
+    ]);
+  }
+});
+
+runMigration('2026_03_module_controls_default_rows', () => {
+  const now = new Date().toISOString();
+  for (const def of MODULE_DEFINITIONS) {
+    sqlRun(
+      `INSERT INTO module_controls (module_key, is_open, updated_at)
+       VALUES (?, 1, ?)
+       ON CONFLICT(module_key) DO UPDATE SET updated_at = excluded.updated_at`,
+      [def.key, now]
+    );
+  }
+});
 // Ensure a default row exists
 runMigration('2026_02_media_settings_default_row', () => {
   const existing = sqlGet('SELECT id FROM media_settings WHERE id = 1');
@@ -1545,6 +1597,102 @@ function requireAuth(req, res, next) {
   }
   return next();
 }
+
+function getSiteControl() {
+  const row = sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_controls WHERE id = 1') || {};
+  return {
+    siteOpen: Number(row.site_open ?? 1) === 1,
+    maintenanceMessage: String(row.maintenance_message || 'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.'),
+    updatedAt: row.updated_at || null
+  };
+}
+
+function getModuleControlMap() {
+  const rows = sqlAll('SELECT module_key, is_open FROM module_controls') || [];
+  const statusMap = Object.fromEntries(rows.map((row) => [String(row.module_key || ''), Number(row.is_open || 0) === 1]));
+  for (const def of MODULE_DEFINITIONS) {
+    if (typeof statusMap[def.key] !== 'boolean') statusMap[def.key] = true;
+  }
+  return statusMap;
+}
+
+function resolveModuleKeyByPath(pathname) {
+  const pathValue = String(pathname || '');
+  const mapping = [
+    ['feed', ['/new', '/api/new/feed', '/api/new/posts']],
+    ['explore', ['/new/explore', '/api/new/explore']],
+    ['following', ['/new/following', '/api/new/follows']],
+    ['groups', ['/new/groups', '/api/new/groups']],
+    ['messages', ['/new/messages', '/api/new/messages']],
+    ['messenger', ['/new/messenger', '/api/new/messenger']],
+    ['notifications', ['/new/notifications', '/api/new/notifications']],
+    ['albums', ['/new/albums', '/api/new/albums', '/api/new/photos']],
+    ['games', ['/new/games', '/api/games']],
+    ['events', ['/new/events', '/api/new/events']],
+    ['announcements', ['/new/announcements', '/api/new/announcements']],
+    ['jobs', ['/new/jobs', '/api/new/jobs']],
+    ['profile', ['/new/profile', '/api/profile']],
+    ['help', ['/new/help']],
+    ['requests', ['/new/requests', '/api/new/requests']]
+  ];
+
+  for (const [moduleKey, prefixes] of mapping) {
+    if (prefixes.some((prefix) => {
+      if (prefix === '/new') return pathValue === '/new' || pathValue === '/api/new/feed';
+      return pathValue === prefix || pathValue.startsWith(`${prefix}/`);
+    })) {
+      return moduleKey;
+    }
+  }
+  return null;
+}
+
+function canBypassSiteOrModuleLocks(req) {
+  const pathValue = String(req.path || '');
+  if (pathValue.startsWith('/api/admin/')) return true;
+  if (pathValue.startsWith('/api/new/admin/')) return true;
+  if (pathValue === '/api/admin/login' || pathValue === '/api/admin/logout') return true;
+  if (pathValue === '/api/admin/session' || pathValue === '/api/session' || pathValue === '/api/site-access') return true;
+  if (pathValue === '/api/auth/login' || pathValue === '/api/auth/register' || pathValue === '/api/auth/logout') return true;
+  if (pathValue.startsWith('/api/new/activation') || pathValue.startsWith('/api/new/password')) return true;
+  if (pathValue.startsWith('/legacy/') || pathValue.startsWith('/uploads/')) return true;
+  return false;
+}
+
+app.use((req, res, next) => {
+  if (canBypassSiteOrModuleLocks(req)) return next();
+  const siteControl = getSiteControl();
+  if (!siteControl.siteOpen) {
+    const user = getCurrentUser(req);
+    const isAdminBypass = Number(user?.admin || 0) === 1 && !!req.session?.adminOk;
+    if (!isAdminBypass) {
+      if (req.path.startsWith('/api/')) {
+        return res.status(503).json({
+          error: 'SITE_CLOSED',
+          message: siteControl.maintenanceMessage,
+          siteOpen: false
+        });
+      }
+      if (req.path.startsWith('/new')) {
+        return res.status(503).send(`<html><body style="margin:0;font-family:Inter,Segoe UI,sans-serif;background:linear-gradient(120deg,#0f172a,#1e293b);color:#e2e8f0;display:grid;place-items:center;min-height:100vh;"><div style="max-width:640px;padding:32px;border-radius:18px;background:rgba(15,23,42,.82);border:1px solid rgba(148,163,184,.3);box-shadow:0 30px 60px rgba(0,0,0,.25)"><h1 style="margin:0 0 8px;font-size:30px">SDAL Modern Geçici Olarak Kapalı</h1><p style="margin:0;font-size:17px;line-height:1.6">${siteControl.maintenanceMessage}</p></div></body></html>`);
+      }
+      return res.status(503).send(`<html><body bgcolor="#ffffff" style="font-family:Tahoma,Arial,sans-serif;color:#333;"><table width="760" align="center" cellspacing="0" cellpadding="12" style="margin-top:80px;border:1px solid #999;background:#f3f3f3"><tr bgcolor="#224488"><td><font color="#fff" size="4"><b>SDAL Classic Bakım Modu</b></font></td></tr><tr><td><font size="3">${siteControl.maintenanceMessage}</font></td></tr></table></body></html>`);
+    }
+  }
+
+  const moduleKey = resolveModuleKeyByPath(req.path);
+  if (!moduleKey) return next();
+  const moduleMap = getModuleControlMap();
+  if (moduleMap[moduleKey]) return next();
+  const user = getCurrentUser(req);
+  const isAdminBypass = Number(user?.admin || 0) === 1 && !!req.session?.adminOk;
+  if (isAdminBypass) return next();
+  if (req.path.startsWith('/api/')) {
+    return res.status(403).json({ error: 'MODULE_CLOSED', moduleKey, message: 'Bu modül geçici olarak kapatıldı.' });
+  }
+  if (req.path.startsWith('/new')) return res.redirect(302, '/new');
+  return res.redirect(302, '/');
+});
 
 function requireAdmin(req, res, next) {
   const user = getCurrentUser(req);
@@ -3745,6 +3893,20 @@ app.get('/api/captcha', (req, res) => {
   issueCaptcha(req, res);
 });
 
+app.get('/api/site-access', (req, res) => {
+  const pathValue = String(req.query.path || req.path || '').trim();
+  const moduleKey = resolveModuleKeyByPath(pathValue);
+  const modules = getModuleControlMap();
+  const site = getSiteControl();
+  res.json({
+    siteOpen: site.siteOpen,
+    maintenanceMessage: site.maintenanceMessage,
+    modules,
+    moduleKey,
+    moduleOpen: moduleKey ? !!modules[moduleKey] : true
+  });
+});
+
 app.get('/api/session', (req, res) => {
   if (!req.session.userId) {
     return res.json({ user: null });
@@ -3936,6 +4098,41 @@ app.post('/api/admin/logout', (req, res) => {
   req.session.adminOk = false;
   res.clearCookie('admingiris');
   res.json({ ok: true });
+});
+
+app.get('/api/admin/site-controls', requireAdmin, (_req, res) => {
+  const site = getSiteControl();
+  const modules = getModuleControlMap();
+  res.json({
+    siteOpen: site.siteOpen,
+    maintenanceMessage: site.maintenanceMessage,
+    updatedAt: site.updatedAt,
+    modules,
+    moduleDefinitions: MODULE_DEFINITIONS
+  });
+});
+
+app.put('/api/admin/site-controls', requireAdmin, (req, res) => {
+  const updates = req.body || {};
+  const now = new Date().toISOString();
+  if (updates.siteOpen !== undefined || updates.maintenanceMessage !== undefined) {
+    const nextOpen = updates.siteOpen === undefined ? getSiteControl().siteOpen : !!updates.siteOpen;
+    const nextMessage = String(updates.maintenanceMessage || getSiteControl().maintenanceMessage || '').slice(0, 1200);
+    sqlRun('UPDATE site_controls SET site_open = ?, maintenance_message = ?, updated_at = ? WHERE id = 1', [nextOpen ? 1 : 0, nextMessage, now]);
+  }
+  if (updates.modules && typeof updates.modules === 'object') {
+    for (const def of MODULE_DEFINITIONS) {
+      if (updates.modules[def.key] === undefined) continue;
+      sqlRun(
+        `INSERT INTO module_controls (module_key, is_open, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(module_key) DO UPDATE SET is_open = excluded.is_open, updated_at = excluded.updated_at`,
+        [def.key, updates.modules[def.key] ? 1 : 0, now]
+      );
+    }
+  }
+  const site = getSiteControl();
+  res.json({ ok: true, siteOpen: site.siteOpen, maintenanceMessage: site.maintenanceMessage, modules: getModuleControlMap() });
 });
 
 // --- Admin Media Settings Endpoints ---

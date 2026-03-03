@@ -14,6 +14,7 @@ export default function Layout({ children, title, right }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
+  const [moduleAccess, setModuleAccess] = useState({});
 
   const profileImage = useMemo(() => {
     if (!user) return '/legacy/vesikalik/nophoto.jpg';
@@ -52,27 +53,42 @@ export default function Layout({ children, title, right }) {
     return () => mq.removeListener(sync);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    fetch(`/api/site-access?path=${encodeURIComponent(location.pathname)}`, { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((payload) => {
+        if (!mounted || !payload?.modules) return;
+        setModuleAccess(payload.modules || {});
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [location.pathname]);
+
   const themeLabel = mobileThemeLabel
     ? (mode === 'auto' ? 'Auto' : (mode === 'dark' ? t('theme_dark') : t('theme_light')))
     : (mode === 'auto'
       ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') })
       : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') }));
-  const navItems = useMemo(() => ([
-    { to: '/new', label: t('nav_feed'), end: true },
-    { to: '/new/explore', label: t('nav_explore') },
-    { to: '/new/following', label: t('nav_following') },
-    { to: '/new/groups', label: t('nav_groups') },
-    { to: '/new/messages', label: `${t('nav_messages')}${unreadCount > 0 ? ` (${unreadCount})` : ''}` },
-    { to: '/new/messenger', label: t('nav_messenger') },
-    { to: '/new/notifications', label: t('nav_notifications') },
-    { to: '/new/albums', label: t('nav_photos') },
-    { to: '/new/games', label: t('nav_games') },
-    { to: '/new/events', label: t('nav_events') },
-    { to: '/new/announcements', label: t('nav_announcements') },
-    { to: '/new/jobs', label: t('nav_jobs') },
-    { to: '/new/profile', label: t('nav_profile') },
-    { to: '/new/help', label: t('nav_help') }
-  ]), [t, unreadCount]);
+  const navItems = useMemo(() => {
+    const allItems = [
+      { to: '/new', label: t('nav_feed'), end: true, module: 'feed' },
+      { to: '/new/explore', label: t('nav_explore'), module: 'explore' },
+      { to: '/new/following', label: t('nav_following'), module: 'following' },
+      { to: '/new/groups', label: t('nav_groups'), module: 'groups' },
+      { to: '/new/messages', label: `${t('nav_messages')}${unreadCount > 0 ? ` (${unreadCount})` : ''}`, module: 'messages' },
+      { to: '/new/messenger', label: t('nav_messenger'), module: 'messenger' },
+      { to: '/new/notifications', label: t('nav_notifications'), module: 'notifications' },
+      { to: '/new/albums', label: t('nav_photos'), module: 'albums' },
+      { to: '/new/games', label: t('nav_games'), module: 'games' },
+      { to: '/new/events', label: t('nav_events'), module: 'events' },
+      { to: '/new/announcements', label: t('nav_announcements'), module: 'announcements' },
+      { to: '/new/jobs', label: t('nav_jobs'), module: 'jobs' },
+      { to: '/new/profile', label: t('nav_profile'), module: 'profile' },
+      { to: '/new/help', label: t('nav_help'), module: 'help' }
+    ];
+    return allItems.filter((item) => moduleAccess[item.module] !== false);
+  }, [t, unreadCount, moduleAccess]);
 
   async function handleLogout() {
     await logout();
@@ -155,7 +171,7 @@ export default function Layout({ children, title, right }) {
                   <div className="user-dropdown">
                     <Link to="/new/profile" onClick={() => setMenuOpen(false)}>{t('profile_view')}</Link>
                     <Link to="/new/profile/photo" onClick={() => setMenuOpen(false)}>{t('profile_photo_update')}</Link>
-                    <Link to="/new/requests" onClick={() => setMenuOpen(false)}>{t('member_requests_title')}</Link>
+                    {moduleAccess.requests !== false ? <Link to="/new/requests" onClick={() => setMenuOpen(false)}>{t('member_requests_title')}</Link> : null}
                     <Link to="/new/messages/compose" onClick={() => setMenuOpen(false)}>{t('member_send_message')}</Link>
                     <button className="linkish" onClick={handleLogout}>{t('logout')}</button>
                   </div>
