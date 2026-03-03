@@ -134,7 +134,7 @@ export default function RegisterPage() {
       return;
     }
     if (form.mezuniyetyili === '0') {
-      setError('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+      setError('Bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
       return;
     }
     if (!form.kvkk_consent) {
@@ -270,6 +270,7 @@ export default function RegisterPage() {
                       <td align="left">
                         <select name="mezuniyetyili" className="inptxt" required value={form.mezuniyetyili} onChange={(e) => updateField('mezuniyetyili', e.target.value)}>
                           <option value="0">Seçiniz</option>
+                          <option value="teacher">Öğretmen (SDAL)</option>
                           {years.map((y) => <option key={y} value={y}>{y}</option>)}
                         </select> <font style={{ color: 'red' }}><sup>3</sup></font>
                       </td>

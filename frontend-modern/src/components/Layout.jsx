@@ -70,6 +70,9 @@ export default function Layout({ children, title, right }) {
     : (mode === 'auto'
       ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') })
       : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') }));
+  const roleValue = String(user?.role || '').toLowerCase();
+  const isAdminUser = Number(user?.admin || 0) === 1 || roleValue === 'admin' || roleValue === 'root';
+
   const navItems = useMemo(() => {
     const allItems = [
       { to: '/new', label: t('nav_feed'), end: true, module: 'feed' },
@@ -121,7 +124,7 @@ export default function Layout({ children, title, right }) {
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>
           ))}
-          {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
+          {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="side-footer">
           <a href="/" className="ghost">{t('layout_classic_view')}</a>
@@ -201,7 +204,7 @@ export default function Layout({ children, title, right }) {
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>
           ))}
-          {user?.admin === 1 ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
+          {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="mobile-nav-foot">
           <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>

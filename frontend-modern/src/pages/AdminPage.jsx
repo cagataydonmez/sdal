@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import AccessDeniedView from '../components/admin/AccessDeniedView.jsx';
-import AdminLoginView from '../components/admin/AdminLoginView.jsx';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
 import AdminPreviewModal from '../components/admin/AdminPreviewModal.jsx';
 import RequestPayloadCard from '../components/RequestPayloadCard.jsx';
@@ -71,10 +70,8 @@ export default function AdminPage() {
   const [tab, setTab] = useState('dashboard');
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [status, setStatus] = useState('');
-  const [adminOk, setAdminOk] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
   const isAdminUser = ['admin', 'root'].includes(String(user?.role || '').toLowerCase()) || Number(user?.admin || 0) === 1;
-  const canUseAdminApis = isAdminUser && (isRootUser || adminOk);
+  const canUseAdminApis = isAdminUser;
 
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -200,13 +197,6 @@ export default function AdminPage() {
   const [adminRequestItems, setAdminRequestItems] = useState([]);
   const [adminRequestCategoryFilter, setAdminRequestCategoryFilter] = useState('');
 
-  useEffect(() => {
-    if (!user) return;
-    fetch('/api/admin/session', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((p) => setAdminOk(!!p.adminOk))
-      .catch(() => {});
-  }, [user]);
 
   const refreshDashboard = useCallback(async () => {
     if (!canUseAdminApis) return;
@@ -229,7 +219,7 @@ export default function AdminPage() {
         setStatus(liveResult.reason?.message || 'Canli veriler yuklenemedi.');
       }
     }
-  }, [user, adminOk]);
+  }, [user]);
 
   useEffect(() => {
     if (!canUseAdminApis) return;
@@ -262,12 +252,12 @@ export default function AdminPage() {
     if (tab === 'media') loadMediaSettings();
     if (tab === 'siteControls') loadSiteControls();
     if (tab === 'rootAccess') loadRootStatus();
-  }, [tab, user, adminOk, refreshDashboard]);
+  }, [tab, user, refreshDashboard]);
 
   useEffect(() => {
     if (tab !== 'users' || !canUseAdminApis) return;
     loadUsers(userFilter).catch((err) => setStatus(err.message || 'Üyeler yüklenemedi.'));
-  }, [tab, user, adminOk, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore]);
+  }, [tab, user, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore]);
 
   useEffect(() => {
     if (tab !== 'dashboard' || !dashboardAutoRefresh || !canUseAdminApis) return undefined;
@@ -275,34 +265,17 @@ export default function AdminPage() {
       refreshDashboard().catch(() => {});
     }, 7000);
     return () => clearInterval(timer);
-  }, [tab, dashboardAutoRefresh, user, adminOk, refreshDashboard]);
+  }, [tab, dashboardAutoRefresh, user, refreshDashboard]);
 
   useEffect(() => {
     if (tab !== 'logs' || !canUseAdminApis) return;
     loadLogs().catch(() => {});
-  }, [logType, tab, user, adminOk]);
+  }, [logType, tab, user]);
 
   useEffect(() => {
     setAdminMenuOpen(false);
   }, [tab]);
 
-  async function adminLogin(e) {
-    e.preventDefault();
-    setStatus('');
-    const res = await fetch('/api/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ password: adminPassword })
-    });
-    if (!res.ok) {
-      setStatus(await res.text());
-      return;
-    }
-    setAdminOk(true);
-    setAdminPassword('');
-    setStatus('Admin girişi başarılı.');
-  }
 
   async function loadStats() {
     const data = await apiJson('/api/new/admin/stats');
@@ -1118,19 +1091,6 @@ export default function AdminPage() {
     return (
       <Layout title="Yönetim">
         <AccessDeniedView />
-      </Layout>
-    );
-  }
-
-  if (!isRootUser && !adminOk) {
-    return (
-      <Layout title="Yönetim">
-        <AdminLoginView
-          adminLogin={adminLogin}
-          adminPassword={adminPassword}
-          setAdminPassword={setAdminPassword}
-          status={status}
-        />
       </Layout>
     );
   }
