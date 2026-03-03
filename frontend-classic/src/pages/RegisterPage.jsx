@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import LegacyLayout from '../components/LegacyLayout.jsx';
 
@@ -21,10 +21,11 @@ export default function RegisterPage() {
   const [step, setStep] = useState('form');
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
-  const [inlineError, setInlineError] = useState('');
+  const [uniqueErrors, setUniqueErrors] = useState({ kadi: '', email: '' });
   const [status, setStatus] = useState('');
-  const [checking, setChecking] = useState(false);
+  const [checking, setChecking] = useState({ kadi: false, email: false });
   const [captchaSrc, setCaptchaSrc] = useState(`/api/captcha?${Date.now()}`);
+  const latestCheckId = useRef({ kadi: 0, email: 0 });
 
   useEffect(() => {
     setForm((f) => ({ ...f, kadi: presetKadi || f.kadi }));
@@ -59,13 +60,20 @@ export default function RegisterPage() {
     return form.sifre === form.sifre2 ? '' : 'Şifre tekrar alanı şifreyle aynı olmalıdır.';
   }, [form.sifre, form.sifre2]);
 
-  async function checkUnique(fieldName) {
+  async function checkUnique(fieldName, rawValue) {
+    const value = String(rawValue || '').trim();
+    if (!value) {
+      setUniqueErrors((prev) => ({ ...prev, [fieldName]: '' }));
+      setChecking((prev) => ({ ...prev, [fieldName]: false }));
+      return;
+    }
+    const checkId = latestCheckId.current[fieldName] + 1;
+    latestCheckId.current[fieldName] = checkId;
     const payload = {
-      kadi: fieldName === 'kadi' ? form.kadi : '',
-      email: fieldName === 'email' ? form.email : ''
+      kadi: fieldName === 'kadi' ? value : '',
+      email: fieldName === 'email' ? value : ''
     };
-    if (!payload.kadi && !payload.email) return;
-    setChecking(true);
+    setChecking((prev) => ({ ...prev, [fieldName]: true }));
     try {
       const res = await fetch('/api/register/check', {
         method: 'POST',
@@ -75,25 +83,50 @@ export default function RegisterPage() {
       });
       if (!res.ok) return;
       const data = await res.json();
+      if (latestCheckId.current[fieldName] !== checkId) return;
       if (fieldName === 'kadi' && data.kadiExists) {
-        setInlineError('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
+        setUniqueErrors((prev) => ({ ...prev, kadi: 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.' }));
       } else if (fieldName === 'email' && data.emailExists) {
-        setInlineError('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
+        setUniqueErrors((prev) => ({ ...prev, email: 'Girdiğiniz e-mail adresi zaten kayıtlıdır.' }));
       } else {
-        setInlineError('');
+        setUniqueErrors((prev) => ({ ...prev, [fieldName]: '' }));
       }
     } finally {
-      setChecking(false);
+      if (latestCheckId.current[fieldName] === checkId) {
+        setChecking((prev) => ({ ...prev, [fieldName]: false }));
+      }
     }
   }
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      checkUnique('kadi', form.kadi);
+    }, 450);
+    return () => clearTimeout(handle);
+  }, [form.kadi]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      checkUnique('email', form.email);
+    }, 450);
+    return () => clearTimeout(handle);
+  }, [form.email]);
 
   async function onPreview(e) {
     e.preventDefault();
     setError('');
-    setInlineError('');
+    setUniqueErrors({ kadi: '', email: '' });
     setStatus('');
     if (!form.kadi || !form.sifre || !form.sifre2 || !form.email || !form.isim || !form.soyisim || !form.gkodu) {
       setError('Lütfen zorunlu alanların tamamını doldurunuz.');
+      return;
+    }
+    if (checking.kadi || checking.email) {
+      setError('Kullanıcı adı ve e-mail kontrollerinin tamamlanmasını bekleyiniz.');
+      return;
+    }
+    if (uniqueErrors.kadi || uniqueErrors.email) {
+      setError(uniqueErrors.kadi || uniqueErrors.email);
       return;
     }
     if (passwordMatchError) {
@@ -130,7 +163,7 @@ export default function RegisterPage() {
 
   async function onConfirm() {
     setError('');
-    setInlineError('');
+    setUniqueErrors({ kadi: '', email: '' });
     setStatus('');
     const res = await fetch('/api/register', {
       method: 'POST',
@@ -205,7 +238,8 @@ export default function RegisterPage() {
                       <td align="right"><b>Kullanıcı Adı : </b></td>
                       <td align="left">
                         <input type="text" name="kadi" size="20" className="inptxt" required value={form.kadi} onChange={(e) => updateField('kadi', e.target.value)} /> <font style={{ color: 'red' }}><sup>1</sup></font>
-                        <input type="button" className="sub" value="Kontrol" onClick={() => checkUnique('kadi')} style={{ marginLeft: 6 }} />
+                        {checking.kadi ? <div style={{ fontSize: 10 }}>Kontrol ediliyor...</div> : null}
+                        {uniqueErrors.kadi ? <div style={{ fontSize: 10, color: 'red' }}>{uniqueErrors.kadi}</div> : null}
                       </td>
                     </tr>
                     <tr>
@@ -227,7 +261,8 @@ export default function RegisterPage() {
                       <td align="right"><b>E-Mail : </b></td>
                       <td align="left">
                         <input type="email" name="email" size="20" className="inptxt" required value={form.email} onChange={(e) => updateField('email', e.target.value)} /> <font style={{ color: 'red' }}><sup>2</sup></font>
-                        <input type="button" className="sub" value="Kontrol" onClick={() => checkUnique('email')} style={{ marginLeft: 6 }} />
+                        {checking.email ? <div style={{ fontSize: 10 }}>Kontrol ediliyor...</div> : null}
+                        {uniqueErrors.email ? <div style={{ fontSize: 10, color: 'red' }}>{uniqueErrors.email}</div> : null}
                       </td>
                     </tr>
                     <tr>
@@ -290,8 +325,6 @@ export default function RegisterPage() {
                   </tbody>
                 </table>
                 {error ? <div className="sdal-alert sdal-alert-error" role="alert">{error}</div> : null}
-                {inlineError ? <div className="sdal-alert sdal-alert-error" role="alert">{inlineError}</div> : null}
-                {checking ? <div style={{ fontSize: 10 }}>Kontrol ediliyor...</div> : null}
                 {status ? <div className="sdal-alert sdal-alert-success" role="status">{status}</div> : null}
               </td>
               <td width="15" height="150" style={{ background: '#FFFFCC' }}></td>

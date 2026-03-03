@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -18,7 +18,10 @@ export default function RegisterPage() {
   });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [uniqueErrors, setUniqueErrors] = useState({ kadi: '', email: '' });
+  const [checking, setChecking] = useState({ kadi: false, email: false });
   const [captchaTs, setCaptchaTs] = useState(Date.now());
+  const latestCheckId = useRef({ kadi: 0, email: 0 });
 
   const years = useMemo(() => {
     const list = [];
@@ -27,12 +30,93 @@ export default function RegisterPage() {
     return list;
   }, []);
 
+  const passwordHint = useMemo(() => {
+    const pass = String(form.sifre || '');
+    if (!pass) return 'Şifre gücü: -';
+    let score = 0;
+    if (pass.length >= 8) score += 1;
+    if (/[A-ZÇĞİÖŞÜ]/.test(pass) && /[a-zçğıöşü]/.test(pass)) score += 1;
+    if (/\d/.test(pass)) score += 1;
+    if (/[^A-Za-z0-9çğıöşüÇĞİÖŞÜ]/.test(pass)) score += 1;
+    if (score >= 4) return 'Şifre gücü: Güçlü';
+    if (score >= 2) return 'Şifre gücü: Orta';
+    return 'Şifre gücü: Zayıf';
+  }, [form.sifre]);
+
+  const passwordMatchError = useMemo(() => {
+    if (!form.sifre2) return '';
+    return form.sifre === form.sifre2 ? '' : 'Şifre tekrar alanı şifreyle aynı olmalıdır.';
+  }, [form.sifre, form.sifre2]);
+
+  async function checkUnique(fieldName, rawValue) {
+    const value = String(rawValue || '').trim();
+    if (!value) {
+      setUniqueErrors((prev) => ({ ...prev, [fieldName]: '' }));
+      setChecking((prev) => ({ ...prev, [fieldName]: false }));
+      return;
+    }
+    const checkId = latestCheckId.current[fieldName] + 1;
+    latestCheckId.current[fieldName] = checkId;
+    setChecking((prev) => ({ ...prev, [fieldName]: true }));
+    try {
+      const res = await fetch('/api/register/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          kadi: fieldName === 'kadi' ? value : '',
+          email: fieldName === 'email' ? value : ''
+        })
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (latestCheckId.current[fieldName] !== checkId) return;
+      if (fieldName === 'kadi' && data.kadiExists) {
+        setUniqueErrors((prev) => ({ ...prev, kadi: 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.' }));
+      } else if (fieldName === 'email' && data.emailExists) {
+        setUniqueErrors((prev) => ({ ...prev, email: 'Girdiğiniz e-mail adresi zaten kayıtlıdır.' }));
+      } else {
+        setUniqueErrors((prev) => ({ ...prev, [fieldName]: '' }));
+      }
+    } finally {
+      if (latestCheckId.current[fieldName] === checkId) {
+        setChecking((prev) => ({ ...prev, [fieldName]: false }));
+      }
+    }
+  }
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      checkUnique('kadi', form.kadi);
+    }, 450);
+    return () => clearTimeout(handle);
+  }, [form.kadi]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      checkUnique('email', form.email);
+    }, 450);
+    return () => clearTimeout(handle);
+  }, [form.email]);
+
   async function submit(e) {
     e.preventDefault();
     setError('');
     setStatus('');
     if (form.mezuniyetyili === '0') {
       setError('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+      return;
+    }
+    if (checking.kadi || checking.email) {
+      setError('Kullanıcı adı ve e-mail kontrollerinin tamamlanmasını bekleyiniz.');
+      return;
+    }
+    if (uniqueErrors.kadi || uniqueErrors.email) {
+      setError(uniqueErrors.kadi || uniqueErrors.email);
+      return;
+    }
+    if (passwordMatchError) {
+      setError(passwordMatchError);
       return;
     }
     if (!form.kvkk_consent) {
@@ -74,9 +158,15 @@ export default function RegisterPage() {
         <div className="panel-body">
           <form className="stack" onSubmit={submit}>
             <input className="input" required placeholder={t('auth_username')} value={form.kadi} onChange={(e) => setForm({ ...form, kadi: e.target.value })} />
+            {checking.kadi ? <div className="muted">Kontrol ediliyor...</div> : null}
+            {uniqueErrors.kadi ? <div className="error" role="alert">{uniqueErrors.kadi}</div> : null}
             <input className="input" type="password" required placeholder={t('auth_password')} value={form.sifre} onChange={(e) => setForm({ ...form, sifre: e.target.value })} />
+            <div className="muted">{passwordHint}</div>
             <input className="input" type="password" required placeholder={t('register_password_repeat')} value={form.sifre2} onChange={(e) => setForm({ ...form, sifre2: e.target.value })} />
+            {passwordMatchError ? <div className="error" role="alert">{passwordMatchError}</div> : null}
             <input className="input" type="email" required placeholder={t('auth_email')} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            {checking.email ? <div className="muted">Kontrol ediliyor...</div> : null}
+            {uniqueErrors.email ? <div className="error" role="alert">{uniqueErrors.email}</div> : null}
             <div className="form-row">
               <label>{t('register_graduation_year')}</label>
               <select className="input" value={form.mezuniyetyili} onChange={(e) => setForm({ ...form, mezuniyetyili: e.target.value })} required>
