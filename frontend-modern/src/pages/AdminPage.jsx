@@ -37,6 +37,7 @@ const tabs = [
   { key: 'announcements', label: 'Duyurular', section: 'İçerik', hint: 'Duyuru yayın yönetimi' },
   { key: 'media', label: 'Medya Depolama', section: 'Sistem', hint: 'Görsel işleme ve depolama ayarları' },
   { key: 'siteControls', label: 'Site/Modül Erişimi', section: 'Sistem', hint: 'Bakım modu ve modül aç/kapat' },
+  { key: 'rootAccess', label: 'Root Erişimi', section: 'Sistem', hint: 'Root hesabı ve rol yönetimi rehberi' },
   { key: 'album', label: 'Albüm Kategorileri', section: 'Medya', hint: 'Albüm kategori yönetimi' },
   { key: 'photos', label: 'Fotoğraf Moderasyon', section: 'Medya', hint: 'Fotoğraf onay/silme işlemleri' },
   { key: 'email', label: 'E-Posta', section: 'İletişim', hint: 'Tekil ve toplu gönderimler' },
@@ -66,11 +67,13 @@ const commonLogActivities = [
 
 export default function AdminPage() {
   const { user } = useAuth();
+  const isRootUser = String(user?.role || '').toLowerCase() === 'root';
   const [tab, setTab] = useState('dashboard');
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [status, setStatus] = useState('');
   const [adminOk, setAdminOk] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
+  const canUseAdminApis = Number(user?.admin || 0) === 1 && (isRootUser || adminOk);
 
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -87,6 +90,8 @@ export default function AdminPage() {
   const [userForm, setUserForm] = useState(null);
   const [usersMeta, setUsersMeta] = useState({ total: 0, returned: 0 });
   const [userDeleteBusy, setUserDeleteBusy] = useState(false);
+  const [roleSaveBusy, setRoleSaveBusy] = useState(false);
+  const [rootStatus, setRootStatus] = useState({ hasRoot: false, rootUser: null, bootstrapPasswordConfigured: false });
 
   const [engagementRows, setEngagementRows] = useState([]);
   const [engagementLoading, setEngagementLoading] = useState(false);
@@ -203,7 +208,7 @@ export default function AdminPage() {
   }, [user]);
 
   const refreshDashboard = useCallback(async () => {
-    if (user?.admin !== 1 || !adminOk) return;
+    if (!canUseAdminApis) return;
     const [statsResult, liveResult] = await Promise.allSettled([
       apiJson('/api/new/admin/stats'),
       apiJson('/api/new/admin/live')
@@ -226,7 +231,7 @@ export default function AdminPage() {
   }, [user, adminOk]);
 
   useEffect(() => {
-    if (user?.admin !== 1 || !adminOk) return;
+    if (!canUseAdminApis) return;
     if (tab === 'dashboard') refreshDashboard();
     if (tab === 'album') loadCategories();
     if (tab === 'photos') loadPhotos();
@@ -255,15 +260,16 @@ export default function AdminPage() {
     }
     if (tab === 'media') loadMediaSettings();
     if (tab === 'siteControls') loadSiteControls();
+    if (tab === 'rootAccess') loadRootStatus();
   }, [tab, user, adminOk, refreshDashboard]);
 
   useEffect(() => {
-    if (tab !== 'users' || user?.admin !== 1 || !adminOk) return;
+    if (tab !== 'users' || !canUseAdminApis) return;
     loadUsers(userFilter).catch((err) => setStatus(err.message || 'Üyeler yüklenemedi.'));
   }, [tab, user, adminOk, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore]);
 
   useEffect(() => {
-    if (tab !== 'dashboard' || !dashboardAutoRefresh || user?.admin !== 1 || !adminOk) return undefined;
+    if (tab !== 'dashboard' || !dashboardAutoRefresh || !canUseAdminApis) return undefined;
     const timer = setInterval(() => {
       refreshDashboard().catch(() => {});
     }, 7000);
@@ -271,7 +277,7 @@ export default function AdminPage() {
   }, [tab, dashboardAutoRefresh, user, adminOk, refreshDashboard]);
 
   useEffect(() => {
-    if (tab !== 'logs' || user?.admin !== 1 || !adminOk) return;
+    if (tab !== 'logs' || !canUseAdminApis) return;
     loadLogs().catch(() => {});
   }, [logType, tab, user, adminOk]);
 
@@ -345,6 +351,24 @@ export default function AdminPage() {
     await apiJson(`/api/admin/users/${userForm.id}`, { method: 'PUT', body: JSON.stringify(userForm) });
     setStatus('Üye güncellendi.');
     loadUsers();
+  }
+
+  async function loadRootStatus() {
+    const data = await apiJson('/api/admin/root-status');
+    setRootStatus(data || { hasRoot: false, rootUser: null, bootstrapPasswordConfigured: false });
+  }
+
+  async function updateUserRole() {
+    if (!isRootUser || !userForm?.id || roleSaveBusy) return;
+    const nextRole = String(userForm.role || 'user').toLowerCase();
+    setRoleSaveBusy(true);
+    try {
+      await apiJson(`/admin/users/${userForm.id}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) });
+      setStatus(`Rol güncellendi: ${nextRole}`);
+      await Promise.all([loadUsers(userFilter), loadUserDetail(userForm.id)]);
+    } finally {
+      setRoleSaveBusy(false);
+    }
   }
 
   async function deleteUserProfile() {
@@ -1097,7 +1121,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!adminOk) {
+  if (!isRootUser && !adminOk) {
     return (
       <Layout title="Yönetim">
         <AdminLoginView
@@ -1360,6 +1384,7 @@ export default function AdminPage() {
                       Skor: {Number(u.engagement_score || 0).toFixed(1)} / 100
                       {Number(u.online || 0) === 1 ? ' • Online' : ''}
                       {Number(u.verified || 0) === 1 ? ' • Verified' : ''}
+                      {u.role ? ` • Rol: ${String(u.role).toLowerCase()}` : ''}
                     </div>
                   </div>
                 </button>
@@ -1416,8 +1441,24 @@ export default function AdminPage() {
                     <option value={1}>Evet</option>
                   </select>
                 </div>
+                <div className="form-row">
+                  <label>Rol</label>
+                  <select
+                    className="input"
+                    value={String(userForm.role || 'user').toLowerCase()}
+                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                    disabled={!isRootUser}
+                  >
+                    <option value="user">user</option>
+                    <option value="mod">mod</option>
+                    <option value="admin">admin</option>
+                    {String(userForm.role || '').toLowerCase() === 'root' ? <option value="root">root</option> : null}
+                  </select>
+                  {!isRootUser ? <div className="muted">Rol güncelleme sadece root hesabı ile yapılabilir.</div> : null}
+                </div>
                 <div className="composer-actions">
                   <button className="btn primary" onClick={saveUser}>Kaydet</button>
+                  {isRootUser ? <button className="btn" onClick={updateUserRole} disabled={roleSaveBusy}>{roleSaveBusy ? 'Rol Kaydediliyor...' : 'Rolü Kaydet'}</button> : null}
                   <button className="btn ghost delete" onClick={deleteUserProfile} disabled={userDeleteBusy} style={{ color: '#ef4444' }}>
                     {userDeleteBusy ? 'Siliniyor...' : 'Kullanıcıyı Tamamen Sil (Hard Delete)'}
                   </button>
@@ -1432,6 +1473,35 @@ export default function AdminPage() {
                 <option value="0">Kaldır</option>
               </select>
               <button className="btn" onClick={updateVerify}>Güncelle</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'rootAccess' ? (
+        <div className="panel">
+          <div className="panel-body stack">
+            <h3>Root Hesabı ve Rol Yönetimi</h3>
+            <div className="muted">ROOT_BOOTSTRAP_PASSWORD sadece sunucu ortam değişkeninde tutulmalıdır. İlk açılışta root yoksa root hesabı otomatik oluşturulur.</div>
+            <div className="composer-actions">
+              <span className="chip">Root mevcut: {rootStatus.hasRoot ? 'Evet' : 'Hayır'}</span>
+              <span className="chip">ROOT_BOOTSTRAP_PASSWORD tanımlı: {rootStatus.bootstrapPasswordConfigured ? 'Evet' : 'Hayır'}</span>
+              {rootStatus.rootUser ? <span className="chip">Kullanıcı: @{rootStatus.rootUser.kadi} (ID: {rootStatus.rootUser.id})</span> : null}
+            </div>
+            <div className="stack">
+              <div>
+                <b>Kurulum:</b> .env ya da servis ortamında <code>ROOT_BOOTSTRAP_PASSWORD</code> tanımlayın (örn: <code>ROOT_BOOTSTRAP_PASSWORD=GucluBirSifre!</code>).
+              </div>
+              <div>
+                <b>Giriş:</b> <code>kadi=root</code> ve belirlediğiniz şifre ile root giriş sayfasından oturum açın.
+              </div>
+              <div>
+                <b>Rol atama:</b> Üyeler sekmesinden kullanıcıyı açın, rolü seçin, ardından <i>Rolü Kaydet</i> butonuna basın (sadece root).
+              </div>
+            </div>
+            <div className="composer-actions">
+              <a className="btn" href="/new/root-login">Root Giriş Sayfasına Git</a>
+              <button className="btn ghost" onClick={() => loadRootStatus().catch((err) => setStatus(err.message || 'Root durumu yüklenemedi.'))}>Yenile</button>
             </div>
           </div>
         </div>

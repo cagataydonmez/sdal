@@ -13,6 +13,23 @@
 - If present, it creates a single root account with a **hashed** password.
 - If a root already exists, env bootstrap password is ignored.
 
+### Where to set `ROOT_BOOTSTRAP_PASSWORD`
+
+- Put it in your server environment file (for example `/etc/sdal/sdal.env` in production, or `server/.env` in local/dev setups).
+- Example:
+
+```env
+ROOT_BOOTSTRAP_PASSWORD=Use-A-Long-Strong-Secret
+```
+
+- Restart the server after setting/changing it.
+
+### How root login works
+
+- Username is always `root`.
+- Password is the value of `ROOT_BOOTSTRAP_PASSWORD` used during bootstrap.
+- Use `/new/root-login` (or normal `/new/login`) to sign in as root.
+
 ## Security rules
 
 - Role changes are root-only via `POST /admin/users/:id/role`.
