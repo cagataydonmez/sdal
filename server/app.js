@@ -1817,6 +1817,26 @@ function resolveModuleKeyByPath(pathname) {
   return null;
 }
 
+
+
+app.use((req, res, next) => {
+  if (!req.session?.userId) return next();
+  const user = getCurrentUser(req);
+  if (!user) {
+    req.session.userId = null;
+    req.session.adminOk = false;
+    return next();
+  }
+  if (!toTruthyFlag(user?.yasak)) return next();
+  req.session.userId = null;
+  req.session.adminOk = false;
+  res.clearCookie('kadi');
+  res.clearCookie('admingiris');
+  if (req.path.startsWith('/api/')) {
+    return res.status(403).json({ error: 'ACCOUNT_BANNED', message: 'Hesabınız yasaklandığı için bu işlemi yapamazsınız.' });
+  }
+  return res.redirect(302, '/');
+});
 function canBypassSiteOrModuleLocks(req) {
   const pathValue = String(req.path || '');
   if (pathValue.startsWith('/api/admin/')) return true;
@@ -4251,21 +4271,25 @@ app.get('/api/admin/root-status', requireAdmin, (_req, res) => {
 });
 
 
-app.post('/admin/users/:id/role', requireAuth, requireRole('root'), (req, res) => {
+app.post('/admin/users/:id/role', requireAuth, requireRole('admin'), (req, res) => {
+  const actorRole = getUserRole(req.authUser);
   const targetId = Number(req.params.id || 0);
   const nextRole = normalizeRole(req.body?.role);
   if (!targetId) return res.status(400).send('Geçersiz kullanıcı.');
-  if (!['admin', 'mod', 'user'].includes(nextRole)) return res.status(400).send('Geçersiz rol.');
+  const assignableRoles = actorRole === 'root' ? ['admin', 'mod', 'user'] : ['mod', 'user'];
+  if (!assignableRoles.includes(nextRole)) return res.status(400).send('Bu rolü atama yetkiniz yok.');
   const target = sqlGet('SELECT id, role, admin FROM uyeler WHERE id = ?', [targetId]);
   if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
-  if (normalizeRole(target.role) === 'root') return res.status(400).send('Root rolü değiştirilemez.');
+  const targetRole = normalizeRole(target.role);
+  if (targetRole === 'root') return res.status(400).send('Root rolü değiştirilemez.');
+  if (actorRole !== 'root' && targetRole === 'admin') return res.status(403).send('Admin hesabın rolünü sadece root değiştirebilir.');
   sqlRun('UPDATE uyeler SET role = ?, admin = ? WHERE id = ?', [nextRole, nextRole === 'admin' ? 1 : 0, targetId]);
   writeAuditLog(req, {
     actorUserId: req.authUser.id,
     action: 'role_changed',
     targetType: 'user',
     targetId: String(targetId),
-    metadata: { previousRole: normalizeRole(target.role), nextRole }
+    metadata: { previousRole: targetRole, nextRole }
   });
   res.json({ ok: true, userId: targetId, role: nextRole });
 });
@@ -4695,7 +4719,6 @@ app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
     dogumgun: String(payload.dogumgun || '').trim(),
     dogumay: String(payload.dogumay || '').trim(),
     dogumyil: String(payload.dogumyil || '').trim(),
-    admin: Number(payload.admin),
     resim: String(payload.resim || '').trim() || 'yok'
   };
 
@@ -4704,7 +4727,7 @@ app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
   if (!fields.aktivasyon) return res.status(400).send('Aktivasyon Kodu girmedin.');
   if (!fields.email) return res.status(400).send('E-mail girmedin.');
   if (!validateEmail(fields.email)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
-  const numericFields = ['aktiv', 'yasak', 'ilkbd', 'mailkapali', 'hit', 'verified', 'admin'];
+  const numericFields = ['aktiv', 'yasak', 'ilkbd', 'mailkapali', 'hit', 'verified'];
   for (const key of numericFields) {
     if (Number.isNaN(fields[key])) return res.status(400).send(`${key} bir sayı olmalıdır.`);
   }
@@ -4718,13 +4741,13 @@ app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
     `UPDATE uyeler
      SET isim = ?, soyisim = ?, aktivasyon = ?, email = ?, aktiv = ?, yasak = ?, ilkbd = ?, websitesi = ?,
          imza = ?, meslek = ?, sehir = ?, mailkapali = ?, hit = ?, mezuniyetyili = ?, universite = ?,
-         dogumgun = ?, dogumay = ?, dogumyil = ?, verified = ?, admin = ?, resim = ?
+         dogumgun = ?, dogumay = ?, dogumyil = ?, verified = ?, resim = ?
      WHERE id = ?`,
     [
       fields.isim, fields.soyisim, fields.aktivasyon, fields.email, fields.aktiv, fields.yasak, fields.ilkbd,
       fields.websitesi, fields.imza, fields.meslek, fields.sehir, fields.mailkapali, fields.hit,
       fields.mezuniyetyili, fields.universite, fields.dogumgun, fields.dogumay, fields.dogumyil,
-      fields.verified, fields.admin, fields.resim, target.id
+      fields.verified, fields.resim, target.id
     ]
   );
   scheduleEngagementRecalculation('admin_user_updated');
