@@ -70,7 +70,9 @@ export default function AdminPage() {
   const [tab, setTab] = useState('dashboard');
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [status, setStatus] = useState('');
-  const isAdminUser = ['admin', 'root'].includes(String(user?.role || '').toLowerCase()) || Number(user?.admin || 0) === 1;
+  const userRole = String(user?.role || '').toLowerCase();
+  const isAdminUser = ['admin', 'root'].includes(userRole) || Number(user?.admin || 0) === 1;
+  const canManageRoles = ['admin', 'root'].includes(userRole);
   const canUseAdminApis = isAdminUser;
 
   const [stats, setStats] = useState(null);
@@ -333,7 +335,7 @@ export default function AdminPage() {
   }
 
   async function updateUserRole() {
-    if (!isRootUser || !userForm?.id || roleSaveBusy) return;
+    if (!canManageRoles || !userForm?.id || roleSaveBusy) return;
     const nextRole = String(userForm.role || 'user').toLowerCase();
     setRoleSaveBusy(true);
     try {
@@ -1396,30 +1398,24 @@ export default function AdminPage() {
                   </select>
                 </div>
                 <div className="form-row">
-                  <label>Admin</label>
-                  <select className="input" value={userForm.admin ?? 0} onChange={(e) => setUserForm({ ...userForm, admin: Number(e.target.value) })}>
-                    <option value={0}>Hayır</option>
-                    <option value={1}>Evet</option>
-                  </select>
-                </div>
-                <div className="form-row">
                   <label>Rol</label>
                   <select
                     className="input"
                     value={String(userForm.role || 'user').toLowerCase()}
                     onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                    disabled={!isRootUser}
+                    disabled={!canManageRoles}
                   >
                     <option value="user">user</option>
                     <option value="mod">mod</option>
-                    <option value="admin">admin</option>
+                    {isRootUser ? <option value="admin">admin</option> : null}
                     {String(userForm.role || '').toLowerCase() === 'root' ? <option value="root">root</option> : null}
                   </select>
-                  {!isRootUser ? <div className="muted">Rol güncelleme sadece root hesabı ile yapılabilir.</div> : null}
+                  {!canManageRoles ? <div className="muted">Rol güncelleme için admin yetkisi gerekir.</div> : null}
+                  {!isRootUser ? <div className="muted">Admin kullanıcıları yalnızca user/mod rolü atayabilir.</div> : null}
                 </div>
                 <div className="composer-actions">
                   <button className="btn primary" onClick={saveUser}>Kaydet</button>
-                  {isRootUser ? <button className="btn" onClick={updateUserRole} disabled={roleSaveBusy}>{roleSaveBusy ? 'Rol Kaydediliyor...' : 'Rolü Kaydet'}</button> : null}
+                  {canManageRoles ? <button className="btn" onClick={updateUserRole} disabled={roleSaveBusy}>{roleSaveBusy ? 'Rol Kaydediliyor...' : 'Rolü Kaydet'}</button> : null}
                   <button className="btn ghost delete" onClick={deleteUserProfile} disabled={userDeleteBusy} style={{ color: '#ef4444' }}>
                     {userDeleteBusy ? 'Siliniyor...' : 'Kullanıcıyı Tamamen Sil (Hard Delete)'}
                   </button>
