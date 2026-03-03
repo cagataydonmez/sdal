@@ -164,7 +164,6 @@ export default function AdminPage() {
   const [teams, setTeams] = useState([]);
 
   const [verifRequests, setVerifRequests] = useState([]);
-  const [verifyUpdate, setVerifyUpdate] = useState({ userId: '', verified: '1' });
 
   const [events, setEvents] = useState([]);
   const [eventForm, setEventForm] = useState({ title: '', body: '', date: '' });
@@ -556,11 +555,6 @@ export default function AdminPage() {
       });
       setStatus('Traffic önerisi forma uygulandı. İlgili variantları kaydet.');
     }
-  }
-
-  async function updateVerify() {
-    await apiJson('/api/new/admin/verify', { method: 'POST', body: JSON.stringify(verifyUpdate) });
-    setStatus('Doğrulama güncellendi.');
   }
 
   async function loadCategories() {
@@ -1430,6 +1424,18 @@ export default function AdminPage() {
                 <div className="panel-body">
                   <h3>Üye Düzenle</h3>
                   <div className="form-row">
+                    <label>Profil Fotoğrafı</label>
+                    <div className="admin-user-item-main">
+                      <img className="admin-user-badge" src={userForm.resim ? `/api/media/vesikalik/${userForm.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={`@${userForm.kadi}`} />
+                      <div>
+                        <div className="name">@{userForm.kadi}</div>
+                        <div className="meta">
+                          {Number(userForm.verified || 0) === 1 ? 'Doğrulandı ✓' : 'Doğrulanmadı'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="form-row">
                     <label>İsim</label>
                     <input className="input" value={userForm.isim || ''} onChange={(e) => setUserForm({ ...userForm, isim: e.target.value })} />
                   </div>
@@ -1471,6 +1477,17 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div className="form-row">
+                    <label>Doğrulama Rozeti</label>
+                    <select className="input" value={String(userForm.verified ?? 0)} onChange={(e) => setUserForm({ ...userForm, verified: Number(e.target.value) })}>
+                      <option value="1">Doğrula</option>
+                      <option value="0">Kaldır</option>
+                    </select>
+                  </div>
+                  <div className="form-row">
+                    <label>Mezuniyet Yılı</label>
+                    <input className="input" value={userForm.mezuniyetyili || ''} onChange={(e) => setUserForm({ ...userForm, mezuniyetyili: e.target.value })} placeholder="Örn: 2008 veya teacher" />
+                  </div>
+                  <div className="form-row">
                     <label>Rol</label>
                     {!isRootUser && selectedUserIsAdminRole ? (
                       <div className="muted">Bu kullanıcı admin rolünde. Admin rolünü sadece root atayabilir veya geri alabilir.</div>
@@ -1502,18 +1519,6 @@ export default function AdminPage() {
             ) : (
               <div className="muted">Üye düzenleme ekranı yüklenemedi.</div>
             )}
-
-            {!userEditScreenOpen ? (
-              <div className="form-row">
-                <label>Doğrulama Rozeti</label>
-                <input className="input" placeholder="Üye ID" value={verifyUpdate.userId} onChange={(e) => setVerifyUpdate({ ...verifyUpdate, userId: e.target.value })} />
-                <select className="input" value={verifyUpdate.verified} onChange={(e) => setVerifyUpdate({ ...verifyUpdate, verified: e.target.value })}>
-                  <option value="1">Doğrula</option>
-                  <option value="0">Kaldır</option>
-                </select>
-                <button className="btn" onClick={updateVerify}>Güncelle</button>
-              </div>
-            ) : null}
           </div>
 
           {userProfilePreview ? (
