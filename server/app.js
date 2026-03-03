@@ -4541,7 +4541,9 @@ function queryAdminUsers(rawQuery = {}) {
   const maxScoreRaw = String(rawQuery.maxScore ?? rawQuery.max_score ?? '').trim();
   const minScore = minScoreRaw === '' ? NaN : Number(minScoreRaw);
   const maxScore = maxScoreRaw === '' ? NaN : Number(maxScoreRaw);
-  const limit = Math.min(Math.max(parseInt(rawQuery.limit || '500', 10), 1), 2000);
+  const limit = Math.min(Math.max(parseInt(rawQuery.limit || '20', 10), 1), 100);
+  const page = Math.max(parseInt(rawQuery.page || '1', 10), 1);
+  const offset = (page - 1) * limit;
   const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR LOWER(CAST(u.aktiv AS TEXT)) IN ('true','evet','yes'))";
   const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR LOWER(CAST(u.yasak AS TEXT)) IN ('true','evet','yes'))";
   const onlineExpr = "(COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))";
@@ -4612,8 +4614,8 @@ function queryAdminUsers(rawQuery = {}) {
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
      ${where}
      ORDER BY ${orderBy}
-     LIMIT ?`,
-    [...params, limit]
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
   );
 
   return {
@@ -4621,6 +4623,9 @@ function queryAdminUsers(rawQuery = {}) {
     meta: {
       total,
       returned: users.length,
+      page,
+      pages: Math.max(Math.ceil(total / limit), 1),
+      limit,
       filter,
       sort,
       withPhoto,
