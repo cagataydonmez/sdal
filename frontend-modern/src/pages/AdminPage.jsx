@@ -91,6 +91,8 @@ export default function AdminPage() {
   const [usersMeta, setUsersMeta] = useState({ total: 0, returned: 0, page: 1, pages: 1, limit: 20 });
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(20);
+  const [userEditScreenOpen, setUserEditScreenOpen] = useState(false);
+  const [userProfilePreview, setUserProfilePreview] = useState(null);
   const [userDeleteBusy, setUserDeleteBusy] = useState(false);
   const [roleSaveBusy, setRoleSaveBusy] = useState(false);
   const [rootStatus, setRootStatus] = useState({ hasRoot: false, rootUser: null, bootstrapPasswordConfigured: false });
@@ -337,6 +339,24 @@ export default function AdminPage() {
     const data = await apiJson(`/api/admin/users/${id}`);
     setUserDetail(data.user);
     setUserForm(data.user);
+  }
+
+  async function openUserEdit(id) {
+    await loadUserDetail(id);
+    setUserEditScreenOpen(true);
+  }
+
+  function closeUserEditScreen() {
+    setUserEditScreenOpen(false);
+  }
+
+  function openUserProfilePreview(userRow) {
+    if (!userRow?.id) return;
+    setUserProfilePreview({ id: userRow.id, kadi: userRow.kadi || 'uye' });
+  }
+
+  function closeUserProfilePreview() {
+    setUserProfilePreview(null);
   }
 
   async function saveUser() {
@@ -1263,212 +1283,250 @@ export default function AdminPage() {
       ) : null}
 
       {tab === 'users' ? (
-        <div className="panel">
+        <div className="panel"> 
           <div className="panel-body">
-            <div className="stack">
-              <div className="form-row">
-                <label>Liste Filtresi</label>
-                <select className="input" value={userFilter} onChange={(e) => { setUserFilter(e.target.value); setUserPage(1); }}>
-                  <option value="active">Aktif</option>
-                  <option value="pending">Bekleyen</option>
-                  <option value="banned">Yasaklı</option>
-                  <option value="online">Online</option>
-                  <option value="recent">Son giriş</option>
-                  <option value="all">Tümü</option>
-                </select>
-                <select className="input" value={userSort} onChange={(e) => { setUserSort(e.target.value); setUserPage(1); }}>
-                  <option value="engagement_desc">Skor: Yüksekten Düşüğe</option>
-                  <option value="engagement_asc">Skor: Düşükten Yükseğe</option>
-                  <option value="online">Online Önce</option>
-                  <option value="recent">Son Giriş</option>
-                  <option value="name">Ada Göre</option>
-                </select>
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  max="100"
-                  placeholder="Min skor"
-                  value={userMinScore}
-                  onChange={(e) => { setUserMinScore(e.target.value); setUserPage(1); }}
-                />
-                <select className="input" value={userPageSize} onChange={(e) => { setUserPageSize(Number(e.target.value)); setUserPage(1); }}>
-                  <option value={20}>20 / sayfa</option>
-                  <option value={40}>40 / sayfa</option>
-                  <option value={80}>80 / sayfa</option>
-                </select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={userVerifiedOnly}
-                    onChange={(e) => { setUserVerifiedOnly(e.target.checked); setUserPage(1); }}
-                  />
-                  Verified
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={userOnlineOnly}
-                    onChange={(e) => { setUserOnlineOnly(e.target.checked); setUserPage(1); }}
-                  />
-                  Sadece online
-                </label>
-                <button className="btn ghost" onClick={() => loadUsers(userFilter)}>Yenile</button>
-              </div>
-              <div className="form-row">
-                <label>Arama</label>
-                <input className="input" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={userSearchPhotoOnly}
-                    onChange={(e) => { setUserSearchPhotoOnly(e.target.checked); setUserPage(1); }}
-                  />
-                  Sadece fotoğrafı olanlar
-                </label>
-                <button className="btn" onClick={searchUsers}>Ara</button>
-                <button
-                  className="btn ghost"
-                  onClick={() => {
-                    setUserQuery('');
-                    setUserSearchPhotoOnly(false);
-                    setUserVerifiedOnly(false);
-                    setUserOnlineOnly(false);
-                    setUserMinScore('');
-                    setUserSort('engagement_desc');
-                    setUserPage(1);
-                    loadUsers(userFilter, {
-                      page: 1,
-                      query: '',
-                      photoOnly: false,
-                      verifiedOnly: false,
-                      onlineOnly: false,
-                      minScore: '',
-                      sort: 'engagement_desc'
-                    });
-                  }}
-                >
-                  Temizle
-                </button>
-              </div>
-              <div className="composer-actions">
-                <span className="chip">Mod: {userMode === 'search' ? 'Arama Sonucu' : 'Filtre Listesi'}</span>
-                <span className="chip">Toplam: {userSummary.total}</span>
-                <span className="chip">Sunucuda Eşleşen: {usersMeta.total}</span>
-                <span className="chip">Aktif: {userSummary.active}</span>
-                <span className="chip">Bekleyen: {userSummary.pending}</span>
-                <span className="chip">Yasaklı: {userSummary.banned}</span>
-                <span className="chip">Online: {userSummary.online}</span>
-              </div>
-            </div>
-            {usersLoading ? <div className="muted">Üyeler yükleniyor...</div> : null}
-            <div className="list">
-              {users.map((u) => (
-                <button key={u.id} className="list-item admin-user-item" onClick={() => { loadUserDetail(u.id); window.open(`/new/members/${u.id}`, '_blank', 'noopener'); }}>
-                  <div className="admin-user-item-main">
-                    <img className="admin-user-badge" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={`@${u.kadi}`} />
-                    <div>
-                    <div className="name">@{u.kadi}</div>
-                    <div className="meta">{u.isim} {u.soyisim}</div>
-                    <div className="meta">
-                      Skor: {Number(u.engagement_score || 0).toFixed(1)} / 100
-                      {Number(u.online || 0) === 1 ? ' • Online' : ''}
-                      {Number(u.verified || 0) === 1 ? ' • Verified' : ''}
-                      {u.role ? ` • Rol: ${String(u.role).toLowerCase()}` : ''}
-                    </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="composer-actions">
-              <button className="btn ghost" disabled={userPage <= 1 || usersLoading} onClick={() => setUserPage((prev) => Math.max(prev - 1, 1))}>Önceki</button>
-              <span className="chip">Sayfa {usersMeta.page || userPage} / {usersMeta.pages || 1}</span>
-              <button className="btn ghost" disabled={(usersMeta.page || userPage) >= (usersMeta.pages || 1) || usersLoading} onClick={() => setUserPage((prev) => prev + 1)}>Sonraki</button>
-            </div>
-            {userForm ? (
-              <div className="panel-body">
-                <h3>Üye Düzenle</h3>
-                <div className="form-row">
-                  <label>İsim</label>
-                  <input className="input" value={userForm.isim || ''} onChange={(e) => setUserForm({ ...userForm, isim: e.target.value })} />
-                </div>
-                <div className="form-row">
-                  <label>Soyisim</label>
-                  <input className="input" value={userForm.soyisim || ''} onChange={(e) => setUserForm({ ...userForm, soyisim: e.target.value })} />
-                </div>
-                <div className="form-row">
-                  <label>Email</label>
-                  <input className="input" value={userForm.email || ''} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} />
-                </div>
-                <div className="form-row">
-                  <label>Etkileşim Skoru</label>
-                  <input className="input" value={`${Number(userForm.engagement_score || 0).toFixed(1)} / 100`} readOnly />
-                  <div className="muted">
-                    Güncellendi: {userForm.engagement_updated_at ? new Date(userForm.engagement_updated_at).toLocaleString('tr-TR') : '-'}
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label>Şifre (yalnızca gerekiyorsa)</label>
-                  <input className="input" type="password" value={userForm.sifre || ''} onChange={(e) => setUserForm({ ...userForm, sifre: e.target.value })} />
-                </div>
-                <div className="form-row">
-                  <label>Aktivasyon</label>
-                  <input className="input" value={userForm.aktivasyon || ''} onChange={(e) => setUserForm({ ...userForm, aktivasyon: e.target.value })} />
-                </div>
-                <div className="form-row">
-                  <label>Aktif</label>
-                  <select className="input" value={userForm.aktiv ?? 1} onChange={(e) => setUserForm({ ...userForm, aktiv: Number(e.target.value) })}>
-                    <option value={1}>Aktif</option>
-                    <option value={0}>Pasif</option>
-                  </select>
-                </div>
-                <div className="form-row">
-                  <label>Yasak</label>
-                  <select className="input" value={userForm.yasak ?? 0} onChange={(e) => setUserForm({ ...userForm, yasak: Number(e.target.value) })}>
-                    <option value={0}>Hayır</option>
-                    <option value={1}>Evet</option>
-                  </select>
-                </div>
-                <div className="form-row">
-                  <label>Rol</label>
-                  {!isRootUser && selectedUserIsAdminRole ? (
-                    <div className="muted">Bu kullanıcı admin rolünde. Admin rolünü sadece root atayabilir veya geri alabilir.</div>
-                  ) : (
-                    <select
-                      className="input"
-                      value={selectedUserRole}
-                      onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                      disabled={!canManageRoles}
-                    >
-                      <option value="user">user</option>
-                      <option value="mod">mod</option>
-                      {isRootUser ? <option value="admin">admin</option> : null}
-                      {selectedUserIsRootRole ? <option value="root">root</option> : null}
+            {!userEditScreenOpen ? (
+              <>
+                <div className="stack">
+                  <div className="form-row">
+                    <label>Liste Filtresi</label>
+                    <select className="input" value={userFilter} onChange={(e) => { setUserFilter(e.target.value); setUserPage(1); }}>
+                      <option value="active">Aktif</option>
+                      <option value="pending">Bekleyen</option>
+                      <option value="banned">Yasaklı</option>
+                      <option value="online">Online</option>
+                      <option value="recent">Son giriş</option>
+                      <option value="all">Tümü</option>
                     </select>
-                  )}
-                  {!canManageRoles ? <div className="muted">Rol güncelleme için admin yetkisi gerekir.</div> : null}
-                  {!isRootUser ? <div className="muted">Admin kullanıcıları yalnızca user/mod rolü atayabilir.</div> : null}
+                    <select className="input" value={userSort} onChange={(e) => { setUserSort(e.target.value); setUserPage(1); }}>
+                      <option value="engagement_desc">Skor: Yüksekten Düşüğe</option>
+                      <option value="engagement_asc">Skor: Düşükten Yükseğe</option>
+                      <option value="online">Online Önce</option>
+                      <option value="recent">Son Giriş</option>
+                      <option value="name">Ada Göre</option>
+                    </select>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Min skor"
+                      value={userMinScore}
+                      onChange={(e) => { setUserMinScore(e.target.value); setUserPage(1); }}
+                    />
+                    <select className="input" value={userPageSize} onChange={(e) => { setUserPageSize(Number(e.target.value)); setUserPage(1); }}>
+                      <option value={20}>20 / sayfa</option>
+                      <option value={40}>40 / sayfa</option>
+                      <option value={80}>80 / sayfa</option>
+                    </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={userVerifiedOnly}
+                        onChange={(e) => { setUserVerifiedOnly(e.target.checked); setUserPage(1); }}
+                      />
+                      Verified
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={userOnlineOnly}
+                        onChange={(e) => { setUserOnlineOnly(e.target.checked); setUserPage(1); }}
+                      />
+                      Sadece online
+                    </label>
+                    <button className="btn ghost" onClick={() => loadUsers(userFilter)}>Yenile</button>
+                  </div>
+                  <div className="form-row">
+                    <label>Arama</label>
+                    <input className="input" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={userSearchPhotoOnly}
+                        onChange={(e) => { setUserSearchPhotoOnly(e.target.checked); setUserPage(1); }}
+                      />
+                      Sadece fotoğrafı olanlar
+                    </label>
+                    <button className="btn" onClick={searchUsers}>Ara</button>
+                    <button
+                      className="btn ghost"
+                      onClick={() => {
+                        setUserQuery('');
+                        setUserSearchPhotoOnly(false);
+                        setUserVerifiedOnly(false);
+                        setUserOnlineOnly(false);
+                        setUserMinScore('');
+                        setUserSort('engagement_desc');
+                        setUserPage(1);
+                        loadUsers(userFilter, {
+                          page: 1,
+                          query: '',
+                          photoOnly: false,
+                          verifiedOnly: false,
+                          onlineOnly: false,
+                          minScore: '',
+                          sort: 'engagement_desc'
+                        });
+                      }}
+                    >
+                      Temizle
+                    </button>
+                  </div>
+                  <div className="composer-actions">
+                    <span className="chip">Mod: {userMode === 'search' ? 'Arama Sonucu' : 'Filtre Listesi'}</span>
+                    <span className="chip">Toplam: {userSummary.total}</span>
+                    <span className="chip">Sunucuda Eşleşen: {usersMeta.total}</span>
+                    <span className="chip">Aktif: {userSummary.active}</span>
+                    <span className="chip">Bekleyen: {userSummary.pending}</span>
+                    <span className="chip">Yasaklı: {userSummary.banned}</span>
+                    <span className="chip">Online: {userSummary.online}</span>
+                  </div>
+                </div>
+                {usersLoading ? <div className="muted">Üyeler yükleniyor...</div> : null}
+                <div className="list">
+                  {users.map((u) => (
+                    <div key={u.id} className="list-item admin-user-item" role="button" tabIndex={0} onClick={() => openUserEdit(u.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openUserEdit(u.id); }}>
+                      <div className="admin-user-item-main">
+                        <img className="admin-user-badge" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={`@${u.kadi}`} />
+                        <div>
+                          <div className="name">@{u.kadi}</div>
+                          <div className="meta">{u.isim} {u.soyisim}</div>
+                          <div className="meta">
+                            Skor: {Number(u.engagement_score || 0).toFixed(1)} / 100
+                            {Number(u.online || 0) === 1 ? ' • Online' : ''}
+                            {Number(u.verified || 0) === 1 ? ' • Verified' : ''}
+                            {u.role ? ` • Rol: ${String(u.role).toLowerCase()}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn ghost icon-btn admin-user-preview-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openUserProfilePreview(u);
+                        }}
+                        aria-label={`@${u.kadi} profilini önizle`}
+                        title="Profil detayını aç"
+                      >
+                        👁️
+                      </button>
+                    </div>
+                  ))}
                 </div>
                 <div className="composer-actions">
-                  <button className="btn primary" onClick={saveUser}>Kaydet</button>
-                  {canManageRoles ? <button className="btn" onClick={updateUserRole} disabled={!canEditSelectedUserRole || roleSaveBusy}>{roleSaveBusy ? 'Rol Kaydediliyor...' : 'Rolü Kaydet'}</button> : null}
-                  <button className="btn ghost delete" onClick={deleteUserProfile} disabled={userDeleteBusy} style={{ color: '#ef4444' }}>
-                    {userDeleteBusy ? 'Siliniyor...' : 'Kullanıcıyı Tamamen Sil (Hard Delete)'}
-                  </button>
+                  <button className="btn ghost" disabled={userPage <= 1 || usersLoading} onClick={() => setUserPage((prev) => Math.max(prev - 1, 1))}>Önceki</button>
+                  <span className="chip">Sayfa {usersMeta.page || userPage} / {usersMeta.pages || 1}</span>
+                  <button className="btn ghost" disabled={(usersMeta.page || userPage) >= (usersMeta.pages || 1) || usersLoading} onClick={() => setUserPage((prev) => prev + 1)}>Sonraki</button>
+                </div>
+              </>
+            ) : userForm ? (
+              <div className="stack">
+                <div className="composer-actions">
+                  <button className="btn ghost icon-btn" onClick={closeUserEditScreen} aria-label="Üye listesine dön">⬅️ Listeye Dön</button>
+                  <span className="chip">Düzenlenen Üye: @{userForm.kadi}</span>
+                </div>
+                <div className="panel-body">
+                  <h3>Üye Düzenle</h3>
+                  <div className="form-row">
+                    <label>İsim</label>
+                    <input className="input" value={userForm.isim || ''} onChange={(e) => setUserForm({ ...userForm, isim: e.target.value })} />
+                  </div>
+                  <div className="form-row">
+                    <label>Soyisim</label>
+                    <input className="input" value={userForm.soyisim || ''} onChange={(e) => setUserForm({ ...userForm, soyisim: e.target.value })} />
+                  </div>
+                  <div className="form-row">
+                    <label>Email</label>
+                    <input className="input" value={userForm.email || ''} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} />
+                  </div>
+                  <div className="form-row">
+                    <label>Etkileşim Skoru</label>
+                    <input className="input" value={`${Number(userForm.engagement_score || 0).toFixed(1)} / 100`} readOnly />
+                    <div className="muted">
+                      Güncellendi: {userForm.engagement_updated_at ? new Date(userForm.engagement_updated_at).toLocaleString('tr-TR') : '-'}
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <label>Şifre (yalnızca gerekiyorsa)</label>
+                    <input className="input" type="password" value={userForm.sifre || ''} onChange={(e) => setUserForm({ ...userForm, sifre: e.target.value })} />
+                  </div>
+                  <div className="form-row">
+                    <label>Aktivasyon</label>
+                    <input className="input" value={userForm.aktivasyon || ''} onChange={(e) => setUserForm({ ...userForm, aktivasyon: e.target.value })} />
+                  </div>
+                  <div className="form-row">
+                    <label>Aktif</label>
+                    <select className="input" value={userForm.aktiv ?? 1} onChange={(e) => setUserForm({ ...userForm, aktiv: Number(e.target.value) })}>
+                      <option value={1}>Aktif</option>
+                      <option value={0}>Pasif</option>
+                    </select>
+                  </div>
+                  <div className="form-row">
+                    <label>Yasak</label>
+                    <select className="input" value={userForm.yasak ?? 0} onChange={(e) => setUserForm({ ...userForm, yasak: Number(e.target.value) })}>
+                      <option value={0}>Hayır</option>
+                      <option value={1}>Evet</option>
+                    </select>
+                  </div>
+                  <div className="form-row">
+                    <label>Rol</label>
+                    {!isRootUser && selectedUserIsAdminRole ? (
+                      <div className="muted">Bu kullanıcı admin rolünde. Admin rolünü sadece root atayabilir veya geri alabilir.</div>
+                    ) : (
+                      <select
+                        className="input"
+                        value={selectedUserRole}
+                        onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                        disabled={!canManageRoles}
+                      >
+                        <option value="user">user</option>
+                        <option value="mod">mod</option>
+                        {isRootUser ? <option value="admin">admin</option> : null}
+                        {selectedUserIsRootRole ? <option value="root">root</option> : null}
+                      </select>
+                    )}
+                    {!canManageRoles ? <div className="muted">Rol güncelleme için admin yetkisi gerekir.</div> : null}
+                    {!isRootUser ? <div className="muted">Admin kullanıcıları yalnızca user/mod rolü atayabilir.</div> : null}
+                  </div>
+                  <div className="composer-actions">
+                    <button className="btn primary" onClick={saveUser}>Kaydet</button>
+                    {canManageRoles ? <button className="btn" onClick={updateUserRole} disabled={!canEditSelectedUserRole || roleSaveBusy}>{roleSaveBusy ? 'Rol Kaydediliyor...' : 'Rolü Kaydet'}</button> : null}
+                    <button className="btn ghost delete" onClick={deleteUserProfile} disabled={userDeleteBusy} style={{ color: '#ef4444' }}>
+                      {userDeleteBusy ? 'Siliniyor...' : 'Kullanıcıyı Tamamen Sil (Hard Delete)'}
+                    </button>
+                  </div>
                 </div>
               </div>
+            ) : (
+              <div className="muted">Üye düzenleme ekranı yüklenemedi.</div>
+            )}
+
+            {!userEditScreenOpen ? (
+              <div className="form-row">
+                <label>Doğrulama Rozeti</label>
+                <input className="input" placeholder="Üye ID" value={verifyUpdate.userId} onChange={(e) => setVerifyUpdate({ ...verifyUpdate, userId: e.target.value })} />
+                <select className="input" value={verifyUpdate.verified} onChange={(e) => setVerifyUpdate({ ...verifyUpdate, verified: e.target.value })}>
+                  <option value="1">Doğrula</option>
+                  <option value="0">Kaldır</option>
+                </select>
+                <button className="btn" onClick={updateVerify}>Güncelle</button>
+              </div>
             ) : null}
-            <div className="form-row">
-              <label>Doğrulama Rozeti</label>
-              <input className="input" placeholder="Üye ID" value={verifyUpdate.userId} onChange={(e) => setVerifyUpdate({ ...verifyUpdate, userId: e.target.value })} />
-              <select className="input" value={verifyUpdate.verified} onChange={(e) => setVerifyUpdate({ ...verifyUpdate, verified: e.target.value })}>
-                <option value="1">Doğrula</option>
-                <option value="0">Kaldır</option>
-              </select>
-              <button className="btn" onClick={updateVerify}>Güncelle</button>
-            </div>
           </div>
+
+          {userProfilePreview ? (
+            <div className="admin-profile-modal-backdrop" role="dialog" aria-modal="true" aria-label={`@${userProfilePreview.kadi} profil detayı`}>
+              <div className="admin-profile-modal">
+                <div className="admin-profile-modal-head">
+                  <strong>@{userProfilePreview.kadi} profil detayı</strong>
+                  <button className="btn ghost icon-btn" onClick={closeUserProfilePreview} aria-label="Profil detayını kapat">✖️ Kapat</button>
+                </div>
+                <iframe title={`@${userProfilePreview.kadi} profil`} src={`/new/members/${userProfilePreview.id}`} className="admin-profile-modal-frame" />
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
