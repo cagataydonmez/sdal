@@ -21,6 +21,13 @@
   padding: 10px;
 }
 
+@media (min-width: 1025px) {
+  .content:has(> .panel:only-child) {
+    width: min(100%, 920px);
+    margin-inline: auto;
+  }
+}
+
 .top-bar {
   display: flex;
   justify-content: space-between;
