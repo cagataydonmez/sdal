@@ -2907,6 +2907,21 @@ async function sendMail({ to, subject, html, from }) {
   await mailTransport.sendMail({ from: sender, to, subject, html });
 }
 
+async function sendMailWithTimeout(payload, timeoutMs = Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000)) {
+  const safeTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 8000;
+  let timer = null;
+  try {
+    await Promise.race([
+      sendMail(payload),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Mail send timeout')), safeTimeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function normalizeEmail(email) {
   return String(email || '').trim();
 }
@@ -4760,7 +4775,7 @@ app.post('/api/register', async (req, res) => {
 
   let mailSent = true;
   try {
-    await sendMail({ to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html });
+    await sendMailWithTimeout({ to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html });
   } catch (err) {
     mailSent = false;
     console.error('Register activation mail send failed:', err);
