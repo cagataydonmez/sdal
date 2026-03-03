@@ -265,3 +265,22 @@
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
+
+.admin-user-item {
+  justify-content: flex-start;
+}
+
+.admin-user-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.admin-user-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}

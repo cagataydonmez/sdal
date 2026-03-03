@@ -88,7 +88,9 @@ export default function AdminPage() {
   const [userMode, setUserMode] = useState('filter');
   const [userDetail, setUserDetail] = useState(null);
   const [userForm, setUserForm] = useState(null);
-  const [usersMeta, setUsersMeta] = useState({ total: 0, returned: 0 });
+  const [usersMeta, setUsersMeta] = useState({ total: 0, returned: 0, page: 1, pages: 1, limit: 20 });
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(20);
   const [userDeleteBusy, setUserDeleteBusy] = useState(false);
   const [roleSaveBusy, setRoleSaveBusy] = useState(false);
   const [rootStatus, setRootStatus] = useState({ hasRoot: false, rootUser: null, bootstrapPasswordConfigured: false });
@@ -262,8 +264,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (tab !== 'users' || !canUseAdminApis) return;
-    loadUsers(userFilter).catch((err) => setStatus(err.message || 'Üyeler yüklenemedi.'));
-  }, [tab, user, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore]);
+    loadUsers(userFilter, { page: userPage }).catch((err) => setStatus(err.message || 'Üyeler yüklenemedi.'));
+  }, [tab, user, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore, userPage, userPageSize]);
 
   useEffect(() => {
     if (tab !== 'dashboard' || !dashboardAutoRefresh || !canUseAdminApis) return undefined;
@@ -297,10 +299,13 @@ export default function AdminPage() {
       const effectiveVerifiedOnly = overrides.verifiedOnly ?? userVerifiedOnly;
       const effectiveOnlineOnly = overrides.onlineOnly ?? userOnlineOnly;
       const effectiveMinScore = String(overrides.minScore ?? userMinScore ?? '').trim();
+      const effectivePage = Math.max(Number(overrides.page || userPage || 1), 1);
+      const effectiveLimit = Math.max(Number(overrides.limit || userPageSize || 20), 1);
       const params = new URLSearchParams({
         filter: filterValue,
         sort: effectiveSort,
-        limit: '800'
+        page: String(effectivePage),
+        limit: String(effectiveLimit)
       });
       if (effectiveQuery) params.set('q', effectiveQuery);
       if (effectivePhotoOnly) params.set('photo', '1');
@@ -309,7 +314,14 @@ export default function AdminPage() {
       if (effectiveMinScore) params.set('minScore', effectiveMinScore);
       const data = await apiJson(`/api/admin/users/lists?${params.toString()}`);
       setUsers(data.users || []);
-      setUsersMeta({ total: Number(data.meta?.total || 0), returned: Number(data.meta?.returned || 0) });
+      setUsersMeta({
+        total: Number(data.meta?.total || 0),
+        returned: Number(data.meta?.returned || 0),
+        page: Number(data.meta?.page || effectivePage),
+        pages: Number(data.meta?.pages || 1),
+        limit: Number(data.meta?.limit || effectiveLimit)
+      });
+      setUserPage(Number(data.meta?.page || effectivePage));
       setUserMode(effectiveQuery || effectivePhotoOnly ? 'search' : 'filter');
     } finally {
       setUsersLoading(false);
@@ -317,7 +329,8 @@ export default function AdminPage() {
   }
 
   async function searchUsers() {
-    await loadUsers(userFilter);
+    setUserPage(1);
+    await loadUsers(userFilter, { page: 1 });
   }
 
   async function loadUserDetail(id) {
@@ -1255,7 +1268,7 @@ export default function AdminPage() {
             <div className="stack">
               <div className="form-row">
                 <label>Liste Filtresi</label>
-                <select className="input" value={userFilter} onChange={(e) => setUserFilter(e.target.value)}>
+                <select className="input" value={userFilter} onChange={(e) => { setUserFilter(e.target.value); setUserPage(1); }}>
                   <option value="active">Aktif</option>
                   <option value="pending">Bekleyen</option>
                   <option value="banned">Yasaklı</option>
@@ -1263,7 +1276,7 @@ export default function AdminPage() {
                   <option value="recent">Son giriş</option>
                   <option value="all">Tümü</option>
                 </select>
-                <select className="input" value={userSort} onChange={(e) => setUserSort(e.target.value)}>
+                <select className="input" value={userSort} onChange={(e) => { setUserSort(e.target.value); setUserPage(1); }}>
                   <option value="engagement_desc">Skor: Yüksekten Düşüğe</option>
                   <option value="engagement_asc">Skor: Düşükten Yükseğe</option>
                   <option value="online">Online Önce</option>
@@ -1277,13 +1290,18 @@ export default function AdminPage() {
                   max="100"
                   placeholder="Min skor"
                   value={userMinScore}
-                  onChange={(e) => setUserMinScore(e.target.value)}
+                  onChange={(e) => { setUserMinScore(e.target.value); setUserPage(1); }}
                 />
+                <select className="input" value={userPageSize} onChange={(e) => { setUserPageSize(Number(e.target.value)); setUserPage(1); }}>
+                  <option value={20}>20 / sayfa</option>
+                  <option value={40}>40 / sayfa</option>
+                  <option value={80}>80 / sayfa</option>
+                </select>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input
                     type="checkbox"
                     checked={userVerifiedOnly}
-                    onChange={(e) => setUserVerifiedOnly(e.target.checked)}
+                    onChange={(e) => { setUserVerifiedOnly(e.target.checked); setUserPage(1); }}
                   />
                   Verified
                 </label>
@@ -1291,7 +1309,7 @@ export default function AdminPage() {
                   <input
                     type="checkbox"
                     checked={userOnlineOnly}
-                    onChange={(e) => setUserOnlineOnly(e.target.checked)}
+                    onChange={(e) => { setUserOnlineOnly(e.target.checked); setUserPage(1); }}
                   />
                   Sadece online
                 </label>
@@ -1304,7 +1322,7 @@ export default function AdminPage() {
                   <input
                     type="checkbox"
                     checked={userSearchPhotoOnly}
-                    onChange={(e) => setUserSearchPhotoOnly(e.target.checked)}
+                    onChange={(e) => { setUserSearchPhotoOnly(e.target.checked); setUserPage(1); }}
                   />
                   Sadece fotoğrafı olanlar
                 </label>
@@ -1318,7 +1336,9 @@ export default function AdminPage() {
                     setUserOnlineOnly(false);
                     setUserMinScore('');
                     setUserSort('engagement_desc');
+                    setUserPage(1);
                     loadUsers(userFilter, {
+                      page: 1,
                       query: '',
                       photoOnly: false,
                       verifiedOnly: false,
@@ -1344,18 +1364,27 @@ export default function AdminPage() {
             {usersLoading ? <div className="muted">Üyeler yükleniyor...</div> : null}
             <div className="list">
               {users.map((u) => (
-                <button key={u.id} className="list-item" onClick={() => loadUserDetail(u.id)}>
-                  <div>
-                    <div className="name">@{u.kadi} ({u.isim} {u.soyisim})</div>
+                <button key={u.id} className="list-item admin-user-item" onClick={() => { loadUserDetail(u.id); window.open(`/new/members/${u.id}`, '_blank', 'noopener'); }}>
+                  <div className="admin-user-item-main">
+                    <img className="admin-user-badge" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={`@${u.kadi}`} />
+                    <div>
+                    <div className="name">@{u.kadi}</div>
+                    <div className="meta">{u.isim} {u.soyisim}</div>
                     <div className="meta">
                       Skor: {Number(u.engagement_score || 0).toFixed(1)} / 100
                       {Number(u.online || 0) === 1 ? ' • Online' : ''}
                       {Number(u.verified || 0) === 1 ? ' • Verified' : ''}
                       {u.role ? ` • Rol: ${String(u.role).toLowerCase()}` : ''}
                     </div>
+                    </div>
                   </div>
                 </button>
               ))}
+            </div>
+            <div className="composer-actions">
+              <button className="btn ghost" disabled={userPage <= 1 || usersLoading} onClick={() => setUserPage((prev) => Math.max(prev - 1, 1))}>Önceki</button>
+              <span className="chip">Sayfa {usersMeta.page || userPage} / {usersMeta.pages || 1}</span>
+              <button className="btn ghost" disabled={(usersMeta.page || userPage) >= (usersMeta.pages || 1) || usersLoading} onClick={() => setUserPage((prev) => prev + 1)}>Sonraki</button>
             </div>
             {userForm ? (
               <div className="panel-body">
