@@ -53,8 +53,10 @@ export default function ProfilePage() {
   async function save() {
     setError('');
     setStatus('');
-    const gradYear = parseInt(String(profile.mezuniyetyili || '').trim(), 10);
-    if (!Number.isFinite(gradYear) || gradYear < 1999) {
+    const cohortValue = String(profile.mezuniyetyili || '').trim().toLowerCase();
+    const gradYear = parseInt(cohortValue, 10);
+    const isTeacher = cohortValue === 'teacher';
+    if ((!Number.isFinite(gradYear) || gradYear < 1999) && !isTeacher) {
       setError(t('profile_error_graduation_required'));
       return;
     }
@@ -229,7 +231,8 @@ export default function ProfilePage() {
           <div className="form-row">
             <label>{t('profile_graduation')}</label>
             <select className="input" value={String(profile.mezuniyetyili || '0')} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })} disabled={Number(user?.verified || 0) === 1}>
-              <option value="0">Mezuniyet yılı seçiniz</option>
+              <option value="0">Mezuniyet yılı / grup seçiniz</option>
+              <option value="teacher">Öğretmen (SDAL)</option>
               {graduationYears.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
           </div>

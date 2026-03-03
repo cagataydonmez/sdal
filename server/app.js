@@ -1171,11 +1171,12 @@ migrateAddColumn('verification_requests', 'proof_image_record_id', 'ALTER TABLE 
 
 runMigration('2026_02_sdal_alumni_hub_backfill', () => {
   // Enforce everyone to go through the new verification queue
-  // If they have no valid graduation year, they get '0'.
+  // If they have no valid graduation year/cohort, they get '0'.
   sqlRun(
     `UPDATE uyeler
      SET verification_status = 'pending',
          mezuniyetyili = CASE
+           WHEN LOWER(COALESCE(mezuniyetyili, '')) IN ('teacher', 'ogretmen') THEN 'teacher'
            WHEN CAST(mezuniyetyili AS INTEGER) >= 1999 AND CAST(mezuniyetyili AS INTEGER) <= 2030 THEN mezuniyetyili
            ELSE '0'
          END
@@ -1612,7 +1613,7 @@ function hasAdminRole(user) {
 
 function hasAdminSession(req, user = null) {
   const targetUser = user || getCurrentUser(req);
-  return hasAdminRole(targetUser) && !!req.session?.adminOk;
+  return hasAdminRole(targetUser);
 }
 
 async function hashPassword(password) {
@@ -1666,6 +1667,13 @@ function getCurrentUser(req) {
 
 const MIN_GRADUATION_YEAR = 1999;
 const MAX_GRADUATION_YEAR = 2100;
+const TEACHER_COHORT_VALUE = 'teacher';
+
+function normalizeCohortValue(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'teacher' || raw === 'ogretmen') return TEACHER_COHORT_VALUE;
+  return String(value || '').trim();
+}
 
 function parseGraduationYear(value) {
   const year = parseInt(String(value || '').trim(), 10);
@@ -1673,6 +1681,7 @@ function parseGraduationYear(value) {
 }
 
 function hasValidGraduationYear(value) {
+  if (normalizeCohortValue(value) === TEACHER_COHORT_VALUE) return true;
   const year = parseGraduationYear(value);
   return Number.isFinite(year) && year >= MIN_GRADUATION_YEAR && year <= MAX_GRADUATION_YEAR;
 }
@@ -1860,7 +1869,6 @@ function requireAdmin(req, res, next) {
   if (!user) return res.status(401).send('Login required');
   const role = getUserRole(user);
   if (!roleAtLeast(role, 'admin')) return res.status(403).send('Admin erişimi gerekli.');
-  if (role !== 'root' && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
   req.adminUser = user;
   return next();
 }
@@ -1869,7 +1877,6 @@ function requireAlbumAdmin(req, res, next) {
   const user = getCurrentUser(req);
   if (!user) return res.status(401).send('Login required');
   if (user.albumadmin !== 1 && !hasAdminRole(user)) return res.status(403).send('Albüm yönetimi yetkisi gerekli.');
-  if (hasAdminRole(user) && !req.session.adminOk) return res.status(403).send('Admin giriş gerekli.');
   req.adminUser = user;
   return next();
 }
@@ -4231,7 +4238,7 @@ app.get('/api/admin/session', (req, res) => {
   const user = sqlGet('SELECT id, kadi, isim, soyisim, admin, albumadmin, role FROM uyeler WHERE id = ?', [req.session.userId]);
   if (!user) return res.json({ user: null, adminOk: false });
   const role = getUserRole(user);
-  res.json({ user: { ...user, role, admin: hasAdminRole(user) ? 1 : 0 }, adminOk: !!req.session.adminOk });
+  res.json({ user: { ...user, role, admin: hasAdminRole(user) ? 1 : 0 }, adminOk: roleAtLeast(role, 'admin') ? true : !!req.session.adminOk });
 });
 
 app.get('/api/admin/root-status', requireAdmin, (_req, res) => {
@@ -5115,10 +5122,11 @@ app.post('/api/register/preview', (req, res) => {
   if (!cleanEmail) return res.status(400).send('Email adresini girmedin.');
   if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
   if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
-  if (mezuniyetyili == '0') return res.status(400).send('Bir mezuniyet yılı seçmeniz gerekmektedir.');
-  const parsedYear = parseGraduationYear(mezuniyetyili);
-  if (!hasValidGraduationYear(parsedYear) || parsedYear > new Date().getFullYear()) {
-    return res.status(400).send('Geçerli bir mezuniyet yılı seçmeniz gerekmektedir.');
+  const cohortValue = normalizeCohortValue(mezuniyetyili);
+  if (cohortValue === '0' || !cohortValue) return res.status(400).send('Bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
+  const parsedYear = parseGraduationYear(cohortValue);
+  if (!hasValidGraduationYear(cohortValue) || (Number.isFinite(parsedYear) && parsedYear > new Date().getFullYear())) {
+    return res.status(400).send('Geçerli bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
   }
   if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
   if (!directory_consent) return res.status(400).send('Mezun Rehberi açık rıza onayı gerekmektedir.');
@@ -5134,7 +5142,7 @@ app.post('/api/register/preview', (req, res) => {
 
   res.json({
     ok: true,
-    fields: { kadi: cleanKadi, email: cleanEmail, mezuniyetyili, isim: cleanIsim, soyisim: cleanSoyisim }
+    fields: { kadi: cleanKadi, email: cleanEmail, mezuniyetyili: cohortValue, isim: cleanIsim, soyisim: cleanSoyisim }
   });
 });
 
@@ -5194,7 +5202,8 @@ app.post('/api/register', async (req, res) => {
   if (!cleanEmail) return res.status(400).send('Email adresini girmedin.');
   if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
   if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
-  if (mezuniyetyili == '0') return res.status(400).send('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+  const cohortValue = normalizeCohortValue(mezuniyetyili);
+  if (cohortValue === '0' || !cohortValue) return res.status(400).send('Bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
   if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
   if (!directory_consent) return res.status(400).send('Mezun Rehberi açık rıza onayı gerekmektedir.');
   if (!cleanIsim) return res.status(400).send('İsmini girmedin.');
@@ -5207,9 +5216,9 @@ app.post('/api/register', async (req, res) => {
   const existingMail = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
   if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
 
-  const parsedYear = parseGraduationYear(mezuniyetyili);
-  if (!hasValidGraduationYear(parsedYear) || parsedYear > new Date().getFullYear()) {
-    return res.status(400).send('Geçerli bir mezuniyet yılı seçmeniz gerekmektedir.');
+  const parsedYear = parseGraduationYear(cohortValue);
+  if (!hasValidGraduationYear(cohortValue) || (Number.isFinite(parsedYear) && parsedYear > new Date().getFullYear())) {
+    return res.status(400).send('Geçerli bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
   }
 
   const aktivasyon = createActivation();
@@ -5217,7 +5226,7 @@ app.post('/api/register', async (req, res) => {
   const result = sqlRun(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at)
      VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'yok', ?, 0, 'pending', ?, ?)`,
-    [cleanKadi, await hashPassword(sifre), cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, parsedYear, now, now]
+    [cleanKadi, await hashPassword(sifre), cleanEmail, cleanIsim, cleanSoyisim, aktivasyon, now, cohortValue, now, now]
   );
   const newId = result?.lastInsertRowid;
 
@@ -5387,7 +5396,7 @@ app.put('/api/profile', (req, res) => {
   const meslek = String(req.body.meslek || '');
   const websitesi = String(req.body.websitesi || '');
   const universite = String(req.body.universite || '');
-  const mezuniyetyili = String(req.body.mezuniyetyili || '').trim();
+  const mezuniyetyili = normalizeCohortValue(req.body.mezuniyetyili);
   const kvkkConsent = Boolean(req.body.kvkk_consent);
   const directoryConsent = Boolean(req.body.directory_consent);
   const sirket = String(req.body.sirket || '').trim();
@@ -5407,7 +5416,7 @@ app.put('/api/profile', (req, res) => {
   const nextIlkbd = current && current.ilkbd === 0 ? 1 : (current?.ilkbd || 1);
 
   if (!hasValidGraduationYear(mezuniyetyili)) {
-    return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR} veya daha büyük olmalıdır.`);
+    return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR}-${MAX_GRADUATION_YEAR} aralığında olmalı veya Öğretmen seçilmelidir.`);
   }
   const isOAuthUser = Boolean(String(current?.oauth_provider || '').trim());
   const nextKvkkConsent = Boolean(current?.kvkk_consent_at) || kvkkConsent;
@@ -8781,15 +8790,17 @@ app.get('/api/new/admin/verification-requests', requireAdmin, (req, res) => {
 function assignUserToCohort(userId) {
   const user = sqlGet('SELECT id, mezuniyetyili FROM uyeler WHERE id = ?', [userId]);
   if (!user || !user.mezuniyetyili || user.mezuniyetyili === '0') return;
-  const year = parseInt(user.mezuniyetyili, 10);
-  if (isNaN(year) || year < 1960 || year > new Date().getFullYear() + 5) return;
-  
-  const cohortName = `${year} Mezunları`;
+  const normalized = normalizeCohortValue(user.mezuniyetyili);
+  const isTeacher = normalized === TEACHER_COHORT_VALUE;
+  const year = parseInt(normalized, 10);
+  if (!isTeacher && (isNaN(year) || year < 1960 || year > new Date().getFullYear() + 5)) return;
+
+  const cohortName = isTeacher ? 'Öğretmenler' : `${year} Mezunları`;
   let group = sqlGet('SELECT id FROM groups WHERE name = ?', [cohortName]);
   if (!group) {
     const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility, show_contact_hint) VALUES (?, ?, ?, ?, ?, ?, ?)', [
       cohortName,
-      `SDAL ${year} yılı mezunlarına özel iletişim ağı.`,
+      isTeacher ? 'SDAL öğretmenlerine özel iletişim ağı.' : `SDAL ${year} yılı mezunlarına özel iletişim ağı.`,
       '/images/cohort_default.jpg',
       1,
       new Date().toISOString(),

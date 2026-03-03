@@ -104,7 +104,7 @@ export default function RegisterPage() {
     setError('');
     setStatus('');
     if (form.mezuniyetyili === '0') {
-      setError('Bir mezuniyet yılı seçmeniz gerekmektedir.');
+      setError('Bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
       return;
     }
     if (checking.kadi || checking.email) {
@@ -170,7 +170,8 @@ export default function RegisterPage() {
             <div className="form-row">
               <label>{t('register_graduation_year')}</label>
               <select className="input" value={form.mezuniyetyili} onChange={(e) => setForm({ ...form, mezuniyetyili: e.target.value })} required>
-                <option value="0">Mezuniyet yılı seçiniz (Zorunlu)</option>
+                <option value="0">Mezuniyet yılı / grup seçiniz (Zorunlu)</option>
+                <option value="teacher">Öğretmen (SDAL)</option>
                 {years.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
