@@ -4658,6 +4658,30 @@ app.post('/api/register/preview', (req, res) => {
   });
 });
 
+app.post('/api/register/check', (req, res) => {
+  if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
+  const { kadi = '', email = '' } = req.body || {};
+  const cleanKadi = String(kadi || '').trim();
+  const cleanEmail = normalizeEmail(email);
+
+  if (!cleanKadi && !cleanEmail) {
+    return res.status(400).send('Kontrol için kullanıcı adı veya e-mail girilmelidir.');
+  }
+
+  let kadiExists = false;
+  let emailExists = false;
+  if (cleanKadi) {
+    const existingUser = sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+    kadiExists = Boolean(existingUser);
+  }
+  if (cleanEmail && validateEmail(cleanEmail)) {
+    const existingMail = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+    emailExists = Boolean(existingMail);
+  }
+
+  res.json({ ok: true, kadiExists, emailExists });
+});
+
 app.post('/api/register', async (req, res) => {
   if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
   const {

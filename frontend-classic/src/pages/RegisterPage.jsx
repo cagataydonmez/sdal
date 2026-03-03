@@ -21,7 +21,9 @@ export default function RegisterPage() {
   const [step, setStep] = useState('form');
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
+  const [inlineError, setInlineError] = useState('');
   const [status, setStatus] = useState('');
+  const [checking, setChecking] = useState(false);
   const [captchaSrc, setCaptchaSrc] = useState(`/api/captcha?${Date.now()}`);
 
   useEffect(() => {
@@ -39,10 +41,65 @@ export default function RegisterPage() {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
+  const passwordHint = useMemo(() => {
+    const pass = String(form.sifre || '');
+    if (!pass) return 'Şifre gücü: -';
+    let score = 0;
+    if (pass.length >= 8) score += 1;
+    if (/[A-ZÇĞİÖŞÜ]/.test(pass) && /[a-zçğıöşü]/.test(pass)) score += 1;
+    if (/\d/.test(pass)) score += 1;
+    if (/[^A-Za-z0-9çğıöşüÇĞİÖŞÜ]/.test(pass)) score += 1;
+    if (score >= 4) return 'Şifre gücü: Güçlü';
+    if (score >= 2) return 'Şifre gücü: Orta';
+    return 'Şifre gücü: Zayıf';
+  }, [form.sifre]);
+
+  const passwordMatchError = useMemo(() => {
+    if (!form.sifre2) return '';
+    return form.sifre === form.sifre2 ? '' : 'Şifre tekrar alanı şifreyle aynı olmalıdır.';
+  }, [form.sifre, form.sifre2]);
+
+  async function checkUnique(fieldName) {
+    const payload = {
+      kadi: fieldName === 'kadi' ? form.kadi : '',
+      email: fieldName === 'email' ? form.email : ''
+    };
+    if (!payload.kadi && !payload.email) return;
+    setChecking(true);
+    try {
+      const res = await fetch('/api/register/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (fieldName === 'kadi' && data.kadiExists) {
+        setInlineError('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
+      } else if (fieldName === 'email' && data.emailExists) {
+        setInlineError('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
+      } else {
+        setInlineError('');
+      }
+    } finally {
+      setChecking(false);
+    }
+  }
+
   async function onPreview(e) {
     e.preventDefault();
     setError('');
+    setInlineError('');
     setStatus('');
+    if (!form.kadi || !form.sifre || !form.sifre2 || !form.email || !form.isim || !form.soyisim || !form.gkodu) {
+      setError('Lütfen zorunlu alanların tamamını doldurunuz.');
+      return;
+    }
+    if (passwordMatchError) {
+      setError(passwordMatchError);
+      return;
+    }
     if (form.mezuniyetyili === '0') {
       setError('Bir mezuniyet yılı seçmeniz gerekmektedir.');
       return;
@@ -73,6 +130,7 @@ export default function RegisterPage() {
 
   async function onConfirm() {
     setError('');
+    setInlineError('');
     setStatus('');
     const res = await fetch('/api/register', {
       method: 'POST',
@@ -147,18 +205,21 @@ export default function RegisterPage() {
                       <td align="right"><b>Kullanıcı Adı : </b></td>
                       <td align="left">
                         <input type="text" name="kadi" size="20" className="inptxt" required value={form.kadi} onChange={(e) => updateField('kadi', e.target.value)} /> <font style={{ color: 'red' }}><sup>1</sup></font>
+                        <input type="button" className="sub" value="Kontrol" onClick={() => checkUnique('kadi')} style={{ marginLeft: 6 }} />
                       </td>
                     </tr>
                     <tr>
                       <td align="right"><b>Şifre : </b></td>
                       <td align="left">
                         <input type="password" name="sifre" size="20" className="inptxt" required value={form.sifre} onChange={(e) => updateField('sifre', e.target.value)} />
+                        <div style={{ fontSize: 10, color: '#444' }}>{passwordHint}</div>
                       </td>
                     </tr>
                     <tr>
                       <td align="right"><b>Şifre Tekrar : </b></td>
                       <td align="left">
                         <input type="password" name="sifre2" size="20" className="inptxt" required value={form.sifre2} onChange={(e) => updateField('sifre2', e.target.value)} />
+                        {passwordMatchError ? <div style={{ fontSize: 10, color: 'red' }}>{passwordMatchError}</div> : null}
                       </td>
                     </tr>
                     <tr><td align="center" colSpan="2"><hr color="#663300" size="1" /></td></tr>
@@ -166,6 +227,7 @@ export default function RegisterPage() {
                       <td align="right"><b>E-Mail : </b></td>
                       <td align="left">
                         <input type="email" name="email" size="20" className="inptxt" required value={form.email} onChange={(e) => updateField('email', e.target.value)} /> <font style={{ color: 'red' }}><sup>2</sup></font>
+                        <input type="button" className="sub" value="Kontrol" onClick={() => checkUnique('email')} style={{ marginLeft: 6 }} />
                       </td>
                     </tr>
                     <tr>
@@ -228,6 +290,8 @@ export default function RegisterPage() {
                   </tbody>
                 </table>
                 {error ? <div className="sdal-alert sdal-alert-error" role="alert">{error}</div> : null}
+                {inlineError ? <div className="sdal-alert sdal-alert-error" role="alert">{inlineError}</div> : null}
+                {checking ? <div style={{ fontSize: 10 }}>Kontrol ediliyor...</div> : null}
                 {status ? <div className="sdal-alert sdal-alert-success" role="status">{status}</div> : null}
               </td>
               <td width="15" height="150" style={{ background: '#FFFFCC' }}></td>
