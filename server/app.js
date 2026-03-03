@@ -284,6 +284,22 @@ const dbBackupUpload = multer({
 });
 
 let mailTransportPromise = null;
+function resolveMailProviderStatus() {
+  const hasResend = Boolean(process.env.RESEND_API_KEY);
+  const hasSmtpHost = Boolean(process.env.SMTP_HOST);
+  const explicitMock = String(process.env.MAIL_ALLOW_MOCK || '').toLowerCase() === 'true';
+  const mockAllowed = explicitMock || !isProd;
+  const sender = process.env.RESEND_FROM || process.env.SMTP_FROM || 'sdal@sdal.org';
+
+  if (hasResend) {
+    return { provider: 'resend', configured: true, mockAllowed, sender };
+  }
+  if (hasSmtpHost) {
+    return { provider: 'smtp', configured: true, mockAllowed, sender };
+  }
+  return { provider: 'none', configured: false, mockAllowed, sender };
+}
+
 function getMailTransport() {
   if (mailTransportPromise) return mailTransportPromise;
   mailTransportPromise = (async () => {
@@ -305,6 +321,15 @@ function getMailTransport() {
   return mailTransportPromise;
 }
 
+const mailProviderStatus = resolveMailProviderStatus();
+if (!mailProviderStatus.configured) {
+  const message = 'Mail provider config missing: set RESEND_API_KEY or SMTP_HOST. In production, mail send will fail unless MAIL_ALLOW_MOCK=true.';
+  if (mailProviderStatus.mockAllowed) {
+    console.warn(message);
+  } else {
+    console.error(message);
+  }
+}
 
 const adminPassword = process.env.SDAL_ADMIN_PASSWORD || 'guuk';
 const legacyRoot = path.resolve(__dirname, '../..');
@@ -2858,13 +2883,9 @@ function findOrCreateOAuthUser({ provider, profile }) {
 }
 
 async function sendMail({ to, subject, html, from }) {
-  const sender =
-    from ||
-    process.env.RESEND_FROM ||
-    process.env.SMTP_FROM ||
-    'sdal@sdal.org';
+  const sender = from || mailProviderStatus.sender;
 
-  if (process.env.RESEND_API_KEY) {
+  if (mailProviderStatus.provider === 'resend') {
     const recipients = Array.isArray(to)
       ? to
       : String(to || '')
@@ -2873,8 +2894,11 @@ async function sendMail({ to, subject, html, from }) {
           .filter(Boolean);
 
     if (!recipients.length) {
-      console.log('MAIL (mock):', { to, subject });
-      return;
+      if (mailProviderStatus.mockAllowed) {
+        console.log('MAIL (mock):', { to, subject });
+        return;
+      }
+      throw new Error('Mail recipients missing');
     }
 
     const resp = await fetch('https://api.resend.com/emails', {
@@ -2901,8 +2925,11 @@ async function sendMail({ to, subject, html, from }) {
 
   const mailTransport = await getMailTransport();
   if (!mailTransport) {
-    console.log('MAIL (mock):', { to, subject });
-    return;
+    if (mailProviderStatus.mockAllowed) {
+      console.log('MAIL (mock):', { to, subject });
+      return;
+    }
+    throw new Error('Mail provider not configured');
   }
   await mailTransport.sendMail({ from: sender, to, subject, html });
 }
@@ -4857,7 +4884,7 @@ app.post('/api/mail/test', async (req, res) => {
       subject: 'SDAL SMTP Test',
       html: 'Bu bir SMTP test e-postasıdır.'
     });
-    res.json({ ok: true, to });
+    res.json({ ok: true, to, provider: mailProviderStatus.provider, mock: !mailProviderStatus.configured });
   } catch (err) {
     console.error('SMTP test error:', err);
     res.status(500).send('SMTP test başarısız.');
