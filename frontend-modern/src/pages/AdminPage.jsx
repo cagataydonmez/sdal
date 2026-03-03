@@ -206,6 +206,13 @@ export default function AdminPage() {
   const [adminRequestItems, setAdminRequestItems] = useState([]);
   const [adminRequestCategoryFilter, setAdminRequestCategoryFilter] = useState('');
 
+  const graduationYearOptions = useMemo(() => {
+    const years = [];
+    const now = new Date().getFullYear();
+    for (let y = now; y >= 1999; y -= 1) years.push(String(y));
+    return years;
+  }, []);
+
 
   const refreshDashboard = useCallback(async () => {
     if (!canUseAdminApis) return;
@@ -360,6 +367,8 @@ export default function AdminPage() {
 
   async function saveUser() {
     if (!userForm?.id) return;
+    const ok = window.confirm(`@${userForm.kadi} kullanıcısının profil bilgilerini güncellemek istediğinize emin misiniz?`);
+    if (!ok) return;
     await apiJson(`/api/admin/users/${userForm.id}`, { method: 'PUT', body: JSON.stringify(userForm) });
     setStatus('Üye güncellendi.');
     loadUsers();
@@ -373,6 +382,8 @@ export default function AdminPage() {
   async function updateUserRole() {
     if (!canEditSelectedUserRole || !userForm?.id || roleSaveBusy) return;
     const nextRole = String(userForm.role || 'user').toLowerCase();
+    const ok = window.confirm(`@${userForm.kadi} kullanıcısının rolünü "${nextRole}" olarak kaydetmek istediğinize emin misiniz?`);
+    if (!ok) return;
     setRoleSaveBusy(true);
     try {
       await apiJson(`/admin/users/${userForm.id}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) });
@@ -1485,7 +1496,14 @@ export default function AdminPage() {
                   </div>
                   <div className="form-row">
                     <label>Mezuniyet Yılı</label>
-                    <input className="input" value={userForm.mezuniyetyili || ''} onChange={(e) => setUserForm({ ...userForm, mezuniyetyili: e.target.value })} placeholder="Örn: 2008 veya teacher" />
+                    <select className="input" value={String(userForm.mezuniyetyili || '')} onChange={(e) => setUserForm({ ...userForm, mezuniyetyili: e.target.value })}>
+                      {String(userForm.mezuniyetyili || '') && !graduationYearOptions.includes(String(userForm.mezuniyetyili || '')) ? (
+                        <option value={String(userForm.mezuniyetyili || '')}>{String(userForm.mezuniyetyili || '')}</option>
+                      ) : null}
+                      <option value="">Seçiniz</option>
+                      <option value="teacher">teacher</option>
+                      {graduationYearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+                    </select>
                   </div>
                   <div className="form-row">
                     <label>Rol</label>
