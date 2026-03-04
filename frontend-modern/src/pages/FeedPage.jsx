@@ -20,6 +20,7 @@ export default function FeedPage() {
   const [pendingPostsCount, setPendingPostsCount] = useState(0);
   const [pendingItems, setPendingItems] = useState(null);
   const [scope, setScope] = useState('all');
+  const [mainFeedOpen, setMainFeedOpen] = useState(true);
   const [quickUsers, setQuickUsers] = useState([]);
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [hasMore, setHasMore] = useState(true);
@@ -32,9 +33,9 @@ export default function FeedPage() {
   const sentinelRef = useRef(null);
   const initializedRef = useRef(false);
   const scopeOptions = [
-    { key: 'all', label: t('all'), icon: '○' },
+    ...(mainFeedOpen ? [{ key: 'all', label: t('main_feed'), icon: '○' }] : []),
     { key: 'following', label: t('following'), icon: '◎' },
-    { key: 'cohort', label: t('my_cohort') || 'Dönemim', icon: '◓' },
+    { key: 'cohort', label: t('community_feed'), icon: '◓' },
     { key: 'popular', label: t('popular'), icon: '▲' }
   ];
   const feedTabOptions = [
@@ -52,6 +53,25 @@ export default function FeedPage() {
     postsRef.current = posts;
   }, [posts]);
 
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/site-access?path=/new', { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((payload) => {
+        if (!mounted) return;
+        const isOpen = payload?.modules?.main_feed !== false;
+        setMainFeedOpen(isOpen);
+        if (!isOpen && scope === 'all') setScope('cohort');
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!mainFeedOpen && scope === 'all') setScope('cohort');
+  }, [mainFeedOpen, scope]);
+
   const load = useCallback(async ({ silent = false, force = false } = {}) => {
     if (loadingRef.current && !force) return;
     const requestSeq = ++requestSeqRef.current;
@@ -62,7 +82,7 @@ export default function FeedPage() {
       const payload = await res.json();
       if (requestSeq !== requestSeqRef.current) return;
       let items = payload.items || [];
-      if (scope !== 'all' && user?.id) {
+      if (scope === 'following' && user?.id) {
         items = items.filter((p) => Number(p?.author?.id || p?.user_id || 0) !== Number(user.id));
       }
       const prev = postsRef.current;
@@ -222,6 +242,7 @@ export default function FeedPage() {
               ))}
             </div>
             <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
+            <div className="muted">{t('main_feed_public_note')}</div>
           </div>
           {pendingPostsCount > 0 ? (
             <button

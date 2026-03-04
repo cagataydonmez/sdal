@@ -13,6 +13,7 @@ export default function Layout({ children, title, right }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
   const [moduleAccess, setModuleAccess] = useState({});
 
@@ -25,19 +26,28 @@ export default function Layout({ children, title, right }) {
   const loadUnreadCount = useCallback(async () => {
     if (!user) {
       setUnreadCount(0);
+      setUnreadNotifications(0);
       return;
     }
     try {
-      const res = await fetch('/api/new/messages/unread', { credentials: 'include' });
-      if (!res.ok) return;
-      const payload = await res.json();
-      setUnreadCount(payload.count || 0);
+      const [messagesRes, notificationsRes] = await Promise.all([
+        fetch('/api/new/messages/unread', { credentials: 'include' }),
+        fetch('/api/new/notifications/unread', { credentials: 'include' })
+      ]);
+      if (messagesRes.ok) {
+        const payload = await messagesRes.json();
+        setUnreadCount(payload.count || 0);
+      }
+      if (notificationsRes.ok) {
+        const payload = await notificationsRes.json();
+        setUnreadNotifications(payload.count || 0);
+      }
     } catch {
       // ignore
     }
   }, [user]);
 
-  useLiveRefresh(loadUnreadCount, { intervalMs: 7000, eventTypes: ['message:created', '*'], enabled: !!user });
+  useLiveRefresh(loadUnreadCount, { intervalMs: 7000, eventTypes: ['message:created', 'notification:new', '*'], enabled: !!user });
   useLiveRefresh(refresh, { intervalMs: 20000, eventTypes: ['profile:updated'], enabled: !!user });
 
   useEffect(() => {
@@ -79,9 +89,9 @@ export default function Layout({ children, title, right }) {
       { to: '/new/explore', label: t('nav_explore'), module: 'explore' },
       { to: '/new/following', label: t('nav_following'), module: 'following' },
       { to: '/new/groups', label: t('nav_groups'), module: 'groups' },
-      { to: '/new/messages', label: `${t('nav_messages')}${unreadCount > 0 ? ` (${unreadCount})` : ''}`, module: 'messages' },
+      { to: '/new/messages', label: t('nav_messages'), module: 'messages', badge: unreadCount },
       { to: '/new/messenger', label: t('nav_messenger'), module: 'messenger' },
-      { to: '/new/notifications', label: t('nav_notifications'), module: 'notifications' },
+      { to: '/new/notifications', label: t('nav_notifications'), module: 'notifications', badge: unreadNotifications },
       { to: '/new/albums', label: t('nav_photos'), module: 'albums' },
       { to: '/new/games', label: t('nav_games'), module: 'games' },
       { to: '/new/events', label: t('nav_events'), module: 'events' },
@@ -91,7 +101,7 @@ export default function Layout({ children, title, right }) {
       { to: '/new/help', label: t('nav_help'), module: 'help' }
     ];
     return allItems.filter((item) => moduleAccess[item.module] !== false);
-  }, [t, unreadCount, moduleAccess]);
+  }, [t, unreadCount, unreadNotifications, moduleAccess]);
 
   async function handleLogout() {
     await logout();
@@ -130,7 +140,7 @@ export default function Layout({ children, title, right }) {
         </Link>
         <nav>
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>
+            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}{item.badge > 0 ? <span className="mini-badge">{item.badge}</span> : null}</NavLink>
           ))}
           {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
@@ -218,7 +228,7 @@ export default function Layout({ children, title, right }) {
         </div>
         <nav className="mobile-nav-links">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>
+            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}{item.badge > 0 ? <span className="mini-badge">{item.badge}</span> : null}</NavLink>
           ))}
           {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
