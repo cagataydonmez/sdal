@@ -1496,6 +1496,7 @@ sqlRun(`CREATE TABLE IF NOT EXISTS module_controls (
 
 const MODULE_DEFINITIONS = [
   { key: 'feed', label: 'Akış' },
+  { key: 'main_feed', label: 'Ana Akış (Herkese Açık)' },
   { key: 'explore', label: 'Keşfet' },
   { key: 'following', label: 'Takip' },
   { key: 'groups', label: 'Gruplar' },
@@ -6580,6 +6581,10 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
   const scope = String(req.query.scope || 'all');
+  const moduleMap = getModuleControlMap();
+  if (scope === 'all' && moduleMap.main_feed === false) {
+    return res.status(403).json({ error: 'MODULE_CLOSED', moduleKey: 'main_feed', message: 'Ana akış geçici olarak kapatıldı.' });
+  }
   let where = 'WHERE p.group_id IS NULL';
   const params = [];
   if (scope === 'following') {
@@ -6803,7 +6808,18 @@ function canManagePost(req, postRow) {
   if (!postRow) return false;
   if (sameUserId(postRow.user_id, req.session.userId)) return true;
   const currentUser = getCurrentUser(req);
-  return hasAdminSession(req, currentUser);
+  if (hasAdminSession(req, currentUser)) return true;
+  if (getUserRole(currentUser) !== 'mod') return false;
+  const groupId = Number(postRow.group_id || 0);
+  if (!groupId) return false;
+  const groupRow = sqlGet('SELECT id, name FROM groups WHERE id = ?', [groupId]);
+  const groupName = String(groupRow?.name || '');
+  const match = groupName.match(/^(\d{4})\s+Mezunları$/);
+  if (!match) return false;
+  const year = parseInt(match[1], 10);
+  if (!Number.isFinite(year)) return false;
+  const scope = sqlGet('SELECT id FROM moderator_scopes WHERE user_id = ? AND scope_type = ? AND scope_value = ?', [currentUser.id, 'graduation_year', String(year)]);
+  return !!scope;
 }
 
 function deletePostById(postId) {
@@ -6821,7 +6837,7 @@ function deletePostById(postId) {
 app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
   const postId = Number(req.params.id || 0);
   if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
-  const postRow = sqlGet('SELECT id, user_id, image FROM posts WHERE id = ?', [postId]);
+  const postRow = sqlGet('SELECT id, user_id, image, group_id FROM posts WHERE id = ?', [postId]);
   if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
   const content = formatUserText(req.body?.content || '');
@@ -6858,7 +6874,7 @@ app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
 app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
   const postId = Number(req.params.id || 0);
   if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
-  const postRow = sqlGet('SELECT id, user_id, image FROM posts WHERE id = ?', [postId]);
+  const postRow = sqlGet('SELECT id, user_id, image, group_id FROM posts WHERE id = ?', [postId]);
   if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
   const content = formatUserText(req.body?.content || '');
@@ -6895,7 +6911,7 @@ app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
 app.delete('/api/new/posts/:id', requireAuth, (req, res) => {
   const postId = Number(req.params.id || 0);
   if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
-  const postRow = sqlGet('SELECT id, user_id FROM posts WHERE id = ?', [postId]);
+  const postRow = sqlGet('SELECT id, user_id, group_id FROM posts WHERE id = ?', [postId]);
   if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi silme yetkin yok.');
   deletePostById(postId);
@@ -6906,7 +6922,7 @@ app.delete('/api/new/posts/:id', requireAuth, (req, res) => {
 app.post('/api/new/posts/:id/delete', requireAuth, (req, res) => {
   const postId = Number(req.params.id || 0);
   if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
-  const postRow = sqlGet('SELECT id, user_id FROM posts WHERE id = ?', [postId]);
+  const postRow = sqlGet('SELECT id, user_id, group_id FROM posts WHERE id = ?', [postId]);
   if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi silme yetkin yok.');
   deletePostById(postId);
@@ -7037,6 +7053,11 @@ app.get('/api/new/notifications', requireAuth, (req, res) => {
     };
   });
   res.json({ items, hasMore: items.length === limit });
+});
+
+app.get('/api/new/notifications/unread', requireAuth, (req, res) => {
+  const row = sqlGet('SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND read_at IS NULL', [req.session.userId]);
+  res.json({ count: Number(row?.cnt || 0) });
 });
 
 app.post('/api/new/notifications/read', requireAuth, (req, res) => {
