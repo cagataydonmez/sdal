@@ -1,0 +1,44 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sdal-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sdal_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-sdal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sdal_dev_password}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-sdal} -d ${POSTGRES_DB:-sdal_dev}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sdal-redis
+    restart: unless-stopped
+    command: [
+      'redis-server',
+      '--appendonly', 'yes',
+      '--save', '60', '1000',
+      '--requirepass', '${REDIS_PASSWORD:-sdal_redis_password}'
+    ]
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a ${REDIS_PASSWORD:-sdal_redis_password} ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

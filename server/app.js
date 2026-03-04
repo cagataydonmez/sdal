@@ -24,6 +24,8 @@ import { requestLoggingMiddleware } from './middleware/requestLogging.js';
 import { registerStaticUploads } from './middleware/staticUploads.js';
 import { registerLegacyStatics } from './routes/staticLegacy.js';
 import { createPhase1DomainLayer } from './src/bootstrap/createPhase1DomainLayer.js';
+import { checkPostgresHealth, closePostgresPool, getPostgresPoolState, isPostgresConfigured } from './src/infra/postgresPool.js';
+import { checkRedisHealth, closeRedisClient, getRedisState, isRedisConfigured } from './src/infra/redisClient.js';
 
 const __dirname = getDirname(import.meta.url);
 
@@ -4258,9 +4260,67 @@ app.get('/hirsiz2.asp', requireAdmin, (req, res) => {
   res.send(`<u><b>Konu : ${row.konu || ''}</b></u><br>${row.mesaj || ''}`);
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, dbPath });
-});
+async function healthHandler(req, res) {
+  const startedAt = Date.now();
+
+  let dbCheck = {
+    configured: true,
+    ready: false,
+    detail: '',
+    latencyMs: 0
+  };
+
+  if (dbDriver === 'postgres') {
+    dbCheck = await checkPostgresHealth();
+  } else {
+    try {
+      const dbStartedAt = Date.now();
+      const row = sqlGet('SELECT 1 AS ok');
+      dbCheck = {
+        configured: true,
+        ready: Number(row?.ok || 0) === 1,
+        detail: 'ok',
+        latencyMs: Date.now() - dbStartedAt
+      };
+    } catch (err) {
+      dbCheck = {
+        configured: true,
+        ready: false,
+        detail: err?.message || 'sqlite check failed',
+        latencyMs: Date.now() - startedAt
+      };
+    }
+  }
+
+  const redisCheck = await checkRedisHealth();
+  const redisRequired = isRedisConfigured();
+  const overallOk = dbCheck.ready && (!redisRequired || redisCheck.ready);
+
+  res.status(overallOk ? 200 : 503).json({
+    ok: overallOk,
+    dbPath,
+    dbDriver,
+    dbReady: dbCheck.ready,
+    redisReady: redisCheck.ready,
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '0.1.0',
+    uptimeSec: Math.floor(process.uptime()),
+    durationMs: Date.now() - startedAt,
+    checks: {
+      db: dbCheck,
+      redis: redisCheck
+    },
+    runtime: {
+      postgres: getPostgresPoolState(),
+      redis: getRedisState(),
+      postgresConfigured: isPostgresConfigured(),
+      redisConfigured: redisRequired
+    }
+  });
+}
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 app.get('/api/captcha', (req, res) => {
   issueCaptcha(req, res);
@@ -9968,6 +10028,30 @@ async function onServerStarted() {
 }
 
 function setupProcessHandlers() {
+  let shuttingDown = false;
+  async function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    try {
+      await closeRedisClient();
+    } catch {
+      // no-op
+    }
+    try {
+      await closePostgresPool();
+    } catch {
+      // no-op
+    }
+    try {
+      closeDbConnection();
+    } catch {
+      // no-op
+    }
+    if (signal) {
+      writeAppLog('info', 'process_shutdown', { signal });
+    }
+  }
+
   process.on('uncaughtException', (err) => {
     writeLegacyLog('error', 'uncaught_exception', { message: err?.message || 'unknown' });
     writeAppLog('error', 'uncaught_exception', { message: err?.message || 'unknown', stack: err?.stack || '' });
@@ -9978,6 +10062,16 @@ function setupProcessHandlers() {
     const stack = reason instanceof Error ? reason.stack || '' : '';
     writeLegacyLog('error', 'unhandled_rejection', { message });
     writeAppLog('error', 'unhandled_rejection', { message, stack });
+  });
+
+  process.on('SIGINT', () => {
+    shutdown('SIGINT').finally(() => process.exit(0));
+  });
+  process.on('SIGTERM', () => {
+    shutdown('SIGTERM').finally(() => process.exit(0));
+  });
+  process.on('beforeExit', () => {
+    shutdown('beforeExit');
   });
 }
 

@@ -7,10 +7,12 @@
     "dev": "node index.js",
     "start": "node index.js",
     "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs",
-    "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs"
+    "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs",
+    "test:phase2-health": "node tests/contracts/phase2-health.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",
+    "connect-redis": "^9.0.0",
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -19,6 +21,7 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^8.0.1",
     "pg": "^8.13.1",
+    "redis": "^5.11.0",
     "sharp": "^0.33.4",
     "ws": "^8.17.0"
   }

@@ -183,3 +183,18 @@ flowchart LR
 - Added Phase 1 contract smoke suite:
   - `server/tests/contracts/phase1-contracts.mjs`
   - `server/tests/fixtures/phase1-contract-snapshot.json`
+
+## Phase 2 Progress (Implemented)
+
+- Added PostgreSQL pool infrastructure:
+  - `server/src/infra/postgresPool.js` (`pg` Pool singleton, health check, transaction helper, pool state metrics)
+- Added Redis infrastructure:
+  - `server/src/infra/redisClient.js` (singleton client, reconnect/backoff, ping health check, runtime state)
+- Updated session storage wiring:
+  - `server/middleware/session.js` now uses Redis-backed `connect-redis` store when `REDIS_URL` is set, with safe fallback behavior.
+- Expanded health checks:
+  - Added `/health` alias and upgraded `/api/health` to return DB + Redis readiness, latency, runtime state, timestamp, version, and uptime while preserving legacy keys (`ok`, `dbPath`).
+- Added local infrastructure compose file:
+  - `docker-compose.yml` with PostgreSQL 16 + Redis 7 and health checks.
+- Expanded environment template:
+  - `server/.env.example` now includes `DATABASE_URL`, Redis settings, pool tunables, `MAIL_*` aliases, `STORAGE_*` aliases, and OAuth variables.
