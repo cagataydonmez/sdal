@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">SDAL</title>
+  <desc id="logoDesc">Minimal SDAL logo with geometric monogram and wordmark.</desc>
+  <g fill="none" fill-rule="evenodd">
+    <rect x="1" y="1" width="38" height="38" rx="11" fill="#10131A"/>
+    <path d="M12 13.5C12 10.5 14.4 8 17.5 8H23.5C26.7 8 29.2 10.6 29.2 13.8V14.3H25.8V13.8C25.8 12.5 24.8 11.4 23.5 11.4H17.5C16.2 11.4 15.3 12.4 15.3 13.5C15.3 14.7 16.2 15.7 17.5 15.7H23.1C26.7 15.7 29.6 18.6 29.6 22.1C29.6 25.7 26.8 28.6 23.1 28.6H17C13.8 28.6 11.2 26 11.2 22.8V22.3H14.7V22.8C14.7 24.2 15.7 25.2 17 25.2H23.1C24.8 25.2 26.1 23.9 26.1 22.2C26.1 20.6 24.8 19.3 23.1 19.3H17.5C14.4 19.3 12 16.7 12 13.5Z" fill="#FF7F61"/>
+    <circle cx="121" cy="20" r="2.5" fill="#41A08D"/>
+    <path d="M48 11H59.2C65.8 11 70 15.2 70 20C70 24.8 65.8 29 59.2 29H48V11ZM52.1 14.4V25.6H59C63.1 25.6 65.8 23.1 65.8 20C65.8 16.9 63.1 14.4 59 14.4H52.1Z" fill="#F7FAFF" stroke="#10131A" stroke-width="0.7" paint-order="stroke fill"/>
+    <path d="M72.8 11H85.1C89.4 11 92.4 13.7 92.4 17.6C92.4 21.3 89.4 24.1 85.1 24.1H76.9V29H72.8V11ZM76.9 14.4V20.8H84.7C87.1 20.8 88.4 19.5 88.4 17.6C88.4 15.8 87.1 14.4 84.7 14.4H76.9Z" fill="#F7FAFF" stroke="#10131A" stroke-width="0.7" paint-order="stroke fill"/>
+    <path d="M95.1 29L103.2 11H107.6L115.7 29H111.3L109.6 25.1H101.1L99.4 29H95.1ZM102.5 21.7H108.2L105.4 15.2L102.5 21.7Z" fill="#F7FAFF" stroke="#10131A" stroke-width="0.7" paint-order="stroke fill"/>
+    <path d="M117.8 11H122L132.1 23.2V11H136.1V29H131.9L121.8 16.8V29H117.8V11Z" fill="#F7FAFF" stroke="#10131A" stroke-width="0.7" paint-order="stroke fill"/>
+  </g>
+</svg>
