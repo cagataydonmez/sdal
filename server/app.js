@@ -1701,6 +1701,24 @@ function getModeratorPermissionSummary(userId) {
   };
 }
 
+function replaceModeratorPermissions(userId, permissionKeys = [], actorId = null) {
+  if (!userId) return;
+  const normalized = new Set(
+    (Array.isArray(permissionKeys) ? permissionKeys : [])
+      .map((item) => String(item || '').trim())
+      .filter((key) => MODERATION_PERMISSION_KEY_SET.has(key))
+  );
+  const now = new Date().toISOString();
+  sqlRun('DELETE FROM moderator_permissions WHERE user_id = ?', [userId]);
+  for (const permissionKey of MODERATION_PERMISSION_KEY_SET) {
+    sqlRun(
+      `INSERT INTO moderator_permissions (user_id, permission_key, enabled, created_by, updated_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, permissionKey, normalized.has(permissionKey) ? 1 : 0, actorId || userId, actorId || userId, now, now]
+    );
+  }
+}
+
 function userHasModerationPermission(user, permissionKey) {
   if (!permissionKey || !MODERATION_PERMISSION_KEY_SET.has(permissionKey)) return false;
   const role = getUserRole(user);
@@ -4395,6 +4413,16 @@ app.post('/admin/users/:id/role', requireAuth, requireRole('admin'), (req, res) 
   if (targetRole === 'root') return res.status(400).send('Root rolü değiştirilemez.');
   if (actorRole !== 'root' && targetRole === 'admin') return res.status(403).send('Admin hesabın rolünü sadece root değiştirebilir.');
   sqlRun('UPDATE uyeler SET role = ?, admin = ? WHERE id = ?', [nextRole, nextRole === 'admin' ? 1 : 0, targetId]);
+  if (nextRole === 'admin') {
+    replaceModeratorPermissions(targetId, Array.from(MODERATION_PERMISSION_KEY_SET), req.authUser.id);
+  } else if (nextRole === 'mod') {
+    const previousRoleWasAdmin = roleAtLeast(targetRole, 'admin');
+    if (previousRoleWasAdmin) {
+      replaceModeratorPermissions(targetId, [], req.authUser.id);
+    }
+  } else {
+    replaceModeratorPermissions(targetId, [], req.authUser.id);
+  }
   writeAuditLog(req, {
     actorUserId: req.authUser.id,
     action: 'role_changed',
@@ -4459,7 +4487,7 @@ app.get('/api/admin/moderation/permissions/catalog', requireAuth, requireRole('a
 app.get('/api/admin/moderation/permissions/:userId', requireAuth, requireRole('admin'), (req, res) => {
   const userId = Number(req.params.userId || 0);
   if (!userId) return res.status(400).send('Geçersiz kullanıcı.');
-  const target = sqlGet('SELECT id, kadi, isim, soyisim, role FROM uyeler WHERE id = ?', [userId]);
+  const target = sqlGet('SELECT id, kadi, isim, soyisim, role, resim, mezuniyetyili, email FROM uyeler WHERE id = ?', [userId]);
   if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
   const summary = getModeratorPermissionSummary(userId);
   res.json({
@@ -4803,7 +4831,7 @@ function queryAdminUsers(rawQuery = {}) {
 
   const users = sqlAll(
     `SELECT u.id, u.kadi, u.isim, u.soyisim, u.aktiv, u.yasak, u.online, u.sontarih, u.resim, u.verified,
-            u.mezuniyetyili, u.email, u.admin,
+            u.mezuniyetyili, u.email, u.admin, u.role,
             CASE
               WHEN CAST(COALESCE(u.mezuniyetyili, 0) AS INTEGER) BETWEEN 1999 AND 2030 THEN 1
               ELSE 0
