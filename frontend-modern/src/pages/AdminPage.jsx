@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import AccessDeniedView from '../components/admin/AccessDeniedView.jsx';
 import AdminPageHeader from '../components/admin/AdminPageHeader.jsx';
@@ -10,6 +10,7 @@ async function apiJson(url, options = {}) {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     credentials: 'include',
+    signal: options.signal,
     ...options
   });
   if (!res.ok) {
@@ -89,6 +90,7 @@ export default function AdminPage() {
   const isRootUser = String(user?.role || '').toLowerCase() === 'root';
   const [tab, setTab] = useState('dashboard');
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [tabSearch, setTabSearch] = useState('');
   const [status, setStatus] = useState('');
   const userRole = String(user?.role || '').toLowerCase();
   const isModeratorUser = userRole === 'mod';
@@ -100,6 +102,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [userFilter, setUserFilter] = useState('active');
   const [userQuery, setUserQuery] = useState('');
+  const [debouncedUserQuery, setDebouncedUserQuery] = useState('');
   const [userSearchPhotoOnly, setUserSearchPhotoOnly] = useState(false);
   const [userVerifiedOnly, setUserVerifiedOnly] = useState(false);
   const [userOnlineOnly, setUserOnlineOnly] = useState(false);
@@ -222,6 +225,9 @@ export default function AdminPage() {
   const [dbBackupBusy, setDbBackupBusy] = useState(false);
   const [dbRestoreFile, setDbRestoreFile] = useState(null);
   const [dbRestoreInputKey, setDbRestoreInputKey] = useState(0);
+
+  const usersAbortRef = useRef(null);
+  const usersCacheRef = useRef(new Map());
   const [live, setLive] = useState({ counts: {}, activity: [], now: '' });
   const [dashboardAutoRefresh, setDashboardAutoRefresh] = useState(true);
   const [previewModal, setPreviewModal] = useState(null);
@@ -310,9 +316,21 @@ export default function AdminPage() {
   }, [tab, user, refreshDashboard]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedUserQuery(userQuery);
+      setUserPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [userQuery]);
+
+  useEffect(() => {
     if (tab !== 'users' || !canUseAdminApis) return;
-    loadUsers(userFilter, { page: userPage }).catch((err) => setStatus(err.message || 'Üyeler yüklenemedi.'));
-  }, [tab, user, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore, userPage, userPageSize]);
+    loadUsers(userFilter, { page: userPage }).catch((err) => {
+      if (err?.name !== 'AbortError') {
+        setStatus(err.message || 'Üyeler yüklenemedi.');
+      }
+    });
+  }, [tab, user, userFilter, userSort, userVerifiedOnly, userOnlineOnly, userSearchPhotoOnly, userMinScore, userPage, userPageSize, debouncedUserQuery]);
 
   useEffect(() => {
     if (tab !== 'dashboard' || !dashboardAutoRefresh || !canUseAdminApis) return undefined;
@@ -331,6 +349,26 @@ export default function AdminPage() {
     setAdminMenuOpen(false);
   }, [tab]);
 
+  useEffect(() => () => {
+    if (usersAbortRef.current) usersAbortRef.current.abort();
+  }, []);
+
+  function clearUsersCache() {
+    usersCacheRef.current.clear();
+  }
+
+  function applyUsersPayload(data, fallback = {}) {
+    setUsers(data.users || []);
+    setUsersMeta({
+      total: Number(data.meta?.total || 0),
+      returned: Number(data.meta?.returned || 0),
+      page: Number(data.meta?.page || fallback.page || 1),
+      pages: Number(data.meta?.pages || 1),
+      limit: Number(data.meta?.limit || fallback.limit || userPageSize || 20)
+    });
+    setUserPage(Number(data.meta?.page || fallback.page || 1));
+    setUserMode(fallback.mode || 'filter');
+  }
 
   async function loadStats() {
     const data = await apiJson('/api/new/admin/stats');
@@ -338,10 +376,13 @@ export default function AdminPage() {
   }
 
   async function loadUsers(filterValue = userFilter, overrides = {}) {
+    if (usersAbortRef.current) usersAbortRef.current.abort();
+    const controller = new AbortController();
+    usersAbortRef.current = controller;
     setUsersLoading(true);
     try {
       const effectiveSort = overrides.sort ?? userSort;
-      const effectiveQuery = String(overrides.query ?? userQuery).trim();
+      const effectiveQuery = String(overrides.query ?? debouncedUserQuery).trim();
       const effectivePhotoOnly = overrides.photoOnly ?? userSearchPhotoOnly;
       const effectiveVerifiedOnly = overrides.verifiedOnly ?? userVerifiedOnly;
       const effectiveOnlineOnly = overrides.onlineOnly ?? userOnlineOnly;
@@ -359,25 +400,28 @@ export default function AdminPage() {
       if (effectiveVerifiedOnly) params.set('verified', '1');
       if (effectiveOnlineOnly) params.set('online', '1');
       if (effectiveMinScore) params.set('minScore', effectiveMinScore);
-      const data = await apiJson(`/api/admin/users/lists?${params.toString()}`);
-      setUsers(data.users || []);
-      setUsersMeta({
-        total: Number(data.meta?.total || 0),
-        returned: Number(data.meta?.returned || 0),
-        page: Number(data.meta?.page || effectivePage),
-        pages: Number(data.meta?.pages || 1),
-        limit: Number(data.meta?.limit || effectiveLimit)
-      });
-      setUserPage(Number(data.meta?.page || effectivePage));
-      setUserMode(effectiveQuery || effectivePhotoOnly ? 'search' : 'filter');
+      const mode = effectiveQuery || effectivePhotoOnly ? 'search' : 'filter';
+      const cacheKey = params.toString();
+      const cached = usersCacheRef.current.get(cacheKey);
+      if (cached) {
+        applyUsersPayload(cached, { page: effectivePage, limit: effectiveLimit, mode });
+        return;
+      }
+      const data = await apiJson(`/api/admin/users/lists?${cacheKey}`, { signal: controller.signal });
+      usersCacheRef.current.set(cacheKey, data);
+      applyUsersPayload(data, { page: effectivePage, limit: effectiveLimit, mode });
     } finally {
+      if (usersAbortRef.current === controller) {
+        usersAbortRef.current = null;
+      }
       setUsersLoading(false);
     }
   }
 
   async function searchUsers() {
+    setDebouncedUserQuery(userQuery);
     setUserPage(1);
-    await loadUsers(userFilter, { page: 1 });
+    await loadUsers(userFilter, { page: 1, query: userQuery });
   }
 
   async function loadUserDetail(id) {
@@ -413,6 +457,7 @@ export default function AdminPage() {
     if (!ok) return;
     await apiJson(`/api/admin/users/${userForm.id}`, { method: 'PUT', body: JSON.stringify(userForm) });
     setStatus('Üye güncellendi.');
+    clearUsersCache();
     loadUsers();
   }
 
@@ -459,6 +504,7 @@ export default function AdminPage() {
         body: JSON.stringify(payload)
       });
       setStatus('Moderatör yetkileri kaydedildi.');
+      clearUsersCache();
       await Promise.all([loadUserDetail(userForm.id), loadUsers(userFilter)]);
     } finally {
       setModerationBusy(false);
@@ -492,6 +538,7 @@ export default function AdminPage() {
       }
       await apiJson(`/admin/users/${targetId}/role`, { method: 'POST', body: JSON.stringify({ role: 'mod' }) });
       setStatus(`@${targetUser?.kadi || 'kullanıcı'} moderatör rolüne alındı. Yetki seçim ekranı açıldı.`);
+      clearUsersCache();
       await loadUsers('all', { page: 1 });
     }
 
@@ -507,6 +554,7 @@ export default function AdminPage() {
     try {
       await apiJson(`/admin/users/${userForm.id}/role`, { method: 'POST', body: JSON.stringify({ role: nextRole }) });
       setStatus(`Rol güncellendi: ${nextRole}`);
+      clearUsersCache();
       await Promise.all([loadUsers(userFilter), loadUserDetail(userForm.id)]);
     } finally {
       setRoleSaveBusy(false);
@@ -530,6 +578,7 @@ export default function AdminPage() {
       setStatus(response?.message || `@${userForm.kadi} başarıyla silindi.`);
       setUserForm(null);
       setUserDetail(null);
+      clearUsersCache();
       loadUsers();
     } catch (err) {
       setStatus(`Hata: ${err.message}`);
@@ -1232,13 +1281,19 @@ export default function AdminPage() {
     );
   }, [dbRows, dbSearch]);
 
+  const filteredTabs = useMemo(() => {
+    const needle = tabSearch.trim().toLowerCase();
+    if (!needle) return visibleTabs;
+    return visibleTabs.filter((item) => (`${item.label} ${item.hint} ${item.section}`).toLowerCase().includes(needle));
+  }, [visibleTabs, tabSearch]);
+
   const groupedTabs = useMemo(() => {
-    return visibleTabs.reduce((acc, t) => {
+    return filteredTabs.reduce((acc, t) => {
       if (!acc[t.section]) acc[t.section] = [];
       acc[t.section].push(t);
       return acc;
     }, {});
-  }, [visibleTabs]);
+  }, [filteredTabs]);
 
   const currentTab = useMemo(() => visibleTabs.find((t) => t.key === tab) || visibleTabs[0] || tabs[0], [tab, visibleTabs]);
   useEffect(() => {
@@ -1272,9 +1327,15 @@ export default function AdminPage() {
             adminMenuOpen={adminMenuOpen}
             setAdminMenuOpen={setAdminMenuOpen}
             groupedTabs={groupedTabs}
+            tabSearch={tabSearch}
+            setTabSearch={setTabSearch}
             tab={tab}
             setTab={setTab}
           />
+
+          {tabSearch.trim() && !filteredTabs.length ? (
+            <div className="panel"><div className="panel-body muted">Aramanıza uygun modül bulunamadı.</div></div>
+          ) : null}
 
           <div className="admin-page-wrap">
       {tab === 'dashboard' ? (
@@ -1468,7 +1529,7 @@ export default function AdminPage() {
                   </div>
                   <div className="form-row">
                     <label>Arama</label>
-                    <input className="input" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} />
+                    <input className="input" placeholder="Kullanıcı adı, ad, soyad veya e-posta" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} />
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input
                         type="checkbox"
@@ -1477,7 +1538,7 @@ export default function AdminPage() {
                       />
                       Sadece fotoğrafı olanlar
                     </label>
-                    <button className="btn" onClick={searchUsers}>Ara</button>
+                    <button className="btn" onClick={searchUsers}>Hızlı Ara</button>
                     <button
                       className="btn ghost"
                       onClick={() => {
@@ -1506,13 +1567,18 @@ export default function AdminPage() {
                     <span className="chip">Mod: {userMode === 'search' ? 'Arama Sonucu' : 'Filtre Listesi'}</span>
                     <span className="chip">Toplam: {userSummary.total}</span>
                     <span className="chip">Sunucuda Eşleşen: {usersMeta.total}</span>
+                    <span className="chip">Öneri: 5.000+ kullanıcı için sayfa boyutu 40 veya 80 kullanın</span>
                     <span className="chip">Aktif: {userSummary.active}</span>
                     <span className="chip">Bekleyen: {userSummary.pending}</span>
                     <span className="chip">Yasaklı: {userSummary.banned}</span>
                     <span className="chip">Online: {userSummary.online}</span>
                   </div>
                 </div>
-                {usersLoading ? <div className="muted">Üyeler yükleniyor...</div> : null}
+                {usersLoading ? (
+                  <div className="list admin-users-skeleton-list">
+                    {Array.from({ length: 6 }).map((_, idx) => <div key={`skeleton-${idx}`} className="admin-user-skeleton" />)}
+                  </div>
+                ) : null}
                 <div className="list">
                   {users.map((u) => (
                     <div key={u.id} className="list-item admin-user-item" role="button" tabIndex={0} onClick={() => openUserEdit(u.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openUserEdit(u.id); }}>
