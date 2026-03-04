@@ -22,6 +22,7 @@ async function apiJson(url, options = {}) {
 const tabs = [
   { key: 'dashboard', label: 'Dashboard', section: 'Genel', hint: 'Canlı metrikler ve operasyon özeti' },
   { key: 'users', label: 'Üyeler', section: 'Topluluk', hint: 'Üye yönetimi ve yetkiler' },
+  { key: 'moderationMatrix', label: 'Moderatör Yetkileri', section: 'Topluluk', hint: 'Fonksiyon bazlı yetki matrisi' },
   { key: 'follows', label: 'Takip İlişkileri', section: 'Topluluk', hint: 'Takip eden/edilen ilişki analizi' },
   { key: 'engagement', label: 'Etkileşim Skorları', section: 'Topluluk', hint: 'Gizli görünürlük puanları' },
   { key: 'verification', label: 'Doğrulama', section: 'Topluluk', hint: 'Rozet/kimlik doğrulama talepleri' },
@@ -45,6 +46,25 @@ const tabs = [
   { key: 'filters', label: 'Yasaklı Kelimeler', section: 'Sistem', hint: 'Filtre tablosu yönetimi' },
   { key: 'database', label: 'Veritabanı', section: 'Sistem', hint: 'Tablo ve kayıt gözlemleme' }
 ];
+
+const TAB_PERMISSION_MAP = {
+  users: 'users.view',
+  groups: 'groups.view',
+  posts: 'posts.view',
+  stories: 'stories.view',
+  chat: 'chat.view',
+  messages: 'messages.view',
+  events: 'events.view',
+  announcements: 'announcements.view',
+  memberRequests: 'requests.view',
+  verification: 'requests.view',
+  siteControls: 'siteControls.view',
+  filters: 'filters.view',
+  database: 'database.view',
+  logs: 'logs.view',
+  album: 'albums.view',
+  photos: 'albums.view'
+};
 
 const commonLogActivities = [
   'http_error',
@@ -71,9 +91,10 @@ export default function AdminPage() {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [status, setStatus] = useState('');
   const userRole = String(user?.role || '').toLowerCase();
+  const isModeratorUser = userRole === 'mod';
   const isAdminUser = ['admin', 'root'].includes(userRole) || Number(user?.admin || 0) === 1;
   const canManageRoles = ['admin', 'root'].includes(userRole);
-  const canUseAdminApis = isAdminUser;
+  const canUseAdminApis = isAdminUser || isModeratorUser;
 
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -95,11 +116,23 @@ export default function AdminPage() {
   const [userProfilePreview, setUserProfilePreview] = useState(null);
   const [userDeleteBusy, setUserDeleteBusy] = useState(false);
   const [roleSaveBusy, setRoleSaveBusy] = useState(false);
+  const [moderationCatalog, setModerationCatalog] = useState({ actions: [], resources: [], permissions: [] });
+  const [moderationMatrix, setModerationMatrix] = useState({});
+  const [moderationBusy, setModerationBusy] = useState(false);
+  const [myModerationPermissionKeys, setMyModerationPermissionKeys] = useState([]);
   const [rootStatus, setRootStatus] = useState({ hasRoot: false, rootUser: null, bootstrapPasswordConfigured: false });
   const selectedUserRole = String(userForm?.role || 'user').toLowerCase();
   const selectedUserIsAdminRole = selectedUserRole === 'admin';
   const selectedUserIsRootRole = selectedUserRole === 'root';
   const canEditSelectedUserRole = canManageRoles && (isRootUser || (!selectedUserIsAdminRole && !selectedUserIsRootRole));
+  const myPermissionSet = useMemo(() => new Set(myModerationPermissionKeys || []), [myModerationPermissionKeys]);
+  const visibleTabs = useMemo(() => tabs.filter((tabItem) => {
+    if (tabItem.key === 'moderationMatrix') return canManageRoles;
+    if (isAdminUser) return true;
+    const requiredPermission = TAB_PERMISSION_MAP[tabItem.key];
+    if (!requiredPermission) return false;
+    return myPermissionSet.has(requiredPermission);
+  }), [canManageRoles, isAdminUser, myPermissionSet]);
 
   const [engagementRows, setEngagementRows] = useState([]);
   const [engagementLoading, setEngagementLoading] = useState(false);
@@ -239,6 +272,11 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!canUseAdminApis) return;
+    loadMyModerationPermissions().catch(() => {});
+  }, [canUseAdminApis, userRole, user?.id]);
+
+  useEffect(() => {
+    if (!canUseAdminApis) return;
     if (tab === 'dashboard') refreshDashboard();
     if (tab === 'album') loadCategories();
     if (tab === 'photos') loadPhotos();
@@ -268,6 +306,7 @@ export default function AdminPage() {
     if (tab === 'media') loadMediaSettings();
     if (tab === 'siteControls') loadSiteControls();
     if (tab === 'rootAccess') loadRootStatus();
+    if (tab === 'moderationMatrix') loadModerationCatalog();
   }, [tab, user, refreshDashboard]);
 
   useEffect(() => {
@@ -349,6 +388,9 @@ export default function AdminPage() {
 
   async function openUserEdit(id) {
     await loadUserDetail(id);
+    if (canManageRoles) {
+      await loadModeratorPermissionMatrix(id);
+    }
     setUserEditScreenOpen(true);
   }
 
@@ -377,6 +419,52 @@ export default function AdminPage() {
   async function loadRootStatus() {
     const data = await apiJson('/api/admin/root-status');
     setRootStatus(data || { hasRoot: false, rootUser: null, bootstrapPasswordConfigured: false });
+  }
+
+  async function loadMyModerationPermissions() {
+    if (isAdminUser) {
+      setMyModerationPermissionKeys((moderationCatalog.permissions || []).map((item) => item.key));
+      return;
+    }
+    const data = await apiJson('/api/admin/moderation/my-permissions');
+    setMyModerationPermissionKeys(Array.isArray(data.permissionKeys) ? data.permissionKeys : []);
+  }
+
+  async function loadModerationCatalog() {
+    if (!canManageRoles) return;
+    const data = await apiJson('/api/admin/moderation/permissions/catalog');
+    setModerationCatalog(data || { actions: [], resources: [], permissions: [] });
+  }
+
+  async function loadModeratorPermissionMatrix(targetUserId = userForm?.id) {
+    if (!canManageRoles || !targetUserId) return;
+    const data = await apiJson(`/api/admin/moderation/permissions/${targetUserId}`);
+    const nextMatrix = {};
+    for (const key of data.assignedKeys || []) nextMatrix[key] = true;
+    setModerationMatrix(nextMatrix);
+    if (!userForm || Number(userForm.id) !== Number(targetUserId)) {
+      setUserForm((prev) => ({ ...(prev || {}), ...(data.user || {}), id: targetUserId }));
+    }
+  }
+
+  function toggleModerationPermission(permissionKey, enabled) {
+    setModerationMatrix((prev) => ({ ...prev, [permissionKey]: enabled }));
+  }
+
+  async function saveModeratorPermissions() {
+    if (!canManageRoles || !userForm?.id || moderationBusy) return;
+    setModerationBusy(true);
+    try {
+      const payload = { permissions: moderationMatrix };
+      await apiJson(`/api/admin/moderation/permissions/${userForm.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      setStatus('Moderatör yetkileri kaydedildi.');
+      await Promise.all([loadUserDetail(userForm.id), loadUsers(userFilter)]);
+    } finally {
+      setModerationBusy(false);
+    }
   }
 
   async function updateUserRole() {
@@ -1114,14 +1202,19 @@ export default function AdminPage() {
   }, [dbRows, dbSearch]);
 
   const groupedTabs = useMemo(() => {
-    return tabs.reduce((acc, t) => {
+    return visibleTabs.reduce((acc, t) => {
       if (!acc[t.section]) acc[t.section] = [];
       acc[t.section].push(t);
       return acc;
     }, {});
-  }, []);
+  }, [visibleTabs]);
 
-  const currentTab = useMemo(() => tabs.find((t) => t.key === tab) || tabs[0], [tab]);
+  const currentTab = useMemo(() => visibleTabs.find((t) => t.key === tab) || visibleTabs[0] || tabs[0], [tab, visibleTabs]);
+  useEffect(() => {
+    if (!visibleTabs.length) return;
+    if (!visibleTabs.some((item) => item.key === tab)) setTab(visibleTabs[0].key);
+  }, [tab, visibleTabs]);
+
   const userSummary = useMemo(() => {
     const total = users.length;
     const active = users.filter((u) => Number(u.aktiv || 0) === 1 && Number(u.yasak || 0) === 0).length;
@@ -1131,7 +1224,7 @@ export default function AdminPage() {
     return { total, active, pending, banned, online };
   }, [users]);
 
-  if (!isAdminUser) {
+  if (!canUseAdminApis || !visibleTabs.length) {
     return (
       <Layout title="Yönetim">
         <AccessDeniedView />
@@ -1552,6 +1645,70 @@ export default function AdminPage() {
           ) : null}
         </div>
       ) : null}
+
+      {tab === 'moderationMatrix' ? (
+        <div className="panel">
+          <div className="panel-header">
+            <h4>Moderatör Yetki Matrisi</h4>
+          </div>
+          <div className="panel-body stack">
+            <div className="muted">Admin/root tüm yetkilere sahiptir. Bu ekrandan moderatörlere kaynak + aksiyon bazlı yetki verilebilir.</div>
+            <div className="form-row">
+              <label>Hedef Kullanıcı</label>
+              <div className="composer-actions">
+                <button className="btn" onClick={() => loadUsers('all', { page: 1 }).catch((err) => setStatus(err.message || 'Kullanıcılar yüklenemedi.'))}>Kullanıcıları Yükle</button>
+                <select
+                  className="input"
+                  value={String(userForm?.id || '')}
+                  onChange={(e) => {
+                    const targetId = Number(e.target.value || 0);
+                    const targetUser = users.find((item) => Number(item.id) === targetId) || null;
+                    setUserForm((prev) => ({ ...(prev || {}), ...(targetUser || {}), id: targetId }));
+                    if (targetId) loadModeratorPermissionMatrix(targetId).catch((err) => setStatus(err.message || 'Yetkiler yüklenemedi.'));
+                  }}
+                >
+                  <option value="">Kullanıcı seçiniz</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>@{u.kadi} ({String(u.role || 'user').toLowerCase()})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="list">
+              {(moderationCatalog.resources || []).map((resource) => (
+                <div key={resource.key} className="list-item" style={{ display: 'block' }}>
+                  <div className="name">{resource.label}</div>
+                  <div className="meta" style={{ marginBottom: 8 }}>{resource.description}</div>
+                  <div className="composer-actions" style={{ flexWrap: 'wrap' }}>
+                    {(moderationCatalog.actions || []).map((action) => {
+                      const permissionKey = `${resource.key}.${action.key}`;
+                      return (
+                        <label key={permissionKey} className="admin-switch" style={{ gap: 6 }}>
+                          <input
+                            type="checkbox"
+                            checked={moderationMatrix[permissionKey] === true}
+                            onChange={(e) => toggleModerationPermission(permissionKey, e.target.checked)}
+                            disabled={!userForm?.id || moderationBusy}
+                          />
+                          <span>{action.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="composer-actions">
+              <button className="btn primary" onClick={saveModeratorPermissions} disabled={!userForm?.id || moderationBusy}>
+                {moderationBusy ? 'Kaydediliyor...' : 'Moderasyon Yetkilerini Kaydet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
 
       {tab === 'rootAccess' ? (
         <div className="panel">

@@ -1152,6 +1152,20 @@ runMigration('2026_03_create_moderator_scopes', () => {
   )`);
   sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS moderator_scopes_unique_idx ON moderator_scopes(user_id, scope_type, scope_value)');
 });
+runMigration('2026_03_create_moderator_permissions', () => {
+  sqlRun(`CREATE TABLE IF NOT EXISTS moderator_permissions (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    permission_key TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    updated_by INTEGER,
+    created_at TEXT,
+    updated_at TEXT
+  )`);
+  sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS moderator_permissions_unique_idx ON moderator_permissions(user_id, permission_key)');
+  sqlRun('CREATE INDEX IF NOT EXISTS moderator_permissions_user_idx ON moderator_permissions(user_id)');
+});
 runMigration('2026_03_create_audit_log', () => {
   sqlRun(`CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY,
@@ -1493,6 +1507,45 @@ const MODULE_DEFINITIONS = [
   { key: 'requests', label: 'Üye Talepleri' }
 ];
 
+const MODERATION_ACTION_DEFINITIONS = [
+  { key: 'view', label: 'Görüntüleme', description: 'Listeleme ve detay görüntüleme' },
+  { key: 'toggle', label: 'Aç/Kapat', description: 'Fonksiyonu kullanıcı erişimine açıp kapatma' },
+  { key: 'create', label: 'Kayıt Ekleme', description: 'Yeni kayıt veya içerik oluşturma' },
+  { key: 'update', label: 'Kayıt Güncelleme', description: 'Var olan içeriği düzenleme' },
+  { key: 'delete', label: 'Silme', description: 'Kayıt veya içeriği kaldırma' },
+  { key: 'moderate', label: 'Moderasyon Kararı', description: 'Onaylama, reddetme, gizleme, rapor işleme' },
+  { key: 'export', label: 'Dışa Aktarım', description: 'Log/kayıt verisini dışa aktarma ve raporlama' }
+];
+
+const MODERATION_RESOURCE_DEFINITIONS = [
+  { key: 'users', label: 'Üyeler', description: 'Profil, hesap durumu ve rol işlemleri' },
+  { key: 'groups', label: 'Gruplar', description: 'Grup içerikleri ve üyelik yönetimi' },
+  { key: 'posts', label: 'Postlar', description: 'Akış gönderileri ve yorum moderasyonu' },
+  { key: 'stories', label: 'Hikayeler', description: 'Story içerik denetimi' },
+  { key: 'chat', label: 'Canlı Sohbet', description: 'Canlı sohbet mesaj yönetimi' },
+  { key: 'messages', label: 'Mesajlar', description: 'Kullanıcılar arası özel mesaj moderasyonu' },
+  { key: 'events', label: 'Etkinlikler', description: 'Etkinlik oluşturma/onay akışları' },
+  { key: 'announcements', label: 'Duyurular', description: 'Duyuru içerik moderasyonu' },
+  { key: 'albums', label: 'Albüm ve Fotoğraflar', description: 'Albüm/fotoğraf kayıt işlemleri' },
+  { key: 'filters', label: 'İçerik Filtreleri', description: 'Yasaklı kelime ve filtre kuralları' },
+  { key: 'requests', label: 'Yönetim Talepleri', description: 'Destek ve inceleme talepleri' },
+  { key: 'siteControls', label: 'Site Kontrolleri', description: 'Site genel mod ve modül kontrolü' },
+  { key: 'database', label: 'Veritabanı Araçları', description: 'Kayıt tarama ve yedekleme işlemleri' },
+  { key: 'logs', label: 'Loglar', description: 'Sistem ve uygulama log yönetimi' }
+];
+
+const MODERATION_PERMISSION_DEFINITIONS = MODERATION_RESOURCE_DEFINITIONS.flatMap((resource) =>
+  MODERATION_ACTION_DEFINITIONS.map((action) => ({
+    key: `${resource.key}.${action.key}`,
+    resourceKey: resource.key,
+    resourceLabel: resource.label,
+    actionKey: action.key,
+    actionLabel: action.label,
+    description: `${resource.description} • ${action.description}`
+  }))
+);
+const MODERATION_PERMISSION_KEY_SET = new Set(MODERATION_PERMISSION_DEFINITIONS.map((item) => item.key));
+
 runMigration('2026_03_site_controls_default_row', () => {
   const existing = sqlGet('SELECT id FROM site_controls WHERE id = 1');
   if (!existing) {
@@ -1609,6 +1662,62 @@ function getUserRole(user) {
 
 function hasAdminRole(user) {
   return roleAtLeast(getUserRole(user), 'admin');
+}
+
+function buildModeratorPermissionMap(userId) {
+  const map = new Map();
+  if (!userId) return map;
+  const rows = sqlAll('SELECT permission_key, enabled FROM moderator_permissions WHERE user_id = ?', [userId]) || [];
+  for (const row of rows) {
+    const key = String(row.permission_key || '').trim();
+    if (!key) continue;
+    map.set(key, Number(row.enabled || 0) === 1);
+  }
+  return map;
+}
+
+function getModeratorPermissionSummary(userId) {
+  const map = buildModeratorPermissionMap(userId);
+  const assignedKeys = [];
+  for (const [key, enabled] of map.entries()) {
+    if (enabled && MODERATION_PERMISSION_KEY_SET.has(key)) assignedKeys.push(key);
+  }
+  return {
+    assignedKeys: assignedKeys.sort((a, b) => a.localeCompare(b)),
+    permissionMap: Object.fromEntries(Array.from(map.entries())),
+    resources: MODERATION_RESOURCE_DEFINITIONS.map((resource) => ({
+      ...resource,
+      permissions: MODERATION_ACTION_DEFINITIONS.map((action) => {
+        const key = `${resource.key}.${action.key}`;
+        return {
+          key,
+          enabled: map.get(key) === true,
+          actionKey: action.key,
+          actionLabel: action.label,
+          description: action.description
+        };
+      })
+    }))
+  };
+}
+
+function userHasModerationPermission(user, permissionKey) {
+  if (!permissionKey || !MODERATION_PERMISSION_KEY_SET.has(permissionKey)) return false;
+  const role = getUserRole(user);
+  if (role === 'root' || role === 'admin') return true;
+  if (role !== 'mod' || !user?.id) return false;
+  const row = sqlGet('SELECT enabled FROM moderator_permissions WHERE user_id = ? AND permission_key = ? LIMIT 1', [user.id, permissionKey]);
+  return Number(row?.enabled || 0) === 1;
+}
+
+function requireModerationPermission(permissionKey) {
+  return (req, res, next) => {
+    const user = req.authUser || getCurrentUser(req);
+    if (!user) return res.status(401).send('Login required');
+    if (!userHasModerationPermission(user, permissionKey)) return res.status(403).send('Bu işlem için moderasyon yetkin yok.');
+    req.authUser = user;
+    return next();
+  };
 }
 
 function hasAdminSession(req, user = null) {
@@ -4105,7 +4214,8 @@ app.get('/api/session', (req, res) => {
   if (!user) return res.json({ user: null });
   const state = isOAuthProfileIncomplete(user) ? 'incomplete' : 'active';
   const role = getUserRole(user);
-  res.json({ user: { ...user, role, admin: roleAtLeast(role, 'admin') ? 1 : 0, state } });
+  const moderationPermissionKeys = role === 'mod' ? getModeratorPermissionSummary(user.id).assignedKeys : [];
+  res.json({ user: { ...user, role, admin: roleAtLeast(role, 'admin') ? 1 : 0, state, moderationPermissionKeys } });
 });
 
 app.get('/api/auth/oauth/providers', (req, res) => {
@@ -4258,7 +4368,8 @@ app.get('/api/admin/session', (req, res) => {
   const user = sqlGet('SELECT id, kadi, isim, soyisim, admin, albumadmin, role FROM uyeler WHERE id = ?', [req.session.userId]);
   if (!user) return res.json({ user: null, adminOk: false });
   const role = getUserRole(user);
-  res.json({ user: { ...user, role, admin: hasAdminRole(user) ? 1 : 0 }, adminOk: roleAtLeast(role, 'admin') ? true : !!req.session.adminOk });
+  const moderationPermissionKeys = role === 'mod' ? getModeratorPermissionSummary(user.id).assignedKeys : [];
+  res.json({ user: { ...user, role, admin: hasAdminRole(user) ? 1 : 0, moderationPermissionKeys }, adminOk: roleAtLeast(role, 'admin') ? true : !!req.session.adminOk });
 });
 
 app.get('/api/admin/root-status', requireAdmin, (_req, res) => {
@@ -4336,6 +4447,95 @@ app.get('/admin/moderators', requireAuth, requireRole('admin'), (_req, res) => {
   }
   res.json({ moderators: Array.from(map.values()) });
 });
+
+app.get('/api/admin/moderation/permissions/catalog', requireAuth, requireRole('admin'), (_req, res) => {
+  res.json({
+    actions: MODERATION_ACTION_DEFINITIONS,
+    resources: MODERATION_RESOURCE_DEFINITIONS,
+    permissions: MODERATION_PERMISSION_DEFINITIONS
+  });
+});
+
+app.get('/api/admin/moderation/permissions/:userId', requireAuth, requireRole('admin'), (req, res) => {
+  const userId = Number(req.params.userId || 0);
+  if (!userId) return res.status(400).send('Geçersiz kullanıcı.');
+  const target = sqlGet('SELECT id, kadi, isim, soyisim, role FROM uyeler WHERE id = ?', [userId]);
+  if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
+  const summary = getModeratorPermissionSummary(userId);
+  res.json({
+    user: { ...target, role: getUserRole(target) },
+    ...summary
+  });
+});
+
+app.put('/api/admin/moderation/permissions/:userId', requireAuth, requireRole('admin'), (req, res) => {
+  const actor = req.authUser;
+  const userId = Number(req.params.userId || 0);
+  if (!userId) return res.status(400).send('Geçersiz kullanıcı.');
+  const target = sqlGet('SELECT id, role FROM uyeler WHERE id = ?', [userId]);
+  if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
+  if (normalizeRole(target.role) === 'root') return res.status(400).send('Root kullanıcı için moderasyon yetkisi tanımlanamaz.');
+
+  const payload = req.body || {};
+  const permissionMap = payload.permissions && typeof payload.permissions === 'object' ? payload.permissions : null;
+  const permissionKeys = Array.isArray(payload.permissionKeys) ? payload.permissionKeys : null;
+  const updates = new Map();
+
+  if (permissionMap) {
+    for (const [key, enabled] of Object.entries(permissionMap)) {
+      const normalizedKey = String(key || '').trim();
+      if (!MODERATION_PERMISSION_KEY_SET.has(normalizedKey)) continue;
+      updates.set(normalizedKey, !!enabled);
+    }
+  }
+
+  if (permissionKeys) {
+    const normalized = new Set(permissionKeys.map((item) => String(item || '').trim()).filter((item) => MODERATION_PERMISSION_KEY_SET.has(item)));
+    for (const key of MODERATION_PERMISSION_KEY_SET) {
+      updates.set(key, normalized.has(key));
+    }
+  }
+
+  if (!updates.size) return res.status(400).send('En az bir geçerli yetki anahtarı gerekli.');
+
+  const now = new Date().toISOString();
+  sqlRun('UPDATE uyeler SET role = ?, admin = 0 WHERE id = ?', ['mod', userId]);
+  for (const [permissionKey, enabled] of updates.entries()) {
+    sqlRun(
+      `INSERT INTO moderator_permissions (user_id, permission_key, enabled, created_by, updated_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, permission_key)
+       DO UPDATE SET enabled = excluded.enabled, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+      [userId, permissionKey, enabled ? 1 : 0, actor.id, actor.id, now, now]
+    );
+  }
+
+  writeAuditLog(req, {
+    actorUserId: actor.id,
+    action: 'moderator_permissions_updated',
+    targetType: 'user',
+    targetId: String(userId),
+    metadata: { updatedCount: updates.size }
+  });
+
+  const summary = getModeratorPermissionSummary(userId);
+  res.json({ ok: true, userId, ...summary });
+});
+
+app.get('/api/admin/moderation/my-permissions', requireAuth, (req, res) => {
+  const user = req.authUser || getCurrentUser(req);
+  if (!user) return res.status(401).send('Login required');
+  const role = getUserRole(user);
+  if (role === 'root' || role === 'admin') {
+    return res.json({ role, isSuperModerator: true, permissionKeys: Array.from(MODERATION_PERMISSION_KEY_SET).sort((a, b) => a.localeCompare(b)) });
+  }
+  if (role !== 'mod') {
+    return res.json({ role, isSuperModerator: false, permissionKeys: [] });
+  }
+  const summary = getModeratorPermissionSummary(user.id);
+  res.json({ role, isSuperModerator: false, permissionKeys: summary.assignedKeys, permissionMap: summary.permissionMap });
+});
+
 
 app.post('/api/admin/login', (req, res) => {
   const user = getCurrentUser(req);
@@ -8805,7 +9005,7 @@ app.post('/api/new/verified/proof', requireAuth, verificationProofUpload.single(
   }
 });
 
-app.get('/api/new/admin/verification-requests', requireAdmin, (req, res) => {
+app.get('/api/new/admin/verification-requests', requireModerationPermission('requests.view'), (req, res) => {
   const rows = sqlAll(
     `SELECT r.id, r.user_id, r.status, r.proof_path, r.proof_image_record_id, r.created_at, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
      FROM verification_requests r
@@ -8855,7 +9055,7 @@ function assignUserToCohort(userId) {
   }
 }
 
-app.post('/api/new/admin/verification-requests/:id', requireAdmin, (req, res) => {
+app.post('/api/new/admin/verification-requests/:id', requireModerationPermission('requests.moderate'), (req, res) => {
   const status = req.body?.status;
   if (!['approved', 'rejected'].includes(status)) return res.status(400).send('Geçersiz durum.');
   const row = sqlGet('SELECT * FROM verification_requests WHERE id = ?', [req.params.id]);
@@ -8890,7 +9090,7 @@ app.get('/api/new/admin/requests/notifications', requireAdmin, (_req, res) => {
   res.json({ items: categories });
 });
 
-app.get('/api/new/admin/requests', requireAdmin, (req, res) => {
+app.get('/api/new/admin/requests', requireModerationPermission('requests.view'), (req, res) => {
   const categoryKey = String(req.query.category || '').trim();
   const status = String(req.query.status || 'pending').trim();
   const where = ['1=1'];
@@ -8920,7 +9120,7 @@ app.get('/api/new/admin/requests', requireAdmin, (req, res) => {
   res.json({ items });
 });
 
-app.post('/api/new/admin/requests/:id/review', requireAdmin, (req, res) => {
+app.post('/api/new/admin/requests/:id/review', requireModerationPermission('requests.moderate'), (req, res) => {
   const status = String(req.body?.status || '').trim();
   const resolutionNote = String(req.body?.resolution_note || '').trim();
   if (!['approved', 'rejected'].includes(status)) return res.status(400).send('Geçersiz durum.');
@@ -9439,12 +9639,12 @@ app.get('/api/new/admin/live', requireAdmin, (req, res) => {
   });
 });
 
-app.get('/api/new/admin/groups', requireAdmin, (req, res) => {
+app.get('/api/new/admin/groups', requireModerationPermission('groups.view'), (req, res) => {
   const rows = sqlAll('SELECT id, name, description, cover_image, owner_id, created_at FROM groups ORDER BY id DESC');
   res.json({ items: rows });
 });
 
-app.delete('/api/new/admin/groups/:id', requireAdmin, (req, res) => {
+app.delete('/api/new/admin/groups/:id', requireModerationPermission('groups.delete'), (req, res) => {
   sqlRun('DELETE FROM group_members WHERE group_id = ?', [req.params.id]);
   sqlRun('DELETE FROM group_join_requests WHERE group_id = ?', [req.params.id]);
   sqlRun('DELETE FROM group_invites WHERE group_id = ?', [req.params.id]);
@@ -9455,7 +9655,7 @@ app.delete('/api/new/admin/groups/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/new/admin/stories', requireAdmin, (req, res) => {
+app.get('/api/new/admin/stories', requireModerationPermission('stories.view'), (req, res) => {
   let rows = sqlAll(
     `SELECT s.id, s.image, s.caption, s.created_at, s.expires_at, u.kadi
      FROM stories s LEFT JOIN uyeler u ON u.id = s.user_id
@@ -9472,7 +9672,7 @@ app.get('/api/new/admin/stories', requireAdmin, (req, res) => {
   res.json({ items: rows });
 });
 
-app.get('/api/new/admin/posts', requireAdmin, (req, res) => {
+app.get('/api/new/admin/posts', requireModerationPermission('posts.view'), (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '200', 10), 1), 500);
   const rows = sqlAll(
     `SELECT p.id, p.user_id, p.content, p.image, p.created_at, u.kadi
@@ -9485,7 +9685,7 @@ app.get('/api/new/admin/posts', requireAdmin, (req, res) => {
   res.json({ items: rows });
 });
 
-app.delete('/api/new/admin/posts/:id', requireAdmin, (req, res) => {
+app.delete('/api/new/admin/posts/:id', requireModerationPermission('posts.delete'), (req, res) => {
   const postId = Number(req.params.id || 0);
   if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
   deletePostById(postId);
@@ -9494,14 +9694,14 @@ app.delete('/api/new/admin/posts/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/new/admin/stories/:id', requireAdmin, (req, res) => {
+app.delete('/api/new/admin/stories/:id', requireModerationPermission('stories.delete'), (req, res) => {
   sqlRun('DELETE FROM story_views WHERE story_id = ?', [req.params.id]);
   sqlRun('DELETE FROM stories WHERE id = ?', [req.params.id]);
   logAdminAction(req, 'story_delete', { storyId: req.params.id });
   res.json({ ok: true });
 });
 
-app.get('/api/new/admin/chat/messages', requireAdmin, (req, res) => {
+app.get('/api/new/admin/chat/messages', requireModerationPermission('chat.view'), (req, res) => {
   let rows = sqlAll(
     `SELECT c.id, c.message, c.created_at, u.kadi
      FROM chat_messages c LEFT JOIN uyeler u ON u.id = c.user_id
@@ -9522,7 +9722,7 @@ app.get('/api/new/admin/chat/messages', requireAdmin, (req, res) => {
   res.json({ items: rows });
 });
 
-app.delete('/api/new/admin/chat/messages/:id', requireAdmin, (req, res) => {
+app.delete('/api/new/admin/chat/messages/:id', requireModerationPermission('chat.delete'), (req, res) => {
   const messageId = Number(req.params.id || 0);
   sqlRun('DELETE FROM chat_messages WHERE id = ?', [messageId]);
   broadcastChatDelete(messageId);
@@ -9531,7 +9731,7 @@ app.delete('/api/new/admin/chat/messages/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/new/admin/messages', requireAdmin, (req, res) => {
+app.get('/api/new/admin/messages', requireModerationPermission('messages.view'), (req, res) => {
   const rows = sqlAll(
     `SELECT g.id, g.konu, g.mesaj, g.tarih, u1.kadi AS kimden_kadi, u2.kadi AS kime_kadi
      FROM gelenkutusu g
@@ -9543,7 +9743,7 @@ app.get('/api/new/admin/messages', requireAdmin, (req, res) => {
   res.json({ items: rows });
 });
 
-app.delete('/api/new/admin/messages/:id', requireAdmin, (req, res) => {
+app.delete('/api/new/admin/messages/:id', requireModerationPermission('messages.delete'), (req, res) => {
   sqlRun('DELETE FROM gelenkutusu WHERE id = ?', [req.params.id]);
   logAdminAction(req, 'inbox_message_delete', { messageId: req.params.id });
   res.json({ ok: true });
