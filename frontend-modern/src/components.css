@@ -12,6 +12,10 @@
   font-weight: 700;
   color: var(--ink);
 }
+.feed-note {
+  text-align: center;
+}
+
 .filter-grid {
   margin-top: 10px;
   display: flex;

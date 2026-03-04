@@ -19,7 +19,8 @@ export default function FeedPage() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [pendingPostsCount, setPendingPostsCount] = useState(0);
   const [pendingItems, setPendingItems] = useState(null);
-  const [scope, setScope] = useState('all');
+  const [feedType, setFeedType] = useState('main');
+  const [filter, setFilter] = useState('latest');
   const [mainFeedOpen, setMainFeedOpen] = useState(true);
   const [quickUsers, setQuickUsers] = useState([]);
   const [onlineMembers, setOnlineMembers] = useState([]);
@@ -33,10 +34,13 @@ export default function FeedPage() {
   const sentinelRef = useRef(null);
   const initializedRef = useRef(false);
   const scopeOptions = [
-    ...(mainFeedOpen ? [{ key: 'all', label: t('main_feed'), icon: '○' }] : []),
-    { key: 'following', label: t('following'), icon: '◎' },
-    { key: 'cohort', label: t('community_feed'), icon: '◓' },
-    { key: 'popular', label: t('popular'), icon: '▲' }
+    ...(mainFeedOpen ? [{ key: 'main', label: t('main_feed'), icon: '○' }] : []),
+    { key: 'community', label: t('community_feed'), icon: '◓' }
+  ];
+  const filterOptions = [
+    { key: 'latest', label: t('latest'), icon: '◉' },
+    { key: 'popular', label: t('popular'), icon: '▲' },
+    { key: 'following', label: t('following'), icon: '◎' }
   ];
   const feedTabOptions = [
     { key: 'posts', label: t('nav_feed'), icon: '▤' },
@@ -46,7 +50,8 @@ export default function FeedPage() {
     { key: 'messages', label: t('new_messages'), icon: '▭' },
     { key: 'quick', label: t('quick_access'), icon: '◇' }
   ];
-  const activeScopeLabel = scopeOptions.find((item) => item.key === scope)?.label || t('all');
+  const activeScopeLabel = scopeOptions.find((item) => item.key === feedType)?.label || t('main_feed');
+  const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
   const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
 
   useEffect(() => {
@@ -62,15 +67,15 @@ export default function FeedPage() {
         if (!mounted) return;
         const isOpen = payload?.modules?.main_feed !== false;
         setMainFeedOpen(isOpen);
-        if (!isOpen && scope === 'all') setScope('cohort');
+        if (!isOpen && feedType === 'main') setFeedType('community');
       })
       .catch(() => {});
     return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
-    if (!mainFeedOpen && scope === 'all') setScope('cohort');
-  }, [mainFeedOpen, scope]);
+    if (!mainFeedOpen && feedType === 'main') setFeedType('community');
+  }, [mainFeedOpen, feedType]);
 
   const load = useCallback(async ({ silent = false, force = false } = {}) => {
     if (loadingRef.current && !force) return;
@@ -78,11 +83,11 @@ export default function FeedPage() {
     loadingRef.current = true;
     try {
       if (!silent) setLoading(true);
-      const res = await fetch(`/api/new/feed?limit=20&offset=0&scope=${scope}`, { credentials: 'include' });
+      const res = await fetch(`/api/new/feed?limit=20&offset=0&feedType=${feedType}&filter=${filter}`, { credentials: 'include' });
       const payload = await res.json();
       if (requestSeq !== requestSeqRef.current) return;
       let items = payload.items || [];
-      if (scope === 'following' && user?.id) {
+      if (filter === 'following' && user?.id) {
         items = items.filter((p) => Number(p?.author?.id || p?.user_id || 0) !== Number(user.id));
       }
       const prev = postsRef.current;
@@ -115,14 +120,14 @@ export default function FeedPage() {
         loadingRef.current = false;
       }
     }
-  }, [scope, user?.id]);
+  }, [feedType, filter, user?.id]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || loadingRef.current) return;
     setLoadingMore(true);
     try {
       const offset = postsRef.current.length;
-      const res = await fetch(`/api/new/feed?limit=20&offset=${offset}&scope=${scope}`, { credentials: 'include' });
+      const res = await fetch(`/api/new/feed?limit=20&offset=${offset}&feedType=${feedType}&filter=${filter}`, { credentials: 'include' });
       if (!res.ok) return;
       const payload = await res.json();
       const next = payload.items || [];
@@ -140,7 +145,7 @@ export default function FeedPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [scope, hasMore, loadingMore]);
+  }, [feedType, filter, hasMore, loadingMore]);
 
   const loadUnreadMessages = useCallback(async () => {
     try {
@@ -186,7 +191,7 @@ export default function FeedPage() {
     loadQuickAccess();
     loadOnlineMembers();
     initializedRef.current = true;
-  }, [load, loadUnreadMessages, loadQuickAccess, loadOnlineMembers, scope]);
+  }, [load, loadUnreadMessages, loadQuickAccess, loadOnlineMembers, feedType, filter]);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -231,8 +236,8 @@ export default function FeedPage() {
               {scopeOptions.map((scopeItem) => (
                 <button
                   key={`scope-${scopeItem.key}`}
-                  className={`btn scope-btn ${scope === scopeItem.key ? 'primary' : 'ghost'}`}
-                  onClick={() => setScope(scopeItem.key)}
+                  className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
+                  onClick={() => setFeedType(scopeItem.key)}
                   title={scopeItem.label}
                   aria-label={scopeItem.label}
                 >
@@ -242,7 +247,22 @@ export default function FeedPage() {
               ))}
             </div>
             <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
-            <div className="muted">{t('main_feed_public_note')}</div>
+            <div className="panel-body scope-tabs">
+              {filterOptions.map((filterItem) => (
+                <button
+                  key={`filter-${filterItem.key}`}
+                  className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
+                  onClick={() => setFilter(filterItem.key)}
+                  title={filterItem.label}
+                  aria-label={filterItem.label}
+                >
+                  <span className="scope-btn-icon" aria-hidden="true">{filterItem.icon}</span>
+                  <span className="scope-btn-label">{filterItem.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="scope-mobile-selected-title">{activeFilterLabel}</div>
+            <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
           </div>
           {pendingPostsCount > 0 ? (
             <button

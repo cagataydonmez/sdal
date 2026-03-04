@@ -6580,20 +6580,25 @@ app.post('/api/photos/:id/comments', (req, res) => {
 app.get('/api/new/feed', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-  const scope = String(req.query.scope || 'all');
+  const legacyScope = String(req.query.scope || '').trim();
+  const feedTypeRaw = String(req.query.feedType || req.query.feed || '').trim();
+  const filterRaw = String(req.query.filter || req.query.sort || '').trim();
+  const legacyMap = {
+    all: { feedType: 'main', filter: 'latest' },
+    popular: { feedType: 'main', filter: 'popular' },
+    following: { feedType: 'main', filter: 'following' },
+    cohort: { feedType: 'community', filter: 'latest' }
+  };
+  const legacyResolved = legacyMap[legacyScope] || null;
+  const feedType = ['main', 'community'].includes(feedTypeRaw) ? feedTypeRaw : (legacyResolved?.feedType || 'main');
+  const filter = ['latest', 'popular', 'following'].includes(filterRaw) ? filterRaw : (legacyResolved?.filter || 'latest');
   const moduleMap = getModuleControlMap();
-  if (scope === 'all' && moduleMap.main_feed === false) {
+  if (feedType === 'main' && moduleMap.main_feed === false) {
     return res.status(403).json({ error: 'MODULE_CLOSED', moduleKey: 'main_feed', message: 'Ana akış geçici olarak kapatıldı.' });
   }
-  let where = 'WHERE p.group_id IS NULL';
+  let where = feedType === 'main' ? 'WHERE p.group_id IS NULL' : 'WHERE 1=0';
   const params = [];
-  if (scope === 'following') {
-    where = 'WHERE p.group_id IS NULL AND p.user_id <> ? AND p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)';
-    params.push(req.session.userId, req.session.userId);
-  } else if (scope === 'popular') {
-    where = 'WHERE p.group_id IS NULL AND p.user_id <> ?';
-    params.push(req.session.userId);
-  } else if (scope === 'cohort') {
+  if (feedType === 'community') {
     const userRow = sqlGet('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
     const year = parseInt(userRow?.mezuniyetyili || '0', 10);
     if (!isNaN(year) && year > 1900) {
@@ -6602,14 +6607,14 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
       if (groupRow) {
         where = 'WHERE p.group_id = ?';
         params.push(groupRow.id);
-      } else {
-        where = 'WHERE 1=0';
       }
-    } else {
-      where = 'WHERE 1=0';
     }
   }
-  const orderBy = scope === 'popular'
+  if (filter === 'following') {
+    where += ' AND p.user_id <> ? AND p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)';
+    params.push(req.session.userId, req.session.userId);
+  }
+  const orderBy = filter === 'popular'
     ? (
       isPostgresDb
         ? `(
@@ -6624,21 +6629,8 @@ app.get('/api/new/feed', requireAuth, (req, res) => {
             - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 168), 0) * 0.22
           ) DESC, p.id DESC`
     )
-    : (
-      isPostgresDb
-        ? `(
-            COALESCE(es.score, 0) * 0.72
-            + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
-          ) DESC, p.id DESC`
-        : `(
-            COALESCE(es.score, 0) * 0.72
-            - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 72), 0) * 0.45
-            + CASE WHEN p.user_id = ? THEN 4 ELSE 0 END
-          ) DESC, p.id DESC`
-    );
-  const queryParams = scope === 'popular'
-    ? [...params, limit, offset]
-    : [...params, req.session.userId, limit, offset];
+    : 'p.id DESC';
+  const queryParams = [...params, limit, offset];
   const rows = sqlAll(
     `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.group_id,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
