@@ -23,6 +23,7 @@ import { presenceMiddleware, toLocalDateParts } from './middleware/presence.js';
 import { requestLoggingMiddleware } from './middleware/requestLogging.js';
 import { registerStaticUploads } from './middleware/staticUploads.js';
 import { registerLegacyStatics } from './routes/staticLegacy.js';
+import { createPhase1DomainLayer } from './src/bootstrap/createPhase1DomainLayer.js';
 
 const __dirname = getDirname(import.meta.url);
 
@@ -333,7 +334,8 @@ if (!mailProviderStatus.configured) {
 }
 
 const adminPassword = String(process.env.SDAL_ADMIN_PASSWORD || '').trim();
-const legacyRoot = path.resolve(__dirname, '../..');
+const legacyRootOverride = String(process.env.SDAL_LEGACY_ROOT_DIR || '').trim();
+const legacyRoot = legacyRootOverride ? path.resolve(legacyRootOverride) : path.resolve(__dirname, '../..');
 const hatalogDir = path.join(legacyRoot, 'hatalog');
 const sayfalogDir = path.join(legacyRoot, 'sayfalog');
 const uyedetaylogDir = path.join(legacyRoot, 'uyedetaylog');
@@ -4195,6 +4197,38 @@ app.get('/admincikis.asp', (req, res) => {
   res.redirect(302, '/admin');
 });
 
+const phase1Domain = createPhase1DomainLayer({
+  sqlGet,
+  sqlAll,
+  sqlRun,
+  isPostgresDb,
+  joinUserOnPostAuthorExpr,
+  normalizeRole,
+  roleAtLeast,
+  getUserRole,
+  hasAdminRole,
+  verifyPassword,
+  hashPassword,
+  applyUserSession,
+  enrichWithVariants,
+  getImageVariants,
+  uploadsDir,
+  getModuleControlMap,
+  formatUserText,
+  isFormattedContentEmpty,
+  getCurrentUser,
+  notifyMentions,
+  addNotification,
+  scheduleEngagementRecalculation,
+  canManageChatMessage,
+  broadcastChatMessage,
+  broadcastChatUpdate,
+  broadcastChatDelete,
+  replaceModeratorPermissions,
+  moderationPermissionKeys: MODERATION_PERMISSION_KEY_SET,
+  writeAuditLog
+});
+
 app.get('/hirsiz.asp', requireAdmin, (req, res) => {
   const id = req.query.uyeid;
   if (!id) {
@@ -4358,50 +4392,9 @@ app.post('/api/auth/oauth/mobile/exchange', (req, res) => {
   res.json({ ok: true, user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim } });
 });
 
-app.post('/api/auth/login', async (req, res) => {
-  const { kadi, sifre } = req.body || {};
-  if (!kadi) return res.status(400).send('Kullanıcı adını yazmazsan siteye giremezsin.');
-  if (!sifre) return res.status(400).send('Siteye girmek için şifreni de yazman gerekiyor.');
+app.post('/api/auth/login', phase1Domain.controllers.auth.login);
 
-  const user = sqlGet('SELECT * FROM uyeler WHERE kadi = ?', [kadi]);
-  if (!user) {
-    return res.status(400).send('Sdal.org sitesinde böyle bir kullanıcı henüz kayıtlı değil.');
-  }
-  if (user.yasak === 1) {
-    return res.status(400).send(`Merhaba ${user.isim || ''} ${user.soyisim || ''}, siteye girişiniz yasaklanmış!`);
-  }
-  if (user.aktiv === 0) {
-    return res.status(400).send(`Onay işleminizi henüz tamamlamamışsınız. Aktivasyon maili için /aktivasyon-gonder?id=${user.id}`);
-  }
-  const verify = await verifyPassword(user.sifre, sifre);
-  if (!verify.ok) return res.status(400).send('Girdiğin şifre yanlış!');
-  if (verify.needsRehash) {
-    sqlRun('UPDATE uyeler SET sifre = ? WHERE id = ?', [await hashPassword(sifre), user.id]);
-  }
-
-  applyUserSession(req, user);
-  res.cookie('uyegiris', 'evet');
-  res.cookie('uyeid', String(user.id));
-  res.cookie('kadi', user.kadi);
-
-  res.json({
-    user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim, photo: user.resim, role: getUserRole(user), admin: hasAdminRole(user) ? 1 : 0 },
-    needsProfile: user.ilkbd === 0
-  });
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  if (req.session.userId) {
-    sqlRun('UPDATE uyeler SET online = 0 WHERE id = ?', [req.session.userId]);
-  }
-  req.session.destroy(() => {
-    res.clearCookie('uyegiris');
-    res.clearCookie('uyeid');
-    res.clearCookie('kadi');
-    res.clearCookie('admingiris');
-    res.status(204).send();
-  });
-});
+app.post('/api/auth/logout', phase1Domain.controllers.auth.logout);
 
 app.get('/api/admin/session', (req, res) => {
   if (!req.session.userId) return res.json({ user: null, adminOk: false });
@@ -4422,38 +4415,7 @@ app.get('/api/admin/root-status', requireAdmin, (_req, res) => {
 });
 
 
-app.post('/admin/users/:id/role', requireAuth, requireRole('admin'), (req, res) => {
-  const actorRole = getUserRole(req.authUser);
-  const targetId = Number(req.params.id || 0);
-  const nextRole = normalizeRole(req.body?.role);
-  if (!targetId) return res.status(400).send('Geçersiz kullanıcı.');
-  const assignableRoles = actorRole === 'root' ? ['admin', 'mod', 'user'] : ['mod', 'user'];
-  if (!assignableRoles.includes(nextRole)) return res.status(400).send('Bu rolü atama yetkiniz yok.');
-  const target = sqlGet('SELECT id, role, admin FROM uyeler WHERE id = ?', [targetId]);
-  if (!target) return res.status(404).send('Kullanıcı bulunamadı.');
-  const targetRole = normalizeRole(target.role);
-  if (targetRole === 'root') return res.status(400).send('Root rolü değiştirilemez.');
-  if (actorRole !== 'root' && targetRole === 'admin') return res.status(403).send('Admin hesabın rolünü sadece root değiştirebilir.');
-  sqlRun('UPDATE uyeler SET role = ?, admin = ? WHERE id = ?', [nextRole, nextRole === 'admin' ? 1 : 0, targetId]);
-  if (nextRole === 'admin') {
-    replaceModeratorPermissions(targetId, Array.from(MODERATION_PERMISSION_KEY_SET), req.authUser.id);
-  } else if (nextRole === 'mod') {
-    const previousRoleWasAdmin = roleAtLeast(targetRole, 'admin');
-    if (previousRoleWasAdmin) {
-      replaceModeratorPermissions(targetId, [], req.authUser.id);
-    }
-  } else {
-    replaceModeratorPermissions(targetId, [], req.authUser.id);
-  }
-  writeAuditLog(req, {
-    actorUserId: req.authUser.id,
-    action: 'role_changed',
-    targetType: 'user',
-    targetId: String(targetId),
-    metadata: { previousRole: targetRole, nextRole }
-  });
-  res.json({ ok: true, userId: targetId, role: nextRole });
-});
+app.post('/admin/users/:id/role', requireAuth, requireRole('admin'), phase1Domain.controllers.admin.updateUserRole);
 
 app.post('/admin/moderators/:id/scopes', requireAuth, requireRole('admin'), (req, res) => {
   const actor = req.authUser;
@@ -6593,139 +6555,9 @@ app.post('/api/photos/:id/comments', (req, res) => {
 });
 
 // Modern (sdal_new) social APIs
-app.get('/api/new/feed', requireAuth, (req, res) => {
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
-  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-  const legacyScope = String(req.query.scope || '').trim();
-  const feedTypeRaw = String(req.query.feedType || req.query.feed || '').trim();
-  const filterRaw = String(req.query.filter || req.query.sort || '').trim();
-  const legacyMap = {
-    all: { feedType: 'main', filter: 'latest' },
-    popular: { feedType: 'main', filter: 'popular' },
-    following: { feedType: 'main', filter: 'following' },
-    cohort: { feedType: 'community', filter: 'latest' }
-  };
-  const legacyResolved = legacyMap[legacyScope] || null;
-  const feedType = ['main', 'community'].includes(feedTypeRaw) ? feedTypeRaw : (legacyResolved?.feedType || 'main');
-  const filter = ['latest', 'popular', 'following'].includes(filterRaw) ? filterRaw : (legacyResolved?.filter || 'latest');
-  const moduleMap = getModuleControlMap();
-  if (feedType === 'main' && moduleMap.main_feed === false) {
-    return res.status(403).json({ error: 'MODULE_CLOSED', moduleKey: 'main_feed', message: 'Ana akış geçici olarak kapatıldı.' });
-  }
-  let where = feedType === 'main' ? 'WHERE p.group_id IS NULL' : 'WHERE 1=0';
-  const params = [];
-  if (feedType === 'community') {
-    const userRow = sqlGet('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
-    const year = parseInt(userRow?.mezuniyetyili || '0', 10);
-    if (!isNaN(year) && year > 1900) {
-      const cohortName = `${year} Mezunları`;
-      const groupRow = sqlGet('SELECT id FROM groups WHERE name = ?', [cohortName]);
-      if (groupRow) {
-        where = 'WHERE p.group_id = ?';
-        params.push(groupRow.id);
-      }
-    }
-  }
-  if (filter === 'following') {
-    where += ' AND p.user_id <> ? AND p.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)';
-    params.push(req.session.userId, req.session.userId);
-  }
-  const orderBy = filter === 'popular'
-    ? (
-      isPostgresDb
-        ? `(
-            COALESCE((SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id), 0) * 2.4
-            + COALESCE((SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id), 0) * 3.2
-            + COALESCE(es.score, 0) * 0.18
-          ) DESC, p.id DESC`
-        : `(
-            COALESCE((SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id), 0) * 2.4
-            + COALESCE((SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id), 0) * 3.2
-            + COALESCE(es.score, 0) * 0.18
-            - COALESCE(MIN((julianday('now') - julianday(COALESCE(NULLIF(p.created_at, ''), datetime('now')))) * 24.0, 168), 0) * 0.22
-          ) DESC, p.id DESC`
-    )
-    : 'p.id DESC';
-  const queryParams = [...params, limit, offset];
-  const rows = sqlAll(
-    `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.group_id,
-            u.kadi, u.isim, u.soyisim, u.resim, u.verified
-     FROM posts p
-     LEFT JOIN uyeler u ON ${joinUserOnPostAuthorExpr}
-     LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id
-     ${where}
-     ORDER BY ${orderBy}
-     LIMIT ? OFFSET ?`,
-    queryParams
-  );
-  const postIds = rows.map((r) => r.id);
-  const likes = postIds.length
-    ? sqlAll(`SELECT post_id, COUNT(*) as cnt FROM post_likes WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
-    : [];
-  const comments = postIds.length
-    ? sqlAll(`SELECT post_id, COUNT(*) as cnt FROM post_comments WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
-    : [];
-  const liked = postIds.length
-    ? sqlAll(`SELECT post_id FROM post_likes WHERE user_id = ? AND post_id IN (${postIds.map(() => '?').join(',')})`, [req.session.userId, ...postIds])
-    : [];
-  const likeMap = new Map(likes.map((l) => [l.post_id, l.cnt]));
-  const commentMap = new Map(comments.map((c) => [c.post_id, c.cnt]));
-  const likedSet = new Set(liked.map((l) => l.post_id));
+app.get('/api/new/feed', requireAuth, phase1Domain.controllers.feed.getFeed);
 
-  res.json({
-    items: rows.map((r) => {
-      const item = {
-        id: r.id,
-        content: r.content,
-        image: r.image,
-        createdAt: r.created_at,
-        author: {
-          id: r.user_id,
-          kadi: r.kadi,
-          isim: r.isim,
-          soyisim: r.soyisim,
-          resim: r.resim,
-          verified: r.verified
-        },
-        groupId: r.group_id,
-        likeCount: likeMap.get(r.id) || 0,
-        commentCount: commentMap.get(r.id) || 0,
-        liked: likedSet.has(r.id)
-      };
-      enrichWithVariants({ ...r, ...item });
-      if (r.image_record_id) {
-        const variants = getImageVariants(r.image_record_id, sqlGet, uploadsDir);
-        if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
-      }
-      return item;
-    }),
-    hasMore: rows.length === limit
-  });
-});
-
-app.post('/api/new/posts', requireAuth, (req, res) => {
-  const content = formatUserText(req.body?.content || '');
-  const image = req.body?.image || null;
-  const groupId = req.body?.group_id || null;
-  if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
-  const now = new Date().toISOString();
-  const result = sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
-    req.session.userId,
-    content,
-    image,
-    now,
-    groupId
-  ]);
-  notifyMentions({
-    text: req.body?.content || '',
-    sourceUserId: req.session.userId,
-    entityId: result?.lastInsertRowid,
-    type: 'mention_post',
-    message: 'Gönderide senden bahsetti.'
-  });
-  scheduleEngagementRecalculation('post_created');
-  res.json({ ok: true, id: result?.lastInsertRowid });
-});
+app.post('/api/new/posts', requireAuth, phase1Domain.controllers.posts.createPost);
 
 app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async (req, res) => {
   const content = formatUserText(req.body?.content || '');
@@ -6938,97 +6770,11 @@ app.post('/api/new/posts/:id/delete', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/new/posts/:id/like', requireAuth, (req, res) => {
-  const postId = req.params.id;
-  const postRow = sqlGet('SELECT id, user_id, group_id FROM posts WHERE id = ?', [postId]);
-  if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
-  if (postRow.group_id) {
-    const user = getCurrentUser(req);
-    if (!hasAdminRole(user)) {
-      const member = getGroupMember(postRow.group_id, req.session.userId);
-      if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
-    }
-  }
-  const existing = sqlGet('SELECT id FROM post_likes WHERE post_id = ? AND user_id = ?', [postId, req.session.userId]);
-  if (existing) {
-    sqlRun('DELETE FROM post_likes WHERE id = ?', [existing.id]);
-    scheduleEngagementRecalculation('post_like_changed');
-    return res.json({ ok: true, liked: false });
-  }
-  sqlRun('INSERT INTO post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)', [postId, req.session.userId, new Date().toISOString()]);
-  const post = sqlGet('SELECT user_id FROM posts WHERE id = ?', [postId]);
-  if (post && post.user_id !== req.session.userId) {
-    addNotification({
-      userId: post.user_id,
-      type: 'like',
-      sourceUserId: req.session.userId,
-      entityId: postId,
-      message: 'Gönderini beğendi.'
-    });
-  }
-  scheduleEngagementRecalculation('post_like_changed');
-  return res.json({ ok: true, liked: true });
-});
+app.post('/api/new/posts/:id/like', requireAuth, phase1Domain.controllers.posts.toggleLike);
 
-app.get('/api/new/posts/:id/comments', requireAuth, (req, res) => {
-  const post = sqlGet('SELECT id, group_id FROM posts WHERE id = ?', [req.params.id]);
-  if (!post) return res.status(404).send('Gönderi bulunamadı.');
-  if (post.group_id) {
-    const user = getCurrentUser(req);
-    if (!hasAdminRole(user)) {
-      const member = getGroupMember(post.group_id, req.session.userId);
-      if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
-    }
-  }
-  const rows = sqlAll(
-    `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim
-     FROM post_comments c
-     LEFT JOIN uyeler u ON u.id = c.user_id
-     WHERE c.post_id = ?
-     ORDER BY c.id DESC`,
-    [req.params.id]
-  );
-  res.json({ items: rows });
-});
+app.get('/api/new/posts/:id/comments', requireAuth, phase1Domain.controllers.posts.listComments);
 
-app.post('/api/new/posts/:id/comments', requireAuth, (req, res) => {
-  const postTarget = sqlGet('SELECT id, user_id, group_id FROM posts WHERE id = ?', [req.params.id]);
-  if (!postTarget) return res.status(404).send('Gönderi bulunamadı.');
-  if (postTarget.group_id) {
-    const user = getCurrentUser(req);
-    if (!hasAdminRole(user)) {
-      const member = getGroupMember(postTarget.group_id, req.session.userId);
-      if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
-    }
-  }
-  const comment = formatUserText(req.body?.comment || '');
-  if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
-  const now = new Date().toISOString();
-  sqlRun('INSERT INTO post_comments (post_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
-    req.params.id,
-    req.session.userId,
-    comment,
-    now
-  ]);
-  if (postTarget && postTarget.user_id !== req.session.userId) {
-    addNotification({
-      userId: postTarget.user_id,
-      type: 'comment',
-      sourceUserId: req.session.userId,
-      entityId: req.params.id,
-      message: 'Gönderine yorum yaptı.'
-    });
-  }
-  notifyMentions({
-    text: req.body?.comment || '',
-    sourceUserId: req.session.userId,
-    entityId: req.params.id,
-    type: 'mention_post',
-    message: 'Yorumda senden bahsetti.'
-  });
-  scheduleEngagementRecalculation('post_comment_created');
-  res.json({ ok: true });
-});
+app.post('/api/new/posts/:id/comments', requireAuth, phase1Domain.controllers.posts.createComment);
 
 app.get('/api/new/notifications', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
@@ -8786,31 +8532,7 @@ app.delete('/api/new/jobs/:id', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/new/chat/messages', requireAuth, (req, res) => {
-  const sinceId = parseInt(req.query.sinceId || '0', 10) || 0;
-  const beforeId = parseInt(req.query.beforeId || '0', 10) || 0;
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
-  let where = 'WHERE 1=1';
-  const params = [];
-  if (sinceId > 0) {
-    where += ' AND c.id > ?';
-    params.push(sinceId);
-  }
-  if (beforeId > 0) {
-    where += ' AND c.id < ?';
-    params.push(beforeId);
-  }
-  const rows = sqlAll(
-    `SELECT c.id, c.user_id, c.message, c.created_at, u.kadi, u.isim, u.soyisim, u.resim, u.verified
-     FROM chat_messages c
-     LEFT JOIN uyeler u ON u.id = c.user_id
-     ${where}
-     ORDER BY c.id DESC
-     LIMIT ?`,
-    [...params, limit]
-  );
-  res.json({ items: rows.reverse() });
-});
+app.get('/api/new/chat/messages', requireAuth, phase1Domain.controllers.chat.listMessages);
 
 function broadcastChatMessage(item) {
   try {
@@ -8886,102 +8608,15 @@ function canManageChatMessage(req, messageRow) {
   return hasAdminSession(req, currentUser);
 }
 
-app.post('/api/new/chat/send', requireAuth, (req, res) => {
-  const rawMessage = String(req.body?.message || '').slice(0, 5000);
-  const message = formatUserText(rawMessage);
-  if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
-  const now = new Date().toISOString();
-  const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
-    req.session.userId,
-    message,
-    now
-  ]);
-  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [req.session.userId]) || null;
-  const item = user ? {
-    id: result?.lastInsertRowid,
-    user_id: user.id,
-    message,
-    created_at: now,
-    kadi: user.kadi,
-    isim: user.isim,
-    soyisim: user.soyisim,
-    resim: user.resim,
-    verified: user.verified
-  } : null;
-  if (item) broadcastChatMessage(item);
-  scheduleEngagementRecalculation('chat_message_created');
-  res.json({
-    ok: true,
-    id: result?.lastInsertRowid,
-    item
-  });
-});
+app.post('/api/new/chat/send', requireAuth, phase1Domain.controllers.chat.sendMessage);
 
-app.patch('/api/new/chat/messages/:id', requireAuth, (req, res) => {
-  const messageId = Number(req.params.id || 0);
-  if (!messageId) return res.status(400).send('Geçersiz mesaj ID.');
-  const row = sqlGet('SELECT id, user_id FROM chat_messages WHERE id = ?', [messageId]);
-  if (!row) return res.status(404).send('Mesaj bulunamadı.');
-  if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı düzenleme yetkin yok.');
-  const rawMessage = String(req.body?.message || '').slice(0, 5000);
-  const message = formatUserText(rawMessage);
-  if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
-  sqlRun('UPDATE chat_messages SET message = ? WHERE id = ?', [message, messageId]);
-  const item = sqlGet(
-    `SELECT c.id, c.user_id, c.message, c.created_at, u.kadi, u.isim, u.soyisim, u.resim, u.verified
-     FROM chat_messages c
-     LEFT JOIN uyeler u ON u.id = c.user_id
-     WHERE c.id = ?`,
-    [messageId]
-  );
-  if (item) broadcastChatUpdate(item);
-  res.json({ ok: true, item });
-});
+app.patch('/api/new/chat/messages/:id', requireAuth, phase1Domain.controllers.chat.updateMessage);
 
-app.post('/api/new/chat/messages/:id/edit', requireAuth, (req, res) => {
-  const messageId = Number(req.params.id || 0);
-  if (!messageId) return res.status(400).send('Geçersiz mesaj ID.');
-  const row = sqlGet('SELECT id, user_id FROM chat_messages WHERE id = ?', [messageId]);
-  if (!row) return res.status(404).send('Mesaj bulunamadı.');
-  if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı düzenleme yetkin yok.');
-  const rawMessage = String(req.body?.message || '').slice(0, 5000);
-  const message = formatUserText(rawMessage);
-  if (isFormattedContentEmpty(message)) return res.status(400).send('Mesaj boş olamaz.');
-  sqlRun('UPDATE chat_messages SET message = ? WHERE id = ?', [message, messageId]);
-  const item = sqlGet(
-    `SELECT c.id, c.user_id, c.message, c.created_at, u.kadi, u.isim, u.soyisim, u.resim, u.verified
-     FROM chat_messages c
-     LEFT JOIN uyeler u ON u.id = c.user_id
-     WHERE c.id = ?`,
-    [messageId]
-  );
-  if (item) broadcastChatUpdate(item);
-  res.json({ ok: true, item });
-});
+app.post('/api/new/chat/messages/:id/edit', requireAuth, phase1Domain.controllers.chat.updateMessage);
 
-app.delete('/api/new/chat/messages/:id', requireAuth, (req, res) => {
-  const messageId = Number(req.params.id || 0);
-  if (!messageId) return res.status(400).send('Geçersiz mesaj ID.');
-  const row = sqlGet('SELECT id, user_id FROM chat_messages WHERE id = ?', [messageId]);
-  if (!row) return res.status(404).send('Mesaj bulunamadı.');
-  if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı silme yetkin yok.');
-  sqlRun('DELETE FROM chat_messages WHERE id = ?', [messageId]);
-  broadcastChatDelete(messageId);
-  scheduleEngagementRecalculation('chat_message_deleted');
-  res.json({ ok: true });
-});
+app.delete('/api/new/chat/messages/:id', requireAuth, phase1Domain.controllers.chat.deleteMessage);
 
-app.post('/api/new/chat/messages/:id/delete', requireAuth, (req, res) => {
-  const messageId = Number(req.params.id || 0);
-  if (!messageId) return res.status(400).send('Geçersiz mesaj ID.');
-  const row = sqlGet('SELECT id, user_id FROM chat_messages WHERE id = ?', [messageId]);
-  if (!row) return res.status(404).send('Mesaj bulunamadı.');
-  if (!canManageChatMessage(req, row)) return res.status(403).send('Bu mesajı silme yetkin yok.');
-  sqlRun('DELETE FROM chat_messages WHERE id = ?', [messageId]);
-  broadcastChatDelete(messageId);
-  scheduleEngagementRecalculation('chat_message_deleted');
-  res.json({ ok: true });
-});
+app.post('/api/new/chat/messages/:id/delete', requireAuth, phase1Domain.controllers.chat.deleteMessage);
 
 app.post('/api/new/verified/request', requireAuth, (req, res) => {
   const user = getCurrentUser(req);

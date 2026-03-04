@@ -1,0 +1,36 @@
+{
+  "authLogin": {
+    "status": 200,
+    "bodyKeys": ["needsProfile", "user"],
+    "userKeys": ["admin", "id", "isim", "kadi", "photo", "role", "soyisim"]
+  },
+  "createPost": {
+    "status": 200,
+    "requiredBody": { "ok": true },
+    "requiredKeys": ["id", "ok"]
+  },
+  "feed": {
+    "status": 200,
+    "bodyKeys": ["hasMore", "items"],
+    "itemKeys": ["author", "commentCount", "content", "createdAt", "groupId", "id", "image", "likeCount", "liked"],
+    "authorKeys": ["id", "isim", "kadi", "resim", "soyisim", "verified"]
+  },
+  "commentCreate": {
+    "status": 200,
+    "requiredBody": { "ok": true }
+  },
+  "chatSend": {
+    "status": 200,
+    "requiredBody": { "ok": true },
+    "itemKeys": ["created_at", "id", "isim", "kadi", "message", "resim", "soyisim", "user_id", "verified"]
+  },
+  "chatList": {
+    "status": 200,
+    "bodyKeys": ["items"]
+  },
+  "adminRoleUpdate": {
+    "status": 200,
+    "requiredBody": { "ok": true },
+    "requiredKeys": ["ok", "role", "userId"]
+  }
+}

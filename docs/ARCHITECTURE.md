@@ -157,3 +157,29 @@ flowchart LR
 - Full inventory: [INVENTORY.md](/Users/cagataydonmez/Desktop/SDAL/docs/INVENTORY.md)
 - Rename plan: [RENAME_PLAN.md](/Users/cagataydonmez/Desktop/SDAL/docs/RENAME_PLAN.md)
 
+## Phase 1 Progress (Implemented)
+
+- Added modular backend scaffold under `server/src`:
+  - `domain/entities.js`
+  - `repositories/interfaces.js` + `repositories/legacy/*`
+  - `services/*`
+  - `http/controllers/*`
+  - `http/dto/legacyApiMappers.js`
+  - `bootstrap/createPhase1DomainLayer.js`
+- Refactored selected high-traffic routes in `server/app.js` to controller/service/repository flow while keeping endpoint paths and response contracts:
+  - `/api/auth/login`
+  - `/api/auth/logout`
+  - `/api/new/feed`
+  - `/api/new/posts`
+  - `/api/new/posts/:id/like`
+  - `/api/new/posts/:id/comments` (GET/POST)
+  - `/api/new/chat/messages` (GET)
+  - `/api/new/chat/send`
+  - `/api/new/chat/messages/:id` (PATCH)
+  - `/api/new/chat/messages/:id/edit`
+  - `/api/new/chat/messages/:id` (DELETE)
+  - `/api/new/chat/messages/:id/delete`
+  - `/admin/users/:id/role`
+- Added Phase 1 contract smoke suite:
+  - `server/tests/contracts/phase1-contracts.mjs`
+  - `server/tests/fixtures/phase1-contract-snapshot.json`

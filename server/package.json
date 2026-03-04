@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node index.js",
     "start": "node index.js",
-    "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs"
+    "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs",
+    "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",
