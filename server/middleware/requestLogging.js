@@ -1,15 +1,33 @@
+import crypto from 'crypto';
+
+function createRequestId() {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return crypto.randomBytes(16).toString('hex');
+}
+
 export function requestLoggingMiddleware({ writeAppLog, writeLegacyLog }) {
   return (req, res, next) => {
+    const incomingRequestId = String(req.headers['x-request-id'] || '').trim();
+    const requestId = incomingRequestId || createRequestId();
+    req.requestId = requestId;
+    res.setHeader('x-request-id', requestId);
+
     const start = Date.now();
     res.on('finish', () => {
       const durationMs = Date.now() - start;
       const meta = {
+        requestId,
         method: req.method,
         path: req.path,
         status: res.statusCode,
         durationMs,
         userId: req.session?.userId || null,
-        ip: req.ip
+        ip: req.ip,
+        query: req.originalUrl?.includes('?') ? req.originalUrl.split('?')[1] : '',
+        userAgent: req.headers['user-agent'] || '',
+        referer: req.headers.referer || ''
       };
 
       if (req.path.startsWith('/api/')) {
@@ -19,8 +37,7 @@ export function requestLoggingMiddleware({ writeAppLog, writeLegacyLog }) {
       // Hata logları: 4xx/5xx taleplerin tamamı
       if (res.statusCode >= 400) {
         writeLegacyLog('error', 'http_error', {
-          ...meta,
-          query: req.originalUrl?.includes('?') ? req.originalUrl.split('?')[1] : ''
+          ...meta
         });
       }
 
@@ -42,6 +59,7 @@ export function requestLoggingMiddleware({ writeAppLog, writeLegacyLog }) {
         && res.statusCode < 400;
       if (isPageView) {
         writeLegacyLog('page', 'page_view', {
+          requestId,
           path: req.path,
           query: req.originalUrl?.includes('?') ? req.originalUrl.split('?')[1] : '',
           userId: req.session?.userId || null,
@@ -54,4 +72,3 @@ export function requestLoggingMiddleware({ writeAppLog, writeLegacyLog }) {
     next();
   };
 }
-

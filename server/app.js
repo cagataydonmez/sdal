@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnection, dbDriver } from './db.js';
+import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnection, dbDriver, configureDbInstrumentation } from './db.js';
 import { mapLegacyUrl } from './legacyRoutes.js';
 import fs from 'fs';
 import os from 'os';
@@ -552,6 +552,22 @@ function writeLegacyLog(type, activity, meta = {}) {
     // Legacy log writing must never break request flow.
   }
 }
+
+configureDbInstrumentation({
+  slowQueryThresholdMs: Number(process.env.SDAL_SLOW_QUERY_MS || 200),
+  onSlowQuery: (entry) => {
+    writeAppLog('warn', 'db_slow_query', {
+      requestId: null,
+      driver: entry.driver,
+      operation: entry.operation,
+      durationMs: entry.durationMs,
+      paramCount: entry.paramCount,
+      paramPreview: entry.paramPreview,
+      query: entry.query,
+      error: entry.error
+    });
+  }
+});
 
 async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writeAppLog }) {
   const userIdStr = String(userId);

@@ -1,0 +1,668 @@
+# SDAL Full Inventory (Phase 0)
+
+Generated from repository code and SQLite schema at `db/sdal.sqlite`.
+
+## 1) Frontend Inventory
+
+- Modern frontend routes: **36**
+- Classic frontend routes: **41**
+- Modern pages: **33**
+- Classic pages: **35**
+- Modern components (including admin subfolder): **15**
+- Classic components: **4**
+
+### 1.1 Modern (`frontend-modern/src/App.jsx`) route list
+
+- `/new/login`
+- `/new/root-login`
+- `/new/register`
+- `/new/activate`
+- `/new/activation/resend`
+- `/new/password-reset`
+- `/new`
+- `/new/explore`
+- `/new/explore/members`
+- `/new/explore/suggestions`
+- `/new/following`
+- `/new/members/:id`
+- `/new/groups`
+- `/new/groups/:id`
+- `/new/messages`
+- `/new/messenger`
+- `/new/notifications`
+- `/new/messages/compose`
+- `/new/messages/:id`
+- `/new/albums`
+- `/new/albums/upload`
+- `/new/albums/photo/:id`
+- `/new/albums/:id`
+- `/new/events`
+- `/new/announcements`
+- `/new/jobs`
+- `/new/games`
+- `/new/games/:game`
+- `/new/profile`
+- `/new/profile/photo`
+- `/new/profile/verification`
+- `/new/profile/email-change`
+- `/new/requests`
+- `/new/help`
+- `/new/admin`
+- `/new/*`
+
+### 1.2 Classic (`frontend-classic/src/App.jsx`) route list
+
+- `/`
+- `/login`
+- `/logout`
+- `/uyeler`
+- `/uyeler/:id`
+- `/mesajlar`
+- `/mesajlar/:id`
+- `/mesajlar/yeni`
+- `/album`
+- `/album/:id`
+- `/album/foto/:id`
+- `/album/yeni`
+- `/forum`
+- `/panolar`
+- `/herisim`
+- `/hizli-erisim/ekle/:id`
+- `/hizli-erisim/ekle`
+- `/hizli-erisim/cikart/:id`
+- `/hizli-erisim/cikart`
+- `/enyeni-fotolar`
+- `/enyeni-uyeler`
+- `/turnuva`
+- `/turnuva/kayit`
+- `/oyunlar`
+- `/oyunlar/yilan`
+- `/oyunlar/tetris`
+- `/profil`
+- `/profil/fotograf`
+- `/admin`
+- `/yonetim`
+- `/bakim`
+- `/http500`
+- `/karikatur1`
+- `/hikayeler`
+- `/stories`
+- `/uye-kayit`
+- `/sifre-hatirla`
+- `/aktivet`
+- `/aktivasyon-gonder`
+- `/uyeara`
+- `*`
+
+### 1.3 Modern page modules
+
+- `frontend-modern/src/pages/ActivationPage.jsx`
+- `frontend-modern/src/pages/ActivationResendPage.jsx`
+- `frontend-modern/src/pages/AdminPage.jsx`
+- `frontend-modern/src/pages/AlbumCategoryPage.jsx`
+- `frontend-modern/src/pages/AlbumPhotoPage.jsx`
+- `frontend-modern/src/pages/AlbumUploadPage.jsx`
+- `frontend-modern/src/pages/AlbumsPage.jsx`
+- `frontend-modern/src/pages/AnnouncementsPage.jsx`
+- `frontend-modern/src/pages/EventsPage.jsx`
+- `frontend-modern/src/pages/ExplorePage.jsx`
+- `frontend-modern/src/pages/ExploreSuggestionsPage.jsx`
+- `frontend-modern/src/pages/FeedPage.jsx`
+- `frontend-modern/src/pages/FollowingPage.jsx`
+- `frontend-modern/src/pages/GamesPage.jsx`
+- `frontend-modern/src/pages/GroupDetailPage.jsx`
+- `frontend-modern/src/pages/GroupsPage.jsx`
+- `frontend-modern/src/pages/HelpPage.jsx`
+- `frontend-modern/src/pages/JobsPage.jsx`
+- `frontend-modern/src/pages/LoginPage.jsx`
+- `frontend-modern/src/pages/MemberDetailPage.jsx`
+- `frontend-modern/src/pages/MemberRequestsPage.jsx`
+- `frontend-modern/src/pages/MessageComposePage.jsx`
+- `frontend-modern/src/pages/MessageDetailPage.jsx`
+- `frontend-modern/src/pages/MessagesPage.jsx`
+- `frontend-modern/src/pages/MessengerPage.jsx`
+- `frontend-modern/src/pages/NotificationsPage.jsx`
+- `frontend-modern/src/pages/PasswordResetPage.jsx`
+- `frontend-modern/src/pages/ProfileEmailChangePage.jsx`
+- `frontend-modern/src/pages/ProfilePage.jsx`
+- `frontend-modern/src/pages/ProfilePhotoPage.jsx`
+- `frontend-modern/src/pages/ProfileVerificationPage.jsx`
+- `frontend-modern/src/pages/RegisterPage.jsx`
+- `frontend-modern/src/pages/RootLoginPage.jsx`
+
+### 1.4 Classic page modules
+
+- `frontend-classic/src/pages/ActivatePage.jsx`
+- `frontend-classic/src/pages/ActivationResendPage.jsx`
+- `frontend-classic/src/pages/AdminPage.jsx`
+- `frontend-classic/src/pages/AlbumDetailPage.jsx`
+- `frontend-classic/src/pages/AlbumPhotoPage.jsx`
+- `frontend-classic/src/pages/AlbumUploadPage.jsx`
+- `frontend-classic/src/pages/AlbumsPage.jsx`
+- `frontend-classic/src/pages/BakimPage.jsx`
+- `frontend-classic/src/pages/ForumPage.jsx`
+- `frontend-classic/src/pages/GameSnakePage.jsx`
+- `frontend-classic/src/pages/GameTetrisPage.jsx`
+- `frontend-classic/src/pages/GamesPage.jsx`
+- `frontend-classic/src/pages/HomePage.jsx`
+- `frontend-classic/src/pages/Http500Page.jsx`
+- `frontend-classic/src/pages/KarikaturPage.jsx`
+- `frontend-classic/src/pages/LoginPage.jsx`
+- `frontend-classic/src/pages/LogoutPage.jsx`
+- `frontend-classic/src/pages/MemberDetailPage.jsx`
+- `frontend-classic/src/pages/MembersPage.jsx`
+- `frontend-classic/src/pages/MessageComposePage.jsx`
+- `frontend-classic/src/pages/MessageDetailPage.jsx`
+- `frontend-classic/src/pages/MessagesPage.jsx`
+- `frontend-classic/src/pages/NewMembersPage.jsx`
+- `frontend-classic/src/pages/NewPhotosPage.jsx`
+- `frontend-classic/src/pages/NotFoundPage.jsx`
+- `frontend-classic/src/pages/PanolarPage.jsx`
+- `frontend-classic/src/pages/PasswordResetPage.jsx`
+- `frontend-classic/src/pages/ProfilePage.jsx`
+- `frontend-classic/src/pages/QuickAccessAddPage.jsx`
+- `frontend-classic/src/pages/QuickAccessPage.jsx`
+- `frontend-classic/src/pages/QuickAccessRemovePage.jsx`
+- `frontend-classic/src/pages/RegisterPage.jsx`
+- `frontend-classic/src/pages/StoriesPage.jsx`
+- `frontend-classic/src/pages/TournamentPage.jsx`
+- `frontend-classic/src/pages/TournamentRegisterPage.jsx`
+
+### 1.5 Modern component modules
+
+- `frontend-modern/src/components/GlobalActionFeedback.jsx`
+- `frontend-modern/src/components/Layout.jsx`
+- `frontend-modern/src/components/LiveChatPanel.jsx`
+- `frontend-modern/src/components/NativeImageButtons.jsx`
+- `frontend-modern/src/components/NotificationPanel.jsx`
+- `frontend-modern/src/components/PostCard.jsx`
+- `frontend-modern/src/components/PostComposer.jsx`
+- `frontend-modern/src/components/RequestPayloadCard.jsx`
+- `frontend-modern/src/components/RichTextEditor.jsx`
+- `frontend-modern/src/components/StoryBar.jsx`
+- `frontend-modern/src/components/TranslatableHtml.jsx`
+- `frontend-modern/src/components/admin/AccessDeniedView.jsx`
+- `frontend-modern/src/components/admin/AdminLoginView.jsx`
+- `frontend-modern/src/components/admin/AdminPageHeader.jsx`
+- `frontend-modern/src/components/admin/AdminPreviewModal.jsx`
+
+### 1.6 Classic component modules
+
+- `frontend-classic/src/components/LegacyLayout.jsx`
+- `frontend-classic/src/components/SocialLoginButtons.jsx`
+- `frontend-classic/src/components/SocialSignUpButtons.jsx`
+- `frontend-classic/src/components/StoriesManager.jsx`
+
+## 2) Backend Inventory
+
+- Total Express routes in `server/app.js`: **266**
+- Methods: GET=130, POST=94, PUT=12, PATCH=3, DELETE=25, ALL=2
+- Group counts: `/api/*`=63, `/api/new/*`=81, `/api/admin/*`=45, `/api/new/admin/*`=35, legacy-asp=31, other=11
+
+### 2.1 WebSocket endpoints
+
+- `/ws/chat`
+- `/ws/messenger`
+
+### 2.2 WebSocket event types
+
+- `chat:deleted`
+- `chat:new`
+- `chat:updated`
+- `messenger:delivered`
+- `messenger:hello`
+- `messenger:new`
+- `messenger:read`
+- `/ws/chat` also broadcasts legacy untyped payloads from connection handler (message object without `type`).
+
+### 2.3 Scheduled/background tasks in `server/app.js`
+
+- L1626: `setInterval(() => {`
+- L2730: `engagementRecalcTimer = setTimeout(() => {`
+- L3415: `timer = setTimeout(() => reject(new Error('Mail send timeout')), safeTimeoutMs);`
+- L10294: `setTimeout(() => recalculateMemberEngagementScores('startup'), 2500);`
+- L10295: `setInterval(() => recalculateMemberEngagementScores('interval_10m'), 10 * 60 * 1000);`
+
+### 2.4 Full route list (method + path literal)
+
+- GET `/api/media/vesikalik/:file`
+- GET `/api/media/kucukresim`
+- GET `/aspcaptcha.asp`
+- GET `/textimage.asp`
+- GET `/uyelerkadiresimyap.asp`
+- GET `/tid.asp`
+- GET `/grayscale.asp`
+- GET `/threshold.asp`
+- GET `/kucukresim.asp`
+- GET `/kucukresim2.asp`
+- GET `/kucukresim3.asp`
+- GET `/kucukresim4.asp`
+- GET `/kucukresim5.asp`
+- GET `/kucukresim6.asp`
+- GET `/kucukresim7.asp`
+- GET `/kucukresim8.asp`
+- GET `/resimler_xml.asp`
+- GET `/aihepsi.asp`
+- GET `/aihepsigor.asp`
+- GET `/ayax.asp`
+- GET `/hmesisle.asp`
+- GET `/onlineuyekontrol.asp`
+- GET `/onlineuyekontrol2.asp`
+- ALL `/oyunyilanislem.asp`
+- ALL `/oyuntetrisislem.asp`
+- GET `/mesajsil.asp`
+- POST `/albumyorumekle.asp`
+- GET `/fizikselyol.asp`
+- GET `/abandon.asp`
+- GET `/logout`
+- GET `/admincikis.asp`
+- GET `/hirsiz.asp`
+- GET `/hirsiz2.asp`
+- GET `/api/health`
+- GET `/api/captcha`
+- GET `/api/site-access`
+- GET `/api/session`
+- GET `/api/auth/oauth/providers`
+- GET `/api/auth/oauth/:provider/start`
+- GET `/api/auth/oauth/:provider/callback`
+- POST `/api/auth/oauth/mobile/exchange`
+- POST `/api/auth/login`
+- POST `/api/auth/logout`
+- GET `/api/admin/session`
+- GET `/api/admin/root-status`
+- POST `/admin/users/:id/role`
+- POST `/admin/moderators/:id/scopes`
+- POST `/admin/moderation/check/:graduationYear`
+- GET `/admin/moderators`
+- GET `/api/admin/moderation/permissions/catalog`
+- GET `/api/admin/moderation/permissions/:userId`
+- PUT `/api/admin/moderation/permissions/:userId`
+- GET `/api/admin/moderation/my-permissions`
+- POST `/api/admin/login`
+- POST `/api/admin/logout`
+- GET `/api/admin/site-controls`
+- PUT `/api/admin/site-controls`
+- GET `/api/admin/media-settings`
+- PUT `/api/admin/media-settings`
+- POST `/api/admin/media-settings/test`
+- POST `/api/upload-image`
+- GET `/api/admin/users/lists`
+- GET `/api/admin/users/search`
+- GET `/api/admin/users/:id`
+- DELETE `/api/admin/users/:id`
+- DELETE `/api/new/admin/members/:id`
+- PUT `/api/admin/users/:id`
+- GET `/api/admin/pages`
+- POST `/api/admin/pages`
+- PUT `/api/admin/pages/:id`
+- DELETE `/api/admin/pages/:id`
+- GET `/api/admin/logs`
+- POST `/api/admin/email/send`
+- GET `/api/admin/email/categories`
+- POST `/api/admin/email/categories`
+- PUT `/api/admin/email/categories/:id`
+- DELETE `/api/admin/email/categories/:id`
+- GET `/api/admin/email/templates`
+- POST `/api/admin/email/templates`
+- PUT `/api/admin/email/templates/:id`
+- DELETE `/api/admin/email/templates/:id`
+- POST `/api/admin/email/bulk`
+- GET `/api/admin/album/categories`
+- POST `/api/admin/album/categories`
+- PUT `/api/admin/album/categories/:id`
+- DELETE `/api/admin/album/categories/:id`
+- GET `/api/admin/album/photos`
+- POST `/api/admin/album/photos/bulk`
+- PUT `/api/admin/album/photos/:id`
+- DELETE `/api/admin/album/photos/:id`
+- GET `/api/admin/album/photos/:id/comments`
+- DELETE `/api/admin/album/photos/:id/comments/:commentId`
+- GET `/api/admin/tournament`
+- DELETE `/api/admin/tournament/:id`
+- POST `/api/register/preview`
+- POST `/api/register/check`
+- POST `/api/register`
+- GET `/api/activate`
+- POST `/api/activation/resend`
+- POST `/api/password-reset`
+- POST `/api/mail/test`
+- GET `/kvkk`
+- GET `/kvkk/acik-riza`
+- GET `/api/profile`
+- PUT `/api/profile`
+- POST `/api/profile/email-change/request`
+- GET `/api/profile/email-change/verify`
+- GET `/api/new/request-categories`
+- GET `/api/new/requests/my`
+- POST `/api/new/requests/upload`
+- POST `/api/new/requests`
+- POST `/api/profile/password`
+- POST `/api/profile/photo`
+- GET `/api/menu`
+- GET `/api/sidebar`
+- GET `/api/members`
+- GET `/api/members/:id`
+- GET `/api/messages`
+- GET `/api/messages/recipients`
+- GET `/api/messages/:id`
+- POST `/api/messages`
+- DELETE `/api/messages/:id`
+- GET `/api/sdal-messenger/contacts`
+- POST `/api/sdal-messenger/threads`
+- GET `/api/sdal-messenger/threads`
+- GET `/api/sdal-messenger/threads/:id/messages`
+- POST `/api/sdal-messenger/threads/:id/messages`
+- POST `/api/sdal-messenger/threads/:id/read`
+- GET `/api/albums`
+- GET `/api/album/categories/active`
+- POST `/api/album/upload`
+- GET `/api/albums/:id`
+- GET `/api/photos/:id`
+- GET `/api/photos/:id/comments`
+- POST `/api/photos/:id/comments`
+- GET `/api/new/feed`
+- POST `/api/new/posts`
+- POST `/api/new/posts/upload`
+- PATCH `/api/new/posts/:id`
+- POST `/api/new/posts/:id/edit`
+- DELETE `/api/new/posts/:id`
+- POST `/api/new/posts/:id/delete`
+- POST `/api/new/posts/:id/like`
+- GET `/api/new/posts/:id/comments`
+- POST `/api/new/posts/:id/comments`
+- GET `/api/new/notifications`
+- GET `/api/new/notifications/unread`
+- POST `/api/new/notifications/read`
+- POST `/api/new/translate`
+- GET `/api/new/stories`
+- GET `/api/new/stories/mine`
+- GET `/api/new/stories/user/:id`
+- POST `/api/new/stories/upload`
+- PATCH `/api/new/stories/:id`
+- DELETE `/api/new/stories/:id`
+- POST `/api/new/stories/:id/edit`
+- POST `/api/new/stories/:id/delete`
+- POST `/api/new/stories/:id`
+- POST `/api/new/stories/:id/remove`
+- POST `/api/new/stories/:id/repost`
+- POST `/api/new/stories/:id/view`
+- POST `/api/new/follow/:id`
+- GET `/api/new/follows`
+- GET `/api/new/admin/follows/:userId`
+- GET `/api/new/explore/suggestions`
+- GET `/api/new/messages/unread`
+- GET `/api/new/online-members`
+- GET `/api/new/groups`
+- POST `/api/new/groups`
+- POST `/api/new/groups/:id/join`
+- GET `/api/new/groups/:id/requests`
+- POST `/api/new/groups/:id/requests/:requestId`
+- GET `/api/new/groups/:id/invitations`
+- POST `/api/new/groups/:id/invitations`
+- POST `/api/new/groups/:id/invitations/respond`
+- POST `/api/new/groups/:id/settings`
+- POST `/api/new/groups/:id/cover`
+- POST `/api/new/groups/:id/role`
+- GET `/api/new/groups/:id`
+- POST `/api/new/groups/:id/posts`
+- POST `/api/new/groups/:id/posts/upload`
+- GET `/api/new/groups/:id/events`
+- POST `/api/new/groups/:id/events`
+- DELETE `/api/new/groups/:id/events/:eventId`
+- GET `/api/new/groups/:id/announcements`
+- POST `/api/new/groups/:id/announcements`
+- DELETE `/api/new/groups/:id/announcements/:announcementId`
+- GET `/api/new/events`
+- POST `/api/new/events`
+- POST `/api/new/events/upload`
+- POST `/api/new/events/:id/approve`
+- DELETE `/api/new/events/:id`
+- POST `/api/new/events/:id/respond`
+- POST `/api/new/events/:id/response-visibility`
+- GET `/api/new/events/:id/comments`
+- POST `/api/new/events/:id/comments`
+- POST `/api/new/events/:id/notify`
+- GET `/api/new/announcements`
+- POST `/api/new/announcements`
+- POST `/api/new/announcements/upload`
+- POST `/api/new/announcements/:id/approve`
+- DELETE `/api/new/announcements/:id`
+- GET `/api/new/jobs`
+- POST `/api/new/jobs`
+- DELETE `/api/new/jobs/:id`
+- GET `/api/new/chat/messages`
+- POST `/api/new/chat/send`
+- PATCH `/api/new/chat/messages/:id`
+- POST `/api/new/chat/messages/:id/edit`
+- DELETE `/api/new/chat/messages/:id`
+- POST `/api/new/chat/messages/:id/delete`
+- POST `/api/new/verified/request`
+- POST `/api/new/verified/proof`
+- GET `/api/new/admin/verification-requests`
+- POST `/api/new/admin/verification-requests/:id`
+- GET `/api/new/admin/requests/notifications`
+- GET `/api/new/admin/requests`
+- POST `/api/new/admin/requests/:id/review`
+- POST `/api/new/admin/verify`
+- GET `/api/new/admin/engagement-ab`
+- PUT `/api/new/admin/engagement-ab/:variant`
+- POST `/api/new/admin/engagement-ab/rebalance`
+- GET `/api/new/admin/stats`
+- GET `/api/new/admin/engagement-scores`
+- POST `/api/new/admin/engagement-scores/recalculate`
+- GET `/api/new/admin/live`
+- GET `/api/new/admin/groups`
+- DELETE `/api/new/admin/groups/:id`
+- GET `/api/new/admin/stories`
+- GET `/api/new/admin/posts`
+- DELETE `/api/new/admin/posts/:id`
+- DELETE `/api/new/admin/stories/:id`
+- GET `/api/new/admin/chat/messages`
+- DELETE `/api/new/admin/chat/messages/:id`
+- GET `/api/new/admin/messages`
+- DELETE `/api/new/admin/messages/:id`
+- GET `/api/new/admin/filters`
+- POST `/api/new/admin/filters`
+- PUT `/api/new/admin/filters/:id`
+- DELETE `/api/new/admin/filters/:id`
+- GET `/api/new/admin/db/tables`
+- GET `/api/new/admin/db/table/:name`
+- GET `/api/new/admin/db/backups`
+- POST `/api/new/admin/db/backups`
+- GET `/api/new/admin/db/backups/:name/download`
+- POST `/api/new/admin/db/restore`
+- GET `/api/album/latest`
+- GET `/api/members/latest`
+- POST `/api/tournament/register`
+- GET `/api/panolar`
+- POST `/api/panolar`
+- DELETE `/api/panolar/:id`
+- GET `/api/quick-access`
+- POST `/api/quick-access/add`
+- POST `/api/quick-access/remove`
+- GET `/api/games/snake/leaderboard`
+- POST `/api/games/snake/score`
+- GET `/api/games/tetris/leaderboard`
+- POST `/api/games/tetris/score`
+- GET `/api/games/arcade/:game/leaderboard`
+- POST `/api/games/arcade/:game/score`
+- GET `/sdal_new`
+- GET `/sdal_new/*`
+- GET `/new/*`
+- GET `/\/*.asp$/i`
+- GET `*`
+
+## 3) Database Inventory
+
+- Legacy SQLite tables in file: **15**
+- Runtime-created/managed tables in app bootstrap: **41**
+
+### 3.1 Legacy SQLite tables (`db/sdal.sqlite`)
+
+- `album_foto`: `id:INTEGER`, `dosyaadi:varchar`, `katid:varchar`, `baslik:varchar`, `aciklama:TEXT`, `aktif:INTEGER`, `ekleyenid:varchar`, `tarih:DateTime`, `hit:INTEGER`
+- `album_fotoyorum`: `id:INTEGER`, `fotoid:varchar`, `uyeadi:varchar`, `yorum:TEXT`, `tarih:DateTime`
+- `album_kat`: `id:INTEGER`, `kategori:varchar`, `aciklama:TEXT`, `ilktarih:DateTime`, `sonekleme:DateTime`, `sonekleyen:varchar`, `aktif:INTEGER`
+- `email_kategori`: `id:INTEGER`, `ad:TEXT`, `tur:TEXT`, `deger:TEXT`, `aciklama:TEXT`
+- `email_sablon`: `id:INTEGER`, `ad:TEXT`, `konu:TEXT`, `icerik:TEXT`, `olusturma:DateTime`
+- `filtre`: `id:INTEGER`, `kufur:varchar`
+- `gelenkutusu`: `id:INTEGER`, `kime:varchar`, `kimden:varchar`, `aktifgelen:INTEGER`, `konu:varchar`, `mesaj:TEXT`, `yeni:INTEGER`, `tarih:DateTime`, `aktifgiden:INTEGER`
+- `hmes`: `id:INTEGER`, `kadi:varchar`, `metin:varchar`, `tarih:DateTime`
+- `mesaj`: `id:INTEGER`, `gonderenid:INTEGER`, `mesaj:TEXT`, `tarih:DateTime`, `kategori:INTEGER`
+- `mesaj_kategori`: `id:INTEGER`, `kategoriadi:varchar`, `aciklama:TEXT`
+- `oyun_tetris`: `id:INTEGER`, `isim:varchar`, `puan:INTEGER`, `seviye:INTEGER`, `satir:INTEGER`, `tarih:DateTime`
+- `oyun_yilan`: `id:INTEGER`, `isim:varchar`, `skor:INTEGER`, `tarih:DateTime`
+- `sayfalar`: `id:INTEGER`, `sayfaismi:varchar`, `sayfaurl:varchar`, `hit:INTEGER`, `sontarih:DateTime`, `sonuye:TEXT`, `babaid:INTEGER`, `menugorun:INTEGER`, `yonlendir:INTEGER`, `sayfametin:TEXT`, `mozellik:INTEGER`, `resim:varchar`, `sonip:varchar`
+- `takimlar`: `id:INTEGER`, `tisim:varchar`, `tkid:INTEGER`, `tktelefon:varchar`, `boyismi:varchar`, `boymezuniyet:varchar`, `ioyismi:varchar`, `ioymezuniyet:varchar`, `uoyismi:varchar`, `uoymezuniyet:varchar`, `doyismi:varchar`, `doymezuniyet:varchar`, `tarih:DateTime`
+- `uyeler`: `id:INTEGER`, `kadi:varchar`, `sifre:varchar`, `isim:varchar`, `soyisim:varchar`, `aktivasyon:varchar`, `email:varchar`, `aktiv:INTEGER`, `yasak:INTEGER`, `ilkbd:INTEGER`, `websitesi:varchar`, `imza:TEXT`, `meslek:varchar`, `sehir:varchar`, `mailkapali:INTEGER`, `hit:INTEGER`, `ilksayfa:INTEGER`, `mezuniyetyili:varchar`, `universite:varchar`, `dogumgun:INTEGER`, `dogumay:INTEGER`, `dogumyil:INTEGER`, `sonislemtarih:DateTime`, `sonislemsaat:DateTime`, `online:INTEGER`, `ilktarih:DateTime`, `sontarih:DateTime`, `admin:INTEGER`, `sonip:varchar`, `resim:varchar`, `albumadmin:INTEGER`, `hizliliste:TEXT`, `s_sonislem:DateTime`, `s_online:INTEGER`, `oncekisontarih:DateTime`
+
+### 3.2 Runtime-managed tables (`server/app.js` DDL)
+
+- `announcements`: `id:INTEGER`, `title:TEXT`, `body:TEXT`, `created_at:TEXT`
+- `audit_log`: `id:INTEGER`, `actor_user_id:INTEGER`, `action:TEXT`, `target_type:TEXT`, `target_id:TEXT`, `metadata:TEXT`, `ip:TEXT`, `user_agent:TEXT`, `created_at:TEXT`
+- `chat_messages`: `id:INTEGER`, `user_id:INTEGER`, `message:TEXT`, `created_at:TEXT`
+- `email_change_requests`: `id:INTEGER`, `user_id:INTEGER`, `current_email:TEXT`, `new_email:TEXT`, `token:TEXT`, `status:TEXT`, `created_at:TEXT`, `expires_at:TEXT`, `verified_at:TEXT`, `ip:TEXT`, `user_agent:TEXT`
+- `email_kategori`: `id:INTEGER`, `ad:TEXT`, `tur:TEXT`, `deger:TEXT`, `aciklama:TEXT`
+- `email_sablon`: `id:INTEGER`, `ad:TEXT`, `konu:TEXT`, `icerik:TEXT`, `olusturma:TEXT`
+- `engagement_ab_assignments`: `user_id:INTEGER`, `variant:TEXT`, `assigned_at:TEXT`, `updated_at:TEXT`
+- `engagement_ab_config`: `variant:TEXT`, `name:TEXT`, `description:TEXT`, `traffic_pct:INTEGER`, `enabled:INTEGER`, `params_json:TEXT`, `updated_at:TEXT`
+- `event_comments`: `id:INTEGER`, `event_id:INTEGER`, `user_id:INTEGER`, `comment:TEXT`, `created_at:TEXT`
+- `event_responses`: `id:INTEGER`, `event_id:INTEGER`, `user_id:INTEGER`, `response:TEXT`, `created_at:TEXT`, `updated_at:TEXT`
+- `events`: `id:INTEGER`, `title:TEXT`, `description:TEXT`, `location:TEXT`, `starts_at:TEXT`, `ends_at:TEXT`, `created_at:TEXT`
+- `filtre`: `id:INTEGER`, `kufur:TEXT`
+- `follows`: `id:INTEGER`, `follower_id:INTEGER`, `following_id:INTEGER`, `created_at:TEXT`
+- `game_scores`: `id:INTEGER`, `game_key:TEXT`, `name:TEXT`, `score:INTEGER`, `created_at:TEXT`
+- `group_announcements`: `id:INTEGER`, `group_id:INTEGER`, `title:TEXT`, `body:TEXT`, `created_at:TEXT`, `created_by:INTEGER`
+- `group_events`: `id:INTEGER`, `group_id:INTEGER`, `title:TEXT`, `description:TEXT`, `location:TEXT`, `starts_at:TEXT`, `ends_at:TEXT`, `created_at:TEXT`, `created_by:INTEGER`
+- `group_invites`: `id:INTEGER`, `group_id:INTEGER`, `invited_user_id:INTEGER`, `invited_by:INTEGER`, `status:TEXT`, `created_at:TEXT`, `responded_at:TEXT`
+- `group_join_requests`: `id:INTEGER`, `group_id:INTEGER`, `user_id:INTEGER`, `status:TEXT`, `created_at:TEXT`, `reviewed_at:TEXT`, `reviewed_by:INTEGER`
+- `group_members`: `id:INTEGER`, `group_id:INTEGER`, `user_id:INTEGER`, `role:TEXT`, `created_at:TEXT`
+- `groups`: `id:INTEGER`, `name:TEXT`, `description:TEXT`, `cover_image:TEXT`, `owner_id:INTEGER`, `created_at:TEXT`
+- `image_records`: `id:TEXT`, `user_id:INTEGER`, `entity_type:TEXT`, `entity_id:INTEGER`, `provider:TEXT`, `thumb_path:TEXT`, `feed_path:TEXT`, `full_path:TEXT`, `width:INTEGER`, `height:INTEGER`, `created_at:TEXT`
+- `jobs`: `id:INTEGER`, `poster_id:INTEGER`, `company:TEXT`, `title:TEXT`, `description:TEXT`, `location:TEXT`, `job_type:TEXT`, `link:TEXT`, `created_at:TEXT`
+- `media_settings`: `id:INTEGER`, `storage_provider:TEXT`, `local_base_path:TEXT`, `thumb_width:INTEGER`, `feed_width:INTEGER`, `full_width:INTEGER`, `webp_quality:INTEGER`, `max_upload_bytes:INTEGER`, `avif_enabled:INTEGER`, `updated_at:TEXT`
+- `member_engagement_scores`: `user_id:INTEGER`, `ab_variant:TEXT`, `score:REAL`, `raw_score:REAL`, `creator_score:REAL`, `engagement_received_score:REAL`, `community_score:REAL`, `network_score:REAL`, `quality_score:REAL`, `penalty_score:REAL`, `posts_30d:INTEGER`, `posts_7d:INTEGER`, `likes_received_30d:INTEGER`, `comments_received_30d:INTEGER`, `likes_given_30d:INTEGER`, `comments_given_30d:INTEGER`, `followers_count:INTEGER`, `following_count:INTEGER`, `follows_gained_30d:INTEGER`, `follows_given_30d:INTEGER`, `stories_30d:INTEGER`, `story_views_received_30d:INTEGER`, `chat_messages_30d:INTEGER`, `last_activity_at:TEXT`, `updated_at:TEXT`
+- `member_requests`: `id:INTEGER`, `user_id:INTEGER`, `category_key:TEXT`, `payload_json:TEXT`, `status:TEXT`, `created_at:TEXT`, `reviewed_at:TEXT`, `reviewer_id:INTEGER`, `resolution_note:TEXT`
+- `moderator_permissions`: `id:INTEGER`, `user_id:INTEGER`, `permission_key:TEXT`, `enabled:INTEGER`, `created_by:INTEGER`, `updated_by:INTEGER`, `created_at:TEXT`, `updated_at:TEXT`
+- `moderator_scopes`: `id:INTEGER`, `user_id:INTEGER`, `scope_type:TEXT`, `scope_value:TEXT`, `graduation_year:INTEGER`, `created_by:INTEGER`, `created_at:TEXT`
+- `module_controls`: `module_key:TEXT`, `is_open:INTEGER`, `updated_at:TEXT`
+- `notifications`: `id:INTEGER`, `user_id:INTEGER`, `type:TEXT`, `source_user_id:INTEGER`, `entity_id:INTEGER`, `message:TEXT`, `read_at:TEXT`, `created_at:TEXT`
+- `oauth_accounts`: `id:INTEGER`, `user_id:INTEGER`, `provider:TEXT`, `provider_user_id:TEXT`, `email:TEXT`, `profile_json:TEXT`, `created_at:TEXT`, `updated_at:TEXT`
+- `post_comments`: `id:INTEGER`, `post_id:INTEGER`, `user_id:INTEGER`, `comment:TEXT`, `created_at:TEXT`
+- `post_likes`: `id:INTEGER`, `post_id:INTEGER`, `user_id:INTEGER`, `created_at:TEXT`
+- `posts`: `id:INTEGER`, `user_id:INTEGER`, `content:TEXT`, `image:TEXT`, `created_at:TEXT`
+- `request_categories`: `id:INTEGER`, `category_key:TEXT`, `label:TEXT`, `description:TEXT`, `active:INTEGER`, `created_at:TEXT`, `updated_at:TEXT`
+- `schema_migrations`: `name:TEXT`, `applied_at:TEXT`
+- `sdal_messenger_messages`: `id:INTEGER`, `thread_id:INTEGER`, `sender_id:INTEGER`, `receiver_id:INTEGER`, `body:TEXT`, `client_written_at:TEXT`, `server_received_at:TEXT`, `delivered_at:TEXT`, `created_at:TEXT`, `read_at:TEXT`, `deleted_by_sender:INTEGER`, `deleted_by_receiver:INTEGER`
+- `sdal_messenger_threads`: `id:INTEGER`, `user_a_id:INTEGER`, `user_b_id:INTEGER`, `created_at:TEXT`, `updated_at:TEXT`, `last_message_at:TEXT`
+- `site_controls`: `id:INTEGER`, `site_open:INTEGER`, `maintenance_message:TEXT`, `updated_at:TEXT`
+- `stories`: `id:INTEGER`, `user_id:INTEGER`, `image:TEXT`, `caption:TEXT`, `created_at:TEXT`, `expires_at:TEXT`
+- `story_views`: `id:INTEGER`, `story_id:INTEGER`, `user_id:INTEGER`, `created_at:TEXT`
+- `verification_requests`: `id:INTEGER`, `user_id:INTEGER`, `status:TEXT`, `proof_path:TEXT`, `proof_image_record_id:TEXT`, `created_at:TEXT`, `reviewed_at:TEXT`, `reviewer_id:INTEGER`
+
+### 3.3 Incremental runtime-added columns (`migrateAddColumn`)
+
+- `announcements.approved`
+- `announcements.approved_at`
+- `announcements.approved_by`
+- `announcements.created_by`
+- `announcements.image`
+- `events.approved`
+- `events.approved_at`
+- `events.approved_by`
+- `events.created_by`
+- `events.image`
+- `events.show_attendee_names`
+- `events.show_decliner_names`
+- `events.show_response_counts`
+- `groups.show_contact_hint`
+- `groups.visibility`
+- `member_engagement_scores.ab_variant`
+- `oauth_accounts.created_at`
+- `oauth_accounts.email`
+- `oauth_accounts.profile_json`
+- `oauth_accounts.updated_at`
+- `posts.group_id`
+- `posts.image_record_id`
+- `sdal_messenger_messages.client_written_at`
+- `sdal_messenger_messages.deleted_by_receiver`
+- `sdal_messenger_messages.deleted_by_sender`
+- `sdal_messenger_messages.delivered_at`
+- `sdal_messenger_messages.read_at`
+- `sdal_messenger_messages.server_received_at`
+- `sdal_messenger_threads.created_at`
+- `sdal_messenger_threads.last_message_at`
+- `sdal_messenger_threads.updated_at`
+- `stories.image_record_id`
+- `uyeler.directory_consent_at`
+- `uyeler.kvkk_consent_at`
+- `uyeler.linkedin_url`
+- `uyeler.mentor_konulari`
+- `uyeler.mentor_opt_in`
+- `uyeler.oauth_email_verified`
+- `uyeler.oauth_provider`
+- `uyeler.oauth_subject`
+- `uyeler.role`
+- `uyeler.sirket`
+- `uyeler.universite_bolum`
+- `uyeler.unvan`
+- `uyeler.uzmanlik`
+- `uyeler.verification_status`
+- `uyeler.verified`
+- `verification_requests.proof_image_record_id`
+- `verification_requests.proof_path`
+
+## 4) Environment Variables and Integrations
+
+- Total referenced env vars: **41**
+
+- `CAP_SERVER_URL`
+- `DATABASE_URL`
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REDIRECT_URI`
+- `MAIL_ALLOW_MOCK`
+- `MAIL_SEND_TIMEOUT_MS`
+- `NODE_ENV`
+- `PORT`
+- `RESEND_API_KEY`
+- `RESEND_FROM`
+- `ROOT_BOOTSTRAP_PASSWORD`
+- `SDAL_ADMIN_PASSWORD`
+- `SDAL_BASE_URL`
+- `SDAL_DB_AUTO_REPAIR_MISSING_SCHEMA`
+- `SDAL_DB_BOOTSTRAP_PATH`
+- `SDAL_DB_DIR`
+- `SDAL_DB_DRIVER`
+- `SDAL_DB_PATH`
+- `SDAL_DB_REQUIRED_TABLE`
+- `SDAL_DB_REQUIRE_EXISTING`
+- `SDAL_SESSION_SECRET`
+- `SDAL_SLOW_QUERY_MS`
+- `SDAL_UPLOADS_DIR`
+- `SMTP_FROM`
+- `SMTP_HOST`
+- `SMTP_PASS`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_TLS_REJECT_UNAUTHORIZED`
+- `SMTP_USER`
+- `SPACES_BUCKET`
+- `SPACES_CDN_BASE`
+- `SPACES_ENDPOINT`
+- `SPACES_KEY`
+- `SPACES_REGION`
+- `SPACES_SECRET`
+- `SQLITE_PATH`
+- `X_OAUTH_CLIENT_ID`
+- `X_OAUTH_CLIENT_SECRET`
+- `X_OAUTH_REDIRECT_URI`
+
+### 4.1 Integration map
+
+- Database: SQLite (`better-sqlite3`), PostgreSQL (`DATABASE_URL`, `SDAL_DB_DRIVER=postgres`).
+- Mail: SMTP (`SMTP_*`) and Resend (`RESEND_API_KEY`, `RESEND_FROM`).
+- OAuth: Google (`GOOGLE_OAUTH_*`) and X (`X_OAUTH_*`).
+- Storage: local uploads (`SDAL_UPLOADS_DIR`) and Spaces/S3 (`SPACES_*`).
+- Deployment/runtime: Node env (`NODE_ENV`, `PORT`), base URL (`SDAL_BASE_URL`).
+- Session/security: `SDAL_SESSION_SECRET`, admin/root bootstrap credentials.
+- Mobile client build integration: `CAP_SERVER_URL` in frontend-modern capacitor script.

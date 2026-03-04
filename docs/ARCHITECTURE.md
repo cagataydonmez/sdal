@@ -1,0 +1,159 @@
+# SDAL Architecture (Phase 0 Baseline)
+
+This document captures the current architecture of the repository and defines the target production architecture for the modernization program.
+
+## Scope and Baseline
+
+- Active web frontends:
+  - Classic SPA: `frontend-classic` served from `/`
+  - Modern SPA: `frontend-modern` served from `/new`
+- Active backend:
+  - Single Express app in `server/app.js` (266 routes)
+  - WebSockets on `/ws/chat` and `/ws/messenger`
+- Active DB runtime:
+  - SQLite primary (`db/sdal.sqlite`)
+  - PostgreSQL compatibility path exists but is not production-grade
+- Full machine-generated inventory:
+  - [INVENTORY.md](/Users/cagataydonmez/Desktop/SDAL/docs/INVENTORY.md)
+
+## Current Architecture Map
+
+```mermaid
+flowchart LR
+  C["Browser (/ classic)"] --> N["Nginx / Reverse Proxy"]
+  M["Browser (/new modern)"] --> N
+  I["iOS Native Client"] --> N
+  N --> A["Express App (server/app.js)"]
+  A --> WS1["WebSocket /ws/chat"]
+  A --> WS2["WebSocket /ws/messenger"]
+  A --> DB["SQLite or PostgreSQL (adapter in server/db.js)"]
+  A --> FS["Local Upload Storage (/uploads/*)"]
+  A --> SMTP["SMTP / Resend"]
+  A --> OAUTH["Google/X OAuth"]
+```
+
+## Current Module Layout
+
+- Backend entrypoints:
+  - `server/index.js` (server start + ws attach)
+  - `server/app.js` (all middleware, schema bootstrap, business logic, routes)
+  - `server/db.js` (SQLite + PostgreSQL adapter)
+- Backend supporting modules:
+  - Middleware: `server/middleware/*`
+  - Media pipeline: `server/media/*`
+  - Scripts: `server/scripts/*`
+- Frontend applications:
+  - `frontend-modern/src/*`
+  - `frontend-classic/src/*`
+
+## Current Inventory Summary
+
+Detailed list is in [INVENTORY.md](/Users/cagataydonmez/Desktop/SDAL/docs/INVENTORY.md). Snapshot:
+
+- Frontend routes:
+  - Modern: 36 routes in `frontend-modern/src/App.jsx`
+  - Classic: 41 routes in `frontend-classic/src/App.jsx`
+- Backend surface:
+  - 266 total Express handlers
+  - Route families include `/api/*`, `/api/new/*`, `/api/admin/*`, `/api/new/admin/*`, and legacy ASP compatibility routes
+- WebSockets:
+  - `/ws/chat`, `/ws/messenger`
+  - Event types: `chat:new|updated|deleted`, `messenger:hello|new|delivered|read`
+- Scheduled/background behaviors:
+  - Engagement recalculation startup + interval jobs
+  - Periodic in-memory limiter cleanup
+  - Delayed engagement recompute scheduling
+- Database schema:
+  - 15 legacy SQLite tables in file
+  - 40 runtime-managed tables created/migrated by app bootstrap logic
+- Environment variables:
+  - Full list in inventory (`process.env` references from backend/frontend scripts)
+
+## Current Pain Points
+
+1. Backend is monolithic:
+   - `server/app.js` contains routing, schema management, auth, business logic, DB orchestration, and websocket logic in one file.
+2. Runtime schema mutation in app startup:
+   - `CREATE TABLE` + `ALTER TABLE` + `CREATE INDEX` is coupled to server boot, making deploy riskier and non-deterministic.
+3. PostgreSQL path is not production-safe:
+   - `server/db.js` currently shells out to `psql` command execution rather than using pooled DB connections.
+4. Session storage is in-memory:
+   - `express-session` default store is used, which is not multi-instance ready and can lose sessions on process restart.
+5. Realtime channels are single-instance oriented:
+   - No Redis pub/sub fanout; chat websocket auth for `/ws/chat` is payload-based and not session-bound.
+6. Legacy/modern naming mix:
+   - DB tables/columns and code identifiers are mixed between legacy Turkish-style names and modern names, increasing maintenance cost.
+7. Compatibility and behavior duplication:
+   - Many endpoint aliases and legacy fallbacks increase complexity and test burden.
+8. Admin DB tooling is SQLite-biased:
+   - Some introspection endpoints query `sqlite_master` directly and need DB-agnostic abstraction.
+9. Limited critical-flow automated coverage:
+   - Existing tests are smoke-script style; no comprehensive contract and regression suite for key product flows.
+
+## Target Architecture
+
+## Layered Backend Structure
+
+Target server layout under `server/src`:
+
+- `domain/`
+  - Domain entities and value objects (User, Post, Story, Conversation, etc.)
+- `repositories/`
+  - DB access interfaces + concrete adapters
+- `services/`
+  - Use-case orchestration, validation, authorization checks
+- `http/controllers/`
+  - Request/response glue, DTO adapters, compatibility mappings
+- `http/routes/`
+  - Route registration and middleware wiring
+- `infra/`
+  - DB pool, Redis clients, queue workers, logging, metrics
+
+## Dependency Direction
+
+```mermaid
+flowchart LR
+  R["http/routes"] --> C["http/controllers"]
+  C --> S["services"]
+  S --> I["repository interfaces"]
+  I --> P["repository implementations"]
+  P --> D["infra/db (pg pool)"]
+  S --> X["infra/redis + queue + cache"]
+```
+
+## Data Architecture Target
+
+- PostgreSQL as primary production DB using explicit migration files (`server/migrations/*`)
+- Redis as shared infra:
+  - Session store
+  - Cache
+  - Rate limiting
+  - Pub/sub fanout for websocket events
+  - Job queue backend (BullMQ)
+- Legacy SQLite retained only for one-time migration input and rollback snapshot workflows
+
+## Compatibility Strategy
+
+- Preserve external routes and current client payload contracts for:
+  - Classic web
+  - Modern web
+  - iOS native client contracts in repo
+- Introduce internal modern domain model and schema naming.
+- Use compatibility mappers at controller/DTO boundary until optional API versioning.
+
+## Non-Functional Targets
+
+- Reliability:
+  - deterministic startup, migration-first schema lifecycle, resilient mail + queue retries
+- Performance:
+  - pooled DB access, pagination standardization, N+1 elimination, cache for hot paths
+- Scalability:
+  - single droplet now; multi-instance readiness via Redis-backed state and pub/sub
+- Operability:
+  - health checks, structured logs with request IDs, slow query visibility, clear deployment runbooks
+
+## Files Produced in Phase 0
+
+- Full inventory: [INVENTORY.md](/Users/cagataydonmez/Desktop/SDAL/docs/INVENTORY.md)
+- Rename plan: [RENAME_PLAN.md](/Users/cagataydonmez/Desktop/SDAL/docs/RENAME_PLAN.md)
+

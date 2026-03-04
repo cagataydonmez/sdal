@@ -41,6 +41,56 @@ function resolveDbPath() {
 const dbPath = resolveDbPath();
 const postgresUrl = String(process.env.DATABASE_URL || '').trim();
 let db = null;
+let slowQueryThresholdMs = Math.max(parseInt(process.env.SDAL_SLOW_QUERY_MS || '200', 10) || 200, 0);
+
+let slowQueryLogger = (entry) => {
+  const compactSql = String(entry?.query || '').replace(/\s+/g, ' ').trim().slice(0, 280);
+  const suffix = entry?.error ? ` error=${entry.error}` : '';
+  console.warn(
+    `[db][slow] driver=${entry.driver} op=${entry.operation} durationMs=${entry.durationMs} ` +
+    `params=${entry.paramCount} sql="${compactSql}"${suffix}`
+  );
+};
+
+function safeParamPreview(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (value instanceof Date) return value.toISOString();
+  if (Buffer.isBuffer(value)) return `<buffer:${value.length}>`;
+  const text = String(value);
+  if (text.length > 100) return `${text.slice(0, 100)}…`;
+  return text;
+}
+
+function logSlowQuery(operation, query, params, durationMs, error = null) {
+  if (durationMs < slowQueryThresholdMs) return;
+  try {
+    slowQueryLogger({
+      driver: dbDriver,
+      operation,
+      durationMs,
+      query: String(query || ''),
+      paramCount: Array.isArray(params) ? params.length : 0,
+      paramPreview: Array.isArray(params) ? params.slice(0, 5).map((v) => safeParamPreview(v)) : [],
+      error: error ? String(error.message || error) : null
+    });
+  } catch {
+    // logging must never break query flow
+  }
+}
+
+function withQueryTiming(operation, query, params, execute) {
+  const startedAt = Date.now();
+  let error = null;
+  try {
+    return execute();
+  } catch (err) {
+    error = err;
+    throw err;
+  } finally {
+    logSlowQuery(operation, query, params, Date.now() - startedAt, error);
+  }
+}
 
 function fileHasTable(filePath, tableName) {
   if (!filePath || !tableName || !fs.existsSync(filePath)) return false;
@@ -241,47 +291,63 @@ export function safeGetDb() {
 }
 
 export function sqlGet(query, params = []) {
-  const conn = safeGetDb();
-  if (!conn) return null;
-  if (dbDriver !== 'postgres') return conn.prepare(query).get(params);
-  const rewritten = rewriteSqliteMetaForPg(query);
-  const sql = normalizePgSql(injectParams(rewritten, params));
-  const rows = runPsqlQuery(sql);
-  return rows[0] || null;
+  return withQueryTiming('sqlGet', query, params, () => {
+    const conn = safeGetDb();
+    if (!conn) return null;
+    if (dbDriver !== 'postgres') return conn.prepare(query).get(params);
+    const rewritten = rewriteSqliteMetaForPg(query);
+    const sql = normalizePgSql(injectParams(rewritten, params));
+    const rows = runPsqlQuery(sql);
+    return rows[0] || null;
+  });
 }
 
 export function sqlAll(query, params = []) {
-  const conn = safeGetDb();
-  if (!conn) return [];
-  if (dbDriver !== 'postgres') return conn.prepare(query).all(params);
-  const rewritten = rewriteSqliteMetaForPg(query);
-  const sql = normalizePgSql(injectParams(rewritten, params));
-  return runPsqlQuery(sql);
+  return withQueryTiming('sqlAll', query, params, () => {
+    const conn = safeGetDb();
+    if (!conn) return [];
+    if (dbDriver !== 'postgres') return conn.prepare(query).all(params);
+    const rewritten = rewriteSqliteMetaForPg(query);
+    const sql = normalizePgSql(injectParams(rewritten, params));
+    return runPsqlQuery(sql);
+  });
 }
 
 export function sqlRun(query, params = []) {
-  const conn = safeGetDb();
-  if (!conn) return null;
-  if (dbDriver !== 'postgres') return conn.prepare(query).run(params);
+  return withQueryTiming('sqlRun', query, params, () => {
+    const conn = safeGetDb();
+    if (!conn) return null;
+    if (dbDriver !== 'postgres') return conn.prepare(query).run(params);
 
-  const rewritten = rewriteSqliteMetaForPg(query);
-  let sql = normalizePgSql(injectParams(rewritten, params));
-  if (/^\s*INSERT\s+INTO/i.test(sql) && !/\bRETURNING\b/i.test(sql)) {
-    try {
-      const rows = runPsqlQuery(`${sql} RETURNING id`);
-      return {
-        changes: rows.length,
-        lastInsertRowid: rows[0]?.id ?? null
-      };
-    } catch {
-      // fallback below
+    const rewritten = rewriteSqliteMetaForPg(query);
+    let sql = normalizePgSql(injectParams(rewritten, params));
+    if (/^\s*INSERT\s+INTO/i.test(sql) && !/\bRETURNING\b/i.test(sql)) {
+      try {
+        const rows = runPsqlQuery(`${sql} RETURNING id`);
+        return {
+          changes: rows.length,
+          lastInsertRowid: rows[0]?.id ?? null
+        };
+      } catch {
+        // fallback below
+      }
     }
+    const result = runPsqlExec(sql);
+    return {
+      changes: Number(result?.changes || 0),
+      lastInsertRowid: null
+    };
+  });
+}
+
+export function configureDbInstrumentation(options = {}) {
+  const threshold = Number(options.slowQueryThresholdMs);
+  if (Number.isFinite(threshold) && threshold >= 0) {
+    slowQueryThresholdMs = Math.floor(threshold);
   }
-  const result = runPsqlExec(sql);
-  return {
-    changes: Number(result?.changes || 0),
-    lastInsertRowid: null
-  };
+  if (typeof options.onSlowQuery === 'function') {
+    slowQueryLogger = options.onSlowQuery;
+  }
 }
 
 export function closeDbConnection() {
