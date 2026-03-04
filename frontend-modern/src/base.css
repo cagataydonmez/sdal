@@ -135,15 +135,16 @@ textarea::placeholder {
   align-items: center;
   gap: 10px;
   font-family: 'Space Grotesk', sans-serif;
+  width: fit-content;
 }
-.brand-mark {
-  background: var(--accent);
-  color: #111;
-  font-weight: 700;
-  padding: 8px 10px;
-  border-radius: 10px;
-  letter-spacing: 1px;
+
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 36px;
+  max-width: 100%;
 }
+
 .brand-sub {
   font-weight: 600;
   opacity: 0.8;

@@ -116,10 +116,18 @@ export default function Layout({ children, title, right }) {
   return (
     <div className="app-shell">
       <aside className="side-nav">
-        <div className="brand">
-          <div className="brand-mark">SDAL</div>
-          <div className="brand-sub">Yeni</div>
-        </div>
+        <Link to="/new" className="brand" aria-label="SDAL home">
+          <img
+            className="brand-logo"
+            src="/assets/logo.svg"
+            alt="SDAL logo"
+            width={160}
+            height={40}
+            loading="eager"
+            decoding="async"
+          />
+          <span className="brand-sub">Yeni</span>
+        </Link>
         <nav>
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>
@@ -194,10 +202,18 @@ export default function Layout({ children, title, right }) {
       <div className={`mobile-nav-overlay ${mobileNavOpen ? 'open' : ''}`} onClick={() => setMobileNavOpen(false)} />
       <aside className={`mobile-nav-drawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
         <div className="mobile-nav-head">
-          <div className="brand">
-            <div className="brand-mark">SDAL</div>
-            <div className="brand-sub">Yeni</div>
-          </div>
+          <Link to="/new" className="brand" aria-label="SDAL home" onClick={() => setMobileNavOpen(false)}>
+            <img
+              className="brand-logo"
+              src="/assets/logo.svg"
+              alt="SDAL logo"
+              width={160}
+              height={40}
+              loading="eager"
+              decoding="async"
+            />
+            <span className="brand-sub">Yeni</span>
+          </Link>
           <button className="btn ghost" onClick={() => setMobileNavOpen(false)}>{t('close')}</button>
         </div>
         <nav className="mobile-nav-links">
