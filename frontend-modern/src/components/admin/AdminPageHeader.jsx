@@ -5,6 +5,8 @@ export default function AdminPageHeader({
   adminMenuOpen,
   setAdminMenuOpen,
   groupedTabs,
+  tabSearch,
+  setTabSearch,
   tab,
   setTab
 }) {
@@ -29,6 +31,15 @@ export default function AdminPageHeader({
           </div>
         </div>
         <div className={`admin-hamburger-menu ${adminMenuOpen ? 'open' : ''}`}>
+          <div className="form-row admin-tab-search-row">
+            <label>Modül Ara</label>
+            <input
+              className="input"
+              placeholder="Örn: üyeler, log, moderasyon..."
+              value={tabSearch}
+              onChange={(e) => setTabSearch(e.target.value)}
+            />
+          </div>
           {Object.entries(groupedTabs).map(([section, sectionTabs]) => (
             <div key={`menu-${section}`} className="admin-nav-group">
               <div className="admin-nav-title">{section}</div>
@@ -49,4 +60,3 @@ export default function AdminPageHeader({
     </div>
   );
 }
-

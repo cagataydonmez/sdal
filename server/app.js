@@ -1433,6 +1433,11 @@ sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_score ON member_engagem
 sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_updated ON member_engagement_scores (updated_at DESC)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_variant ON member_engagement_scores (ab_variant, score DESC)');
 sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON engagement_ab_assignments (variant)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_admin_filter ON uyeler (role, admin, aktiv, yasak, online)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_recent ON uyeler (sontarih DESC, sonislemtarih DESC, id DESC)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_kadi ON uyeler (kadi)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_name ON uyeler (isim, soyisim)');
+sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_email ON uyeler (email)');
 migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
 normalizePostgresIdColumns();
 migrateLegacyUserIdColumns();
