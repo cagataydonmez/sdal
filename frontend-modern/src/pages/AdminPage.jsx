@@ -442,9 +442,7 @@ export default function AdminPage() {
     const nextMatrix = {};
     for (const key of data.assignedKeys || []) nextMatrix[key] = true;
     setModerationMatrix(nextMatrix);
-    if (!userForm || Number(userForm.id) !== Number(targetUserId)) {
-      setUserForm((prev) => ({ ...(prev || {}), ...(data.user || {}), id: targetUserId }));
-    }
+    setUserForm((prev) => ({ ...(prev || {}), ...(data.user || {}), id: targetUserId }));
   }
 
   function toggleModerationPermission(permissionKey, enabled) {
@@ -465,6 +463,39 @@ export default function AdminPage() {
     } finally {
       setModerationBusy(false);
     }
+  }
+
+  async function handleModerationTargetSelect(rawTargetId) {
+    const targetId = Number(rawTargetId || 0);
+    if (!targetId) {
+      setUserForm((prev) => ({ ...(prev || {}), id: 0 }));
+      setModerationMatrix({});
+      return;
+    }
+    const targetUser = users.find((item) => Number(item.id) === targetId) || null;
+    const targetRole = String(targetUser?.role || 'user').toLowerCase();
+
+    if (targetRole === 'admin' || targetRole === 'root') {
+      window.alert('Bu kullanıcı admin/root rolünde. Zaten tüm moderasyon yetkilerine sahip.');
+      setUserForm((prev) => ({ ...(prev || {}), ...(targetUser || {}), id: targetId }));
+      setModerationMatrix({});
+      return;
+    }
+
+    if (targetRole === 'user') {
+      const shouldPromoteToMod = window.confirm('Seçtiğiniz kullanıcı "user" rolünde. Moderatör yapmak ve yetki ekranını açmak istiyor musunuz?');
+      if (!shouldPromoteToMod) {
+        setStatus('User rolündeki kullanıcı için moderasyon yetkisi tanımlanmadı.');
+        setUserForm((prev) => ({ ...(prev || {}), id: 0 }));
+        setModerationMatrix({});
+        return;
+      }
+      await apiJson(`/admin/users/${targetId}/role`, { method: 'POST', body: JSON.stringify({ role: 'mod' }) });
+      setStatus(`@${targetUser?.kadi || 'kullanıcı'} moderatör rolüne alındı. Yetki seçim ekranı açıldı.`);
+      await loadUsers('all', { page: 1 });
+    }
+
+    await loadModeratorPermissionMatrix(targetId);
   }
 
   async function updateUserRole() {
@@ -1661,10 +1692,7 @@ export default function AdminPage() {
                   className="input"
                   value={String(userForm?.id || '')}
                   onChange={(e) => {
-                    const targetId = Number(e.target.value || 0);
-                    const targetUser = users.find((item) => Number(item.id) === targetId) || null;
-                    setUserForm((prev) => ({ ...(prev || {}), ...(targetUser || {}), id: targetId }));
-                    if (targetId) loadModeratorPermissionMatrix(targetId).catch((err) => setStatus(err.message || 'Yetkiler yüklenemedi.'));
+                    handleModerationTargetSelect(e.target.value).catch((err) => setStatus(err.message || 'Yetkiler yüklenemedi.'));
                   }}
                 >
                   <option value="">Kullanıcı seçiniz</option>
@@ -1674,6 +1702,18 @@ export default function AdminPage() {
                 </select>
               </div>
             </div>
+
+            {userForm?.id ? (
+              <div className="list-item" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <img className="admin-user-badge" src={userForm.resim ? `/api/media/vesikalik/${userForm.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={`@${userForm.kadi || 'uye'}`} />
+                <div>
+                  <div className="name">@{userForm.kadi || 'uye'} • {userForm.isim || ''} {userForm.soyisim || ''}</div>
+                  <div className="meta">Rol: {String(userForm.role || 'user').toLowerCase()}</div>
+                  <div className="meta">Mezuniyet yılı: {String(userForm.mezuniyetyili || 'Belirtilmemiş')}</div>
+                  {userForm.email ? <div className="meta">E-posta: {userForm.email}</div> : null}
+                </div>
+              </div>
+            ) : null}
 
             <div className="list">
               {(moderationCatalog.resources || []).map((resource) => (
