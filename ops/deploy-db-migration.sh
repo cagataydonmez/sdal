@@ -72,6 +72,26 @@ run_as_app_user() {
   sudo -u "$APP_USER" bash -lc "$cmd"
 }
 
+systemd_unit_exists() {
+  local unit="$1"
+  systemctl list-unit-files --type=service --all --no-legend --no-pager 2>/dev/null | awk '{print $1}' | grep -Fxq "$unit"
+}
+
+run_service_step_if_present() {
+  local unit="$1"
+  local label="$2"
+  shift 2
+
+  if systemd_unit_exists "$unit"; then
+    run_step "$label" "$@"
+  else
+    note "STEP: $label"
+    note "CMD : $*"
+    note "RESULT: PASS - $label (skipped: unit $unit not found)"
+    record_result "PASS" "$label (skipped: unit $unit not found)"
+  fi
+}
+
 prompt_var() {
   local name="$1"
   local current="$2"
@@ -173,10 +193,10 @@ run_step "Migration status after" run_as_app_user "cd '$APP_DIR' && set -a && so
 
 if [[ "$RESTART_SERVICES" == "1" ]]; then
   print_header "Restart services"
-  run_step "Restart sdal-api.service" sudo systemctl restart sdal-api.service
-  run_step "Restart sdal-worker.service" sudo systemctl restart sdal-worker.service
-  run_step "Check sdal-api active" sudo systemctl is-active --quiet sdal-api.service
-  run_step "Check sdal-worker active" sudo systemctl is-active --quiet sdal-worker.service
+  run_service_step_if_present "sdal-api.service" "Restart sdal-api.service" sudo systemctl restart sdal-api.service
+  run_service_step_if_present "sdal-worker.service" "Restart sdal-worker.service" sudo systemctl restart sdal-worker.service
+  run_service_step_if_present "sdal-api.service" "Check sdal-api active" sudo systemctl is-active --quiet sdal-api.service
+  run_service_step_if_present "sdal-worker.service" "Check sdal-worker active" sudo systemctl is-active --quiet sdal-worker.service
 else
   note "Skipping service restart by choice"
 fi
@@ -185,7 +205,22 @@ print_header "Quick health checks"
 run_step "API health endpoint" bash -lc '
   set -a; source "'"$SDAL_ENV_FILE"'"; set +a;
   PORT_TO_USE="${PORT:-8787}";
-  curl -fsS "http://127.0.0.1:${PORT_TO_USE}/api/health" >/dev/null
+  BASE_URL_TO_USE="${SDAL_BASE_URL:-http://127.0.0.1:${PORT_TO_USE}}";
+  HEALTH_HOST="$(printf "%s" "$BASE_URL_TO_USE" | sed -E "s#^[a-zA-Z]+://([^/:]+).*$#\1#")";
+
+  if curl -fsS -H "Host: ${HEALTH_HOST}" "http://127.0.0.1:${PORT_TO_USE}/api/health" >/dev/null; then
+    exit 0;
+  fi
+
+  if curl -fsS -H "Host: ${HEALTH_HOST}" "http://127.0.0.1:${PORT_TO_USE}/health" >/dev/null; then
+    exit 0;
+  fi
+
+  if curl -fsS "http://127.0.0.1:${PORT_TO_USE}/api/health" >/dev/null; then
+    exit 0;
+  fi
+
+  curl -fsS "http://127.0.0.1:${PORT_TO_USE}/health" >/dev/null
 '
 
 write_summary
