@@ -1,0 +1,14 @@
+{
+  "status": "not_run",
+  "message": "Run `npm --prefix server run migrate:data -- --sqlite <path-to-legacy-sqlite> --report ./migration_report.json` to generate this report.",
+  "generatedAt": null,
+  "summary": {
+    "sourceRows": 0,
+    "targetRows": 0,
+    "mismatchCount": 0,
+    "fkViolationCount": 0
+  },
+  "tables": [],
+  "mismatches": [],
+  "fkIntegrity": []
+}

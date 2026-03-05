@@ -198,3 +198,21 @@ flowchart LR
   - `docker-compose.yml` with PostgreSQL 16 + Redis 7 and health checks.
 - Expanded environment template:
   - `server/.env.example` now includes `DATABASE_URL`, Redis settings, pool tunables, `MAIL_*` aliases, `STORAGE_*` aliases, and OAuth variables.
+
+## Phase 3 Progress (Implemented)
+
+- Added numbered migration system:
+  - `server/migrations/001_modern_schema.up.sql`
+  - `server/migrations/001_modern_schema.down.sql`
+  - `server/scripts/migrate.mjs` with `up`, `down`, `status` commands using `schema_migrations`.
+- Added modern PostgreSQL schema with:
+  - modern table naming (`users`, `post_reactions`, `conversation_members`, etc.),
+  - foreign keys and constraints,
+  - module-specific indexes for feed/comments/stories/chat/notifications/search-critical paths.
+- Added one-time SQLite -> modern PostgreSQL migration tool:
+  - `server/scripts/migrate-legacy-sqlite-to-modern-postgres.mjs`
+  - deterministic ID preservation where possible,
+  - row-count parity checks and FK integrity checks,
+  - report output to `migration_report.json`.
+- Added migration operational runbook:
+  - `docs/MIGRATION.md` with backup, execute, validate, cutover, and rollback steps.
