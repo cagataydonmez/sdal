@@ -29,6 +29,7 @@ import { buildVersionedCacheKey, bumpCacheNamespaceVersion, getCacheJson, setCac
 import { createRealtimeBus } from './src/infra/realtimeBus.js';
 import { createJobQueue } from './src/infra/jobQueue.js';
 import { createMailSender } from './src/infra/mailSender.js';
+import { consumeUploadQuota } from './src/infra/uploadQuota.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
 
@@ -47,7 +48,16 @@ app.use(presenceMiddleware({ sqlRun, onlineHeartbeatMs: ONLINE_HEARTBEAT_MS }));
 app.use(requestLoggingMiddleware({ writeAppLog, writeLegacyLog }));
 registerLegacyStatics(app, legacyDir);
 registerStaticUploads(app, uploadsDir);
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders(res, filePath) {
+    const rel = path.relative(uploadsDir, filePath).split(path.sep).join('/').toLowerCase();
+    if (rel.startsWith('verification-proofs/') || rel.startsWith('request-attachments/')) {
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  }
+}));
 
 // Ensure new images directory exists
 const imagesDir = path.join(uploadsDir, 'images');
@@ -116,6 +126,16 @@ function detectMimeByMagicBytes(filePath) {
   if (bytes.length >= 8 && bufferStartsWith(bytes, Buffer.from([0x89, 0x50, 0x4e, 0x47]))) return 'image/png';
   if (bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
   if (bytes.length >= 6 && (bytes.subarray(0, 6).toString('ascii') === 'GIF87a' || bytes.subarray(0, 6).toString('ascii') === 'GIF89a')) return 'image/gif';
+  if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return 'image/bmp';
+  if (bytes.length >= 4 && (
+    bufferStartsWith(bytes, Buffer.from([0x49, 0x49, 0x2a, 0x00]))
+    || bufferStartsWith(bytes, Buffer.from([0x4d, 0x4d, 0x00, 0x2a]))
+  )) return 'image/tiff';
+  if (bytes.length >= 12 && bytes.subarray(4, 8).toString('ascii') === 'ftyp') {
+    const brand = bytes.subarray(8, 12).toString('ascii').toLowerCase();
+    if (brand.startsWith('heic') || brand.startsWith('heix') || brand.startsWith('hevc') || brand.startsWith('hevx')) return 'image/heic';
+    if (brand.startsWith('heif') || brand.startsWith('mif1') || brand.startsWith('msf1')) return 'image/heif';
+  }
   if (bytes.length >= 4 && bufferStartsWith(bytes, Buffer.from([0x25, 0x50, 0x44, 0x46]))) return 'application/pdf';
   return '';
 }
@@ -144,7 +164,17 @@ function cleanupUploadedFile(filePath) {
   }
 }
 
-const allowedImageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif']);
+const allowedImageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif', '.tiff', '.webp', '.heic', '.heif']);
+const allowedImageSafetyMimes = Object.freeze([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/bmp',
+  'image/tiff',
+  'image/heic',
+  'image/heif'
+]);
 const photoUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, vesikalikDir),
@@ -161,7 +191,7 @@ const photoUpload = multer({
       cb(null, true);
     }
   },
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 const albumUpload = multer({
@@ -182,7 +212,7 @@ const albumUpload = multer({
       cb(null, true);
     }
   },
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 const postUpload = multer({
@@ -203,7 +233,7 @@ const postUpload = multer({
       cb(null, true);
     }
   },
-  limits: { fileSize: 10 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 const storyUpload = multer({
@@ -224,7 +254,7 @@ const storyUpload = multer({
       cb(null, true);
     }
   },
-  limits: { fileSize: 10 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 const groupUpload = multer({
@@ -245,7 +275,7 @@ const groupUpload = multer({
       cb(null, true);
     }
   },
-  limits: { fileSize: 10 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 const allowedProofExts = new Set(['.jpg', '.jpeg', '.png', '.pdf']);
@@ -616,6 +646,68 @@ const uploadRateLimit = createRateLimitMiddleware({
   windowSeconds: envInt('RATE_LIMIT_UPLOAD_WINDOW_SECONDS', 600),
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`
 });
+
+function getMediaUploadLimitBytes() {
+  try {
+    const settings = loadMediaSettings(sqlGet);
+    const maxUploadBytes = Number(settings?.maxUploadBytes || 0);
+    if (Number.isFinite(maxUploadBytes) && maxUploadBytes > 0) return maxUploadBytes;
+  } catch {
+    // fallback to env default
+  }
+  return envInt('MEDIA_MAX_UPLOAD_BYTES', 10 * 1024 * 1024);
+}
+
+function validateUploadedImageFile(filePath, { allowedMimes = allowedImageSafetyMimes, maxBytes = null } = {}) {
+  const validation = validateUploadedFileSafety(filePath, { allowedMimes });
+  if (!validation.ok) return validation;
+  let size = 0;
+  try {
+    size = fs.statSync(filePath).size || 0;
+  } catch {
+    return { ok: false, reason: 'Dosya boyutu doğrulanamadı.' };
+  }
+  const limit = Number.isFinite(Number(maxBytes)) && Number(maxBytes) > 0 ? Number(maxBytes) : getMediaUploadLimitBytes();
+  if (size > limit) {
+    const maxMb = (limit / (1024 * 1024)).toFixed(1);
+    return { ok: false, reason: `Dosya boyutu çok büyük. Maksimum: ${maxMb} MB.` };
+  }
+  return { ok: true, mime: validation.mime, size };
+}
+
+async function enforceUploadQuota(req, res, { fileSize = 0, bucket = 'uploads' } = {}) {
+  const currentUser = getCurrentUser(req);
+  const role = getUserRole(currentUser);
+  const roleMultiplier = roleAtLeast(role, 'admin')
+    ? Math.max(envInt('UPLOAD_QUOTA_ADMIN_MULTIPLIER', 3), 1)
+    : 1;
+
+  const maxFiles = envInt('UPLOAD_QUOTA_MAX_FILES', 140) * roleMultiplier;
+  const maxBytes = envInt('UPLOAD_QUOTA_MAX_BYTES', 350 * 1024 * 1024) * roleMultiplier;
+  const windowSeconds = envInt('UPLOAD_QUOTA_WINDOW_SECONDS', 24 * 60 * 60);
+  const scope = req.session?.userId
+    ? `user:${Number(req.session.userId)}`
+    : `ip:${String(req.ip || 'unknown')}`;
+
+  const verdict = await consumeUploadQuota({
+    bucket,
+    scope,
+    bytes: Math.max(Number(fileSize || 0), 0),
+    maxFiles,
+    maxBytes,
+    windowSeconds
+  });
+
+  if (verdict.limitFiles) res.setHeader('X-Upload-Quota-Limit-Files', String(verdict.limitFiles));
+  if (verdict.limitBytes) res.setHeader('X-Upload-Quota-Limit-Bytes', String(verdict.limitBytes));
+  if (verdict.remainingFiles !== null) res.setHeader('X-Upload-Quota-Remaining-Files', String(verdict.remainingFiles));
+  if (verdict.remainingBytes !== null) res.setHeader('X-Upload-Quota-Remaining-Bytes', String(verdict.remainingBytes));
+  if (verdict.retryAfterSeconds) res.setHeader('X-Upload-Quota-Reset', String(verdict.retryAfterSeconds));
+
+  if (verdict.allowed) return true;
+  if (verdict.retryAfterSeconds) res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
+  return false;
+}
 
 const createPostIdempotency = createIdempotencyMiddleware({
   namespace: 'new_post_create',
@@ -994,40 +1086,12 @@ async function ensureRootBootstrapAccount() {
   }
 }
 
-// --- Upload rate limiter (in-memory, per-IP) ---
-const uploadRateLimits = new Map();
-const UPLOAD_RATE_WINDOW_MS = 60 * 1000;
-const UPLOAD_RATE_MAX = 10;
-
-function checkUploadRateLimit(ip) {
-  const now = Date.now();
-  const key = String(ip || 'unknown');
-  let entry = uploadRateLimits.get(key);
-  if (!entry || now - entry.windowStart > UPLOAD_RATE_WINDOW_MS) {
-    entry = { windowStart: now, count: 0 };
-    uploadRateLimits.set(key, entry);
-  }
-  entry.count++;
-  if (entry.count > UPLOAD_RATE_MAX) return false;
-  return true;
-}
-
-// Clean up old rate limit entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of uploadRateLimits) {
-    if (now - entry.windowStart > UPLOAD_RATE_WINDOW_MS * 2) {
-      uploadRateLimits.delete(key);
-    }
-  }
-}, 5 * 60 * 1000);
-
 // --- Multer memory storage for new image pipeline ---
 const imageUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 }, // slightly above max to let our pipeline give a nicer error
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/tiff'];
+    const allowed = allowedImageSafetyMimes;
     if (!allowed.includes(file.mimetype?.toLowerCase())) {
       cb(new Error('Desteklenmeyen dosya türü.'));
     } else {
@@ -3035,6 +3099,15 @@ async function applyImageFilter(filePath, filter) {
   fs.writeFileSync(filePath, buf);
 }
 
+const uploadImagePresets = Object.freeze({
+  profilePhoto: { width: 960, height: 960, fit: 'inside', quality: 86, background: '#ffffff' },
+  albumPhoto: { width: 2200, height: 2200, fit: 'inside', quality: 86, background: '#ffffff' },
+  postImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' },
+  groupCover: { width: 1800, height: 1000, fit: 'contain', quality: 84, background: '#f4f1ec' },
+  eventImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' },
+  announcementImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' }
+});
+
 async function optimizeUploadedImage(filePath, {
   width = 1600,
   height = 1600,
@@ -3068,6 +3141,70 @@ function toUploadUrl(filePath) {
   if (!filePath) return null;
   const rel = path.relative(uploadsDir, filePath).split(path.sep).join('/');
   return `/uploads/${rel}`;
+}
+
+async function processDiskImageUpload({
+  req,
+  res,
+  file,
+  bucket,
+  preset,
+  filter,
+  allowedMimes = allowedImageSafetyMimes
+}) {
+  if (!file?.path) {
+    return { ok: false, statusCode: 400, message: 'Görsel seçilmedi.' };
+  }
+
+  const validation = validateUploadedImageFile(file.path, {
+    allowedMimes,
+    maxBytes: getMediaUploadLimitBytes()
+  });
+  if (!validation.ok) {
+    cleanupUploadedFile(file.path);
+    return { ok: false, statusCode: 400, message: validation.reason || 'Dosya güvenlik kontrolünden geçemedi.' };
+  }
+
+  const quotaOk = await enforceUploadQuota(req, res, {
+    fileSize: validation.size || file.size || 0,
+    bucket
+  });
+  if (!quotaOk) {
+    cleanupUploadedFile(file.path);
+    return {
+      ok: false,
+      statusCode: 429,
+      message: 'Günlük yükleme kotan doldu. Lütfen daha sonra tekrar dene.'
+    };
+  }
+
+  let finalPath = file.path;
+  if (filter) {
+    try {
+      await applyImageFilter(finalPath, filter);
+    } catch {
+      // keep original if filter fails
+    }
+  }
+  if (preset) {
+    try {
+      finalPath = await optimizeUploadedImage(finalPath, preset);
+    } catch {
+      // keep original path
+    }
+  }
+
+  const outputExt = path.extname(finalPath || '').toLowerCase();
+  const outputMime = outputExt === '.webp' ? 'image/webp' : validation.mime;
+
+  return {
+    ok: true,
+    path: finalPath,
+    url: toUploadUrl(finalPath),
+    mime: outputMime || validation.mime,
+    originalMime: validation.mime,
+    size: validation.size || file.size || 0
+  };
 }
 
 function walkDirStats(rootDir) {
@@ -4195,14 +4332,15 @@ app.post('/api/admin/media-settings/test', requireAdmin, async (_req, res) => {
 
 // --- Standalone Image Upload Endpoint ---
 
-app.post('/api/upload-image', requireAuth, uploadRateLimit, (req, res, next) => {
-  if (!checkUploadRateLimit(req.ip)) {
-    return res.status(429).send('Çok fazla yükleme isteği. Lütfen biraz bekleyin.');
-  }
-  next();
-}, imageUpload.single('image'), async (req, res) => {
+app.post('/api/upload-image', requireAuth, uploadRateLimit, imageUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   try {
+    const quotaOk = await enforceUploadQuota(req, res, {
+      fileSize: Number(req.file.size || 0),
+      bucket: 'generic_image'
+    });
+    if (!quotaOk) return res.status(429).send('Günlük yükleme kotan doldu. Lütfen daha sonra tekrar dene.');
+
     const entityType = String(req.body?.entityType || 'misc');
     const entityId = req.body?.entityId || '0';
     const result = await processUpload({
@@ -5286,12 +5424,20 @@ app.get('/api/new/requests/my', requireAuth, (req, res) => {
 });
 
 
-app.post('/api/new/requests/upload', requireAuth, uploadRateLimit, requestAttachmentUpload.single('file'), (req, res) => {
+app.post('/api/new/requests/upload', requireAuth, uploadRateLimit, requestAttachmentUpload.single('file'), async (req, res) => {
   if (!req.file?.path) return res.status(400).send('Dosya yüklenemedi.');
   const validation = validateUploadedFileSafety(req.file.path, { allowedMimes: ['image/jpeg', 'image/png', 'application/pdf'] });
   if (!validation.ok) {
     cleanupUploadedFile(req.file.path);
     return res.status(400).send(validation.reason || 'Dosya güvenlik kontrolünden geçemedi.');
+  }
+  const quotaOk = await enforceUploadQuota(req, res, {
+    fileSize: Number(req.file.size || 0),
+    bucket: 'request_attachment'
+  });
+  if (!quotaOk) {
+    cleanupUploadedFile(req.file.path);
+    return res.status(429).send('Günlük yükleme kotan doldu. Lütfen daha sonra tekrar dene.');
   }
   res.json({
     ok: true,
@@ -5339,28 +5485,25 @@ app.post('/api/profile/password', async (req, res) => {
 app.post('/api/profile/photo', uploadRateLimit, (req, res, next) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   return next();
-}, photoUpload.single('file'), (req, res) => {
+}, photoUpload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).send('Fotoğraf seçilmedi');
-  const uploadValidation = validateUploadedFileSafety(req.file.path, { allowedMimes: ['image/jpeg', 'image/png', 'image/gif'] });
-  if (!uploadValidation.ok) {
-    cleanupUploadedFile(req.file.path);
-    return res.status(400).send(uploadValidation.reason);
-  }
-  (async () => {
-    const optimizedPath = await optimizeUploadedImage(req.file.path, {
-      width: 960,
-      height: 960,
-      fit: 'inside',
-      quality: 86,
-      background: '#ffffff'
-    });
-    const filename = path.basename(optimizedPath || req.file.path);
+  const processed = await processDiskImageUpload({
+    req,
+    res,
+    file: req.file,
+    bucket: 'profile_photo',
+    preset: uploadImagePresets.profilePhoto,
+    allowedMimes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff']
+  });
+  if (!processed.ok) return res.status(processed.statusCode).send(processed.message);
+  try {
+    const filename = path.basename(processed.path || req.file.path);
     sqlRun('UPDATE uyeler SET resim = ? WHERE id = ?', [filename, req.session.userId]);
     invalidateCacheNamespace(cacheNamespaces.profile);
     res.json({ ok: true, photo: filename });
-  })().catch(() => {
+  } catch {
     res.status(500).send('Profil fotoğrafı işlenemedi.');
-  });
+  }
 });
 
 app.get('/api/menu', (req, res) => {
@@ -5965,19 +6108,16 @@ app.post('/api/album/upload', (req, res, next) => {
   if (!category) return res.status(400).send('Seçtiğin kategori bulunamadı.');
   if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
 
-  let storedFilename = req.file.filename;
-  try {
-    const optimizedPath = await optimizeUploadedImage(req.file.path, {
-      width: 2200,
-      height: 2200,
-      fit: 'inside',
-      quality: 86,
-      background: '#ffffff'
-    });
-    storedFilename = path.basename(optimizedPath || req.file.path);
-  } catch {
-    // fallback to original upload
-  }
+  const processed = await processDiskImageUpload({
+    req,
+    res,
+    file: req.file,
+    bucket: 'album_photo',
+    preset: uploadImagePresets.albumPhoto
+  });
+  if (!processed.ok) return res.status(processed.statusCode).send(processed.message);
+
+  const storedFilename = path.basename(processed.path || req.file.path);
 
   sqlRun('UPDATE album_kat SET sonekleme = ?, sonekleyen = ? WHERE id = ?', [new Date().toISOString(), req.session.userId, category.id]);
   sqlRun(
@@ -6079,28 +6219,19 @@ app.post('/api/new/posts/upload', requireAuth, uploadRateLimit, postUpload.singl
   const content = formatUserText(req.body?.content || '');
   const filter = req.body?.filter || '';
   const groupId = req.body?.group_id || null;
-  let finalImagePath = req.file?.path || null;
-  if (finalImagePath && filter) {
-    try {
-      await applyImageFilter(finalImagePath, filter);
-    } catch {
-      // ignore filter errors
-    }
+  let processedUpload = null;
+  if (req.file?.path) {
+    processedUpload = await processDiskImageUpload({
+      req,
+      res,
+      file: req.file,
+      bucket: groupId ? 'group_post_image' : 'post_image',
+      preset: uploadImagePresets.postImage,
+      filter
+    });
+    if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
   }
-  if (finalImagePath) {
-    try {
-      finalImagePath = await optimizeUploadedImage(finalImagePath, {
-        width: 1900,
-        height: 1900,
-        fit: 'inside',
-        quality: 84,
-        background: '#ffffff'
-      });
-    } catch {
-      // fallback to original path
-    }
-  }
-  const image = finalImagePath ? toUploadUrl(finalImagePath) : null;
+  const image = processedUpload?.url || null;
   if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
 
@@ -6108,13 +6239,13 @@ app.post('/api/new/posts/upload', requireAuth, uploadRateLimit, postUpload.singl
   let imageRecordId = null;
   let variants = null;
   try {
-    const fileBuffer = req.file?.path && fs.existsSync(req.file.path)
-      ? fs.readFileSync(req.file.path)
-      : (finalImagePath && fs.existsSync(finalImagePath) ? fs.readFileSync(finalImagePath) : null);
+    const fileBuffer = processedUpload?.path && fs.existsSync(processedUpload.path)
+      ? fs.readFileSync(processedUpload.path)
+      : null;
     if (fileBuffer) {
       const uploadResult = await processUpload({
         buffer: fileBuffer,
-        mimeType: req.file?.mimetype || 'image/jpeg',
+        mimeType: processedUpload?.mime || req.file?.mimetype || 'image/jpeg',
         userId: req.session.userId,
         entityType: 'post',
         entityId: '0', // will be updated after insert
@@ -6583,6 +6714,23 @@ app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
 app.post('/api/new/stories/upload', requireAuth, uploadRateLimit, storyUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   try {
+    const validation = validateUploadedImageFile(req.file.path, {
+      allowedMimes: allowedImageSafetyMimes,
+      maxBytes: getMediaUploadLimitBytes()
+    });
+    if (!validation.ok) {
+      cleanupUploadedFile(req.file.path);
+      return res.status(400).send(validation.reason);
+    }
+    const quotaOk = await enforceUploadQuota(req, res, {
+      fileSize: validation.size || req.file.size || 0,
+      bucket: 'story_image'
+    });
+    if (!quotaOk) {
+      cleanupUploadedFile(req.file.path);
+      return res.status(429).send('Günlük yükleme kotan doldu. Lütfen daha sonra tekrar dene.');
+    }
+
     const caption = formatUserText(req.body?.caption || '');
     const outputName = `story_${req.session.userId}_${Date.now()}.webp`;
     const outputPath = path.join(storyDir, outputName);
@@ -7321,19 +7469,15 @@ app.post('/api/new/groups/:id/cover', requireAuth, uploadRateLimit, groupUpload.
   if (!isGroupManager(req, req.params.id)) {
     return res.status(403).send('Yetki yok.');
   }
-  let finalPath = req.file.path;
-  try {
-    finalPath = await optimizeUploadedImage(req.file.path, {
-      width: 1800,
-      height: 1000,
-      fit: 'contain',
-      quality: 84,
-      background: '#f4f1ec'
-    });
-  } catch {
-    // keep original upload
-  }
-  const image = toUploadUrl(finalPath) || `/uploads/groups/${req.file.filename}`;
+  const processed = await processDiskImageUpload({
+    req,
+    res,
+    file: req.file,
+    bucket: 'group_cover',
+    preset: uploadImagePresets.groupCover
+  });
+  if (!processed.ok) return res.status(processed.statusCode).send(processed.message);
+  const image = processed.url || `/uploads/groups/${req.file.filename}`;
   sqlRun('UPDATE groups SET cover_image = ? WHERE id = ?', [image, req.params.id]);
   res.json({ ok: true, image });
 });
@@ -7539,24 +7683,19 @@ app.post('/api/new/groups/:id/posts/upload', requireAuth, uploadRateLimit, postU
   const content = formatUserText(req.body?.content || '');
   const contentRaw = String(req.body?.content || '');
   const filter = req.body?.filter || '';
-  let finalImagePath = req.file?.path || null;
-  if (finalImagePath && filter) {
-    try { await applyImageFilter(finalImagePath, filter); } catch {}
+  let processedUpload = null;
+  if (req.file?.path) {
+    processedUpload = await processDiskImageUpload({
+      req,
+      res,
+      file: req.file,
+      bucket: 'group_post_image',
+      preset: uploadImagePresets.postImage,
+      filter
+    });
+    if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
   }
-  if (finalImagePath) {
-    try {
-      finalImagePath = await optimizeUploadedImage(finalImagePath, {
-        width: 1900,
-        height: 1900,
-        fit: 'inside',
-        quality: 84,
-        background: '#ffffff'
-      });
-    } catch {
-      // keep original image path
-    }
-  }
-  const image = finalImagePath ? toUploadUrl(finalImagePath) : null;
+  const image = processedUpload?.url || null;
   if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
   const now = new Date().toISOString();
   sqlRun('INSERT INTO posts (user_id, content, image, created_at, group_id) VALUES (?, ?, ?, ?, ?)', [
@@ -7815,21 +7954,18 @@ app.post('/api/new/events', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/events/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
-  let imagePath = req.file?.path || null;
-  if (imagePath) {
-    try {
-      imagePath = await optimizeUploadedImage(imagePath, {
-        width: 1900,
-        height: 1900,
-        fit: 'inside',
-        quality: 84,
-        background: '#ffffff'
-      });
-    } catch {
-      // keep original
-    }
+  let processedUpload = null;
+  if (req.file?.path) {
+    processedUpload = await processDiskImageUpload({
+      req,
+      res,
+      file: req.file,
+      bucket: 'event_image',
+      preset: uploadImagePresets.eventImage
+    });
+    if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
   }
-  const created = createEventRecord(req, { image: imagePath ? toUploadUrl(imagePath) : null });
+  const created = createEventRecord(req, { image: processedUpload?.url || null });
   if (created.error) return res.status(400).send(created.error);
   return res.json(created);
 });
@@ -8012,19 +8148,16 @@ app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUplo
   if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
   const user = getCurrentUser(req);
   const isAdmin = hasAdminSession(req, user);
-  let imagePath = req.file?.path || null;
-  if (imagePath) {
-    try {
-      imagePath = await optimizeUploadedImage(imagePath, {
-        width: 1900,
-        height: 1900,
-        fit: 'inside',
-        quality: 84,
-        background: '#ffffff'
-      });
-    } catch {
-      // keep original
-    }
+  let processedUpload = null;
+  if (req.file?.path) {
+    processedUpload = await processDiskImageUpload({
+      req,
+      res,
+      file: req.file,
+      bucket: 'announcement_image',
+      preset: uploadImagePresets.announcementImage
+    });
+    if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
   }
   const now = new Date().toISOString();
   sqlRun(
@@ -8033,7 +8166,7 @@ app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUplo
     [
       title,
       body,
-      imagePath ? toUploadUrl(imagePath) : null,
+      processedUpload?.url || null,
       now,
       req.session.userId,
       isAdmin ? 1 : 0,
@@ -8261,6 +8394,19 @@ app.post('/api/new/verified/proof', requireAuth, uploadRateLimit, verificationPr
   if (!uploadValidation.ok) {
     cleanupUploadedFile(req.file.path);
     return res.status(400).send(uploadValidation.reason);
+  }
+  const maxBytes = getMediaUploadLimitBytes();
+  if (Number(req.file.size || 0) > maxBytes) {
+    cleanupUploadedFile(req.file.path);
+    return res.status(400).send(`Dosya boyutu çok büyük. Maksimum: ${(maxBytes / (1024 * 1024)).toFixed(1)} MB.`);
+  }
+  const quotaOk = await enforceUploadQuota(req, res, {
+    fileSize: Number(req.file.size || 0),
+    bucket: 'verification_proof'
+  });
+  if (!quotaOk) {
+    cleanupUploadedFile(req.file.path);
+    return res.status(429).send('Günlük yükleme kotan doldu. Lütfen daha sonra tekrar dene.');
   }
   const ext = path.extname(req.file.filename || '').toLowerCase();
   if (ext === '.pdf') {

@@ -65,7 +65,7 @@ export async function processUpload({
 
   // 1. Validate MIME type
   if (!isAllowedMimeType(mimeType)) {
-    throw new Error('Desteklenmeyen dosya türü. Sadece JPEG, PNG, WebP, HEIC/HEIF yükleyebilirsiniz.');
+    throw new Error('Desteklenmeyen dosya türü. Sadece JPEG, PNG, WebP, GIF, BMP, TIFF veya HEIC/HEIF yükleyebilirsiniz.');
   }
 
   // 2. Load settings

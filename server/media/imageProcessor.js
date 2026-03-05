@@ -11,13 +11,15 @@
 import sharp from 'sharp';
 
 // Allowed decoded formats (checked after sharp decodes the buffer)
-const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'heif', 'heic', 'tiff']);
+const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'heif', 'heic', 'tiff', 'gif', 'bmp']);
 
 // Allowed MIME types (checked before processing)
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/gif',
+  'image/bmp',
   'image/heic',
   'image/heif',
   'image/tiff'
