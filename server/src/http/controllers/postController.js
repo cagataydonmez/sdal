@@ -9,7 +9,8 @@ export function createPostController({
   hasAdminRole,
   notifyMentions,
   addNotification,
-  scheduleEngagementRecalculation
+  scheduleEngagementRecalculation,
+  invalidateFeedCache
 }) {
   function createPost(req, res) {
     try {
@@ -33,6 +34,7 @@ export function createPostController({
         message: 'Gönderide senden bahsetti.'
       });
       scheduleEngagementRecalculation('post_created');
+      Promise.resolve(invalidateFeedCache?.()).catch(() => {});
       return res.json({ ok: true, id: created?.id });
     } catch (err) {
       if (isHttpError(err)) return res.status(err.statusCode).send(err.message);
@@ -44,12 +46,17 @@ export function createPostController({
   function listComments(req, res) {
     try {
       const currentUser = getCurrentUser(req);
-      const comments = postService.listPostComments({
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+      const beforeId = Math.max(parseInt(req.query.beforeId || req.query.cursor || '0', 10), 0);
+      const page = postService.listPostComments({
         postId: Number(req.params.id),
         viewerId: req.session.userId,
-        isAdmin: hasAdminRole(currentUser)
+        isAdmin: hasAdminRole(currentUser),
+        limit,
+        beforeId
       });
-      return res.json({ items: comments.map((comment) => toLegacyCommentItem(comment)) });
+      res.setHeader('X-Has-More', page.hasMore ? '1' : '0');
+      return res.json({ items: page.items.map((comment) => toLegacyCommentItem(comment)) });
     } catch (err) {
       if (isHttpError(err)) return res.status(err.statusCode).send(err.message);
       console.error('posts.listComments failed:', err);
@@ -90,6 +97,7 @@ export function createPostController({
         message: 'Yorumda senden bahsetti.'
       });
       scheduleEngagementRecalculation('post_comment_created');
+      Promise.resolve(invalidateFeedCache?.()).catch(() => {});
 
       return res.json({ ok: true });
     } catch (err) {
@@ -122,6 +130,7 @@ export function createPostController({
       }
 
       scheduleEngagementRecalculation('post_like_changed');
+      Promise.resolve(invalidateFeedCache?.()).catch(() => {});
       return res.json({ ok: true, liked: result.liked });
     } catch (err) {
       if (isHttpError(err)) return res.status(err.statusCode).send(err.message);

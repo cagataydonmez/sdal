@@ -21,7 +21,7 @@ export class FeedRepository {
 export class PostRepository {
   createPost(_input) { return notImplemented('PostRepository.createPost'); }
   findById(_postId) { return notImplemented('PostRepository.findById'); }
-  listComments(_postId) { return notImplemented('PostRepository.listComments'); }
+  listComments(_query) { return notImplemented('PostRepository.listComments'); }
   createComment(_input) { return notImplemented('PostRepository.createComment'); }
   findLike(_postId, _userId) { return notImplemented('PostRepository.findLike'); }
   deleteLikeById(_likeId) { return notImplemented('PostRepository.deleteLikeById'); }

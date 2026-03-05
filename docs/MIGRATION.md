@@ -157,6 +157,8 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" "backups/postgres-precutover-$
 - `server/migrations/001_modern_schema.down.sql`
 - `server/migrations/002_runtime_defaults_seed.up.sql`
 - `server/migrations/002_runtime_defaults_seed.down.sql`
+- `server/migrations/003_phase5_performance_indexes.up.sql`
+- `server/migrations/003_phase5_performance_indexes.down.sql`
 
 ## One-Time Data Migration Tool
 

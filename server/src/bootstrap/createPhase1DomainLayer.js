@@ -90,7 +90,11 @@ export function createPhase1DomainLayer(deps) {
       getImageVariants: deps.getImageVariants,
       sqlGet: deps.sqlGet,
       uploadsDir: deps.uploadsDir,
-      getModuleControlMap: deps.getModuleControlMap
+      getModuleControlMap: deps.getModuleControlMap,
+      buildFeedCacheKey: deps.buildFeedCacheKey,
+      getCacheJson: deps.getCacheJson,
+      setCacheJson: deps.setCacheJson,
+      feedCacheTtlSeconds: deps.feedCacheTtlSeconds
     }),
     posts: createPostController({
       postService: services.posts,
@@ -100,7 +104,8 @@ export function createPhase1DomainLayer(deps) {
       hasAdminRole: deps.hasAdminRole,
       notifyMentions: deps.notifyMentions,
       addNotification: deps.addNotification,
-      scheduleEngagementRecalculation: deps.scheduleEngagementRecalculation
+      scheduleEngagementRecalculation: deps.scheduleEngagementRecalculation,
+      invalidateFeedCache: deps.invalidateFeedCache
     }),
     chat: createChatController({
       chatService: services.chat,

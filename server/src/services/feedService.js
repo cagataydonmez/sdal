@@ -17,6 +17,7 @@ export class FeedService {
   async findFeedPage({ viewerId, query, moduleMap }) {
     const limit = Math.min(Math.max(parseInt(query?.limit || '20', 10), 1), 50);
     const offset = Math.max(parseInt(query?.offset || '0', 10), 0);
+    const cursor = Math.max(parseInt(query?.cursor || '0', 10), 0);
     const legacyScope = String(query?.scope || '').trim();
     const feedTypeRaw = String(query?.feedType || query?.feed || '').trim();
     const filterRaw = String(query?.filter || query?.sort || '').trim();
@@ -60,15 +61,25 @@ export class FeedService {
       whereSql,
       whereParams,
       limit,
-      offset,
+      offset: cursor > 0 ? 0 : offset,
+      cursorId: cursor,
       filter,
       viewerId
     });
 
+    const nextCursor = items.length === limit
+      ? Number(items[items.length - 1]?.id || 0)
+      : 0;
+
     return {
       items,
       hasMore: items.length === limit,
-      paging: { limit, offset },
+      paging: {
+        limit,
+        offset: cursor > 0 ? 0 : offset,
+        cursor: cursor > 0 ? cursor : null,
+        nextCursor: nextCursor > 0 ? nextCursor : null
+      },
       feedType,
       filter
     };

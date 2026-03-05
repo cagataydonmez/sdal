@@ -12,7 +12,8 @@
     "migrate:data": "node scripts/migrate-legacy-sqlite-to-modern-postgres.mjs",
     "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs",
     "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs",
-    "test:phase2-health": "node tests/contracts/phase2-health.mjs"
+    "test:phase2-health": "node tests/contracts/phase2-health.mjs",
+    "test:phase5-performance": "node tests/contracts/phase5-performance.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",

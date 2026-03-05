@@ -26,6 +26,8 @@ import { registerLegacyStatics } from './routes/staticLegacy.js';
 import { createPhase1DomainLayer } from './src/bootstrap/createPhase1DomainLayer.js';
 import { checkPostgresHealth, closePostgresPool, getPostgresPoolState, isPostgresConfigured } from './src/infra/postgresPool.js';
 import { checkRedisHealth, closeRedisClient, getRedisState, isRedisConfigured } from './src/infra/redisClient.js';
+import { buildVersionedCacheKey, bumpCacheNamespaceVersion, getCacheJson, setCacheJson } from './src/infra/performanceCache.js';
+import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 
 const __dirname = getDirname(import.meta.url);
 
@@ -571,6 +573,78 @@ configureDbInstrumentation({
       error: entry.error
     });
   }
+});
+
+function envInt(name, fallback) {
+  const parsed = Number.parseInt(String(process.env[name] || ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const FEED_CACHE_TTL_SECONDS = envInt('FEED_CACHE_TTL_SECONDS', 20);
+const PROFILE_CACHE_TTL_SECONDS = envInt('PROFILE_CACHE_TTL_SECONDS', 25);
+const STORY_RAIL_CACHE_TTL_SECONDS = envInt('STORY_RAIL_CACHE_TTL_SECONDS', 20);
+const ADMIN_SETTINGS_CACHE_TTL_SECONDS = envInt('ADMIN_SETTINGS_CACHE_TTL_SECONDS', 45);
+
+const cacheNamespaces = Object.freeze({
+  feed: 'feed_page',
+  profile: 'profile_summary',
+  stories: 'story_rail',
+  adminSettings: 'admin_settings'
+});
+
+function invalidateCacheNamespace(namespace) {
+  Promise.resolve(bumpCacheNamespaceVersion(namespace)).catch((err) => {
+    writeAppLog('warn', 'cache_namespace_bump_failed', {
+      namespace,
+      message: err?.message || 'unknown_error'
+    });
+  });
+}
+
+async function buildFeedCacheKey(userId, query) {
+  return buildVersionedCacheKey(cacheNamespaces.feed, [
+    `user:${Number(userId || 0)}`,
+    `feedType:${String(query?.feedType || query?.feed || '').trim() || 'main'}`,
+    `scope:${String(query?.scope || '').trim() || 'all'}`,
+    `filter:${String(query?.filter || query?.sort || '').trim() || 'latest'}`,
+    `limit:${Math.min(Math.max(parseInt(query?.limit || '20', 10), 1), 50)}`
+  ]);
+}
+
+const loginRateLimit = createRateLimitMiddleware({
+  bucket: 'auth_login',
+  limit: envInt('RATE_LIMIT_LOGIN_MAX', 8),
+  windowSeconds: envInt('RATE_LIMIT_LOGIN_WINDOW_SECONDS', 600),
+  keyGenerator: (req) => `${req.ip}:${String(req.body?.kadi || '').trim().toLowerCase() || 'anonymous'}`,
+  onBlocked: (_req, res) => res.status(429).send('Çok fazla giriş denemesi. Lütfen birkaç dakika sonra tekrar dene.')
+});
+
+const chatSendRateLimit = createRateLimitMiddleware({
+  bucket: 'chat_send',
+  limit: envInt('RATE_LIMIT_CHAT_SEND_MAX', 30),
+  windowSeconds: envInt('RATE_LIMIT_CHAT_SEND_WINDOW_SECONDS', 60),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`
+});
+
+const postWriteRateLimit = createRateLimitMiddleware({
+  bucket: 'post_write',
+  limit: envInt('RATE_LIMIT_POST_WRITE_MAX', 20),
+  windowSeconds: envInt('RATE_LIMIT_POST_WRITE_WINDOW_SECONDS', 600),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`
+});
+
+const commentWriteRateLimit = createRateLimitMiddleware({
+  bucket: 'comment_write',
+  limit: envInt('RATE_LIMIT_COMMENT_WRITE_MAX', 30),
+  windowSeconds: envInt('RATE_LIMIT_COMMENT_WRITE_WINDOW_SECONDS', 600),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`
+});
+
+const uploadRateLimit = createRateLimitMiddleware({
+  bucket: 'upload_write',
+  limit: envInt('RATE_LIMIT_UPLOAD_MAX', 25),
+  windowSeconds: envInt('RATE_LIMIT_UPLOAD_WINDOW_SECONDS', 600),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`
 });
 
 async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writeAppLog }) {
@@ -1224,17 +1298,26 @@ function requireScopedModeration(graduationYearSelector = (req) => req.body?.gra
 }
 
 function getSiteControl() {
-  const row = sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_controls WHERE id = 1') || {};
+  const row = dbDriver === 'postgres'
+    ? (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_settings WHERE id = 1') || {})
+    : (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_controls WHERE id = 1') || {});
+  const rawSiteOpen = row.site_open;
   return {
-    siteOpen: Number(row.site_open ?? 1) === 1,
+    siteOpen: rawSiteOpen === true || Number(rawSiteOpen ?? 1) === 1,
     maintenanceMessage: String(row.maintenance_message || 'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.'),
     updatedAt: row.updated_at || null
   };
 }
 
 function getModuleControlMap() {
-  const rows = sqlAll('SELECT module_key, is_open FROM module_controls') || [];
-  const statusMap = Object.fromEntries(rows.map((row) => [String(row.module_key || ''), Number(row.is_open || 0) === 1]));
+  const rows = dbDriver === 'postgres'
+    ? (sqlAll('SELECT module_key, is_open FROM module_settings') || [])
+    : (sqlAll('SELECT module_key, is_open FROM module_controls') || []);
+  const statusMap = Object.fromEntries(rows.map((row) => {
+    const raw = row.is_open;
+    const isOpen = raw === true || Number(raw || 0) === 1;
+    return [String(row.module_key || ''), isOpen];
+  }));
   for (const def of MODULE_DEFINITIONS) {
     if (typeof statusMap[def.key] !== 'boolean') statusMap[def.key] = true;
   }
@@ -3524,10 +3607,15 @@ const phase1Domain = createPhase1DomainLayer({
   notifyMentions,
   addNotification,
   scheduleEngagementRecalculation,
+  invalidateFeedCache: () => invalidateCacheNamespace(cacheNamespaces.feed),
   canManageChatMessage,
   broadcastChatMessage,
   broadcastChatUpdate,
   broadcastChatDelete,
+  buildFeedCacheKey,
+  getCacheJson,
+  setCacheJson,
+  feedCacheTtlSeconds: FEED_CACHE_TTL_SECONDS,
   replaceModeratorPermissions,
   moderationPermissionKeys: MODERATION_PERMISSION_KEY_SET,
   writeAuditLog
@@ -3754,7 +3842,7 @@ app.post('/api/auth/oauth/mobile/exchange', (req, res) => {
   res.json({ ok: true, user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim } });
 });
 
-app.post('/api/auth/login', phase1Domain.controllers.auth.login);
+app.post('/api/auth/login', loginRateLimit, phase1Domain.controllers.auth.login);
 
 app.post('/api/auth/logout', phase1Domain.controllers.auth.logout);
 
@@ -3945,16 +4033,21 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/admin/site-controls', requireAdmin, (_req, res) => {
+app.get('/api/admin/site-controls', requireAdmin, async (_req, res) => {
+  const cacheKey = await buildVersionedCacheKey(cacheNamespaces.adminSettings, ['site_controls']);
+  const cached = await getCacheJson(cacheKey);
+  if (cached && cached.modules) return res.json(cached);
   const site = getSiteControl();
   const modules = getModuleControlMap();
-  res.json({
+  const payload = {
     siteOpen: site.siteOpen,
     maintenanceMessage: site.maintenanceMessage,
     updatedAt: site.updatedAt,
     modules,
     moduleDefinitions: MODULE_DEFINITIONS
-  });
+  };
+  await setCacheJson(cacheKey, payload, ADMIN_SETTINGS_CACHE_TTL_SECONDS);
+  res.json(payload);
 });
 
 app.put('/api/admin/site-controls', requireAdmin, (req, res) => {
@@ -3963,35 +4056,54 @@ app.put('/api/admin/site-controls', requireAdmin, (req, res) => {
   if (updates.siteOpen !== undefined || updates.maintenanceMessage !== undefined) {
     const nextOpen = updates.siteOpen === undefined ? getSiteControl().siteOpen : !!updates.siteOpen;
     const nextMessage = String(updates.maintenanceMessage || getSiteControl().maintenanceMessage || '').slice(0, 1200);
-    sqlRun('UPDATE site_controls SET site_open = ?, maintenance_message = ?, updated_at = ? WHERE id = 1', [nextOpen ? 1 : 0, nextMessage, now]);
+    if (dbDriver === 'postgres') {
+      sqlRun('UPDATE site_settings SET site_open = ?, maintenance_message = ?, updated_at = ? WHERE id = 1', [nextOpen ? true : false, nextMessage, now]);
+    } else {
+      sqlRun('UPDATE site_controls SET site_open = ?, maintenance_message = ?, updated_at = ? WHERE id = 1', [nextOpen ? 1 : 0, nextMessage, now]);
+    }
   }
   if (updates.modules && typeof updates.modules === 'object') {
     for (const def of MODULE_DEFINITIONS) {
       if (updates.modules[def.key] === undefined) continue;
-      sqlRun(
-        `INSERT INTO module_controls (module_key, is_open, updated_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(module_key) DO UPDATE SET is_open = excluded.is_open, updated_at = excluded.updated_at`,
-        [def.key, updates.modules[def.key] ? 1 : 0, now]
-      );
+      if (dbDriver === 'postgres') {
+        sqlRun(
+          `INSERT INTO module_settings (module_key, is_open, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(module_key) DO UPDATE SET is_open = excluded.is_open, updated_at = excluded.updated_at`,
+          [def.key, updates.modules[def.key] ? true : false, now]
+        );
+      } else {
+        sqlRun(
+          `INSERT INTO module_controls (module_key, is_open, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(module_key) DO UPDATE SET is_open = excluded.is_open, updated_at = excluded.updated_at`,
+          [def.key, updates.modules[def.key] ? 1 : 0, now]
+        );
+      }
     }
   }
+  invalidateCacheNamespace(cacheNamespaces.adminSettings);
   const site = getSiteControl();
   res.json({ ok: true, siteOpen: site.siteOpen, maintenanceMessage: site.maintenanceMessage, modules: getModuleControlMap() });
 });
 
 // --- Admin Media Settings Endpoints ---
 
-app.get('/api/admin/media-settings', requireAdmin, (_req, res) => {
+app.get('/api/admin/media-settings', requireAdmin, async (_req, res) => {
+  const cacheKey = await buildVersionedCacheKey(cacheNamespaces.adminSettings, ['media_settings']);
+  const cached = await getCacheJson(cacheKey);
+  if (cached && cached.settings) return res.json(cached);
   const settings = sqlGet('SELECT * FROM media_settings WHERE id = 1');
   const spacesConfigured = !!(process.env.SPACES_KEY && process.env.SPACES_SECRET && process.env.SPACES_BUCKET && process.env.SPACES_ENDPOINT);
-  res.json({
+  const payload = {
     settings: settings || {},
     spacesConfigured,
     spacesRegion: process.env.SPACES_REGION || '',
     spacesBucket: process.env.SPACES_BUCKET || '',
     spacesEndpoint: process.env.SPACES_ENDPOINT || ''
-  });
+  };
+  await setCacheJson(cacheKey, payload, ADMIN_SETTINGS_CACHE_TTL_SECONDS);
+  res.json(payload);
 });
 
 app.put('/api/admin/media-settings', requireAdmin, (req, res) => {
@@ -4020,7 +4132,9 @@ app.put('/api/admin/media-settings', requireAdmin, (req, res) => {
   if (full_width && Number(full_width) >= 400 && Number(full_width) <= 4000) updates.full_width = Number(full_width);
   if (webp_quality && Number(webp_quality) >= 10 && Number(webp_quality) <= 100) updates.webp_quality = Number(webp_quality);
   if (max_upload_bytes && Number(max_upload_bytes) >= 1048576 && Number(max_upload_bytes) <= 52428800) updates.max_upload_bytes = Number(max_upload_bytes);
-  if (avif_enabled !== undefined) updates.avif_enabled = avif_enabled ? 1 : 0;
+  if (avif_enabled !== undefined) {
+    updates.avif_enabled = dbDriver === 'postgres' ? !!avif_enabled : (avif_enabled ? 1 : 0);
+  }
 
   const setClauses = Object.keys(updates).map((k) => `${k} = ?`);
   const params = Object.values(updates);
@@ -4032,6 +4146,7 @@ app.put('/api/admin/media-settings', requireAdmin, (req, res) => {
   }
 
   writeAppLog('info', 'media_settings_updated', { userId: req.session?.userId, changes: updates });
+  invalidateCacheNamespace(cacheNamespaces.adminSettings);
   const updated = sqlGet('SELECT * FROM media_settings WHERE id = 1');
   res.json({ ok: true, settings: updated });
 });
@@ -4056,7 +4171,7 @@ app.post('/api/admin/media-settings/test', requireAdmin, async (_req, res) => {
 
 // --- Standalone Image Upload Endpoint ---
 
-app.post('/api/upload-image', requireAuth, (req, res, next) => {
+app.post('/api/upload-image', requireAuth, uploadRateLimit, (req, res, next) => {
   if (!checkUploadRateLimit(req.ip)) {
     return res.status(429).send('Çok fazla yükleme isteği. Lütfen biraz bekleyin.');
   }
@@ -4970,8 +5085,15 @@ app.get('/kvkk/acik-riza', (_req, res) => {
 </body></html>`);
 });
 
-app.get('/api/profile', (req, res) => {
+app.get('/api/profile', async (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
+  const cacheKey = await buildVersionedCacheKey(cacheNamespaces.profile, [
+    `user:${Number(req.session.userId || 0)}`
+  ]);
+  const cached = await getCacheJson(cacheKey);
+  if (cached && cached.user) {
+    return res.json(cached);
+  }
   const user = sqlGet(`
     SELECT id, kadi, isim, soyisim, email, mezuniyetyili, sehir, meslek, websitesi, universite,
            dogumgun, dogumay, dogumyil, mailkapali, imza, resim, ilkbd,
@@ -4982,7 +5104,9 @@ app.get('/api/profile', (req, res) => {
     user.kvkk_consent = Boolean(user.kvkk_consent_at);
     user.directory_consent = Boolean(user.directory_consent_at);
   }
-  res.json({ user });
+  const responsePayload = { user };
+  await setCacheJson(cacheKey, responsePayload, PROFILE_CACHE_TTL_SECONDS);
+  res.json(responsePayload);
 });
 
 app.put('/api/profile', (req, res) => {
@@ -5055,6 +5179,7 @@ app.put('/api/profile', (req, res) => {
       req.session.userId
     ]
   );
+  invalidateCacheNamespace(cacheNamespaces.profile);
   res.json({ ok: true });
 });
 
@@ -5111,6 +5236,7 @@ app.get('/api/profile/email-change/verify', (req, res) => {
   if (duplicate) return res.status(400).send('Bu e-posta adresi artık kullanımda olduğu için değişiklik tamamlanamadı.');
   sqlRun('UPDATE uyeler SET email = ? WHERE id = ?', [row.new_email, row.user_id]);
   sqlRun('UPDATE email_change_requests SET status = ?, verified_at = ? WHERE id = ?', ['verified', new Date().toISOString(), row.id]);
+  invalidateCacheNamespace(cacheNamespaces.profile);
   return res.redirect('/new/profile?emailChanged=1');
 });
 
@@ -5133,7 +5259,7 @@ app.get('/api/new/requests/my', requireAuth, (req, res) => {
 });
 
 
-app.post('/api/new/requests/upload', requireAuth, requestAttachmentUpload.single('file'), (req, res) => {
+app.post('/api/new/requests/upload', requireAuth, uploadRateLimit, requestAttachmentUpload.single('file'), (req, res) => {
   if (!req.file?.path) return res.status(400).send('Dosya yüklenemedi.');
   const validation = validateUploadedFileSafety(req.file.path, { allowedMimes: ['image/jpeg', 'image/png', 'application/pdf'] });
   if (!validation.ok) {
@@ -5183,7 +5309,7 @@ app.post('/api/profile/password', async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/profile/photo', (req, res, next) => {
+app.post('/api/profile/photo', uploadRateLimit, (req, res, next) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   return next();
 }, photoUpload.single('file'), (req, res) => {
@@ -5203,6 +5329,7 @@ app.post('/api/profile/photo', (req, res, next) => {
     });
     const filename = path.basename(optimizedPath || req.file.path);
     sqlRun('UPDATE uyeler SET resim = ? WHERE id = ?', [filename, req.session.userId]);
+    invalidateCacheNamespace(cacheNamespaces.profile);
     res.json({ ok: true, photo: filename });
   })().catch(() => {
     res.status(500).send('Profil fotoğrafı işlenemedi.');
@@ -5919,9 +6046,9 @@ app.post('/api/photos/:id/comments', (req, res) => {
 // Modern (sdal_new) social APIs
 app.get('/api/new/feed', requireAuth, phase1Domain.controllers.feed.getFeed);
 
-app.post('/api/new/posts', requireAuth, phase1Domain.controllers.posts.createPost);
+app.post('/api/new/posts', requireAuth, postWriteRateLimit, phase1Domain.controllers.posts.createPost);
 
-app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async (req, res) => {
+app.post('/api/new/posts/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
   const content = formatUserText(req.body?.content || '');
   const filter = req.body?.filter || '';
   const groupId = req.body?.group_id || null;
@@ -6002,6 +6129,7 @@ app.post('/api/new/posts/upload', requireAuth, postUpload.single('image'), async
     message: 'Gönderide senden bahsetti.'
   });
   scheduleEngagementRecalculation('post_created');
+  invalidateCacheNamespace(cacheNamespaces.feed);
   res.json({ ok: true, id: postId, image, variants });
 });
 
@@ -6046,6 +6174,7 @@ app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
   sqlRun('UPDATE posts SET content = ? WHERE id = ?', [content, postId]);
   scheduleEngagementRecalculation('post_updated');
+  invalidateCacheNamespace(cacheNamespaces.feed);
   const item = sqlGet(
     `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
@@ -6083,6 +6212,7 @@ app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
   sqlRun('UPDATE posts SET content = ? WHERE id = ?', [content, postId]);
   scheduleEngagementRecalculation('post_updated');
+  invalidateCacheNamespace(cacheNamespaces.feed);
   const item = sqlGet(
     `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
@@ -6118,6 +6248,7 @@ app.delete('/api/new/posts/:id', requireAuth, (req, res) => {
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi silme yetkin yok.');
   deletePostById(postId);
   scheduleEngagementRecalculation('post_deleted');
+  invalidateCacheNamespace(cacheNamespaces.feed);
   res.json({ ok: true });
 });
 
@@ -6129,6 +6260,7 @@ app.post('/api/new/posts/:id/delete', requireAuth, (req, res) => {
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi silme yetkin yok.');
   deletePostById(postId);
   scheduleEngagementRecalculation('post_deleted');
+  invalidateCacheNamespace(cacheNamespaces.feed);
   res.json({ ok: true });
 });
 
@@ -6136,39 +6268,62 @@ app.post('/api/new/posts/:id/like', requireAuth, phase1Domain.controllers.posts.
 
 app.get('/api/new/posts/:id/comments', requireAuth, phase1Domain.controllers.posts.listComments);
 
-app.post('/api/new/posts/:id/comments', requireAuth, phase1Domain.controllers.posts.createComment);
+app.post('/api/new/posts/:id/comments', requireAuth, commentWriteRateLimit, phase1Domain.controllers.posts.createComment);
 
 app.get('/api/new/notifications', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+
+  const whereParts = ['n.user_id = ?'];
+  const params = [req.session.userId];
+  if (cursor > 0) {
+    whereParts.push('n.id < ?');
+    params.push(cursor);
+  }
+
   const rows = sqlAll(
     `SELECT n.id, n.type, n.entity_id, n.source_user_id, n.message, n.read_at, n.created_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM notifications n
      LEFT JOIN uyeler u ON u.id = n.source_user_id
-     WHERE n.user_id = ?
+     WHERE ${whereParts.join(' AND ')}
      ORDER BY n.id DESC
      LIMIT ? OFFSET ?`,
-    [req.session.userId, limit, offset]
+    [...params, limit + 1, cursor > 0 ? 0 : offset]
   );
-  const items = rows.map((row) => {
-    if (row.type !== 'group_invite' || !row.entity_id) {
-      return row;
-    }
-    const invite = sqlGet(
-      `SELECT status
+  const slice = rows.slice(0, limit);
+  const inviteEntityIds = Array.from(
+    new Set(
+      slice
+        .filter((row) => row.type === 'group_invite' && Number(row.entity_id || 0) > 0)
+        .map((row) => Number(row.entity_id))
+    )
+  );
+  const inviteStatusMap = new Map();
+  if (inviteEntityIds.length > 0) {
+    const inviteRows = sqlAll(
+      `SELECT group_id, status, id
        FROM group_invites
-       WHERE group_id = ? AND invited_user_id = ?
-       ORDER BY id DESC
-       LIMIT 1`,
-      [row.entity_id, req.session.userId]
+       WHERE invited_user_id = ?
+         AND group_id IN (${inviteEntityIds.map(() => '?').join(',')})
+       ORDER BY id DESC`,
+      [req.session.userId, ...inviteEntityIds]
     );
+    for (const inviteRow of inviteRows) {
+      const groupId = Number(inviteRow.group_id || 0);
+      if (!groupId || inviteStatusMap.has(groupId)) continue;
+      inviteStatusMap.set(groupId, String(inviteRow.status || 'pending'));
+    }
+  }
+  const items = slice.map((row) => {
+    if (row.type !== 'group_invite' || !row.entity_id) return row;
     return {
       ...row,
-      invite_status: String(invite?.status || 'pending')
+      invite_status: inviteStatusMap.get(Number(row.entity_id || 0)) || 'pending'
     };
   });
-  res.json({ items, hasMore: items.length === limit });
+  res.json({ items, hasMore: rows.length > limit });
 });
 
 app.get('/api/new/notifications/unread', requireAuth, (req, res) => {
@@ -6247,21 +6402,42 @@ function parseStoryId(value) {
   return storyId;
 }
 
-app.get('/api/new/stories', requireAuth, (req, res) => {
+app.get('/api/new/stories', requireAuth, async (req, res) => {
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '60', 10), 1), 120);
+  const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+  const cacheKey = await buildVersionedCacheKey(cacheNamespaces.stories, [
+    `user:${Number(req.session.userId || 0)}`,
+    `limit:${limit}`,
+    `cursor:${cursor || 0}`
+  ]);
+  const cached = await getCacheJson(cacheKey);
+  if (cached && Array.isArray(cached.items)) {
+    res.setHeader('X-Has-More', cached.hasMore ? '1' : '0');
+    return res.json({ items: cached.items });
+  }
+
+  const whereParts = ['(s.expires_at IS NULL OR s.expires_at > ?)'];
+  const params = [nowIso];
+  if (cursor > 0) {
+    whereParts.push('s.id < ?');
+    params.push(cursor);
+  }
   const rows = sqlAll(
     `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM stories s
      LEFT JOIN uyeler u ON u.id = s.user_id
-     WHERE s.expires_at IS NULL OR s.expires_at > ?
-     ORDER BY s.created_at DESC`,
-    [nowIso]
+     WHERE ${whereParts.join(' AND ')}
+     ORDER BY s.id DESC
+     LIMIT ?`,
+    [...params, limit + 1]
   );
   const viewed = sqlAll('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
   const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
   const items = rows
+    .slice(0, limit)
     .map((r) => {
       const timing = storyTiming(r, nowMs);
       const item = {
@@ -6288,7 +6464,11 @@ app.get('/api/new/stories', requireAuth, (req, res) => {
       return item;
     })
     .filter((story) => !story.isExpired);
-  res.json({ items });
+  const hasMore = rows.length > limit;
+  const responsePayload = { items };
+  res.setHeader('X-Has-More', hasMore ? '1' : '0');
+  await setCacheJson(cacheKey, { items, hasMore }, STORY_RAIL_CACHE_TTL_SECONDS);
+  res.json(responsePayload);
 });
 
 app.get('/api/new/stories/mine', requireAuth, (req, res) => {
@@ -6373,7 +6553,7 @@ app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
   res.json({ items });
 });
 
-app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), async (req, res) => {
+app.post('/api/new/stories/upload', requireAuth, uploadRateLimit, storyUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   try {
     const caption = formatUserText(req.body?.caption || '');
@@ -6436,6 +6616,7 @@ app.post('/api/new/stories/upload', requireAuth, storyUpload.single('image'), as
     }
 
     scheduleEngagementRecalculation('story_created');
+    invalidateCacheNamespace(cacheNamespaces.stories);
     res.json({ ok: true, id: storyId, image, variants });
   } catch (err) {
     writeAppLog('error', 'story_upload_failed', {
@@ -6453,6 +6634,7 @@ function updateStoryCaption(req, res) {
   if (!story) return res.status(404).send('Hikaye bulunamadı.');
   const caption = formatUserText(req.body?.caption || '');
   sqlRun('UPDATE stories SET caption = ? WHERE id = ?', [caption, storyId]);
+  invalidateCacheNamespace(cacheNamespaces.stories);
   res.json({ ok: true });
 }
 
@@ -6467,6 +6649,7 @@ function deleteStory(req, res) {
   }
   sqlRun('DELETE FROM story_views WHERE story_id = ?', [storyId]);
   sqlRun('DELETE FROM stories WHERE id = ?', [storyId]);
+  invalidateCacheNamespace(cacheNamespaces.stories);
   res.json({ ok: true });
 }
 
@@ -6495,6 +6678,7 @@ app.post('/api/new/stories/:id/repost', requireAuth, (req, res) => {
     [req.session.userId, story.image, story.caption || '', now.toISOString(), expires.toISOString()]
   );
   scheduleEngagementRecalculation('story_created');
+  invalidateCacheNamespace(cacheNamespaces.stories);
   res.json({ ok: true, id: result?.lastInsertRowid, image: story.image });
 });
 
@@ -6513,6 +6697,7 @@ app.post('/api/new/stories/:id/view', requireAuth, (req, res) => {
       new Date().toISOString()
     ]);
     scheduleEngagementRecalculation('story_viewed');
+    invalidateCacheNamespace(cacheNamespaces.stories);
   }
   res.json({ ok: true });
 });
@@ -6524,6 +6709,7 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
   if (existing) {
     sqlRun('DELETE FROM follows WHERE id = ?', [existing.id]);
     scheduleEngagementRecalculation('follow_changed');
+    invalidateCacheNamespace(cacheNamespaces.feed);
     return res.json({ ok: true, following: false });
   }
   sqlRun('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [
@@ -6539,6 +6725,7 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
     message: 'Seni takip etmeye başladı.'
   });
   scheduleEngagementRecalculation('follow_changed');
+  invalidateCacheNamespace(cacheNamespaces.feed);
   return res.json({ ok: true, following: true });
 });
 
@@ -6764,7 +6951,22 @@ app.get('/api/new/online-members', requireAuth, (req, res) => {
 app.get('/api/new/groups', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-  const groups = sqlAll('SELECT * FROM groups ORDER BY id DESC');
+  const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+  const whereParts = [];
+  const whereParams = [];
+  if (cursor > 0) {
+    whereParts.push('id < ?');
+    whereParams.push(cursor);
+  }
+  const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+  const groups = sqlAll(
+    `SELECT *
+     FROM groups
+     ${whereSql}
+     ORDER BY id DESC
+     LIMIT ? OFFSET ?`,
+    [...whereParams, limit + 1, cursor > 0 ? 0 : offset]
+  );
   const memberCounts = sqlAll('SELECT group_id, COUNT(*) AS cnt FROM group_members GROUP BY group_id');
   const membership = sqlAll('SELECT group_id, role FROM group_members WHERE user_id = ?', [req.session.userId]);
   const pending = sqlAll(
@@ -6785,7 +6987,7 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
   const memberMap = new Map(membership.map((m) => [m.group_id, m.role]));
   const pendingSet = new Set(pending.map((p) => p.group_id));
   const inviteSet = new Set(invites.map((v) => v.group_id));
-  const slice = groups.slice(offset, offset + limit);
+  const slice = groups.slice(0, limit);
   res.json({
     items: slice.map((g) => ({
       ...g,
@@ -6798,7 +7000,7 @@ app.get('/api/new/groups', requireAuth, (req, res) => {
       myRole: memberMap.get(g.id) || null,
       membershipStatus: memberMap.has(g.id) ? 'member' : (inviteSet.has(g.id) ? 'invited' : (pendingSet.has(g.id) ? 'pending' : 'none'))
     })),
-    hasMore: offset + slice.length < groups.length
+    hasMore: groups.length > limit
   });
 });
 
@@ -7085,7 +7287,7 @@ app.post('/api/new/groups/:id/settings', requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/new/groups/:id/cover', requireAuth, groupUpload.single('image'), async (req, res) => {
+app.post('/api/new/groups/:id/cover', requireAuth, uploadRateLimit, groupUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).send('Görsel seçilmedi.');
   const group = sqlGet('SELECT * FROM groups WHERE id = ?', [req.params.id]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
@@ -7299,7 +7501,7 @@ app.post('/api/new/groups/:id/posts', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/new/groups/:id/posts/upload', requireAuth, postUpload.single('image'), async (req, res) => {
+app.post('/api/new/groups/:id/posts/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
   const groupId = req.params.id;
   const group = sqlGet('SELECT id FROM groups WHERE id = ?', [groupId]);
   if (!group) return res.status(404).send('Grup bulunamadı.');
@@ -7585,7 +7787,7 @@ app.post('/api/new/events', requireAuth, (req, res) => {
   return res.json(created);
 });
 
-app.post('/api/new/events/upload', requireAuth, postUpload.single('image'), async (req, res) => {
+app.post('/api/new/events/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
   let imagePath = req.file?.path || null;
   if (imagePath) {
     try {
@@ -7776,7 +7978,7 @@ app.post('/api/new/announcements', requireAuth, (req, res) => {
   res.json({ ok: true, pending: !isAdmin });
 });
 
-app.post('/api/new/announcements/upload', requireAuth, postUpload.single('image'), async (req, res) => {
+app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
   const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   const bodyRaw = String(req.body?.body || '');
   const body = formatUserText(bodyRaw);
@@ -7970,7 +8172,7 @@ function canManageChatMessage(req, messageRow) {
   return hasAdminSession(req, currentUser);
 }
 
-app.post('/api/new/chat/send', requireAuth, phase1Domain.controllers.chat.sendMessage);
+app.post('/api/new/chat/send', requireAuth, chatSendRateLimit, phase1Domain.controllers.chat.sendMessage);
 
 app.patch('/api/new/chat/messages/:id', requireAuth, phase1Domain.controllers.chat.updateMessage);
 
@@ -8011,7 +8213,7 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/new/verified/proof', requireAuth, verificationProofUpload.single('proof'), async (req, res) => {
+app.post('/api/new/verified/proof', requireAuth, uploadRateLimit, verificationProofUpload.single('proof'), async (req, res) => {
   const user = getCurrentUser(req);
   if (Number(user?.verified || 0) === 1) {
     return res.status(403).send('Profilin zaten doğrulanmış.');

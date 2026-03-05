@@ -229,3 +229,26 @@ flowchart LR
 - Added migration for operational defaults:
   - `server/migrations/002_runtime_defaults_seed.up.sql`
   - `server/migrations/002_runtime_defaults_seed.down.sql`
+
+## Phase 5 Progress (Implemented)
+
+- Pagination hardening:
+  - added cursor-aware feed paging (`cursor` query support with offset fallback),
+  - added cursor-aware notifications paging (`cursor` query support with offset fallback),
+  - added bounded comments pagination (`limit`, `beforeId` support) with backward-compatible response body.
+- N+1 reductions:
+  - feed aggregation moved to single-query counts/liked flags in `LegacyFeedRepository`,
+  - notification invite-status enrichment changed from per-row lookup to batched `IN (...)` lookup.
+- Redis-ready caching (memory fallback):
+  - feed page-1 cache (short TTL),
+  - profile summary cache (short TTL),
+  - story rail cache (short TTL),
+  - admin settings cache with namespace-version invalidation on updates.
+- Redis-ready rate limiting (memory fallback):
+  - auth login attempts,
+  - chat send,
+  - post/comment writes,
+  - upload endpoints (profile photo, posts/stories/groups/events/announcements/request proofs, generic image upload).
+- Added Phase 5 index migration:
+  - `server/migrations/003_phase5_performance_indexes.up.sql`
+  - `server/migrations/003_phase5_performance_indexes.down.sql`

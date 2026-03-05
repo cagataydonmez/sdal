@@ -23,17 +23,31 @@ export class LegacyPostRepository extends PostRepository {
     return toDomainPost(row);
   }
 
-  listComments(postId) {
+  listComments({ postId, limit = 50, beforeId = 0 }) {
+    const whereParts = ['c.post_id = ?'];
+    const params = [postId];
+    if (beforeId > 0) {
+      whereParts.push('c.id < ?');
+      params.push(beforeId);
+    }
+
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
     const rows = this.sqlAll(
       `SELECT c.id, c.post_id, c.user_id, c.comment, c.created_at,
               u.kadi, u.isim, u.soyisim, u.resim, u.verified
        FROM post_comments c
        LEFT JOIN uyeler u ON u.id = c.user_id
-       WHERE c.post_id = ?
-       ORDER BY c.id DESC`,
-      [postId]
+       WHERE ${whereParts.join(' AND ')}
+       ORDER BY c.id DESC
+       LIMIT ?`,
+      [...params, safeLimit + 1]
     );
-    return rows.map((row) => toDomainComment(row));
+    const pageRows = rows.slice(0, safeLimit);
+    return {
+      items: pageRows.map((row) => toDomainComment(row)),
+      hasMore: rows.length > safeLimit,
+      nextCursor: rows.length > safeLimit ? Number(pageRows[pageRows.length - 1]?.id || 0) : 0
+    };
   }
 
   createComment({ postId, authorId, body, createdAt }) {

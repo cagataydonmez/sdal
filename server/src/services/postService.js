@@ -38,9 +38,11 @@ export class PostService {
     return post;
   }
 
-  listPostComments({ postId, viewerId, isAdmin }) {
+  listPostComments({ postId, viewerId, isAdmin, limit = 50, beforeId = 0 }) {
     this.requireVisiblePost({ postId, viewerId, isAdmin });
-    return this.postRepository.listComments(postId);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+    const safeBeforeId = Math.max(parseInt(beforeId, 10) || 0, 0);
+    return this.postRepository.listComments({ postId, limit: safeLimit, beforeId: safeBeforeId });
   }
 
   createPostComment({ postId, authorId, viewerId, isAdmin, body, now }) {
