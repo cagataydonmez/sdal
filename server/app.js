@@ -4628,8 +4628,18 @@ app.get('/api/admin/users/search', requireAdmin, (req, res) => {
 });
 
 app.get('/api/admin/users/:id', requireAdmin, (req, res) => {
+  const userId = Number(req.params.id || 0);
+  if (!userId) return res.status(400).send('Geçersiz kullanıcı ID.');
+  const actorRole = getUserRole(req.authUser || req.adminUser);
+  const targetRole = normalizeRole(sqlGet('SELECT role FROM uyeler WHERE id = ?', [userId])?.role);
+  if (targetRole === 'root' && actorRole !== 'root') {
+    return res.status(403).send('Root kullanıcı detayına erişemezsiniz.');
+  }
   const user = sqlGet(
-    `SELECT u.*, COALESCE(es.score, 0) AS engagement_score, es.updated_at AS engagement_updated_at,
+    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.aktiv, u.yasak, u.online, u.sontarih,
+            u.resim, u.verified, u.mezuniyetyili, u.admin, u.role, u.universite, u.sehir, u.meslek,
+            u.websitesi, u.imza, u.mailkapali, u.aktivasyon, u.verification_status,
+            COALESCE(es.score, 0) AS engagement_score, es.updated_at AS engagement_updated_at,
             CASE
               WHEN CAST(COALESCE(u.mezuniyetyili, 0) AS INTEGER) BETWEEN 1999 AND 2030 THEN 1
               ELSE 0
@@ -4637,16 +4647,21 @@ app.get('/api/admin/users/:id', requireAdmin, (req, res) => {
      FROM uyeler u
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
      WHERE u.id = ?`,
-    [req.params.id]
+    [userId]
   );
   if (!user) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
   res.json({ user });
 });
 
 async function handleMemberDelete(req, res) {
-  const userId = req.params.id;
-  const user = sqlGet('SELECT id, kadi FROM uyeler WHERE id = ?', [userId]);
+  const userId = Number(req.params.id || 0);
+  if (!userId) return res.status(400).send('Geçersiz kullanıcı ID.');
+  const user = sqlGet('SELECT id, kadi, role FROM uyeler WHERE id = ?', [userId]);
   if (!user) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
+  const actorRole = getUserRole(req.authUser || req.adminUser);
+  if (normalizeRole(user.role) === 'root' && actorRole !== 'root') {
+    return res.status(403).send('Root kullanıcı silinemez.');
+  }
 
   // Don't allow deleting self through this endpoint to prevent accidents
   if (Number(user.id) === Number(req.session.userId)) {
@@ -4668,8 +4683,9 @@ app.delete('/api/new/admin/members/:id', requireAdmin, handleMemberDelete);
 app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
   const target = sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.params.id]);
   if (!target) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
-  if (String(req.adminUser.id) !== '1' && String(target.id) === '1') {
-    return res.status(403).send('Bu kullanıcıyı düzenleyemezsiniz.');
+  const actorRole = getUserRole(req.authUser || req.adminUser);
+  if (normalizeRole(target.role) === 'root' && actorRole !== 'root') {
+    return res.status(403).send('Root kullanıcıyı düzenleyemezsiniz.');
   }
   const payload = req.body || {};
   const sifre = String(payload.sifre || '');
