@@ -625,56 +625,88 @@ CREATE TABLE IF NOT EXISTS game_scores (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
-CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
-CREATE INDEX IF NOT EXISTS idx_users_graduation_year ON users (graduation_year);
+CREATE OR REPLACE FUNCTION create_index_if_columns_exist(
+  p_index_name TEXT,
+  p_table_name TEXT,
+  p_index_expr TEXT,
+  p_required_columns TEXT[]
+) RETURNS VOID AS $$
+DECLARE
+  missing_count INTEGER;
+BEGIN
+  IF to_regclass(format('public.%I', p_table_name)) IS NULL THEN
+    RETURN;
+  END IF;
 
-CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_posts_author_created_at ON posts (author_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_posts_group_created_at ON posts (group_id, created_at DESC);
+  SELECT COUNT(*)
+  INTO missing_count
+  FROM unnest(p_required_columns) AS required_col
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'public'
+      AND c.table_name = p_table_name
+      AND c.column_name = required_col
+  );
 
-CREATE INDEX IF NOT EXISTS idx_post_comments_post_created_at ON post_comments (post_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_post_reactions_post_created_at ON post_reactions (post_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_post_reactions_user_created_at ON post_reactions (user_id, created_at DESC);
+  IF missing_count = 0 THEN
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I %s', p_index_name, p_table_name, p_index_expr);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
-CREATE INDEX IF NOT EXISTS idx_stories_author_created_at ON stories (author_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_stories_expires_at ON stories (expires_at);
+SELECT create_index_if_columns_exist('idx_users_username', 'users', '(username)', ARRAY['username']);
+SELECT create_index_if_columns_exist('idx_users_email', 'users', '(email)', ARRAY['email']);
+SELECT create_index_if_columns_exist('idx_users_role', 'users', '(role)', ARRAY['role']);
+SELECT create_index_if_columns_exist('idx_users_graduation_year', 'users', '(graduation_year)', ARRAY['graduation_year']);
 
-CREATE INDEX IF NOT EXISTS idx_conversation_messages_conversation_created_at ON conversation_messages (conversation_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_conversation_members_conversation_user ON conversation_members (conversation_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_conversation_messages_recipient_delivered ON conversation_messages (recipient_id, delivered_at);
-CREATE INDEX IF NOT EXISTS idx_conversation_messages_recipient_read ON conversation_messages (recipient_id, read_at);
+SELECT create_index_if_columns_exist('idx_posts_created_at', 'posts', '(created_at DESC)', ARRAY['created_at']);
+SELECT create_index_if_columns_exist('idx_posts_author_created_at', 'posts', '(author_id, created_at DESC)', ARRAY['author_id', 'created_at']);
+SELECT create_index_if_columns_exist('idx_posts_group_created_at', 'posts', '(group_id, created_at DESC)', ARRAY['group_id', 'created_at']);
 
-CREATE INDEX IF NOT EXISTS idx_notifications_user_created_at ON notifications (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_read_at ON notifications (user_id, read_at);
+SELECT create_index_if_columns_exist('idx_post_comments_post_created_at', 'post_comments', '(post_id, created_at DESC)', ARRAY['post_id', 'created_at']);
+SELECT create_index_if_columns_exist('idx_post_reactions_post_created_at', 'post_reactions', '(post_id, created_at DESC)', ARRAY['post_id', 'created_at']);
+SELECT create_index_if_columns_exist('idx_post_reactions_user_created_at', 'post_reactions', '(user_id, created_at DESC)', ARRAY['user_id', 'created_at']);
 
-CREATE INDEX IF NOT EXISTS idx_user_follows_follower ON user_follows (follower_id);
-CREATE INDEX IF NOT EXISTS idx_user_follows_following ON user_follows (following_id);
+SELECT create_index_if_columns_exist('idx_stories_author_created_at', 'stories', '(author_id, created_at DESC)', ARRAY['author_id', 'created_at']);
+SELECT create_index_if_columns_exist('idx_stories_expires_at', 'stories', '(expires_at)', ARRAY['expires_at']);
 
-CREATE INDEX IF NOT EXISTS idx_live_chat_messages_created_at ON live_chat_messages (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_live_chat_messages_user_created_at ON live_chat_messages (user_id, created_at DESC);
+SELECT create_index_if_columns_exist('idx_conversation_messages_conversation_created_at', 'conversation_messages', '(conversation_id, created_at DESC)', ARRAY['conversation_id', 'created_at']);
+SELECT create_index_if_columns_exist('idx_conversation_members_conversation_user', 'conversation_members', '(conversation_id, user_id)', ARRAY['conversation_id', 'user_id']);
+SELECT create_index_if_columns_exist('idx_conversation_messages_recipient_delivered', 'conversation_messages', '(recipient_id, delivered_at)', ARRAY['recipient_id', 'delivered_at']);
+SELECT create_index_if_columns_exist('idx_conversation_messages_recipient_read', 'conversation_messages', '(recipient_id, read_at)', ARRAY['recipient_id', 'read_at']);
 
-CREATE INDEX IF NOT EXISTS idx_group_members_group_user ON group_members (group_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_group_join_requests_group_status ON group_join_requests (group_id, status);
-CREATE INDEX IF NOT EXISTS idx_group_invites_user_status ON group_invites (invited_user_id, status);
+SELECT create_index_if_columns_exist('idx_notifications_user_created_at', 'notifications', '(user_id, created_at DESC)', ARRAY['user_id', 'created_at']);
+SELECT create_index_if_columns_exist('idx_notifications_user_read_at', 'notifications', '(user_id, read_at)', ARRAY['user_id', 'read_at']);
 
-CREATE INDEX IF NOT EXISTS idx_event_responses_event_user ON event_responses (event_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_event_comments_event_created_at ON event_comments (event_id, created_at DESC);
+SELECT create_index_if_columns_exist('idx_user_follows_follower', 'user_follows', '(follower_id)', ARRAY['follower_id']);
+SELECT create_index_if_columns_exist('idx_user_follows_following', 'user_follows', '(following_id)', ARRAY['following_id']);
 
-CREATE INDEX IF NOT EXISTS idx_media_assets_entity ON media_assets (entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_media_assets_user ON media_assets (user_id);
+SELECT create_index_if_columns_exist('idx_live_chat_messages_created_at', 'live_chat_messages', '(created_at DESC)', ARRAY['created_at']);
+SELECT create_index_if_columns_exist('idx_live_chat_messages_user_created_at', 'live_chat_messages', '(user_id, created_at DESC)', ARRAY['user_id', 'created_at']);
 
-CREATE INDEX IF NOT EXISTS idx_identity_verification_user_status ON identity_verification_requests (user_id, status);
-CREATE INDEX IF NOT EXISTS idx_support_requests_user_status ON support_requests (user_id, status);
+SELECT create_index_if_columns_exist('idx_group_members_group_user', 'group_members', '(group_id, user_id)', ARRAY['group_id', 'user_id']);
+SELECT create_index_if_columns_exist('idx_group_join_requests_group_status', 'group_join_requests', '(group_id, status)', ARRAY['group_id', 'status']);
+SELECT create_index_if_columns_exist('idx_group_invites_user_status', 'group_invites', '(invited_user_id, status)', ARRAY['invited_user_id', 'status']);
 
-CREATE INDEX IF NOT EXISTS idx_moderation_permissions_user ON moderation_permissions (user_id);
-CREATE INDEX IF NOT EXISTS idx_moderation_scopes_user ON moderation_scopes (user_id);
+SELECT create_index_if_columns_exist('idx_event_responses_event_user', 'event_responses', '(event_id, user_id)', ARRAY['event_id', 'user_id']);
+SELECT create_index_if_columns_exist('idx_event_comments_event_created_at', 'event_comments', '(event_id, created_at DESC)', ARRAY['event_id', 'created_at']);
 
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_created_at ON audit_logs (actor_user_id, created_at DESC);
+SELECT create_index_if_columns_exist('idx_media_assets_entity', 'media_assets', '(entity_type, entity_id)', ARRAY['entity_type', 'entity_id']);
+SELECT create_index_if_columns_exist('idx_media_assets_user', 'media_assets', '(user_id)', ARRAY['user_id']);
 
-CREATE INDEX IF NOT EXISTS idx_user_engagement_scores_score ON user_engagement_scores (score DESC);
-CREATE INDEX IF NOT EXISTS idx_user_engagement_scores_variant_score ON user_engagement_scores (ab_variant, score DESC);
+SELECT create_index_if_columns_exist('idx_identity_verification_user_status', 'identity_verification_requests', '(user_id, status)', ARRAY['user_id', 'status']);
+SELECT create_index_if_columns_exist('idx_support_requests_user_status', 'support_requests', '(user_id, status)', ARRAY['user_id', 'status']);
+
+SELECT create_index_if_columns_exist('idx_moderation_permissions_user', 'moderation_permissions', '(user_id)', ARRAY['user_id']);
+SELECT create_index_if_columns_exist('idx_moderation_scopes_user', 'moderation_scopes', '(user_id)', ARRAY['user_id']);
+
+SELECT create_index_if_columns_exist('idx_audit_logs_created_at', 'audit_logs', '(created_at DESC)', ARRAY['created_at']);
+SELECT create_index_if_columns_exist('idx_audit_logs_actor_created_at', 'audit_logs', '(actor_user_id, created_at DESC)', ARRAY['actor_user_id', 'created_at']);
+
+SELECT create_index_if_columns_exist('idx_user_engagement_scores_score', 'user_engagement_scores', '(score DESC)', ARRAY['score']);
+SELECT create_index_if_columns_exist('idx_user_engagement_scores_variant_score', 'user_engagement_scores', '(ab_variant, score DESC)', ARRAY['ab_variant', 'score']);
+
+DROP FUNCTION create_index_if_columns_exist(TEXT, TEXT, TEXT, TEXT[]);
 
 COMMIT;
