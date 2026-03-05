@@ -11,7 +11,6 @@ import crypto from 'crypto';
 import { promisify } from 'util';
 import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
-import nodemailer from 'nodemailer';
 import multer from 'multer';
 import { WebSocketServer } from 'ws';
 import { processUpload, deleteImageRecord, getImageVariants, loadMediaSettings } from './media/uploadPipeline.js';
@@ -27,7 +26,11 @@ import { createPhase1DomainLayer } from './src/bootstrap/createPhase1DomainLayer
 import { checkPostgresHealth, closePostgresPool, getPostgresPoolState, isPostgresConfigured } from './src/infra/postgresPool.js';
 import { checkRedisHealth, closeRedisClient, getRedisState, isRedisConfigured } from './src/infra/redisClient.js';
 import { buildVersionedCacheKey, bumpCacheNamespaceVersion, getCacheJson, setCacheJson } from './src/infra/performanceCache.js';
+import { createRealtimeBus } from './src/infra/realtimeBus.js';
+import { createJobQueue } from './src/infra/jobQueue.js';
+import { createMailSender } from './src/infra/mailSender.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
+import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
 
 const __dirname = getDirname(import.meta.url);
 
@@ -38,7 +41,8 @@ app.use(morgan('dev'));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(sessionMiddleware({ isProd }));
+const sessionParser = sessionMiddleware({ isProd });
+app.use(sessionParser);
 app.use(presenceMiddleware({ sqlRun, onlineHeartbeatMs: ONLINE_HEARTBEAT_MS }));
 app.use(requestLoggingMiddleware({ writeAppLog, writeLegacyLog }));
 registerLegacyStatics(app, legacyDir);
@@ -79,6 +83,17 @@ const requestAttachmentDir = path.join(uploadsDir, 'request-attachments');
 if (!fs.existsSync(requestAttachmentDir)) {
   fs.mkdirSync(requestAttachmentDir, { recursive: true });
 }
+
+let chatWss = null;
+let messengerWss = null;
+let realtimeBus = null;
+let backgroundJobQueue = null;
+let inlineJobWorkerStarted = false;
+
+const allowLegacyWsQueryAuth = String(process.env.WS_ALLOW_LEGACY_QUERY_AUTH || (isProd ? 'false' : 'true')).toLowerCase() === 'true';
+const runInlineJobWorker = String(process.env.JOB_INLINE_WORKER || (isProd ? 'false' : 'true')).toLowerCase() === 'true';
+const jobQueueNamespace = String(process.env.JOB_QUEUE_NAMESPACE || 'sdal:jobs:main').trim() || 'sdal:jobs:main';
+backgroundJobQueue = createJobQueue({ namespace: jobQueueNamespace, logger: console });
 
 const EICAR_SIGNATURE = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
 const BLOCKED_EXECUTABLE_SIGNATURES = [
@@ -289,53 +304,8 @@ const dbBackupUpload = multer({
   limits: { fileSize: 1024 * 1024 * 1024 }
 });
 
-let mailTransportPromise = null;
-function resolveMailProviderStatus() {
-  const hasResend = Boolean(process.env.RESEND_API_KEY);
-  const hasSmtpHost = Boolean(process.env.SMTP_HOST);
-  const explicitMock = String(process.env.MAIL_ALLOW_MOCK || '').toLowerCase() === 'true';
-  const mockAllowed = explicitMock || !isProd;
-  const sender = process.env.RESEND_FROM || process.env.SMTP_FROM || 'sdal@sdal.org';
-
-  if (hasResend) {
-    return { provider: 'resend', configured: true, mockAllowed, sender };
-  }
-  if (hasSmtpHost) {
-    return { provider: 'smtp', configured: true, mockAllowed, sender };
-  }
-  return { provider: 'none', configured: false, mockAllowed, sender };
-}
-
-function getMailTransport() {
-  if (mailTransportPromise) return mailTransportPromise;
-  mailTransportPromise = (async () => {
-    const host = process.env.SMTP_HOST;
-    if (!host) return null;
-    const port = Number(process.env.SMTP_PORT || 587);
-    const secure =
-      (process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465;
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
-      tls: process.env.SMTP_TLS_REJECT_UNAUTHORIZED
-        ? { rejectUnauthorized: (process.env.SMTP_TLS_REJECT_UNAUTHORIZED || '').toLowerCase() !== 'false' }
-        : undefined
-    });
-  })();
-  return mailTransportPromise;
-}
-
-const mailProviderStatus = resolveMailProviderStatus();
-if (!mailProviderStatus.configured) {
-  const message = 'Mail provider config missing: set RESEND_API_KEY or SMTP_HOST. In production, mail send will fail unless MAIL_ALLOW_MOCK=true.';
-  if (mailProviderStatus.mockAllowed) {
-    console.warn(message);
-  } else {
-    console.error(message);
-  }
-}
+const mailSender = createMailSender({ isProd, logger: console });
+const mailProviderStatus = mailSender.status;
 
 const adminPassword = String(process.env.SDAL_ADMIN_PASSWORD || '').trim();
 const legacyRootOverride = String(process.env.SDAL_LEGACY_ROOT_DIR || '').trim();
@@ -645,6 +615,30 @@ const uploadRateLimit = createRateLimitMiddleware({
   limit: envInt('RATE_LIMIT_UPLOAD_MAX', 25),
   windowSeconds: envInt('RATE_LIMIT_UPLOAD_WINDOW_SECONDS', 600),
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`
+});
+
+const createPostIdempotency = createIdempotencyMiddleware({
+  namespace: 'new_post_create',
+  pendingTtlSeconds: envInt('IDEMPOTENCY_POST_PENDING_TTL_SECONDS', 45),
+  responseTtlSeconds: envInt('IDEMPOTENCY_POST_RESPONSE_TTL_SECONDS', 240),
+  scopeResolver: (req) => `user:${Number(req.session?.userId || 0)}`,
+  onPending: (_req, res) => res.status(409).send('Gönderi isteği zaten işleniyor.')
+});
+
+const chatSendIdempotency = createIdempotencyMiddleware({
+  namespace: 'new_chat_send',
+  pendingTtlSeconds: envInt('IDEMPOTENCY_CHAT_PENDING_TTL_SECONDS', 20),
+  responseTtlSeconds: envInt('IDEMPOTENCY_CHAT_RESPONSE_TTL_SECONDS', 180),
+  scopeResolver: (req) => `user:${Number(req.session?.userId || 0)}`,
+  onPending: (_req, res) => res.status(409).send('Mesaj gönderimi zaten işleniyor.')
+});
+
+const messengerSendIdempotency = createIdempotencyMiddleware({
+  namespace: 'messenger_send',
+  pendingTtlSeconds: envInt('IDEMPOTENCY_MESSENGER_PENDING_TTL_SECONDS', 25),
+  responseTtlSeconds: envInt('IDEMPOTENCY_MESSENGER_RESPONSE_TTL_SECONDS', 180),
+  scopeResolver: (req) => `user:${Number(req.session?.userId || 0)}:thread:${Number(req.params?.id || 0)}`,
+  onPending: (_req, res) => res.status(409).send('Bu messenger isteği zaten işleniyor.')
 });
 
 async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writeAppLog }) {
@@ -1555,6 +1549,28 @@ function addNotification({ userId, type, sourceUserId, entityId, message }) {
   );
 }
 
+async function enqueueBackgroundJob(type, payload, options = {}) {
+  if (!backgroundJobQueue || !type) return { ok: false, backend: 'none', jobId: null };
+  try {
+    return await backgroundJobQueue.enqueue(type, payload, options);
+  } catch (err) {
+    writeAppLog('warn', 'background_job_enqueue_failed', {
+      type,
+      message: err?.message || 'unknown_error'
+    });
+    return { ok: false, backend: 'error', jobId: null };
+  }
+}
+
+function notifyMentionsSync({ text, sourceUserId, entityId, type = 'mention', message = 'Senden bahsetti.', allowedUserIds = null }) {
+  const ids = findMentionUserIds(text, sourceUserId);
+  const allowed = Array.isArray(allowedUserIds) ? new Set(allowedUserIds.map((v) => String(normalizeUserId(v)))) : null;
+  for (const userId of ids) {
+    if (allowed && !allowed.has(String(normalizeUserId(userId)))) continue;
+    addNotification({ userId, type, sourceUserId, entityId, message });
+  }
+}
+
 const engagementDefaultParams = Object.freeze({
   receivedLikeWeight: 1,
   receivedCommentWeight: 2.4,
@@ -2168,12 +2184,65 @@ function findMentionUserIds(text, excludeUserId = null) {
 }
 
 function notifyMentions({ text, sourceUserId, entityId, type = 'mention', message = 'Senden bahsetti.', allowedUserIds = null }) {
-  const ids = findMentionUserIds(text, sourceUserId);
-  const allowed = Array.isArray(allowedUserIds) ? new Set(allowedUserIds.map((v) => String(normalizeUserId(v)))) : null;
-  for (const userId of ids) {
-    if (allowed && !allowed.has(String(normalizeUserId(userId)))) continue;
-    addNotification({ userId, type, sourceUserId, entityId, message });
+  enqueueBackgroundJob('notification.mentions', {
+    text: text || '',
+    sourceUserId: sourceUserId || null,
+    entityId: entityId || null,
+    type: type || 'mention',
+    message: message || 'Senden bahsetti.',
+    allowedUserIds: Array.isArray(allowedUserIds) ? allowedUserIds : null
+  }, {
+    maxAttempts: 3,
+    backoffMs: 1200
+  }).then((result) => {
+    if (!result?.ok || (result.backend === 'memory' && !inlineJobWorkerStarted)) {
+      notifyMentionsSync({ text, sourceUserId, entityId, type, message, allowedUserIds });
+    }
+  }).catch(() => {
+    notifyMentionsSync({ text, sourceUserId, entityId, type, message, allowedUserIds });
+  });
+}
+
+async function queueEmailDelivery(payload, { maxAttempts = 4, backoffMs = 1500, delayMs = 0 } = {}) {
+  const result = await enqueueBackgroundJob('mail.send', {
+    to: payload?.to || '',
+    subject: payload?.subject || '',
+    html: payload?.html || '',
+    from: payload?.from || null,
+    timeoutMs: Number(payload?.timeoutMs || process.env.MAIL_SEND_TIMEOUT_MS || 8000)
+  }, {
+    maxAttempts,
+    backoffMs,
+    delayMs
+  });
+
+  if (!result?.ok || (result.backend === 'memory' && !inlineJobWorkerStarted)) {
+    await sendMailWithTimeout(payload);
   }
+  return result;
+}
+
+function getBackgroundJobHandlers() {
+  return {
+    'notification.mentions': async (payload) => {
+      notifyMentionsSync({
+        text: payload?.text || '',
+        sourceUserId: payload?.sourceUserId || null,
+        entityId: payload?.entityId || null,
+        type: payload?.type || 'mention',
+        message: payload?.message || 'Senden bahsetti.',
+        allowedUserIds: Array.isArray(payload?.allowedUserIds) ? payload.allowedUserIds : null
+      });
+    },
+    'mail.send': async (payload) => {
+      await sendMailWithTimeout({
+        to: payload?.to || '',
+        subject: payload?.subject || '',
+        html: payload?.html || '',
+        from: payload?.from || null
+      }, Number(payload?.timeoutMs || process.env.MAIL_SEND_TIMEOUT_MS || 8000));
+    }
+  };
 }
 
 function isFormattedContentEmpty(value) {
@@ -2360,7 +2429,17 @@ function markMessengerMessagesDelivered(threadId, receiverId) {
 
 function broadcastMessengerEvent(userIds, payload) {
   try {
-    if (!payload || !wssMessenger || !wssMessenger.clients) return;
+    if (!payload) return;
+    broadcastMessengerEventLocal(userIds, payload);
+    Promise.resolve(realtimeBus?.publishMessenger?.(userIds, payload)).catch(() => {});
+  } catch {
+    // ignore ws publish errors
+  }
+}
+
+function broadcastMessengerEventLocal(userIds, payload) {
+  try {
+    if (!payload || !messengerWss || !messengerWss.clients) return;
     const targets = new Set(
       (userIds || [])
         .map((id) => Number(id || 0))
@@ -2368,7 +2447,7 @@ function broadcastMessengerEvent(userIds, payload) {
     );
     if (!targets.size) return;
     const outgoing = JSON.stringify(payload);
-    wssMessenger.clients.forEach((client) => {
+    messengerWss.clients.forEach((client) => {
       if (client.readyState !== 1) return;
       const clientUserId = Number(client.sdalUserId || 0);
       if (!clientUserId || !targets.has(clientUserId)) return;
@@ -2758,71 +2837,12 @@ function findOrCreateOAuthUser({ provider, profile }) {
   return user;
 }
 
-async function sendMail({ to, subject, html, from }) {
-  const sender = from || mailProviderStatus.sender;
-
-  if (mailProviderStatus.provider === 'resend') {
-    const recipients = Array.isArray(to)
-      ? to
-      : String(to || '')
-          .split(',')
-          .map((v) => v.trim())
-          .filter(Boolean);
-
-    if (!recipients.length) {
-      if (mailProviderStatus.mockAllowed) {
-        console.log('MAIL (mock):', { to, subject });
-        return;
-      }
-      throw new Error('Mail recipients missing');
-    }
-
-    const resp = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: sender,
-        to: recipients,
-        subject,
-        html
-      })
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      console.error('Resend send error:', resp.status, text);
-      throw new Error('Resend send failed');
-    }
-    return;
-  }
-
-  const mailTransport = await getMailTransport();
-  if (!mailTransport) {
-    if (mailProviderStatus.mockAllowed) {
-      console.log('MAIL (mock):', { to, subject });
-      return;
-    }
-    throw new Error('Mail provider not configured');
-  }
-  await mailTransport.sendMail({ from: sender, to, subject, html });
+async function sendMail(payload) {
+  return mailSender.sendMail(payload);
 }
 
 async function sendMailWithTimeout(payload, timeoutMs = Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000)) {
-  const safeTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 8000;
-  let timer = null;
-  try {
-    await Promise.race([
-      sendMail(payload),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Mail send timeout')), safeTimeoutMs);
-      })
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  return mailSender.sendMailWithTimeout(payload, timeoutMs);
 }
 
 function normalizeEmail(email) {
@@ -3698,11 +3718,15 @@ async function healthHandler(req, res) {
     durationMs: Date.now() - startedAt,
     checks: {
       db: dbCheck,
-      redis: redisCheck
+      redis: redisCheck,
+      realtime: realtimeBus?.getState?.() || { started: false, enabled: false },
+      jobs: backgroundJobQueue?.getState?.() || { started: false }
     },
     runtime: {
       postgres: getPostgresPoolState(),
       redis: getRedisState(),
+      realtime: realtimeBus?.getState?.() || { started: false, enabled: false },
+      jobs: backgroundJobQueue?.getState?.() || { started: false },
       postgresConfigured: isPostgresConfigured(),
       redisConfigured: redisRequired
     }
@@ -4547,7 +4571,7 @@ app.post('/api/admin/email/send', requireAdmin, async (req, res) => {
   if (!from) return res.status(400).send('E-Mailin kimden gideceğini girmedin.');
   if (!subject) return res.status(400).send('E-Mailin konusunu girmedin.');
   if (!html) return res.status(400).send('E-Mailin metnini girmedin.');
-  await sendMail({ to, subject, html, from });
+  await queueEmailDelivery({ to, subject, html, from }, { maxAttempts: 4, backoffMs: 1500 });
   res.json({ ok: true });
 });
 
@@ -4643,7 +4667,7 @@ app.post('/api/admin/email/bulk', requireAdmin, async (req, res) => {
   if (!recipients.length) return res.status(400).send('Gönderilecek e-mail bulunamadı.');
   for (const row of recipients) {
     if (!row.email || !validateEmail(row.email)) continue;
-    await sendMail({ to: row.email, subject, html, from });
+    await queueEmailDelivery({ to: row.email, subject, html, from }, { maxAttempts: 4, backoffMs: 1500 });
   }
   res.json({ ok: true, count: recipients.length });
 });
@@ -4966,7 +4990,10 @@ app.post('/api/register', async (req, res) => {
 
   let mailSent = true;
   try {
-    await sendMailWithTimeout({ to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html });
+    await queueEmailDelivery(
+      { to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html, timeoutMs: Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000) },
+      { maxAttempts: 4, backoffMs: 1500 }
+    );
   } catch (err) {
     mailSent = false;
     console.error('Register activation mail send failed:', err);
@@ -5008,7 +5035,7 @@ app.post('/api/activation/resend', async (req, res) => {
     activationLink,
     user
   });
-  await sendMail({ to: user.email, subject: 'SDAL - Aktivasyon', html });
+  await queueEmailDelivery({ to: user.email, subject: 'SDAL - Aktivasyon', html }, { maxAttempts: 4, backoffMs: 1200 });
   res.json({ ok: true });
 });
 
@@ -5031,7 +5058,7 @@ app.post('/api/password-reset', async (req, res) => {
       </td></tr>
     </table>
   </body></html>`;
-  await sendMail({ to: user.email, subject: 'SDAL.ORG - ŞİFRE HATIRLAMA', html });
+  await queueEmailDelivery({ to: user.email, subject: 'SDAL.ORG - ŞİFRE HATIRLAMA', html }, { maxAttempts: 4, backoffMs: 1200 });
   res.json({ ok: true });
 });
 
@@ -5043,11 +5070,11 @@ app.post('/api/mail/test', async (req, res) => {
   if (invalid) return res.status(400).send('E-mail adresi doğru görünmüyor.');
   const to = candidates.join(', ');
   try {
-    await sendMail({
+    await queueEmailDelivery({
       to,
       subject: 'SDAL SMTP Test',
       html: 'Bu bir SMTP test e-postasıdır.'
-    });
+    }, { maxAttempts: 2, backoffMs: 1000 });
     res.json({ ok: true, to, provider: mailProviderStatus.provider, mock: !mailProviderStatus.configured });
   } catch (err) {
     console.error('SMTP test error:', err);
@@ -5218,7 +5245,7 @@ app.post('/api/profile/email-change/request', requireAuth, async (req, res) => {
     </td></tr>
   </table>
   </body></html>`;
-  await sendMail({ to: nextEmail, subject: 'SDAL - E-posta değişikliği doğrulama', html });
+  await queueEmailDelivery({ to: nextEmail, subject: 'SDAL - E-posta değişikliği doğrulama', html }, { maxAttempts: 4, backoffMs: 1500 });
   res.json({ ok: true });
 });
 
@@ -5830,7 +5857,7 @@ app.get('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => {
   res.json({ items });
 });
 
-app.post('/api/sdal-messenger/threads/:id/messages', requireAuth, (req, res) => {
+app.post('/api/sdal-messenger/threads/:id/messages', requireAuth, messengerSendIdempotency, (req, res) => {
   const thread = getMessengerThreadForUser(req.params.id, req.session.userId);
   if (!thread) return res.status(404).send('Sohbet bulunamadı.');
   const text = sanitizePlainUserText(String(req.body?.text || '').trim(), 4000);
@@ -6046,7 +6073,7 @@ app.post('/api/photos/:id/comments', (req, res) => {
 // Modern (sdal_new) social APIs
 app.get('/api/new/feed', requireAuth, phase1Domain.controllers.feed.getFeed);
 
-app.post('/api/new/posts', requireAuth, postWriteRateLimit, phase1Domain.controllers.posts.createPost);
+app.post('/api/new/posts', requireAuth, createPostIdempotency, postWriteRateLimit, phase1Domain.controllers.posts.createPost);
 
 app.post('/api/new/posts/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
   const content = formatUserText(req.body?.content || '');
@@ -8100,8 +8127,8 @@ app.get('/api/new/chat/messages', requireAuth, phase1Domain.controllers.chat.lis
 
 function broadcastChatMessage(item) {
   try {
-    if (!item || !wss || !wss.clients) return;
-    const outgoing = JSON.stringify({
+    if (!item) return;
+    const payload = {
       type: 'chat:new',
       id: item.id,
       user_id: item.user_id,
@@ -8115,10 +8142,9 @@ function broadcastChatMessage(item) {
         resim: item.resim,
         verified: item.verified
       }
-    });
-    wss.clients.forEach((client) => {
-      if (client.readyState === 1) client.send(outgoing);
-    });
+    };
+    broadcastChatEventLocal(payload);
+    Promise.resolve(realtimeBus?.publishChat?.(payload)).catch(() => {});
   } catch {
     // ignore broadcast errors
   }
@@ -8126,8 +8152,8 @@ function broadcastChatMessage(item) {
 
 function broadcastChatUpdate(item) {
   try {
-    if (!item || !wss || !wss.clients) return;
-    const outgoing = JSON.stringify({
+    if (!item) return;
+    const payload = {
       type: 'chat:updated',
       id: item.id,
       user_id: item.user_id,
@@ -8141,10 +8167,9 @@ function broadcastChatUpdate(item) {
         resim: item.resim,
         verified: item.verified
       }
-    });
-    wss.clients.forEach((client) => {
-      if (client.readyState === 1) client.send(outgoing);
-    });
+    };
+    broadcastChatEventLocal(payload);
+    Promise.resolve(realtimeBus?.publishChat?.(payload)).catch(() => {});
   } catch {
     // ignore broadcast errors
   }
@@ -8152,16 +8177,29 @@ function broadcastChatUpdate(item) {
 
 function broadcastChatDelete(messageId) {
   try {
-    if (!messageId || !wss || !wss.clients) return;
-    const outgoing = JSON.stringify({
+    if (!messageId) return;
+    const payload = {
       type: 'chat:deleted',
       id: Number(messageId)
-    });
-    wss.clients.forEach((client) => {
-      if (client.readyState === 1) client.send(outgoing);
-    });
+    };
+    broadcastChatEventLocal(payload);
+    Promise.resolve(realtimeBus?.publishChat?.(payload)).catch(() => {});
   } catch {
     // ignore broadcast errors
+  }
+}
+
+function broadcastChatEventLocal(payload) {
+  try {
+    if (!payload || !chatWss || !chatWss.clients) return;
+    const outgoing = JSON.stringify(payload);
+    chatWss.clients.forEach((client) => {
+      if (client.readyState !== 1) return;
+      if (!Number(client.sdalUserId || 0)) return;
+      client.send(outgoing);
+    });
+  } catch {
+    // ignore local broadcast errors
   }
 }
 
@@ -8172,7 +8210,7 @@ function canManageChatMessage(req, messageRow) {
   return hasAdminSession(req, currentUser);
 }
 
-app.post('/api/new/chat/send', requireAuth, chatSendRateLimit, phase1Domain.controllers.chat.sendMessage);
+app.post('/api/new/chat/send', requireAuth, chatSendIdempotency, chatSendRateLimit, phase1Domain.controllers.chat.sendMessage);
 
 app.patch('/api/new/chat/messages/:id', requireAuth, phase1Domain.controllers.chat.updateMessage);
 
@@ -9540,6 +9578,39 @@ async function onServerStarted() {
     usersTableName,
     usersExists
   });
+
+  realtimeBus = createRealtimeBus({
+    onChatEvent: (payload) => broadcastChatEventLocal(payload),
+    onMessengerEvent: (userIds, payload) => broadcastMessengerEventLocal(userIds, payload),
+    logger: {
+      warn: (...args) => writeAppLog('warn', 'realtime_bus_warn', { args }),
+      error: (...args) => writeAppLog('error', 'realtime_bus_error', { args })
+    }
+  });
+
+  try {
+    await realtimeBus.start();
+  } catch (err) {
+    writeAppLog('warn', 'realtime_bus_start_failed', { message: err?.message || 'unknown_error' });
+  }
+
+  if (runInlineJobWorker && backgroundJobQueue) {
+    inlineJobWorkerStarted = true;
+    writeAppLog('info', 'background_worker_started_inline', {
+      queueNamespace: jobQueueNamespace
+    });
+    Promise.resolve(backgroundJobQueue.startWorker({
+      handlers: getBackgroundJobHandlers(),
+      pollTimeoutSeconds: 2
+    }))
+      .catch((err) => {
+        inlineJobWorkerStarted = false;
+        writeAppLog('warn', 'background_worker_inline_failed', {
+          queueNamespace: jobQueueNamespace,
+          message: err?.message || 'unknown_error'
+        });
+      });
+  }
 }
 
 function setupProcessHandlers() {
@@ -9547,6 +9618,16 @@ function setupProcessHandlers() {
   async function shutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
+    try {
+      await realtimeBus?.stop?.();
+    } catch {
+      // no-op
+    }
+    try {
+      await backgroundJobQueue?.stopWorker?.();
+    } catch {
+      // no-op
+    }
     try {
       await closeRedisClient();
     } catch {
@@ -9590,13 +9671,66 @@ function setupProcessHandlers() {
   });
 }
 
+function parseWsUserIdFromQuery(req) {
+  try {
+    const url = new URL(req.url || '', 'http://localhost');
+    const userId = Number(url.searchParams.get('userId') || 0);
+    return userId > 0 ? userId : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function attachSessionToUpgradeRequest(req) {
+  return new Promise((resolve) => {
+    const fakeRes = {
+      getHeader() { return undefined; },
+      setHeader() {},
+      writeHead() {},
+      end() {}
+    };
+    try {
+      sessionParser(req, fakeRes, () => resolve(req.session || null));
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function resolveWsUser(req) {
+  const session = await attachSessionToUpgradeRequest(req);
+  const sessionUserId = Number(normalizeUserId(session?.userId) || 0);
+  const queryUserId = parseWsUserIdFromQuery(req);
+
+  if (sessionUserId > 0) {
+    if (queryUserId > 0 && queryUserId !== sessionUserId) {
+      return { userId: 0, reason: 'session_query_mismatch' };
+    }
+    return { userId: sessionUserId, source: 'session' };
+  }
+
+  if (allowLegacyWsQueryAuth && queryUserId > 0) {
+    writeAppLog('warn', 'ws_legacy_query_auth_used', { path: req.url || '', userId: queryUserId });
+    return { userId: queryUserId, source: 'legacy_query' };
+  }
+
+  return { userId: 0, reason: 'missing_session' };
+}
+
 function attachWebSocketServers(server) {
-  const wss = new WebSocketServer({ server, path: '/ws/chat' });
-  wss.on('connection', (ws, req) => {
+  chatWss = new WebSocketServer({ server, path: '/ws/chat' });
+  chatWss.on('connection', async (ws, req) => {
+    const auth = await resolveWsUser(req);
+    if (!auth.userId) {
+      ws.close(1008, 'Unauthorized');
+      return;
+    }
+    ws.sdalUserId = auth.userId;
+
     ws.on('message', (data) => {
       try {
         const payload = JSON.parse(String(data || '{}'));
-        const userId = Number(payload?.userId || 0);
+        const userId = Number(ws.sdalUserId || 0);
         const rawMessage = String(payload?.message || '').slice(0, 5000);
         if (!userId || !rawMessage) return;
         const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [userId]) || null;
@@ -9610,7 +9744,7 @@ function attachWebSocketServers(server) {
           now
         ]);
         scheduleEngagementRecalculation('chat_message_created');
-        const outgoing = JSON.stringify({
+        const item = {
           id: result?.lastInsertRowid,
           user_id: user.id,
           message,
@@ -9623,27 +9757,24 @@ function attachWebSocketServers(server) {
             resim: user.resim,
             verified: user.verified
           }
-        });
-        wss.clients.forEach((client) => {
-          if (client.readyState === 1) client.send(outgoing);
-        });
+        };
+        broadcastChatMessage(item);
       } catch {
         // ignore
       }
     });
   });
 
-  const wssMessenger = new WebSocketServer({ server, path: '/ws/messenger' });
-  wssMessenger.on('connection', (ws, req) => {
-    try {
-      const url = new URL(req.url || '/ws/messenger', 'http://localhost');
-      const userId = Number(url.searchParams.get('userId') || 0);
-      ws.sdalUserId = userId > 0 ? userId : 0;
-    } catch {
-      ws.sdalUserId = 0;
+  messengerWss = new WebSocketServer({ server, path: '/ws/messenger' });
+  messengerWss.on('connection', async (ws, req) => {
+    const auth = await resolveWsUser(req);
+    if (!auth.userId) {
+      ws.close(1008, 'Unauthorized');
+      return;
     }
+    ws.sdalUserId = auth.userId;
     try {
-      ws.send(JSON.stringify({ type: 'messenger:hello' }));
+      ws.send(JSON.stringify({ type: 'messenger:hello', userId: auth.userId }));
     } catch {
       // ignore
     }

@@ -175,7 +175,7 @@ function seedUser({ username, password, role = 'user', admin = 0 }) {
 seedUser({ username: 'perf_user', password: 'correct-pass' });
 seedUser({ username: 'perf_other', password: 'other-pass' });
 
-const server = app.listen(0);
+const server = app.listen(0, '127.0.0.1');
 await new Promise((resolve, reject) => {
   server.once('listening', resolve);
   server.once('error', reject);
