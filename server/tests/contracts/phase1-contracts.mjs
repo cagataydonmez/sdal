@@ -24,6 +24,148 @@ bootstrapDb.exec(`
     reviewer_id INTEGER
   );
 `);
+const compatibilityColumns = [
+  "ALTER TABLE uyeler ADD COLUMN role TEXT DEFAULT 'user';",
+  "ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0;",
+  "ALTER TABLE uyeler ADD COLUMN verification_status TEXT DEFAULT 'pending';"
+];
+for (const sql of compatibilityColumns) {
+  try {
+    bootstrapDb.exec(sql);
+  } catch {
+    // column already exists
+  }
+}
+bootstrapDb.exec(`
+  CREATE TABLE IF NOT EXISTS site_controls (
+    id INTEGER PRIMARY KEY,
+    site_open INTEGER DEFAULT 1,
+    maintenance_message TEXT,
+    updated_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS module_controls (
+    module_key TEXT PRIMARY KEY,
+    is_open INTEGER DEFAULT 1,
+    updated_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS media_settings (
+    id INTEGER PRIMARY KEY,
+    storage_provider TEXT DEFAULT 'local',
+    local_base_path TEXT,
+    thumb_width INTEGER DEFAULT 200,
+    feed_width INTEGER DEFAULT 800,
+    full_width INTEGER DEFAULT 1600,
+    webp_quality INTEGER DEFAULT 80,
+    max_upload_bytes INTEGER DEFAULT 10485760,
+    avif_enabled INTEGER DEFAULT 0,
+    updated_at TEXT
+  );
+`);
+bootstrapDb.exec(`
+  CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER,
+    content TEXT,
+    image TEXT,
+    image_record_id TEXT,
+    group_id INTEGER,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS post_comments (
+    id INTEGER PRIMARY KEY,
+    post_id INTEGER,
+    user_id INTEGER,
+    comment TEXT,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS post_likes (
+    id INTEGER PRIMARY KEY,
+    post_id INTEGER,
+    user_id INTEGER,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS follows (
+    id INTEGER PRIMARY KEY,
+    follower_id INTEGER,
+    following_id INTEGER,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER,
+    type TEXT,
+    source_user_id INTEGER,
+    entity_id INTEGER,
+    message TEXT,
+    read_at TEXT,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER,
+    message TEXT,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS member_engagement_scores (
+    user_id INTEGER PRIMARY KEY,
+    score REAL DEFAULT 0,
+    updated_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS engagement_ab_assignments (
+    user_id INTEGER PRIMARY KEY,
+    variant TEXT,
+    assigned_at TEXT,
+    updated_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS moderator_permissions (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    permission_key TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    updated_by INTEGER,
+    created_at TEXT,
+    updated_at TEXT
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS moderator_permissions_unique_idx ON moderator_permissions(user_id, permission_key);
+  CREATE TABLE IF NOT EXISTS moderator_scopes (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    scope_type TEXT NOT NULL DEFAULT 'graduation_year',
+    scope_value TEXT NOT NULL,
+    graduation_year INTEGER,
+    created_by INTEGER,
+    created_at TEXT
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS moderator_scopes_unique_idx ON moderator_scopes(user_id, scope_type, scope_value);
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY,
+    actor_user_id INTEGER,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    metadata TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    created_at TEXT
+  );
+`);
+const nowTs = new Date().toISOString();
+bootstrapDb
+  .prepare('INSERT OR IGNORE INTO site_controls (id, site_open, maintenance_message, updated_at) VALUES (1, 1, ?, ?)')
+  .run('Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.', nowTs);
+const moduleKeys = [
+  'feed', 'main_feed', 'explore', 'following', 'groups', 'messages', 'messenger', 'notifications',
+  'albums', 'games', 'events', 'announcements', 'jobs', 'profile', 'help', 'requests'
+];
+for (const moduleKey of moduleKeys) {
+  bootstrapDb
+    .prepare('INSERT OR IGNORE INTO module_controls (module_key, is_open, updated_at) VALUES (?, 1, ?)')
+    .run(moduleKey, nowTs);
+}
+bootstrapDb
+  .prepare('INSERT OR IGNORE INTO media_settings (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at) VALUES (1, ?, ?, 200, 800, 1600, 80, 10485760, 0, ?)')
+  .run('local', '/tmp/sdal-test-uploads', nowTs);
 bootstrapDb.close();
 
 process.env.SDAL_DB_PATH = runtimeDbPath;

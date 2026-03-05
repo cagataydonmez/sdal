@@ -712,19 +712,22 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
   writeAppLog('info', 'member_hard_deleted', { userId, kadi: user.kadi });
 }
 
-function ensureSchemaMigrationsTable() {
-  sqlRun(`CREATE TABLE IF NOT EXISTS schema_migrations (
-    name TEXT PRIMARY KEY,
-    applied_at TEXT
-  )`);
-}
-
 function quoteIdentifier(value) {
   return `"${String(value || '').replace(/"/g, '""')}"`;
 }
 
 function hasColumn(table, column) {
   try {
+    if (dbDriver === 'postgres') {
+      const row = sqlGet(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = ? AND column_name = ?
+         LIMIT 1`,
+        [String(table || '').toLowerCase(), String(column || '').toLowerCase()]
+      );
+      return !!row;
+    }
     const safeTable = quoteIdentifier(table);
     const cols = sqlAll(`PRAGMA table_info(${safeTable})`);
     return cols.some((c) => c.name === column);
@@ -750,627 +753,7 @@ function hasTable(table) {
   }
 }
 
-function hasMigration(name) {
-  ensureSchemaMigrationsTable();
-  return !!sqlGet('SELECT name FROM schema_migrations WHERE name = ?', [name]);
-}
-
-function runMigration(name, apply) {
-  ensureSchemaMigrationsTable();
-  if (hasMigration(name)) return;
-
-  if (dbDriver === 'postgres') {
-    apply();
-    sqlRun(
-      'INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)',
-      [name, new Date().toISOString()]
-    );
-    return;
-  }
-
-  const db = getDb();
-  const tx = db.transaction(() => {
-    apply();
-    sqlRun(
-      'INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)',
-      [name, new Date().toISOString()]
-    );
-  });
-
-  tx();
-}
-
-// Pattern for future schema changes:
-// runMigration('2026_02_add_users_timezone', () => {
-//   if (!hasColumn('uyeler', 'timezone')) {
-//     sqlRun("ALTER TABLE uyeler ADD COLUMN timezone TEXT DEFAULT 'Europe/Istanbul'");
-//   }
-// });
-function migrateAddColumn(table, column, ddl) {
-  runMigration(`add_column:${table}.${column}`, () => {
-    if (!hasColumn(table, column)) {
-      sqlRun(ddl);
-    }
-  });
-}
-
-function migrateLegacyUserIdColumns() {
-  const tables = [
-    'posts',
-    'post_comments',
-    'post_likes',
-    'event_comments',
-    'event_responses',
-    'stories',
-    'story_views',
-    'group_members',
-    'group_join_requests',
-    'chat_messages',
-    'verification_requests',
-    'member_engagement_scores',
-    'engagement_ab_assignments'
-  ];
-
-  runMigration('2026_03_legacy_uye_id_to_user_id', () => {
-    for (const table of tables) {
-      if (!hasTable(table) || hasColumn(table, 'user_id') || !hasColumn(table, 'uye_id')) continue;
-      const qTable = quoteIdentifier(table);
-      sqlRun(`ALTER TABLE ${qTable} ADD COLUMN user_id INTEGER`);
-      sqlRun(`UPDATE ${qTable} SET user_id = uye_id WHERE user_id IS NULL`);
-    }
-  });
-}
-
-function getPgColumnType(table, column) {
-  if (dbDriver !== 'postgres') return '';
-  const row = sqlGet(
-    `SELECT data_type AS type
-     FROM information_schema.columns
-     WHERE table_schema = 'public' AND table_name = ? AND column_name = ?`,
-    [String(table || '').toLowerCase(), String(column || '').toLowerCase()]
-  );
-  return String(row?.type || '').toLowerCase();
-}
-
-function isPgNumericType(type) {
-  const t = String(type || '').toLowerCase();
-  return t === 'integer' || t === 'bigint' || t === 'smallint' || t === 'numeric' || t === 'double precision' || t === 'real';
-}
-
-function normalizePostgresIdColumn(table, column) {
-  if (dbDriver !== 'postgres') return;
-  const currentType = getPgColumnType(table, column);
-  if (!currentType || isPgNumericType(currentType)) return;
-  const qTable = quoteIdentifier(table);
-  const qColumn = quoteIdentifier(column);
-  sqlRun(
-    `ALTER TABLE ${qTable}
-     ALTER COLUMN ${qColumn} TYPE BIGINT
-     USING CASE
-       WHEN NULLIF(TRIM(CAST(${qColumn} AS TEXT)), '') IS NULL THEN NULL
-       WHEN TRIM(CAST(${qColumn} AS TEXT)) ~ '^-?[0-9]+$' THEN TRIM(CAST(${qColumn} AS TEXT))::BIGINT
-       ELSE NULL
-     END`
-  );
-}
-
-function normalizePostgresIdColumns() {
-  if (dbDriver !== 'postgres') return;
-  const columns = [
-    ['uyeler', 'id'],
-    ['album_foto', 'id'],
-    ['album_foto', 'katid'],
-    ['album_foto', 'ekleyenid'],
-    ['album_fotoyorum', 'id'],
-    ['album_fotoyorum', 'fotoid'],
-    ['gelenkutusu', 'id'],
-    ['gelenkutusu', 'kime'],
-    ['gelenkutusu', 'kimden'],
-    ['posts', 'id'],
-    ['posts', 'user_id'],
-    ['posts', 'group_id'],
-    ['post_comments', 'id'],
-    ['post_comments', 'post_id'],
-    ['post_comments', 'user_id'],
-    ['post_likes', 'id'],
-    ['post_likes', 'post_id'],
-    ['post_likes', 'user_id'],
-    ['follows', 'id'],
-    ['follows', 'follower_id'],
-    ['follows', 'following_id'],
-    ['notifications', 'id'],
-    ['notifications', 'user_id'],
-    ['notifications', 'source_user_id'],
-    ['notifications', 'entity_id'],
-    ['events', 'id'],
-    ['events', 'created_by'],
-    ['events', 'approved_by'],
-    ['announcements', 'id'],
-    ['announcements', 'created_by'],
-    ['announcements', 'approved_by'],
-    ['event_comments', 'id'],
-    ['event_comments', 'event_id'],
-    ['event_comments', 'user_id'],
-    ['event_responses', 'id'],
-    ['event_responses', 'event_id'],
-    ['event_responses', 'user_id'],
-    ['stories', 'id'],
-    ['stories', 'user_id'],
-    ['story_views', 'id'],
-    ['story_views', 'story_id'],
-    ['story_views', 'user_id'],
-    ['groups', 'id'],
-    ['groups', 'owner_id'],
-    ['group_members', 'id'],
-    ['group_members', 'group_id'],
-    ['group_members', 'user_id'],
-    ['group_join_requests', 'id'],
-    ['group_join_requests', 'group_id'],
-    ['group_join_requests', 'user_id'],
-    ['group_join_requests', 'reviewed_by'],
-    ['group_invites', 'id'],
-    ['group_invites', 'group_id'],
-    ['group_invites', 'invited_user_id'],
-    ['group_invites', 'invited_by'],
-    ['group_events', 'id'],
-    ['group_events', 'group_id'],
-    ['group_events', 'created_by'],
-    ['group_announcements', 'id'],
-    ['group_announcements', 'group_id'],
-    ['group_announcements', 'created_by'],
-    ['chat_messages', 'id'],
-    ['chat_messages', 'user_id'],
-    ['sdal_messenger_threads', 'id'],
-    ['sdal_messenger_threads', 'user_a_id'],
-    ['sdal_messenger_threads', 'user_b_id'],
-    ['sdal_messenger_messages', 'id'],
-    ['sdal_messenger_messages', 'thread_id'],
-    ['sdal_messenger_messages', 'sender_id'],
-    ['sdal_messenger_messages', 'receiver_id'],
-    ['verification_requests', 'id'],
-    ['verification_requests', 'user_id'],
-    ['verification_requests', 'reviewer_id'],
-    ['member_engagement_scores', 'user_id'],
-    ['engagement_ab_assignments', 'user_id']
-  ];
-
-  runMigration('2026_02_pg_normalize_id_columns_bigint', () => {
-    for (const [table, column] of columns) {
-      try {
-        normalizePostgresIdColumn(table, column);
-      } catch (err) {
-        writeAppLog('error', 'pg_column_normalize_failed', {
-          table,
-          column,
-          message: err?.message || 'unknown'
-        });
-      }
-    }
-  });
-}
-
-function ensurePostgresIdSequences() {
-  if (dbDriver !== 'postgres') return;
-  runMigration('2026_02_pg_ensure_id_sequences', () => {
-    const rows = sqlAll(
-      `SELECT c.table_name AS table_name,
-              c.column_name AS column_name,
-              c.data_type AS data_type,
-              c.column_default AS column_default
-       FROM information_schema.columns c
-       JOIN information_schema.tables t
-         ON t.table_schema = c.table_schema
-        AND t.table_name = c.table_name
-       WHERE c.table_schema = 'public'
-         AND t.table_type = 'BASE TABLE'
-         AND c.column_name = 'id'
-         AND c.data_type IN ('smallint', 'integer', 'bigint')
-       ORDER BY c.table_name ASC`
-    );
-
-    for (const row of rows) {
-      const table = String(row?.table_name || '');
-      const defaultExpr = String(row?.column_default || '').toLowerCase();
-      if (!table) continue;
-      if (defaultExpr.includes('nextval(')) continue;
-
-      const qTable = quoteIdentifier(table);
-      const qColumn = quoteIdentifier('id');
-      const seqName = `${table}_id_seq`;
-      const qSeq = quoteIdentifier(seqName);
-      try {
-        sqlRun(`CREATE SEQUENCE IF NOT EXISTS ${qSeq}`);
-        sqlRun(`ALTER TABLE ${qTable} ALTER COLUMN ${qColumn} SET DEFAULT nextval('${seqName}')`);
-        sqlRun(
-          `SELECT setval('${seqName}', GREATEST(COALESCE((SELECT MAX(${qColumn}) FROM ${qTable}), 0), 1), true)`
-        );
-      } catch (err) {
-        writeAppLog('error', 'pg_id_sequence_ensure_failed', {
-          table,
-          sequence: seqName,
-          message: err?.message || 'unknown'
-        });
-      }
-    }
-  });
-}
-
-// Ensure admin email tables exist
-sqlRun(`CREATE TABLE IF NOT EXISTS email_kategori (
-  id INTEGER PRIMARY KEY,
-  ad TEXT,
-  tur TEXT,
-  deger TEXT,
-  aciklama TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS email_sablon (
-  id INTEGER PRIMARY KEY,
-  ad TEXT,
-  konu TEXT,
-  icerik TEXT,
-  olusturma TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS oauth_accounts (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  provider TEXT,
-  provider_user_id TEXT,
-  email TEXT,
-  profile_json TEXT,
-  created_at TEXT,
-  updated_at TEXT
-)`);
-migrateAddColumn('oauth_accounts', 'email', 'ALTER TABLE oauth_accounts ADD COLUMN email TEXT');
-migrateAddColumn('oauth_accounts', 'profile_json', 'ALTER TABLE oauth_accounts ADD COLUMN profile_json TEXT');
-migrateAddColumn('oauth_accounts', 'created_at', 'ALTER TABLE oauth_accounts ADD COLUMN created_at TEXT');
-migrateAddColumn('oauth_accounts', 'updated_at', 'ALTER TABLE oauth_accounts ADD COLUMN updated_at TEXT');
-migrateAddColumn('uyeler', 'oauth_provider', 'ALTER TABLE uyeler ADD COLUMN oauth_provider TEXT');
-migrateAddColumn('uyeler', 'oauth_subject', 'ALTER TABLE uyeler ADD COLUMN oauth_subject TEXT');
-migrateAddColumn('uyeler', 'oauth_email_verified', 'ALTER TABLE uyeler ADD COLUMN oauth_email_verified INTEGER DEFAULT 0');
-
-runMigration('2026_02_oauth_accounts_unique_provider_subject', () => {
-  if (dbDriver === 'postgres') {
-    sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS oauth_accounts_provider_subject_uq ON oauth_accounts(provider, provider_user_id)');
-  } else {
-    sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS oauth_accounts_provider_subject_uq ON oauth_accounts(provider, provider_user_id)');
-  }
-});
-
-// Modern (sdal_new) social tables
-sqlRun(`CREATE TABLE IF NOT EXISTS posts (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  content TEXT,
-  image TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS post_comments (
-  id INTEGER PRIMARY KEY,
-  post_id INTEGER,
-  user_id INTEGER,
-  comment TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS post_likes (
-  id INTEGER PRIMARY KEY,
-  post_id INTEGER,
-  user_id INTEGER,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS follows (
-  id INTEGER PRIMARY KEY,
-  follower_id INTEGER,
-  following_id INTEGER,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS notifications (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  type TEXT,
-  source_user_id INTEGER,
-  entity_id INTEGER,
-  message TEXT,
-  read_at TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS events (
-  id INTEGER PRIMARY KEY,
-  title TEXT,
-  description TEXT,
-  location TEXT,
-  starts_at TEXT,
-  ends_at TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS announcements (
-  id INTEGER PRIMARY KEY,
-  title TEXT,
-  body TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS jobs (
-  id INTEGER PRIMARY KEY,
-  poster_id INTEGER,
-  company TEXT,
-  title TEXT,
-  description TEXT,
-  location TEXT,
-  job_type TEXT,
-  link TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS sdal_messenger_threads (
-  id INTEGER PRIMARY KEY,
-  user_a_id INTEGER,
-  user_b_id INTEGER,
-  created_at TEXT,
-  updated_at TEXT,
-  last_message_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS sdal_messenger_messages (
-  id INTEGER PRIMARY KEY,
-  thread_id INTEGER,
-  sender_id INTEGER,
-  receiver_id INTEGER,
-  body TEXT,
-  client_written_at TEXT,
-  server_received_at TEXT,
-  delivered_at TEXT,
-  created_at TEXT,
-  read_at TEXT,
-  deleted_by_sender INTEGER DEFAULT 0,
-  deleted_by_receiver INTEGER DEFAULT 0
-)`);
-migrateAddColumn('sdal_messenger_messages', 'client_written_at', 'ALTER TABLE sdal_messenger_messages ADD COLUMN client_written_at TEXT');
-migrateAddColumn('sdal_messenger_messages', 'server_received_at', 'ALTER TABLE sdal_messenger_messages ADD COLUMN server_received_at TEXT');
-migrateAddColumn('sdal_messenger_messages', 'delivered_at', 'ALTER TABLE sdal_messenger_messages ADD COLUMN delivered_at TEXT');
-migrateAddColumn('sdal_messenger_threads', 'created_at', 'ALTER TABLE sdal_messenger_threads ADD COLUMN created_at TEXT');
-migrateAddColumn('sdal_messenger_threads', 'updated_at', 'ALTER TABLE sdal_messenger_threads ADD COLUMN updated_at TEXT');
-migrateAddColumn('sdal_messenger_threads', 'last_message_at', 'ALTER TABLE sdal_messenger_threads ADD COLUMN last_message_at TEXT');
-migrateAddColumn('sdal_messenger_messages', 'read_at', 'ALTER TABLE sdal_messenger_messages ADD COLUMN read_at TEXT');
-migrateAddColumn('sdal_messenger_messages', 'deleted_by_sender', 'ALTER TABLE sdal_messenger_messages ADD COLUMN deleted_by_sender INTEGER DEFAULT 0');
-migrateAddColumn('sdal_messenger_messages', 'deleted_by_receiver', 'ALTER TABLE sdal_messenger_messages ADD COLUMN deleted_by_receiver INTEGER DEFAULT 0');
-
-runMigration('2026_02_sdal_messenger_indexes', () => {
-  sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS sdal_messenger_threads_user_pair_uq ON sdal_messenger_threads(user_a_id, user_b_id)');
-  sqlRun('CREATE INDEX IF NOT EXISTS sdal_messenger_messages_thread_created_idx ON sdal_messenger_messages(thread_id, created_at DESC)');
-  sqlRun('CREATE INDEX IF NOT EXISTS sdal_messenger_messages_receiver_read_idx ON sdal_messenger_messages(receiver_id, read_at)');
-  sqlRun('CREATE INDEX IF NOT EXISTS sdal_messenger_messages_receiver_delivered_idx ON sdal_messenger_messages(receiver_id, delivered_at)');
-});
-
-runMigration('2026_02_sdal_messenger_timestamp_backfill', () => {
-  sqlRun(
-    `UPDATE sdal_messenger_messages
-     SET client_written_at = COALESCE(client_written_at, created_at),
-         server_received_at = COALESCE(server_received_at, created_at)
-     WHERE client_written_at IS NULL OR server_received_at IS NULL`
-  );
-});
-
-// Phase 1 - SDAL Alumni Hub
-migrateAddColumn('uyeler', 'verification_status', "ALTER TABLE uyeler ADD COLUMN verification_status TEXT DEFAULT 'pending'");
-migrateAddColumn('uyeler', 'verified', 'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0');
-migrateAddColumn('uyeler', 'kvkk_consent_at', 'ALTER TABLE uyeler ADD COLUMN kvkk_consent_at TEXT');
-migrateAddColumn('uyeler', 'directory_consent_at', 'ALTER TABLE uyeler ADD COLUMN directory_consent_at TEXT');
-migrateAddColumn('uyeler', 'sirket', 'ALTER TABLE uyeler ADD COLUMN sirket TEXT');
-migrateAddColumn('uyeler', 'unvan', 'ALTER TABLE uyeler ADD COLUMN unvan TEXT');
-migrateAddColumn('uyeler', 'uzmanlik', 'ALTER TABLE uyeler ADD COLUMN uzmanlik TEXT');
-migrateAddColumn('uyeler', 'linkedin_url', 'ALTER TABLE uyeler ADD COLUMN linkedin_url TEXT');
-migrateAddColumn('uyeler', 'universite_bolum', 'ALTER TABLE uyeler ADD COLUMN universite_bolum TEXT');
-migrateAddColumn('uyeler', 'mentor_opt_in', 'ALTER TABLE uyeler ADD COLUMN mentor_opt_in INTEGER DEFAULT 0');
-migrateAddColumn('uyeler', 'mentor_konulari', 'ALTER TABLE uyeler ADD COLUMN mentor_konulari TEXT');
-migrateAddColumn('uyeler', 'role', "ALTER TABLE uyeler ADD COLUMN role TEXT DEFAULT 'user'");
-runMigration('2026_03_create_moderator_scopes', () => {
-  sqlRun(`CREATE TABLE IF NOT EXISTS moderator_scopes (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    scope_type TEXT NOT NULL DEFAULT 'graduation_year',
-    scope_value TEXT NOT NULL,
-    graduation_year INTEGER,
-    created_by INTEGER,
-    created_at TEXT
-  )`);
-  sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS moderator_scopes_unique_idx ON moderator_scopes(user_id, scope_type, scope_value)');
-});
-runMigration('2026_03_create_moderator_permissions', () => {
-  sqlRun(`CREATE TABLE IF NOT EXISTS moderator_permissions (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    permission_key TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    created_by INTEGER,
-    updated_by INTEGER,
-    created_at TEXT,
-    updated_at TEXT
-  )`);
-  sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS moderator_permissions_unique_idx ON moderator_permissions(user_id, permission_key)');
-  sqlRun('CREATE INDEX IF NOT EXISTS moderator_permissions_user_idx ON moderator_permissions(user_id)');
-});
-runMigration('2026_03_create_audit_log', () => {
-  sqlRun(`CREATE TABLE IF NOT EXISTS audit_log (
-    id INTEGER PRIMARY KEY,
-    actor_user_id INTEGER,
-    action TEXT NOT NULL,
-    target_type TEXT,
-    target_id TEXT,
-    metadata TEXT,
-    ip TEXT,
-    user_agent TEXT,
-    created_at TEXT
-  )`);
-  sqlRun('CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON audit_log(created_at DESC)');
-});
-migrateAddColumn('verification_requests', 'proof_path', 'ALTER TABLE verification_requests ADD COLUMN proof_path TEXT');
-migrateAddColumn('verification_requests', 'proof_image_record_id', 'ALTER TABLE verification_requests ADD COLUMN proof_image_record_id TEXT');
-
-runMigration('2026_02_sdal_alumni_hub_backfill', () => {
-  // Enforce everyone to go through the new verification queue
-  // If they have no valid graduation year/cohort, they get '0'.
-  sqlRun(
-    `UPDATE uyeler
-     SET verification_status = 'pending',
-         mezuniyetyili = CASE
-           WHEN LOWER(COALESCE(mezuniyetyili, '')) IN ('teacher', 'ogretmen') THEN 'teacher'
-           WHEN CAST(mezuniyetyili AS INTEGER) >= 1999 AND CAST(mezuniyetyili AS INTEGER) <= 2030 THEN mezuniyetyili
-           ELSE '0'
-         END
-     WHERE verification_status IS NULL OR verification_status = ''`
-  );
-});
-migrateAddColumn('posts', 'group_id', 'ALTER TABLE posts ADD COLUMN group_id INTEGER');
-migrateAddColumn('events', 'approved', 'ALTER TABLE events ADD COLUMN approved INTEGER DEFAULT 1');
-migrateAddColumn('events', 'created_by', 'ALTER TABLE events ADD COLUMN created_by INTEGER');
-migrateAddColumn('events', 'approved_by', 'ALTER TABLE events ADD COLUMN approved_by INTEGER');
-migrateAddColumn('events', 'approved_at', 'ALTER TABLE events ADD COLUMN approved_at TEXT');
-migrateAddColumn('events', 'image', 'ALTER TABLE events ADD COLUMN image TEXT');
-migrateAddColumn('events', 'show_response_counts', 'ALTER TABLE events ADD COLUMN show_response_counts INTEGER DEFAULT 1');
-migrateAddColumn('events', 'show_attendee_names', 'ALTER TABLE events ADD COLUMN show_attendee_names INTEGER DEFAULT 0');
-migrateAddColumn('events', 'show_decliner_names', 'ALTER TABLE events ADD COLUMN show_decliner_names INTEGER DEFAULT 0');
-migrateAddColumn('announcements', 'approved', 'ALTER TABLE announcements ADD COLUMN approved INTEGER DEFAULT 1');
-migrateAddColumn('announcements', 'created_by', 'ALTER TABLE announcements ADD COLUMN created_by INTEGER');
-migrateAddColumn('announcements', 'approved_by', 'ALTER TABLE announcements ADD COLUMN approved_by INTEGER');
-migrateAddColumn('announcements', 'approved_at', 'ALTER TABLE announcements ADD COLUMN approved_at TEXT');
-migrateAddColumn('announcements', 'image', 'ALTER TABLE announcements ADD COLUMN image TEXT');
-
-sqlRun(`CREATE TABLE IF NOT EXISTS event_comments (
-  id INTEGER PRIMARY KEY,
-  event_id INTEGER,
-  user_id INTEGER,
-  comment TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS event_responses (
-  id INTEGER PRIMARY KEY,
-  event_id INTEGER,
-  user_id INTEGER,
-  response TEXT,
-  created_at TEXT,
-  updated_at TEXT
-)`);
-
-sqlRun(`CREATE TABLE IF NOT EXISTS stories (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  image TEXT,
-  caption TEXT,
-  created_at TEXT,
-  expires_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS story_views (
-  id INTEGER PRIMARY KEY,
-  story_id INTEGER,
-  user_id INTEGER,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS groups (
-  id INTEGER PRIMARY KEY,
-  name TEXT,
-  description TEXT,
-  cover_image TEXT,
-  owner_id INTEGER,
-  created_at TEXT
-)`);
-migrateAddColumn('groups', 'visibility', "ALTER TABLE groups ADD COLUMN visibility TEXT DEFAULT 'public'");
-migrateAddColumn('groups', 'show_contact_hint', 'ALTER TABLE groups ADD COLUMN show_contact_hint INTEGER DEFAULT 0');
-sqlRun(`CREATE TABLE IF NOT EXISTS group_members (
-  id INTEGER PRIMARY KEY,
-  group_id INTEGER,
-  user_id INTEGER,
-  role TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS group_join_requests (
-  id INTEGER PRIMARY KEY,
-  group_id INTEGER,
-  user_id INTEGER,
-  status TEXT,
-  created_at TEXT,
-  reviewed_at TEXT,
-  reviewed_by INTEGER
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS group_invites (
-  id INTEGER PRIMARY KEY,
-  group_id INTEGER,
-  invited_user_id INTEGER,
-  invited_by INTEGER,
-  status TEXT,
-  created_at TEXT,
-  responded_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS group_events (
-  id INTEGER PRIMARY KEY,
-  group_id INTEGER,
-  title TEXT,
-  description TEXT,
-  location TEXT,
-  starts_at TEXT,
-  ends_at TEXT,
-  created_at TEXT,
-  created_by INTEGER
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS group_announcements (
-  id INTEGER PRIMARY KEY,
-  group_id INTEGER,
-  title TEXT,
-  body TEXT,
-  created_at TEXT,
-  created_by INTEGER
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS filtre (
-  id INTEGER PRIMARY KEY,
-  kufur TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS chat_messages (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  message TEXT,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS verification_requests (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  status TEXT,
-  proof_path TEXT,
-  proof_image_record_id TEXT,
-  created_at TEXT,
-  reviewed_at TEXT,
-  reviewer_id INTEGER
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS request_categories (
-  id INTEGER PRIMARY KEY,
-  category_key TEXT UNIQUE,
-  label TEXT,
-  description TEXT,
-  active INTEGER DEFAULT 1,
-  created_at TEXT,
-  updated_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS member_requests (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  category_key TEXT,
-  payload_json TEXT,
-  status TEXT,
-  created_at TEXT,
-  reviewed_at TEXT,
-  reviewer_id INTEGER,
-  resolution_note TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS email_change_requests (
-  id INTEGER PRIMARY KEY,
-  user_id INTEGER,
-  current_email TEXT,
-  new_email TEXT,
-  token TEXT,
-  status TEXT,
-  created_at TEXT,
-  expires_at TEXT,
-  verified_at TEXT,
-  ip TEXT,
-  user_agent TEXT
-)`);
-
-const defaultRequestCategories = [
+const DEFAULT_SUPPORT_REQUEST_CATEGORIES = [
   ['graduation_year_change', 'Mezuniyet Yılı Değişikliği', 'Doğrulanmış üyelerin mezuniyet yılı değişiklik talepleri.'],
   ['profile_data_correction', 'Profil Veri Düzeltme', 'Kişisel profil bilgilerinde manuel düzenleme talepleri.'],
   ['account_status_review', 'Hesap Durumu İncelemesi', 'Hesap erişimi/yetki/ban inceleme talepleri.'],
@@ -1378,141 +761,6 @@ const defaultRequestCategories = [
   ['group_management_support', 'Grup Yönetim Desteği', 'Grup moderasyonu veya sahiplik desteği talepleri.'],
   ['feature_access_request', 'Özellik Erişim Talebi', 'Yeni veya kısıtlı özelliklere erişim talepleri.']
 ];
-for (const [categoryKey, label, description] of defaultRequestCategories) {
-  sqlRun(
-    `INSERT INTO request_categories (category_key, label, description, active, created_at, updated_at)
-     VALUES (?, ?, ?, 1, ?, ?)
-     ON CONFLICT(category_key) DO UPDATE SET
-       label = excluded.label,
-       description = excluded.description,
-       updated_at = excluded.updated_at`,
-    [categoryKey, label, description, new Date().toISOString(), new Date().toISOString()]
-  );
-}
-sqlRun(`CREATE TABLE IF NOT EXISTS game_scores (
-  id INTEGER PRIMARY KEY,
-  game_key TEXT,
-  name TEXT,
-  score INTEGER,
-  created_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS member_engagement_scores (
-  user_id INTEGER PRIMARY KEY,
-  ab_variant TEXT DEFAULT 'A',
-  score REAL DEFAULT 0,
-  raw_score REAL DEFAULT 0,
-  creator_score REAL DEFAULT 0,
-  engagement_received_score REAL DEFAULT 0,
-  community_score REAL DEFAULT 0,
-  network_score REAL DEFAULT 0,
-  quality_score REAL DEFAULT 0,
-  penalty_score REAL DEFAULT 0,
-  posts_30d INTEGER DEFAULT 0,
-  posts_7d INTEGER DEFAULT 0,
-  likes_received_30d INTEGER DEFAULT 0,
-  comments_received_30d INTEGER DEFAULT 0,
-  likes_given_30d INTEGER DEFAULT 0,
-  comments_given_30d INTEGER DEFAULT 0,
-  followers_count INTEGER DEFAULT 0,
-  following_count INTEGER DEFAULT 0,
-  follows_gained_30d INTEGER DEFAULT 0,
-  follows_given_30d INTEGER DEFAULT 0,
-  stories_30d INTEGER DEFAULT 0,
-  story_views_received_30d INTEGER DEFAULT 0,
-  chat_messages_30d INTEGER DEFAULT 0,
-  last_activity_at TEXT,
-  updated_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS engagement_ab_config (
-  variant TEXT PRIMARY KEY,
-  name TEXT,
-  description TEXT,
-  traffic_pct INTEGER DEFAULT 50,
-  enabled INTEGER DEFAULT 1,
-  params_json TEXT,
-  updated_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS engagement_ab_assignments (
-  user_id INTEGER PRIMARY KEY,
-  variant TEXT,
-  assigned_at TEXT,
-  updated_at TEXT
-)`);
-sqlRun('CREATE INDEX IF NOT EXISTS idx_posts_user_created ON posts (user_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_post_likes_post_created ON post_likes (post_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_post_likes_user_created ON post_likes (user_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_post_comments_post_created ON post_comments (post_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_post_comments_user_created ON post_comments (user_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_follows_following_created ON follows (following_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows (follower_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_event_responses_event_user ON event_responses (event_id, user_id)');
-sqlRun('CREATE UNIQUE INDEX IF NOT EXISTS idx_event_responses_unique_event_user ON event_responses (event_id, user_id)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_stories_user_created ON stories (user_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_story_views_story_created ON story_views (story_id, created_at)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_score ON member_engagement_scores (score DESC)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_updated ON member_engagement_scores (updated_at DESC)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_member_engagement_variant ON member_engagement_scores (ab_variant, score DESC)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_engagement_ab_assignments_variant ON engagement_ab_assignments (variant)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_admin_filter ON uyeler (role, admin, aktiv, yasak, online)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_recent ON uyeler (sontarih DESC, sonislemtarih DESC, id DESC)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_kadi ON uyeler (kadi)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_name ON uyeler (isim, soyisim)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_uyeler_email ON uyeler (email)');
-migrateAddColumn('member_engagement_scores', 'ab_variant', "ALTER TABLE member_engagement_scores ADD COLUMN ab_variant TEXT DEFAULT 'A'");
-normalizePostgresIdColumns();
-migrateLegacyUserIdColumns();
-
-runMigration('2026_03_backfill_roles', () => {
-  sqlRun("UPDATE uyeler SET role = CASE WHEN COALESCE(CAST(admin AS INTEGER),0)=1 THEN 'admin' ELSE 'user' END WHERE role IS NULL OR role = ''");
-  sqlRun("UPDATE uyeler SET admin = CASE WHEN LOWER(COALESCE(role, 'user')) IN ('admin', 'root') THEN 1 ELSE 0 END WHERE COALESCE(CAST(admin AS INTEGER),0) != CASE WHEN LOWER(COALESCE(role, 'user')) IN ('admin', 'root') THEN 1 ELSE 0 END");
-});
-
-async function ensureRootBootstrapAccount() {
-  const existingRoot = sqlGet("SELECT id FROM uyeler WHERE lower(role) = 'root' LIMIT 1");
-  if (existingRoot) return;
-  const rootPassword = String(process.env.ROOT_BOOTSTRAP_PASSWORD || '').trim();
-  if (!rootPassword) {
-    console.warn('ROOT_BOOTSTRAP_PASSWORD missing; root bootstrap skipped.');
-    return;
-  }
-  const now = new Date().toISOString();
-  const hashed = await hashPassword(rootPassword);
-  const result = sqlRun(`INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, '', '0', 1, 'root', 1, 1, 'approved')`,
-    ['root', hashed, 'root@localhost', 'System', 'Root', 'root-bootstrap', now]);
-  const rootId = result?.lastInsertRowid || sqlGet("SELECT id FROM uyeler WHERE kadi = 'root'")?.id;
-  if (rootId) {
-    sqlRun("UPDATE uyeler SET role = 'root', admin = 1 WHERE id = ?", [rootId]);
-    sqlRun('INSERT INTO audit_log (actor_user_id, action, target_type, target_id, metadata, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [rootId, 'root_bootstrap', 'user', String(rootId), JSON.stringify({ bootstrap: true }), null, 'system', now]);
-  }
-}
-ensurePostgresIdSequences();
-
-// --- Image pipeline migrations ---
-sqlRun(`CREATE TABLE IF NOT EXISTS media_settings (
-  id INTEGER PRIMARY KEY,
-  storage_provider TEXT DEFAULT 'local',
-  local_base_path TEXT DEFAULT '/var/www/sdal/uploads',
-  thumb_width INTEGER DEFAULT 200,
-  feed_width INTEGER DEFAULT 800,
-  full_width INTEGER DEFAULT 1600,
-  webp_quality INTEGER DEFAULT 80,
-  max_upload_bytes INTEGER DEFAULT 10485760,
-  avif_enabled INTEGER DEFAULT 0,
-  updated_at TEXT
-)`);
-
-sqlRun(`CREATE TABLE IF NOT EXISTS site_controls (
-  id INTEGER PRIMARY KEY,
-  site_open INTEGER DEFAULT 1,
-  maintenance_message TEXT,
-  updated_at TEXT
-)`);
-sqlRun(`CREATE TABLE IF NOT EXISTS module_controls (
-  module_key TEXT PRIMARY KEY,
-  is_open INTEGER DEFAULT 1,
-  updated_at TEXT
-)`);
 
 const MODULE_DEFINITIONS = [
   { key: 'feed', label: 'Akış' },
@@ -1572,57 +820,111 @@ const MODERATION_PERMISSION_DEFINITIONS = MODERATION_RESOURCE_DEFINITIONS.flatMa
 );
 const MODERATION_PERMISSION_KEY_SET = new Set(MODERATION_PERMISSION_DEFINITIONS.map((item) => item.key));
 
-runMigration('2026_03_site_controls_default_row', () => {
-  const existing = sqlGet('SELECT id FROM site_controls WHERE id = 1');
-  if (!existing) {
-    sqlRun('INSERT INTO site_controls (id, site_open, maintenance_message, updated_at) VALUES (1, 1, ?, ?)', [
-      'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.',
-      new Date().toISOString()
-    ]);
-  }
-});
-
-runMigration('2026_03_module_controls_default_rows', () => {
+function ensureRuntimeDefaults() {
   const now = new Date().toISOString();
-  for (const def of MODULE_DEFINITIONS) {
+  if (dbDriver === 'postgres') {
     sqlRun(
-      `INSERT INTO module_controls (module_key, is_open, updated_at)
-       VALUES (?, 1, ?)
-       ON CONFLICT(module_key) DO UPDATE SET updated_at = excluded.updated_at`,
-      [def.key, now]
+      `INSERT INTO site_settings (id, site_open, maintenance_message, updated_at)
+       VALUES (1, TRUE, ?, ?)
+       ON CONFLICT (id) DO NOTHING`,
+      ['Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.', now]
     );
-  }
-});
-// Ensure a default row exists
-runMigration('2026_02_media_settings_default_row', () => {
-  const existing = sqlGet('SELECT id FROM media_settings WHERE id = 1');
-  if (!existing) {
+    for (const def of MODULE_DEFINITIONS) {
+      sqlRun(
+        `INSERT INTO module_settings (module_key, is_open, updated_at)
+         VALUES (?, TRUE, ?)
+         ON CONFLICT (module_key) DO UPDATE SET updated_at = excluded.updated_at`,
+        [def.key, now]
+      );
+    }
     sqlRun(
-      `INSERT INTO media_settings (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
-       VALUES (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, ?)`,
-      [uploadsDir, new Date().toISOString()]
+      `INSERT INTO media_settings
+        (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
+       VALUES
+        (1, 'local', ?, 200, 800, 1600, 80, 10485760, FALSE, ?)
+       ON CONFLICT (id) DO NOTHING`,
+      [uploadsDir, now]
     );
+    for (const [categoryKey, label, description] of DEFAULT_SUPPORT_REQUEST_CATEGORIES) {
+      sqlRun(
+        `INSERT INTO support_request_categories (category_key, label, description, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, TRUE, ?, ?)
+         ON CONFLICT (category_key) DO UPDATE SET
+           label = excluded.label,
+           description = excluded.description,
+           updated_at = excluded.updated_at`,
+        [categoryKey, label, description, now, now]
+      );
+    }
+    return;
   }
-});
 
-sqlRun(`CREATE TABLE IF NOT EXISTS image_records (
-  id TEXT PRIMARY KEY,
-  user_id INTEGER,
-  entity_type TEXT,
-  entity_id INTEGER,
-  provider TEXT DEFAULT 'local',
-  thumb_path TEXT,
-  feed_path TEXT,
-  full_path TEXT,
-  width INTEGER,
-  height INTEGER,
-  created_at TEXT
-)`);
-sqlRun('CREATE INDEX IF NOT EXISTS idx_image_records_entity ON image_records (entity_type, entity_id)');
-sqlRun('CREATE INDEX IF NOT EXISTS idx_image_records_user ON image_records (user_id)');
+  if (hasTable('request_categories')) {
+    for (const [categoryKey, label, description] of DEFAULT_SUPPORT_REQUEST_CATEGORIES) {
+      sqlRun(
+        `INSERT INTO request_categories (category_key, label, description, active, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?)
+         ON CONFLICT(category_key) DO UPDATE SET
+           label = excluded.label,
+           description = excluded.description,
+           updated_at = excluded.updated_at`,
+        [categoryKey, label, description, now, now]
+      );
+    }
+  }
+}
 
-migrateAddColumn('posts', 'image_record_id', 'ALTER TABLE posts ADD COLUMN image_record_id TEXT');
-migrateAddColumn('stories', 'image_record_id', 'ALTER TABLE stories ADD COLUMN image_record_id TEXT');
+async function ensureRootBootstrapAccount() {
+  const rootPassword = String(process.env.ROOT_BOOTSTRAP_PASSWORD || '').trim();
+  if (!rootPassword) {
+    console.warn('ROOT_BOOTSTRAP_PASSWORD missing; root bootstrap skipped.');
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const hashed = await hashPassword(rootPassword);
+
+  if (dbDriver === 'postgres') {
+    const existingRoot = sqlGet("SELECT id FROM users WHERE lower(role) = 'root' LIMIT 1");
+    if (existingRoot) return;
+    const result = sqlRun(
+      `INSERT INTO users
+        (username, password_hash, email, first_name, last_name, activation_token, is_active, created_at, avatar_path, graduation_year, is_profile_initialized, role, legacy_admin_flag, is_verified, verification_status, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, '', 0, TRUE, 'root', TRUE, TRUE, 'approved', ?)`,
+      ['root', hashed, 'root@localhost', 'System', 'Root', 'root-bootstrap', now, now]
+    );
+    const rootId = result?.lastInsertRowid || sqlGet("SELECT id FROM users WHERE username = 'root'")?.id;
+    if (rootId) {
+      sqlRun(
+        "UPDATE users SET role = 'root', legacy_admin_flag = TRUE, is_verified = TRUE, verification_status = 'approved', updated_at = ? WHERE id = ?",
+        [now, rootId]
+      );
+      sqlRun(
+        'INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, metadata, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [rootId, 'root_bootstrap', 'user', String(rootId), JSON.stringify({ bootstrap: true }), null, 'system', now]
+      );
+    }
+    return;
+  }
+
+  const existingRoot = sqlGet("SELECT id FROM uyeler WHERE lower(role) = 'root' LIMIT 1");
+  if (existingRoot) return;
+  const result = sqlRun(
+    `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, '', '0', 1, 'root', 1, 1, 'approved')`,
+    ['root', hashed, 'root@localhost', 'System', 'Root', 'root-bootstrap', now]
+  );
+  const rootId = result?.lastInsertRowid || sqlGet("SELECT id FROM uyeler WHERE kadi = 'root'")?.id;
+  if (rootId) {
+    sqlRun("UPDATE uyeler SET role = 'root', admin = 1 WHERE id = ?", [rootId]);
+    if (hasTable('audit_log')) {
+      sqlRun(
+        'INSERT INTO audit_log (actor_user_id, action, target_type, target_id, metadata, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [rootId, 'root_bootstrap', 'user', String(rootId), JSON.stringify({ bootstrap: true }), null, 'system', now]
+      );
+    }
+  }
+}
 
 // --- Upload rate limiter (in-memory, per-IP) ---
 const uploadRateLimits = new Map();
@@ -10006,24 +9308,35 @@ setTimeout(() => recalculateMemberEngagementScores('startup'), 2500);
 setInterval(() => recalculateMemberEngagementScores('interval_10m'), 10 * 60 * 1000);
 
 async function onServerStarted() {
+  ensureRuntimeDefaults();
   await ensureRootBootstrapAccount();
-  const uyelerExists = !!sqlGet(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'uyeler'"
-  );
-  const tableCount = sqlGet(
-    "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-  )?.cnt || 0;
+  const usersTableName = dbDriver === 'postgres' ? 'users' : 'uyeler';
+  const usersExists = dbDriver === 'postgres'
+    ? !!sqlGet(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users' LIMIT 1"
+    )
+    : !!sqlGet(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'uyeler'"
+    );
+  const tableCount = dbDriver === 'postgres'
+    ? (sqlGet(
+      "SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = 'public'"
+    )?.cnt || 0)
+    : (sqlGet(
+      "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+    )?.cnt || 0);
   console.log(`SDAL server running on http://localhost:${port}`);
   console.log(`[startup] dbPath=${dbPath}`);
   console.log(`[startup] cwd=${process.cwd()} node_env=${process.env.NODE_ENV || 'development'}`);
-  console.log(`[startup] tables=${tableCount} uyeler_exists=${uyelerExists ? 'yes' : 'no'}`);
+  console.log(`[startup] tables=${tableCount} ${usersTableName}_exists=${usersExists ? 'yes' : 'no'}`);
   writeLegacyLog('page', 'server_started', { port, node: process.version });
   writeAppLog('info', 'server_started', {
     port,
     node: process.version,
     dbPath,
     tableCount,
-    uyelerExists
+    usersTableName,
+    usersExists
   });
 }
 

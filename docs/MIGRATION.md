@@ -155,6 +155,8 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" "backups/postgres-precutover-$
 
 - `server/migrations/001_modern_schema.up.sql`
 - `server/migrations/001_modern_schema.down.sql`
+- `server/migrations/002_runtime_defaults_seed.up.sql`
+- `server/migrations/002_runtime_defaults_seed.down.sql`
 
 ## One-Time Data Migration Tool
 
@@ -166,3 +168,4 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" "backups/postgres-precutover-$
 - The migrator preserves legacy numeric IDs where possible to keep relationship mapping deterministic.
 - `conversation_members` is synthesized from legacy `sdal_messenger_threads` participants.
 - Sequence synchronization is performed after import for identity-backed tables.
+- Runtime schema/table creation logic was removed from `server/app.js` in Phase 4; schema lifecycle is migration-first.

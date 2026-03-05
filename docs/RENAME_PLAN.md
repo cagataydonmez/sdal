@@ -22,6 +22,7 @@ This plan defines the one-time naming migration from legacy naming to modern con
 3. Refactor runtime code to only use modern schema names.
 4. Keep legacy response fields only at API adapter boundary until client migration is complete.
 5. Remove legacy runtime table creation and legacy naming helpers from application startup.
+6. Keep temporary SQLite runtime compatibility paths only for local regression tests while Postgres runtime is migration-first.
 
 ## Table Mapping
 
@@ -216,4 +217,3 @@ Internal domain objects will use modern names. API adapters preserve current wir
 3. Run one-time data migration with explicit field mapping.
 4. Switch runtime DB access to modern schema.
 5. Remove legacy-name runtime code paths and boot-time DDL.
-

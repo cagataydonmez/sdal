@@ -216,3 +216,16 @@ flowchart LR
   - report output to `migration_report.json`.
 - Added migration operational runbook:
   - `docs/MIGRATION.md` with backup, execute, validate, cutover, and rollback steps.
+
+## Phase 4 Progress (Implemented)
+
+- Removed legacy runtime schema mutation block from `server/app.js`:
+  - dropped startup `CREATE TABLE` / `ALTER TABLE` / ad-hoc migration execution from runtime.
+- Converted startup bootstrap to migration-first flow:
+  - runtime now relies on numbered SQL migrations for schema shape.
+  - startup keeps only idempotent default data seeding and root-account bootstrap.
+- Modernized startup checks/logging:
+  - PostgreSQL startup checks now validate `users` table presence (legacy SQLite path remains `uyeler` for compatibility tests).
+- Added migration for operational defaults:
+  - `server/migrations/002_runtime_defaults_seed.up.sql`
+  - `server/migrations/002_runtime_defaults_seed.down.sql`
