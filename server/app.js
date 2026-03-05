@@ -5201,7 +5201,7 @@ app.post('/api/password-reset', async (req, res) => {
 });
 
 app.post('/api/mail/test', async (req, res) => {
-  const fallback = process.env.SMTP_FROM || process.env.SMTP_USER || '';
+  const fallback = process.env.MAIL_FROM || process.env.SMTP_FROM || process.env.MAIL_SMTP_USER || process.env.SMTP_USER || '';
   const candidates = extractEmails(req.body?.to || fallback);
   if (!candidates.length) return res.status(400).send('Test e-mail adresi eksik.');
   const invalid = candidates.find((value) => !validateEmail(value));
@@ -5213,11 +5213,52 @@ app.post('/api/mail/test', async (req, res) => {
       subject: 'SDAL SMTP Test',
       html: 'Bu bir SMTP test e-postasıdır.'
     }, { maxAttempts: 2, backoffMs: 1000 });
-    res.json({ ok: true, to, provider: mailProviderStatus.provider, mock: !mailProviderStatus.configured });
+    const runtimeMailStatus = typeof mailSender.getStatus === 'function' ? mailSender.getStatus() : mailProviderStatus;
+    res.json({
+      ok: true,
+      to,
+      provider: runtimeMailStatus?.provider || mailProviderStatus.provider,
+      mock: !runtimeMailStatus?.configured,
+      configured: !!runtimeMailStatus?.configured
+    });
   } catch (err) {
     console.error('SMTP test error:', err);
     res.status(500).send('SMTP test başarısız.');
   }
+});
+
+app.post('/api/mail/webhooks/brevo', (req, res) => {
+  const expectedToken = String(process.env.MAIL_WEBHOOK_SHARED_SECRET || '').trim();
+  const presentedToken = String(req.get('x-sdal-webhook-token') || req.get('x-mailin-custom') || '').trim();
+  if (expectedToken && presentedToken !== expectedToken) {
+    writeAppLog('warn', 'mail_webhook_rejected', {
+      provider: 'brevo',
+      reason: 'invalid_shared_secret',
+      ip: req.ip || ''
+    });
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+
+  const payload = req.body;
+  const events = Array.isArray(payload) ? payload : (payload ? [payload] : []);
+
+  for (const item of events) {
+    if (!item || typeof item !== 'object') continue;
+    const eventType = String(item.event || item.type || 'unknown');
+    const email = String(item.email || item.recipient || '');
+    const messageId = String(item['message-id'] || item.messageId || item.id || '');
+    const reason = String(item.reason || item.response || '');
+    const level = ['hard_bounce', 'soft_bounce', 'blocked', 'spam'].includes(eventType) ? 'warn' : 'info';
+    writeAppLog(level, 'mail_webhook_event', {
+      provider: 'brevo',
+      eventType,
+      email,
+      messageId,
+      reason
+    });
+  }
+
+  res.json({ ok: true, received: events.length });
 });
 
 app.get('/kvkk', (_req, res) => {
