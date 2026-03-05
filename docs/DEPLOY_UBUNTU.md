@@ -7,6 +7,40 @@ This runbook is copy/paste oriented and aligned to the current repository:
 
 ## 0) Variables (set once per shell)
 
+## 0.1 How to find each variable on a DigitalOcean droplet
+
+Use this section before running exports.
+
+| Variable | How to decide/find it | Command examples |
+|---|---|---|
+| `APP_DOMAIN` | Your primary production domain pointing to the droplet IP (set in DNS provider panel). | `dig +short A YOUR_DOMAIN` and compare with `curl -s ifconfig.me` |
+| `APP_DOMAIN_WWW` | Usually `www.YOUR_DOMAIN`. If you do not use `www`, set same value as `APP_DOMAIN`. | `dig +short A www.YOUR_DOMAIN` |
+| `APP_REPO_SSH` | SSH clone URL of your GitHub repository. | On laptop/repo: `git remote get-url origin` (should be `git@github.com:ORG/REPO.git`) |
+| `APP_DIR` | Deploy directory on server. Keep default unless you have a different standard. | Recommended: `/var/www/sdal` |
+| `APP_USER` | Linux user that owns app files and runs systemd services. | Recommended: `deploy` (created in Section A.2) |
+| `APP_GROUP` | Primary group for `APP_USER` (usually same as username). | `id -gn deploy` |
+| `APP_PORT` | Internal Node port behind Nginx reverse proxy. | Keep `8787` (matches app defaults) |
+| `SDAL_ENV_FILE` | Environment file path loaded by systemd units. | Keep `/etc/sdal/sdal.env` |
+
+If this droplet already hosts an older SDAL deploy, you can discover current values:
+
+```bash
+sudo nginx -T 2>/dev/null | grep -E "server_name"
+sudo certbot certificates || true
+sudo systemctl cat sdal-api.service 2>/dev/null || true
+sudo ls -la /etc/sdal 2>/dev/null || true
+```
+
+If DNS is not ready yet, use the droplet public IP for temporary checks:
+
+```bash
+curl -s ifconfig.me
+```
+
+Then point `A` records in your DNS provider:
+- `@ -> <droplet_public_ip>`
+- `www -> <droplet_public_ip>` (if using `www`)
+
 ```bash
 export APP_DOMAIN="example.com"
 export APP_DOMAIN_WWW="www.example.com"
@@ -16,6 +50,20 @@ export APP_USER="deploy"
 export APP_GROUP="deploy"
 export APP_PORT="8787"
 export SDAL_ENV_FILE="/etc/sdal/sdal.env"
+```
+
+Quick sanity check:
+
+```bash
+printf '%s\n' \
+  "APP_DOMAIN=$APP_DOMAIN" \
+  "APP_DOMAIN_WWW=$APP_DOMAIN_WWW" \
+  "APP_REPO_SSH=$APP_REPO_SSH" \
+  "APP_DIR=$APP_DIR" \
+  "APP_USER=$APP_USER" \
+  "APP_GROUP=$APP_GROUP" \
+  "APP_PORT=$APP_PORT" \
+  "SDAL_ENV_FILE=$SDAL_ENV_FILE"
 ```
 
 ## A) Base hardening
