@@ -45,6 +45,21 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
       .filter(Boolean);
   }
 
+  function parseSender(fromValue, fallback) {
+    const raw = String(fromValue || fallback || '').trim();
+    if (!raw) {
+      return { email: '', name: '' };
+    }
+    const angle = raw.match(/^\s*"?([^"<]*)"?\s*<([^>]+)>\s*$/);
+    if (angle) {
+      return {
+        name: String(angle[1] || '').trim(),
+        email: String(angle[2] || '').trim()
+      };
+    }
+    return { email: raw, name: '' };
+  }
+
   function createMailError(message, {
     code = 'MAIL_SEND_FAILED',
     retryable = true,
@@ -77,6 +92,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
   function resolveMailProviderStatus() {
     const providerPref = String(process.env.MAIL_PROVIDER || 'auto').trim().toLowerCase();
     const hasResend = Boolean(process.env.RESEND_API_KEY);
+    const hasBrevoApi = Boolean(process.env.BREVO_API_KEY || process.env.MAIL_BREVO_API_KEY);
     const smtpHost = String(process.env.MAIL_SMTP_HOST || process.env.SMTP_HOST || '').trim();
     const hasSmtpHost = Boolean(smtpHost);
     const explicitMock = String(process.env.MAIL_ALLOW_MOCK || '').toLowerCase() === 'true';
@@ -88,6 +104,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     const providerFromPreference = (() => {
       if (providerPref === 'mock') return 'mock';
       if (providerPref === 'resend') return 'resend';
+      if (providerPref === 'brevo_api' || providerPref === 'brevo-api' || providerPref === 'brevoapi') return 'brevo_api';
       if (providerPref === 'smtp' || providerPref === 'brevo') return 'smtp';
       if (providerPref === 'none') return 'none';
       return null;
@@ -96,6 +113,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     const selectedProvider = (() => {
       if (providerFromPreference) return providerFromPreference;
       if (hasResend) return 'resend';
+      if (hasBrevoApi) return 'brevo_api';
       if (smtpConfigured) return 'smtp';
       return mockAllowed ? 'mock' : 'none';
     })();
@@ -103,6 +121,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     const configured = (() => {
       if (selectedProvider === 'mock') return true;
       if (selectedProvider === 'resend') return hasResend;
+      if (selectedProvider === 'brevo_api') return hasBrevoApi;
       if (selectedProvider === 'smtp') return smtpConfigured;
       return false;
     })();
@@ -230,12 +249,62 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     };
   }
 
+  async function sendWithBrevoApi({ to, subject, html, from }, providerStatus) {
+    const senderRaw = from || providerStatus.sender;
+    const sender = parseSender(senderRaw, providerStatus.sender);
+    const recipients = parseRecipients(to);
+    const apiKey = String(process.env.BREVO_API_KEY || process.env.MAIL_BREVO_API_KEY || '').trim();
+    if (!apiKey) {
+      throw createMailError('Brevo API key missing', { code: 'MAIL_CONFIG_MISSING', retryable: false });
+    }
+    if (!sender.email) {
+      throw createMailError('Mail sender missing', { code: 'MAIL_CONFIG_MISSING', retryable: false });
+    }
+    if (!recipients.length) {
+      throw createMailError('Mail recipients missing', { code: 'MAIL_RECIPIENT_MISSING', retryable: false });
+    }
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        Accept: 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: sender.name ? { name: sender.name, email: sender.email } : { email: sender.email },
+        to: recipients.map((email) => ({ email })),
+        subject: String(subject || ''),
+        htmlContent: String(html || '')
+      })
+    });
+
+    const responseText = await response.text().catch(() => '');
+    if (!response.ok) {
+      throw createMailError('Brevo API send failed', {
+        code: 'MAIL_BREVO_API_HTTP',
+        retryable: response.status >= 500 || response.status === 429,
+        statusCode: response.status,
+        cause: responseText
+      });
+    }
+
+    return {
+      provider: 'brevo_api',
+      acceptedCount: recipients.length,
+      response: responseText
+    };
+  }
+
   async function sendMail({ to, subject, html, from }) {
     const runtimeStatus = resolveMailProviderStatus();
     const sender = from || runtimeStatus.sender;
 
     if (runtimeStatus.provider === 'resend') {
       return sendWithResend({ to, subject, html, from: sender }, runtimeStatus);
+    }
+    if (runtimeStatus.provider === 'brevo_api') {
+      return sendWithBrevoApi({ to, subject, html, from: sender }, runtimeStatus);
     }
     if (runtimeStatus.provider === 'smtp') {
       return sendWithSmtp({ to, subject, html, from: sender }, runtimeStatus);
