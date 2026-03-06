@@ -94,12 +94,11 @@ MAIL_SEND_MAX_RETRIES=2
 MAIL_SEND_RETRY_BACKOFF_MS=1200
 ```
 
-Restart services:
+Restart processes (PM2 on this server):
 
 ```bash
-sudo systemctl restart sdal-api.service sdal-worker.service
-sudo systemctl status sdal-api.service --no-pager
-sudo systemctl status sdal-worker.service --no-pager
+pm2 restart sdal
+pm2 status
 ```
 
 ## 1.4 Configure webhook (bounce/complaint basics)
@@ -128,10 +127,10 @@ Add custom request header:
 x-sdal-webhook-token: <RANDOM_HEX>
 ```
 
-Restart API:
+Restart API process:
 
 ```bash
-sudo systemctl restart sdal-api.service
+pm2 restart sdal
 ```
 
 Manual webhook test:
@@ -166,14 +165,13 @@ npm run test:phase9-email
 3. Inspect logs for mail send attempts/retries:
 
 ```bash
-sudo journalctl -u sdal-api.service -n 200 --no-pager | grep -i "\[mail\]"
-sudo journalctl -u sdal-worker.service -n 200 --no-pager | grep -i "\[mail\]"
+pm2 logs sdal --lines 200 --nostream | grep -i "\[mail\]"
 ```
 
 4. Confirm webhook events arriving:
 
 ```bash
-sudo journalctl -u sdal-api.service -n 200 --no-pager | grep -i "mail_webhook_event"
+pm2 logs sdal --lines 200 --nostream | grep -i "mail_webhook_event"
 ```
 
 ## 2) Fallback option: self-hosted Postfix (warning)
@@ -331,7 +329,8 @@ MAIL_SEND_RETRY_BACKOFF_MS=1200
 Restart:
 
 ```bash
-sudo systemctl restart sdal-api.service sdal-worker.service postfix opendkim
+pm2 restart sdal
+sudo systemctl restart postfix opendkim
 ```
 
 ## 2.7 Test and troubleshoot
@@ -355,8 +354,11 @@ Logs:
 ```bash
 sudo journalctl -u postfix -n 200 --no-pager
 sudo journalctl -u opendkim -n 200 --no-pager
-sudo journalctl -u sdal-worker.service -n 200 --no-pager | grep -i "\[mail\]"
+pm2 logs sdal --lines 200 --nostream | grep -i "\[mail\]"
 ```
+
+> Note: If your deployment uses `systemd` units (`sdal-api.service` / `sdal-worker.service`) instead of PM2,
+> run the equivalent `systemctl` + `journalctl` commands for restart/status/log checks.
 
 ## 3) Bounce/complaint handling baseline
 

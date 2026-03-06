@@ -2787,8 +2787,18 @@ function getOAuthProviderConfig(provider, req) {
   const p = String(provider || '').toLowerCase();
   const commonBase = resolvePublicBaseUrl(req);
   if (p === 'google') {
-    const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
-    const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+    const clientId = String(
+      process.env.GOOGLE_OAUTH_CLIENT_ID
+      || process.env.GOOGLE_CLIENT_ID
+      || process.env.OAUTH_GOOGLE_CLIENT_ID
+      || ''
+    ).trim();
+    const clientSecret = String(
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET
+      || process.env.GOOGLE_CLIENT_SECRET
+      || process.env.OAUTH_GOOGLE_CLIENT_SECRET
+      || ''
+    ).trim();
     const redirectUri = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim() || `${commonBase}/api/auth/oauth/google/callback`;
     return {
       provider: 'google',
@@ -2804,8 +2814,20 @@ function getOAuthProviderConfig(provider, req) {
     };
   }
   if (p === 'x') {
-    const clientId = String(process.env.X_OAUTH_CLIENT_ID || '').trim();
-    const clientSecret = String(process.env.X_OAUTH_CLIENT_SECRET || '').trim();
+    const clientId = String(
+      process.env.X_OAUTH_CLIENT_ID
+      || process.env.TWITTER_OAUTH_CLIENT_ID
+      || process.env.TWITTER_CLIENT_ID
+      || process.env.OAUTH_X_CLIENT_ID
+      || ''
+    ).trim();
+    const clientSecret = String(
+      process.env.X_OAUTH_CLIENT_SECRET
+      || process.env.TWITTER_OAUTH_CLIENT_SECRET
+      || process.env.TWITTER_CLIENT_SECRET
+      || process.env.OAUTH_X_CLIENT_SECRET
+      || ''
+    ).trim();
     const redirectUri = String(process.env.X_OAUTH_REDIRECT_URI || '').trim() || `${commonBase}/api/auth/oauth/x/callback`;
     return {
       provider: 'x',
