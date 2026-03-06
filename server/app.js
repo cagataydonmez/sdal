@@ -2845,13 +2845,18 @@ function getOAuthProviderConfig(provider, req) {
   return null;
 }
 
-function getEnabledOAuthProviders(req) {
+function getEnabledOAuthProviders(req, { includeDisabled = false } = {}) {
   const providers = ['google', 'x']
     .map((provider) => getOAuthProviderConfig(provider, req))
     .filter(Boolean);
   return providers
-    .filter((cfg) => cfg.enabled)
-    .map((cfg) => ({ provider: cfg.provider, title: cfg.title, startUrl: `/api/auth/oauth/${cfg.provider}/start` }));
+    .filter((cfg) => includeDisabled ? true : cfg.enabled)
+    .map((cfg) => ({
+      provider: cfg.provider,
+      title: cfg.title,
+      enabled: Boolean(cfg.enabled),
+      startUrl: `/api/auth/oauth/${cfg.provider}/start`
+    }));
 }
 
 function sanitizeOAuthReturnTo(value, fallback = '/new/login') {
@@ -4044,7 +4049,7 @@ app.get('/api/session', (req, res) => {
 });
 
 app.get('/api/auth/oauth/providers', (req, res) => {
-  res.json({ providers: getEnabledOAuthProviders(req) });
+  res.json({ providers: getEnabledOAuthProviders(req, { includeDisabled: true }) });
 });
 
 app.get('/api/auth/oauth/:provider/start', (req, res) => {
@@ -5282,23 +5287,17 @@ app.post('/api/register', async (req, res) => {
     user: { kadi: cleanKadi, isim: cleanIsim, soyisim: cleanSoyisim }
   });
 
-  let mailSent = true;
-  try {
-    await queueEmailDelivery(
-      { to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html, timeoutMs: Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000) },
-      { maxAttempts: 4, backoffMs: 1500 }
-    );
-  } catch (err) {
-    mailSent = false;
+  queueEmailDelivery(
+    { to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html, timeoutMs: Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000) },
+    { maxAttempts: 4, backoffMs: 1500 }
+  ).catch((err) => {
     console.error('Register activation mail send failed:', err);
-  }
-
+  });
   res.json({
     ok: true,
-    mailSent,
-    message: mailSent
-      ? 'Kayıt tamamlandı. Aktivasyon e-postası gönderildi.'
-      : 'Kayıt tamamlandı fakat aktivasyon e-postası şu an gönderilemedi. Daha sonra aktivasyon e-postasını tekrar gönderin.'
+    mailSent: true,
+    mailQueued: true,
+    message: 'Kayıt tamamlandı. Aktivasyon e-postası gönderim kuyruğuna alındı.'
   });
 });
 

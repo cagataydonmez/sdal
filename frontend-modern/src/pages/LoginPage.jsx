@@ -6,10 +6,14 @@ import { useI18n } from '../utils/i18n.jsx';
 
 export default function LoginPage() {
   const { t } = useI18n();
+  const fallbackProviders = [
+    { provider: 'google', title: 'Google', enabled: true, startUrl: '/api/auth/oauth/google/start?returnTo=/new/login' },
+    { provider: 'x', title: 'X', enabled: true, startUrl: '/api/auth/oauth/x/start?returnTo=/new/login' }
+  ];
   const [kadi, setKadi] = useState('');
   const [sifre, setSifre] = useState('');
   const [error, setError] = useState('');
-  const [oauthProviders, setOauthProviders] = useState([]);
+  const [oauthProviders, setOauthProviders] = useState(fallbackProviders);
   const { refresh } = useAuth();
   const navigate = useNavigate();
 
@@ -28,9 +32,20 @@ export default function LoginPage() {
         if (!res.ok) return;
         const data = await res.json();
         if (!mounted) return;
-        setOauthProviders(Array.isArray(data?.providers) ? data.providers : []);
+        const remote = Array.isArray(data?.providers) ? data.providers : [];
+        if (!remote.length) {
+          setOauthProviders(fallbackProviders);
+          return;
+        }
+        const mapped = remote.map((item) => ({
+          provider: String(item?.provider || ''),
+          title: String(item?.title || ''),
+          enabled: item?.enabled !== false,
+          startUrl: String(item?.startUrl || `/api/auth/oauth/${item?.provider}/start?returnTo=/new/login`)
+        })).filter((item) => item.provider);
+        setOauthProviders(mapped.length ? mapped : fallbackProviders);
       } catch {
-        // no-op
+        if (mounted) setOauthProviders(fallbackProviders);
       }
     })();
     return () => {

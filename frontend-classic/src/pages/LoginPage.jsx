@@ -72,6 +72,11 @@ export default function LoginPage() {
                                 {error ? <div className="hatamsg1">{error}</div> : null}
                                 <br />
                                 <Link to="/sifre-hatirla" title="Şifremi Unuttum :(">Şifrenizi veya kullanıcı adınızı unuttuysanız buraya tıklayın.</Link>
+                                <br />
+                                <br />
+                                <a className="sub" href="/api/auth/oauth/google/start?returnTo=/">Google ile giriş</a>
+                                {' '}
+                                <a className="sub" href="/api/auth/oauth/x/start?returnTo=/">X ile giriş</a>
                               </td>
                             </tr>
                           </tbody>
