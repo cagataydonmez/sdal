@@ -199,6 +199,7 @@ sudo APP_DIR=/var/www/sdal \
 Script sunlari yapar:
 - sqlite/postgres/env backup
 - `sdal-api` + `sdal-worker` stop/start
+- varsayilan olarak Postgres `public` schema reset (temiz modern schema icin)
 - `migrate:up` + `migrate:data`
 - `migration_report.json` mismatch/FK gate
 - health gate (`ok=true`, `dbReady=true`, `dbDriver=postgres`)

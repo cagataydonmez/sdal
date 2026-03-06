@@ -47,11 +47,12 @@ Defaults:
 - `SQLITE_PATH=/var/lib/sdal/data/sdal.sqlite`
 - `REPORT_PATH=/var/www/sdal/migration_report.json`
 - `AUTO_ROLLBACK=1`
+- `RESET_POSTGRES_SCHEMA=1` (recommended for first SQLite -> Postgres cutover)
 
 The helper script performs:
 1. SQLite + PostgreSQL + env backups.
 2. service stop (`sdal-api`, `sdal-worker`) to freeze writes.
-3. `migrate:status`, `migrate:up`, and `migrate:data`.
+3. reset `public` schema (configurable), then `migrate:status`, `migrate:up`, and `migrate:data`.
 4. hard gate on `migration_report.json` (`mismatchCount=0`, `fkViolationCount=0`).
 5. runtime switch to `SDAL_DB_DRIVER=postgres`.
 6. `/api/health` validation requiring `ok=true`, `dbReady=true`, `dbDriver=postgres`.

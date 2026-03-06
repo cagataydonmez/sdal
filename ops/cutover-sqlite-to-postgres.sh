@@ -9,6 +9,9 @@ BACKUP_DIR="${BACKUP_DIR:-/var/lib/sdal/backups}"
 REPORT_PATH="${REPORT_PATH:-$APP_DIR/migration_report.json}"
 API_PORT="${API_PORT:-8787}"
 AUTO_ROLLBACK="${AUTO_ROLLBACK:-1}"
+# For one-time cutover, force a clean modern schema to avoid legacy column drift
+# (e.g. old posts.user_id vs modern posts.author_id).
+RESET_POSTGRES_SCHEMA="${RESET_POSTGRES_SCHEMA:-1}"
 
 if [[ ! -d "$APP_DIR/.git" ]]; then
   echo "[cutover] app repo not found at $APP_DIR"
@@ -166,6 +169,13 @@ fi
 
 echo "[cutover] stopping sdal services"
 stop_sdal_services
+
+if [[ "$RESET_POSTGRES_SCHEMA" == "1" ]]; then
+  echo "[cutover] resetting postgres public schema (backup already taken)"
+  if ! run_as_app_user "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'"; then
+    fail_with "failed to reset postgres public schema; disable with RESET_POSTGRES_SCHEMA=0 if you need non-destructive mode"
+  fi
+fi
 
 echo "[cutover] migrate status (before)"
 if ! run_as_app_user "cd '$APP_DIR' && set -a && source '$SDAL_ENV_FILE' && set +a && npm --prefix server run migrate:status"; then
