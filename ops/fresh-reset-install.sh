@@ -114,9 +114,12 @@ echo "=== Preparing directories ==="
 mkdir -p /var/www /etc/sdal /var/lib/sdal/data /var/lib/sdal/uploads /var/lib/sdal/backups /var/lib/sdal/legacy-logs
 chown -R "$APP_USER:$APP_GROUP" /var/www /var/lib/sdal
 
+echo "=== Stopping SDAL services (if running) ==="
+systemctl stop sdal-api.service sdal-worker.service 2>/dev/null || true
+
 echo "=== Cloning/updating repo ==="
 if [[ -d "$APP_DIR/.git" ]]; then
-  runuser -u "$APP_USER" -- bash -lc "cd '$APP_DIR' && git fetch origin '$BRANCH' && git checkout '$BRANCH' && git pull --ff-only origin '$BRANCH'"
+  runuser -u "$APP_USER" -- bash -lc "cd '$APP_DIR' && git fetch origin '$BRANCH' && git checkout '$BRANCH' && git reset --hard origin/'$BRANCH' && git clean -fd"
 else
   runuser -u "$APP_USER" -- git clone --branch "$BRANCH" "$APP_REPO_SSH" "$APP_DIR"
 fi
