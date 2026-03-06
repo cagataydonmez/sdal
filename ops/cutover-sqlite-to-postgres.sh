@@ -261,6 +261,14 @@ done
 if [[ "$health_ok" != "1" ]]; then
   echo "[cutover] health payload (last attempt): ${HEALTH_BODY:-<empty>}"
   if systemd_unit_exists "sdal-api.service"; then
+    echo "[cutover] sdal-api unit db env directives:"
+    run_with_priv systemctl cat sdal-api.service | grep -nE 'Environment(File)?=.*(SDAL_DB_DRIVER|DATABASE_URL|/etc/sdal/sdal.env)' || true
+  fi
+  if systemd_unit_exists "sdal-worker.service"; then
+    echo "[cutover] sdal-worker unit db env directives:"
+    run_with_priv systemctl cat sdal-worker.service | grep -nE 'Environment(File)?=.*(SDAL_DB_DRIVER|DATABASE_URL|/etc/sdal/sdal.env)' || true
+  fi
+  if systemd_unit_exists "sdal-api.service"; then
     echo "[cutover] sdal-api status:"
     run_with_priv systemctl status sdal-api.service --no-pager -l || true
     echo "[cutover] sdal-api journal tail:"
