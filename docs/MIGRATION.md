@@ -28,8 +28,34 @@ npm --prefix server run migrate:status
 npm --prefix server run migrate:up
 npm --prefix server run migrate:down -- --steps 1
 npm --prefix server run migrate:down -- --to 001_modern_schema
+npm --prefix server run migrate:verify
 npm --prefix server run migrate:data
 ```
+
+## Automated Cutover Helper (DigitalOcean / Ubuntu)
+
+For in-place cutover with maintenance window and automatic SQLite fallback, use:
+
+```bash
+bash ops/cutover-sqlite-to-postgres.sh
+```
+
+Defaults:
+- `APP_DIR=/var/www/sdal`
+- `APP_USER=deploy`
+- `SDAL_ENV_FILE=/etc/sdal/sdal.env`
+- `SQLITE_PATH=/var/lib/sdal/data/sdal.sqlite`
+- `REPORT_PATH=/var/www/sdal/migration_report.json`
+- `AUTO_ROLLBACK=1`
+
+The helper script performs:
+1. SQLite + PostgreSQL + env backups.
+2. service stop (`sdal-api`, `sdal-worker`) to freeze writes.
+3. `migrate:status`, `migrate:up`, and `migrate:data`.
+4. hard gate on `migration_report.json` (`mismatchCount=0`, `fkViolationCount=0`).
+5. runtime switch to `SDAL_DB_DRIVER=postgres`.
+6. `/api/health` validation requiring `ok=true`, `dbReady=true`, `dbDriver=postgres`.
+7. automatic rollback to previous env (SQLite) and service restart if any step fails.
 
 ## Step-by-Step: Pre-Cutover (Recommended)
 
@@ -77,6 +103,12 @@ npm --prefix server run migrate:up
 npm --prefix server run migrate:data -- --sqlite "$SQLITE_PATH" --report "./migration_report.json"
 ```
 
+8. Verify migration artifacts before deploy/cutover:
+
+```bash
+npm --prefix server run migrate:verify
+```
+
 ## Validation Checklist (Mandatory)
 
 1. Review migration report:
@@ -101,6 +133,17 @@ psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM identity_verification_requests;"
 
 4. Run app smoke contracts against migrated DB config (recommended in maintenance window).
 
+5. Validate health contract after cutover:
+
+```bash
+curl -s http://127.0.0.1:8787/api/health | jq
+```
+
+Expected:
+- `ok=true`
+- `dbReady=true`
+- `dbDriver=postgres`
+
 ## Production Cutover
 
 After validation passes:
@@ -122,6 +165,19 @@ curl -s http://127.0.0.1:8787/api/health | jq
 ```
 
 Expected: `dbDriver=postgres`, `dbReady=true`.
+
+## No-Regression Host Policy (Current Running Sites)
+
+For hosts serving multiple domains/sites, keep these rules during migration:
+- snapshot host config before deploy (`/etc/nginx`, `/etc/systemd/system`, `/etc/sdal/sdal.env`)
+- record domain list from `nginx -T`
+- baseline-check all served domains before deploy and after deploy
+- never remove unrelated nginx site files/symlinks
+- restart only `sdal-api` and `sdal-worker` (no global service restarts)
+
+`ops/deploy-systemd.sh` now supports this policy with:
+- host snapshots under `/var/lib/sdal/backups/host-snapshots/<timestamp>`
+- domain baseline/regression guard around deployment
 
 ## Rollback Strategy
 

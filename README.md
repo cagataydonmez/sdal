@@ -2,6 +2,22 @@
 
 This is the backend and frontend monolithic setup for SDAL.
 
+## Development Stack (Context7 Baseline)
+
+- Runtime: Node.js 20+
+- Primary DB: PostgreSQL (SQLite kept for legacy import/fallback workflows)
+- Frontend: React + Vite (`frontend-classic`, `frontend-modern`)
+- Optional frontend path: Next.js can be added on top of existing `/api/*` contracts
+
+Quick local bootstrap:
+
+```bash
+docker compose up -d postgres redis
+npm --prefix server ci
+npm --prefix server run migrate:up
+npm --prefix server run start
+```
+
 ## Backend Media Pipeline (Feb 2026 update)
 
 The image upload pipeline now supports:

@@ -10,6 +10,7 @@
     "migrate:up": "node scripts/migrate.mjs up",
     "migrate:down": "node scripts/migrate.mjs down",
     "migrate:status": "node scripts/migrate.mjs status",
+    "migrate:verify": "node scripts/check-migrations-sanity.mjs",
     "migrate:data": "node scripts/migrate-legacy-sqlite-to-modern-postgres.mjs",
     "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs",
     "sqlite:ensure-schema": "node scripts/sqlite-runtime-schema.mjs",

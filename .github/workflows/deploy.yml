@@ -11,7 +11,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install Server Dependencies
+        run: npm --prefix server ci --omit=dev
+
+      - name: Contract Smoke (Phase 2 Health)
+        run: npm --prefix server run test:phase2-health
+
+      - name: Migration Artifacts Sanity
+        run: npm --prefix server run migrate:verify
+
   deploy:
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -27,6 +51,10 @@ jobs:
             set -euo pipefail
             export APP_DIR="${{ secrets.DO_APP_DIR }}"
             export BRANCH="main"
+            export ENV_FILE="${{ secrets.DO_ENV_FILE }}"
+            if [[ -z "${ENV_FILE:-}" ]]; then
+              export ENV_FILE="/etc/sdal/sdal.env"
+            fi
             if command -v sudo >/dev/null 2>&1; then
               if sudo -n true >/dev/null 2>&1; then
                 sudo -n bash "$APP_DIR/ops/deploy-systemd.sh"
@@ -36,3 +64,50 @@ jobs:
             else
               bash "$APP_DIR/ops/deploy-systemd.sh"
             fi
+
+      - name: Post-Deploy Health Verification
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: ${{ secrets.DO_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            ENV_FILE="${{ secrets.DO_ENV_FILE }}"
+            if [[ -z "${ENV_FILE:-}" ]]; then
+              ENV_FILE="/etc/sdal/sdal.env"
+            fi
+            EXPECTED_DB_DRIVER="${{ vars.EXPECTED_DB_DRIVER }}"
+            if [[ -z "${EXPECTED_DB_DRIVER:-}" ]]; then
+              EXPECTED_DB_DRIVER="postgres"
+            fi
+
+            if [[ -f "$ENV_FILE" ]]; then
+              set -a
+              # shellcheck disable=SC1090
+              source "$ENV_FILE"
+              set +a
+            fi
+
+            PORT_TO_USE="${PORT:-8787}"
+            HEALTH_BODY="$(curl -fsS "http://127.0.0.1:${PORT_TO_USE}/api/health")"
+            echo "$HEALTH_BODY"
+
+            node -e '
+              const body = JSON.parse(process.argv[1]);
+              const expectedDriver = String(process.argv[2] || "postgres");
+              if (!body.ok) {
+                console.error("health.ok is false");
+                process.exit(1);
+              }
+              if (!body.dbReady) {
+                console.error("health.dbReady is false");
+                process.exit(1);
+              }
+              if (String(body.dbDriver || "") !== expectedDriver) {
+                console.error(`health.dbDriver expected ${expectedDriver} but got ${body.dbDriver}`);
+                process.exit(1);
+              }
+            ' "$HEALTH_BODY" "$EXPECTED_DB_DRIVER"
