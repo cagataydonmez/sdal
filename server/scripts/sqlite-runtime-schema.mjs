@@ -28,6 +28,33 @@ function execSafely(db, sql) {
   }
 }
 
+function hasTable(db, tableName) {
+  const row = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(String(tableName || ''));
+  return Boolean(row);
+}
+
+function hasColumn(db, tableName, columnName) {
+  try {
+    const cols = db.prepare(`PRAGMA table_info("${String(tableName || '').replace(/"/g, '""')}")`).all();
+    return cols.some((row) => String(row?.name || '') === String(columnName || ''));
+  } catch {
+    return false;
+  }
+}
+
+function ensureTableColumns(db, tableName, columns) {
+  if (!hasTable(db, tableName)) return;
+  for (const [columnName, columnDef] of columns) {
+    if (hasColumn(db, tableName, columnName)) continue;
+    execSafely(
+      db,
+      `ALTER TABLE "${String(tableName).replace(/"/g, '""')}" ADD COLUMN ${columnDef}`
+    );
+  }
+}
+
 export function ensureUyelerCompatibilityColumns(db) {
   const alterStatements = [
     "ALTER TABLE uyeler ADD COLUMN role TEXT DEFAULT 'user'",
@@ -301,16 +328,81 @@ export function ensureSqliteRuntimeSchema(db) {
     );
   `);
 
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_stories_user_id ON stories(user_id);
-    CREATE INDEX IF NOT EXISTS idx_story_views_user_id ON story_views(user_id);
-    CREATE INDEX IF NOT EXISTS idx_story_views_story_id ON story_views(story_id);
-    CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_posts_user_created ON posts(user_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_post_comments_post_created ON post_comments(post_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_group_members_group_user ON group_members(group_id, user_id);
-    CREATE INDEX IF NOT EXISTS idx_member_requests_user_status ON member_requests(user_id, status);
-  `);
+  ensureTableColumns(db, 'posts', [
+    ['group_id', 'group_id INTEGER'],
+    ['image_record_id', 'image_record_id TEXT']
+  ]);
+
+  ensureTableColumns(db, 'events', [
+    ['title', 'title TEXT'],
+    ['description', 'description TEXT'],
+    ['location', 'location TEXT'],
+    ['starts_at', 'starts_at TEXT'],
+    ['ends_at', 'ends_at TEXT'],
+    ['image', 'image TEXT'],
+    ['created_at', 'created_at TEXT'],
+    ['created_by', 'created_by INTEGER'],
+    ['approved', 'approved INTEGER DEFAULT 1'],
+    ['approved_by', 'approved_by INTEGER'],
+    ['approved_at', 'approved_at TEXT'],
+    ['show_response_counts', 'show_response_counts INTEGER DEFAULT 1'],
+    ['show_attendee_names', 'show_attendee_names INTEGER DEFAULT 0'],
+    ['show_decliner_names', 'show_decliner_names INTEGER DEFAULT 0']
+  ]);
+
+  ensureTableColumns(db, 'announcements', [
+    ['title', 'title TEXT'],
+    ['body', 'body TEXT'],
+    ['image', 'image TEXT'],
+    ['created_at', 'created_at TEXT'],
+    ['created_by', 'created_by INTEGER'],
+    ['approved', 'approved INTEGER DEFAULT 1'],
+    ['approved_by', 'approved_by INTEGER'],
+    ['approved_at', 'approved_at TEXT']
+  ]);
+
+  ensureTableColumns(db, 'verification_requests', [
+    ['status', 'status TEXT DEFAULT \'pending\''],
+    ['reviewer_id', 'reviewer_id INTEGER'],
+    ['reviewed_at', 'reviewed_at TEXT'],
+    ['created_at', 'created_at TEXT']
+  ]);
+
+  ensureTableColumns(db, 'member_engagement_scores', [
+    ['score', 'score REAL DEFAULT 0'],
+    ['updated_at', 'updated_at TEXT']
+  ]);
+
+  ensureTableColumns(db, 'group_events', [
+    ['created_by', 'created_by INTEGER']
+  ]);
+
+  ensureTableColumns(db, 'group_announcements', [
+    ['created_by', 'created_by INTEGER']
+  ]);
+
+  if (hasTable(db, 'stories')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_stories_user_id ON stories(user_id)');
+  }
+  if (hasTable(db, 'story_views')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_story_views_user_id ON story_views(user_id)');
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_story_views_story_id ON story_views(story_id)');
+  }
+  if (hasTable(db, 'notifications')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at)');
+  }
+  if (hasTable(db, 'posts')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_posts_user_created ON posts(user_id, created_at)');
+  }
+  if (hasTable(db, 'post_comments')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_post_comments_post_created ON post_comments(post_id, created_at)');
+  }
+  if (hasTable(db, 'group_members')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_group_members_group_user ON group_members(group_id, user_id)');
+  }
+  if (hasTable(db, 'member_requests')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_member_requests_user_status ON member_requests(user_id, status)');
+  }
 
   ensureUyelerCompatibilityColumns(db);
 }
