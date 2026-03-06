@@ -232,7 +232,7 @@ export default function FeedPage() {
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
           <div className="panel">
-            <div className="panel-body scope-tabs">
+            <div className="panel-body scope-tabs scope-tabs-feedtype">
               {scopeOptions.map((scopeItem) => (
                 <button
                   key={`scope-${scopeItem.key}`}
@@ -247,7 +247,7 @@ export default function FeedPage() {
               ))}
             </div>
             <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
-            <div className="panel-body scope-tabs">
+            <div className="panel-body scope-tabs scope-tabs-filter">
               {filterOptions.map((filterItem) => (
                 <button
                   key={`filter-${filterItem.key}`}
