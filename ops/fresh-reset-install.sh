@@ -153,11 +153,10 @@ awk '
   echo "protected-mode yes"
   echo "port 6379"
   echo "requirepass ${REDIS_PASS}"
-  echo "user default on >${REDIS_PASS} ~* &* +@all"
 } >> /etc/redis/redis.conf.new
 mv /etc/redis/redis.conf.new /etc/redis/redis.conf
 systemctl enable --now redis-server
-redis-cli --user default -a "$REDIS_PASS" ping >/dev/null
+redis-cli -a "$REDIS_PASS" ping >/dev/null
 
 echo "=== Writing ${SDAL_ENV_FILE} ==="
 cat > "$SDAL_ENV_FILE" <<EOF
@@ -188,7 +187,7 @@ PGPOOL_CONNECT_TIMEOUT_MS=5000
 PG_QUERY_TIMEOUT_MS=20000
 PG_STATEMENT_TIMEOUT_MS=15000
 
-REDIS_URL=redis://default:${REDIS_PASS}@127.0.0.1:6379/0
+REDIS_URL=redis://:${REDIS_PASS}@127.0.0.1:6379/0
 REDIS_SESSION_PREFIX=sdal:sess:
 REDIS_CONNECT_TIMEOUT_MS=4000
 REDIS_RETRY_MAX_DELAY_MS=5000
