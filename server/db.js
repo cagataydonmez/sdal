@@ -186,11 +186,21 @@ function injectParams(sql, params = []) {
 
 function normalizePgSql(sql) {
   return String(sql || '')
+    .replace(/datetime\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
+    .replace(/timestamp\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
+    .replace(/\bdate\(\s*'now'\s*\)/gi, 'CURRENT_DATE')
     .replace(/\bAUTOINCREMENT\b/gi, '')
     .replace(/\bINTEGER\s+PRIMARY\s+KEY\b/gi, 'BIGSERIAL PRIMARY KEY')
     .replace(/\bDATETIME\b/gi, 'TIMESTAMP')
     .replace(/\bIFNULL\s*\(/gi, 'COALESCE(')
-    .replace(/datetime\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
+    .replace(/COALESCE\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*,\s*1\s*\)\s*=\s*0/gi, 'COALESCE($1, TRUE) = FALSE')
+    .replace(/COALESCE\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*,\s*1\s*\)\s*=\s*1/gi, 'COALESCE($1, TRUE) = TRUE')
+    .replace(/COALESCE\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*,\s*0\s*\)\s*=\s*0/gi, 'COALESCE($1, FALSE) = FALSE')
+    .replace(/COALESCE\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*,\s*0\s*\)\s*=\s*1/gi, 'COALESCE($1, FALSE) = TRUE')
+    .replace(
+      /COALESCE\(\s*NULLIF\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*,\s*''\s*\)\s*,\s*CURRENT_TIMESTAMP\s*\)/gi,
+      'COALESCE($1, CURRENT_TIMESTAMP)'
+    )
     .replace(
       /LEFT\s+JOIN\s+uyeler\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+\1\.id\s*=\s*([a-zA-Z_][a-zA-Z0-9_.]*)/gi,
       'LEFT JOIN uyeler $1 ON $1.id::text = $2::text'

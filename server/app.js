@@ -8207,7 +8207,7 @@ app.get('/api/new/events', requireAuth, (req, res) => {
     `SELECT e.*, u.kadi AS creator_kadi
      FROM events e
      LEFT JOIN uyeler u ON u.id = e.created_by
-     ${isAdmin ? '' : 'WHERE COALESCE(e.approved, 1) = 1'}
+     ${isAdmin ? '' : "WHERE (COALESCE(CAST(e.approved AS INTEGER), 1) = 1 OR LOWER(CAST(e.approved AS TEXT)) IN ('true','evet','yes'))"}
      ORDER BY COALESCE(NULLIF(e.starts_at, ''), e.created_at) ASC, e.id DESC
      LIMIT ? OFFSET ?`,
     [limit, offset]
@@ -8375,7 +8375,10 @@ app.post('/api/new/events/:id/comments', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/events/:id/notify', requireAuth, (req, res) => {
-  const event = sqlGet('SELECT id, title FROM events WHERE id = ? AND COALESCE(approved,1) = 1', [req.params.id]);
+  const event = sqlGet(
+    "SELECT id, title FROM events WHERE id = ? AND (COALESCE(CAST(approved AS INTEGER), 1) = 1 OR LOWER(CAST(approved AS TEXT)) IN ('true','evet','yes'))",
+    [req.params.id]
+  );
   if (!event) return res.status(404).send('Etkinlik bulunamadı.');
   const followers = sqlAll('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]);
   for (const f of followers) {
@@ -8400,7 +8403,7 @@ app.get('/api/new/announcements', requireAuth, (req, res) => {
     `SELECT a.*, u.kadi AS creator_kadi
      FROM announcements a
      LEFT JOIN uyeler u ON u.id = a.created_by
-     ${isAdmin ? '' : 'WHERE COALESCE(a.approved, 1) = 1'}
+     ${isAdmin ? '' : "WHERE (COALESCE(CAST(a.approved AS INTEGER), 1) = 1 OR LOWER(CAST(a.approved AS TEXT)) IN ('true','evet','yes'))"}
      ORDER BY a.id DESC`
      + ' LIMIT ? OFFSET ?',
     [limit, offset]
@@ -9416,8 +9419,12 @@ app.get('/api/new/admin/live', requireAdmin, (req, res) => {
   const counts = {
     onlineUsers: onlineMembers.length,
     pendingVerifications: sqlGet('SELECT COUNT(*) AS cnt FROM verification_requests WHERE status = ?', ['pending'])?.cnt || 0,
-    pendingEvents: sqlGet('SELECT COUNT(*) AS cnt FROM events WHERE COALESCE(approved, 1) = 0')?.cnt || 0,
-    pendingAnnouncements: sqlGet('SELECT COUNT(*) AS cnt FROM announcements WHERE COALESCE(approved, 1) = 0')?.cnt || 0,
+    pendingEvents: sqlGet(
+      "SELECT COUNT(*) AS cnt FROM events WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))"
+    )?.cnt || 0,
+    pendingAnnouncements: sqlGet(
+      "SELECT COUNT(*) AS cnt FROM announcements WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))"
+    )?.cnt || 0,
     pendingPhotos: sqlGet('SELECT COUNT(*) AS cnt FROM album_foto WHERE aktif = 0')?.cnt || 0
   };
 

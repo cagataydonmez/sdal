@@ -1,32 +1,47 @@
 BEGIN;
 
 -- Accept legacy 0/1 writes and comparisons for boolean columns.
-CREATE OR REPLACE FUNCTION legacy_int2_to_bool(value SMALLINT)
-RETURNS BOOLEAN
-LANGUAGE SQL
-IMMUTABLE
-RETURNS NULL ON NULL INPUT
-AS $$
-  SELECT value <> 0;
-$$;
+DO $$
+BEGIN
+  IF to_regprocedure('public.legacy_int2_to_bool(smallint)') IS NULL THEN
+    EXECUTE '
+      CREATE FUNCTION public.legacy_int2_to_bool(value SMALLINT)
+      RETURNS BOOLEAN
+      LANGUAGE SQL
+      IMMUTABLE
+      RETURNS NULL ON NULL INPUT
+      AS ''SELECT value <> 0;''
+    ';
+  END IF;
+END $$;
 
-CREATE OR REPLACE FUNCTION legacy_int4_to_bool(value INTEGER)
-RETURNS BOOLEAN
-LANGUAGE SQL
-IMMUTABLE
-RETURNS NULL ON NULL INPUT
-AS $$
-  SELECT value <> 0;
-$$;
+DO $$
+BEGIN
+  IF to_regprocedure('public.legacy_int4_to_bool(integer)') IS NULL THEN
+    EXECUTE '
+      CREATE FUNCTION public.legacy_int4_to_bool(value INTEGER)
+      RETURNS BOOLEAN
+      LANGUAGE SQL
+      IMMUTABLE
+      RETURNS NULL ON NULL INPUT
+      AS ''SELECT value <> 0;''
+    ';
+  END IF;
+END $$;
 
-CREATE OR REPLACE FUNCTION legacy_int8_to_bool(value BIGINT)
-RETURNS BOOLEAN
-LANGUAGE SQL
-IMMUTABLE
-RETURNS NULL ON NULL INPUT
-AS $$
-  SELECT value <> 0;
-$$;
+DO $$
+BEGIN
+  IF to_regprocedure('public.legacy_int8_to_bool(bigint)') IS NULL THEN
+    EXECUTE '
+      CREATE FUNCTION public.legacy_int8_to_bool(value BIGINT)
+      RETURNS BOOLEAN
+      LANGUAGE SQL
+      IMMUTABLE
+      RETURNS NULL ON NULL INPUT
+      AS ''SELECT value <> 0;''
+    ';
+  END IF;
+END $$;
 
 DO $$
 BEGIN
