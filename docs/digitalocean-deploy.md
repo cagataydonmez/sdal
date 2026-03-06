@@ -201,6 +201,7 @@ Script sunlari yapar:
 - `sdal-api` + `sdal-worker` stop/start
 - varsayilan olarak Postgres `public` schema reset (temiz modern schema icin)
 - `migrate:up` + `migrate:data`
+- migration report'u varsayilan olarak `/var/lib/sdal/backups/migration-report-<timestamp>.json` altina yazar
 - `migration_report.json` mismatch/FK gate
 - health gate (`ok=true`, `dbReady=true`, `dbDriver=postgres`)
 - hata durumunda otomatik SQLite rollback

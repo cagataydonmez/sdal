@@ -45,7 +45,7 @@ Defaults:
 - `APP_USER=deploy`
 - `SDAL_ENV_FILE=/etc/sdal/sdal.env`
 - `SQLITE_PATH=/var/lib/sdal/data/sdal.sqlite`
-- `REPORT_PATH=/var/www/sdal/migration_report.json`
+- `REPORT_PATH=/var/lib/sdal/backups/migration-report-<timestamp>.json` (default)
 - `AUTO_ROLLBACK=1`
 - `RESET_POSTGRES_SCHEMA=1` (recommended for first SQLite -> Postgres cutover)
 

@@ -6,7 +6,7 @@ APP_USER="${APP_USER:-deploy}"
 SDAL_ENV_FILE="${SDAL_ENV_FILE:-/etc/sdal/sdal.env}"
 SQLITE_PATH="${SQLITE_PATH:-/var/lib/sdal/data/sdal.sqlite}"
 BACKUP_DIR="${BACKUP_DIR:-/var/lib/sdal/backups}"
-REPORT_PATH="${REPORT_PATH:-$APP_DIR/migration_report.json}"
+REPORT_PATH="${REPORT_PATH:-}"
 API_PORT="${API_PORT:-8787}"
 AUTO_ROLLBACK="${AUTO_ROLLBACK:-1}"
 # For one-time cutover, force a clean modern schema to avoid legacy column drift
@@ -120,6 +120,10 @@ TS="$(date +%Y%m%d-%H%M%S)"
 ENV_BACKUP_PATH="${BACKUP_DIR}/sdal-env-precutover-${TS}.env"
 SQLITE_BACKUP_PATH="${BACKUP_DIR}/sqlite-precutover-${TS}.sqlite"
 PG_BACKUP_PATH="${BACKUP_DIR}/postgres-precutover-${TS}.dump"
+if [[ -z "$REPORT_PATH" ]]; then
+  REPORT_PATH="${BACKUP_DIR}/migration-report-${TS}.json"
+fi
+REPORT_DIR="$(dirname "$REPORT_PATH")"
 ROLLBACK_USED=0
 
 rollback_to_sqlite() {
@@ -150,8 +154,14 @@ fail_with() {
 }
 
 run_with_priv mkdir -p "$BACKUP_DIR"
+run_with_priv mkdir -p "$REPORT_DIR"
 run_with_priv cp "$SDAL_ENV_FILE" "$ENV_BACKUP_PATH"
 run_with_priv cp "$SQLITE_PATH" "$SQLITE_BACKUP_PATH"
+
+if id "$APP_USER" >/dev/null 2>&1; then
+  APP_GROUP="$(id -gn "$APP_USER" 2>/dev/null || echo "$APP_USER")"
+  run_with_priv chown "$APP_USER:$APP_GROUP" "$REPORT_DIR" || true
+fi
 
 set -a
 # shellcheck disable=SC1090
@@ -193,6 +203,9 @@ if ! run_as_app_user "cd '$APP_DIR' && set -a && source '$SDAL_ENV_FILE' && set 
 fi
 
 echo "[cutover] running sqlite -> postgres data migration"
+if ! run_as_app_user "touch '$REPORT_PATH'"; then
+  fail_with "report path is not writable by ${APP_USER}: ${REPORT_PATH}"
+fi
 if ! run_as_app_user "cd '$APP_DIR' && set -a && source '$SDAL_ENV_FILE' && set +a && npm --prefix server run migrate:data -- --sqlite '$SQLITE_PATH' --report '$REPORT_PATH'"; then
   fail_with "migrate:data failed"
 fi
