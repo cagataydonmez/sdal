@@ -242,7 +242,7 @@ function runPsqlInsertReturningId(sql) {
   const wrapped = `
     WITH inserted AS (
       ${sql}
-      RETURNING id
+      RETURNING *
     )
     SELECT COALESCE(json_agg(row_to_json(inserted)), '[]'::json)::text
     FROM inserted
