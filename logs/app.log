@@ -488,3 +488,156 @@
 {"ts":"2026-03-05T13:16:06.432Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
 {"ts":"2026-03-05T13:20:28.718Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":9}
 {"ts":"2026-03-05T13:26:06.444Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T13:30:28.731Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":16}
+{"ts":"2026-03-05T13:36:06.450Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T13:40:28.739Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":7}
+{"ts":"2026-03-05T13:46:06.449Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T13:50:28.730Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":7}
+{"ts":"2026-03-05T13:56:06.441Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T14:00:28.747Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":15}
+{"ts":"2026-03-05T14:06:06.464Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T14:10:28.756Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":10}
+{"ts":"2026-03-05T14:16:06.462Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T14:20:28.763Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":11}
+{"ts":"2026-03-05T14:26:06.448Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T14:30:28.747Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":8}
+{"ts":"2026-03-05T14:36:06.446Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T14:40:28.739Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":8}
+{"ts":"2026-03-05T14:46:06.434Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T14:50:28.740Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":8}
+{"ts":"2026-03-05T14:56:06.430Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T15:00:28.731Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":5}
+{"ts":"2026-03-05T15:06:06.428Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T15:10:28.733Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":6}
+{"ts":"2026-03-05T15:16:06.444Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T15:20:28.772Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":22}
+{"ts":"2026-03-05T15:26:06.455Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T15:30:28.788Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":19}
+{"ts":"2026-03-05T15:36:06.468Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T15:40:28.778Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":6}
+{"ts":"2026-03-05T15:46:06.471Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T15:50:28.799Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":16}
+{"ts":"2026-03-05T15:56:06.478Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T16:00:28.775Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":4}
+{"ts":"2026-03-05T16:06:06.472Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T16:08:11.061Z","level":"info","event":"server_started","port":8787,"node":"v20.19.6","dbPath":"/var/folders/1l/31x13yq976x0ktl32blqzg0r0000gn/T/sdal-phase1-contracts-UXXKCM/runtime.sqlite","tableCount":30,"usersTableName":"uyeler","usersExists":true}
+{"ts":"2026-03-05T16:08:11.063Z","level":"info","event":"background_worker_started_inline","queueNamespace":"sdal:jobs:main"}
+{"ts":"2026-03-05T16:08:11.102Z","level":"info","event":"http_request","requestId":"7de86821-05f0-4ba0-be5c-ab0c3e38fb68","method":"POST","path":"/api/auth/login","status":200,"durationMs":24,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:11.124Z","level":"info","event":"http_request","requestId":"4b8be1f7-c9f0-49a0-971e-b6cf9bbdb0e8","method":"POST","path":"/api/new/posts","status":200,"durationMs":11,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:11.127Z","level":"info","event":"http_request","requestId":"23aa8e83-4792-40c9-900a-f465d54b047a","method":"GET","path":"/api/new/feed","status":200,"durationMs":2,"userId":4,"ip":"::ffff:127.0.0.1","query":"limit=20&offset=0","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:11.130Z","level":"info","event":"http_request","requestId":"02cb0ddb-ab0d-4dc1-8830-8370c6819e29","method":"POST","path":"/api/new/posts/1/comments","status":200,"durationMs":1,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:11.133Z","level":"info","event":"http_request","requestId":"47e2992a-45ba-4d21-a76b-09844762ebff","method":"POST","path":"/api/new/chat/send","status":200,"durationMs":1,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:11.135Z","level":"info","event":"http_request","requestId":"9b56417a-ea46-42cd-9edf-1da140b0c5d5","method":"GET","path":"/api/new/chat/messages","status":200,"durationMs":1,"userId":4,"ip":"::ffff:127.0.0.1","query":"limit=20","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:11.158Z","level":"info","event":"http_request","requestId":"3cfe05c9-4ca5-4a18-b44f-52f7a2641e7f","method":"POST","path":"/api/auth/login","status":200,"durationMs":22,"userId":2,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:15.976Z","level":"info","event":"server_started","port":8787,"node":"v20.19.6","dbPath":"/var/folders/1l/31x13yq976x0ktl32blqzg0r0000gn/T/sdal-phase2-health-s8tiNo/runtime.sqlite","tableCount":19,"usersTableName":"uyeler","usersExists":true}
+{"ts":"2026-03-05T16:08:15.976Z","level":"info","event":"background_worker_started_inline","queueNamespace":"sdal:jobs:main"}
+{"ts":"2026-03-05T16:08:15.985Z","level":"info","event":"http_request","requestId":"4bcd3654-faad-4ec4-ba1a-853f5b423554","method":"GET","path":"/api/health","status":200,"durationMs":2,"userId":null,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:42.896Z","level":"info","event":"server_started","port":8787,"node":"v20.19.6","dbPath":"/var/folders/1l/31x13yq976x0ktl32blqzg0r0000gn/T/sdal-phase1-contracts-RC7Vv2/runtime.sqlite","tableCount":30,"usersTableName":"uyeler","usersExists":true}
+{"ts":"2026-03-05T16:08:42.896Z","level":"info","event":"background_worker_started_inline","queueNamespace":"sdal:jobs:main"}
+{"ts":"2026-03-05T16:08:42.939Z","level":"info","event":"http_request","requestId":"70cb4d8a-45f1-41e5-8b41-b7135a388973","method":"POST","path":"/api/auth/login","status":200,"durationMs":26,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:42.963Z","level":"info","event":"http_request","requestId":"66f6cb55-ff2d-42c4-a39d-9b6935c4d44c","method":"POST","path":"/api/new/posts","status":200,"durationMs":12,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:42.967Z","level":"info","event":"http_request","requestId":"7dc7da76-95ed-4cfd-ba34-17bfa041012c","method":"GET","path":"/api/new/feed","status":200,"durationMs":2,"userId":4,"ip":"::ffff:127.0.0.1","query":"limit=20&offset=0","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:42.971Z","level":"info","event":"http_request","requestId":"26b7a8c4-bcbb-4244-b902-3310b005ba61","method":"POST","path":"/api/new/posts/1/comments","status":200,"durationMs":2,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:42.973Z","level":"info","event":"http_request","requestId":"5be4e7e6-c34e-4708-a04a-c18dc1196a54","method":"POST","path":"/api/new/chat/send","status":200,"durationMs":1,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:42.976Z","level":"info","event":"http_request","requestId":"54db0346-ab0e-490b-84b9-909e2a2d55cf","method":"GET","path":"/api/new/chat/messages","status":200,"durationMs":2,"userId":4,"ip":"::ffff:127.0.0.1","query":"limit=20","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:08:43.001Z","level":"info","event":"http_request","requestId":"e449e185-e232-4a4d-8d85-bc30dc6d0be2","method":"POST","path":"/api/auth/login","status":200,"durationMs":24,"userId":2,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T16:10:28.794Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":18}
+{"ts":"2026-03-05T16:16:06.480Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T16:20:28.797Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":17}
+{"ts":"2026-03-05T16:26:06.468Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T16:30:28.788Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":18}
+{"ts":"2026-03-05T16:36:06.464Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T16:40:28.806Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":18}
+{"ts":"2026-03-05T16:58:10.912Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T17:14:31.569Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T17:18:42.332Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":17}
+{"ts":"2026-03-05T17:24:31.514Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T17:28:42.316Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":6}
+{"ts":"2026-03-05T17:34:31.511Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T17:38:42.323Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":9}
+{"ts":"2026-03-05T17:44:31.507Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T17:48:42.326Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":8}
+{"ts":"2026-03-05T17:54:31.517Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T17:58:42.329Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":14}
+{"ts":"2026-03-05T18:04:31.538Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T18:08:42.345Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":21}
+{"ts":"2026-03-05T18:14:31.527Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T18:18:42.340Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":17}
+{"ts":"2026-03-05T18:24:31.530Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T18:26:21.254Z","level":"info","event":"server_started","port":8787,"node":"v20.19.6","dbPath":"/var/folders/1l/31x13yq976x0ktl32blqzg0r0000gn/T/sdal-phase2-health-BcEF51/runtime.sqlite","tableCount":19,"usersTableName":"uyeler","usersExists":true}
+{"ts":"2026-03-05T18:26:21.257Z","level":"info","event":"background_worker_started_inline","queueNamespace":"sdal:jobs:main"}
+{"ts":"2026-03-05T18:26:21.267Z","level":"info","event":"http_request","requestId":"4d1a0e1e-85ae-4e3d-9e26-aa2976940247","method":"GET","path":"/api/health","status":200,"durationMs":2,"userId":null,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-05T18:28:42.337Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":9}
+{"ts":"2026-03-05T18:34:31.516Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T18:38:42.351Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":18}
+{"ts":"2026-03-05T18:44:31.536Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T18:48:42.346Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":9}
+{"ts":"2026-03-05T18:54:31.535Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T18:59:32.476Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":29}
+{"ts":"2026-03-05T19:13:30.285Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T19:15:48.587Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":19}
+{"ts":"2026-03-05T19:33:31.844Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T19:54:15.866Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T20:11:29.757Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T20:29:04.866Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T20:44:31.795Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T21:00:46.760Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T21:16:32.758Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T21:33:56.821Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T21:55:56.759Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T22:13:52.761Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T22:29:12.701Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T22:39:59.702Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T22:40:05.038Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":26}
+{"ts":"2026-03-05T22:55:56.711Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T23:13:28.704Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T23:29:36.697Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-05T23:44:59.695Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T00:01:47.693Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T00:16:54.695Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T00:33:56.684Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T00:51:15.680Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T01:08:21.676Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T01:24:10.831Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T01:41:07.840Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T01:57:14.834Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T02:12:21.818Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T02:27:39.798Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T02:51:55.775Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T03:08:57.744Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T03:26:52.736Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T03:44:12.739Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T04:06:53.763Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T04:22:18.669Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T04:35:24.641Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T04:49:17.688Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T04:52:00.823Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":19}
+{"ts":"2026-03-06T04:59:17.756Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T05:02:00.812Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":5}
+{"ts":"2026-03-06T05:09:17.780Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T05:12:00.839Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":7}
+{"ts":"2026-03-06T05:19:17.778Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T05:22:00.831Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":7}
+{"ts":"2026-03-06T05:29:17.770Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T05:32:00.837Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":10}
+{"ts":"2026-03-06T05:39:17.764Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T05:42:00.826Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":5}
+{"ts":"2026-03-06T05:49:17.765Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T05:52:00.827Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":7}
+{"ts":"2026-03-06T05:59:17.764Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T06:02:00.829Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":8}
+{"ts":"2026-03-06T06:09:17.784Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T06:12:00.847Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":5}
+{"ts":"2026-03-06T06:19:17.802Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T06:22:00.860Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":11}
+{"ts":"2026-03-06T06:29:17.795Z","level":"error","event":"engagement_scores_recalculate_failed","reason":"interval_10m","message":"no such table: stories"}
+{"ts":"2026-03-06T06:32:00.862Z","level":"info","event":"engagement_scores_recalculated","reason":"interval_10m","users":4,"variants":{"A":1,"B":3},"durationMs":22}
+{"ts":"2026-03-06T06:33:05.161Z","level":"info","event":"server_started","port":8787,"node":"v20.19.6","dbPath":"/var/folders/1l/31x13yq976x0ktl32blqzg0r0000gn/T/sdal-phase1-contracts-5DVpmp/runtime.sqlite","tableCount":30,"usersTableName":"uyeler","usersExists":true}
+{"ts":"2026-03-06T06:33:05.163Z","level":"info","event":"background_worker_started_inline","queueNamespace":"sdal:jobs:main"}
+{"ts":"2026-03-06T06:33:05.207Z","level":"info","event":"http_request","requestId":"f33ee682-7aaf-4f7a-abae-1e780dca3a2b","method":"POST","path":"/api/auth/login","status":200,"durationMs":28,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-06T06:33:05.234Z","level":"info","event":"http_request","requestId":"8f004c86-90bb-473b-a5b7-f389b346bcb1","method":"POST","path":"/api/new/posts","status":200,"durationMs":14,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-06T06:33:05.238Z","level":"info","event":"http_request","requestId":"96a1f0ee-d71f-4fde-a8d1-186823037878","method":"GET","path":"/api/new/feed","status":200,"durationMs":3,"userId":4,"ip":"::ffff:127.0.0.1","query":"limit=20&offset=0","userAgent":"node","referer":""}
+{"ts":"2026-03-06T06:33:05.243Z","level":"info","event":"http_request","requestId":"1103cc58-a9e8-4697-a26e-e35cb48ba84f","method":"POST","path":"/api/new/posts/1/comments","status":200,"durationMs":3,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-06T06:33:05.246Z","level":"info","event":"http_request","requestId":"74672311-aed2-4e18-90f0-284b9dc46f69","method":"POST","path":"/api/new/chat/send","status":200,"durationMs":2,"userId":4,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
+{"ts":"2026-03-06T06:33:05.249Z","level":"info","event":"http_request","requestId":"f1e9e0a8-b02e-4c60-b867-40b46409a754","method":"GET","path":"/api/new/chat/messages","status":200,"durationMs":2,"userId":4,"ip":"::ffff:127.0.0.1","query":"limit=20","userAgent":"node","referer":""}
+{"ts":"2026-03-06T06:33:05.276Z","level":"info","event":"http_request","requestId":"bb51c108-19f6-4548-8885-5e7f46649c50","method":"POST","path":"/api/auth/login","status":200,"durationMs":25,"userId":2,"ip":"::ffff:127.0.0.1","query":"","userAgent":"node","referer":""}
