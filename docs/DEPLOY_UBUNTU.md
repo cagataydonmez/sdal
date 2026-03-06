@@ -42,9 +42,9 @@ Then point `A` records in your DNS provider:
 - `www -> <droplet_public_ip>` (if using `www`)
 
 ```bash
-export APP_DOMAIN="example.com"
-export APP_DOMAIN_WWW="www.example.com"
-export APP_REPO_SSH="git@github.com:YOUR_ORG/SDAL.git"
+export APP_DOMAIN="sdalsosyal.mywire.org"
+export APP_DOMAIN_WWW="sdalsosyal.mywire.org"
+export APP_REPO_SSH="git@github.com:cagataydonmez/sdal.git"
 export APP_DIR="/var/www/sdal"
 export APP_USER="deploy"
 export APP_GROUP="deploy"
@@ -65,6 +65,20 @@ printf '%s\n' \
   "APP_PORT=$APP_PORT" \
   "SDAL_ENV_FILE=$SDAL_ENV_FILE"
 ```
+
+## 0.2 One-command fresh reset installer (recommended for recovery)
+
+If server state is broken and you want a clean SDAL reset (DB/uploads reset, only `root` + `cagatay` users seeded, services re-created), run:
+
+```bash
+cd /var/www/sdal
+bash ops/fresh-reset-install.sh
+```
+
+Notes:
+- Script does not remove unrelated nginx sites. `dedekorkutpedal.com` config is not deleted.
+- Script asks for only required credentials (domain, repo, mail, oauth optional, root/cagatay passwords).
+- Script writes `/etc/sdal/sdal.env`, resets runtime data, and restarts `sdal-api` + `sdal-worker`.
 
 ## A) Base hardening
 

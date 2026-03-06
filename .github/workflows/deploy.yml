@@ -27,4 +27,12 @@ jobs:
             set -euo pipefail
             export APP_DIR="${{ secrets.DO_APP_DIR }}"
             export BRANCH="main"
-            bash "$APP_DIR/ops/deploy-sdal.sh"
+            if command -v sudo >/dev/null 2>&1; then
+              if sudo -n true >/dev/null 2>&1; then
+                sudo -n bash "$APP_DIR/ops/deploy-systemd.sh"
+              else
+                bash "$APP_DIR/ops/deploy-systemd.sh"
+              fi
+            else
+              bash "$APP_DIR/ops/deploy-systemd.sh"
+            fi

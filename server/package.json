@@ -12,6 +12,7 @@
     "migrate:status": "node scripts/migrate.mjs status",
     "migrate:data": "node scripts/migrate-legacy-sqlite-to-modern-postgres.mjs",
     "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs",
+    "reset:sqlite:fresh": "node scripts/reset-sqlite-fresh.mjs",
     "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs",
     "test:phase2-health": "node tests/contracts/phase2-health.mjs",
     "test:phase5-performance": "node tests/contracts/phase5-performance.mjs",
