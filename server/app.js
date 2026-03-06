@@ -2968,18 +2968,47 @@ function applyUserSession(req, user) {
   const now = new Date();
   const localParts = toLocalDateParts(now);
   const prevDate = user.sonislemtarih && user.sonislemsaat ? `${user.sonislemtarih} ${user.sonislemsaat}` : null;
-  sqlRun(
-    `UPDATE uyeler
-     SET online = 1,
-         hit = COALESCE(hit, 0) + 1,
-         sontarih = ?,
-         oncekisontarih = ?,
-         sonislemtarih = ?,
-         sonislemsaat = ?,
-         sonip = ?
-     WHERE id = ?`,
-    [now.toISOString(), prevDate || now.toISOString(), localParts.date, localParts.time, req.ip, user.id]
-  );
+
+  // Presence update should never block successful login.
+  try {
+    if (hasTable('uyeler')) {
+      sqlRun(
+        `UPDATE uyeler
+         SET online = 1,
+             hit = COALESCE(hit, 0) + 1,
+             sontarih = ?,
+             oncekisontarih = ?,
+             sonislemtarih = ?,
+             sonislemsaat = ?,
+             sonip = ?
+         WHERE id = ?`,
+        [now.toISOString(), prevDate || now.toISOString(), localParts.date, localParts.time, req.ip, user.id]
+      );
+    } else if (hasTable('users')) {
+      const lastSeenAt = now.toISOString();
+      const previousLastSeenAt = prevDate || lastSeenAt;
+      sqlRun(
+        `UPDATE users
+         SET is_online = ?,
+             profile_view_count = COALESCE(profile_view_count, 0) + 1,
+             last_seen_at = ?,
+             previous_last_seen_at = ?,
+             last_activity_date = ?,
+             last_activity_time = ?,
+             last_ip = ?,
+             updated_at = ?
+         WHERE id = ?`,
+        [true, lastSeenAt, previousLastSeenAt, localParts.date, localParts.time, req.ip, lastSeenAt, user.id]
+      );
+    }
+  } catch (err) {
+    writeAppLog('warn', 'apply_user_session_presence_update_failed', {
+      userId: user?.id || null,
+      dbDriver,
+      error: err?.message || String(err)
+    });
+  }
+
   req.session.userId = user.id;
 }
 
