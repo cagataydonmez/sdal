@@ -388,7 +388,11 @@ function buildMappings() {
         variant: (r) => toText(r.variant),
         name: (r) => toText(r.name),
         description: (r) => toText(r.description),
-        traffic_pct: (r) => toInt(r.traffic_pct),
+        // Postgres column is NOT NULL; preserve legacy value when present, default to 0 otherwise.
+        traffic_pct: (r) => {
+          const parsed = toInt(r.traffic_pct);
+          return parsed == null ? 0 : parsed;
+        },
         enabled: (r) => toBool(r.enabled),
         params_json: (r) => toJson(r.params_json),
         updated_at: (r) => toTimestamp(r.updated_at)
