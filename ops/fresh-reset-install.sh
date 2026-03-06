@@ -148,6 +148,7 @@ awk '
   !/^[[:space:]]*#?[[:space:]]*protected-mode[[:space:]]+/ &&
   !/^[[:space:]]*#?[[:space:]]*port[[:space:]]+/ &&
   !/^[[:space:]]*#?[[:space:]]*requirepass[[:space:]]+/ &&
+  !/^[[:space:]]*#?[[:space:]]*aclfile[[:space:]]+/ &&
   !/^[[:space:]]*user[[:space:]]+default[[:space:]]+/
   { print }
 ' /etc/redis/redis.conf > /etc/redis/redis.conf.new
@@ -359,7 +360,28 @@ systemctl enable --now sdal-api.service sdal-worker.service
 systemctl restart sdal-api.service sdal-worker.service
 
 echo "=== Health check ==="
-curl -fsS "http://127.0.0.1:${APP_PORT}/api/health" | jq
+health_ok=0
+for i in $(seq 1 30); do
+  if health_raw="$(curl -sS --max-time 3 "http://127.0.0.1:${APP_PORT}/api/health" 2>/dev/null)" && echo "$health_raw" | jq -e '.ok == true' >/dev/null 2>&1; then
+    echo "$health_raw" | jq
+    health_ok=1
+    break
+  fi
+  sleep 2
+done
+
+if [[ "$health_ok" -ne 1 ]]; then
+  echo "[health] /api/health is not ready after retries"
+  curl -sS --max-time 3 "http://127.0.0.1:${APP_PORT}/api/health" || true
+  echo
+  echo "[health] redis status"
+  systemctl --no-pager --full status redis-server || true
+  echo "[health] sdal-api last logs"
+  journalctl -u sdal-api.service -n 80 --no-pager || true
+  echo "[health] sdal-worker last logs"
+  journalctl -u sdal-worker.service -n 80 --no-pager || true
+  exit 1
+fi
 
 echo
 echo "DONE"
