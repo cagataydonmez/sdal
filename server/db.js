@@ -199,7 +199,14 @@ function normalizePgSql(sql) {
 
 function runPsqlQuery(sql) {
   if (!postgresUrl) throw new Error('DATABASE_URL is required for postgres driver');
-  const wrapped = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (${sql}) t;`;
+  const trimmed = String(sql || '').trim().replace(/;\s*$/, '');
+  const wrapped = (() => {
+    if (/^(INSERT|UPDATE|DELETE)\b/i.test(trimmed)) {
+      const dml = /\bRETURNING\b/i.test(trimmed) ? trimmed : `${trimmed} RETURNING *`;
+      return `WITH t AS (${dml}) SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM t;`;
+    }
+    return `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text FROM (${trimmed}) t;`;
+  })();
   const out = execFileSync('psql', ['-X', '-A', '-t', postgresUrl, '-c', wrapped], { encoding: 'utf8' }).trim();
   if (!out) return [];
   try {
@@ -274,18 +281,31 @@ function rewriteSqliteMetaForPg(sql) {
   }
 
   if (text.includes('sqlite_master')) {
+    const relationSource = `
+      SELECT table_name AS name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      UNION
+      SELECT table_name AS name
+      FROM information_schema.views
+      WHERE table_schema = 'public'
+    `;
+
+    const withNameFilter = /\bname\s*=\s*(\?|"[^"]+"|'[^']+')/i.exec(text);
+    const nameWhere = withNameFilter ? ` WHERE name = ${withNameFilter[1]}` : '';
+
     if (/COUNT\(\*\)\s+AS\s+cnt/i.test(text)) {
       return `
         SELECT COUNT(*)::int AS cnt
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
+        FROM (${relationSource}) AS sqlite_master
+        ${nameWhere}
       `;
     }
     if (/type\s*=\s*'table'/i.test(text)) {
       return `
-        SELECT table_name AS name
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
+        SELECT name
+        FROM (${relationSource}) AS sqlite_master
+        ${nameWhere}
       `;
     }
   }
