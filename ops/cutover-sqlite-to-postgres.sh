@@ -12,6 +12,9 @@ AUTO_ROLLBACK="${AUTO_ROLLBACK:-1}"
 # For one-time cutover, force a clean modern schema to avoid legacy column drift
 # (e.g. old posts.user_id vs modern posts.author_id).
 RESET_POSTGRES_SCHEMA="${RESET_POSTGRES_SCHEMA:-1}"
+HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-30}"
+HEALTH_RETRY_SECONDS="${HEALTH_RETRY_SECONDS:-2}"
+HEALTH_REQUIRE_OK="${HEALTH_REQUIRE_OK:-1}"
 
 if [[ ! -d "$APP_DIR/.git" ]]; then
   echo "[cutover] app repo not found at $APP_DIR"
@@ -153,6 +156,22 @@ fail_with() {
   exit 1
 }
 
+health_payload_passes() {
+  local body="$1"
+  node -e '
+    try {
+      const body = JSON.parse(process.argv[1]);
+      const requireOk = String(process.argv[2] || "1") === "1";
+      if (requireOk && !body.ok) process.exit(10);
+      if (!body.dbReady) process.exit(11);
+      if (String(body.dbDriver || "") !== "postgres") process.exit(12);
+      process.exit(0);
+    } catch {
+      process.exit(20);
+    }
+  ' "$body" "$HEALTH_REQUIRE_OK"
+}
+
 run_with_priv mkdir -p "$BACKUP_DIR"
 run_with_priv mkdir -p "$REPORT_DIR"
 run_with_priv cp "$SDAL_ENV_FILE" "$ENV_BACKUP_PATH"
@@ -228,18 +247,26 @@ set_env_value "SDAL_DB_PATH" "$SQLITE_PATH"
 echo "[cutover] starting sdal services"
 start_sdal_services
 
-HEALTH_BODY="$(curl -fsS "http://127.0.0.1:${API_PORT}/api/health" || true)"
-if [[ -z "$HEALTH_BODY" ]]; then
-  fail_with "health endpoint returned empty response"
-fi
+HEALTH_BODY=""
+health_ok=0
+for ((attempt=1; attempt<=HEALTH_MAX_ATTEMPTS; attempt+=1)); do
+  HEALTH_BODY="$(curl -fsS "http://127.0.0.1:${API_PORT}/api/health" || true)"
+  if [[ -n "$HEALTH_BODY" ]] && health_payload_passes "$HEALTH_BODY"; then
+    health_ok=1
+    break
+  fi
+  sleep "$HEALTH_RETRY_SECONDS"
+done
 
-if ! node -e '
-  const body = JSON.parse(process.argv[1]);
-  if (!body.ok) process.exit(10);
-  if (!body.dbReady) process.exit(11);
-  if (String(body.dbDriver || "") !== "postgres") process.exit(12);
-' "$HEALTH_BODY"; then
-  fail_with "health validation failed after cutover"
+if [[ "$health_ok" != "1" ]]; then
+  echo "[cutover] health payload (last attempt): ${HEALTH_BODY:-<empty>}"
+  if systemd_unit_exists "sdal-api.service"; then
+    echo "[cutover] sdal-api status:"
+    run_with_priv systemctl status sdal-api.service --no-pager -l || true
+    echo "[cutover] sdal-api journal tail:"
+    run_with_priv journalctl -u sdal-api.service -n 80 --no-pager || true
+  fi
+  fail_with "health validation failed after cutover (attempts=${HEALTH_MAX_ATTEMPTS}, require_ok=${HEALTH_REQUIRE_OK})"
 fi
 
 echo "[cutover] success"
