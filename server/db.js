@@ -220,6 +220,25 @@ function runPsqlExec(sql) {
   return { changes };
 }
 
+function runPsqlInsertReturningId(sql) {
+  if (!postgresUrl) throw new Error('DATABASE_URL is required for postgres driver');
+  const wrapped = `
+    WITH inserted AS (
+      ${sql}
+      RETURNING id
+    )
+    SELECT COALESCE(json_agg(row_to_json(inserted)), '[]'::json)::text
+    FROM inserted
+  `;
+  const out = execFileSync('psql', ['-X', '-A', '-t', postgresUrl, '-c', wrapped], { encoding: 'utf8' }).trim();
+  if (!out) return [];
+  try {
+    return JSON.parse(out);
+  } catch {
+    return [];
+  }
+}
+
 function rewriteSqliteMetaForPg(sql) {
   const text = String(sql || '').trim();
   const pragma = text.match(/^PRAGMA\s+table_info\((.+)\)\s*;?$/i);
@@ -323,7 +342,7 @@ export function sqlRun(query, params = []) {
     let sql = normalizePgSql(injectParams(rewritten, params));
     if (/^\s*INSERT\s+INTO/i.test(sql) && !/\bRETURNING\b/i.test(sql)) {
       try {
-        const rows = runPsqlQuery(`${sql} RETURNING id`);
+        const rows = runPsqlInsertReturningId(sql);
         return {
           changes: rows.length,
           lastInsertRowid: rows[0]?.id ?? null

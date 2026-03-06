@@ -12,11 +12,11 @@ export class LegacyUserRepository extends UserRepository {
   resolveUsersTable() {
     if (this.usersTable) return this.usersTable;
     try {
-      this.sqlGet('SELECT id FROM uyeler LIMIT 1');
-      this.usersTable = 'uyeler';
+      this.sqlGet('SELECT id FROM users LIMIT 1');
+      this.usersTable = 'users';
       return this.usersTable;
     } catch {
-      this.usersTable = 'users';
+      this.usersTable = 'uyeler';
       return this.usersTable;
     }
   }

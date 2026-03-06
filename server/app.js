@@ -37,6 +37,7 @@ const __dirname = getDirname(import.meta.url);
 
 const app = express();
 app.set('trust proxy', true);
+app.locals.dbDriver = dbDriver;
 
 app.use(morgan('dev'));
 app.use(cookieParser());
@@ -1247,9 +1248,50 @@ function writeAuditLog(req, { actorUserId = null, action, targetType = null, tar
   );
 }
 
+function selectCompatUserById(userId) {
+  if (!userId) return null;
+  if (dbDriver !== 'postgres') {
+    return sqlGet('SELECT * FROM uyeler WHERE id = ?', [userId]);
+  }
+  return sqlGet(
+    `SELECT
+       id,
+       username AS kadi,
+       password_hash AS sifre,
+       email,
+       first_name AS isim,
+       last_name AS soyisim,
+       COALESCE(avatar_path, 'yok') AS resim,
+       CASE WHEN COALESCE(is_active, true) THEN 1 ELSE 0 END AS aktiv,
+       CASE WHEN COALESCE(is_banned, false) THEN 1 ELSE 0 END AS yasak,
+       CASE WHEN COALESCE(is_profile_initialized, true) THEN 1 ELSE 0 END AS ilkbd,
+       CASE WHEN COALESCE(legacy_admin_flag, false) THEN 1 ELSE 0 END AS admin,
+       CASE WHEN COALESCE(is_verified, false) THEN 1 ELSE 0 END AS verified,
+       role,
+       oauth_provider,
+       oauth_subject,
+       CASE WHEN COALESCE(oauth_email_verified, false) THEN 1 ELSE 0 END AS oauth_email_verified,
+       graduation_year AS mezuniyetyili,
+       privacy_consent_at AS kvkk_consent_at,
+       directory_consent_at,
+       CASE WHEN COALESCE(is_online, false) THEN 1 ELSE 0 END AS online,
+       profile_view_count AS hit,
+       last_activity_date AS sonislemtarih,
+       last_activity_time AS sonislemsaat,
+       last_seen_at AS sontarih,
+       previous_last_seen_at AS oncekisontarih,
+       last_ip AS sonip,
+       CASE WHEN COALESCE(is_album_admin, false) THEN 1 ELSE 0 END AS albumadmin,
+       quick_access_ids_json AS hizliliste
+     FROM users
+     WHERE id = ?`,
+    [userId]
+  );
+}
+
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
-  return sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.session.userId]);
+  return selectCompatUserById(req.session.userId);
 }
 
 const MIN_GRADUATION_YEAR = 1999;
@@ -4069,7 +4111,23 @@ app.get('/api/session', (req, res) => {
   if (!req.session.userId) {
     return res.json({ user: null });
   }
-  const user = sqlGet('SELECT id, kadi, isim, soyisim, resim AS photo, admin, role, verified, mezuniyetyili, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
+  const current = getCurrentUser(req);
+  const user = current
+    ? {
+      id: current.id,
+      kadi: current.kadi,
+      isim: current.isim,
+      soyisim: current.soyisim,
+      photo: current.resim,
+      admin: current.admin,
+      role: current.role,
+      verified: current.verified,
+      mezuniyetyili: current.mezuniyetyili,
+      oauth_provider: current.oauth_provider,
+      kvkk_consent_at: current.kvkk_consent_at,
+      directory_consent_at: current.directory_consent_at
+    }
+    : null;
   if (!user) return res.json({ user: null });
   const state = isOAuthProfileIncomplete(user) ? 'incomplete' : 'active';
   const role = getUserRole(user);

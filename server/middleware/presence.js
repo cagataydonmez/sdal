@@ -24,16 +24,31 @@ export function presenceMiddleware({ sqlRun, onlineHeartbeatMs = ONLINE_HEARTBEA
     try {
       const now = new Date(nowMs);
       const localParts = toLocalDateParts(now);
-      sqlRun('UPDATE uyeler SET sonislemtarih = ?, sonislemsaat = ?, sonip = ?, online = 1 WHERE id = ?', [
-        localParts.date,
-        localParts.time,
-        req.ip,
-        req.session.userId
-      ]);
+      const dbDriver = String(req.app?.locals?.dbDriver || '').toLowerCase();
+      if (dbDriver === 'postgres') {
+        const isoNow = now.toISOString();
+        sqlRun(
+          `UPDATE users
+           SET last_activity_date = ?,
+               last_activity_time = ?,
+               last_ip = ?,
+               is_online = ?,
+               last_seen_at = ?,
+               updated_at = ?
+           WHERE id = ?`,
+          [localParts.date, localParts.time, req.ip, true, isoNow, isoNow, req.session.userId]
+        );
+      } else {
+        sqlRun('UPDATE uyeler SET sonislemtarih = ?, sonislemsaat = ?, sonip = ?, online = 1 WHERE id = ?', [
+          localParts.date,
+          localParts.time,
+          req.ip,
+          req.session.userId
+        ]);
+      }
     } catch {
       // presence update is best effort
     }
     return next();
   };
 }
-
