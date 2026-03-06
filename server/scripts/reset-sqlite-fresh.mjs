@@ -2,6 +2,10 @@ import crypto from 'crypto';
 import path from 'path';
 import { promisify } from 'util';
 import Database from 'better-sqlite3';
+import {
+  ensureSqliteRuntimeSchema,
+  seedSqliteRuntimeDefaults
+} from './sqlite-runtime-schema.mjs';
 
 const scryptAsync = promisify(crypto.scrypt);
 const PASSWORD_HASH_PREFIX = 'scrypt$';
@@ -73,23 +77,6 @@ function hasTable(db, tableName) {
   return Boolean(row);
 }
 
-function ensureUserCompatibilityColumns(db) {
-  const alterStatements = [
-    "ALTER TABLE uyeler ADD COLUMN role TEXT DEFAULT 'user'",
-    'ALTER TABLE uyeler ADD COLUMN verified INTEGER DEFAULT 0',
-    "ALTER TABLE uyeler ADD COLUMN verification_status TEXT DEFAULT 'pending'",
-    'ALTER TABLE uyeler ADD COLUMN kvkk_consent_at TEXT',
-    'ALTER TABLE uyeler ADD COLUMN directory_consent_at TEXT'
-  ];
-  for (const sql of alterStatements) {
-    try {
-      db.exec(sql);
-    } catch {
-      // already exists
-    }
-  }
-}
-
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const derived = await scryptAsync(String(password), salt, 64);
@@ -152,32 +139,7 @@ function wipeAllData(db) {
 }
 
 function seedBaselineRows(db, uploadsDir) {
-  const now = new Date().toISOString();
-
-  if (hasTable(db, 'site_controls')) {
-    db.prepare(
-      'INSERT OR IGNORE INTO site_controls (id, site_open, maintenance_message, updated_at) VALUES (1, 1, ?, ?)'
-    ).run('Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.', now);
-  }
-
-  if (hasTable(db, 'module_controls')) {
-    const modules = [
-      'feed', 'main_feed', 'explore', 'following', 'groups', 'messages', 'messenger', 'notifications',
-      'albums', 'games', 'events', 'announcements', 'jobs', 'profile', 'help', 'requests'
-    ];
-    const stmt = db.prepare('INSERT OR IGNORE INTO module_controls (module_key, is_open, updated_at) VALUES (?, 1, ?)');
-    for (const moduleKey of modules) {
-      stmt.run(moduleKey, now);
-    }
-  }
-
-  if (hasTable(db, 'media_settings')) {
-    db.prepare(
-      `INSERT OR IGNORE INTO media_settings
-        (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
-       VALUES (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, ?)`
-    ).run(uploadsDir, now);
-  }
+  seedSqliteRuntimeDefaults(db, uploadsDir);
 }
 
 async function main() {
@@ -193,7 +155,7 @@ async function main() {
       throw new Error(`uyeler table not found in sqlite database: ${dbPath}`);
     }
 
-    ensureUserCompatibilityColumns(db);
+    ensureSqliteRuntimeSchema(db);
     wipeAllData(db);
 
     const rootHash = await hashPassword(args.rootPassword);
