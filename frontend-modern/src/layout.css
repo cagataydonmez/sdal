@@ -416,9 +416,16 @@
   }
 }
 .scope-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+.scope-tabs .scope-btn {
+  min-width: 164px;
+}
+.panel > .scope-tabs + .scope-mobile-selected-title + .scope-tabs {
+  margin-top: 12px;
 }
 .feed-mobile-tabs-wrap {
   display: none;

@@ -380,6 +380,10 @@ body.story-view-open .global-feedback {
     padding: 8px 4px;
     gap: 0;
   }
+  .scope-tabs .scope-btn {
+    min-width: 0;
+    flex: 1 1 0;
+  }
   .scope-btn-icon,
   .feed-tab-btn-icon {
     font-size: 11px;

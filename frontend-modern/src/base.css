@@ -145,6 +145,12 @@ textarea::placeholder {
   max-width: 100%;
 }
 
+.brand-text {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
 .brand-sub {
   font-weight: 600;
   opacity: 0.8;
@@ -165,4 +171,3 @@ textarea::placeholder {
 .side-nav nav a:hover {
   background: rgba(255,255,255,0.14);
 }
-

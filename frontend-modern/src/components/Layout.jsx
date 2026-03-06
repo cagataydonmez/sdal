@@ -127,15 +127,7 @@ export default function Layout({ children, title, right }) {
     <div className="app-shell">
       <aside className="side-nav">
         <Link to="/new" className="brand" aria-label="SDAL home">
-          <img
-            className="brand-logo"
-            src="/assets/logo.svg"
-            alt="SDAL logo"
-            width={160}
-            height={40}
-            loading="eager"
-            decoding="async"
-          />
+          <span className="brand-text">SDAL</span>
           <span className="brand-sub">Yeni</span>
         </Link>
         <nav>
@@ -213,15 +205,7 @@ export default function Layout({ children, title, right }) {
       <aside className={`mobile-nav-drawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
         <div className="mobile-nav-head">
           <Link to="/new" className="brand" aria-label="SDAL home" onClick={() => setMobileNavOpen(false)}>
-            <img
-              className="brand-logo"
-              src="/assets/logo.svg"
-              alt="SDAL logo"
-              width={160}
-              height={40}
-              loading="eager"
-              decoding="async"
-            />
+            <span className="brand-text">SDAL</span>
             <span className="brand-sub">Yeni</span>
           </Link>
           <button className="btn ghost" onClick={() => setMobileNavOpen(false)}>{t('close')}</button>
