@@ -33,7 +33,9 @@ function withSanitizedErrorText(response) {
           return extractErrorMessage(raw);
         };
       }
-      return Reflect.get(target, prop, receiver);
+      const value = Reflect.get(target, prop, target);
+      if (typeof value === 'function') return value.bind(target);
+      return value;
     }
   });
 }
