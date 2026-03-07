@@ -591,6 +591,7 @@ const ADMIN_LIVE_CACHE_TTL_MS = envInt('ADMIN_LIVE_CACHE_TTL_MS', dbDriver === '
 const ADMIN_STORAGE_CACHE_TTL_MS = envInt('ADMIN_STORAGE_CACHE_TTL_MS', dbDriver === 'postgres' ? 45000 : 15000);
 const MEMBERS_NAMES_CACHE_TTL_MS = envInt('MEMBERS_NAMES_CACHE_TTL_MS', dbDriver === 'postgres' ? 30000 : 10000);
 const EXPLORE_SUGGESTIONS_CACHE_TTL_MS = envInt('EXPLORE_SUGGESTIONS_CACHE_TTL_MS', dbDriver === 'postgres' ? 15000 : 5000);
+const ONLINE_TRUE_SQL_EXPR = "LOWER(COALESCE(NULLIF(TRIM(CAST(online AS TEXT)), ''), '0')) IN ('1','true','evet','yes')";
 
 const cacheNamespaces = Object.freeze({
   feed: 'feed_page',
@@ -1763,7 +1764,7 @@ function cleanupStaleOnlineUsers(maxIdleMs = 5 * 60 * 1000, { force = false } = 
   const rows = sqlAll(
     `SELECT id, sonislemtarih, sonislemsaat
      FROM uyeler
-     WHERE (COALESCE(CAST(online AS INTEGER), 0) = 1 OR LOWER(CAST(online AS TEXT)) IN ('true','evet','yes'))`
+     WHERE ${ONLINE_TRUE_SQL_EXPR}`
   );
   const staleIds = [];
   for (const row of rows) {
@@ -1787,7 +1788,7 @@ async function cleanupStaleOnlineUsersAsync(maxIdleMs = 5 * 60 * 1000, { force =
   const rows = await sqlAllAsync(
     `SELECT id, sonislemtarih, sonislemsaat
      FROM uyeler
-     WHERE (COALESCE(CAST(online AS INTEGER), 0) = 1 OR LOWER(CAST(online AS TEXT)) IN ('true','evet','yes'))`
+     WHERE ${ONLINE_TRUE_SQL_EXPR}`
   );
   const staleIds = [];
   for (const row of rows) {
@@ -1811,7 +1812,7 @@ function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
      WHERE (? IS NULL OR u.id != ?)
        AND (u.role IS NULL OR LOWER(u.role) != 'root')
-       AND (COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))
+       AND ${ONLINE_TRUE_SQL_EXPR}
      ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
      LIMIT ?`,
     [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 5, 24)]
@@ -1839,7 +1840,7 @@ async function listOnlineMembersAsync({ limit = 12, excludeUserId = null } = {})
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
      WHERE (? IS NULL OR u.id != ?)
        AND (u.role IS NULL OR LOWER(u.role) != 'root')
-       AND (COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))
+       AND ${ONLINE_TRUE_SQL_EXPR}
      ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
      LIMIT ?`,
     [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 5, 24)]
@@ -9904,8 +9905,8 @@ app.get('/api/new/admin/live', requireAdmin, async (req, res) => {
       sqlGetAsync(
         `SELECT
            (SELECT COUNT(*)::int FROM verification_requests WHERE status = ?) AS pending_verifications,
-           (SELECT COUNT(*)::int FROM events WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))) AS pending_events,
-           (SELECT COUNT(*)::int FROM announcements WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))) AS pending_announcements,
+           (SELECT COUNT(*)::int FROM events WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_events,
+           (SELECT COUNT(*)::int FROM announcements WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_announcements,
            (SELECT COUNT(*)::int FROM album_foto WHERE aktif = 0) AS pending_photos`,
         ['pending']
       ),
