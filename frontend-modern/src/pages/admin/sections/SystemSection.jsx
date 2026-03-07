@@ -26,6 +26,10 @@ export default function SystemSection({ isAdmin = false }) {
   const [backupLabel, setBackupLabel] = useState('manual');
   const [dbPath, setDbPath] = useState('');
   const [dbDriver, setDbDriver] = useState('');
+  const [driverSwitch, setDriverSwitch] = useState(null);
+  const [driverSwitchBusy, setDriverSwitchBusy] = useState(false);
+  const [driverSwitchConfirm, setDriverSwitchConfirm] = useState('');
+  const [driverSwitchAckDrift, setDriverSwitchAckDrift] = useState(false);
 
   const loadLogFiles = useCallback(async () => {
     try {
@@ -110,10 +114,22 @@ export default function SystemSection({ isAdmin = false }) {
     }
   }, []);
 
+  const loadDbDriverSwitchStatus = useCallback(async () => {
+    try {
+      const data = await adminClient.get('/api/new/admin/db/driver/status');
+      setDriverSwitch(data || null);
+      setDriverSwitchConfirm('');
+      setDriverSwitchAckDrift(false);
+    } catch (err) {
+      setDriverSwitch(null);
+      setStatus(err.message || 'DB switch status could not be loaded.');
+    }
+  }, []);
+
   const loadAll = useCallback(async () => {
     setStatus('');
-    await Promise.all([loadLogFiles(), loadTables(), loadBackups()]);
-  }, [loadBackups, loadLogFiles, loadTables]);
+    await Promise.all([loadLogFiles(), loadTables(), loadBackups(), loadDbDriverSwitchStatus()]);
+  }, [loadBackups, loadDbDriverSwitchStatus, loadLogFiles, loadTables]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -144,6 +160,32 @@ export default function SystemSection({ isAdmin = false }) {
       setStatus(err.message || 'Backup create failed.');
     }
   }, [backupLabel, loadBackups]);
+
+  const switchDbDriver = useCallback(async () => {
+    if (!driverSwitch?.targetDriver) return;
+    try {
+      setDriverSwitchBusy(true);
+      const payload = {
+        targetDriver: driverSwitch.targetDriver,
+        confirmText: driverSwitchConfirm,
+        challengeToken: driverSwitch.challengeToken,
+        acknowledgeSqliteDrift: driverSwitchAckDrift
+      };
+      const data = await adminClient.post('/api/new/admin/db/driver/switch', payload);
+      setStatus(data?.message || 'DB driver switch accepted. Server is restarting.');
+      await loadDbDriverSwitchStatus();
+    } catch (err) {
+      const message = String(err?.message || 'DB switch failed.');
+      if (/failed to fetch/i.test(message)) {
+        setStatus('DB driver switch sent. Connection dropped because server restarted.');
+      } else {
+        setStatus(message);
+      }
+      await loadDbDriverSwitchStatus();
+    } finally {
+      setDriverSwitchBusy(false);
+    }
+  }, [driverSwitch, driverSwitchAckDrift, driverSwitchConfirm, loadDbDriverSwitchStatus]);
 
   const tableColumnsConfig = useMemo(() => {
     return (tableColumns || []).map((column) => ({
@@ -227,6 +269,61 @@ export default function SystemSection({ isAdmin = false }) {
             onPageChange={(page) => loadTableData(selectedTable, page).catch(() => {})}
             emptyText="No rows."
           />
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-body stack">
+          <h3>DB Driver Toggle</h3>
+          <div className="meta">
+            Current: {driverSwitch?.currentDriver || dbDriver || '-'} | Target: {driverSwitch?.targetDriver || '-'}
+          </div>
+          <label className="ops-check-row">
+            <input type="checkbox" checked={driverSwitch?.targetDriver === 'postgres'} readOnly />
+            <span>Target PostgreSQL (unchecked means SQLite)</span>
+          </label>
+          <input
+            className="input"
+            value={driverSwitchConfirm}
+            onChange={(e) => setDriverSwitchConfirm(e.target.value)}
+            placeholder={driverSwitch?.expectedConfirmText || 'Type confirm text'}
+          />
+          {driverSwitch?.requiresSqliteDriftAck ? (
+            <label className="ops-check-row">
+              <input
+                type="checkbox"
+                checked={driverSwitchAckDrift}
+                onChange={(e) => setDriverSwitchAckDrift(e.target.checked)}
+              />
+              <span>I accept PostgreSQL to SQLite may use older SQLite data snapshot.</span>
+            </label>
+          ) : null}
+          {(driverSwitch?.blockers || []).length ? (
+            <div className="muted">
+              Blockers: {(driverSwitch.blockers || []).join(' | ')}
+            </div>
+          ) : null}
+          {(driverSwitch?.warnings || []).length ? (
+            <div className="muted">
+              Warnings: {(driverSwitch.warnings || []).join(' | ')}
+            </div>
+          ) : null}
+          <div className="ops-inline-actions">
+            <button
+              className="btn"
+              onClick={switchDbDriver}
+              disabled={
+                driverSwitchBusy
+                || !driverSwitch?.switchEnabled
+                || !driverSwitch?.targetDriver
+                || driverSwitchConfirm !== driverSwitch?.expectedConfirmText
+                || (driverSwitch?.requiresSqliteDriftAck && !driverSwitchAckDrift)
+              }
+            >
+              {driverSwitchBusy ? 'Switching...' : `Switch to ${driverSwitch?.targetDriver || 'target'}`}
+            </button>
+            <button className="btn ghost" onClick={() => loadDbDriverSwitchStatus().catch(() => {})}>Refresh switch status</button>
+          </div>
         </div>
       </div>
 

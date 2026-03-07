@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import Database from 'better-sqlite3';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { sqlGet, sqlAll, sqlRun, sqlGetAsync, sqlAllAsync, sqlRunAsync, dbPath, getDb, closeDbConnection, resetDbConnection, dbDriver, configureDbInstrumentation } from './db.js';
@@ -32,6 +33,7 @@ import { createMailSender } from './src/infra/mailSender.js';
 import { consumeUploadQuota } from './src/infra/uploadQuota.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
+import { pgQuery } from './src/infra/postgresPool.js';
 
 const __dirname = getDirname(import.meta.url);
 
@@ -522,6 +524,259 @@ function restoreDbFromUploadedFile(incomingPath) {
     resetDbConnection();
   }
   return { uploadedName, preRestoreName };
+}
+
+const DB_DRIVER_VALUES = Object.freeze(['sqlite', 'postgres']);
+const DB_DRIVER_SET = new Set(DB_DRIVER_VALUES);
+const dbDriverSwitchEnvFile = (() => {
+  const fromEnv = String(process.env.SDAL_DB_SWITCH_ENV_FILE || '').trim();
+  return path.resolve(fromEnv || '/etc/sdal/sdal.env');
+})();
+const dbDriverSwitchChallengeTtlMs = (() => {
+  const parsed = Number.parseInt(String(process.env.SDAL_DB_SWITCH_CHALLENGE_TTL_MS || ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 2 * 60 * 1000;
+})();
+const dbDriverSwitchRestartDelayMs = (() => {
+  const parsed = Number.parseInt(String(process.env.SDAL_DB_SWITCH_RESTART_DELAY_MS || ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1200;
+})();
+
+const dbDriverSwitchChallenges = new Map();
+const dbDriverSwitchState = {
+  inProgress: false,
+  lastAttemptAt: null,
+  lastSuccessAt: null,
+  lastError: null,
+  lastSwitch: null
+};
+
+function resolveDbDriverSwitchTarget(currentDriver = dbDriver) {
+  return String(currentDriver || '').toLowerCase() === 'postgres' ? 'sqlite' : 'postgres';
+}
+
+function buildDbDriverSwitchConfirmText(currentDriver, targetDriver) {
+  return `SWITCH ${String(currentDriver || '').toUpperCase()} -> ${String(targetDriver || '').toUpperCase()}`;
+}
+
+function buildDbDriverSwitchChallengeKey(req, targetDriver) {
+  const sessionKey = String(req.sessionID || req.session?.id || req.session?.userId || req.ip || 'anon');
+  return `${sessionKey}:${String(targetDriver || '').toLowerCase()}`;
+}
+
+function cleanupExpiredDbDriverSwitchChallenges(now = Date.now()) {
+  for (const [key, value] of dbDriverSwitchChallenges.entries()) {
+    if (!value || Number(value.expiresAt || 0) <= now) {
+      dbDriverSwitchChallenges.delete(key);
+    }
+  }
+}
+
+function issueDbDriverSwitchChallenge(req, targetDriver) {
+  cleanupExpiredDbDriverSwitchChallenges();
+  const key = buildDbDriverSwitchChallengeKey(req, targetDriver);
+  const token = crypto.randomBytes(24).toString('hex');
+  const expiresAt = Date.now() + dbDriverSwitchChallengeTtlMs;
+  dbDriverSwitchChallenges.set(key, { token, expiresAt });
+  return { token, expiresAt };
+}
+
+function consumeDbDriverSwitchChallenge(req, targetDriver, token) {
+  cleanupExpiredDbDriverSwitchChallenges();
+  const key = buildDbDriverSwitchChallengeKey(req, targetDriver);
+  const row = dbDriverSwitchChallenges.get(key);
+  dbDriverSwitchChallenges.delete(key);
+  if (!row) return false;
+  if (!token || row.token !== token) return false;
+  if (Number(row.expiresAt || 0) <= Date.now()) return false;
+  return true;
+}
+
+function inspectDbDriverSwitchEnvFile() {
+  const info = {
+    path: dbDriverSwitchEnvFile,
+    exists: false,
+    readable: false,
+    writable: false
+  };
+  try {
+    info.exists = fs.existsSync(dbDriverSwitchEnvFile);
+    if (!info.exists) return info;
+    fs.accessSync(dbDriverSwitchEnvFile, fs.constants.R_OK);
+    info.readable = true;
+    fs.accessSync(dbDriverSwitchEnvFile, fs.constants.W_OK);
+    info.writable = true;
+    return info;
+  } catch {
+    return info;
+  }
+}
+
+function inspectSqliteSwitchTarget(sqliteFilePath) {
+  const payload = {
+    ready: false,
+    detail: '',
+    path: sqliteFilePath,
+    tableCount: 0,
+    usersTableExists: false
+  };
+
+  if (!sqliteFilePath) {
+    payload.detail = 'SQLite dosya yolu bulunamadı.';
+    return payload;
+  }
+  if (!fs.existsSync(sqliteFilePath)) {
+    payload.detail = `SQLite dosyası bulunamadı (${sqliteFilePath}).`;
+    return payload;
+  }
+  if (!isSqliteFile(sqliteFilePath)) {
+    payload.detail = 'SQLite dosya imzası doğrulanamadı.';
+    return payload;
+  }
+
+  let tmp = null;
+  try {
+    tmp = new Database(sqliteFilePath, { readonly: true, fileMustExist: true });
+    const tableCount = Number(tmp.prepare(
+      "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+    ).get()?.cnt || 0);
+    const usersTableExists = !!tmp.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('uyeler', 'users') LIMIT 1"
+    ).get();
+    payload.tableCount = tableCount;
+    payload.usersTableExists = usersTableExists;
+    if (!usersTableExists) {
+      payload.detail = 'SQLite içinde beklenen kullanıcı tablosu bulunamadı (uyeler/users).';
+      return payload;
+    }
+    payload.ready = true;
+    payload.detail = 'ok';
+    return payload;
+  } catch (err) {
+    payload.detail = err?.message || 'SQLite hedef doğrulaması başarısız.';
+    return payload;
+  } finally {
+    try {
+      tmp?.close();
+    } catch {
+      // no-op
+    }
+  }
+}
+
+async function inspectPostgresSwitchTarget() {
+  const health = await checkPostgresHealth();
+  const payload = {
+    ready: false,
+    configured: health.configured,
+    latencyMs: Number(health.latencyMs || 0),
+    detail: health.detail || '',
+    tableCount: 0,
+    usersTableExists: false
+  };
+
+  if (!health.ready) return payload;
+
+  try {
+    const tableCountResult = await pgQuery(
+      "SELECT COUNT(*)::int AS cnt FROM information_schema.tables WHERE table_schema = 'public'"
+    );
+    const usersTableResult = await pgQuery(
+      "SELECT COUNT(*)::int AS cnt FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('uyeler', 'users')"
+    );
+    payload.tableCount = Number(tableCountResult.rows?.[0]?.cnt || 0);
+    payload.usersTableExists = Number(usersTableResult.rows?.[0]?.cnt || 0) > 0;
+    if (!payload.usersTableExists) {
+      payload.detail = 'PostgreSQL şemasında beklenen kullanıcı tablosu bulunamadı (uyeler/users).';
+      return payload;
+    }
+    payload.ready = true;
+    payload.detail = 'ok';
+    return payload;
+  } catch (err) {
+    payload.detail = err?.message || 'PostgreSQL hedef doğrulaması başarısız.';
+    return payload;
+  }
+}
+
+async function buildDbDriverSwitchReadiness() {
+  const currentDriver = DB_DRIVER_SET.has(dbDriver) ? dbDriver : 'sqlite';
+  const targetDriver = resolveDbDriverSwitchTarget(currentDriver);
+  const envFile = inspectDbDriverSwitchEnvFile();
+  const sqlite = inspectSqliteSwitchTarget(dbPath);
+  const postgres = await inspectPostgresSwitchTarget();
+  const targetState = targetDriver === 'postgres' ? postgres : sqlite;
+  const blockers = [];
+
+  if (!envFile.exists) blockers.push(`Env dosyası bulunamadı: ${envFile.path}`);
+  if (!envFile.readable) blockers.push(`Env dosyası okunamıyor: ${envFile.path}`);
+  if (!envFile.writable) blockers.push(`Env dosyası yazılamıyor: ${envFile.path}`);
+  if (!targetState.ready) blockers.push(`Hedef ${targetDriver} hazır değil: ${targetState.detail || 'unknown'}`);
+
+  return {
+    currentDriver,
+    targetDriver,
+    envFile,
+    sqlite,
+    postgres,
+    blockers
+  };
+}
+
+function quoteEnvValue(value) {
+  const raw = String(value ?? '');
+  if (!raw) return '';
+  if (/^[A-Za-z0-9_./:@%+-]+$/.test(raw)) return raw;
+  return `'${raw.replace(/'/g, "'\\''")}'`;
+}
+
+function writeEnvUpdates(filePath, updates = {}) {
+  const originalText = fs.readFileSync(filePath, 'utf-8');
+  const newline = originalText.includes('\r\n') ? '\r\n' : '\n';
+  const lines = originalText.replace(/\r\n/g, '\n').split('\n');
+  const entries = Object.entries(updates).filter(([key]) => String(key || '').trim().length > 0);
+
+  for (const [key, value] of entries) {
+    const rendered = `${key}=${quoteEnvValue(value)}`;
+    let updated = false;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (!line || /^\s*#/.test(line)) continue;
+      const eqIndex = line.indexOf('=');
+      if (eqIndex <= 0) continue;
+      const lineKey = line.slice(0, eqIndex).trim();
+      if (lineKey !== key) continue;
+      lines[i] = rendered;
+      updated = true;
+      break;
+    }
+    if (!updated) {
+      lines.push(rendered);
+    }
+  }
+
+  const normalized = lines.join('\n').replace(/\n+$/, '');
+  const nextText = `${normalized}${newline}`;
+  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tmpPath, nextText, 'utf-8');
+  fs.renameSync(tmpPath, filePath);
+}
+
+function scheduleDbDriverSwitchRestart(meta = {}) {
+  if (String(process.env.NODE_ENV || '').toLowerCase() === 'test') return;
+  const timer = setTimeout(() => {
+    writeAppLog('info', 'db_driver_switch_restart', {
+      mode: 'api_process_exit',
+      ...meta
+    });
+    try {
+      process.kill(process.pid, 'SIGTERM');
+    } catch (err) {
+      writeAppLog('error', 'db_driver_switch_restart_failed', {
+        message: err?.message || 'unknown_error'
+      });
+    }
+  }, dbDriverSwitchRestartDelayMs);
+  if (typeof timer?.unref === 'function') timer.unref();
 }
 
 function writeAppLog(level, event, meta = {}) {
@@ -10520,6 +10775,149 @@ app.get('/api/new/admin/db/backups', requireAdmin, (_req, res) => {
     dbPath,
     dbDriver
   });
+});
+
+app.get('/api/new/admin/db/driver/status', requireAdmin, async (req, res) => {
+  try {
+    const readiness = await buildDbDriverSwitchReadiness();
+    const expectedConfirmText = buildDbDriverSwitchConfirmText(readiness.currentDriver, readiness.targetDriver);
+    const challenge = issueDbDriverSwitchChallenge(req, readiness.targetDriver);
+    const requiresSqliteDriftAck = readiness.currentDriver === 'postgres' && readiness.targetDriver === 'sqlite';
+    const warnings = [];
+    if (requiresSqliteDriftAck) {
+      warnings.push('PostgreSQL -> SQLite geçişinde otomatik veri kopyalama yapılmaz; mevcut SQLite dosyası kullanılacaktır.');
+    }
+    warnings.push('Geçiş sırasında API işlemi yeniden başlatılır. Worker servisi için ayrıca restart önerilir.');
+
+    res.json({
+      currentDriver: readiness.currentDriver,
+      targetDriver: readiness.targetDriver,
+      expectedConfirmText,
+      challengeToken: challenge.token,
+      challengeExpiresAt: new Date(challenge.expiresAt).toISOString(),
+      inProgress: dbDriverSwitchState.inProgress,
+      switchEnabled: !dbDriverSwitchState.inProgress && readiness.blockers.length === 0,
+      blockers: readiness.blockers,
+      warnings,
+      requiresSqliteDriftAck,
+      envFile: readiness.envFile,
+      sqlite: readiness.sqlite,
+      postgres: readiness.postgres,
+      restart: {
+        mode: 'api_process_exit',
+        delayMs: dbDriverSwitchRestartDelayMs
+      },
+      lastSwitch: dbDriverSwitchState.lastSwitch,
+      lastAttemptAt: dbDriverSwitchState.lastAttemptAt,
+      lastSuccessAt: dbDriverSwitchState.lastSuccessAt,
+      lastError: dbDriverSwitchState.lastError
+    });
+  } catch (err) {
+    writeAppLog('error', 'db_driver_switch_status_failed', { message: err?.message || 'unknown_error' });
+    res.status(500).send(err?.message || 'DB driver durumu okunamadı.');
+  }
+});
+
+app.post('/api/new/admin/db/driver/switch', requireAdmin, async (req, res) => {
+  if (dbDriverSwitchState.inProgress) {
+    return res.status(409).send('DB driver geçişi zaten devam ediyor.');
+  }
+
+  const startedAt = new Date().toISOString();
+  dbDriverSwitchState.inProgress = true;
+  dbDriverSwitchState.lastAttemptAt = startedAt;
+  dbDriverSwitchState.lastError = null;
+
+  let envBackupName = '';
+  let envUpdated = false;
+  try {
+    const readiness = await buildDbDriverSwitchReadiness();
+    const targetDriver = readiness.targetDriver;
+    const expectedConfirmText = buildDbDriverSwitchConfirmText(readiness.currentDriver, targetDriver);
+    const requestedTarget = String(req.body?.targetDriver || '').trim().toLowerCase();
+    const confirmText = String(req.body?.confirmText || '').trim();
+    const challengeToken = String(req.body?.challengeToken || '').trim();
+    const acknowledgeSqliteDrift = req.body?.acknowledgeSqliteDrift === true;
+
+    if (requestedTarget && requestedTarget !== targetDriver) {
+      return res.status(400).send(`Bu oturumda geçerli hedef driver ${targetDriver}.`);
+    }
+    if (confirmText !== expectedConfirmText) {
+      return res.status(400).send(`Onay metni eşleşmedi. Beklenen: ${expectedConfirmText}`);
+    }
+    if (!consumeDbDriverSwitchChallenge(req, targetDriver, challengeToken)) {
+      return res.status(400).send('Geçiş onayı geçersiz veya süresi dolmuş. Yenileyip tekrar deneyin.');
+    }
+    if (readiness.currentDriver === 'postgres' && targetDriver === 'sqlite' && !acknowledgeSqliteDrift) {
+      return res.status(400).send('PostgreSQL -> SQLite geçişi için veri farklılığı onay kutusu zorunludur.');
+    }
+    if (readiness.blockers.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        blockers: readiness.blockers
+      });
+    }
+
+    const stamp = backupTimestamp();
+    envBackupName = `sdal-env-pre-driver-switch-${stamp}-${readiness.currentDriver}-to-${targetDriver}.env`;
+    const envBackupPath = path.join(dbBackupDir, envBackupName);
+    fs.copyFileSync(dbDriverSwitchEnvFile, envBackupPath);
+
+    const backup = await createDbBackup(`pre-switch-${readiness.currentDriver}-to-${targetDriver}`);
+
+    const envUpdates = { SDAL_DB_DRIVER: targetDriver };
+    if (targetDriver === 'sqlite') {
+      envUpdates.SDAL_DB_PATH = dbPath;
+    }
+    writeEnvUpdates(dbDriverSwitchEnvFile, envUpdates);
+    envUpdated = true;
+
+    const result = {
+      switchedFrom: readiness.currentDriver,
+      switchedTo: targetDriver,
+      envFile: dbDriverSwitchEnvFile,
+      envBackup: envBackupName,
+      preSwitchBackup: backup?.name || null,
+      requestedBy: req.session?.userId || null,
+      at: new Date().toISOString()
+    };
+    dbDriverSwitchState.lastSwitch = result;
+    dbDriverSwitchState.lastSuccessAt = result.at;
+    logAdminAction(req, 'db_driver_switch', result);
+
+    res.json({
+      ok: true,
+      message: `DB driver ${targetDriver} olarak güncellendi. Servis yeniden başlatılıyor.`,
+      result,
+      restart: {
+        mode: 'api_process_exit',
+        delayMs: dbDriverSwitchRestartDelayMs
+      },
+      note: 'Worker servisi farklı process olduğu için ayrıca restart edilmesi önerilir.'
+    });
+
+    scheduleDbDriverSwitchRestart({
+      switchedFrom: readiness.currentDriver,
+      switchedTo: targetDriver,
+      userId: req.session?.userId || null
+    });
+  } catch (err) {
+    if (envUpdated && envBackupName) {
+      try {
+        fs.copyFileSync(path.join(dbBackupDir, envBackupName), dbDriverSwitchEnvFile);
+      } catch {
+        // best effort rollback
+      }
+    }
+    dbDriverSwitchState.lastError = err?.message || 'unknown_error';
+    writeAppLog('error', 'db_driver_switch_failed', {
+      message: err?.message || 'unknown_error',
+      stack: err?.stack || ''
+    });
+    res.status(500).send(err?.message || 'DB driver geçişi başarısız.');
+  } finally {
+    dbDriverSwitchState.inProgress = false;
+  }
 });
 
 app.post('/api/new/admin/db/backups', requireAdmin, async (req, res) => {
