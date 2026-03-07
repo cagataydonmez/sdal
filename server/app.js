@@ -1730,10 +1730,60 @@ function cleanupStaleOnlineUsers(maxIdleMs = 5 * 60 * 1000, { force = false } = 
   sqlRun(`UPDATE uyeler SET online = ${offlineValue} WHERE id IN (${placeholders})`, staleIds);
 }
 
+async function cleanupStaleOnlineUsersAsync(maxIdleMs = 5 * 60 * 1000, { force = false } = {}) {
+  const now = Date.now();
+  if (!force && now - lastOnlineCleanupAtMs < ONLINE_STALE_CLEANUP_INTERVAL_MS) return;
+  lastOnlineCleanupAtMs = now;
+
+  const rows = await sqlAllAsync(
+    `SELECT id, sonislemtarih, sonislemsaat
+     FROM uyeler
+     WHERE (COALESCE(CAST(online AS INTEGER), 0) = 1 OR LOWER(CAST(online AS TEXT)) IN ('true','evet','yes'))`
+  );
+  const staleIds = [];
+  for (const row of rows) {
+    const ts = parseOnlineHeartbeat(row);
+    if (!ts) continue;
+    if (now - ts > maxIdleMs) staleIds.push(row.id);
+  }
+  if (!staleIds.length) return;
+  const placeholders = staleIds.map(() => '?').join(', ');
+  const offlineValue = dbDriver === 'postgres' ? 'FALSE' : '0';
+  await sqlRunAsync(`UPDATE uyeler SET online = ${offlineValue} WHERE id IN (${placeholders})`, staleIds);
+}
+
 function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
   cleanupStaleOnlineUsers();
   const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 100);
   const rows = sqlAll(
+    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili, u.sonislemtarih, u.sonislemsaat, u.online,
+            COALESCE(es.score, 0) AS engagement_score
+     FROM uyeler u
+     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+     WHERE (? IS NULL OR u.id != ?)
+       AND (u.role IS NULL OR LOWER(u.role) != 'root')
+       AND (COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))
+     ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
+     LIMIT ?`,
+    [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 5, 24)]
+  );
+  return rows.filter((row) => isRowOnlineNow(row)).slice(0, safeLimit).map((row) => ({
+    id: row.id,
+    kadi: row.kadi,
+    isim: row.isim,
+    soyisim: row.soyisim,
+    resim: row.resim,
+    mezuniyetyili: row.mezuniyetyili,
+    online: 1,
+    engagement_score: Number(row.engagement_score || 0),
+    lastSeenAt: row.sonislemtarih && row.sonislemsaat ? `${row.sonislemtarih}T${row.sonislemsaat}` : null
+  }));
+}
+
+async function listOnlineMembersAsync({ limit = 12, excludeUserId = null } = {}) {
+  await cleanupStaleOnlineUsersAsync();
+  const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 100);
+  const rows = await sqlAllAsync(
     `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili, u.sonislemtarih, u.sonislemsaat, u.online,
             COALESCE(es.score, 0) AS engagement_score
      FROM uyeler u
@@ -7645,14 +7695,19 @@ app.get('/api/new/messages/unread', requireAuth, async (req, res) => {
   res.json({ count: row?.cnt || 0 });
 });
 
-app.get('/api/new/online-members', requireAuth, (req, res) => {
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 80);
-  const items = listOnlineMembers({
-    limit,
-    excludeUserId: String(req.query.excludeSelf || '1') === '1' ? req.session.userId : null
-  });
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ items, count: items.length, now: new Date().toISOString() });
+app.get('/api/new/online-members', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 80);
+    const items = await listOnlineMembersAsync({
+      limit,
+      excludeUserId: String(req.query.excludeSelf || '1') === '1' ? req.session.userId : null
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ items, count: items.length, now: new Date().toISOString() });
+  } catch (err) {
+    console.error('GET /api/new/online-members failed:', err);
+    res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.get('/api/new/groups', requireAuth, (req, res) => {
