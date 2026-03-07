@@ -586,6 +586,9 @@ const PROFILE_CACHE_TTL_SECONDS = envInt('PROFILE_CACHE_TTL_SECONDS', 25);
 const STORY_RAIL_CACHE_TTL_SECONDS = envInt('STORY_RAIL_CACHE_TTL_SECONDS', 20);
 const ADMIN_SETTINGS_CACHE_TTL_SECONDS = envInt('ADMIN_SETTINGS_CACHE_TTL_SECONDS', 45);
 const CONTROL_CACHE_TTL_MS = envInt('CONTROL_CACHE_TTL_MS', dbDriver === 'postgres' ? 5000 : 2000);
+const ADMIN_STATS_CACHE_TTL_MS = envInt('ADMIN_STATS_CACHE_TTL_MS', dbDriver === 'postgres' ? 12000 : 5000);
+const ADMIN_LIVE_CACHE_TTL_MS = envInt('ADMIN_LIVE_CACHE_TTL_MS', dbDriver === 'postgres' ? 6000 : 3000);
+const ADMIN_STORAGE_CACHE_TTL_MS = envInt('ADMIN_STORAGE_CACHE_TTL_MS', dbDriver === 'postgres' ? 45000 : 15000);
 
 const cacheNamespaces = Object.freeze({
   feed: 'feed_page',
@@ -1473,6 +1476,9 @@ function ensureCanModerateTargetUser(req, res, targetUserId, { notFoundMessage =
 
 let siteControlCache = { expiresAt: 0, value: null };
 let moduleControlCache = { expiresAt: 0, value: null };
+let adminStatsResponseCache = { expiresAt: 0, key: '', value: null };
+let adminLiveResponseCache = { expiresAt: 0, key: '', value: null };
+let adminStorageSnapshotCache = { expiresAt: 0, value: null };
 
 function invalidateControlSnapshots() {
   siteControlCache.expiresAt = 0;
@@ -3678,6 +3684,52 @@ function sampleCpuUsagePercent() {
   if (!Number.isFinite(load1) || load1 < 0) return null;
   const loadPct = Math.min(100, Math.max(0, (load1 / cpuCount) * 100));
   return Number(loadPct.toFixed(2));
+}
+
+function readAdminStorageSnapshot() {
+  const now = Date.now();
+  if (adminStorageSnapshotCache.value && adminStorageSnapshotCache.expiresAt > now) {
+    return adminStorageSnapshotCache.value;
+  }
+
+  const uploadStats = walkDirStats(uploadsDir);
+  const dbSizeBytes = (() => {
+    try {
+      return fs.statSync(dbPath).size || 0;
+    } catch {
+      return 0;
+    }
+  })();
+  const diskMetrics = getDiskMetrics(uploadsDir) || getDiskMetrics(path.dirname(dbPath));
+  const diskTotalBytes = Number(diskMetrics?.totalBytes || 0);
+  const diskUsedBytes = Number(diskMetrics?.usedBytes || 0);
+  const diskFreeBytes = Number(diskMetrics?.freeBytes || 0);
+  const diskSupported = Number.isFinite(diskTotalBytes) && diskTotalBytes > 0;
+  const diskUsedPct = diskSupported ? Number(((diskUsedBytes / diskTotalBytes) * 100).toFixed(2)) : null;
+  const diskFreePct = diskSupported ? Number(((diskFreeBytes / diskTotalBytes) * 100).toFixed(2)) : null;
+  const cpuUsagePct = sampleCpuUsagePercent();
+  const cpuSupported = Number.isFinite(cpuUsagePct) && cpuUsagePct >= 0;
+
+  const snapshot = {
+    uploadedPhotoCount: Number(uploadStats.files || 0),
+    uploadedPhotoSizeMb: bytesToMb(uploadStats.bytes),
+    databaseSizeMb: bytesToMb(dbSizeBytes),
+    diskTotalMb: diskSupported ? bytesToMb(diskTotalBytes) : null,
+    diskUsedMb: diskSupported ? bytesToMb(diskUsedBytes) : null,
+    diskFreeMb: diskSupported ? bytesToMb(diskFreeBytes) : null,
+    diskUsedPct,
+    diskFreePct,
+    diskSupported,
+    diskSource: diskMetrics?.source || null,
+    cpuUsagePct: cpuSupported ? Number(cpuUsagePct) : null,
+    cpuSupported
+  };
+
+  adminStorageSnapshotCache = {
+    value: snapshot,
+    expiresAt: now + ADMIN_STORAGE_CACHE_TTL_MS
+  };
+  return snapshot;
 }
 
 function issueCaptcha(req, res) {
@@ -9530,81 +9582,98 @@ app.post('/api/new/admin/engagement-ab/rebalance', requireAdmin, (req, res) => {
   res.json({ ok: true, keepAssignments });
 });
 
-app.get('/api/new/admin/stats', requireAdmin, (req, res) => {
-  const recentLimit = Math.min(Math.max(parseInt(req.query.recentLimit || '12', 10), 1), 80);
-  cleanupStaleOnlineUsers();
-  const counts = {
-    users: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler')?.cnt || 0,
-    activeUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE aktiv = 1 AND yasak = 0')?.cnt || 0,
-    pendingUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE aktiv = 0 AND yasak = 0')?.cnt || 0,
-    bannedUsers: sqlGet('SELECT COUNT(*) AS cnt FROM uyeler WHERE yasak = 1')?.cnt || 0,
-    posts: sqlGet('SELECT COUNT(*) AS cnt FROM posts')?.cnt || 0,
-    photos: sqlGet('SELECT COUNT(*) AS cnt FROM album_foto')?.cnt || 0,
-    stories: sqlGet('SELECT COUNT(*) AS cnt FROM stories')?.cnt || 0,
-    groups: sqlGet('SELECT COUNT(*) AS cnt FROM groups')?.cnt || 0,
-    messages: sqlGet('SELECT COUNT(*) AS cnt FROM gelenkutusu')?.cnt || 0,
-    events: sqlGet('SELECT COUNT(*) AS cnt FROM events')?.cnt || 0,
-    announcements: sqlGet('SELECT COUNT(*) AS cnt FROM announcements')?.cnt || 0,
-    chat: sqlGet('SELECT COUNT(*) AS cnt FROM chat_messages')?.cnt || 0
-  };
-  const recentUsers = sqlAll(
-    `SELECT id, kadi, isim, soyisim, resim, ilktarih
-     FROM uyeler
-     ORDER BY id DESC
-     LIMIT ?`,
-    [recentLimit]
-  );
-  const recentPosts = sqlAll(
-    `SELECT p.id, p.content, p.image, p.created_at, u.kadi
-     FROM posts p
-     LEFT JOIN uyeler u ON u.id = p.user_id
-     ORDER BY p.id DESC
-     LIMIT ?`,
-    [recentLimit]
-  );
-  const recentPhotos = sqlAll(
-    `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
-     FROM album_foto f
-     LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
-     ORDER BY f.id DESC
-     LIMIT ?`,
-    [recentLimit]
-  );
-
-  const uploadStats = walkDirStats(uploadsDir);
-  const dbSizeBytes = (() => {
-    try {
-      return fs.statSync(dbPath).size || 0;
-    } catch {
-      return 0;
+app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const recentLimit = Math.min(Math.max(parseInt(req.query.recentLimit || '12', 10), 1), 80);
+    const cacheKey = `recentLimit:${recentLimit}`;
+    const now = Date.now();
+    if (
+      adminStatsResponseCache.value
+      && adminStatsResponseCache.key === cacheKey
+      && adminStatsResponseCache.expiresAt > now
+    ) {
+      return res.json(adminStatsResponseCache.value);
     }
-  })();
-  const diskMetrics = getDiskMetrics(uploadsDir) || getDiskMetrics(path.dirname(dbPath));
-  const diskTotalBytes = Number(diskMetrics?.totalBytes || 0);
-  const diskUsedBytes = Number(diskMetrics?.usedBytes || 0);
-  const diskFreeBytes = Number(diskMetrics?.freeBytes || 0);
-  const diskSupported = Number.isFinite(diskTotalBytes) && diskTotalBytes > 0;
-  const diskUsedPct = diskSupported ? Number(((diskUsedBytes / diskTotalBytes) * 100).toFixed(2)) : null;
-  const diskFreePct = diskSupported ? Number(((diskFreeBytes / diskTotalBytes) * 100).toFixed(2)) : null;
-  const cpuUsagePct = sampleCpuUsagePercent();
-  const cpuSupported = Number.isFinite(cpuUsagePct) && cpuUsagePct >= 0;
 
-  const storage = {
-    uploadedPhotoCount: Number(uploadStats.files || 0),
-    uploadedPhotoSizeMb: bytesToMb(uploadStats.bytes),
-    databaseSizeMb: bytesToMb(dbSizeBytes),
-    diskTotalMb: diskSupported ? bytesToMb(diskTotalBytes) : null,
-    diskUsedMb: diskSupported ? bytesToMb(diskUsedBytes) : null,
-    diskFreeMb: diskSupported ? bytesToMb(diskFreeBytes) : null,
-    diskUsedPct,
-    diskFreePct,
-    diskSupported,
-    diskSource: diskMetrics?.source || null,
-    cpuUsagePct: cpuSupported ? Number(cpuUsagePct) : null,
-    cpuSupported
-  };
+    cleanupStaleOnlineUsersAsync().catch(() => {});
 
-  res.json({ counts, storage, recentUsers, recentPosts, recentPhotos });
+    const [
+      countsRow,
+      recentUsers,
+      recentPosts,
+      recentPhotos
+    ] = await Promise.all([
+      sqlGetAsync(
+        `SELECT
+           (SELECT COUNT(*)::int FROM uyeler) AS users,
+           (SELECT COUNT(*)::int FROM uyeler WHERE aktiv = 1 AND yasak = 0) AS active_users,
+           (SELECT COUNT(*)::int FROM uyeler WHERE aktiv = 0 AND yasak = 0) AS pending_users,
+           (SELECT COUNT(*)::int FROM uyeler WHERE yasak = 1) AS banned_users,
+           (SELECT COUNT(*)::int FROM posts) AS posts,
+           (SELECT COUNT(*)::int FROM album_foto) AS photos,
+           (SELECT COUNT(*)::int FROM stories) AS stories,
+           (SELECT COUNT(*)::int FROM groups) AS groups,
+           (SELECT COUNT(*)::int FROM gelenkutusu) AS messages,
+           (SELECT COUNT(*)::int FROM events) AS events,
+           (SELECT COUNT(*)::int FROM announcements) AS announcements,
+           (SELECT COUNT(*)::int FROM chat_messages) AS chat`
+      ),
+      sqlAllAsync(
+        `SELECT id, kadi, isim, soyisim, resim, ilktarih
+         FROM uyeler
+         ORDER BY id DESC
+         LIMIT ?`,
+        [recentLimit]
+      ),
+      sqlAllAsync(
+        `SELECT p.id, p.content, p.image, p.created_at, u.kadi
+         FROM posts p
+         LEFT JOIN uyeler u ON u.id = p.user_id
+         ORDER BY p.id DESC
+         LIMIT ?`,
+        [recentLimit]
+      ),
+      sqlAllAsync(
+        `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
+         FROM album_foto f
+         LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
+         ORDER BY f.id DESC
+         LIMIT ?`,
+        [recentLimit]
+      )
+    ]);
+
+    const counts = {
+      users: Number(countsRow?.users || 0),
+      activeUsers: Number(countsRow?.active_users || 0),
+      pendingUsers: Number(countsRow?.pending_users || 0),
+      bannedUsers: Number(countsRow?.banned_users || 0),
+      posts: Number(countsRow?.posts || 0),
+      photos: Number(countsRow?.photos || 0),
+      stories: Number(countsRow?.stories || 0),
+      groups: Number(countsRow?.groups || 0),
+      messages: Number(countsRow?.messages || 0),
+      events: Number(countsRow?.events || 0),
+      announcements: Number(countsRow?.announcements || 0),
+      chat: Number(countsRow?.chat || 0)
+    };
+    const payload = {
+      counts,
+      storage: readAdminStorageSnapshot(),
+      recentUsers,
+      recentPosts,
+      recentPhotos
+    };
+    adminStatsResponseCache = {
+      key: cacheKey,
+      value: payload,
+      expiresAt: now + ADMIN_STATS_CACHE_TTL_MS
+    };
+    return res.json(payload);
+  } catch (err) {
+    console.error('admin.stats failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.get('/api/new/admin/engagement-scores', requireAdmin, (req, res) => {
@@ -9714,96 +9783,129 @@ app.post('/api/new/admin/engagement-scores/recalculate', requireAdmin, (_req, re
   res.json({ ok: true, lastCalculatedAt });
 });
 
-app.get('/api/new/admin/live', requireAdmin, (req, res) => {
-  cleanupStaleOnlineUsers();
-  const chatLimit = Math.min(Math.max(parseInt(req.query.chatLimit || '8', 10), 1), 50);
-  const postLimit = Math.min(Math.max(parseInt(req.query.postLimit || '8', 10), 1), 50);
-  const userLimit = Math.min(Math.max(parseInt(req.query.userLimit || '8', 10), 1), 50);
-  const activityLimit = Math.min(Math.max(parseInt(req.query.activityLimit || '20', 10), 1), 120);
-  const onlineMembers = listOnlineMembers({ limit: 20, excludeUserId: null });
-  const counts = {
-    onlineUsers: onlineMembers.length,
-    pendingVerifications: sqlGet('SELECT COUNT(*) AS cnt FROM verification_requests WHERE status = ?', ['pending'])?.cnt || 0,
-    pendingEvents: sqlGet(
-      "SELECT COUNT(*) AS cnt FROM events WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))"
-    )?.cnt || 0,
-    pendingAnnouncements: sqlGet(
-      "SELECT COUNT(*) AS cnt FROM announcements WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))"
-    )?.cnt || 0,
-    pendingPhotos: sqlGet('SELECT COUNT(*) AS cnt FROM album_foto WHERE aktif = 0')?.cnt || 0
-  };
+app.get('/api/new/admin/live', requireAdmin, async (req, res) => {
+  try {
+    const chatLimit = Math.min(Math.max(parseInt(req.query.chatLimit || '8', 10), 1), 50);
+    const postLimit = Math.min(Math.max(parseInt(req.query.postLimit || '8', 10), 1), 50);
+    const userLimit = Math.min(Math.max(parseInt(req.query.userLimit || '8', 10), 1), 50);
+    const activityLimit = Math.min(Math.max(parseInt(req.query.activityLimit || '20', 10), 1), 120);
+    const cacheKey = `chat:${chatLimit}:post:${postLimit}:user:${userLimit}:activity:${activityLimit}`;
+    const now = Date.now();
+    if (
+      adminLiveResponseCache.value
+      && adminLiveResponseCache.key === cacheKey
+      && adminLiveResponseCache.expiresAt > now
+    ) {
+      return res.json(adminLiveResponseCache.value);
+    }
 
-  const rows = [];
-  const chat = sqlAll(
-    `SELECT c.id, c.created_at AS ts, u.kadi
-     FROM chat_messages c
-     LEFT JOIN uyeler u ON u.id = c.user_id
-     ORDER BY c.id DESC
-     LIMIT ?`,
-    [chatLimit]
-  );
-  for (const item of chat) {
-    rows.push({
-      id: `chat-${item.id}`,
-      type: 'chat',
-      message: `@${item.kadi || 'üye'} canlı sohbete mesaj gönderdi.`,
-      at: item.ts || null
-    });
+    await cleanupStaleOnlineUsersAsync();
+    const [
+      onlineMembers,
+      countsRow,
+      chat,
+      posts,
+      newestUsers,
+      newestPhotos
+    ] = await Promise.all([
+      listOnlineMembersAsync({ limit: 20, excludeUserId: null }),
+      sqlGetAsync(
+        `SELECT
+           (SELECT COUNT(*)::int FROM verification_requests WHERE status = ?) AS pending_verifications,
+           (SELECT COUNT(*)::int FROM events WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))) AS pending_events,
+           (SELECT COUNT(*)::int FROM announcements WHERE (COALESCE(CAST(approved AS INTEGER), 1) = 0 OR LOWER(CAST(approved AS TEXT)) IN ('false','hayir','no'))) AS pending_announcements,
+           (SELECT COUNT(*)::int FROM album_foto WHERE aktif = 0) AS pending_photos`,
+        ['pending']
+      ),
+      sqlAllAsync(
+        `SELECT c.id, c.created_at AS ts, u.kadi
+         FROM chat_messages c
+         LEFT JOIN uyeler u ON u.id = c.user_id
+         ORDER BY c.id DESC
+         LIMIT ?`,
+        [chatLimit]
+      ),
+      sqlAllAsync(
+        `SELECT p.id, p.content, p.image, p.created_at AS ts, u.kadi
+         FROM posts p
+         LEFT JOIN uyeler u ON u.id = p.user_id
+         ORDER BY p.id DESC
+         LIMIT ?`,
+        [postLimit]
+      ),
+      sqlAllAsync('SELECT id, kadi, isim, soyisim, resim, ilktarih AS ts FROM uyeler ORDER BY id DESC LIMIT ?', [userLimit]),
+      sqlAllAsync(
+        `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
+         FROM album_foto f
+         LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
+         ORDER BY f.id DESC
+         LIMIT ?`,
+        [userLimit]
+      )
+    ]);
+
+    const counts = {
+      onlineUsers: onlineMembers.length,
+      pendingVerifications: Number(countsRow?.pending_verifications || 0),
+      pendingEvents: Number(countsRow?.pending_events || 0),
+      pendingAnnouncements: Number(countsRow?.pending_announcements || 0),
+      pendingPhotos: Number(countsRow?.pending_photos || 0)
+    };
+
+    const rows = [];
+    for (const item of chat) {
+      rows.push({
+        id: `chat-${item.id}`,
+        type: 'chat',
+        message: `@${item.kadi || 'üye'} canlı sohbete mesaj gönderdi.`,
+        at: item.ts || null
+      });
+    }
+    for (const item of posts) {
+      rows.push({
+        id: `post-${item.id}`,
+        type: 'post',
+        message: `@${item.kadi || 'üye'} yeni gönderi paylaştı.`,
+        at: item.ts || null
+      });
+    }
+    for (const item of newestUsers) {
+      rows.push({
+        id: `user-${item.id}`,
+        type: 'user',
+        message: `@${item.kadi || 'üye'} sisteme katıldı.`,
+        at: item.ts || null
+      });
+    }
+
+    const newestPosts = posts.map((p) => ({
+      id: p.id,
+      kadi: p.kadi,
+      created_at: p.ts,
+      content: p.content || '',
+      image: p.image || null
+    }));
+
+    rows.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
+    const payload = {
+      counts,
+      activity: rows.slice(0, activityLimit),
+      onlineMembers,
+      newestUsers,
+      newestPosts,
+      newestPhotos,
+      now: new Date().toISOString()
+    };
+    adminLiveResponseCache = {
+      key: cacheKey,
+      value: payload,
+      expiresAt: now + ADMIN_LIVE_CACHE_TTL_MS
+    };
+    return res.json(payload);
+  } catch (err) {
+    console.error('admin.live failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-
-  const posts = sqlAll(
-    `SELECT p.id, p.content, p.image, p.created_at AS ts, u.kadi
-     FROM posts p
-     LEFT JOIN uyeler u ON u.id = p.user_id
-     ORDER BY p.id DESC
-     LIMIT ?`,
-    [postLimit]
-  );
-  for (const item of posts) {
-    rows.push({
-      id: `post-${item.id}`,
-      type: 'post',
-      message: `@${item.kadi || 'üye'} yeni gönderi paylaştı.`,
-      at: item.ts || null
-    });
-  }
-
-  const newestUsers = sqlAll('SELECT id, kadi, isim, soyisim, resim, ilktarih AS ts FROM uyeler ORDER BY id DESC LIMIT ?', [userLimit]);
-  for (const item of newestUsers) {
-    rows.push({
-      id: `user-${item.id}`,
-      type: 'user',
-      message: `@${item.kadi || 'üye'} sisteme katıldı.`,
-      at: item.ts || null
-    });
-  }
-
-  const newestPosts = posts.map((p) => ({
-    id: p.id,
-    kadi: p.kadi,
-    created_at: p.ts,
-    content: p.content || '',
-    image: p.image || null
-  }));
-  const newestPhotos = sqlAll(
-    `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
-     FROM album_foto f
-     LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
-     ORDER BY f.id DESC
-     LIMIT ?`,
-    [userLimit]
-  );
-
-  rows.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
-  res.json({
-    counts,
-    activity: rows.slice(0, activityLimit),
-    onlineMembers,
-    newestUsers,
-    newestPosts,
-    newestPhotos,
-    now: new Date().toISOString()
-  });
 });
 
 app.get('/api/new/admin/groups', requireModerationPermission('groups.view'), (req, res) => {
