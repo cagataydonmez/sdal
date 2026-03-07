@@ -589,6 +589,8 @@ const CONTROL_CACHE_TTL_MS = envInt('CONTROL_CACHE_TTL_MS', dbDriver === 'postgr
 const ADMIN_STATS_CACHE_TTL_MS = envInt('ADMIN_STATS_CACHE_TTL_MS', dbDriver === 'postgres' ? 12000 : 5000);
 const ADMIN_LIVE_CACHE_TTL_MS = envInt('ADMIN_LIVE_CACHE_TTL_MS', dbDriver === 'postgres' ? 6000 : 3000);
 const ADMIN_STORAGE_CACHE_TTL_MS = envInt('ADMIN_STORAGE_CACHE_TTL_MS', dbDriver === 'postgres' ? 45000 : 15000);
+const MEMBERS_NAMES_CACHE_TTL_MS = envInt('MEMBERS_NAMES_CACHE_TTL_MS', dbDriver === 'postgres' ? 30000 : 10000);
+const EXPLORE_SUGGESTIONS_CACHE_TTL_MS = envInt('EXPLORE_SUGGESTIONS_CACHE_TTL_MS', dbDriver === 'postgres' ? 15000 : 5000);
 
 const cacheNamespaces = Object.freeze({
   feed: 'feed_page',
@@ -1479,6 +1481,8 @@ let moduleControlCache = { expiresAt: 0, value: null };
 let adminStatsResponseCache = { expiresAt: 0, key: '', value: null };
 let adminLiveResponseCache = { expiresAt: 0, key: '', value: null };
 let adminStorageSnapshotCache = { expiresAt: 0, value: null };
+let membersNameRowsCache = { expiresAt: 0, value: null };
+const exploreSuggestionsResponseCache = new Map();
 
 function invalidateControlSnapshots() {
   siteControlCache.expiresAt = 0;
@@ -1526,6 +1530,45 @@ function getModuleControlMap() {
   const next = readModuleControlMapFromDb();
   moduleControlCache = { value: next, expiresAt: now + CONTROL_CACHE_TTL_MS };
   return next;
+}
+
+async function getCachedActiveMemberNameRows() {
+  const now = Date.now();
+  if (membersNameRowsCache.value && membersNameRowsCache.expiresAt > now) {
+    return membersNameRowsCache.value;
+  }
+  const rows = await sqlAllAsync(
+    "SELECT isim FROM uyeler WHERE (COALESCE(CAST(aktiv AS INTEGER), 1) = 1 OR LOWER(CAST(aktiv AS TEXT)) IN ('true','evet','yes')) AND COALESCE(CAST(yasak AS INTEGER), 0) = 0 ORDER BY isim"
+  );
+  membersNameRowsCache = {
+    value: rows,
+    expiresAt: now + MEMBERS_NAMES_CACHE_TTL_MS
+  };
+  return rows;
+}
+
+function readExploreSuggestionsCache(cacheKey) {
+  const now = Date.now();
+  const cached = exploreSuggestionsResponseCache.get(cacheKey);
+  if (!cached) return null;
+  if (cached.expiresAt <= now) {
+    exploreSuggestionsResponseCache.delete(cacheKey);
+    return null;
+  }
+  return cached.value;
+}
+
+function writeExploreSuggestionsCache(cacheKey, value) {
+  const now = Date.now();
+  exploreSuggestionsResponseCache.set(cacheKey, {
+    value,
+    expiresAt: now + EXPLORE_SUGGESTIONS_CACHE_TTL_MS
+  });
+  if (exploreSuggestionsResponseCache.size > 400) {
+    for (const [key, entry] of exploreSuggestionsResponseCache.entries()) {
+      if (!entry || entry.expiresAt <= now) exploreSuggestionsResponseCache.delete(key);
+    }
+  }
 }
 
 function resolveModuleKeyByPath(pathname) {
@@ -6033,197 +6076,229 @@ app.get('/api/sidebar', (req, res) => {
   res.json({ onlineUsers, newMembers, newPhotos, topSnake, topTetris, newMessagesCount });
 });
 
-app.get('/api/members', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-  const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 50);
-  const term = req.query.term ? String(req.query.term).replace(/'/g, '') : '';
-  const gradYear = parseInt(String(req.query.gradYear || '0'), 10) || 0;
-  const location = req.query.location ? String(req.query.location).trim().toLowerCase() : '';
-  const profession = req.query.profession ? String(req.query.profession).trim().toLowerCase() : '';
-  const expertise = req.query.expertise ? String(req.query.expertise).trim().toLowerCase() : '';
-  const title = req.query.title ? String(req.query.title).trim().toLowerCase() : '';
-  const mentorsOnly = String(req.query.mentors || '').trim() === '1';
-  const verifiedOnly = String(req.query.verified || '').trim() === '1';
-  const withPhoto = String(req.query.withPhoto || '').trim() === '1';
-  const onlineOnly = String(req.query.online || '').trim() === '1';
-  const relation = String(req.query.relation || '').trim();
-  const excludeSelf = String(req.query.excludeSelf || '').trim() === '1';
-  const sort = String(req.query.sort || 'recommended').trim();
-  const whereParts = [
-    `COALESCE(CAST(aktiv AS INTEGER), 1) = 1`,
-    `COALESCE(CAST(yasak AS INTEGER), 0) = 0`
-  ];
-  const params = [];
-  if (excludeSelf) {
-    whereParts.push('id != ?');
-    params.push(req.session.userId);
-  }
-  if (term) {
-    whereParts.push('(LOWER(kadi) LIKE LOWER(?) OR LOWER(isim) LIKE LOWER(?) OR LOWER(soyisim) LIKE LOWER(?) OR LOWER(meslek) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))');
-    params.push(...Array(5).fill(`%${term}%`));
-  }
-  if (gradYear > 0) {
-    whereParts.push('CAST(COALESCE(mezuniyetyili, 0) AS INTEGER) = ?');
-    params.push(gradYear);
-  }
-  if (location) {
-    whereParts.push('LOWER(sehir) LIKE ?');
-    params.push(`%${location}%`);
-  }
-  if (profession) {
-    whereParts.push('LOWER(meslek) LIKE ?');
-    params.push(`%${profession}%`);
-  }
-  if (expertise) {
-    whereParts.push('LOWER(uzmanlik) LIKE ?');
-    params.push(`%${expertise}%`);
-  }
-  if (title) {
-    whereParts.push('LOWER(unvan) LIKE ?');
-    params.push(`%${title}%`);
-  }
-  if (mentorsOnly) {
-    whereParts.push('COALESCE(CAST(mentor_opt_in AS INTEGER), 0) = 1');
-  }
-  if (verifiedOnly) {
-    whereParts.push('COALESCE(CAST(verified AS INTEGER), 0) = 1');
-  }
-  if (withPhoto) {
-    whereParts.push("resim IS NOT NULL AND TRIM(CAST(resim AS TEXT)) != '' AND LOWER(TRIM(CAST(resim AS TEXT))) != 'yok'");
-  }
-  if (onlineOnly) {
-    whereParts.push('COALESCE(CAST(online AS INTEGER), 0) = 1');
-  }
-  if (relation === 'following') {
-    whereParts.push('id IN (SELECT following_id FROM follows WHERE follower_id = ?)');
-    params.push(req.session.userId);
-  }
-  if (relation === 'not_following') {
-    whereParts.push('id NOT IN (SELECT following_id FROM follows WHERE follower_id = ?)');
-    params.push(req.session.userId);
-  }
-  const where = whereParts.join(' AND ');
-  const orderByMap = {
-    name: 'u.isim ASC, u.soyisim ASC',
-    recent: 'u.id DESC',
-    online: 'COALESCE(CAST(u.online AS INTEGER), 0) DESC, u.isim ASC',
-    year: 'CAST(COALESCE(u.mezuniyetyili, 0) AS INTEGER) DESC, u.isim ASC',
-    engagement: 'COALESCE(es.score, 0) DESC, u.id DESC',
-    recommended: 'COALESCE(es.score, 0) DESC, COALESCE(CAST(u.online AS INTEGER), 0) DESC, COALESCE(CAST(u.verified AS INTEGER), 0) DESC, u.id DESC'
-  };
-  const orderBy = orderByMap[sort] || orderByMap.name;
+app.get('/api/members', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 50);
+    const term = req.query.term ? String(req.query.term).replace(/'/g, '') : '';
+    const gradYear = parseInt(String(req.query.gradYear || '0'), 10) || 0;
+    const location = req.query.location ? String(req.query.location).trim().toLowerCase() : '';
+    const profession = req.query.profession ? String(req.query.profession).trim().toLowerCase() : '';
+    const expertise = req.query.expertise ? String(req.query.expertise).trim().toLowerCase() : '';
+    const title = req.query.title ? String(req.query.title).trim().toLowerCase() : '';
+    const mentorsOnly = String(req.query.mentors || '').trim() === '1';
+    const verifiedOnly = String(req.query.verified || '').trim() === '1';
+    const withPhoto = String(req.query.withPhoto || '').trim() === '1';
+    const onlineOnly = String(req.query.online || '').trim() === '1';
+    const relation = String(req.query.relation || '').trim();
+    const excludeSelf = String(req.query.excludeSelf || '').trim() === '1';
+    const sort = String(req.query.sort || 'recommended').trim();
+    const whereParts = [
+      `COALESCE(CAST(aktiv AS INTEGER), 1) = 1`,
+      `COALESCE(CAST(yasak AS INTEGER), 0) = 0`
+    ];
+    const params = [];
+    if (excludeSelf) {
+      whereParts.push('id != ?');
+      params.push(req.session.userId);
+    }
+    if (term) {
+      whereParts.push('(LOWER(kadi) LIKE LOWER(?) OR LOWER(isim) LIKE LOWER(?) OR LOWER(soyisim) LIKE LOWER(?) OR LOWER(meslek) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))');
+      params.push(...Array(5).fill(`%${term}%`));
+    }
+    if (gradYear > 0) {
+      whereParts.push('CAST(COALESCE(mezuniyetyili, 0) AS INTEGER) = ?');
+      params.push(gradYear);
+    }
+    if (location) {
+      whereParts.push('LOWER(sehir) LIKE ?');
+      params.push(`%${location}%`);
+    }
+    if (profession) {
+      whereParts.push('LOWER(meslek) LIKE ?');
+      params.push(`%${profession}%`);
+    }
+    if (expertise) {
+      whereParts.push('LOWER(uzmanlik) LIKE ?');
+      params.push(`%${expertise}%`);
+    }
+    if (title) {
+      whereParts.push('LOWER(unvan) LIKE ?');
+      params.push(`%${title}%`);
+    }
+    if (mentorsOnly) {
+      whereParts.push('COALESCE(CAST(mentor_opt_in AS INTEGER), 0) = 1');
+    }
+    if (verifiedOnly) {
+      whereParts.push('COALESCE(CAST(verified AS INTEGER), 0) = 1');
+    }
+    if (withPhoto) {
+      whereParts.push("resim IS NOT NULL AND TRIM(CAST(resim AS TEXT)) != '' AND LOWER(TRIM(CAST(resim AS TEXT))) != 'yok'");
+    }
+    if (onlineOnly) {
+      whereParts.push('COALESCE(CAST(online AS INTEGER), 0) = 1');
+    }
+    if (relation === 'following') {
+      whereParts.push('id IN (SELECT following_id FROM follows WHERE follower_id = ?)');
+      params.push(req.session.userId);
+    }
+    if (relation === 'not_following') {
+      whereParts.push('id NOT IN (SELECT following_id FROM follows WHERE follower_id = ?)');
+      params.push(req.session.userId);
+    }
+    const where = whereParts.join(' AND ');
+    const orderByMap = {
+      name: 'u.isim ASC, u.soyisim ASC',
+      recent: 'u.id DESC',
+      online: 'COALESCE(CAST(u.online AS INTEGER), 0) DESC, u.isim ASC',
+      year: 'CAST(COALESCE(u.mezuniyetyili, 0) AS INTEGER) DESC, u.isim ASC',
+      engagement: 'COALESCE(es.score, 0) DESC, u.id DESC',
+      recommended: 'COALESCE(es.score, 0) DESC, COALESCE(CAST(u.online AS INTEGER), 0) DESC, COALESCE(CAST(u.verified AS INTEGER), 0) DESC, u.id DESC'
+    };
+    const orderBy = orderByMap[sort] || orderByMap.name;
 
-  const totalRow = sqlGet(`SELECT COUNT(*) AS cnt FROM uyeler WHERE ${where}`, params);
-  const total = totalRow ? totalRow.cnt : 0;
-  const pages = Math.max(Math.ceil(total / pageSize), 1);
-  const safePage = Math.min(page, pages);
-  const offset = (safePage - 1) * pageSize;
-  const rows = sqlAll(`
-    SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.mailkapali, u.mezuniyetyili, u.dogumgun, u.dogumay, u.dogumyil,
-           u.sehir, u.universite, u.meslek, u.websitesi, u.imza, u.resim, u.online, u.sontarih, u.verified,
-           u.sirket, u.unvan, u.uzmanlik, u.linkedin_url, u.universite_bolum, u.mentor_opt_in, u.mentor_konulari
-    FROM uyeler u
-    LEFT JOIN member_engagement_scores es ON es.user_id = u.id
-    WHERE ${where}
-    ORDER BY ${orderBy}
-    LIMIT ? OFFSET ?
-  `, [...params, pageSize, offset]);
+    const totalRow = await sqlGetAsync(`SELECT COUNT(*) AS cnt FROM uyeler WHERE ${where}`, params);
+    const total = totalRow ? totalRow.cnt : 0;
+    const pages = Math.max(Math.ceil(total / pageSize), 1);
+    const safePage = Math.min(page, pages);
+    const offset = (safePage - 1) * pageSize;
+    const [rows, rangeRows] = await Promise.all([
+      sqlAllAsync(
+        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.mailkapali, u.mezuniyetyili, u.dogumgun, u.dogumay, u.dogumyil,
+                u.sehir, u.universite, u.meslek, u.websitesi, u.imza, u.resim, u.online, u.sontarih, u.verified,
+                u.sirket, u.unvan, u.uzmanlik, u.linkedin_url, u.universite_bolum, u.mentor_opt_in, u.mentor_konulari
+         FROM uyeler u
+         LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+         WHERE ${where}
+         ORDER BY ${orderBy}
+         LIMIT ? OFFSET ?`,
+        [...params, pageSize, offset]
+      ),
+      term ? Promise.resolve([]) : getCachedActiveMemberNameRows()
+    ]);
 
-  const rangeRows = term ? [] : sqlAll('SELECT isim FROM uyeler WHERE aktiv = 1 AND yasak = 0 ORDER BY isim');
-  const ranges = [];
-  for (let i = 0; i < rangeRows.length; i += pageSize) {
-    const start = rangeRows[i]?.isim ? rangeRows[i].isim.slice(0, 2) : '--';
-    const end = rangeRows[Math.min(i + pageSize - 1, rangeRows.length - 1)]?.isim?.slice(0, 2) || '--';
-    ranges.push({ start, end });
+    const ranges = [];
+    for (let i = 0; i < rangeRows.length; i += pageSize) {
+      const start = rangeRows[i]?.isim ? rangeRows[i].isim.slice(0, 2) : '--';
+      const end = rangeRows[Math.min(i + pageSize - 1, rangeRows.length - 1)]?.isim?.slice(0, 2) || '--';
+      ranges.push({ start, end });
+    }
+
+    return res.json({ rows, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly } });
+  } catch (err) {
+    console.error('members.list failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-
-  res.json({ rows, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly } });
 });
 
-app.get('/api/members/:id', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const row = sqlGet(`
-    SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
-           sehir, universite, meslek, websitesi, imza, resim, online, sontarih,
-           sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari
-    FROM uyeler
-    WHERE id = ?
-  `, [req.params.id]);
-  if (!row) return res.status(404).send('Üye bulunamadı');
-  res.json({ row });
-});
-
-app.get('/api/messages', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const box = req.query.box === 'outbox' ? 'outbox' : 'inbox';
-  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-  const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '5', 10), 1), 50);
-  const where = box === 'inbox'
-    ? 'CAST(kime AS INTEGER) = CAST(? AS INTEGER) AND aktifgelen = 1'
-    : 'CAST(kimden AS INTEGER) = CAST(? AS INTEGER) AND aktifgiden = 1';
-  const totalRow = sqlGet(`SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE ${where}`, [req.session.userId]);
-  const total = totalRow ? totalRow.cnt : 0;
-  const pages = Math.max(Math.ceil(total / pageSize), 1);
-  const safePage = Math.min(page, pages);
-  const offset = (safePage - 1) * pageSize;
-
-  const rows = sqlAll(`
-    SELECT g.*, u1.kadi AS kimden_kadi, u1.resim AS kimden_resim, u2.kadi AS kime_kadi, u2.resim AS kime_resim
-    FROM gelenkutusu g
-    LEFT JOIN uyeler u1 ON u1.id = g.kimden
-    LEFT JOIN uyeler u2 ON u2.id = g.kime
-    WHERE ${where}
-    ORDER BY g.tarih DESC
-    LIMIT ? OFFSET ?
-  `, [req.session.userId, pageSize, offset]);
-
-  res.json({ rows, page: safePage, pages, total, box, pageSize });
-});
-
-app.get('/api/messages/recipients', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const q = String(req.query.q || '').trim().replace(/^@+/, '').replace(/'/g, '');
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
-  if (!q) return res.json({ items: [] });
-  const term = `%${q}%`;
-  const rows = sqlAll(
-    `SELECT id, kadi, isim, soyisim, resim, verified
-     FROM uyeler
-     WHERE COALESCE(CAST(yasak AS INTEGER), 0) = 0
-       AND (
-         aktiv IS NULL
-         OR CAST(aktiv AS INTEGER) = 1
-         OR LOWER(CAST(aktiv AS TEXT)) IN ('true', 'evet')
-       )
-       AND (
-         LOWER(kadi) LIKE LOWER(?)
-         OR LOWER(isim) LIKE LOWER(?)
-         OR LOWER(soyisim) LIKE LOWER(?)
-         OR LOWER(email) LIKE LOWER(?)
-       )
-     ORDER BY kadi ASC
-     LIMIT ?`,
-    [term, term, term, term, limit]
-  );
-  res.json({ items: rows });
-});
-
-app.get('/api/messages/:id', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const row = sqlGet('SELECT * FROM gelenkutusu WHERE id = ?', [req.params.id]);
-  if (!row) return res.status(404).send('Mesaj bulunamadı');
-  if (!sameUserId(row.kime, req.session.userId) && !sameUserId(row.kimden, req.session.userId)) {
-    return res.status(403).send('Yetkisiz');
+app.get('/api/members/:id', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const row = await sqlGetAsync(
+      `SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
+              sehir, universite, meslek, websitesi, imza, resim, online, sontarih,
+              sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari
+       FROM uyeler
+       WHERE id = ?`,
+      [req.params.id]
+    );
+    if (!row) return res.status(404).send('Üye bulunamadı');
+    return res.json({ row });
+  } catch (err) {
+    console.error('members.detail failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-  const sender = sqlGet('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [normalizeUserId(row.kimden)]);
-  const receiver = sqlGet('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [normalizeUserId(row.kime)]);
+});
 
-  if (sameUserId(row.kime, req.session.userId) && row.yeni === 1) {
-    sqlRun('UPDATE gelenkutusu SET yeni = 0 WHERE id = ?', [row.id]);
+app.get('/api/messages', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const box = req.query.box === 'outbox' ? 'outbox' : 'inbox';
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '5', 10), 1), 50);
+    const where = box === 'inbox'
+      ? 'CAST(kime AS INTEGER) = CAST(? AS INTEGER) AND aktifgelen = 1'
+      : 'CAST(kimden AS INTEGER) = CAST(? AS INTEGER) AND aktifgiden = 1';
+    const totalRow = await sqlGetAsync(`SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE ${where}`, [req.session.userId]);
+    const total = totalRow ? totalRow.cnt : 0;
+    const pages = Math.max(Math.ceil(total / pageSize), 1);
+    const safePage = Math.min(page, pages);
+    const offset = (safePage - 1) * pageSize;
+
+    const rows = await sqlAllAsync(
+      `SELECT g.*, u1.kadi AS kimden_kadi, u1.resim AS kimden_resim, u2.kadi AS kime_kadi, u2.resim AS kime_resim
+       FROM gelenkutusu g
+       LEFT JOIN uyeler u1 ON u1.id = g.kimden
+       LEFT JOIN uyeler u2 ON u2.id = g.kime
+       WHERE ${where}
+       ORDER BY g.tarih DESC
+       LIMIT ? OFFSET ?`,
+      [req.session.userId, pageSize, offset]
+    );
+
+    return res.json({ rows, page: safePage, pages, total, box, pageSize });
+  } catch (err) {
+    console.error('messages.list failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
+});
 
-  res.json({ row, sender, receiver });
+app.get('/api/messages/recipients', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const q = String(req.query.q || '').trim().replace(/^@+/, '').replace(/'/g, '');
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
+    if (!q) return res.json({ items: [] });
+    const term = `%${q}%`;
+    const rows = await sqlAllAsync(
+      `SELECT id, kadi, isim, soyisim, resim, verified
+       FROM uyeler
+       WHERE COALESCE(CAST(yasak AS INTEGER), 0) = 0
+         AND (
+           aktiv IS NULL
+           OR CAST(aktiv AS INTEGER) = 1
+           OR LOWER(CAST(aktiv AS TEXT)) IN ('true', 'evet')
+         )
+         AND (
+           LOWER(kadi) LIKE LOWER(?)
+           OR LOWER(isim) LIKE LOWER(?)
+           OR LOWER(soyisim) LIKE LOWER(?)
+           OR LOWER(email) LIKE LOWER(?)
+         )
+       ORDER BY kadi ASC
+       LIMIT ?`,
+      [term, term, term, term, limit]
+    );
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error('messages.recipients failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.get('/api/messages/:id', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const row = await sqlGetAsync('SELECT * FROM gelenkutusu WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).send('Mesaj bulunamadı');
+    if (!sameUserId(row.kime, req.session.userId) && !sameUserId(row.kimden, req.session.userId)) {
+      return res.status(403).send('Yetkisiz');
+    }
+    const [sender, receiver] = await Promise.all([
+      sqlGetAsync('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [normalizeUserId(row.kimden)]),
+      sqlGetAsync('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [normalizeUserId(row.kime)])
+    ]);
+
+    if (sameUserId(row.kime, req.session.userId) && Number(row.yeni || 0) === 1) {
+      await sqlRunAsync('UPDATE gelenkutusu SET yeni = 0 WHERE id = ?', [row.id]);
+    }
+
+    return res.json({ row, sender, receiver });
+  } catch (err) {
+    console.error('messages.detail failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.post('/api/messages', (req, res) => {
@@ -7413,6 +7488,7 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
   const existing = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [req.session.userId, targetId]);
   if (existing) {
     sqlRun('DELETE FROM follows WHERE id = ?', [existing.id]);
+    exploreSuggestionsResponseCache.clear();
     scheduleEngagementRecalculation('follow_changed');
     invalidateCacheNamespace(cacheNamespaces.feed);
     return res.json({ ok: true, following: false });
@@ -7429,6 +7505,7 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
     entityId: targetId,
     message: 'Seni takip etmeye başladı.'
   });
+  exploreSuggestionsResponseCache.clear();
   scheduleEngagementRecalculation('follow_changed');
   invalidateCacheNamespace(cacheNamespaces.feed);
   return res.json({ ok: true, following: true });
@@ -7633,112 +7710,125 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/new/explore/suggestions', requireAuth, (req, res) => {
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 40);
-  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-  const me = sqlGet(
-    `SELECT id, mezuniyetyili, sehir, universite, meslek
-     FROM uyeler
-     WHERE id = ?`,
-    [req.session.userId]
-  );
-  if (!me) return res.json({ items: [] });
+app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 40);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+    const cacheKey = `${Number(req.session.userId || 0)}:${limit}:${offset}`;
+    const cached = readExploreSuggestionsCache(cacheKey);
+    if (cached) return res.json(cached);
 
-  const followed = sqlAll('SELECT following_id FROM follows WHERE follower_id = ?', [req.session.userId]);
-  const followedSet = new Set(followed.map((r) => Number(r.following_id)));
+    const me = await sqlGetAsync(
+      `SELECT id, mezuniyetyili, sehir, universite, meslek
+       FROM uyeler
+       WHERE id = ?`,
+      [req.session.userId]
+    );
+    if (!me) return res.json({ items: [] });
 
-  const iFollowFollowers = sqlAll(
-    `SELECT f2.following_id AS user_id, COUNT(*) AS cnt
-     FROM follows f1
-     JOIN follows f2 ON f2.follower_id = f1.following_id
-     WHERE f1.follower_id = ?
-     GROUP BY f2.following_id`,
-    [req.session.userId]
-  );
-  const secondDegreeMap = new Map(iFollowFollowers.map((r) => [Number(r.user_id), Number(r.cnt || 0)]));
+    const [iFollowFollowers, followsMe, candidates] = await Promise.all([
+      sqlAllAsync(
+        `SELECT f2.following_id AS user_id, COUNT(*) AS cnt
+         FROM follows f1
+         JOIN follows f2 ON f2.follower_id = f1.following_id
+         WHERE f1.follower_id = ?
+         GROUP BY f2.following_id`,
+        [req.session.userId]
+      ),
+      sqlAllAsync('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]),
+      sqlAllAsync(
+        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.mezuniyetyili, u.sehir, u.universite, u.meslek, u.online,
+                COALESCE(es.score, 0) AS engagement_score
+         FROM uyeler u
+         LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+         WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
+           AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
+           AND u.id != ?
+           AND NOT EXISTS (
+             SELECT 1
+             FROM follows f
+             WHERE f.follower_id = ?
+               AND f.following_id = u.id
+           )`,
+        [req.session.userId, req.session.userId]
+      )
+    ]);
 
-  const followsMe = sqlAll('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]);
-  const followsMeSet = new Set(followsMe.map((r) => Number(r.follower_id)));
-  const engagementRows = sqlAll('SELECT user_id, score FROM member_engagement_scores');
-  const engagementMap = new Map(engagementRows.map((r) => [Number(r.user_id), Number(r.score || 0)]));
+    const secondDegreeMap = new Map(iFollowFollowers.map((r) => [Number(r.user_id), Number(r.cnt || 0)]));
+    const followsMeSet = new Set(followsMe.map((r) => Number(r.follower_id)));
+    const scored = [];
+    for (const c of candidates) {
+      const cid = Number(c.id);
+      if (!cid) continue;
+      let score = 0;
+      const reasons = [];
 
-  const candidates = sqlAll(
-    `SELECT id, kadi, isim, soyisim, resim, verified, mezuniyetyili, sehir, universite, meslek, online
-     FROM uyeler
-     WHERE COALESCE(CAST(aktiv AS INTEGER), 1) = 1
-       AND COALESCE(CAST(yasak AS INTEGER), 0) = 0
-       AND id != ?`,
-    [req.session.userId]
-  );
+      const secondDegree = secondDegreeMap.get(cid) || 0;
+      if (secondDegree > 0) {
+        score += Math.min(secondDegree * 18, 54);
+        reasons.push(`${secondDegree} ortak baglanti`);
+      }
 
-  const scored = [];
-  for (const c of candidates) {
-    const cid = Number(c.id);
-    if (!cid) continue;
-    if (followedSet.has(cid)) continue;
-    let score = 0;
-    const reasons = [];
+      if (Number(c.mezuniyetyili || 0) > 0 && String(c.mezuniyetyili) === String(me.mezuniyetyili || '')) {
+        score += 22;
+        reasons.push('Ayni mezuniyet yili');
+      }
+      if (me.sehir && c.sehir && String(me.sehir).trim() && String(me.sehir).trim().toLowerCase() === String(c.sehir).trim().toLowerCase()) {
+        score += 8;
+        reasons.push('Ayni sehir');
+      }
+      if (me.universite && c.universite && String(me.universite).trim() && String(me.universite).trim().toLowerCase() === String(c.universite).trim().toLowerCase()) {
+        score += 8;
+        reasons.push('Ayni universite');
+      }
+      if (me.meslek && c.meslek && String(me.meslek).trim() && String(me.meslek).trim().toLowerCase() === String(c.meslek).trim().toLowerCase()) {
+        score += 5;
+        reasons.push('Benzer meslek');
+      }
+      if (followsMeSet.has(cid)) {
+        score += 10;
+        reasons.push('Seni takip ediyor');
+      }
+      const engagementScore = Number(c.engagement_score || 0);
+      if (engagementScore > 0) {
+        score += Math.min(20, engagementScore * 0.2);
+        if (engagementScore >= 70) reasons.push('Toplulukta aktif');
+      }
+      if (Number(c.verified || 0) === 1) score += 2;
+      if (Number(c.online || 0) === 1) score += 1;
 
-    const secondDegree = secondDegreeMap.get(cid) || 0;
-    if (secondDegree > 0) {
-      score += Math.min(secondDegree * 18, 54);
-      reasons.push(`${secondDegree} ortak baglanti`);
+      scored.push({
+        ...c,
+        score,
+        reasons: reasons.slice(0, 3)
+      });
     }
 
-    if (Number(c.mezuniyetyili || 0) > 0 && String(c.mezuniyetyili) === String(me.mezuniyetyili || '')) {
-      score += 22;
-      reasons.push('Ayni mezuniyet yili');
-    }
-    if (me.sehir && c.sehir && String(me.sehir).trim() && String(me.sehir).trim().toLowerCase() === String(c.sehir).trim().toLowerCase()) {
-      score += 8;
-      reasons.push('Ayni sehir');
-    }
-    if (me.universite && c.universite && String(me.universite).trim() && String(me.universite).trim().toLowerCase() === String(c.universite).trim().toLowerCase()) {
-      score += 8;
-      reasons.push('Ayni universite');
-    }
-    if (me.meslek && c.meslek && String(me.meslek).trim() && String(me.meslek).trim().toLowerCase() === String(c.meslek).trim().toLowerCase()) {
-      score += 5;
-      reasons.push('Benzer meslek');
-    }
-    if (followsMeSet.has(cid)) {
-      score += 10;
-      reasons.push('Seni takip ediyor');
-    }
-    const engagementScore = Number(engagementMap.get(cid) || 0);
-    if (engagementScore > 0) {
-      score += Math.min(20, engagementScore * 0.2);
-      if (engagementScore >= 70) reasons.push('Toplulukta aktif');
-    }
-    if (Number(c.verified || 0) === 1) score += 2;
-    if (Number(c.online || 0) === 1) score += 1;
-
-    scored.push({
-      ...c,
-      score,
-      reasons: reasons.slice(0, 3)
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (Number(b.online || 0) !== Number(a.online || 0)) return Number(b.online || 0) - Number(a.online || 0);
+      if (Number(b.verified || 0) !== Number(a.verified || 0)) return Number(b.verified || 0) - Number(a.verified || 0);
+      return Number(b.id || 0) - Number(a.id || 0);
     });
+
+    const items = scored.slice(offset, offset + limit).map((u) => ({
+      id: u.id,
+      kadi: u.kadi,
+      isim: u.isim,
+      soyisim: u.soyisim,
+      resim: u.resim,
+      verified: u.verified,
+      mezuniyetyili: u.mezuniyetyili,
+      online: u.online,
+      reasons: u.reasons
+    }));
+    const payload = { items, hasMore: offset + items.length < scored.length, total: scored.length };
+    writeExploreSuggestionsCache(cacheKey, payload);
+    return res.json(payload);
+  } catch (err) {
+    console.error('explore.suggestions failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (Number(b.online || 0) !== Number(a.online || 0)) return Number(b.online || 0) - Number(a.online || 0);
-    if (Number(b.verified || 0) !== Number(a.verified || 0)) return Number(b.verified || 0) - Number(a.verified || 0);
-    return Number(b.id || 0) - Number(a.id || 0);
-  });
-
-  const items = scored.slice(offset, offset + limit).map((u) => ({
-    id: u.id,
-    kadi: u.kadi,
-    isim: u.isim,
-    soyisim: u.soyisim,
-    resim: u.resim,
-    verified: u.verified,
-    mezuniyetyili: u.mezuniyetyili,
-    online: u.online,
-    reasons: u.reasons
-  }));
-  res.json({ items, hasMore: offset + items.length < scored.length, total: scored.length });
 });
 
 app.get('/api/new/messages/unread', requireAuth, async (req, res) => {
@@ -10524,67 +10614,94 @@ app.post('/api/tournament/register', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/panolar', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const mkatidRaw = String(req.query.mkatid || '0');
-  const mkatid = /^\d+$/.test(mkatidRaw) ? Number(mkatidRaw) : 0;
-  let categoryName = 'Genel';
-  if (mkatid !== 0) {
-    const cat = sqlGet('SELECT * FROM mesaj_kategori WHERE id = ?', [mkatid]);
-    if (!cat) {
-      return res.status(400).send('Kategori bulunamadı.');
+app.get('/api/panolar', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const mkatidRaw = String(req.query.mkatid || '0');
+    const mkatid = /^\d+$/.test(mkatidRaw) ? Number(mkatidRaw) : 0;
+    let categoryName = 'Genel';
+    if (mkatid !== 0) {
+      const cat = await sqlGetAsync('SELECT * FROM mesaj_kategori WHERE id = ?', [mkatid]);
+      if (!cat) {
+        return res.status(400).send('Kategori bulunamadı.');
+      }
+      categoryName = cat.kategoriadi;
     }
-    categoryName = cat.kategoriadi;
+
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const pageSize = 25;
+    const [user, totalRow, rows] = await Promise.all([
+      sqlGetAsync('SELECT id, mezuniyetyili, oncekisontarih, admin FROM uyeler WHERE id = ?', [req.session.userId]),
+      sqlGetAsync('SELECT COUNT(*) AS cnt FROM mesaj WHERE kategori = ?', [mkatid]),
+      sqlAllAsync('SELECT * FROM mesaj WHERE kategori = ? ORDER BY tarih DESC LIMIT ? OFFSET ?', [mkatid, pageSize, Math.max((page - 1) * pageSize, 0)])
+    ]);
+    const gradName = user?.mezuniyetyili ? `${user.mezuniyetyili} Mezunları` : null;
+    const gradCategory = gradName ? await sqlGetAsync('SELECT * FROM mesaj_kategori WHERE kategoriadi = ?', [gradName]) : null;
+
+    const total = totalRow?.cnt || 0;
+    const pages = Math.max(Math.ceil(total / pageSize), 1);
+    const safePage = Math.min(page, pages);
+    const offset = (safePage - 1) * pageSize;
+    const safeRows = offset === Math.max((page - 1) * pageSize, 0)
+      ? rows
+      : await sqlAllAsync('SELECT * FROM mesaj WHERE kategori = ? ORDER BY tarih DESC LIMIT ? OFFSET ?', [mkatid, pageSize, offset]);
+
+    const senderIds = Array.from(new Set(
+      safeRows.map((row) => Number(row.gonderenid || 0)).filter((id) => Number.isInteger(id) && id > 0)
+    ));
+    const senderMap = new Map();
+    if (senderIds.length > 0) {
+      const placeholders = senderIds.map(() => '?').join(', ');
+      const senderRows = await sqlAllAsync(
+        `SELECT id, kadi, resim
+         FROM uyeler
+         WHERE id IN (${placeholders})`,
+        senderIds
+      );
+      for (const sender of senderRows) {
+        senderMap.set(Number(sender.id || 0), sender);
+      }
+    }
+
+    const messages = safeRows.map((row) => {
+      const u = senderMap.get(Number(row.gonderenid || 0)) || { id: row.gonderenid, kadi: 'Üye', resim: 'nophoto.jpg' };
+      const msgDate = row.tarih ? new Date(row.tarih) : null;
+      const lastDate = user?.oncekisontarih ? new Date(user.oncekisontarih) : null;
+      const diffSeconds = msgDate && lastDate ? Math.floor((msgDate.getTime() - lastDate.getTime()) / 1000) : null;
+      const isNew = diffSeconds != null && diffSeconds > 0;
+      return {
+        id: row.id,
+        mesajHtml: row.mesaj || '',
+        tarih: row.tarih,
+        user: u,
+        diffSeconds,
+        isNew
+      };
+    });
+
+    const pageList = [];
+    let start = safePage - 5;
+    if (start < 1) start = 1;
+    let end = safePage + 5;
+    if (end > pages) end = pages;
+    for (let i = start; i <= end; i += 1) pageList.push(i);
+
+    return res.json({
+      categoryId: mkatid,
+      categoryName,
+      gradCategory,
+      messages,
+      total,
+      page: safePage,
+      pages,
+      pageSize,
+      pageList,
+      canDelete: hasAdminSession(req, user)
+    });
+  } catch (err) {
+    console.error('panolar.list failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-
-  const user = sqlGet('SELECT id, mezuniyetyili, oncekisontarih, admin FROM uyeler WHERE id = ?', [req.session.userId]);
-  const gradName = user?.mezuniyetyili ? `${user.mezuniyetyili} Mezunları` : null;
-  const gradCategory = gradName ? sqlGet('SELECT * FROM mesaj_kategori WHERE kategoriadi = ?', [gradName]) : null;
-
-  const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-  const pageSize = 25;
-  const totalRow = sqlGet('SELECT COUNT(*) AS cnt FROM mesaj WHERE kategori = ?', [mkatid]);
-  const total = totalRow?.cnt || 0;
-  const pages = Math.max(Math.ceil(total / pageSize), 1);
-  const safePage = Math.min(page, pages);
-  const offset = (safePage - 1) * pageSize;
-  const rows = sqlAll('SELECT * FROM mesaj WHERE kategori = ? ORDER BY tarih DESC LIMIT ? OFFSET ?', [mkatid, pageSize, offset]);
-
-  const messages = rows.map((row) => {
-    const u = sqlGet('SELECT id, kadi, resim FROM uyeler WHERE id = ?', [row.gonderenid]) || { id: row.gonderenid, kadi: 'Üye', resim: 'nophoto.jpg' };
-    const msgDate = row.tarih ? new Date(row.tarih) : null;
-    const lastDate = user?.oncekisontarih ? new Date(user.oncekisontarih) : null;
-    const diffSeconds = msgDate && lastDate ? Math.floor((msgDate.getTime() - lastDate.getTime()) / 1000) : null;
-    const isNew = diffSeconds != null && diffSeconds > 0;
-    return {
-      id: row.id,
-      mesajHtml: row.mesaj || '',
-      tarih: row.tarih,
-      user: u,
-      diffSeconds,
-      isNew
-    };
-  });
-
-  const pageList = [];
-  let start = safePage - 5;
-  if (start < 1) start = 1;
-  let end = safePage + 5;
-  if (end > pages) end = pages;
-  for (let i = start; i <= end; i += 1) pageList.push(i);
-
-  res.json({
-    categoryId: mkatid,
-    categoryName,
-    gradCategory,
-    messages,
-    total,
-    page: safePage,
-    pages,
-    pageSize,
-    pageList,
-    canDelete: hasAdminSession(req, user)
-  });
 });
 
 app.post('/api/panolar', (req, res) => {
