@@ -185,7 +185,38 @@ function injectParams(sql, params = []) {
 }
 
 function normalizePgSql(sql) {
-  return String(sql || '')
+  const text = String(sql || '');
+  const legacyBoolColumns = [
+    'aktiv',
+    'yasak',
+    'online',
+    'admin',
+    'albumadmin',
+    'verified',
+    'mentor_opt_in',
+    'mailkapali',
+    'aktif',
+    'aktifgelen',
+    'aktifgiden',
+    'yeni',
+    'menugorun',
+    'yonlendir',
+    'approved',
+    'enabled',
+    'is_enabled'
+  ];
+  const legacyBoolPattern = legacyBoolColumns.join('|');
+  const withLegacyBoolComparisons = text
+    .replace(
+      new RegExp(`\\b((?:[a-zA-Z_][a-zA-Z0-9_]*\\.)?(?:${legacyBoolPattern}))\\s*=\\s*1\\b`, 'gi'),
+      '$1 = TRUE'
+    )
+    .replace(
+      new RegExp(`\\b((?:[a-zA-Z_][a-zA-Z0-9_]*\\.)?(?:${legacyBoolPattern}))\\s*=\\s*0\\b`, 'gi'),
+      '$1 = FALSE'
+    );
+
+  return withLegacyBoolComparisons
     .replace(/datetime\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
     .replace(/timestamp\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
     .replace(/\bdate\(\s*'now'\s*\)/gi, 'CURRENT_DATE')
