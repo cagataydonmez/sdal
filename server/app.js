@@ -6002,7 +6002,7 @@ app.post('/api/register', async (req, res) => {
     traceE2E('before_insert');
     const result = await sqlRunAsync(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at, verified, role, admin)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'yok', ?, 0, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'yok', ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       cleanKadi,
       (e2eMode ? hashE2EPassword(sifre) : await hashPassword(sifre)),
@@ -6010,15 +6010,16 @@ app.post('/api/register', async (req, res) => {
       cleanIsim,
       cleanSoyisim,
       aktivasyon,
-      e2eIsActive ? 1 : 0,
+      toDbBooleanParam(e2eIsActive),
       now,
       cohortValue,
+      toDbBooleanParam(false),
       e2eIsVerified ? 'verified' : 'pending',
       now,
       now,
-      e2eIsVerified ? 1 : 0,
+      toDbBooleanParam(e2eIsVerified),
       e2eRole,
-      e2eIsAdmin ? 1 : 0
+      toDbBooleanParam(e2eIsAdmin)
     ]
   );
     const newId = result?.lastInsertRowid;
