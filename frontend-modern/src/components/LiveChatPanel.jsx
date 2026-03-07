@@ -21,6 +21,7 @@ export default function LiveChatPanel() {
   const [messageBusyId, setMessageBusyId] = useState(null);
   const chatBodyRef = useRef(null);
   const atBottomRef = useRef(true);
+  const wsConnectedRef = useRef(false);
 
   const oldestId = useMemo(() => (messages.length ? Number(messages[0].id || 0) : 0), [messages]);
   const latestId = useMemo(() => (messages.length ? Number(messages[messages.length - 1].id || 0) : 0), [messages]);
@@ -103,14 +104,21 @@ export default function LiveChatPanel() {
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.hidden) return;
+      if (wsConnectedRef.current) return;
       loadNewer();
-    }, 2000);
+    }, 8000);
     return () => clearInterval(timer);
   }, [loadNewer]);
 
   useEffect(() => {
     const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/chat`;
     const ws = new WebSocket(url);
+    ws.onopen = () => {
+      wsConnectedRef.current = true;
+    };
+    ws.onclose = () => {
+      wsConnectedRef.current = false;
+    };
     ws.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data);
@@ -139,7 +147,10 @@ export default function LiveChatPanel() {
         // ignore invalid ws payload
       }
     };
-    return () => ws.close();
+    return () => {
+      wsConnectedRef.current = false;
+      ws.close();
+    };
   }, [mergeMessages]);
 
   async function send(e) {

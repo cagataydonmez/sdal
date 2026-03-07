@@ -1,26 +1,49 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { adminClient } from '../../../admin/api/adminClient.js';
 
 export default function DashboardSection({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [live, setLive] = useState({ activity: [], counts: {} });
-  const [loading, setLoading] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [loadingLive, setLoadingLive] = useState(false);
   const [error, setError] = useState('');
+  const requestSeqRef = useRef(0);
+
+  const loading = loadingStats || loadingLive;
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const requestSeq = ++requestSeqRef.current;
+    setLoadingStats(true);
+    setLoadingLive(true);
     setError('');
     try {
-      const [statsData, liveData] = await Promise.all([
-        adminClient.get('/api/new/admin/stats'),
-        adminClient.get('/api/new/admin/live')
-      ]);
-      setStats(statsData || null);
-      setLive(liveData || { activity: [], counts: {} });
+      const statsData = await adminClient.get('/api/new/admin/stats');
+      if (requestSeq === requestSeqRef.current) {
+        setStats(statsData || null);
+      }
     } catch (err) {
-      setError(err.message || 'Dashboard data could not be loaded.');
+      if (requestSeq === requestSeqRef.current) {
+        setError(err.message || 'Dashboard summary could not be loaded.');
+      }
     } finally {
-      setLoading(false);
+      if (requestSeq === requestSeqRef.current) {
+        setLoadingStats(false);
+      }
+    }
+
+    try {
+      const liveData = await adminClient.get('/api/new/admin/live');
+      if (requestSeq === requestSeqRef.current) {
+        setLive(liveData || { activity: [], counts: {} });
+      }
+    } catch (err) {
+      if (requestSeq === requestSeqRef.current) {
+        setError((prev) => prev || err.message || 'Live activity could not be loaded.');
+      }
+    } finally {
+      if (requestSeq === requestSeqRef.current) {
+        setLoadingLive(false);
+      }
     }
   }, []);
 
@@ -57,6 +80,7 @@ export default function DashboardSection({ onNavigate }) {
       <div className="panel">
         <div className="panel-body">
           <h3>Live Activity</h3>
+          {loadingLive ? <div className="muted">Loading live stream...</div> : null}
           <div className="list">
             {(live?.activity || []).slice(0, 20).map((row) => (
               <div key={row.id} className="list-item">

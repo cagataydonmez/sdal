@@ -33,6 +33,8 @@ export default function FeedPage() {
   const requestSeqRef = useRef(0);
   const sentinelRef = useRef(null);
   const initializedRef = useRef(false);
+  const sideDataInitializedRef = useRef(false);
+  const [mountLiveChat, setMountLiveChat] = useState(false);
   const scopeOptions = [
     ...(mainFeedOpen ? [{ key: 'main', label: t('main_feed'), icon: '○' }] : []),
     { key: 'community', label: t('community_feed'), icon: '◓' }
@@ -187,11 +189,24 @@ export default function FeedPage() {
   useEffect(() => {
     const isSubsequentScopeLoad = initializedRef.current;
     load({ silent: isSubsequentScopeLoad, force: isSubsequentScopeLoad });
-    loadUnreadMessages();
-    loadQuickAccess();
-    loadOnlineMembers();
     initializedRef.current = true;
-  }, [load, loadUnreadMessages, loadQuickAccess, loadOnlineMembers, feedType, filter]);
+  }, [load]);
+
+  useEffect(() => {
+    if (sideDataInitializedRef.current) return;
+    sideDataInitializedRef.current = true;
+    const timer = setTimeout(() => {
+      loadUnreadMessages();
+      loadQuickAccess();
+      loadOnlineMembers();
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [loadUnreadMessages, loadQuickAccess, loadOnlineMembers]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setMountLiveChat(true), 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -203,9 +218,10 @@ export default function FeedPage() {
     return () => io.disconnect();
   }, [loadMore]);
 
-  useLiveRefresh(refreshFeedSilently, { intervalMs: 7000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created', '*'] });
-  useLiveRefresh(loadUnreadMessages, { intervalMs: 7000, eventTypes: ['message:created', '*'] });
-  useLiveRefresh(loadOnlineMembers, { intervalMs: 4000, eventTypes: ['*'] });
+  useLiveRefresh(refreshFeedSilently, { intervalMs: 9000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created'] });
+  useLiveRefresh(loadUnreadMessages, { intervalMs: 12000, eventTypes: ['message:created'] });
+  useLiveRefresh(loadQuickAccess, { intervalMs: 20000, eventTypes: [] });
+  useLiveRefresh(loadOnlineMembers, { intervalMs: 12000, eventTypes: [] });
 
   return (
     <Layout title={t('nav_feed')}>
@@ -294,7 +310,7 @@ export default function FeedPage() {
             <div className="panel-body">
               {onlineMembers.map((u) => (
                 <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
-                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>
                     <div>@{u.kadi}</div>
                     <div className="meta">{t('status_online')}</div>
@@ -313,14 +329,18 @@ export default function FeedPage() {
             </div>
           </div>
           <div className={`feed-tab-panel ${mobileTab === 'livechat' ? 'is-active' : ''}`}>
-            <LiveChatPanel />
+            {mountLiveChat || mobileTab === 'livechat' ? (
+              <LiveChatPanel />
+            ) : (
+              <div className="panel"><div className="panel-body muted">{t('loading')}</div></div>
+            )}
           </div>
           <div className={`panel feed-tab-panel ${mobileTab === 'quick' ? 'is-active' : ''}`}>
             <h3>{t('quick_access')}</h3>
             <div className="panel-body">
               {quickUsers.map((u) => (
                 <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
-                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>
                     <div>@{u.kadi}</div>
                     <div className="meta">{Number(u.online) === 1 ? t('status_online') : t('status_offline')}</div>

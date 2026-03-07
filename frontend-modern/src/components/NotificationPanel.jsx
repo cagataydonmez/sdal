@@ -35,7 +35,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
     load();
   }, [load]);
 
-  useLiveRefresh(load, { intervalMs: 6000, eventTypes: ['notification:new', 'post:liked', 'post:commented', 'follow:changed', '*'] });
+  useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['notification:new', 'post:liked', 'post:commented', 'follow:changed'] });
 
   function inviteStatusLabel(status) {
     if (status === 'accepted') return t('group_invite_accepted');
@@ -80,7 +80,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
         {items.length === 0 ? <div className="muted">{t('notifications_empty')}</div> : null}
         {items.map((n) => (
           <div key={n.id} className={`notif notif-link${n.read_at ? '' : ' unread'}`}>
-            <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
             <div className="notif-content">
               <a
                 href={getTarget(n)}

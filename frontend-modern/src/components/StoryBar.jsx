@@ -151,11 +151,11 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     load();
   }, [load]);
 
-  useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['story:created', '*'] });
+  useLiveRefresh(load, { intervalMs: 20000, eventTypes: ['story:created'] });
 
   useEffect(() => {
     if (!groups.length) return;
-    groups.forEach((g) => {
+    groups.slice(0, 3).forEach((g) => {
       const cover = getStoryMediaUrl(g.items[0]);
       if (cover) preloadImage(cover);
     });
@@ -325,7 +325,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
         {showUpload ? <NativeImageButtons onPick={upload} onError={(message) => window.alert(message)} className="story-native-picker" /> : null}
         {groups.map((g, idx) => (
           <button key={g.author?.id || idx} className={g.viewed ? 'story viewed' : 'story'} onClick={() => openGroup(g, idx)}>
-            <img src={g.author?.resim ? `/api/media/vesikalik/${g.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            <img src={g.author?.resim ? `/api/media/vesikalik/${g.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
             <span>@{g.author?.kadi}</span>
           </button>
         ))}

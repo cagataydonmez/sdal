@@ -47,8 +47,13 @@ export default function Layout({ children, title, right }) {
     }
   }, [user]);
 
-  useLiveRefresh(loadUnreadCount, { intervalMs: 7000, eventTypes: ['message:created', 'notification:new', '*'], enabled: !!user });
+  useLiveRefresh(loadUnreadCount, { intervalMs: 12000, eventTypes: ['message:created', 'notification:new'], enabled: !!user });
   useLiveRefresh(refresh, { intervalMs: 20000, eventTypes: ['profile:updated'], enabled: !!user });
+
+  useEffect(() => {
+    if (!user) return;
+    loadUnreadCount();
+  }, [user, loadUnreadCount]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
