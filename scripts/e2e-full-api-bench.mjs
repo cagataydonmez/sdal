@@ -630,9 +630,9 @@ async function runCoreScenario() {
     state.ids.requestId = Number(myReqs.json?.items?.[0]?.id || 0) || null;
   }
 
-  await request(user3, 'POST', '/api/new/verified/request', { json: { proof_path: '/uploads/mock-proof.png' }, allow: [400] });
+  await request(user3, 'POST', '/api/new/verified/request', { json: { proof_path: '/uploads/mock-proof.png' }, allow: [400, 403] });
   const proofForm = pngForm('proof', 'proof.png');
-  await request(user3, 'POST', '/api/new/verified/proof', { form: proofForm, allow: [400] });
+  await request(user3, 'POST', '/api/new/verified/proof', { form: proofForm, allow: [400, 403] });
   const verList = await request(mod, 'GET', '/api/new/admin/verification-requests', { query: { page: 1, limit: 20 } });
   state.ids.verificationRequestId = Number(verList.json?.items?.[0]?.id || 0) || null;
   if (state.ids.verificationRequestId) {

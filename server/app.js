@@ -2110,20 +2110,27 @@ async function cleanupStaleOnlineUsersAsync(maxIdleMs = 5 * 60 * 1000, { force =
   await sqlRunAsync(`UPDATE uyeler SET online = ${offlineValue} WHERE id IN (${placeholders})`, staleIds);
 }
 
+function toNumericUserIdOrNull(value) {
+  const normalized = normalizeUserId(value);
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? Math.trunc(numeric) : null;
+}
+
 function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
   cleanupStaleOnlineUsers();
   const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 100);
+  const normalizedExcludeUserId = toNumericUserIdOrNull(excludeUserId);
   const rows = sqlAll(
     `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili, u.sonislemtarih, u.sonislemsaat, u.online,
             COALESCE(es.score, 0) AS engagement_score
      FROM uyeler u
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
-     WHERE (? IS NULL OR u.id != ?)
+     WHERE (? IS NULL OR CAST(u.id AS INTEGER) <> CAST(? AS INTEGER))
        AND (u.role IS NULL OR LOWER(u.role) != 'root')
        AND ${ONLINE_TRUE_SQL_EXPR}
      ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
      LIMIT ?`,
-    [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 5, 24)]
+    [normalizedExcludeUserId, normalizedExcludeUserId, Math.max(safeLimit * 5, 24)]
   );
   return rows.filter((row) => isRowOnlineNow(row)).slice(0, safeLimit).map((row) => ({
     id: row.id,
@@ -2139,20 +2146,45 @@ function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
 }
 
 async function listOnlineMembersAsync({ limit = 12, excludeUserId = null } = {}) {
-  await cleanupStaleOnlineUsersAsync();
+  try {
+    await cleanupStaleOnlineUsersAsync();
+  } catch (err) {
+    writeAppLog('warn', 'online_members_cleanup_failed', {
+      message: err?.message || 'unknown_error'
+    });
+  }
   const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 100);
-  const rows = await sqlAllAsync(
-    `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili, u.sonislemtarih, u.sonislemsaat, u.online,
-            COALESCE(es.score, 0) AS engagement_score
-     FROM uyeler u
-     LEFT JOIN member_engagement_scores es ON es.user_id = u.id
-     WHERE (? IS NULL OR u.id != ?)
-       AND (u.role IS NULL OR LOWER(u.role) != 'root')
-       AND ${ONLINE_TRUE_SQL_EXPR}
-     ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
-     LIMIT ?`,
-    [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 5, 24)]
-  );
+  const normalizedExcludeUserId = toNumericUserIdOrNull(excludeUserId);
+  let rows = [];
+  try {
+    rows = await sqlAllAsync(
+      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili, u.sonislemtarih, u.sonislemsaat, u.online,
+              COALESCE(es.score, 0) AS engagement_score
+       FROM uyeler u
+       LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+       WHERE (? IS NULL OR CAST(u.id AS INTEGER) <> CAST(? AS INTEGER))
+         AND (u.role IS NULL OR LOWER(u.role) != 'root')
+         AND ${ONLINE_TRUE_SQL_EXPR}
+       ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
+       LIMIT ?`,
+      [normalizedExcludeUserId, normalizedExcludeUserId, Math.max(safeLimit * 5, 24)]
+    );
+  } catch (err) {
+    writeAppLog('warn', 'online_members_query_fallback', {
+      message: err?.message || 'unknown_error'
+    });
+    rows = await sqlAllAsync(
+      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili, u.sonislemtarih, u.sonislemsaat, u.online,
+              0 AS engagement_score
+       FROM uyeler u
+       WHERE (? IS NULL OR CAST(u.id AS INTEGER) <> CAST(? AS INTEGER))
+         AND (u.role IS NULL OR LOWER(CAST(u.role AS TEXT)) != 'root')
+         AND ${ONLINE_TRUE_SQL_EXPR}
+       ORDER BY u.id DESC
+       LIMIT ?`,
+      [normalizedExcludeUserId, normalizedExcludeUserId, Math.max(safeLimit * 5, 24)]
+    );
+  }
   return rows.filter((row) => isRowOnlineNow(row)).slice(0, safeLimit).map((row) => ({
     id: row.id,
     kadi: row.kadi,
@@ -6255,8 +6287,9 @@ app.get('/api/profile', async (req, res) => {
   res.json(responsePayload);
 });
 
-app.put('/api/profile', (req, res) => {
+app.put('/api/profile', async (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
+  try {
   const isim = String(req.body.isim || '').trim();
   const soyisim = String(req.body.soyisim || '').trim();
   if (!isim) return res.status(400).send('İsmini girmedin');
@@ -6276,16 +6309,16 @@ app.put('/api/profile', (req, res) => {
   const uzmanlik = String(req.body.uzmanlik || '').trim();
   const linkedinUrl = String(req.body.linkedin_url || '').trim();
   const universiteBolum = String(req.body.universite_bolum || '').trim();
-  const mentorOptIn = req.body.mentor_opt_in ? 1 : 0;
+  const mentorOptIn = Boolean(req.body.mentor_opt_in);
   const mentorKonulari = String(req.body.mentor_konulari || '').trim();
   const dogumgun = parseInt(req.body.dogumgun || '0', 10) || 0;
   const dogumay = parseInt(req.body.dogumay || '0', 10) || 0;
   const dogumyil = parseInt(req.body.dogumyil || '0', 10) || 0;
-  const mailkapali = String(req.body.mailkapali || '0') === '1' ? 1 : 0;
+  const mailkapali = String(req.body.mailkapali || '0') === '1';
   const imza = String(req.body.imza || '');
 
-  const current = sqlGet('SELECT ilkbd, mezuniyetyili, verified, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
-  const nextIlkbd = current && current.ilkbd === 0 ? 1 : (current?.ilkbd || 1);
+  const current = await sqlGetAsync('SELECT ilkbd, mezuniyetyili, verified, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
+  const nextIlkbd = current && current.ilkbd === 0 ? true : Boolean(current?.ilkbd ?? true);
 
   if (!hasValidGraduationYear(mezuniyetyili)) {
     return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR}-${MAX_GRADUATION_YEAR} aralığında olmalı veya Öğretmen seçilmelidir.`);
@@ -6308,7 +6341,7 @@ app.put('/api/profile', (req, res) => {
     });
   }
 
-  sqlRun(`
+  await sqlRunAsync(`
     UPDATE uyeler
     SET isim = ?, soyisim = ?, sehir = ?, meslek = ?, websitesi = ?, universite = ?, mezuniyetyili = ?,
         dogumgun = ?, dogumay = ?, dogumyil = ?, mailkapali = ?, imza = ?, ilkbd = ?,
@@ -6318,15 +6351,23 @@ app.put('/api/profile', (req, res) => {
     WHERE id = ?`,
     [
       isim, soyisim, sehir, meslek, websitesi, universite, mezuniyetyili,
-      dogumgun, dogumay, dogumyil, mailkapali, imza, nextIlkbd,
-      sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, mentorOptIn, mentorKonulari,
-      kvkkConsent ? 1 : 0, new Date().toISOString(),
-      directoryConsent ? 1 : 0, new Date().toISOString(),
+      dogumgun, dogumay, dogumyil, toDbBooleanParam(mailkapali), imza, toDbBooleanParam(nextIlkbd),
+      sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, toDbBooleanParam(mentorOptIn), mentorKonulari,
+      toDbBooleanParam(kvkkConsent), new Date().toISOString(),
+      toDbBooleanParam(directoryConsent), new Date().toISOString(),
       req.session.userId
     ]
   );
   invalidateCacheNamespace(cacheNamespaces.profile);
   res.json({ ok: true });
+  } catch (err) {
+    writeAppLog('error', 'profile_update_failed', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1200)
+    });
+    return res.status(500).send('Profil güncellenirken bir hata oluştu.');
+  }
 });
 
 app.post('/api/profile/email-change/request', requireAuth, async (req, res) => {
@@ -6754,47 +6795,76 @@ app.get('/api/messages/:id', async (req, res) => {
   }
 });
 
-app.post('/api/messages', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const { kime, konu, mesaj } = req.body || {};
-  if (!kime) return res.status(400).send('Alıcı seçilmedi');
-  const subject = (konu && String(konu).trim())
-    ? sanitizePlainUserText(String(konu).trim(), 50)
-    : 'Konusuz';
-  const body = (mesaj && String(mesaj).trim()) ? formatUserText(String(mesaj)) : 'Sistem Bilgisi : [b]Boş Mesaj Gönderildi![/b]';
-  const now = new Date().toISOString();
+app.post('/api/messages', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const { kime, konu, mesaj } = req.body || {};
+    const recipientId = toNumericUserIdOrNull(kime);
+    if (!recipientId) return res.status(400).send('Alıcı seçilmedi');
+    const subject = (konu && String(konu).trim())
+      ? sanitizePlainUserText(String(konu).trim(), 50)
+      : 'Konusuz';
+    const body = (mesaj && String(mesaj).trim()) ? formatUserText(String(mesaj)) : 'Sistem Bilgisi : [b]Boş Mesaj Gönderildi![/b]';
+    const now = new Date().toISOString();
 
-  const result = sqlRun(
-    `INSERT INTO gelenkutusu (kime, kimden, aktifgelen, konu, mesaj, yeni, tarih, aktifgiden)
-     VALUES (?, ?, 1, ?, ?, 1, ?, 1)`,
-    [kime, req.session.userId, subject, body, now]
-  );
-  notifyMentions({
-    text: req.body?.mesaj || '',
-    sourceUserId: req.session.userId,
-    entityId: result?.lastInsertRowid,
-    type: 'mention_message',
-    message: 'Mesajda senden bahsetti.',
-    allowedUserIds: [kime]
-  });
+    const result = await sqlRunAsync(
+      `INSERT INTO gelenkutusu (kime, kimden, aktifgelen, konu, mesaj, yeni, tarih, aktifgiden)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        recipientId,
+        req.session.userId,
+        toDbBooleanParam(true),
+        subject,
+        body,
+        toDbBooleanParam(true),
+        now,
+        toDbBooleanParam(true)
+      ]
+    );
+    notifyMentions({
+      text: req.body?.mesaj || '',
+      sourceUserId: req.session.userId,
+      entityId: result?.lastInsertRowid,
+      type: 'mention_message',
+      message: 'Mesajda senden bahsetti.',
+      allowedUserIds: [recipientId]
+    });
 
-  res.status(201).json({ ok: true });
+    return res.status(201).json({ ok: true });
+  } catch (err) {
+    writeAppLog('error', 'messages_create_failed', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1000)
+    });
+    return res.status(500).send('Mesaj gönderilirken bir hata oluştu.');
+  }
 });
 
-app.delete('/api/messages/:id', (req, res) => {
-  if (!req.session.userId) return res.status(401).send('Login required');
-  const row = sqlGet('SELECT * FROM gelenkutusu WHERE id = ?', [req.params.id]);
-  if (!row) return res.status(404).send('Mesaj bulunamadı');
-  if (!sameUserId(row.kime, req.session.userId) && !sameUserId(row.kimden, req.session.userId)) {
-    return res.status(403).send('Yetkisiz');
+app.delete('/api/messages/:id', async (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    const row = await sqlGetAsync('SELECT * FROM gelenkutusu WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).send('Mesaj bulunamadı');
+    if (!sameUserId(row.kime, req.session.userId) && !sameUserId(row.kimden, req.session.userId)) {
+      return res.status(403).send('Yetkisiz');
+    }
+    if (sameUserId(row.kime, req.session.userId)) {
+      await sqlRunAsync('UPDATE gelenkutusu SET aktifgelen = ? WHERE id = ?', [toDbBooleanParam(false), row.id]);
+    }
+    if (sameUserId(row.kimden, req.session.userId)) {
+      await sqlRunAsync('UPDATE gelenkutusu SET aktifgiden = ? WHERE id = ?', [toDbBooleanParam(false), row.id]);
+    }
+    return res.status(204).send();
+  } catch (err) {
+    writeAppLog('error', 'messages_delete_failed', {
+      userId: req.session?.userId || null,
+      messageId: req.params?.id || null,
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1000)
+    });
+    return res.status(500).send('Mesaj silinirken bir hata oluştu.');
   }
-  if (sameUserId(row.kime, req.session.userId)) {
-    sqlRun('UPDATE gelenkutusu SET aktifgelen = 0 WHERE id = ?', [row.id]);
-  }
-  if (sameUserId(row.kimden, req.session.userId)) {
-    sqlRun('UPDATE gelenkutusu SET aktifgiden = 0 WHERE id = ?', [row.id]);
-  }
-  res.status(204).send();
 });
 
 app.get('/api/sdal-messenger/contacts', requireAuth, (req, res) => {
@@ -8303,6 +8373,10 @@ app.get('/api/new/online-members', requireAuth, async (req, res) => {
     res.json({ items, count: items.length, now: new Date().toISOString() });
   } catch (err) {
     console.error('GET /api/new/online-members failed:', err);
+    writeAppLog('error', 'online_members_failed', {
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1000)
+    });
     res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
 });
@@ -9061,7 +9135,7 @@ function getEventResponseBundle(eventRow, viewerUserId, canSeePrivate = false) {
   };
 }
 
-function createEventRecord(req, { image = null } = {}) {
+async function createEventRecord(req, { image = null } = {}) {
   const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   const descriptionRaw = String(req.body?.description ?? req.body?.body ?? '');
   const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 180);
@@ -9071,10 +9145,10 @@ function createEventRecord(req, { image = null } = {}) {
   const user = getCurrentUser(req);
   const isAdmin = hasAdminSession(req, user);
   const now = new Date().toISOString();
-  const result = sqlRun(
+  const result = await sqlRunAsync(
     `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at,
                          show_response_counts, show_attendee_names, show_decliner_names)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       title,
       formatUserText(descriptionRaw),
@@ -9084,9 +9158,12 @@ function createEventRecord(req, { image = null } = {}) {
       image || null,
       now,
       req.session.userId,
-      isAdmin ? 1 : 0,
+      toDbBooleanParam(isAdmin),
       isAdmin ? req.session.userId : null,
-      isAdmin ? now : null
+      isAdmin ? now : null,
+      toDbBooleanParam(true),
+      toDbBooleanParam(false),
+      toDbBooleanParam(false)
     ]
   );
   notifyMentions({
@@ -9131,34 +9208,52 @@ app.get('/api/new/events', requireAuth, (req, res) => {
   res.json({ items, hasMore: rows.length === limit });
 });
 
-app.post('/api/new/events', requireAuth, (req, res) => {
-  const created = createEventRecord(req, { image: req.body?.image || null });
-  if (created.error) return res.status(400).send(created.error);
-  return res.json(created);
+app.post('/api/new/events', requireAuth, async (req, res) => {
+  try {
+    const created = await createEventRecord(req, { image: req.body?.image || null });
+    if (created.error) return res.status(400).send(created.error);
+    return res.json(created);
+  } catch (err) {
+    writeAppLog('error', 'event_create_failed', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1000)
+    });
+    return res.status(500).send('Etkinlik kaydı sırasında beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.post('/api/new/events/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
-  let processedUpload = null;
-  if (req.file?.path) {
-    processedUpload = await processDiskImageUpload({
-      req,
-      res,
-      file: req.file,
-      bucket: 'event_image',
-      preset: uploadImagePresets.eventImage
+  try {
+    let processedUpload = null;
+    if (req.file?.path) {
+      processedUpload = await processDiskImageUpload({
+        req,
+        res,
+        file: req.file,
+        bucket: 'event_image',
+        preset: uploadImagePresets.eventImage
+      });
+      if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+    }
+    const created = await createEventRecord(req, { image: processedUpload?.url || null });
+    if (created.error) return res.status(400).send(created.error);
+    return res.json(created);
+  } catch (err) {
+    writeAppLog('error', 'event_upload_create_failed', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1000)
     });
-    if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+    return res.status(500).send('Etkinlik yükleme sırasında beklenmeyen bir hata oluştu.');
   }
-  const created = createEventRecord(req, { image: processedUpload?.url || null });
-  if (created.error) return res.status(400).send(created.error);
-  return res.json(created);
 });
 
-app.post('/api/new/events/:id/approve', requireAdmin, (req, res) => {
-  const approved = String(req.body?.approved || '1') === '1' ? 1 : 0;
-  sqlRun(
+app.post('/api/new/events/:id/approve', requireAdmin, async (req, res) => {
+  const approved = String(req.body?.approved || '1') === '1';
+  await sqlRunAsync(
     'UPDATE events SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-    [approved, req.session.userId, new Date().toISOString(), req.params.id]
+    [toDbBooleanParam(approved), req.session.userId, new Date().toISOString(), req.params.id]
   );
   res.json({ ok: true });
 });
@@ -9200,24 +9295,29 @@ app.post('/api/new/events/:id/respond', requireAuth, (req, res) => {
   res.json({ ok: true, myResponse: bundle.myResponse, counts: bundle.counts });
 });
 
-app.post('/api/new/events/:id/response-visibility', requireAuth, (req, res) => {
-  const event = sqlGet('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
+app.post('/api/new/events/:id/response-visibility', requireAuth, async (req, res) => {
+  const event = await sqlGetAsync('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
   if (!event) return res.status(404).send('Etkinlik bulunamadı.');
   const user = getCurrentUser(req);
   const isAdmin = hasAdminSession(req, user);
   if (!sameUserId(event.created_by, req.session.userId) && !isAdmin) {
     return res.status(403).send('Sadece etkinlik sahibi ayarları değiştirebilir.');
   }
-  const showCounts = req.body?.showCounts ? 1 : 0;
-  const showAttendeeNames = req.body?.showAttendeeNames ? 1 : 0;
-  const showDeclinerNames = req.body?.showDeclinerNames ? 1 : 0;
-  sqlRun(
+  const showCounts = Boolean(req.body?.showCounts);
+  const showAttendeeNames = Boolean(req.body?.showAttendeeNames);
+  const showDeclinerNames = Boolean(req.body?.showDeclinerNames);
+  await sqlRunAsync(
     `UPDATE events
      SET show_response_counts = ?, show_attendee_names = ?, show_decliner_names = ?
      WHERE id = ?`,
-    [showCounts, showAttendeeNames, showDeclinerNames, req.params.id]
+    [
+      toDbBooleanParam(showCounts),
+      toDbBooleanParam(showAttendeeNames),
+      toDbBooleanParam(showDeclinerNames),
+      req.params.id
+    ]
   );
-  const updated = sqlGet(
+  const updated = await sqlGetAsync(
     'SELECT show_response_counts, show_attendee_names, show_decliner_names FROM events WHERE id = ?',
     [req.params.id]
   );
@@ -9312,7 +9412,7 @@ app.get('/api/new/announcements', requireAuth, (req, res) => {
   res.json({ items: rows, hasMore: rows.length === limit });
 });
 
-app.post('/api/new/announcements', requireAuth, (req, res) => {
+app.post('/api/new/announcements', requireAuth, async (req, res) => {
   const { body, image } = req.body || {};
   const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   const formattedBody = formatUserText(body || '');
@@ -9320,10 +9420,19 @@ app.post('/api/new/announcements', requireAuth, (req, res) => {
   const user = getCurrentUser(req);
   const isAdmin = hasAdminSession(req, user);
   const now = new Date().toISOString();
-  sqlRun(
+  await sqlRunAsync(
     `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, formattedBody, image || null, now, req.session.userId, isAdmin ? 1 : 0, isAdmin ? req.session.userId : null, isAdmin ? now : null]
+    [
+      title,
+      formattedBody,
+      image || null,
+      now,
+      req.session.userId,
+      toDbBooleanParam(isAdmin),
+      isAdmin ? req.session.userId : null,
+      isAdmin ? now : null
+    ]
   );
   res.json({ ok: true, pending: !isAdmin });
 });
@@ -9347,7 +9456,7 @@ app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUplo
     if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
   }
   const now = new Date().toISOString();
-  sqlRun(
+  await sqlRunAsync(
     `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -9356,7 +9465,7 @@ app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUplo
       processedUpload?.url || null,
       now,
       req.session.userId,
-      isAdmin ? 1 : 0,
+      toDbBooleanParam(isAdmin),
       isAdmin ? req.session.userId : null,
       isAdmin ? now : null
     ]
@@ -9364,11 +9473,11 @@ app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUplo
   res.json({ ok: true, pending: !isAdmin });
 });
 
-app.post('/api/new/announcements/:id/approve', requireAdmin, (req, res) => {
-  const approved = String(req.body?.approved || '1') === '1' ? 1 : 0;
-  sqlRun(
+app.post('/api/new/announcements/:id/approve', requireAdmin, async (req, res) => {
+  const approved = String(req.body?.approved || '1') === '1';
+  await sqlRunAsync(
     'UPDATE announcements SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-    [approved, req.session.userId, new Date().toISOString(), req.params.id]
+    [toDbBooleanParam(approved), req.session.userId, new Date().toISOString(), req.params.id]
   );
   res.json({ ok: true });
 });
@@ -10915,55 +11024,131 @@ app.delete('/api/new/admin/filters/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/new/admin/db/tables', requireAdmin, (_req, res) => {
-  const rows = sqlAll(
-    `SELECT name
-     FROM sqlite_master
-     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-     ORDER BY name ASC`
-  );
-  const tables = rows.map((r) => {
-    const safeName = String(r.name || '');
-    const escaped = safeName.replace(/"/g, '""');
-    const count = sqlGet(`SELECT COUNT(*) AS cnt FROM "${escaped}"`)?.cnt || 0;
-    return { name: safeName, rowCount: count };
-  });
-  res.json({ items: tables });
+app.get('/api/new/admin/db/tables', requireAdmin, async (_req, res) => {
+  try {
+    if (dbDriver === 'postgres') {
+      const rows = await sqlAllAsync(
+        `SELECT t.table_name AS name,
+                COALESCE(s.n_live_tup, 0)::bigint AS row_count_estimate
+         FROM information_schema.tables t
+         LEFT JOIN pg_stat_user_tables s
+           ON s.schemaname = t.table_schema
+          AND s.relname = t.table_name
+         WHERE t.table_schema = 'public'
+           AND t.table_type = 'BASE TABLE'
+         ORDER BY t.table_name ASC`
+      );
+      return res.json({
+        items: rows.map((r) => ({
+          name: String(r.name || ''),
+          rowCount: Number(r.row_count_estimate || 0)
+        }))
+      });
+    }
+
+    const rows = await sqlAllAsync(
+      `SELECT name
+       FROM sqlite_master
+       WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+       ORDER BY name ASC`
+    );
+    const tables = [];
+    for (const row of rows) {
+      const safeName = String(row.name || '');
+      const escaped = safeName.replace(/"/g, '""');
+      const count = Number((await sqlGetAsync(`SELECT COUNT(*) AS cnt FROM "${escaped}"`))?.cnt || 0);
+      tables.push({ name: safeName, rowCount: count });
+    }
+    return res.json({ items: tables });
+  } catch (err) {
+    writeAppLog('error', 'admin_db_tables_failed', {
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1000)
+    });
+    return res.status(500).send('Tablolar listelenirken hata oluştu.');
+  }
 });
 
-app.get('/api/new/admin/db/table/:name', requireAdmin, (req, res) => {
+app.get('/api/new/admin/db/table/:name', requireAdmin, async (req, res) => {
   const tableName = String(req.params.name || '');
   const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 200);
   const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-  const available = sqlAll(
-    `SELECT name
-     FROM sqlite_master
-     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`
-  ).map((r) => String(r.name || ''));
-  if (!available.includes(tableName)) {
-    return res.status(404).send('Tablo bulunamadı.');
+  try {
+    const available = dbDriver === 'postgres'
+      ? (await sqlAllAsync(
+          `SELECT table_name AS name
+           FROM information_schema.tables
+           WHERE table_schema = 'public'
+             AND table_type = 'BASE TABLE'`
+        )).map((r) => String(r.name || ''))
+      : (await sqlAllAsync(
+          `SELECT name
+           FROM sqlite_master
+           WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`
+        )).map((r) => String(r.name || ''));
+
+    if (!available.includes(tableName)) {
+      return res.status(404).send('Tablo bulunamadı.');
+    }
+
+    const escaped = tableName.replace(/"/g, '""');
+    const total = Number((await sqlGetAsync(`SELECT COUNT(*) AS cnt FROM "${escaped}"`))?.cnt || 0);
+    const pages = Math.max(Math.ceil(total / limit), 1);
+    const safePage = Math.min(page, pages);
+    const offset = (safePage - 1) * limit;
+
+    const columns = dbDriver === 'postgres'
+      ? (await sqlAllAsync(
+          `SELECT c.column_name AS name,
+                  c.data_type AS type,
+                  CASE WHEN c.is_nullable = 'NO' THEN 1 ELSE 0 END AS notnull,
+                  CASE WHEN pk.column_name IS NULL THEN 0 ELSE 1 END AS pk
+           FROM information_schema.columns c
+           LEFT JOIN (
+             SELECT kcu.column_name
+             FROM information_schema.table_constraints tc
+             JOIN information_schema.key_column_usage kcu
+               ON kcu.constraint_name = tc.constraint_name
+              AND kcu.table_schema = tc.table_schema
+             WHERE tc.table_schema = 'public'
+               AND tc.table_name = ?
+               AND tc.constraint_type = 'PRIMARY KEY'
+           ) pk ON pk.column_name = c.column_name
+           WHERE c.table_schema = 'public'
+             AND c.table_name = ?
+           ORDER BY c.ordinal_position`,
+          [tableName, tableName]
+        )).map((c) => ({
+          name: c.name,
+          type: c.type,
+          notnull: Number(c.notnull || 0),
+          pk: Number(c.pk || 0)
+        }))
+      : (await sqlAllAsync(`PRAGMA table_info("${escaped}")`)).map((c) => ({
+          name: c.name,
+          type: c.type,
+          notnull: c.notnull,
+          pk: c.pk
+        }));
+
+    const rows = await sqlAllAsync(`SELECT * FROM "${escaped}" LIMIT ? OFFSET ?`, [limit, offset]);
+    return res.json({
+      table: tableName,
+      columns,
+      rows,
+      total,
+      page: safePage,
+      pages,
+      limit
+    });
+  } catch (err) {
+    writeAppLog('error', 'admin_db_table_detail_failed', {
+      table: tableName,
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1000)
+    });
+    return res.status(500).send('Tablo detayları okunurken hata oluştu.');
   }
-  const escaped = tableName.replace(/"/g, '""');
-  const total = sqlGet(`SELECT COUNT(*) AS cnt FROM "${escaped}"`)?.cnt || 0;
-  const pages = Math.max(Math.ceil(total / limit), 1);
-  const safePage = Math.min(page, pages);
-  const offset = (safePage - 1) * limit;
-  const columns = sqlAll(`PRAGMA table_info("${escaped}")`).map((c) => ({
-    name: c.name,
-    type: c.type,
-    notnull: c.notnull,
-    pk: c.pk
-  }));
-  const rows = sqlAll(`SELECT * FROM "${escaped}" LIMIT ? OFFSET ?`, [limit, offset]);
-  res.json({
-    table: tableName,
-    columns,
-    rows,
-    total,
-    page: safePage,
-    pages,
-    limit
-  });
 });
 
 app.get('/api/new/admin/db/backups', requireAdmin, (_req, res) => {
