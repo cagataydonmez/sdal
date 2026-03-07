@@ -5875,7 +5875,7 @@ app.post('/api/register/preview', async (req, res) => {
   });
 });
 
-app.post('/api/register/check', (req, res) => {
+app.post('/api/register/check', async (req, res) => {
   if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
   const { kadi = '', email = '' } = req.body || {};
   const cleanKadi = String(kadi || '').trim();
@@ -5888,11 +5888,11 @@ app.post('/api/register/check', (req, res) => {
   let kadiExists = false;
   let emailExists = false;
   if (cleanKadi) {
-    const existingUser = sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+    const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
     kadiExists = Boolean(existingUser);
   }
   if (cleanEmail && validateEmail(cleanEmail)) {
-    const existingMail = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+    const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
     emailExists = Boolean(existingMail);
   }
 
@@ -5947,9 +5947,9 @@ app.post('/api/register', async (req, res) => {
   if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
   if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
-  const existingUser = sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+  const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
   if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
-  const existingMail = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+  const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
   if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
 
   const parsedYear = parseGraduationYear(cohortValue);

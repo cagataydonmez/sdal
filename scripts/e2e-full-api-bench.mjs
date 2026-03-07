@@ -222,11 +222,16 @@ async function request(client, method, routeTemplate, {
     } else {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), Math.max(500, Number(timeoutMs) || TIMEOUT_MS));
+      const waitNoticeMs = Math.min(10000, Math.max(3000, Math.floor((Math.max(500, Number(timeoutMs) || TIMEOUT_MS)) / 3)));
+      const waitNotice = setTimeout(() => {
+        console.log(`[e2e][wait] ${client.name} ${method} ${url.pathname} still running (${waitNoticeMs}ms+)`);
+      }, waitNoticeMs);
       let resp;
       try {
         resp = await fetch(url, { ...init, signal: ctrl.signal });
       } finally {
         clearTimeout(timer);
+        clearTimeout(waitNotice);
       }
       status = resp.status;
       client.jar.setFromHeaders(resp.headers);
@@ -340,6 +345,7 @@ async function registerAndLoginUsers() {
 
     let registered = false;
     for (let attempt = 1; attempt <= REGISTER_RETRIES; attempt += 1) {
+      console.log(`[e2e][step] register ${spec.key} attempt ${attempt}/${REGISTER_RETRIES}`);
       const reg = await request(registerClient, 'POST', '/api/register', {
         json: payload,
         headers: E2E_TOKEN ? { 'x-e2e-token': E2E_TOKEN } : {},
@@ -372,6 +378,7 @@ async function registerAndLoginUsers() {
     const client = new ApiClient(spec.key);
     let login = null;
     for (let attempt = 1; attempt <= LOGIN_RETRIES; attempt += 1) {
+      console.log(`[e2e][step] login ${spec.key} attempt ${attempt}/${LOGIN_RETRIES}`);
       const result = await request(client, 'POST', '/api/auth/login', {
         json: { kadi: username, sifre: DEFAULT_PASSWORD },
         allow: [400, 401],
