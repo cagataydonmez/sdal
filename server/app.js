@@ -9892,7 +9892,16 @@ app.get('/api/new/admin/live', requireAdmin, async (req, res) => {
       return res.json(adminLiveResponseCache.value);
     }
 
-    await cleanupStaleOnlineUsersAsync();
+    const safeRead = async (label, load, fallback) => {
+      try {
+        return await load();
+      } catch (err) {
+        console.error(`admin.live ${label} failed:`, err);
+        return fallback;
+      }
+    };
+
+    await safeRead('cleanup_stale_online', () => cleanupStaleOnlineUsersAsync(), null);
     const [
       onlineMembers,
       countsRow,
@@ -9901,39 +9910,59 @@ app.get('/api/new/admin/live', requireAdmin, async (req, res) => {
       newestUsers,
       newestPhotos
     ] = await Promise.all([
-      listOnlineMembersAsync({ limit: 20, excludeUserId: null }),
-      sqlGetAsync(
-        `SELECT
-           (SELECT COUNT(*)::int FROM verification_requests WHERE status = ?) AS pending_verifications,
-           (SELECT COUNT(*)::int FROM events WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_events,
-           (SELECT COUNT(*)::int FROM announcements WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_announcements,
-           (SELECT COUNT(*)::int FROM album_foto WHERE aktif = 0) AS pending_photos`,
-        ['pending']
+      safeRead('online_members', () => listOnlineMembersAsync({ limit: 20, excludeUserId: null }), []),
+      safeRead(
+        'counts',
+        () => sqlGetAsync(
+          `SELECT
+             (SELECT COUNT(*)::int FROM verification_requests WHERE status = ?) AS pending_verifications,
+             (SELECT COUNT(*)::int FROM events WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_events,
+             (SELECT COUNT(*)::int FROM announcements WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_announcements,
+             (SELECT COUNT(*)::int FROM album_foto WHERE aktif = 0) AS pending_photos`,
+          ['pending']
+        ),
+        { pending_verifications: 0, pending_events: 0, pending_announcements: 0, pending_photos: 0 }
       ),
-      sqlAllAsync(
-        `SELECT c.id, c.created_at AS ts, u.kadi
-         FROM chat_messages c
-         LEFT JOIN uyeler u ON u.id = c.user_id
-         ORDER BY c.id DESC
-         LIMIT ?`,
-        [chatLimit]
+      safeRead(
+        'chat_rows',
+        () => sqlAllAsync(
+          `SELECT c.id, c.created_at AS ts, u.kadi
+           FROM chat_messages c
+           LEFT JOIN uyeler u ON u.id = c.user_id
+           ORDER BY c.id DESC
+           LIMIT ?`,
+          [chatLimit]
+        ),
+        []
       ),
-      sqlAllAsync(
-        `SELECT p.id, p.content, p.image, p.created_at AS ts, u.kadi
-         FROM posts p
-         LEFT JOIN uyeler u ON u.id = p.user_id
-         ORDER BY p.id DESC
-         LIMIT ?`,
-        [postLimit]
+      safeRead(
+        'post_rows',
+        () => sqlAllAsync(
+          `SELECT p.id, p.content, p.image, p.created_at AS ts, u.kadi
+           FROM posts p
+           LEFT JOIN uyeler u ON u.id = p.user_id
+           ORDER BY p.id DESC
+           LIMIT ?`,
+          [postLimit]
+        ),
+        []
       ),
-      sqlAllAsync('SELECT id, kadi, isim, soyisim, resim, ilktarih AS ts FROM uyeler ORDER BY id DESC LIMIT ?', [userLimit]),
-      sqlAllAsync(
-        `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
-         FROM album_foto f
-         LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
-         ORDER BY f.id DESC
-         LIMIT ?`,
-        [userLimit]
+      safeRead(
+        'newest_users',
+        () => sqlAllAsync('SELECT id, kadi, isim, soyisim, resim, ilktarih AS ts FROM uyeler ORDER BY id DESC LIMIT ?', [userLimit]),
+        []
+      ),
+      safeRead(
+        'newest_photos',
+        () => sqlAllAsync(
+          `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
+           FROM album_foto f
+           LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
+           ORDER BY f.id DESC
+           LIMIT ?`,
+          [userLimit]
+        ),
+        []
       )
     ]);
 
