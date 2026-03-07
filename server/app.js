@@ -585,6 +585,7 @@ const FEED_CACHE_TTL_SECONDS = envInt('FEED_CACHE_TTL_SECONDS', 20);
 const PROFILE_CACHE_TTL_SECONDS = envInt('PROFILE_CACHE_TTL_SECONDS', 25);
 const STORY_RAIL_CACHE_TTL_SECONDS = envInt('STORY_RAIL_CACHE_TTL_SECONDS', 20);
 const ADMIN_SETTINGS_CACHE_TTL_SECONDS = envInt('ADMIN_SETTINGS_CACHE_TTL_SECONDS', 45);
+const CONTROL_CACHE_TTL_MS = envInt('CONTROL_CACHE_TTL_MS', dbDriver === 'postgres' ? 5000 : 2000);
 
 const cacheNamespaces = Object.freeze({
   feed: 'feed_page',
@@ -1291,7 +1292,13 @@ function selectCompatUserById(userId) {
 
 function getCurrentUser(req) {
   if (!req.session.userId) return null;
-  return selectCompatUserById(req.session.userId);
+  const cacheKey = String(req.session.userId);
+  if (req._currentUserCache && req._currentUserCache.key === cacheKey) {
+    return req._currentUserCache.value;
+  }
+  const user = selectCompatUserById(req.session.userId);
+  req._currentUserCache = { key: cacheKey, value: user };
+  return user;
 }
 
 const MIN_GRADUATION_YEAR = 1999;
@@ -1464,7 +1471,15 @@ function ensureCanModerateTargetUser(req, res, targetUserId, { notFoundMessage =
   return target;
 }
 
-function getSiteControl() {
+let siteControlCache = { expiresAt: 0, value: null };
+let moduleControlCache = { expiresAt: 0, value: null };
+
+function invalidateControlSnapshots() {
+  siteControlCache.expiresAt = 0;
+  moduleControlCache.expiresAt = 0;
+}
+
+function readSiteControlFromDb() {
   const row = dbDriver === 'postgres'
     ? (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_settings WHERE id = 1') || {})
     : (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_controls WHERE id = 1') || {});
@@ -1476,7 +1491,15 @@ function getSiteControl() {
   };
 }
 
-function getModuleControlMap() {
+function getSiteControl() {
+  const now = Date.now();
+  if (siteControlCache.value && siteControlCache.expiresAt > now) return siteControlCache.value;
+  const next = readSiteControlFromDb();
+  siteControlCache = { value: next, expiresAt: now + CONTROL_CACHE_TTL_MS };
+  return next;
+}
+
+function readModuleControlMapFromDb() {
   const rows = dbDriver === 'postgres'
     ? (sqlAll('SELECT module_key, is_open FROM module_settings') || [])
     : (sqlAll('SELECT module_key, is_open FROM module_controls') || []);
@@ -1489,6 +1512,14 @@ function getModuleControlMap() {
     if (typeof statusMap[def.key] !== 'boolean') statusMap[def.key] = true;
   }
   return statusMap;
+}
+
+function getModuleControlMap() {
+  const now = Date.now();
+  if (moduleControlCache.value && moduleControlCache.expiresAt > now) return moduleControlCache.value;
+  const next = readModuleControlMapFromDb();
+  moduleControlCache = { value: next, expiresAt: now + CONTROL_CACHE_TTL_MS };
+  return next;
 }
 
 function resolveModuleKeyByPath(pathname) {
@@ -4496,6 +4527,7 @@ app.put('/api/admin/site-controls', requireAdmin, (req, res) => {
       }
     }
   }
+  invalidateControlSnapshots();
   invalidateCacheNamespace(cacheNamespaces.adminSettings);
   const site = getSiteControl();
   res.json({ ok: true, siteOpen: site.siteOpen, maintenanceMessage: site.maintenanceMessage, modules: getModuleControlMap() });
