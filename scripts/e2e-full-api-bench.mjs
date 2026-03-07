@@ -31,6 +31,7 @@ const LOGIN_RETRIES = Math.max(1, Number.parseInt(argValue('login-retries', proc
 const ARTIFACT_DIR = path.resolve(argValue('out', process.env.E2E_OUT_DIR || '/tmp'));
 const APP_FILE = path.resolve(argValue('app-file', path.join(process.cwd(), 'server/app.js')));
 const DRY_RUN = argFlag('dry-run');
+const ALLOW_DESTRUCTIVE = argFlag('allow-destructive');
 
 const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgB7R6YQAAAAASUVORK5CYII=',
@@ -64,6 +65,17 @@ const MOD_PERMISSIONS_ALL = [
 const records = [];
 const routeCoverage = new Set();
 const issuedUsernames = new Set();
+const destructiveRoutes = new Set([
+  '/api/new/admin/db/driver/switch',
+  '/api/new/admin/db/restore',
+  '/api/new/admin/db/backups',
+  '/api/new/admin/db/backups/:name/download',
+  '/api/new/admin/members/:id',
+  '/api/new/admin/posts/:id',
+  '/api/new/admin/messages/:id',
+  '/api/new/admin/stories/:id',
+  '/api/new/admin/groups/:id'
+]);
 const state = {
   users: {},
   ids: {
@@ -719,6 +731,22 @@ async function runBestEffortRouteSweep(routes) {
 
   for (const row of routes) {
     const routeTemplate = row.route;
+    if (!ALLOW_DESTRUCTIVE && destructiveRoutes.has(routeTemplate)) {
+      records.push({
+        ts: new Date().toISOString(),
+        actor: 'sweep',
+        method: row.method,
+        routeTemplate,
+        path: routeTemplate,
+        status: 0,
+        ok: true,
+        elapsedMs: 0,
+        note: 'SKIPPED_DESTRUCTIVE',
+        error: null,
+        bodyPreview: ''
+      });
+      continue;
+    }
     if (routeCoverage.has(`${row.method} ${routeTemplate}`)) continue;
     const params = buildRouteParams(routeTemplate);
     if (params === null) {
@@ -860,6 +888,7 @@ async function main() {
   console.log(`[e2e] base=${BASE_URL}`);
   console.log(`[e2e] app_file=${APP_FILE}`);
   console.log(`[e2e] token=${E2E_TOKEN ? 'provided' : 'missing'}`);
+  console.log(`[e2e] allow_destructive=${ALLOW_DESTRUCTIVE ? 'true' : 'false'}`);
   if (typeof fetch !== 'function' || typeof FormData !== 'function' || typeof Blob !== 'function') {
     throw new Error('Node.js 18+ required (fetch/FormData/Blob unavailable)');
   }

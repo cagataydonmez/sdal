@@ -1376,6 +1376,24 @@ const imageUpload = multer({
 
 const scryptAsync = promisify(crypto.scrypt);
 const PASSWORD_HASH_PREFIX = 'scrypt$';
+const E2E_PASSWORD_HASH_PREFIX = 'e2e-sha256$';
+const e2eHarnessEnabledForAuth = String(process.env.E2E_HARNESS_ENABLED || '').trim().toLowerCase() === 'true';
+
+function timingSafeTextEqual(a, b) {
+  const left = Buffer.from(String(a || ''), 'utf8');
+  const right = Buffer.from(String(b || ''), 'utf8');
+  if (!left.length || left.length !== right.length) return false;
+  try {
+    return crypto.timingSafeEqual(left, right);
+  } catch {
+    return false;
+  }
+}
+
+function hashE2EPassword(password) {
+  const digest = crypto.createHash('sha256').update(String(password || ''), 'utf8').digest('hex');
+  return `${E2E_PASSWORD_HASH_PREFIX}${digest}`;
+}
 const ROLE_PRIORITY = Object.freeze({ user: 0, mod: 1, admin: 2, root: 3 });
 
 function normalizeRole(value) {
@@ -1504,6 +1522,12 @@ async function hashPassword(password) {
 async function verifyPassword(stored, candidate) {
   const storedText = String(stored || '');
   const rawCandidate = String(candidate || '');
+  if (storedText.startsWith(E2E_PASSWORD_HASH_PREFIX)) {
+    if (!e2eHarnessEnabledForAuth) return { ok: false, needsRehash: false };
+    const expected = storedText.slice(E2E_PASSWORD_HASH_PREFIX.length);
+    const actual = crypto.createHash('sha256').update(rawCandidate, 'utf8').digest('hex');
+    return { ok: timingSafeTextEqual(expected, actual), needsRehash: false };
+  }
   if (!storedText.startsWith(PASSWORD_HASH_PREFIX)) {
     return { ok: storedText === rawCandidate, needsRehash: storedText === rawCandidate };
   }
@@ -5951,7 +5975,7 @@ app.post('/api/register', async (req, res) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'yok', ?, 0, ?, ?, ?, ?, ?, ?)`,
     [
       cleanKadi,
-      await hashPassword(sifre),
+      (e2eMode ? hashE2EPassword(sifre) : await hashPassword(sifre)),
       cleanEmail,
       cleanIsim,
       cleanSoyisim,
