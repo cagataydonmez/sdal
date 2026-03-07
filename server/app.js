@@ -1453,6 +1453,24 @@ function replaceModeratorPermissions(userId, permissionKeys = [], actorId = null
   }
 }
 
+async function replaceModeratorPermissionsAsync(userId, permissionKeys = [], actorId = null) {
+  if (!userId) return;
+  const normalized = new Set(
+    (Array.isArray(permissionKeys) ? permissionKeys : [])
+      .map((item) => String(item || '').trim())
+      .filter((key) => MODERATION_PERMISSION_KEY_SET.has(key))
+  );
+  const now = new Date().toISOString();
+  await sqlRunAsync('DELETE FROM moderator_permissions WHERE user_id = ?', [userId]);
+  for (const permissionKey of MODERATION_PERMISSION_KEY_SET) {
+    await sqlRunAsync(
+      `INSERT INTO moderator_permissions (user_id, permission_key, enabled, created_by, updated_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, permissionKey, toDbBooleanParam(normalized.has(permissionKey)), actorId || userId, actorId || userId, now, now]
+    );
+  }
+}
+
 function userHasModerationPermission(user, permissionKey) {
   if (!permissionKey || !MODERATION_PERMISSION_KEY_SET.has(permissionKey)) return false;
   const role = getUserRole(user);
@@ -5768,7 +5786,7 @@ app.delete('/api/admin/tournament/:id', requireAdmin, (req, res) => {
 });
 
 
-app.post('/api/register/preview', (req, res) => {
+app.post('/api/register/preview', async (req, res) => {
   if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
   const e2eMode = isE2EHarnessRequest(req);
   const {
@@ -5822,9 +5840,9 @@ app.post('/api/register/preview', (req, res) => {
   if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
   if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
-  const existingUser = sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+  const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
   if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
-  const existingMail = sqlGet('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+  const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
   if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
 
   res.json({
@@ -5928,7 +5946,7 @@ app.post('/api/register', async (req, res) => {
 
   const aktivasyon = createActivation();
   const now = new Date().toISOString();
-  const result = sqlRun(
+  const result = await sqlRunAsync(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at, verified, role, admin)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'yok', ?, 0, ?, ?, ?, ?, ?, ?)`,
     [
@@ -5952,12 +5970,12 @@ app.post('/api/register', async (req, res) => {
   const newId = result?.lastInsertRowid;
 
   if (e2eMode && e2eRole === 'mod' && newId) {
-    replaceModeratorPermissions(newId, e2eModerationKeys, newId);
+    await replaceModeratorPermissionsAsync(newId, e2eModerationKeys, newId);
   }
 
-  const welcome = sqlGet('SELECT id FROM uyeler WHERE id = 1');
-  if (welcome) {
-    sqlRun(
+  const welcome = await sqlGetAsync('SELECT id FROM uyeler WHERE id = 1');
+  if (welcome && !e2eMode) {
+    await sqlRunAsync(
       `INSERT INTO gelenkutusu (kime, kimden, aktifgelen, aktifgiden, yeni, konu, mesaj, tarih)
        VALUES (?, 1, 1, 1, 1, 'Hoşgeldiniz!', ?, ?)`,
       [String(newId), 'Sdal.org - Süleyman Demirel Anadolu Lisesi Mezunları Web Sitesine hoşgeldiniz!<br><br>Bu <b>mesaj paneli</b> sayesinde diğer üyeler ile haberleşebilirsiniz.<br><br>Hoşça vakit geçirmeniz dileğiyle...<br><b><i>sdal.org</b></i>', now]

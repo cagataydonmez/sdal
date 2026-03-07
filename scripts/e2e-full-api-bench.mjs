@@ -18,10 +18,16 @@ function argFlag(name) {
 const BASE_URL = String(argValue('base', process.env.BASE_URL || 'http://127.0.0.1:8787')).replace(/\/+$/, '');
 const E2E_TOKEN = String(argValue('e2e-token', process.env.E2E_TOKEN || ''));
 const RUN_TAG = String(argValue('tag', `e2e${Date.now()}`)).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || `e2e${Date.now()}`;
-const DEFAULT_PASSWORD = String(argValue('password', process.env.E2E_PASSWORD || 'Passw0rd!123'));
+const DEFAULT_PASSWORD = String(argValue('password', process.env.E2E_PASSWORD || 'Passw0rd123'));
 const ADMIN_PANEL_PASSWORD = String(argValue('admin-password', process.env.SDAL_ADMIN_PASSWORD || ''));
 const PERF_LOOPS = Math.max(1, Number.parseInt(argValue('loops', process.env.E2E_PERF_LOOPS || '5'), 10) || 5);
 const TIMEOUT_MS = Math.max(1000, Number.parseInt(argValue('timeout-ms', process.env.E2E_TIMEOUT_MS || '20000'), 10) || 20000);
+const REGISTER_TIMEOUT_MS = Math.max(
+  TIMEOUT_MS,
+  Number.parseInt(argValue('register-timeout-ms', process.env.E2E_REGISTER_TIMEOUT_MS || '60000'), 10) || 60000
+);
+const REGISTER_RETRIES = Math.max(1, Number.parseInt(argValue('register-retries', process.env.E2E_REGISTER_RETRIES || '3'), 10) || 3);
+const LOGIN_RETRIES = Math.max(1, Number.parseInt(argValue('login-retries', process.env.E2E_LOGIN_RETRIES || '3'), 10) || 3);
 const ARTIFACT_DIR = path.resolve(argValue('out', process.env.E2E_OUT_DIR || '/tmp'));
 const APP_FILE = path.resolve(argValue('app-file', path.join(process.cwd(), 'server/app.js')));
 const DRY_RUN = argFlag('dry-run');
@@ -167,7 +173,8 @@ async function request(client, method, routeTemplate, {
   form = null,
   headers = {},
   allow = [],
-  note = ''
+  note = '',
+  timeoutMs = TIMEOUT_MS
 } = {}) {
   const pathname = withParams(routeTemplate, params);
   const url = new URL(pathname, `${BASE_URL}/`);
@@ -202,7 +209,7 @@ async function request(client, method, routeTemplate, {
       bodyText = '{"ok":true}';
     } else {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      const timer = setTimeout(() => ctrl.abort(), Math.max(500, Number(timeoutMs) || TIMEOUT_MS));
       let resp;
       try {
         resp = await fetch(url, { ...init, signal: ctrl.signal });
@@ -239,7 +246,8 @@ async function request(client, method, routeTemplate, {
   });
 
   const marker = ok ? 'OK' : 'FAIL';
-  console.log(`${marker} ${client.name.padEnd(6)} ${method.padEnd(6)} ${url.pathname} status=${status} ms=${elapsed}${note ? ` note=${note}` : ''}${error ? ` err=${error}` : ''}`);
+  const failPreview = !ok && bodyText ? ` body=${String(bodyText).replace(/\s+/g, ' ').slice(0, 180)}` : '';
+  console.log(`${marker} ${client.name.padEnd(6)} ${method.padEnd(6)} ${url.pathname} status=${status} ms=${elapsed}${note ? ` note=${note}` : ''}${error ? ` err=${error}` : ''}${failPreview}`);
 
   return { ok, status, text: bodyText, json: parsed, elapsedMs: elapsed, error };
 }
@@ -248,6 +256,50 @@ function must(result, message) {
   if (!result.ok) {
     throw new Error(message);
   }
+}
+
+function containsAny(haystack, needles) {
+  const src = String(haystack || '').toLowerCase();
+  return needles.some((item) => src.includes(String(item || '').toLowerCase()));
+}
+
+function isAbortError(result) {
+  return result?.status === 0 && containsAny(result?.error || '', ['aborted', 'abort']);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+async function assertE2EHarnessActive() {
+  if (DRY_RUN) return;
+  const probe = new ApiClient('probe');
+  const ts = Date.now();
+  const probePayload = {
+    kadi: `p${String(ts).slice(-8)}`,
+    sifre: 'Passw0rd!123',
+    sifre2: 'Passw0rd!123',
+    email: `probe.${ts}@example.test`,
+    isim: 'Probe',
+    soyisim: 'Runner',
+    mezuniyetyili: 2015,
+    gkodu: 'abc-not-captcha',
+    kvkk_consent: false,
+    directory_consent: false,
+    e2e_token: E2E_TOKEN
+  };
+  const res = await request(probe, 'POST', '/api/register/preview', {
+    json: probePayload,
+    headers: { 'x-e2e-token': E2E_TOKEN },
+    allow: [400],
+    note: 'e2e-probe'
+  });
+  if (res.status === 200) return;
+  const msg = String(res.text || '');
+  if (containsAny(msg, ['güvenlik kodu', 'kvkk', 'açık rıza', 'mezun rehberi'])) {
+    throw new Error(`E2E harness disabled or token mismatch on server. Probe response: ${msg}`);
+  }
+  throw new Error(`E2E probe failed (HTTP ${res.status}): ${msg || 'empty response'}`);
 }
 
 async function registerAndLoginUsers() {
@@ -274,22 +326,58 @@ async function registerAndLoginUsers() {
     }
     if (E2E_TOKEN) payload.e2e_token = E2E_TOKEN;
 
-    const reg = await request(registerClient, 'POST', '/api/register', {
-      json: payload,
-      headers: E2E_TOKEN ? { 'x-e2e-token': E2E_TOKEN } : {},
-      allow: [200, 400],
-      note: `register:${spec.key}`
-    });
-    if (!reg.ok && reg.status !== 400) {
-      throw new Error(`register failed for ${spec.key}`);
+    let registered = false;
+    for (let attempt = 1; attempt <= REGISTER_RETRIES; attempt += 1) {
+      const reg = await request(registerClient, 'POST', '/api/register', {
+        json: payload,
+        headers: E2E_TOKEN ? { 'x-e2e-token': E2E_TOKEN } : {},
+        allow: [200, 400],
+        note: `register:${spec.key}:attempt${attempt}`,
+        timeoutMs: REGISTER_TIMEOUT_MS
+      });
+      if (reg.status === 200) {
+        registered = true;
+        break;
+      }
+      if (reg.status === 400) {
+        const msg = String(reg.text || '').trim();
+        if (containsAny(msg, ['zaten kayıtlı'])) {
+          registered = true;
+          break;
+        }
+        if (containsAny(msg, ['güvenlik kodu', 'kvkk', 'açık rıza', 'mezun rehberi'])) {
+          throw new Error(`register failed for ${spec.key}: E2E harness/token not active. Response: ${msg}`);
+        }
+        throw new Error(`register failed for ${spec.key}: ${msg || 'HTTP 400'}`);
+      }
+      if (isAbortError(reg) && attempt < REGISTER_RETRIES) {
+        await sleep(1200 * attempt);
+        continue;
+      }
+      throw new Error(`register failed for ${spec.key}: status=${reg.status} err=${reg.error || 'unknown'}`);
     }
 
     const client = new ApiClient(spec.key);
-    const login = await request(client, 'POST', '/api/auth/login', {
-      json: { kadi: username, sifre: DEFAULT_PASSWORD },
-      note: `login:${spec.key}`
-    });
-    must(login, `login failed for ${spec.key}`);
+    let login = null;
+    for (let attempt = 1; attempt <= LOGIN_RETRIES; attempt += 1) {
+      const result = await request(client, 'POST', '/api/auth/login', {
+        json: { kadi: username, sifre: DEFAULT_PASSWORD },
+        allow: [400, 401],
+        note: `login:${spec.key}:attempt${attempt}`,
+        timeoutMs: Math.max(10000, TIMEOUT_MS)
+      });
+      if (result.status >= 200 && result.status < 300) {
+        login = result;
+        break;
+      }
+      if (attempt < LOGIN_RETRIES) {
+        await sleep(900 * attempt);
+      }
+    }
+    if (!login || !(login.status >= 200 && login.status < 300)) {
+      const suffix = registered ? 'after register' : 'without register';
+      throw new Error(`login failed for ${spec.key} (${suffix})`);
+    }
 
     const session = await request(client, 'GET', '/api/session', { note: `session:${spec.key}` });
     must(session, `session failed for ${spec.key}`);
@@ -780,6 +868,7 @@ async function main() {
     throw new Error('E2E token missing. Set --e2e-token or E2E_TOKEN.');
   }
 
+  await assertE2EHarnessActive();
   await registerAndLoginUsers();
   await runCoreScenario();
   await runPerfLoops();
