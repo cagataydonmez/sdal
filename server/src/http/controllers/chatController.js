@@ -11,12 +11,12 @@ export function createChatController({
   broadcastChatDelete,
   scheduleEngagementRecalculation
 }) {
-  function listMessages(req, res) {
+  async function listMessages(req, res) {
     try {
       const sinceId = parseInt(req.query.sinceId || '0', 10) || 0;
       const beforeId = parseInt(req.query.beforeId || '0', 10) || 0;
       const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
-      const messages = chatService.listMessages({ sinceId, beforeId, limit });
+      const messages = await chatService.listMessages({ sinceId, beforeId, limit });
       return res.json({ items: messages.map((message) => toLegacyChatMessageItem(message)) });
     } catch (err) {
       if (isHttpError(err)) return res.status(err.statusCode).send(err.message);
@@ -25,12 +25,12 @@ export function createChatController({
     }
   }
 
-  function sendMessage(req, res) {
+  async function sendMessage(req, res) {
     try {
       const rawMessage = String(req.body?.message || '').slice(0, 5000);
       const message = formatUserText(rawMessage);
       const body = isFormattedContentEmpty(message) ? '' : message;
-      const created = chatService.sendMessage({
+      const created = await chatService.sendMessage({
         userId: req.session.userId,
         body
       });
@@ -47,14 +47,14 @@ export function createChatController({
     }
   }
 
-  function updateMessage(req, res) {
+  async function updateMessage(req, res) {
     try {
       const messageId = Number(req.params.id || 0);
       const rawMessage = String(req.body?.message || '').slice(0, 5000);
       const message = formatUserText(rawMessage);
       const body = isFormattedContentEmpty(message) ? '' : message;
 
-      const updated = chatService.updateMessage({
+      const updated = await chatService.updateMessage({
         messageId,
         body,
         canManage: (item) => canManageChatMessage(req, { id: item.id, user_id: item.authorId })
@@ -72,10 +72,10 @@ export function createChatController({
     }
   }
 
-  function deleteMessage(req, res) {
+  async function deleteMessage(req, res) {
     try {
       const messageId = Number(req.params.id || 0);
-      chatService.deleteMessage({
+      await chatService.deleteMessage({
         messageId,
         canManage: (item) => canManageChatMessage(req, { id: item.id, user_id: item.authorId })
       });

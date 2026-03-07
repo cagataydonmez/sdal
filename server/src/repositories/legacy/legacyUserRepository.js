@@ -2,17 +2,30 @@ import { UserRepository } from '../interfaces.js';
 import { toDomainUser } from '../../domain/entities.js';
 
 export class LegacyUserRepository extends UserRepository {
-  constructor({ sqlGet, sqlRun }) {
+  constructor({ sqlGet, sqlRun, sqlGetAsync, sqlRunAsync, isPostgresDb }) {
     super();
     this.sqlGet = sqlGet;
     this.sqlRun = sqlRun;
+    this.sqlGetAsync = sqlGetAsync;
+    this.sqlRunAsync = sqlRunAsync;
+    this.isPostgresDb = Boolean(isPostgresDb);
     this.usersTable = null;
   }
 
-  resolveUsersTable() {
+  async queryGet(query, params = []) {
+    if (this.isPostgresDb && typeof this.sqlGetAsync === 'function') return this.sqlGetAsync(query, params);
+    return this.sqlGet(query, params);
+  }
+
+  async queryRun(query, params = []) {
+    if (this.isPostgresDb && typeof this.sqlRunAsync === 'function') return this.sqlRunAsync(query, params);
+    return this.sqlRun(query, params);
+  }
+
+  async resolveUsersTable() {
     if (this.usersTable) return this.usersTable;
     try {
-      this.sqlGet('SELECT id FROM users LIMIT 1');
+      await this.queryGet('SELECT id FROM users LIMIT 1');
       this.usersTable = 'users';
       return this.usersTable;
     } catch {
@@ -21,12 +34,12 @@ export class LegacyUserRepository extends UserRepository {
     }
   }
 
-  selectUserBy(whereClause, params = []) {
-    const usersTable = this.resolveUsersTable();
+  async selectUserBy(whereClause, params = []) {
+    const usersTable = await this.resolveUsersTable();
     if (usersTable === 'uyeler') {
-      return this.sqlGet(`SELECT * FROM uyeler WHERE ${whereClause}`, params);
+      return this.queryGet(`SELECT * FROM uyeler WHERE ${whereClause}`, params);
     }
-    return this.sqlGet(
+    return this.queryGet(
       `SELECT
          id,
          username AS kadi,
@@ -51,42 +64,42 @@ export class LegacyUserRepository extends UserRepository {
     );
   }
 
-  findById(id) {
-    const row = this.selectUserBy('id = ?', [id]);
+  async findById(id) {
+    const row = await this.selectUserBy('id = ?', [id]);
     return toDomainUser(row);
   }
 
-  findByUsername(username) {
-    const usersTable = this.resolveUsersTable();
+  async findByUsername(username) {
+    const usersTable = await this.resolveUsersTable();
     const row = usersTable === 'uyeler'
-      ? this.selectUserBy('kadi = ?', [username])
-      : this.selectUserBy('lower(username) = lower(?)', [username]);
+      ? await this.selectUserBy('kadi = ?', [username])
+      : await this.selectUserBy('lower(username) = lower(?)', [username]);
     return toDomainUser(row);
   }
 
-  updatePasswordHash(id, passwordHash) {
-    const usersTable = this.resolveUsersTable();
+  async updatePasswordHash(id, passwordHash) {
+    const usersTable = await this.resolveUsersTable();
     if (usersTable === 'uyeler') {
-      this.sqlRun('UPDATE uyeler SET sifre = ? WHERE id = ?', [passwordHash, id]);
+      await this.queryRun('UPDATE uyeler SET sifre = ? WHERE id = ?', [passwordHash, id]);
       return;
     }
-    this.sqlRun('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id]);
+    await this.queryRun('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id]);
   }
 
-  setOnlineStatus(id, online) {
-    const usersTable = this.resolveUsersTable();
+  async setOnlineStatus(id, online) {
+    const usersTable = await this.resolveUsersTable();
     if (usersTable === 'uyeler') {
-      this.sqlRun('UPDATE uyeler SET online = ? WHERE id = ?', [online ? 1 : 0, id]);
+      await this.queryRun('UPDATE uyeler SET online = ? WHERE id = ?', [online ? 1 : 0, id]);
       return;
     }
-    this.sqlRun('UPDATE users SET is_online = ? WHERE id = ?', [online ? true : false, id]);
+    await this.queryRun('UPDATE users SET is_online = ? WHERE id = ?', [online ? true : false, id]);
   }
 
-  findGraduationYearById(id) {
-    const usersTable = this.resolveUsersTable();
+  async findGraduationYearById(id) {
+    const usersTable = await this.resolveUsersTable();
     const row = usersTable === 'uyeler'
-      ? this.sqlGet('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [id])
-      : this.sqlGet('SELECT graduation_year AS mezuniyetyili FROM users WHERE id = ?', [id]);
+      ? await this.queryGet('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [id])
+      : await this.queryGet('SELECT graduation_year AS mezuniyetyili FROM users WHERE id = ?', [id]);
     return row?.mezuniyetyili ? Number(row.mezuniyetyili) || null : null;
   }
 }

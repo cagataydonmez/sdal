@@ -27,19 +27,46 @@ import { createAdminController } from '../http/controllers/adminController.js';
 
 export function createPhase1DomainLayer(deps) {
   const repositories = {
-    users: new LegacyUserRepository({ sqlGet: deps.sqlGet, sqlRun: deps.sqlRun }),
+    users: new LegacyUserRepository({
+      sqlGet: deps.sqlGet,
+      sqlRun: deps.sqlRun,
+      sqlGetAsync: deps.sqlGetAsync,
+      sqlRunAsync: deps.sqlRunAsync,
+      isPostgresDb: deps.isPostgresDb
+    }),
     profiles: new LegacyProfileRepository(),
     feeds: new LegacyFeedRepository({
       sqlAll: deps.sqlAll,
+      sqlAllAsync: deps.sqlAllAsync,
       isPostgresDb: deps.isPostgresDb,
       joinUserOnPostAuthorExpr: deps.joinUserOnPostAuthorExpr
     }),
-    posts: new LegacyPostRepository({ sqlGet: deps.sqlGet, sqlAll: deps.sqlAll, sqlRun: deps.sqlRun }),
+    posts: new LegacyPostRepository({
+      sqlGet: deps.sqlGet,
+      sqlAll: deps.sqlAll,
+      sqlRun: deps.sqlRun,
+      sqlGetAsync: deps.sqlGetAsync,
+      sqlAllAsync: deps.sqlAllAsync,
+      sqlRunAsync: deps.sqlRunAsync,
+      isPostgresDb: deps.isPostgresDb
+    }),
     stories: new LegacyStoryRepository(),
     conversations: new LegacyConversationRepository(),
-    messages: new LegacyChatRepository({ sqlGet: deps.sqlGet, sqlAll: deps.sqlAll, sqlRun: deps.sqlRun }),
+    messages: new LegacyChatRepository({
+      sqlGet: deps.sqlGet,
+      sqlAll: deps.sqlAll,
+      sqlRun: deps.sqlRun,
+      sqlGetAsync: deps.sqlGetAsync,
+      sqlAllAsync: deps.sqlAllAsync,
+      sqlRunAsync: deps.sqlRunAsync,
+      isPostgresDb: deps.isPostgresDb
+    }),
     notifications: new LegacyNotificationRepository(),
-    groups: new LegacyGroupRepository({ sqlGet: deps.sqlGet }),
+    groups: new LegacyGroupRepository({
+      sqlGet: deps.sqlGet,
+      sqlGetAsync: deps.sqlGetAsync,
+      isPostgresDb: deps.isPostgresDb
+    }),
     events: new LegacyEventRepository(),
     announcements: new LegacyAnnouncementRepository(),
     jobs: new LegacyJobRepository(),

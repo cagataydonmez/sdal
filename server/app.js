@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-import { sqlGet, sqlAll, sqlRun, dbPath, getDb, closeDbConnection, resetDbConnection, dbDriver, configureDbInstrumentation } from './db.js';
+import { sqlGet, sqlAll, sqlRun, sqlGetAsync, sqlAllAsync, sqlRunAsync, dbPath, getDb, closeDbConnection, resetDbConnection, dbDriver, configureDbInstrumentation } from './db.js';
 import { mapLegacyUrl } from './legacyRoutes.js';
 import fs from 'fs';
 import os from 'os';
@@ -3966,6 +3966,9 @@ const phase1Domain = createPhase1DomainLayer({
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   isPostgresDb,
   joinUserOnPostAuthorExpr,
   normalizeRole,
@@ -6761,73 +6764,88 @@ app.get('/api/new/posts/:id/comments', requireAuth, phase1Domain.controllers.pos
 
 app.post('/api/new/posts/:id/comments', requireAuth, commentWriteRateLimit, phase1Domain.controllers.posts.createComment);
 
-app.get('/api/new/notifications', requireAuth, (req, res) => {
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
-  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-  const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+app.get('/api/new/notifications', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+    const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
 
-  const whereParts = ['n.user_id = ?'];
-  const params = [req.session.userId];
-  if (cursor > 0) {
-    whereParts.push('n.id < ?');
-    params.push(cursor);
-  }
-
-  const rows = sqlAll(
-    `SELECT n.id, n.type, n.entity_id, n.source_user_id, n.message, n.read_at, n.created_at,
-            u.kadi, u.isim, u.soyisim, u.resim, u.verified
-     FROM notifications n
-     LEFT JOIN uyeler u ON u.id = n.source_user_id
-     WHERE ${whereParts.join(' AND ')}
-     ORDER BY n.id DESC
-     LIMIT ? OFFSET ?`,
-    [...params, limit + 1, cursor > 0 ? 0 : offset]
-  );
-  const slice = rows.slice(0, limit);
-  const inviteEntityIds = Array.from(
-    new Set(
-      slice
-        .filter((row) => row.type === 'group_invite' && Number(row.entity_id || 0) > 0)
-        .map((row) => Number(row.entity_id))
-    )
-  );
-  const inviteStatusMap = new Map();
-  if (inviteEntityIds.length > 0) {
-    const inviteRows = sqlAll(
-      `SELECT group_id, status, id
-       FROM group_invites
-       WHERE invited_user_id = ?
-         AND group_id IN (${inviteEntityIds.map(() => '?').join(',')})
-       ORDER BY id DESC`,
-      [req.session.userId, ...inviteEntityIds]
-    );
-    for (const inviteRow of inviteRows) {
-      const groupId = Number(inviteRow.group_id || 0);
-      if (!groupId || inviteStatusMap.has(groupId)) continue;
-      inviteStatusMap.set(groupId, String(inviteRow.status || 'pending'));
+    const whereParts = ['n.user_id = ?'];
+    const params = [req.session.userId];
+    if (cursor > 0) {
+      whereParts.push('n.id < ?');
+      params.push(cursor);
     }
+
+    const rows = await sqlAllAsync(
+      `SELECT n.id, n.type, n.entity_id, n.source_user_id, n.message, n.read_at, n.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM notifications n
+       LEFT JOIN uyeler u ON u.id = n.source_user_id
+       WHERE ${whereParts.join(' AND ')}
+       ORDER BY n.id DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit + 1, cursor > 0 ? 0 : offset]
+    );
+    const slice = rows.slice(0, limit);
+    const inviteEntityIds = Array.from(
+      new Set(
+        slice
+          .filter((row) => row.type === 'group_invite' && Number(row.entity_id || 0) > 0)
+          .map((row) => Number(row.entity_id))
+      )
+    );
+    const inviteStatusMap = new Map();
+    if (inviteEntityIds.length > 0) {
+      const inviteRows = await sqlAllAsync(
+        `SELECT group_id, status, id
+         FROM group_invites
+         WHERE invited_user_id = ?
+           AND group_id IN (${inviteEntityIds.map(() => '?').join(',')})
+         ORDER BY id DESC`,
+        [req.session.userId, ...inviteEntityIds]
+      );
+      for (const inviteRow of inviteRows) {
+        const groupId = Number(inviteRow.group_id || 0);
+        if (!groupId || inviteStatusMap.has(groupId)) continue;
+        inviteStatusMap.set(groupId, String(inviteRow.status || 'pending'));
+      }
+    }
+    const items = slice.map((row) => {
+      if (row.type !== 'group_invite' || !row.entity_id) return row;
+      return {
+        ...row,
+        invite_status: inviteStatusMap.get(Number(row.entity_id || 0)) || 'pending'
+      };
+    });
+    res.json({ items, hasMore: rows.length > limit });
+  } catch (err) {
+    console.error('notifications.list failed:', err);
+    res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-  const items = slice.map((row) => {
-    if (row.type !== 'group_invite' || !row.entity_id) return row;
-    return {
-      ...row,
-      invite_status: inviteStatusMap.get(Number(row.entity_id || 0)) || 'pending'
-    };
-  });
-  res.json({ items, hasMore: rows.length > limit });
 });
 
-app.get('/api/new/notifications/unread', requireAuth, (req, res) => {
-  const row = sqlGet('SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND read_at IS NULL', [req.session.userId]);
-  res.json({ count: Number(row?.cnt || 0) });
+app.get('/api/new/notifications/unread', requireAuth, async (req, res) => {
+  try {
+    const row = await sqlGetAsync('SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND read_at IS NULL', [req.session.userId]);
+    res.json({ count: Number(row?.cnt || 0) });
+  } catch (err) {
+    console.error('notifications.unread failed:', err);
+    res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
-app.post('/api/new/notifications/read', requireAuth, (req, res) => {
-  sqlRun('UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL', [
-    new Date().toISOString(),
-    req.session.userId
-  ]);
-  res.json({ ok: true });
+app.post('/api/new/notifications/read', requireAuth, async (req, res) => {
+  try {
+    await sqlRunAsync('UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL', [
+      new Date().toISOString(),
+      req.session.userId
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('notifications.read failed:', err);
+    res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.post('/api/new/translate', async (req, res) => {
@@ -7237,41 +7255,47 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
   return res.json({ ok: true, following: true });
 });
 
-app.get('/api/new/follows', requireAuth, (req, res) => {
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
-  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-  const sort = String(req.query.sort || 'engagement').trim().toLowerCase();
-  const orderBy = sort === 'followed_at'
-    ? 'COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC'
-    : 'COALESCE(es.score, 0) DESC, COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC';
-  const rows = sqlAll(
-    `SELECT f.following_id, f.created_at AS followed_at, u.kadi, u.isim, u.soyisim, u.resim,
-            COALESCE(es.score, 0) AS engagement_score
-     FROM follows f
-     LEFT JOIN uyeler u ON u.id = f.following_id
-     LEFT JOIN member_engagement_scores es ON es.user_id = f.following_id
-     WHERE f.follower_id = ?
-     ORDER BY ${orderBy}
-     LIMIT ? OFFSET ?`,
-    [req.session.userId, limit, offset]
-  );
-  res.json({ items: rows, hasMore: rows.length === limit });
+app.get('/api/new/follows', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+    const sort = String(req.query.sort || 'engagement').trim().toLowerCase();
+    const orderBy = sort === 'followed_at'
+      ? 'COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC'
+      : 'COALESCE(es.score, 0) DESC, COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC';
+    const rows = await sqlAllAsync(
+      `SELECT f.following_id, f.created_at AS followed_at, u.kadi, u.isim, u.soyisim, u.resim,
+              COALESCE(es.score, 0) AS engagement_score
+       FROM follows f
+       LEFT JOIN uyeler u ON u.id = f.following_id
+       LEFT JOIN member_engagement_scores es ON es.user_id = f.following_id
+       WHERE f.follower_id = ?
+       ORDER BY ${orderBy}
+       LIMIT ? OFFSET ?`,
+      [req.session.userId, limit, offset]
+    );
+    res.json({ items: rows, hasMore: rows.length === limit });
+  } catch (err) {
+    console.error('follows.list failed:', err);
+    res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 function escapeSqlLikeTerm(value) {
   return String(value || '').replace(/[\\%_]/g, '\\$&');
 }
 
-app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
+app.get('/api/new/admin/follows/:userId', requireAdmin, async (req, res) => {
   const targetUserId = Number(req.params.userId || 0);
   if (!Number.isInteger(targetUserId) || targetUserId <= 0) return res.status(400).send('Geçersiz üye kimliği.');
   const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
 
-  const user = sqlGet('SELECT id, kadi, isim, soyisim FROM uyeler WHERE id = ?', [targetUserId]);
-  if (!user) return res.status(404).send('Üye bulunamadı.');
+  try {
+    const user = await sqlGetAsync('SELECT id, kadi, isim, soyisim FROM uyeler WHERE id = ?', [targetUserId]);
+    if (!user) return res.status(404).send('Üye bulunamadı.');
 
-  const follows = sqlAll(
+  const follows = await sqlAllAsync(
     `SELECT f.id, f.following_id, f.created_at AS followed_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM follows f
@@ -7303,7 +7327,7 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
   const recentQuotesMap = new Map();
 
   if (followingIds.length > 0) {
-    const messageCountRows = sqlAll(
+    const messageCountRows = await sqlAllAsync(
       `SELECT CAST(kime AS INTEGER) AS following_id, COUNT(*) AS cnt
        FROM gelenkutusu
        WHERE CAST(kimden AS INTEGER) = CAST(? AS INTEGER)
@@ -7315,7 +7339,7 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
       messageCountMap.set(Number(row.following_id || 0), Number(row.cnt || 0));
     }
 
-    const recentMessageRows = sqlAll(
+    const recentMessageRows = await sqlAllAsync(
       `SELECT following_id, id, konu, mesaj, tarih
        FROM (
          SELECT CAST(kime AS INTEGER) AS following_id,
@@ -7348,7 +7372,7 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
     const valuesSql = quoteTargets.map(() => '(?, ?)').join(', ');
     const valuesParams = quoteTargets.flatMap((target) => [target.followingId, target.needle]);
 
-    const postQuoteCountRows = sqlAll(
+    const postQuoteCountRows = await sqlAllAsync(
       `WITH targets(following_id, needle) AS (VALUES ${valuesSql})
        SELECT t.following_id, COUNT(p.id) AS cnt
        FROM targets t
@@ -7362,7 +7386,7 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
       postQuoteCountMap.set(Number(row.following_id || 0), Number(row.cnt || 0));
     }
 
-    const commentQuoteCountRows = sqlAll(
+    const commentQuoteCountRows = await sqlAllAsync(
       `WITH targets(following_id, needle) AS (VALUES ${valuesSql})
        SELECT t.following_id, COUNT(c.id) AS cnt
        FROM targets t
@@ -7376,7 +7400,7 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
       commentQuoteCountMap.set(Number(row.following_id || 0), Number(row.cnt || 0));
     }
 
-    const recentQuoteRows = sqlAll(
+    const recentQuoteRows = await sqlAllAsync(
       `WITH targets(following_id, needle) AS (VALUES ${valuesSql}),
             ranked AS (
               SELECT t.following_id,
@@ -7419,11 +7443,15 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
     };
   });
 
-  res.json({
-    user,
-    items,
-    hasMore: items.length === limit
-  });
+    res.json({
+      user,
+      items,
+      hasMore: items.length === limit
+    });
+  } catch (err) {
+    console.error('admin.follows.list failed:', err);
+    res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.get('/api/new/explore/suggestions', requireAuth, (req, res) => {
@@ -7534,8 +7562,8 @@ app.get('/api/new/explore/suggestions', requireAuth, (req, res) => {
   res.json({ items, hasMore: offset + items.length < scored.length, total: scored.length });
 });
 
-app.get('/api/new/messages/unread', requireAuth, (req, res) => {
-  const row = sqlGet(
+app.get('/api/new/messages/unread', requireAuth, async (req, res) => {
+  const row = await sqlGetAsync(
     'SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE kime = ? AND aktifgelen = 1 AND yeni = 1',
     [req.session.userId]
   );
@@ -10348,9 +10376,9 @@ app.delete('/api/panolar/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/quick-access', (req, res) => {
+app.get('/api/quick-access', async (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
-  const user = sqlGet('SELECT hizliliste FROM uyeler WHERE id = ?', [req.session.userId]);
+  const user = await sqlGetAsync('SELECT hizliliste FROM uyeler WHERE id = ?', [req.session.userId]);
   const list = String(user?.hizliliste || '0')
     .split(',')
     .map((v) => v.trim())
@@ -10363,7 +10391,7 @@ app.get('/api/quick-access', (req, res) => {
     )
   );
   if (!unique.length) return res.json({ users: [] });
-  const rows = sqlAll(
+  const rows = await sqlAllAsync(
     `SELECT id, kadi, resim, mezuniyetyili, online, sonislemtarih, sonislemsaat, role
      FROM uyeler
      WHERE id IN (${unique.map(() => '?').join(',')})`,

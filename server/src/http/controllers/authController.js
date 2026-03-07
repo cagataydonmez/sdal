@@ -30,8 +30,8 @@ export function createAuthController({ authService, applyUserSession }) {
     }
   }
 
-  function logout(req, res) {
-    authService.logout(req.session.userId);
+  async function logout(req, res) {
+    await authService.logout(req.session.userId);
     req.session.destroy(() => {
       res.clearCookie('uyegiris');
       res.clearCookie('uyeid');

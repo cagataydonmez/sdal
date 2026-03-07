@@ -16,7 +16,7 @@ export class AuthService {
       throw new HttpError(400, 'Siteye girmek için şifreni de yazman gerekiyor.');
     }
 
-    const user = this.userRepository.findByUsername(username);
+    const user = await this.userRepository.findByUsername(username);
     if (!user) {
       throw new HttpError(400, 'Sdal.org sitesinde böyle bir kullanıcı henüz kayıtlı değil.');
     }
@@ -34,7 +34,7 @@ export class AuthService {
 
     if (verification.needsRehash) {
       const nextHash = await this.hashPassword(password);
-      this.userRepository.updatePasswordHash(user.id, nextHash);
+      await this.userRepository.updatePasswordHash(user.id, nextHash);
     }
 
     const role = this.rolePolicy.getUserRole(user.legacy || user);
@@ -48,8 +48,8 @@ export class AuthService {
     };
   }
 
-  logout(userId) {
+  async logout(userId) {
     if (!userId) return;
-    this.userRepository.setOnlineStatus(userId, false);
+    await this.userRepository.setOnlineStatus(userId, false);
   }
 }

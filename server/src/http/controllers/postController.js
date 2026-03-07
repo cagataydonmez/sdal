@@ -12,13 +12,13 @@ export function createPostController({
   scheduleEngagementRecalculation,
   invalidateFeedCache
 }) {
-  function createPost(req, res) {
+  async function createPost(req, res) {
     try {
       const content = formatUserText(req.body?.content || '');
       const image = req.body?.image || null;
       const groupId = req.body?.group_id || null;
 
-      const created = postService.createPost({
+      const created = await postService.createPost({
         authorId: req.session.userId,
         content: isFormattedContentEmpty(content) ? '' : content,
         imageUrl: image,
@@ -43,12 +43,12 @@ export function createPostController({
     }
   }
 
-  function listComments(req, res) {
+  async function listComments(req, res) {
     try {
       const currentUser = getCurrentUser(req);
       const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
       const beforeId = Math.max(parseInt(req.query.beforeId || req.query.cursor || '0', 10), 0);
-      const page = postService.listPostComments({
+      const page = await postService.listPostComments({
         postId: Number(req.params.id),
         viewerId: req.session.userId,
         isAdmin: hasAdminRole(currentUser),
@@ -64,13 +64,13 @@ export function createPostController({
     }
   }
 
-  function createComment(req, res) {
+  async function createComment(req, res) {
     try {
       const currentUser = getCurrentUser(req);
       const comment = formatUserText(req.body?.comment || '');
       const body = isFormattedContentEmpty(comment) ? '' : comment;
 
-      const { post } = postService.createPostComment({
+      const { post } = await postService.createPostComment({
         postId: Number(req.params.id),
         authorId: req.session.userId,
         viewerId: req.session.userId,
@@ -107,13 +107,13 @@ export function createPostController({
     }
   }
 
-  function toggleLike(req, res) {
+  async function toggleLike(req, res) {
     try {
       const currentUser = getCurrentUser(req);
       const postId = Number(req.params.id || 0);
       if (!postId) return res.status(400).send('Geçersiz gönderi.');
 
-      const result = postService.togglePostLike({
+      const result = await postService.togglePostLike({
         postId,
         viewerId: req.session.userId,
         isAdmin: hasAdminRole(currentUser)

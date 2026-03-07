@@ -41,10 +41,10 @@ export class FeedService {
     const whereParams = [];
 
     if (feedType === 'community') {
-      const year = this.userRepository.findGraduationYearById(viewerId);
+      const year = await this.userRepository.findGraduationYearById(viewerId);
       if (!Number.isNaN(year) && Number(year) > 1900) {
         const cohortName = `${year} Mezunları`;
-        const group = this.groupRepository.findByName(cohortName);
+        const group = await this.groupRepository.findByName(cohortName);
         if (group) {
           whereSql = 'WHERE p.group_id = ?';
           whereParams.push(group.id);
@@ -57,7 +57,7 @@ export class FeedService {
       whereParams.push(viewerId, viewerId);
     }
 
-    const items = this.feedRepository.findFeedPage({
+    const items = await this.feedRepository.findFeedPage({
       whereSql,
       whereParams,
       limit,

@@ -3,6 +3,7 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
+import { pgQuery } from './src/infra/postgresPool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,6 +85,19 @@ function withQueryTiming(operation, query, params, execute) {
   let error = null;
   try {
     return execute();
+  } catch (err) {
+    error = err;
+    throw err;
+  } finally {
+    logSlowQuery(operation, query, params, Date.now() - startedAt, error);
+  }
+}
+
+async function withQueryTimingAsync(operation, query, params, execute) {
+  const startedAt = Date.now();
+  let error = null;
+  try {
+    return await execute();
   } catch (err) {
     error = err;
     throw err;
@@ -236,6 +250,89 @@ function normalizePgSql(sql) {
       /LEFT\s+JOIN\s+uyeler\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+\1\.id\s*=\s*([a-zA-Z_][a-zA-Z0-9_.]*)/gi,
       'LEFT JOIN uyeler $1 ON $1.id::text = $2::text'
     );
+}
+
+function convertQuestionParamsToPg(sql) {
+  const text = String(sql || '');
+  let out = '';
+  let index = 0;
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (ch === '\'' && !inDouble) {
+      if (inSingle && next === '\'') {
+        out += '\'\'';
+        i += 1;
+        continue;
+      }
+      inSingle = !inSingle;
+      out += ch;
+      continue;
+    }
+
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      out += ch;
+      continue;
+    }
+
+    if (ch === '?' && !inSingle && !inDouble) {
+      index += 1;
+      out += `$${index}`;
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return { text: out, paramCount: index };
+}
+
+async function runPgQueryAsync(sql, params = []) {
+  if (!postgresUrl) throw new Error('DATABASE_URL is required for postgres driver');
+  const rewritten = rewriteSqliteMetaForPg(sql);
+  const normalized = normalizePgSql(rewritten);
+  const converted = convertQuestionParamsToPg(normalized);
+  const result = await pgQuery(converted.text, params);
+  return result.rows || [];
+}
+
+async function runPgExecAsync(sql, params = []) {
+  if (!postgresUrl) throw new Error('DATABASE_URL is required for postgres driver');
+  const rewritten = rewriteSqliteMetaForPg(sql);
+  let normalized = normalizePgSql(rewritten).trim().replace(/;\s*$/, '');
+  if (!normalized) return { changes: 0, lastInsertRowid: null };
+
+  if (/^\s*INSERT\s+INTO\b/i.test(normalized) && !/\bRETURNING\b/i.test(normalized)) {
+    const returningSql = `${normalized} RETURNING id`;
+    try {
+      const convertedReturning = convertQuestionParamsToPg(returningSql);
+      const returningResult = await pgQuery(convertedReturning.text, params);
+      const firstId = returningResult.rows?.[0]?.id;
+      return {
+        changes: Number(returningResult.rowCount || 0),
+        lastInsertRowid: Number.isFinite(Number(firstId)) ? Number(firstId) : null
+      };
+    } catch {
+      // fall through to non-returning exec
+    }
+  }
+
+  const converted = convertQuestionParamsToPg(normalized);
+  const result = await pgQuery(converted.text, params);
+  let lastInsertRowid = null;
+  if (Array.isArray(result.rows) && result.rows.length > 0 && result.rows[0] && result.rows[0].id !== undefined) {
+    const parsed = Number(result.rows[0].id);
+    lastInsertRowid = Number.isFinite(parsed) ? parsed : null;
+  }
+  return {
+    changes: Number(result.rowCount || 0),
+    lastInsertRowid
+  };
 }
 
 function runPsqlQuery(sql) {
@@ -417,6 +514,34 @@ export function sqlRun(query, params = []) {
       changes: Number(result?.changes || 0),
       lastInsertRowid: null
     };
+  });
+}
+
+export async function sqlGetAsync(query, params = []) {
+  return withQueryTimingAsync('sqlGetAsync', query, params, async () => {
+    const conn = safeGetDb();
+    if (!conn) return null;
+    if (dbDriver !== 'postgres') return conn.prepare(query).get(params);
+    const rows = await runPgQueryAsync(query, params);
+    return rows[0] || null;
+  });
+}
+
+export async function sqlAllAsync(query, params = []) {
+  return withQueryTimingAsync('sqlAllAsync', query, params, async () => {
+    const conn = safeGetDb();
+    if (!conn) return [];
+    if (dbDriver !== 'postgres') return conn.prepare(query).all(params);
+    return runPgQueryAsync(query, params);
+  });
+}
+
+export async function sqlRunAsync(query, params = []) {
+  return withQueryTimingAsync('sqlRunAsync', query, params, async () => {
+    const conn = safeGetDb();
+    if (!conn) return null;
+    if (dbDriver !== 'postgres') return conn.prepare(query).run(params);
+    return runPgExecAsync(query, params);
   });
 }
 
