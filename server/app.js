@@ -5811,115 +5811,142 @@ app.delete('/api/admin/tournament/:id', requireAdmin, (req, res) => {
 
 
 app.post('/api/register/preview', async (req, res) => {
-  if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
-  const e2eMode = isE2EHarnessRequest(req);
-  const {
-    kadi = '',
-    sifre = '',
-    sifre2 = '',
-    email = '',
-    isim = '',
-    soyisim = '',
-    mezuniyetyili = '0',
-    gkodu = '',
-    kvkk_consent = false,
-    directory_consent = false
-  } = req.body || {};
-  const cleanKadi = String(kadi || '').trim();
-  const cleanEmail = normalizeEmail(email);
-  const cleanIsim = String(isim || '').trim();
-  const cleanSoyisim = String(soyisim || '').trim();
+  try {
+    if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
+    const e2eMode = isE2EHarnessRequest(req);
+    const {
+      kadi = '',
+      sifre = '',
+      sifre2 = '',
+      email = '',
+      isim = '',
+      soyisim = '',
+      mezuniyetyili = '0',
+      gkodu = '',
+      kvkk_consent = false,
+      directory_consent = false
+    } = req.body || {};
+    const cleanKadi = String(kadi || '').trim();
+    const cleanEmail = normalizeEmail(email);
+    const cleanIsim = String(isim || '').trim();
+    const cleanSoyisim = String(soyisim || '').trim();
 
-  const cleanCaptcha = String(gkodu || '').trim();
-  if (!e2eMode) {
-    if (!/^\d+$/.test(cleanCaptcha)) {
-      return res.status(400).send('Güvenlik kodu sadece sayı olmalıdır.');
+    const cleanCaptcha = String(gkodu || '').trim();
+    if (!e2eMode) {
+      if (!/^\d+$/.test(cleanCaptcha)) {
+        return res.status(400).send('Güvenlik kodu sadece sayı olmalıdır.');
+      }
+      if (String(req.session.captcha || '') !== cleanCaptcha) {
+        return res.status(400).send('Güvenlik kodu yanlış girildi.');
+      }
     }
-    if (String(req.session.captcha || '') !== cleanCaptcha) {
-      return res.status(400).send('Güvenlik kodu yanlış girildi.');
+    if (!cleanKadi) return res.status(400).send('Kullanıcı adını girmedin.');
+    if (String(cleanKadi).length > 15) return res.status(400).send('Kullanıcı adı 15 karakterden fazla olmamalıdır.');
+    const kufur = filterKufur(cleanKadi);
+    if (kufur) return res.status(400).send(`Girdiğiniz kullanıcı adı uygun olmayan bir kelime içeriyor. (${kufur})`);
+    if (!sifre) return res.status(400).send('Şifreni girmedin.');
+    if (String(sifre).length > 20) return res.status(400).send('Şifre 20 karakterden fazla olmamalıdır.');
+    if (sifre !== sifre2) return res.status(400).send('Girdiğin şifreler birbirleriyle uyuşmuyor.');
+    if (!cleanEmail) return res.status(400).send('Email adresini girmedin.');
+    if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
+    if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
+    const cohortValue = normalizeCohortValue(mezuniyetyili);
+    if (cohortValue === '0' || !cohortValue) return res.status(400).send('Bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
+    const parsedYear = parseGraduationYear(cohortValue);
+    if (!hasValidGraduationYear(cohortValue) || (Number.isFinite(parsedYear) && parsedYear > new Date().getFullYear())) {
+      return res.status(400).send('Geçerli bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
     }
-  }
-  if (!cleanKadi) return res.status(400).send('Kullanıcı adını girmedin.');
-  if (String(cleanKadi).length > 15) return res.status(400).send('Kullanıcı adı 15 karakterden fazla olmamalıdır.');
-  const kufur = filterKufur(cleanKadi);
-  if (kufur) return res.status(400).send(`Girdiğiniz kullanıcı adı uygun olmayan bir kelime içeriyor. (${kufur})`);
-  if (!sifre) return res.status(400).send('Şifreni girmedin.');
-  if (String(sifre).length > 20) return res.status(400).send('Şifre 20 karakterden fazla olmamalıdır.');
-  if (sifre !== sifre2) return res.status(400).send('Girdiğin şifreler birbirleriyle uyuşmuyor.');
-  if (!cleanEmail) return res.status(400).send('Email adresini girmedin.');
-  if (String(cleanEmail).length > 50) return res.status(400).send('E-mail adresi 50 karakterden fazla olmamalıdır.');
-  if (!validateEmail(cleanEmail)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
-  const cohortValue = normalizeCohortValue(mezuniyetyili);
-  if (cohortValue === '0' || !cohortValue) return res.status(400).send('Bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
-  const parsedYear = parseGraduationYear(cohortValue);
-  if (!hasValidGraduationYear(cohortValue) || (Number.isFinite(parsedYear) && parsedYear > new Date().getFullYear())) {
-    return res.status(400).send('Geçerli bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
-  }
-  if (!e2eMode) {
-    if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
-    if (!directory_consent) return res.status(400).send('Mezun Rehberi açık rıza onayı gerekmektedir.');
-  }
-  if (!cleanIsim) return res.status(400).send('İsmini girmedin.');
-  if (String(cleanIsim).length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
-  if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
-  if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
+    if (!e2eMode) {
+      if (!kvkk_consent) return res.status(400).send('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
+      if (!directory_consent) return res.status(400).send('Mezun Rehberi açık rıza onayı gerekmektedir.');
+    }
+    if (!cleanIsim) return res.status(400).send('İsmini girmedin.');
+    if (String(cleanIsim).length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
+    if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
+    if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
-  const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
-  if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
-  const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
-  if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
+    const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+    if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
+    const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+    if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
 
-  res.json({
-    ok: true,
-    fields: { kadi: cleanKadi, email: cleanEmail, mezuniyetyili: cohortValue, isim: cleanIsim, soyisim: cleanSoyisim }
-  });
+    res.json({
+      ok: true,
+      fields: { kadi: cleanKadi, email: cleanEmail, mezuniyetyili: cohortValue, isim: cleanIsim, soyisim: cleanSoyisim }
+    });
+  } catch (err) {
+    writeAppLog('error', 'register_preview_failed', {
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1200)
+    });
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.post('/api/register/check', async (req, res) => {
-  if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
-  const { kadi = '', email = '' } = req.body || {};
-  const cleanKadi = String(kadi || '').trim();
-  const cleanEmail = normalizeEmail(email);
+  try {
+    if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
+    const { kadi = '', email = '' } = req.body || {};
+    const cleanKadi = String(kadi || '').trim();
+    const cleanEmail = normalizeEmail(email);
 
-  if (!cleanKadi && !cleanEmail) {
-    return res.status(400).send('Kontrol için kullanıcı adı veya e-mail girilmelidir.');
-  }
+    if (!cleanKadi && !cleanEmail) {
+      return res.status(400).send('Kontrol için kullanıcı adı veya e-mail girilmelidir.');
+    }
 
-  let kadiExists = false;
-  let emailExists = false;
-  if (cleanKadi) {
-    const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
-    kadiExists = Boolean(existingUser);
-  }
-  if (cleanEmail && validateEmail(cleanEmail)) {
-    const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
-    emailExists = Boolean(existingMail);
-  }
+    let kadiExists = false;
+    let emailExists = false;
+    if (cleanKadi) {
+      const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+      kadiExists = Boolean(existingUser);
+    }
+    if (cleanEmail && validateEmail(cleanEmail)) {
+      const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+      emailExists = Boolean(existingMail);
+    }
 
-  res.json({ ok: true, kadiExists, emailExists });
+    res.json({ ok: true, kadiExists, emailExists });
+  } catch (err) {
+    writeAppLog('error', 'register_check_failed', {
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 1200)
+    });
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.post('/api/register', async (req, res) => {
-  if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
-  const e2eMode = isE2EHarnessRequest(req);
-  const {
-    kadi = '',
-    sifre = '',
-    sifre2 = '',
-    email = '',
-    isim = '',
-    soyisim = '',
-    mezuniyetyili = '0',
-    gkodu = '',
-    kvkk_consent = false,
-    directory_consent = false,
-    role: requestedRole = 'user',
-    moderationPermissionKeys = []
-  } = req.body || {};
-  const cleanKadi = String(kadi || '').trim();
-  const cleanEmail = normalizeEmail(email);
-  const cleanIsim = String(isim || '').trim();
-  const cleanSoyisim = String(soyisim || '').trim();
+  try {
+    if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
+    const e2eMode = isE2EHarnessRequest(req);
+    const {
+      kadi = '',
+      sifre = '',
+      sifre2 = '',
+      email = '',
+      isim = '',
+      soyisim = '',
+      mezuniyetyili = '0',
+      gkodu = '',
+      kvkk_consent = false,
+      directory_consent = false,
+      role: requestedRole = 'user',
+      moderationPermissionKeys = []
+    } = req.body || {};
+    const cleanKadi = String(kadi || '').trim();
+    const cleanEmail = normalizeEmail(email);
+    const cleanIsim = String(isim || '').trim();
+    const cleanSoyisim = String(soyisim || '').trim();
+    const traceE2E = (step, meta = {}) => {
+      if (!e2eMode) return;
+      writeAppLog('info', 'register_e2e_step', {
+        step,
+        kadi: cleanKadi,
+        email: cleanEmail,
+        ip: req.ip,
+        ...meta
+      });
+    };
 
   const cleanCaptcha = String(gkodu || '').trim();
   if (!e2eMode) {
@@ -5947,10 +5974,12 @@ app.post('/api/register', async (req, res) => {
   if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
   if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
-  const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
-  if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
-  const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
-  if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
+    traceE2E('before_duplicate_checks');
+    const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+    if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
+    const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+    if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
+    traceE2E('after_duplicate_checks');
 
   const parsedYear = parseGraduationYear(cohortValue);
   if (!hasValidGraduationYear(cohortValue) || (Number.isFinite(parsedYear) && parsedYear > new Date().getFullYear())) {
@@ -5970,7 +5999,8 @@ app.post('/api/register', async (req, res) => {
 
   const aktivasyon = createActivation();
   const now = new Date().toISOString();
-  const result = await sqlRunAsync(
+    traceE2E('before_insert');
+    const result = await sqlRunAsync(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at, verified, role, admin)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'yok', ?, 0, ?, ?, ?, ?, ?, ?)`,
     [
@@ -5991,57 +6021,68 @@ app.post('/api/register', async (req, res) => {
       e2eIsAdmin ? 1 : 0
     ]
   );
-  const newId = result?.lastInsertRowid;
+    const newId = result?.lastInsertRowid;
+    traceE2E('after_insert', { userId: Number(newId || 0) });
 
-  if (e2eMode && e2eRole === 'mod' && newId) {
-    await replaceModeratorPermissionsAsync(newId, e2eModerationKeys, newId);
-  }
+    if (e2eMode && e2eRole === 'mod' && newId) {
+      traceE2E('before_mod_permissions');
+      await replaceModeratorPermissionsAsync(newId, e2eModerationKeys, newId);
+      traceE2E('after_mod_permissions');
+    }
 
-  const welcome = await sqlGetAsync('SELECT id FROM uyeler WHERE id = 1');
-  if (welcome && !e2eMode) {
-    await sqlRunAsync(
+    const welcome = await sqlGetAsync('SELECT id FROM uyeler WHERE id = 1');
+    if (welcome && !e2eMode) {
+      await sqlRunAsync(
       `INSERT INTO gelenkutusu (kime, kimden, aktifgelen, aktifgiden, yeni, konu, mesaj, tarih)
        VALUES (?, 1, 1, 1, 1, 'Hoşgeldiniz!', ?, ?)`,
       [String(newId), 'Sdal.org - Süleyman Demirel Anadolu Lisesi Mezunları Web Sitesine hoşgeldiniz!<br><br>Bu <b>mesaj paneli</b> sayesinde diğer üyeler ile haberleşebilirsiniz.<br><br>Hoşça vakit geçirmeniz dileğiyle...<br><b><i>sdal.org</b></i>', now]
-    );
-  }
+      );
+    }
 
-  let mailSent = false;
-  let mailQueued = false;
-  if (!e2eMode) {
-    const publicBaseUrl = resolvePublicBaseUrl(req);
-    const activationLink = `${publicBaseUrl}/aktivet?id=${newId}&akt=${aktivasyon}`;
-    const html = buildActivationEmailHtml({
-      siteBase: publicBaseUrl,
-      activationLink,
-      user: { kadi: cleanKadi, isim: cleanIsim, soyisim: cleanSoyisim }
+    let mailSent = false;
+    let mailQueued = false;
+    if (!e2eMode) {
+      const publicBaseUrl = resolvePublicBaseUrl(req);
+      const activationLink = `${publicBaseUrl}/aktivet?id=${newId}&akt=${aktivasyon}`;
+      const html = buildActivationEmailHtml({
+        siteBase: publicBaseUrl,
+        activationLink,
+        user: { kadi: cleanKadi, isim: cleanIsim, soyisim: cleanSoyisim }
+      });
+
+      queueEmailDelivery(
+        { to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html, timeoutMs: Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000) },
+        { maxAttempts: 4, backoffMs: 1500 }
+      ).catch((err) => {
+        console.error('Register activation mail send failed:', err);
+      });
+      mailSent = true;
+      mailQueued = true;
+    }
+
+    traceE2E('before_response');
+    res.json({
+      ok: true,
+      mailSent,
+      mailQueued,
+      message: e2eMode
+        ? 'E2E kayıt tamamlandı. Hesap aktif ve doğrulanmış olarak oluşturuldu.'
+        : 'Kayıt tamamlandı. Aktivasyon e-postası gönderim kuyruğuna alındı.',
+      e2e: e2eMode ? {
+        userId: Number(newId || 0),
+        active: true,
+        verified: true,
+        role: e2eRole,
+        moderationPermissionCount: e2eRole === 'mod' ? e2eModerationKeys.length : 0
+      } : undefined
     });
-
-    queueEmailDelivery(
-      { to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html, timeoutMs: Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000) },
-      { maxAttempts: 4, backoffMs: 1500 }
-    ).catch((err) => {
-      console.error('Register activation mail send failed:', err);
+  } catch (err) {
+    writeAppLog('error', 'register_failed', {
+      message: err?.message || 'unknown_error',
+      stack: String(err?.stack || '').slice(0, 2000)
     });
-    mailSent = true;
-    mailQueued = true;
+    return res.status(500).send('Kayıt sırasında beklenmeyen bir hata oluştu.');
   }
-
-  res.json({
-    ok: true,
-    mailSent,
-    mailQueued,
-    message: e2eMode
-      ? 'E2E kayıt tamamlandı. Hesap aktif ve doğrulanmış olarak oluşturuldu.'
-      : 'Kayıt tamamlandı. Aktivasyon e-postası gönderim kuyruğuna alındı.',
-    e2e: e2eMode ? {
-      userId: Number(newId || 0),
-      active: true,
-      verified: true,
-      role: e2eRole,
-      moderationPermissionCount: e2eRole === 'mod' ? e2eModerationKeys.length : 0
-    } : undefined
-  });
 });
 
 app.get('/api/activate', (req, res) => {
