@@ -13,7 +13,7 @@ import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
 import multer from 'multer';
 import { WebSocketServer } from 'ws';
-import { processUpload, deleteImageRecord, getImageVariants, loadMediaSettings } from './media/uploadPipeline.js';
+import { processUpload, deleteImageRecord, getImageVariants, getImageVariantsBatch, loadMediaSettings } from './media/uploadPipeline.js';
 import { SpacesStorageProvider, getStorageProvider } from './media/storageProvider.js';
 import { getDirname } from './config/paths.js';
 import { isProd, port, uploadsDir, legacyDir, ONLINE_HEARTBEAT_MS } from './config/env.js';
@@ -45,7 +45,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const sessionParser = sessionMiddleware({ isProd });
 app.use(sessionParser);
-app.use(presenceMiddleware({ sqlRun, onlineHeartbeatMs: ONLINE_HEARTBEAT_MS }));
+app.use(presenceMiddleware({ sqlRun, sqlRunAsync, onlineHeartbeatMs: ONLINE_HEARTBEAT_MS }));
 app.use(requestLoggingMiddleware({ writeAppLog, writeLegacyLog }));
 registerLegacyStatics(app, legacyDir);
 registerStaticUploads(app, uploadsDir);
@@ -1672,20 +1672,31 @@ function isRowOnlineNow(row, maxIdleMs = 10 * 60 * 1000) {
   return raw === '1' || raw === 'true' || raw === 'evet' || raw === 'yes';
 }
 
-function cleanupStaleOnlineUsers(maxIdleMs = 5 * 60 * 1000) {
+const ONLINE_STALE_CLEANUP_INTERVAL_MS = 45 * 1000;
+let lastOnlineCleanupAtMs = 0;
+
+function cleanupStaleOnlineUsers(maxIdleMs = 5 * 60 * 1000, { force = false } = {}) {
+  const now = Date.now();
+  if (!force && now - lastOnlineCleanupAtMs < ONLINE_STALE_CLEANUP_INTERVAL_MS) return;
+  lastOnlineCleanupAtMs = now;
+
   const rows = sqlAll(
     `SELECT id, sonislemtarih, sonislemsaat
      FROM uyeler
      WHERE (COALESCE(CAST(online AS INTEGER), 0) = 1 OR LOWER(CAST(online AS TEXT)) IN ('true','evet','yes'))`
   );
-  const now = Date.now();
+  const staleIds = [];
   for (const row of rows) {
     const ts = parseOnlineHeartbeat(row);
     if (!ts) continue;
     if (now - ts > maxIdleMs) {
-      sqlRun('UPDATE uyeler SET online = 0 WHERE id = ?', [row.id]);
+      staleIds.push(row.id);
     }
   }
+  if (!staleIds.length) return;
+  const placeholders = staleIds.map(() => '?').join(', ');
+  const offlineValue = dbDriver === 'postgres' ? 'FALSE' : '0';
+  sqlRun(`UPDATE uyeler SET online = ${offlineValue} WHERE id IN (${placeholders})`, staleIds);
 }
 
 function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
@@ -1698,9 +1709,10 @@ function listOnlineMembers({ limit = 12, excludeUserId = null } = {}) {
      LEFT JOIN member_engagement_scores es ON es.user_id = u.id
      WHERE (? IS NULL OR u.id != ?)
        AND (u.role IS NULL OR LOWER(u.role) != 'root')
+       AND (COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))
      ORDER BY COALESCE(es.score, 0) DESC, u.id DESC
      LIMIT ?`,
-    [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 3, 24)]
+    [excludeUserId || null, excludeUserId || null, Math.max(safeLimit * 5, 24)]
   );
   return rows.filter((row) => isRowOnlineNow(row)).slice(0, safeLimit).map((row) => ({
     id: row.id,
@@ -3980,6 +3992,7 @@ const phase1Domain = createPhase1DomainLayer({
   applyUserSession,
   enrichWithVariants,
   getImageVariants,
+  getImageVariantsBatch,
   uploadsDir,
   getModuleControlMap,
   formatUserText,
@@ -6912,42 +6925,154 @@ function parseStoryId(value) {
 }
 
 app.get('/api/new/stories', requireAuth, async (req, res) => {
-  const nowMs = Date.now();
-  const nowIso = new Date(nowMs).toISOString();
-  const limit = Math.min(Math.max(parseInt(req.query.limit || '60', 10), 1), 120);
-  const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
-  const cacheKey = await buildVersionedCacheKey(cacheNamespaces.stories, [
-    `user:${Number(req.session.userId || 0)}`,
-    `limit:${limit}`,
-    `cursor:${cursor || 0}`
-  ]);
-  const cached = await getCacheJson(cacheKey);
-  if (cached && Array.isArray(cached.items)) {
-    res.setHeader('X-Has-More', cached.hasMore ? '1' : '0');
-    return res.json({ items: cached.items });
-  }
+  try {
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '60', 10), 1), 120);
+    const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+    const cacheKey = await buildVersionedCacheKey(cacheNamespaces.stories, [
+      `user:${Number(req.session.userId || 0)}`,
+      `limit:${limit}`,
+      `cursor:${cursor || 0}`
+    ]);
+    const cached = await getCacheJson(cacheKey);
+    if (cached && Array.isArray(cached.items)) {
+      res.setHeader('X-Has-More', cached.hasMore ? '1' : '0');
+      return res.json({ items: cached.items });
+    }
 
-  const whereParts = ['(s.expires_at IS NULL OR s.expires_at > ?)'];
-  const params = [nowIso];
-  if (cursor > 0) {
-    whereParts.push('s.id < ?');
-    params.push(cursor);
+    const whereParts = ['(s.expires_at IS NULL OR s.expires_at > ?)'];
+    const params = [nowIso];
+    if (cursor > 0) {
+      whereParts.push('s.id < ?');
+      params.push(cursor);
+    }
+    const rows = await sqlAllAsync(
+      `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM stories s
+       LEFT JOIN uyeler u ON u.id = s.user_id
+       WHERE ${whereParts.join(' AND ')}
+       ORDER BY s.id DESC
+       LIMIT ?`,
+      [...params, limit + 1]
+    );
+    const viewed = await sqlAllAsync('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
+    const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
+    const variantsMap = await getImageVariantsBatch(
+      rows.slice(0, limit).map((row) => row.image_record_id).filter(Boolean),
+      sqlAllAsync,
+      uploadsDir
+    );
+    const items = rows
+      .slice(0, limit)
+      .map((r) => {
+        const timing = storyTiming(r, nowMs);
+        const item = {
+          id: r.id,
+          image: r.image,
+          caption: r.caption,
+          createdAt: timing.createdAt,
+          expiresAt: timing.expiresAt,
+          isExpired: timing.isExpired,
+          author: {
+            id: r.user_id,
+            kadi: r.kadi,
+            isim: r.isim,
+            soyisim: r.soyisim,
+            resim: r.resim,
+            verified: r.verified
+          },
+          viewed: viewedSet.has(Number(r.id))
+        };
+        if (r.image_record_id) {
+          const variants = variantsMap.get(String(r.image_record_id));
+          if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
+        }
+        return item;
+      })
+      .filter((story) => !story.isExpired);
+    const hasMore = rows.length > limit;
+    const responsePayload = { items };
+    res.setHeader('X-Has-More', hasMore ? '1' : '0');
+    await setCacheJson(cacheKey, { items, hasMore }, STORY_RAIL_CACHE_TTL_SECONDS);
+    return res.json(responsePayload);
+  } catch (err) {
+    console.error('GET /api/new/stories failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-  const rows = sqlAll(
-    `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
-            u.kadi, u.isim, u.soyisim, u.resim, u.verified
-     FROM stories s
-     LEFT JOIN uyeler u ON u.id = s.user_id
-     WHERE ${whereParts.join(' AND ')}
-     ORDER BY s.id DESC
-     LIMIT ?`,
-    [...params, limit + 1]
-  );
-  const viewed = sqlAll('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
-  const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
-  const items = rows
-    .slice(0, limit)
-    .map((r) => {
+});
+
+app.get('/api/new/stories/mine', requireAuth, async (req, res) => {
+  try {
+    const rows = await sqlAllAsync(
+      `SELECT s.id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
+              COUNT(v.id) AS view_count
+       FROM stories s
+       LEFT JOIN story_views v ON v.story_id = s.id
+       WHERE s.user_id = ?
+       GROUP BY s.id
+       ORDER BY s.created_at DESC`,
+      [req.session.userId]
+    );
+    const nowMs = Date.now();
+    const variantsMap = await getImageVariantsBatch(
+      rows.map((row) => row.image_record_id).filter(Boolean),
+      sqlAllAsync,
+      uploadsDir
+    );
+    return res.json({
+      items: rows.map((row) => {
+        const timing = storyTiming(row, nowMs);
+        const item = {
+          id: row.id,
+          image: row.image,
+          caption: row.caption,
+          createdAt: timing.createdAt,
+          expiresAt: timing.expiresAt,
+          isExpired: timing.isExpired,
+          viewCount: Number(row.view_count || 0)
+        };
+        if (row.image_record_id) {
+          const variants = variantsMap.get(String(row.image_record_id));
+          if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
+        }
+        return item;
+      })
+    });
+  } catch (err) {
+    console.error('GET /api/new/stories/mine failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.get('/api/new/stories/user/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = Number(req.params.id || 0);
+    if (!Number.isInteger(userId) || userId <= 0) return res.status(400).send('Geçersiz üye kimliği.');
+    const includeExpired = String(req.query.includeExpired || '0') === '1';
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+
+    const rows = await sqlAllAsync(
+      `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM stories s
+       LEFT JOIN uyeler u ON u.id = s.user_id
+       WHERE s.user_id = ?
+         AND (? = 1 OR s.expires_at IS NULL OR s.expires_at > ?)
+       ORDER BY s.created_at DESC`,
+      [userId, includeExpired ? 1 : 0, nowIso]
+    );
+
+    const viewed = await sqlAllAsync('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
+    const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
+    const variantsMap = await getImageVariantsBatch(
+      rows.map((row) => row.image_record_id).filter(Boolean),
+      sqlAllAsync,
+      uploadsDir
+    );
+    const items = rows.map((r) => {
       const timing = storyTiming(r, nowMs);
       const item = {
         id: r.id,
@@ -6967,99 +7092,17 @@ app.get('/api/new/stories', requireAuth, async (req, res) => {
         viewed: viewedSet.has(Number(r.id))
       };
       if (r.image_record_id) {
-        const variants = getImageVariants(r.image_record_id, sqlGet, uploadsDir);
+        const variants = variantsMap.get(String(r.image_record_id));
         if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
       }
       return item;
-    })
-    .filter((story) => !story.isExpired);
-  const hasMore = rows.length > limit;
-  const responsePayload = { items };
-  res.setHeader('X-Has-More', hasMore ? '1' : '0');
-  await setCacheJson(cacheKey, { items, hasMore }, STORY_RAIL_CACHE_TTL_SECONDS);
-  res.json(responsePayload);
-});
+    });
 
-app.get('/api/new/stories/mine', requireAuth, (req, res) => {
-  const rows = sqlAll(
-    `SELECT s.id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
-            COUNT(v.id) AS view_count
-     FROM stories s
-     LEFT JOIN story_views v ON v.story_id = s.id
-     WHERE s.user_id = ?
-     GROUP BY s.id
-     ORDER BY s.created_at DESC`,
-    [req.session.userId]
-  );
-  const nowMs = Date.now();
-  res.json({
-    items: rows.map((row) => {
-      const timing = storyTiming(row, nowMs);
-      const item = {
-        id: row.id,
-        image: row.image,
-        caption: row.caption,
-        createdAt: timing.createdAt,
-        expiresAt: timing.expiresAt,
-        isExpired: timing.isExpired,
-        viewCount: Number(row.view_count || 0)
-      };
-      if (row.image_record_id) {
-        const variants = getImageVariants(row.image_record_id, sqlGet, uploadsDir);
-        if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
-      }
-      return item;
-    })
-  });
-});
-
-app.get('/api/new/stories/user/:id', requireAuth, (req, res) => {
-  const userId = Number(req.params.id || 0);
-  if (!Number.isInteger(userId) || userId <= 0) return res.status(400).send('Geçersiz üye kimliği.');
-  const includeExpired = String(req.query.includeExpired || '0') === '1';
-  const nowMs = Date.now();
-  const nowIso = new Date(nowMs).toISOString();
-
-  const rows = sqlAll(
-    `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
-            u.kadi, u.isim, u.soyisim, u.resim, u.verified
-     FROM stories s
-     LEFT JOIN uyeler u ON u.id = s.user_id
-     WHERE s.user_id = ?
-       AND (? = 1 OR s.expires_at IS NULL OR s.expires_at > ?)
-     ORDER BY s.created_at DESC`,
-    [userId, includeExpired ? 1 : 0, nowIso]
-  );
-
-  const viewed = sqlAll('SELECT story_id FROM story_views WHERE user_id = ?', [req.session.userId]);
-  const viewedSet = new Set(viewed.map((v) => Number(v.story_id)));
-  const items = rows.map((r) => {
-    const timing = storyTiming(r, nowMs);
-    const item = {
-      id: r.id,
-      image: r.image,
-      caption: r.caption,
-      createdAt: timing.createdAt,
-      expiresAt: timing.expiresAt,
-      isExpired: timing.isExpired,
-      author: {
-        id: r.user_id,
-        kadi: r.kadi,
-        isim: r.isim,
-        soyisim: r.soyisim,
-        resim: r.resim,
-        verified: r.verified
-      },
-      viewed: viewedSet.has(Number(r.id))
-    };
-    if (r.image_record_id) {
-      const variants = getImageVariants(r.image_record_id, sqlGet, uploadsDir);
-      if (variants) item.variants = { thumbUrl: variants.thumbUrl, feedUrl: variants.feedUrl, fullUrl: variants.fullUrl };
-    }
-    return item;
-  });
-
-  res.json({ items });
+    return res.json({ items });
+  } catch (err) {
+    console.error('GET /api/new/stories/user/:id failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.post('/api/new/stories/upload', requireAuth, uploadRateLimit, storyUpload.single('image'), async (req, res) => {

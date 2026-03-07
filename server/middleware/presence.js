@@ -14,7 +14,7 @@ export function toLocalDateParts(now = new Date()) {
   };
 }
 
-export function presenceMiddleware({ sqlRun, onlineHeartbeatMs = ONLINE_HEARTBEAT_MS }) {
+export function presenceMiddleware({ sqlRun, sqlRunAsync, onlineHeartbeatMs = ONLINE_HEARTBEAT_MS }) {
   return (req, _res, next) => {
     if (!req.session?.userId) return next();
     const nowMs = Date.now();
@@ -27,17 +27,20 @@ export function presenceMiddleware({ sqlRun, onlineHeartbeatMs = ONLINE_HEARTBEA
       const dbDriver = String(req.app?.locals?.dbDriver || '').toLowerCase();
       if (dbDriver === 'postgres') {
         const isoNow = now.toISOString();
-        sqlRun(
-          `UPDATE users
-           SET last_activity_date = ?,
-               last_activity_time = ?,
-               last_ip = ?,
-               is_online = ?,
-               last_seen_at = ?,
-               updated_at = ?
-           WHERE id = ?`,
-          [localParts.date, localParts.time, req.ip, true, isoNow, isoNow, req.session.userId]
-        );
+        const params = [localParts.date, localParts.time, req.ip, true, isoNow, isoNow, req.session.userId];
+        const query = `UPDATE users
+                       SET last_activity_date = ?,
+                           last_activity_time = ?,
+                           last_ip = ?,
+                           is_online = ?,
+                           last_seen_at = ?,
+                           updated_at = ?
+                       WHERE id = ?`;
+        if (typeof sqlRunAsync === 'function') {
+          Promise.resolve(sqlRunAsync(query, params)).catch(() => {});
+        } else {
+          sqlRun(query, params);
+        }
       } else {
         sqlRun('UPDATE uyeler SET sonislemtarih = ?, sonislemsaat = ?, sonip = ?, online = 1 WHERE id = ?', [
           localParts.date,

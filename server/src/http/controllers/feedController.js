@@ -5,7 +5,9 @@ export function createFeedController({
   feedService,
   enrichWithVariants,
   getImageVariants,
+  getImageVariantsBatch,
   sqlGet,
+  sqlAll,
   uploadsDir,
   getModuleControlMap,
   buildFeedCacheKey,
@@ -35,11 +37,19 @@ export function createFeedController({
         moduleMap: getModuleControlMap()
       });
 
+      const imageRecordIds = data.items
+        .map((post) => post.imageRecordId)
+        .filter(Boolean);
+      const variantsMap = typeof getImageVariantsBatch === 'function'
+        ? await getImageVariantsBatch(imageRecordIds, sqlAll, uploadsDir)
+        : new Map();
+
       const items = data.items.map((post) => {
         const item = toLegacyFeedItem(post);
         enrichWithVariants({ ...post.legacy, ...item });
         if (post.imageRecordId) {
-          const variants = getImageVariants(post.imageRecordId, sqlGet, uploadsDir);
+          const variants = variantsMap.get(String(post.imageRecordId))
+            || getImageVariants(post.imageRecordId, sqlGet, uploadsDir);
           if (variants) {
             item.variants = {
               thumbUrl: variants.thumbUrl,

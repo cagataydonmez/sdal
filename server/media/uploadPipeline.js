@@ -252,3 +252,53 @@ export function getImageVariants(imageId, sqlGet, uploadsDir) {
     provider: record.provider,
   };
 }
+
+/**
+ * Fetch variant URLs for many image records in a single query.
+ *
+ * @param {Array<string|number>} imageIds
+ * @param {Function} sqlAll - can be sync or async, must return row array
+ * @param {string} uploadsDir
+ * @returns {Promise<Map<string, object>>}
+ */
+export async function getImageVariantsBatch(imageIds, sqlAll, uploadsDir) {
+  const out = new Map();
+  if (typeof sqlAll !== 'function') return out;
+  if (!Array.isArray(imageIds) || imageIds.length === 0) return out;
+
+  const ids = [...new Set(
+    imageIds
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+  )];
+  if (ids.length === 0) return out;
+
+  const placeholders = ids.map(() => '?').join(', ');
+  const rows = await Promise.resolve(sqlAll(
+    `SELECT * FROM image_records WHERE id IN (${placeholders})`,
+    ids
+  ));
+
+  for (const record of Array.isArray(rows) ? rows : []) {
+    let provider;
+    try {
+      provider = getStorageProvider(
+        { storage_provider: record.provider || 'local' },
+        uploadsDir
+      );
+    } catch {
+      provider = getStorageProvider({ storage_provider: 'local' }, uploadsDir);
+    }
+    out.set(String(record.id), {
+      imageId: record.id,
+      thumbUrl: provider.getPublicUrl(record.thumb_path),
+      feedUrl: provider.getPublicUrl(record.feed_path),
+      fullUrl: provider.getPublicUrl(record.full_path),
+      width: record.width,
+      height: record.height,
+      provider: record.provider
+    });
+  }
+
+  return out;
+}
