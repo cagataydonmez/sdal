@@ -31,12 +31,12 @@ export function getPostgresPool() {
   try {
     pgPool = new Pool({
       connectionString,
-      max: parsePoolNumber('PGPOOL_MAX', 20),
-      min: parsePoolNumber('PGPOOL_MIN', 2),
-      idleTimeoutMillis: parsePoolNumber('PGPOOL_IDLE_MS', 30_000),
+      max: parsePoolNumber('PGPOOL_MAX', 8),
+      min: parsePoolNumber('PGPOOL_MIN', 1),
+      idleTimeoutMillis: parsePoolNumber('PGPOOL_IDLE_MS', 15_000),
       connectionTimeoutMillis: parsePoolNumber('PGPOOL_CONNECT_TIMEOUT_MS', 5_000),
-      statement_timeout: parsePoolNumber('PG_STATEMENT_TIMEOUT_MS', 15_000),
-      query_timeout: parsePoolNumber('PG_QUERY_TIMEOUT_MS', 20_000),
+      statement_timeout: parsePoolNumber('PG_STATEMENT_TIMEOUT_MS', 10_000),
+      query_timeout: parsePoolNumber('PG_QUERY_TIMEOUT_MS', 12_000),
       allowExitOnIdle: false,
       ssl: resolveSslConfig()
     });

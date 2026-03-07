@@ -12,6 +12,7 @@
     "migrate:status": "node scripts/migrate.mjs status",
     "migrate:verify": "node scripts/check-migrations-sanity.mjs",
     "migrate:data": "node scripts/migrate-legacy-sqlite-to-modern-postgres.mjs",
+    "perf:audit:pg": "node scripts/postgres-performance-audit.mjs",
     "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs",
     "sqlite:ensure-schema": "node scripts/sqlite-runtime-schema.mjs",
     "reset:sqlite:fresh": "node scripts/reset-sqlite-fresh.mjs",

@@ -1175,7 +1175,7 @@ function replaceModeratorPermissions(userId, permissionKeys = [], actorId = null
     sqlRun(
       `INSERT INTO moderator_permissions (user_id, permission_key, enabled, created_by, updated_by, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [userId, permissionKey, normalized.has(permissionKey) ? 1 : 0, actorId || userId, actorId || userId, now, now]
+      [userId, permissionKey, toDbBooleanParam(normalized.has(permissionKey)), actorId || userId, actorId || userId, now, now]
     );
   }
 }
@@ -1934,6 +1934,11 @@ function toTruthyFlag(value) {
   return raw === '1' || raw === 'true' || raw === 'evet' || raw === 'yes';
 }
 
+function toDbBooleanParam(value) {
+  const bool = toTruthyFlag(value);
+  return dbDriver === 'postgres' ? bool : (bool ? 1 : 0);
+}
+
 function toDateMs(value) {
   if (!value) return null;
   const ms = new Date(String(value)).getTime();
@@ -1987,7 +1992,7 @@ function ensureEngagementAbConfigRows() {
         cfg.name,
         cfg.description,
         cfg.trafficPct,
-        cfg.enabled,
+        toDbBooleanParam(cfg.enabled),
         JSON.stringify(cfg.params),
         now
       ]
@@ -4361,7 +4366,7 @@ app.put('/api/admin/moderation/permissions/:userId', requireAuth, requireRole('a
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, permission_key)
        DO UPDATE SET enabled = excluded.enabled, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-      [userId, permissionKey, enabled ? 1 : 0, actor.id, actor.id, now, now]
+      [userId, permissionKey, toDbBooleanParam(enabled), actor.id, actor.id, now, now]
     );
   }
 
@@ -5060,11 +5065,21 @@ app.post('/api/admin/email/bulk', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/album/categories', requireAlbumAdmin, (_req, res) => {
   const cats = sqlAll('SELECT * FROM album_kat ORDER BY aktif DESC');
+  const countRows = sqlAll(
+    `SELECT katid,
+            SUM(CASE WHEN aktif = 1 THEN 1 ELSE 0 END) AS active_count,
+            SUM(CASE WHEN aktif = 0 THEN 1 ELSE 0 END) AS inactive_count
+     FROM album_foto
+     GROUP BY katid`
+  );
+  const countMap = new Map(countRows.map((row) => [String(row.katid), {
+    activeCount: Number(row.active_count || 0),
+    inactiveCount: Number(row.inactive_count || 0)
+  }]));
   const counts = {};
   for (const cat of cats) {
-    const activeCount = sqlGet('SELECT COUNT(*) AS c FROM album_foto WHERE aktif = 1 AND katid = ?', [cat.id])?.c || 0;
-    const inactiveCount = sqlGet('SELECT COUNT(*) AS c FROM album_foto WHERE aktif = 0 AND katid = ?', [cat.id])?.c || 0;
-    counts[cat.id] = { activeCount, inactiveCount };
+    const mapped = countMap.get(String(cat.id)) || { activeCount: 0, inactiveCount: 0 };
+    counts[cat.id] = mapped;
   }
   res.json({ categories: cats, counts });
 });
@@ -5134,12 +5149,47 @@ app.get('/api/admin/album/photos', requireAlbumAdmin, (req, res) => {
   const orderBy = orderMap[diz] || 'aktif DESC';
   const photos = sqlAll(`SELECT * FROM album_foto ${where} ORDER BY ${orderBy}`, params);
   const categories = sqlAll('SELECT * FROM album_kat');
+  const uploaderIds = Array.from(
+    new Set(
+      photos
+        .map((photo) => Number(photo.ekleyenid || 0))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+  const photoIds = Array.from(
+    new Set(
+      photos
+        .map((photo) => Number(photo.id || 0))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+  const uploaderRows = uploaderIds.length
+    ? sqlAll(
+      `SELECT id, kadi
+       FROM uyeler
+       WHERE id IN (${uploaderIds.map(() => '?').join(',')})`,
+      uploaderIds
+    )
+    : [];
+  const commentRows = photoIds.length
+    ? sqlAll(
+      `SELECT fotoid, COUNT(*) AS c
+       FROM album_fotoyorum
+       WHERE fotoid IN (${photoIds.map(() => '?').join(',')})
+       GROUP BY fotoid`,
+      photoIds
+    )
+    : [];
   const userMap = {};
+  for (const user of uploaderRows) {
+    userMap[user.id] = user.kadi;
+  }
+  const commentCountMap = new Map(
+    commentRows.map((row) => [String(row.fotoid), Number(row.c || 0)])
+  );
   const commentCounts = {};
   for (const photo of photos) {
-    const user = sqlGet('SELECT id, kadi FROM uyeler WHERE id = ?', [photo.ekleyenid]);
-    if (user) userMap[photo.ekleyenid] = user.kadi;
-    commentCounts[photo.id] = sqlGet('SELECT COUNT(*) AS c FROM album_fotoyorum WHERE fotoid = ?', [photo.id])?.c || 0;
+    commentCounts[photo.id] = commentCountMap.get(String(photo.id)) || 0;
   }
   res.json({ photos, categories, userMap, commentCounts });
 });
@@ -7208,6 +7258,10 @@ app.get('/api/new/follows', requireAuth, (req, res) => {
   res.json({ items: rows, hasMore: rows.length === limit });
 });
 
+function escapeSqlLikeTerm(value) {
+  return String(value || '').replace(/[\\%_]/g, '\\$&');
+}
+
 app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
   const targetUserId = Number(req.params.userId || 0);
   if (!Number.isInteger(targetUserId) || targetUserId <= 0) return res.status(400).send('Geçersiz üye kimliği.');
@@ -7228,48 +7282,140 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, (req, res) => {
     [targetUserId, limit, offset]
   );
 
-  const items = follows.map((row) => {
-    const targetKadi = String(row.kadi || '').trim();
-    const messageCount = sqlGet(
-      'SELECT COUNT(*) AS cnt FROM gelenkutusu WHERE kimden = ? AND kime = ?',
-      [targetUserId, row.following_id]
-    )?.cnt || 0;
-    const quoteCount = targetKadi
-      ? (
-        (sqlGet('SELECT COUNT(*) AS cnt FROM posts WHERE user_id = ? AND LOWER(COALESCE(content, \'\')) LIKE LOWER(?)', [
-          targetUserId,
-          `%@${targetKadi}%`
-        ])?.cnt || 0)
-        + (sqlGet('SELECT COUNT(*) AS cnt FROM post_comments WHERE user_id = ? AND LOWER(COALESCE(comment, \'\')) LIKE LOWER(?)', [
-          targetUserId,
-          `%@${targetKadi}%`
-        ])?.cnt || 0)
-      )
-      : 0;
-    const recentMessages = sqlAll(
-      `SELECT id, konu, mesaj, tarih
+  const followTargets = follows
+    .map((row) => ({
+      followingId: Number(row.following_id || 0),
+      kadi: String(row.kadi || '').trim()
+    }))
+    .filter((target) => Number.isInteger(target.followingId) && target.followingId > 0);
+  const followingIds = Array.from(new Set(followTargets.map((target) => target.followingId)));
+  const quoteTargets = followTargets
+    .filter((target) => Boolean(target.kadi))
+    .map((target) => ({
+      followingId: target.followingId,
+      needle: `%@${escapeSqlLikeTerm(target.kadi)}%`
+    }));
+
+  const messageCountMap = new Map();
+  const recentMessagesMap = new Map();
+  const postQuoteCountMap = new Map();
+  const commentQuoteCountMap = new Map();
+  const recentQuotesMap = new Map();
+
+  if (followingIds.length > 0) {
+    const messageCountRows = sqlAll(
+      `SELECT CAST(kime AS INTEGER) AS following_id, COUNT(*) AS cnt
        FROM gelenkutusu
-       WHERE kimden = ? AND kime = ?
-       ORDER BY id DESC
-       LIMIT 3`,
-      [targetUserId, row.following_id]
+       WHERE CAST(kimden AS INTEGER) = CAST(? AS INTEGER)
+         AND CAST(kime AS INTEGER) IN (${followingIds.map(() => '?').join(',')})
+       GROUP BY CAST(kime AS INTEGER)`,
+      [targetUserId, ...followingIds]
     );
-    const recentQuotes = targetKadi
-      ? sqlAll(
-        `SELECT id, content, created_at, 'post' AS source
-         FROM posts
-         WHERE user_id = ? AND LOWER(COALESCE(content, '')) LIKE LOWER(?)
-         ORDER BY id DESC
-         LIMIT 3`,
-        [targetUserId, `%@${targetKadi}%`]
-      )
-      : [];
+    for (const row of messageCountRows) {
+      messageCountMap.set(Number(row.following_id || 0), Number(row.cnt || 0));
+    }
+
+    const recentMessageRows = sqlAll(
+      `SELECT following_id, id, konu, mesaj, tarih
+       FROM (
+         SELECT CAST(kime AS INTEGER) AS following_id,
+                id,
+                konu,
+                mesaj,
+                tarih,
+                ROW_NUMBER() OVER (PARTITION BY CAST(kime AS INTEGER) ORDER BY id DESC) AS rn
+         FROM gelenkutusu
+         WHERE CAST(kimden AS INTEGER) = CAST(? AS INTEGER)
+           AND CAST(kime AS INTEGER) IN (${followingIds.map(() => '?').join(',')})
+       ) ranked
+       WHERE rn <= 3
+       ORDER BY following_id ASC, id DESC`,
+      [targetUserId, ...followingIds]
+    );
+    for (const row of recentMessageRows) {
+      const followingId = Number(row.following_id || 0);
+      if (!recentMessagesMap.has(followingId)) recentMessagesMap.set(followingId, []);
+      recentMessagesMap.get(followingId).push({
+        id: row.id,
+        konu: row.konu,
+        mesaj: row.mesaj,
+        tarih: row.tarih
+      });
+    }
+  }
+
+  if (quoteTargets.length > 0) {
+    const valuesSql = quoteTargets.map(() => '(?, ?)').join(', ');
+    const valuesParams = quoteTargets.flatMap((target) => [target.followingId, target.needle]);
+
+    const postQuoteCountRows = sqlAll(
+      `WITH targets(following_id, needle) AS (VALUES ${valuesSql})
+       SELECT t.following_id, COUNT(p.id) AS cnt
+       FROM targets t
+       LEFT JOIN posts p
+         ON p.user_id = ?
+        AND LOWER(COALESCE(p.content, '')) LIKE LOWER(t.needle) ESCAPE '\\'
+       GROUP BY t.following_id`,
+      [...valuesParams, targetUserId]
+    );
+    for (const row of postQuoteCountRows) {
+      postQuoteCountMap.set(Number(row.following_id || 0), Number(row.cnt || 0));
+    }
+
+    const commentQuoteCountRows = sqlAll(
+      `WITH targets(following_id, needle) AS (VALUES ${valuesSql})
+       SELECT t.following_id, COUNT(c.id) AS cnt
+       FROM targets t
+       LEFT JOIN post_comments c
+         ON c.user_id = ?
+        AND LOWER(COALESCE(c.comment, '')) LIKE LOWER(t.needle) ESCAPE '\\'
+       GROUP BY t.following_id`,
+      [...valuesParams, targetUserId]
+    );
+    for (const row of commentQuoteCountRows) {
+      commentQuoteCountMap.set(Number(row.following_id || 0), Number(row.cnt || 0));
+    }
+
+    const recentQuoteRows = sqlAll(
+      `WITH targets(following_id, needle) AS (VALUES ${valuesSql}),
+            ranked AS (
+              SELECT t.following_id,
+                     p.id,
+                     p.content,
+                     p.created_at,
+                     ROW_NUMBER() OVER (PARTITION BY t.following_id ORDER BY p.id DESC) AS rn
+              FROM targets t
+              JOIN posts p
+                ON p.user_id = ?
+               AND LOWER(COALESCE(p.content, '')) LIKE LOWER(t.needle) ESCAPE '\\'
+            )
+       SELECT following_id, id, content, created_at, 'post' AS source
+       FROM ranked
+       WHERE rn <= 3
+       ORDER BY following_id ASC, id DESC`,
+      [...valuesParams, targetUserId]
+    );
+    for (const row of recentQuoteRows) {
+      const followingId = Number(row.following_id || 0);
+      if (!recentQuotesMap.has(followingId)) recentQuotesMap.set(followingId, []);
+      recentQuotesMap.get(followingId).push({
+        id: row.id,
+        content: row.content,
+        created_at: row.created_at,
+        source: row.source
+      });
+    }
+  }
+
+  const items = follows.map((row) => {
+    const followingId = Number(row.following_id || 0);
+    const quoteCount = Number(postQuoteCountMap.get(followingId) || 0) + Number(commentQuoteCountMap.get(followingId) || 0);
     return {
       ...row,
-      messageCount: Number(messageCount || 0),
-      quoteCount: Number(quoteCount || 0),
-      recentMessages,
-      recentQuotes
+      messageCount: Number(messageCountMap.get(followingId) || 0),
+      quoteCount,
+      recentMessages: recentMessagesMap.get(followingId) || [],
+      recentQuotes: recentQuotesMap.get(followingId) || []
     };
   });
 
@@ -9202,13 +9348,14 @@ app.put('/api/new/admin/engagement-ab/:variant', requireAdmin, (req, res) => {
   );
   const trafficPct = clamp(Math.round(Number(payload.trafficPct ?? payload.traffic_pct ?? 50) || 0), 0, 100);
   const enabled = String(payload.enabled ?? '1') === '1' ? 1 : 0;
+  const enabledDbValue = toDbBooleanParam(enabled);
   const name = String(payload.name || '').trim() || (engagementDefaultVariants[variant]?.name || variant);
   const description = String(payload.description || '').trim() || (engagementDefaultVariants[variant]?.description || '');
   sqlRun(
     `UPDATE engagement_ab_config
      SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
      WHERE variant = ?`,
-    [name, description, trafficPct, enabled, JSON.stringify(mergedParams), new Date().toISOString(), variant]
+    [name, description, trafficPct, enabledDbValue, JSON.stringify(mergedParams), new Date().toISOString(), variant]
   );
   logAdminAction(req, 'engagement_ab_config_update', { variant, trafficPct, enabled });
   scheduleEngagementRecalculation('engagement_ab_updated');
@@ -10208,9 +10355,23 @@ app.get('/api/quick-access', (req, res) => {
     .split(',')
     .map((v) => v.trim())
     .filter((v) => v && v !== '0');
-  const unique = Array.from(new Set(list));
+  const unique = Array.from(
+    new Set(
+      list
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+  if (!unique.length) return res.json({ users: [] });
+  const rows = sqlAll(
+    `SELECT id, kadi, resim, mezuniyetyili, online, sonislemtarih, sonislemsaat, role
+     FROM uyeler
+     WHERE id IN (${unique.map(() => '?').join(',')})`,
+    unique
+  );
+  const rowMap = new Map(rows.map((row) => [Number(row.id), row]));
   const users = unique
-    .map((id) => sqlGet('SELECT id, kadi, resim, mezuniyetyili, online, sonislemtarih, sonislemsaat, role FROM uyeler WHERE id = ?', [id]))
+    .map((id) => rowMap.get(id))
     .filter((row) => row && normalizeRole(row.role) !== 'root')
     .map((row) => ({
       id: row.id,
