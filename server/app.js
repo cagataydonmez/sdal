@@ -540,6 +540,7 @@ const dbDriverSwitchRestartDelayMs = (() => {
   const parsed = Number.parseInt(String(process.env.SDAL_DB_SWITCH_RESTART_DELAY_MS || ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1200;
 })();
+const dbDriverSwitchRestartCommand = String(process.env.SDAL_DB_SWITCH_RESTART_CMD || '').trim();
 
 const dbDriverSwitchChallenges = new Map();
 const dbDriverSwitchState = {
@@ -765,9 +766,19 @@ function scheduleDbDriverSwitchRestart(meta = {}) {
   if (String(process.env.NODE_ENV || '').toLowerCase() === 'test') return;
   const timer = setTimeout(() => {
     writeAppLog('info', 'db_driver_switch_restart', {
-      mode: 'api_process_exit',
+      mode: dbDriverSwitchRestartCommand ? 'custom_command' : 'api_process_exit',
       ...meta
     });
+    if (dbDriverSwitchRestartCommand) {
+      try {
+        execFileSync('/bin/sh', ['-lc', dbDriverSwitchRestartCommand], { stdio: 'ignore' });
+        return;
+      } catch (err) {
+        writeAppLog('error', 'db_driver_switch_restart_command_failed', {
+          message: err?.message || 'unknown_error'
+        });
+      }
+    }
     try {
       process.kill(process.pid, 'SIGTERM');
     } catch (err) {
@@ -10804,7 +10815,8 @@ app.get('/api/new/admin/db/driver/status', requireAdmin, async (req, res) => {
       sqlite: readiness.sqlite,
       postgres: readiness.postgres,
       restart: {
-        mode: 'api_process_exit',
+        mode: dbDriverSwitchRestartCommand ? 'custom_command' : 'api_process_exit',
+        commandConfigured: Boolean(dbDriverSwitchRestartCommand),
         delayMs: dbDriverSwitchRestartDelayMs
       },
       lastSwitch: dbDriverSwitchState.lastSwitch,
@@ -10890,7 +10902,8 @@ app.post('/api/new/admin/db/driver/switch', requireAdmin, async (req, res) => {
       message: `DB driver ${targetDriver} olarak güncellendi. Servis yeniden başlatılıyor.`,
       result,
       restart: {
-        mode: 'api_process_exit',
+        mode: dbDriverSwitchRestartCommand ? 'custom_command' : 'api_process_exit',
+        commandConfigured: Boolean(dbDriverSwitchRestartCommand),
         delayMs: dbDriverSwitchRestartDelayMs
       },
       note: 'Worker servisi farklı process olduğu için ayrıca restart edilmesi önerilir.'
