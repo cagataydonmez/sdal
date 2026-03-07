@@ -3744,6 +3744,8 @@ function issueCaptcha(req, res) {
 
 app.get('/api/media/vesikalik/:file', (req, res) => {
   const filePath = resolveMediaFile(req.params.file) || path.join(legacyMediaDir, 'vesikalik', 'nophoto.jpg');
+  res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+  res.setHeader('Vary', 'Accept-Encoding');
   res.sendFile(filePath);
 });
 
@@ -10747,8 +10749,24 @@ app.post('/api/games/arcade/:game/score', (req, res) => {
 // Serve modern frontend
 const modernDist = path.resolve(__dirname, '../frontend-modern/dist');
 if (fs.existsSync(modernDist)) {
-  app.use('/new', express.static(modernDist));
-  app.use('/sdal_new', express.static(modernDist));
+  const hashedAssetPattern = /[._-][A-Za-z0-9_-]{6,}\.(?:js|mjs|css|png|jpg|jpeg|gif|webp|svg|woff2?|ttf)$/i;
+  const modernStaticOptions = {
+    etag: true,
+    lastModified: true,
+    setHeaders(res, filePath) {
+      const normalized = String(filePath || '').replace(/\\/g, '/');
+      const base = path.basename(normalized);
+      if (base === 'index.html') {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      } else if (hashedAssetPattern.test(base)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+      }
+    }
+  };
+  app.use('/new', express.static(modernDist, modernStaticOptions));
+  app.use('/sdal_new', express.static(modernDist, modernStaticOptions));
   app.get('/sdal_new', (_req, res) => {
     res.redirect(302, '/new');
   });
