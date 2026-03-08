@@ -95,6 +95,38 @@ jobs:
             echo "::warning title=DO_ENV_FILE not set::Falling back to /etc/sdal/sdal.env on the server."
           fi
 
+      - name: SSH Auth Probe
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_SSH_PASSPHRASE: ${{ secrets.DO_SSH_PASSPHRASE }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+        run: |
+          set -euo pipefail
+
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s\n' "$DO_SSH_KEY" >"$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          PASSPHRASE_VALUE="${DO_SSH_PASSPHRASE:-}"
+          if ! ssh-keygen -y -P "$PASSPHRASE_VALUE" -f "$KEY_FILE" >/dev/null 2>&1; then
+            echo "::error title=DO_SSH_KEY parse failed::Private key is invalid or passphrase is wrong."
+            exit 1
+          fi
+
+          if ! timeout 10 bash -c "cat < /dev/null > /dev/tcp/${DO_HOST}/${DO_PORT}"; then
+            echo "::error title=TCP connectivity failed::GitHub runner cannot reach ${DO_HOST}:${DO_PORT}."
+            exit 1
+          fi
+
+          SSH_CMD=(ssh -i "$KEY_FILE" -p "$DO_PORT" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -v)
+          if ! "${SSH_CMD[@]}" "${DO_USER}@${DO_HOST}" "echo SSH_AUTH_OK && whoami"; then
+            echo "::error title=SSH auth failed::Check DO_USER, DO_SSH_KEY, DO_SSH_PASSPHRASE and authorized_keys."
+            exit 1
+          fi
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
