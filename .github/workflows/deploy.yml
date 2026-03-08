@@ -232,13 +232,7 @@ jobs:
                   continue
                 fi
 
-                if node -e '
-                  const body = JSON.parse(process.argv[1]);
-                  const expectedDriver = String(process.argv[2] || "").trim();
-                  if (!body.ok) process.exit(2);
-                  if (!body.dbReady) process.exit(3);
-                  if (expectedDriver && String(body.dbDriver || "") !== expectedDriver) process.exit(4);
-                ' "$HEALTH_BODY" "$EXPECTED_DB_DRIVER"; then
+                if node -e "const body=JSON.parse(process.argv[1]); const expectedDriver=String(process.argv[2]||'').trim(); if(!body.ok) process.exit(2); if(!body.dbReady) process.exit(3); if(expectedDriver && String(body.dbDriver||'')!==expectedDriver) process.exit(4);" "$HEALTH_BODY" "$EXPECTED_DB_DRIVER"; then
                   echo "$HEALTH_BODY"
                   exit 0
                 fi
