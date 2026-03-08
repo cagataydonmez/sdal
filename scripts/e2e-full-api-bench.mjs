@@ -32,6 +32,18 @@ const ARTIFACT_DIR = path.resolve(argValue('out', process.env.E2E_OUT_DIR || '/t
 const APP_FILE = path.resolve(argValue('app-file', path.join(process.cwd(), 'server/app.js')));
 const DRY_RUN = argFlag('dry-run');
 const ALLOW_DESTRUCTIVE = argFlag('allow-destructive');
+const ADVANCED_MODE = argFlag('advanced') || String(process.env.E2E_ADVANCED || '').trim().toLowerCase() === 'true';
+const ADVANCED_CONCURRENCY = Math.max(2, Number.parseInt(argValue('concurrency', process.env.E2E_CONCURRENCY || '6'), 10) || 6);
+const ADVANCED_RETRY_ATTEMPTS = Math.max(2, Number.parseInt(argValue('retry-attempts', process.env.E2E_RETRY_ATTEMPTS || '3'), 10) || 3);
+const ADVANCED_SOAK_SECONDS = Math.max(
+  0,
+  Number.parseInt(
+    argValue('soak-seconds', process.env.E2E_SOAK_SECONDS || (ADVANCED_MODE ? '120' : '0')),
+    10
+  ) || 0
+);
+const ADVANCED_NEAR_LIMIT_MB = Math.max(1, Number.parseInt(argValue('near-limit-mb', process.env.E2E_NEAR_LIMIT_MB || '8'), 10) || 8);
+const ADVANCED_OVER_LIMIT_MB = Math.max(2, Number.parseInt(argValue('over-limit-mb', process.env.E2E_OVER_LIMIT_MB || '22'), 10) || 22);
 
 const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgB7R6YQAAAAASUVORK5CYII=',
@@ -424,6 +436,24 @@ function pngForm(fieldName = 'file', fileName = 'tiny.png') {
 function pdfForm(fieldName = 'file', fileName = 'tiny.pdf') {
   const form = new FormData();
   form.append(fieldName, new Blob([TINY_PDF], { type: 'application/pdf' }), fileName);
+  return form;
+}
+
+function pngFormSized(fieldName = 'file', fileName = 'sized.png', sizeBytes = 1024 * 1024) {
+  const targetSize = Math.max(128, Number(sizeBytes) || 1024);
+  const pad = Math.max(0, targetSize - TINY_PNG.length);
+  const body = Buffer.concat([TINY_PNG, Buffer.alloc(pad, 0)]);
+  const form = new FormData();
+  form.append(fieldName, new Blob([body], { type: 'image/png' }), fileName);
+  return form;
+}
+
+function pdfFormSized(fieldName = 'file', fileName = 'sized.pdf', sizeBytes = 1024 * 1024) {
+  const targetSize = Math.max(256, Number(sizeBytes) || 1024);
+  const pad = Math.max(0, targetSize - TINY_PDF.length);
+  const body = Buffer.concat([TINY_PDF, Buffer.alloc(pad, 0)]);
+  const form = new FormData();
+  form.append(fieldName, new Blob([body], { type: 'application/pdf' }), fileName);
   return form;
 }
 
@@ -947,11 +977,168 @@ async function runPerfLoops() {
   }
 }
 
+async function requestWithRetries(client, method, routeTemplate, options = {}) {
+  const maxAttempts = Math.max(1, Number(options.retries || ADVANCED_RETRY_ATTEMPTS) || ADVANCED_RETRY_ATTEMPTS);
+  let last = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = await request(client, method, routeTemplate, {
+      ...options,
+      note: `${options.note || 'retry'}:attempt${attempt}`
+    });
+    last = result;
+    if (result.ok) return result;
+    const transientStatus = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
+    if (!transientStatus.has(result.status)) break;
+    if (attempt < maxAttempts) {
+      await sleep(Math.min(2000, 250 * (2 ** (attempt - 1))));
+    }
+  }
+  return last;
+}
+
+async function runAdvancedLargeFileTests() {
+  const user = state.users.user1?.client;
+  if (!user) return;
+  const nearLimitBytes = ADVANCED_NEAR_LIMIT_MB * 1024 * 1024;
+  const overLimitBytes = ADVANCED_OVER_LIMIT_MB * 1024 * 1024;
+
+  const okReqForm = pdfFormSized('file', `near-limit-${ADVANCED_NEAR_LIMIT_MB}mb.pdf`, nearLimitBytes);
+  const nearReq = await request(user, 'POST', '/api/new/requests/upload', {
+    form: okReqForm,
+    note: `advanced-large-near-limit:${ADVANCED_NEAR_LIMIT_MB}mb`,
+    allow: [200]
+  });
+  must(nearReq, 'near-limit upload should succeed');
+
+  const overProfile = pngFormSized('file', `over-limit-profile-${ADVANCED_OVER_LIMIT_MB}mb.png`, overLimitBytes);
+  const overProfileRes = await request(user, 'POST', '/api/profile/photo', {
+    form: overProfile,
+    note: `advanced-large-over-limit-profile:${ADVANCED_OVER_LIMIT_MB}mb`,
+    allow: [400, 413, 429, 500]
+  });
+  if (overProfileRes.status >= 200 && overProfileRes.status < 300) {
+    throw new Error('oversized profile photo unexpectedly accepted');
+  }
+
+  const overPost = pngFormSized('image', `over-limit-post-${ADVANCED_OVER_LIMIT_MB}mb.png`, overLimitBytes);
+  overPost.append('content', `oversize post check ${RUN_TAG}`);
+  const overPostRes = await request(user, 'POST', '/api/new/posts/upload', {
+    form: overPost,
+    note: `advanced-large-over-limit-post:${ADVANCED_OVER_LIMIT_MB}mb`,
+    allow: [400, 413, 429, 500]
+  });
+  if (overPostRes.status >= 200 && overPostRes.status < 300) {
+    throw new Error('oversized post upload unexpectedly accepted');
+  }
+}
+
+async function runAdvancedConcurrencyUploadTests() {
+  const user = state.users.user1?.client;
+  if (!user) return;
+  const tasks = [];
+  for (let i = 0; i < ADVANCED_CONCURRENCY; i += 1) {
+    const form = pngForm('image', `concurrent-${i + 1}.png`);
+    form.append('entityType', 'e2e_concurrent_upload');
+    form.append('entityId', String(state.users.user1?.id || 0));
+    tasks.push(request(user, 'POST', '/api/upload-image', {
+      form,
+      note: `advanced-concurrency-upload:${i + 1}`
+    }));
+  }
+  const results = await Promise.all(tasks);
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length > 0) {
+    throw new Error(`concurrency upload failures: ${failed.length}/${results.length}`);
+  }
+}
+
+async function runAdvancedRetryInterruptionTests() {
+  const user = state.users.user1?.client;
+  if (!user) return;
+
+  await request(user, 'GET', '/api/new/feed', {
+    query: { limit: 20, offset: 0, feedType: 'main', filter: 'latest' },
+    timeoutMs: 1,
+    allow: [0],
+    note: 'advanced-interrupt-feed'
+  });
+
+  const retriedFeed = await requestWithRetries(user, 'GET', '/api/new/feed', {
+    query: { limit: 20, offset: 0, feedType: 'main', filter: 'latest' },
+    retries: ADVANCED_RETRY_ATTEMPTS,
+    note: 'advanced-retry-feed'
+  });
+  must(retriedFeed, 'retry feed failed');
+
+  const retriedOnline = await requestWithRetries(user, 'GET', '/api/new/online-members', {
+    query: { limit: 10, excludeSelf: 1 },
+    retries: ADVANCED_RETRY_ATTEMPTS,
+    note: 'advanced-retry-online'
+  });
+  must(retriedOnline, 'retry online-members failed');
+}
+
+async function runAdvancedSoakTest() {
+  if (ADVANCED_SOAK_SECONDS <= 0) return;
+  const user = state.users.user1?.client;
+  const admin = state.users.admin?.client;
+  if (!user || !admin) return;
+
+  const startedAt = Date.now();
+  const deadline = startedAt + ADVANCED_SOAK_SECONDS * 1000;
+  const endpointDefs = [
+    { actor: user, method: 'GET', route: '/api/new/feed', query: { limit: 20, offset: 0, feedType: 'main', filter: 'latest' } },
+    { actor: user, method: 'GET', route: '/api/new/notifications', query: { limit: 3, offset: 0 } },
+    { actor: user, method: 'GET', route: '/api/new/messages/unread' },
+    { actor: user, method: 'GET', route: '/api/new/online-members', query: { limit: 10, excludeSelf: 1 } },
+    { actor: user, method: 'GET', route: '/api/quick-access' },
+    { actor: admin, method: 'GET', route: '/api/new/admin/stats' },
+    { actor: admin, method: 'GET', route: '/api/new/admin/live' }
+  ];
+  const soakLatencies = [];
+  let soakCalls = 0;
+  let soakFails = 0;
+  while (Date.now() < deadline) {
+    for (const def of endpointDefs) {
+      if (Date.now() >= deadline) break;
+      const result = await request(def.actor, def.method, def.route, {
+        query: def.query || {},
+        allow: [304],
+        note: 'advanced-soak'
+      });
+      soakCalls += 1;
+      soakLatencies.push(Number(result.elapsedMs || 0));
+      if (!result.ok) soakFails += 1;
+    }
+    await sleep(200);
+  }
+  soakLatencies.sort((a, b) => a - b);
+  const soakAvg = soakLatencies.length
+    ? soakLatencies.reduce((sum, n) => sum + n, 0) / soakLatencies.length
+    : 0;
+  const soakP95 = percentile(soakLatencies, 95);
+  const soakP99 = percentile(soakLatencies, 99);
+  console.log(`[e2e][advanced][soak] seconds=${ADVANCED_SOAK_SECONDS} calls=${soakCalls} failed=${soakFails} avg_ms=${soakAvg.toFixed(3)} p95_ms=${Number(soakP95 || 0).toFixed(3)} p99_ms=${Number(soakP99 || 0).toFixed(3)}`);
+  if (soakFails > 0) {
+    throw new Error(`soak test encountered failures: ${soakFails}/${soakCalls}`);
+  }
+}
+
+async function runAdvancedTests() {
+  console.log(`[e2e][advanced] start concurrency=${ADVANCED_CONCURRENCY} retry_attempts=${ADVANCED_RETRY_ATTEMPTS} soak_seconds=${ADVANCED_SOAK_SECONDS}`);
+  await runAdvancedLargeFileTests();
+  await runAdvancedConcurrencyUploadTests();
+  await runAdvancedRetryInterruptionTests();
+  await runAdvancedSoakTest();
+  console.log('[e2e][advanced] completed');
+}
+
 async function main() {
   console.log(`[e2e] base=${BASE_URL}`);
   console.log(`[e2e] app_file=${APP_FILE}`);
   console.log(`[e2e] token=${E2E_TOKEN ? 'provided' : 'missing'}`);
   console.log(`[e2e] allow_destructive=${ALLOW_DESTRUCTIVE ? 'true' : 'false'}`);
+  console.log(`[e2e] advanced=${ADVANCED_MODE ? 'true' : 'false'}`);
   if (typeof fetch !== 'function' || typeof FormData !== 'function' || typeof Blob !== 'function') {
     throw new Error('Node.js 18+ required (fetch/FormData/Blob unavailable)');
   }
@@ -963,6 +1150,9 @@ async function main() {
   await assertE2EHarnessActive();
   await registerAndLoginUsers();
   await runCoreScenario();
+  if (ADVANCED_MODE) {
+    await runAdvancedTests();
+  }
   await runPerfLoops();
 
   if (ADMIN_PANEL_PASSWORD) {
