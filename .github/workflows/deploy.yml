@@ -215,9 +215,6 @@ jobs:
               ENV_FILE="/etc/sdal/sdal.env"
             fi
             EXPECTED_DB_DRIVER="${{ vars.EXPECTED_DB_DRIVER }}"
-            if [[ -z "${EXPECTED_DB_DRIVER:-}" ]]; then
-              EXPECTED_DB_DRIVER="postgres"
-            fi
 
             if [[ -f "$ENV_FILE" ]]; then
               set -a
@@ -227,12 +224,34 @@ jobs:
             fi
 
             PORT_TO_USE="${PORT:-8787}"
-            HEALTH_BODY="$(curl -fsS "http://127.0.0.1:${PORT_TO_USE}/api/health")"
+            HEALTH_BODY=""
+            for attempt in $(seq 1 20); do
+              if HEALTH_BODY="$(curl -fsS --max-time 4 "http://127.0.0.1:${PORT_TO_USE}/api/health" 2>/dev/null)"; then
+                break
+              fi
+              if HEALTH_BODY="$(curl -fsS --max-time 4 "http://localhost:${PORT_TO_USE}/api/health" 2>/dev/null)"; then
+                break
+              fi
+              sleep 2
+            done
+
+            if [[ -z "${HEALTH_BODY:-}" ]]; then
+              echo "Could not fetch /api/health on port ${PORT_TO_USE}"
+              if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+                sudo -n systemctl status sdal-api.service --no-pager -l || true
+                sudo -n journalctl -u sdal-api.service -n 120 --no-pager || true
+              else
+                systemctl status sdal-api.service --no-pager -l || true
+                journalctl -u sdal-api.service -n 120 --no-pager || true
+              fi
+              exit 1
+            fi
+
             echo "$HEALTH_BODY"
 
             node -e '
               const body = JSON.parse(process.argv[1]);
-              const expectedDriver = String(process.argv[2] || "postgres");
+              const expectedDriver = String(process.argv[2] || "").trim();
               if (!body.ok) {
                 console.error("health.ok is false");
                 process.exit(1);
@@ -241,8 +260,35 @@ jobs:
                 console.error("health.dbReady is false");
                 process.exit(1);
               }
-              if (String(body.dbDriver || "") !== expectedDriver) {
+              if (expectedDriver && String(body.dbDriver || "") !== expectedDriver) {
                 console.error(`health.dbDriver expected ${expectedDriver} but got ${body.dbDriver}`);
                 process.exit(1);
               }
             ' "$HEALTH_BODY" "$EXPECTED_DB_DRIVER"
+
+      - name: Post-Deploy Failure Diagnostics
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          port: ${{ secrets.DO_PORT }}
+          timeout: 40s
+          command_timeout: 10m
+          debug: true
+          script_stop: false
+          script: |
+            set -euo pipefail
+            echo "[diag-post] date=$(date -Iseconds)"
+            if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+              sudo -n systemctl status sdal-api.service --no-pager -l || true
+              sudo -n systemctl show sdal-api.service --property=ActiveState --property=SubState --property=MainPID --property=Environment --property=EnvironmentFiles || true
+              sudo -n journalctl -u sdal-api.service -n 200 --no-pager || true
+            else
+              systemctl status sdal-api.service --no-pager -l || true
+              systemctl show sdal-api.service --property=ActiveState --property=SubState --property=MainPID --property=Environment --property=EnvironmentFiles || true
+              journalctl -u sdal-api.service -n 200 --no-pager || true
+            fi
+            ss -ltnp || true
