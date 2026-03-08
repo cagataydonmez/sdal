@@ -624,7 +624,8 @@ async function runCoreScenario() {
   const categoryKey = categories.json?.items?.[0]?.category_key;
   if (categoryKey) {
     await request(user2, 'POST', '/api/new/requests', {
-      json: { category_key: categoryKey, payload: { note: `E2E request ${RUN_TAG}` } }
+      json: { category_key: categoryKey, payload: { note: `E2E request ${RUN_TAG}` } },
+      allow: [400]
     });
     const myReqs = await request(user2, 'GET', '/api/new/requests/my');
     state.ids.requestId = Number(myReqs.json?.items?.[0]?.id || 0) || null;

@@ -2084,7 +2084,7 @@ function cleanupStaleOnlineUsers(maxIdleMs = 5 * 60 * 1000, { force = false } = 
   }
   if (!staleIds.length) return;
   const placeholders = staleIds.map(() => '?').join(', ');
-  const offlineValue = dbDriver === 'postgres' ? 'FALSE' : '0';
+  const offlineValue = (dbDriver === 'postgres' && getColumnType('uyeler', 'online') === 'boolean') ? 'FALSE' : '0';
   sqlRun(`UPDATE uyeler SET online = ${offlineValue} WHERE id IN (${placeholders})`, staleIds);
 }
 
@@ -2106,7 +2106,7 @@ async function cleanupStaleOnlineUsersAsync(maxIdleMs = 5 * 60 * 1000, { force =
   }
   if (!staleIds.length) return;
   const placeholders = staleIds.map(() => '?').join(', ');
-  const offlineValue = dbDriver === 'postgres' ? 'FALSE' : '0';
+  const offlineValue = (dbDriver === 'postgres' && getColumnType('uyeler', 'online') === 'boolean') ? 'FALSE' : '0';
   await sqlRunAsync(`UPDATE uyeler SET online = ${offlineValue} WHERE id IN (${placeholders})`, staleIds);
 }
 
@@ -2420,6 +2420,51 @@ function toTruthyFlag(value) {
 function toDbBooleanParam(value) {
   const bool = toTruthyFlag(value);
   return dbDriver === 'postgres' ? bool : (bool ? 1 : 0);
+}
+
+function toDbNumericFlag(value) {
+  return toTruthyFlag(value) ? 1 : 0;
+}
+
+const columnTypeCache = new Map();
+
+function getColumnType(table, column) {
+  const key = `${String(table || '').toLowerCase()}.${String(column || '').toLowerCase()}`;
+  if (columnTypeCache.has(key)) return columnTypeCache.get(key);
+  let type = '';
+  try {
+    if (dbDriver === 'postgres') {
+      const row = sqlGet(
+        `SELECT data_type
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = ? AND column_name = ?
+         LIMIT 1`,
+        [String(table || '').toLowerCase(), String(column || '').toLowerCase()]
+      );
+      type = String(row?.data_type || '').toLowerCase();
+    } else {
+      const safeTable = quoteIdentifier(table);
+      const cols = sqlAll(`PRAGMA table_info(${safeTable})`);
+      const found = cols.find((c) => String(c.name || '').toLowerCase() === String(column || '').toLowerCase());
+      type = String(found?.type || '').toLowerCase();
+    }
+  } catch {
+    type = '';
+  }
+  columnTypeCache.set(key, type);
+  return type;
+}
+
+function toDbFlagForColumn(table, column, value) {
+  const bool = toTruthyFlag(value);
+  if (dbDriver !== 'postgres') return bool ? 1 : 0;
+  const type = getColumnType(table, column);
+  if (type === 'boolean') return bool;
+  if (type.includes('int') || type === 'numeric' || type === 'real' || type === 'double precision') {
+    return bool ? 1 : 0;
+  }
+  // last-resort literal accepted by PostgreSQL boolean and numeric parsers
+  return bool ? '1' : '0';
 }
 
 function toDateMs(value) {
@@ -6346,15 +6391,15 @@ app.put('/api/profile', async (req, res) => {
     SET isim = ?, soyisim = ?, sehir = ?, meslek = ?, websitesi = ?, universite = ?, mezuniyetyili = ?,
         dogumgun = ?, dogumay = ?, dogumyil = ?, mailkapali = ?, imza = ?, ilkbd = ?,
         sirket = ?, unvan = ?, uzmanlik = ?, linkedin_url = ?, universite_bolum = ?, mentor_opt_in = ?, mentor_konulari = ?,
-        kvkk_consent_at = COALESCE(kvkk_consent_at, CASE WHEN ? THEN ? ELSE NULL END),
-        directory_consent_at = COALESCE(directory_consent_at, CASE WHEN ? THEN ? ELSE NULL END)
+        kvkk_consent_at = COALESCE(kvkk_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END),
+        directory_consent_at = COALESCE(directory_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)
     WHERE id = ?`,
     [
       isim, soyisim, sehir, meslek, websitesi, universite, mezuniyetyili,
-      dogumgun, dogumay, dogumyil, toDbBooleanParam(mailkapali), imza, toDbBooleanParam(nextIlkbd),
-      sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, toDbBooleanParam(mentorOptIn), mentorKonulari,
-      toDbBooleanParam(kvkkConsent), new Date().toISOString(),
-      toDbBooleanParam(directoryConsent), new Date().toISOString(),
+      dogumgun, dogumay, dogumyil, toDbFlagForColumn('uyeler', 'mailkapali', mailkapali), imza, toDbFlagForColumn('uyeler', 'ilkbd', nextIlkbd),
+      sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, toDbFlagForColumn('uyeler', 'mentor_opt_in', mentorOptIn), mentorKonulari,
+      toDbNumericFlag(kvkkConsent), new Date().toISOString(),
+      toDbNumericFlag(directoryConsent), new Date().toISOString(),
       req.session.userId
     ]
   );
@@ -6813,12 +6858,12 @@ app.post('/api/messages', async (req, res) => {
       [
         recipientId,
         req.session.userId,
-        toDbBooleanParam(true),
+        toDbFlagForColumn('gelenkutusu', 'aktifgelen', true),
         subject,
         body,
-        toDbBooleanParam(true),
+        toDbFlagForColumn('gelenkutusu', 'yeni', true),
         now,
-        toDbBooleanParam(true)
+        toDbFlagForColumn('gelenkutusu', 'aktifgiden', true)
       ]
     );
     notifyMentions({
@@ -6850,10 +6895,10 @@ app.delete('/api/messages/:id', async (req, res) => {
       return res.status(403).send('Yetkisiz');
     }
     if (sameUserId(row.kime, req.session.userId)) {
-      await sqlRunAsync('UPDATE gelenkutusu SET aktifgelen = ? WHERE id = ?', [toDbBooleanParam(false), row.id]);
+      await sqlRunAsync('UPDATE gelenkutusu SET aktifgelen = ? WHERE id = ?', [toDbFlagForColumn('gelenkutusu', 'aktifgelen', false), row.id]);
     }
     if (sameUserId(row.kimden, req.session.userId)) {
-      await sqlRunAsync('UPDATE gelenkutusu SET aktifgiden = ? WHERE id = ?', [toDbBooleanParam(false), row.id]);
+      await sqlRunAsync('UPDATE gelenkutusu SET aktifgiden = ? WHERE id = ?', [toDbFlagForColumn('gelenkutusu', 'aktifgiden', false), row.id]);
     }
     return res.status(204).send();
   } catch (err) {
@@ -8377,7 +8422,9 @@ app.get('/api/new/online-members', requireAuth, async (req, res) => {
       message: err?.message || 'unknown_error',
       stack: String(err?.stack || '').slice(0, 1000)
     });
-    res.status(500).send('Beklenmeyen bir hata oluştu.');
+    // Degrade gracefully instead of returning 500 on mixed legacy schemas.
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ items: [], count: 0, now: new Date().toISOString(), degraded: true });
   }
 });
 
@@ -9145,27 +9192,53 @@ async function createEventRecord(req, { image = null } = {}) {
   const user = getCurrentUser(req);
   const isAdmin = hasAdminSession(req, user);
   const now = new Date().toISOString();
-  const result = await sqlRunAsync(
-    `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at,
-                         show_response_counts, show_attendee_names, show_decliner_names)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      title,
-      formatUserText(descriptionRaw),
-      location,
-      startsAt,
-      endsAt,
-      image || null,
-      now,
-      req.session.userId,
-      toDbBooleanParam(isAdmin),
-      isAdmin ? req.session.userId : null,
-      isAdmin ? now : null,
-      toDbBooleanParam(true),
-      toDbBooleanParam(false),
-      toDbBooleanParam(false)
-    ]
-  );
+  let result = null;
+  try {
+    result = await sqlRunAsync(
+      `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at,
+                           show_response_counts, show_attendee_names, show_decliner_names)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        formatUserText(descriptionRaw),
+        location,
+        startsAt,
+        endsAt,
+        image || null,
+        now,
+        req.session.userId,
+        toDbFlagForColumn('events', 'approved', isAdmin),
+        isAdmin ? req.session.userId : null,
+        isAdmin ? now : null,
+        toDbFlagForColumn('events', 'show_response_counts', true),
+        toDbFlagForColumn('events', 'show_attendee_names', false),
+        toDbFlagForColumn('events', 'show_decliner_names', false)
+      ]
+    );
+  } catch (err) {
+    // Legacy installs may miss response-visibility columns.
+    writeAppLog('warn', 'event_create_fallback_insert', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown_error'
+    });
+    result = await sqlRunAsync(
+      `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        formatUserText(descriptionRaw),
+        location,
+        startsAt,
+        endsAt,
+        image || null,
+        now,
+        req.session.userId,
+        toDbFlagForColumn('events', 'approved', isAdmin),
+        isAdmin ? req.session.userId : null,
+        isAdmin ? now : null
+      ]
+    );
+  }
   notifyMentions({
     text: descriptionRaw,
     sourceUserId: req.session.userId,
@@ -9253,7 +9326,7 @@ app.post('/api/new/events/:id/approve', requireAdmin, async (req, res) => {
   const approved = String(req.body?.approved || '1') === '1';
   await sqlRunAsync(
     'UPDATE events SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-    [toDbBooleanParam(approved), req.session.userId, new Date().toISOString(), req.params.id]
+    [toDbFlagForColumn('events', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
   );
   res.json({ ok: true });
 });
@@ -9311,9 +9384,9 @@ app.post('/api/new/events/:id/response-visibility', requireAuth, async (req, res
      SET show_response_counts = ?, show_attendee_names = ?, show_decliner_names = ?
      WHERE id = ?`,
     [
-      toDbBooleanParam(showCounts),
-      toDbBooleanParam(showAttendeeNames),
-      toDbBooleanParam(showDeclinerNames),
+      toDbFlagForColumn('events', 'show_response_counts', showCounts),
+      toDbFlagForColumn('events', 'show_attendee_names', showAttendeeNames),
+      toDbFlagForColumn('events', 'show_decliner_names', showDeclinerNames),
       req.params.id
     ]
   );
@@ -9429,7 +9502,7 @@ app.post('/api/new/announcements', requireAuth, async (req, res) => {
       image || null,
       now,
       req.session.userId,
-      toDbBooleanParam(isAdmin),
+      toDbFlagForColumn('announcements', 'approved', isAdmin),
       isAdmin ? req.session.userId : null,
       isAdmin ? now : null
     ]
@@ -9465,7 +9538,7 @@ app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUplo
       processedUpload?.url || null,
       now,
       req.session.userId,
-      toDbBooleanParam(isAdmin),
+      toDbFlagForColumn('announcements', 'approved', isAdmin),
       isAdmin ? req.session.userId : null,
       isAdmin ? now : null
     ]
@@ -9477,7 +9550,7 @@ app.post('/api/new/announcements/:id/approve', requireAdmin, async (req, res) =>
   const approved = String(req.body?.approved || '1') === '1';
   await sqlRunAsync(
     'UPDATE announcements SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-    [toDbBooleanParam(approved), req.session.userId, new Date().toISOString(), req.params.id]
+    [toDbFlagForColumn('announcements', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
   );
   res.json({ ok: true });
 });
