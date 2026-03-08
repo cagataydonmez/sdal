@@ -225,46 +225,40 @@ jobs:
 
             PORT_TO_USE="${PORT:-8787}"
             HEALTH_BODY=""
-            for attempt in $(seq 1 20); do
-              if HEALTH_BODY="$(curl -fsS --max-time 4 "http://127.0.0.1:${PORT_TO_USE}/api/health" 2>/dev/null)"; then
-                break
-              fi
-              if HEALTH_BODY="$(curl -fsS --max-time 4 "http://localhost:${PORT_TO_USE}/api/health" 2>/dev/null)"; then
-                break
-              fi
+            for attempt in $(seq 1 30); do
+              for url in "http://127.0.0.1:${PORT_TO_USE}/api/health" "http://localhost:${PORT_TO_USE}/api/health"; do
+                HEALTH_BODY="$(curl -fsS --max-time 4 "$url" 2>/dev/null || true)"
+                if [[ -z "${HEALTH_BODY:-}" ]]; then
+                  continue
+                fi
+
+                if node -e '
+                  const body = JSON.parse(process.argv[1]);
+                  const expectedDriver = String(process.argv[2] || "").trim();
+                  if (!body.ok) process.exit(2);
+                  if (!body.dbReady) process.exit(3);
+                  if (expectedDriver && String(body.dbDriver || "") !== expectedDriver) process.exit(4);
+                ' "$HEALTH_BODY" "$EXPECTED_DB_DRIVER"; then
+                  echo "$HEALTH_BODY"
+                  exit 0
+                fi
+              done
               sleep 2
             done
 
-            if [[ -z "${HEALTH_BODY:-}" ]]; then
-              echo "Could not fetch /api/health on port ${PORT_TO_USE}"
-              if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-                sudo -n systemctl status sdal-api.service --no-pager -l || true
-                sudo -n journalctl -u sdal-api.service -n 120 --no-pager || true
-              else
-                systemctl status sdal-api.service --no-pager -l || true
-                journalctl -u sdal-api.service -n 120 --no-pager || true
-              fi
-              exit 1
+            echo "Post-deploy health did not reach ready state on port ${PORT_TO_USE}"
+            if [[ -n "${HEALTH_BODY:-}" ]]; then
+              echo "Last /api/health body:"
+              echo "$HEALTH_BODY"
             fi
-
-            echo "$HEALTH_BODY"
-
-            node -e '
-              const body = JSON.parse(process.argv[1]);
-              const expectedDriver = String(process.argv[2] || "").trim();
-              if (!body.ok) {
-                console.error("health.ok is false");
-                process.exit(1);
-              }
-              if (!body.dbReady) {
-                console.error("health.dbReady is false");
-                process.exit(1);
-              }
-              if (expectedDriver && String(body.dbDriver || "") !== expectedDriver) {
-                console.error(`health.dbDriver expected ${expectedDriver} but got ${body.dbDriver}`);
-                process.exit(1);
-              }
-            ' "$HEALTH_BODY" "$EXPECTED_DB_DRIVER"
+            if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+              sudo -n systemctl status sdal-api.service --no-pager -l || true
+              sudo -n journalctl -u sdal-api.service -n 120 --no-pager || true
+            else
+              systemctl status sdal-api.service --no-pager -l || true
+              journalctl -u sdal-api.service -n 120 --no-pager || true
+            fi
+            exit 1
 
       - name: Post-Deploy Failure Diagnostics
         if: failure()
