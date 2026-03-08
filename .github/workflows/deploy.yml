@@ -44,6 +44,7 @@ jobs:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USER: ${{ secrets.DO_USER }}
           DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_SSH_PASSPHRASE: ${{ secrets.DO_SSH_PASSPHRASE }}
           DO_PORT: ${{ secrets.DO_PORT }}
           DO_APP_DIR: ${{ secrets.DO_APP_DIR }}
           DO_ENV_FILE: ${{ secrets.DO_ENV_FILE }}
@@ -72,6 +73,24 @@ jobs:
             exit 1
           fi
 
+          if [[ "${DO_HOST}" == http://* || "${DO_HOST}" == https://* ]]; then
+            echo "::error title=Invalid DO_HOST::DO_HOST must be only hostname or IP, without protocol."
+            exit 1
+          fi
+
+          if [[ "${DO_SSH_KEY}" == ssh-* ]]; then
+            echo "::error title=Invalid DO_SSH_KEY::DO_SSH_KEY looks like a public key. Paste the private key content."
+            exit 1
+          fi
+
+          if ! printf '%s\n' "${DO_SSH_KEY}" | grep -Eq '-----BEGIN (OPENSSH|RSA|EC|DSA) PRIVATE KEY-----'; then
+            echo "::warning title=DO_SSH_KEY format check::Key header not recognized. Ensure full private key is pasted."
+          fi
+
+          if [[ -n "${DO_SSH_PASSPHRASE:-}" ]]; then
+            echo "::notice title=SSH passphrase configured::DO_SSH_PASSPHRASE will be used."
+          fi
+
           if [[ -z "${DO_ENV_FILE:-}" ]]; then
             echo "::warning title=DO_ENV_FILE not set::Falling back to /etc/sdal/sdal.env on the server."
           fi
@@ -82,7 +101,11 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           port: ${{ secrets.DO_PORT }}
+          timeout: 40s
+          command_timeout: 20m
+          debug: true
           script_stop: true
           script: |
             set -euo pipefail
@@ -108,7 +131,11 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           port: ${{ secrets.DO_PORT }}
+          timeout: 40s
+          command_timeout: 10m
+          debug: true
           script_stop: true
           script: |
             set -euo pipefail
