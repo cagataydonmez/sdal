@@ -6362,7 +6362,7 @@ app.put('/api/profile', async (req, res) => {
   const mailkapali = String(req.body.mailkapali || '0') === '1';
   const imza = String(req.body.imza || '');
 
-  const current = await sqlGetAsync('SELECT ilkbd, mezuniyetyili, verified, oauth_provider, kvkk_consent_at, directory_consent_at FROM uyeler WHERE id = ?', [req.session.userId]);
+  const current = await sqlGetAsync('SELECT * FROM uyeler WHERE id = ?', [req.session.userId]);
   const nextIlkbd = current && current.ilkbd === 0 ? true : Boolean(current?.ilkbd ?? true);
 
   if (!hasValidGraduationYear(mezuniyetyili)) {
@@ -6386,23 +6386,49 @@ app.put('/api/profile', async (req, res) => {
     });
   }
 
-  await sqlRunAsync(`
-    UPDATE uyeler
-    SET isim = ?, soyisim = ?, sehir = ?, meslek = ?, websitesi = ?, universite = ?, mezuniyetyili = ?,
-        dogumgun = ?, dogumay = ?, dogumyil = ?, mailkapali = ?, imza = ?, ilkbd = ?,
-        sirket = ?, unvan = ?, uzmanlik = ?, linkedin_url = ?, universite_bolum = ?, mentor_opt_in = ?, mentor_konulari = ?,
-        kvkk_consent_at = COALESCE(kvkk_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END),
-        directory_consent_at = COALESCE(directory_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)
-    WHERE id = ?`,
-    [
-      isim, soyisim, sehir, meslek, websitesi, universite, mezuniyetyili,
-      dogumgun, dogumay, dogumyil, toDbFlagForColumn('uyeler', 'mailkapali', mailkapali), imza, toDbFlagForColumn('uyeler', 'ilkbd', nextIlkbd),
-      sirket, unvan, uzmanlik, linkedinUrl, universiteBolum, toDbFlagForColumn('uyeler', 'mentor_opt_in', mentorOptIn), mentorKonulari,
-      toDbNumericFlag(kvkkConsent), new Date().toISOString(),
-      toDbNumericFlag(directoryConsent), new Date().toISOString(),
-      req.session.userId
-    ]
-  );
+  const setClauses = [];
+  const params = [];
+  const pushSet = (column, value) => {
+    if (!hasColumn('uyeler', column)) return;
+    setClauses.push(`${column} = ?`);
+    params.push(value);
+  };
+
+  pushSet('isim', isim);
+  pushSet('soyisim', soyisim);
+  pushSet('sehir', sehir);
+  pushSet('meslek', meslek);
+  pushSet('websitesi', websitesi);
+  pushSet('universite', universite);
+  pushSet('mezuniyetyili', mezuniyetyili);
+  pushSet('dogumgun', dogumgun);
+  pushSet('dogumay', dogumay);
+  pushSet('dogumyil', dogumyil);
+  pushSet('mailkapali', toDbFlagForColumn('uyeler', 'mailkapali', mailkapali));
+  pushSet('imza', imza);
+  pushSet('ilkbd', toDbFlagForColumn('uyeler', 'ilkbd', nextIlkbd));
+  pushSet('sirket', sirket);
+  pushSet('unvan', unvan);
+  pushSet('uzmanlik', uzmanlik);
+  pushSet('linkedin_url', linkedinUrl);
+  pushSet('universite_bolum', universiteBolum);
+  pushSet('mentor_opt_in', toDbFlagForColumn('uyeler', 'mentor_opt_in', mentorOptIn));
+  pushSet('mentor_konulari', mentorKonulari);
+
+  const nowIso = new Date().toISOString();
+  if (hasColumn('uyeler', 'kvkk_consent_at')) {
+    setClauses.push('kvkk_consent_at = COALESCE(kvkk_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)');
+    params.push(toDbNumericFlag(kvkkConsent), nowIso);
+  }
+  if (hasColumn('uyeler', 'directory_consent_at')) {
+    setClauses.push('directory_consent_at = COALESCE(directory_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)');
+    params.push(toDbNumericFlag(directoryConsent), nowIso);
+  }
+  if (!setClauses.length) {
+    throw new Error('profile_update_no_columns');
+  }
+  params.push(req.session.userId);
+  await sqlRunAsync(`UPDATE uyeler SET ${setClauses.join(', ')} WHERE id = ?`, params);
   invalidateCacheNamespace(cacheNamespaces.profile);
   res.json({ ok: true });
   } catch (err) {
@@ -9192,53 +9218,37 @@ async function createEventRecord(req, { image = null } = {}) {
   const user = getCurrentUser(req);
   const isAdmin = hasAdminSession(req, user);
   const now = new Date().toISOString();
-  let result = null;
-  try {
-    result = await sqlRunAsync(
-      `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at,
-                           show_response_counts, show_attendee_names, show_decliner_names)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        title,
-        formatUserText(descriptionRaw),
-        location,
-        startsAt,
-        endsAt,
-        image || null,
-        now,
-        req.session.userId,
-        toDbFlagForColumn('events', 'approved', isAdmin),
-        isAdmin ? req.session.userId : null,
-        isAdmin ? now : null,
-        toDbFlagForColumn('events', 'show_response_counts', true),
-        toDbFlagForColumn('events', 'show_attendee_names', false),
-        toDbFlagForColumn('events', 'show_decliner_names', false)
-      ]
-    );
-  } catch (err) {
-    // Legacy installs may miss response-visibility columns.
-    writeAppLog('warn', 'event_create_fallback_insert', {
-      userId: req.session?.userId || null,
-      message: err?.message || 'unknown_error'
-    });
-    result = await sqlRunAsync(
-      `INSERT INTO events (title, description, location, starts_at, ends_at, image, created_at, created_by, approved, approved_by, approved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        title,
-        formatUserText(descriptionRaw),
-        location,
-        startsAt,
-        endsAt,
-        image || null,
-        now,
-        req.session.userId,
-        toDbFlagForColumn('events', 'approved', isAdmin),
-        isAdmin ? req.session.userId : null,
-        isAdmin ? now : null
-      ]
-    );
+  const columns = [];
+  const values = [];
+  const addColumn = (column, value) => {
+    if (!hasColumn('events', column)) return;
+    columns.push(column);
+    values.push(value);
+  };
+
+  addColumn('title', title);
+  addColumn('description', formatUserText(descriptionRaw));
+  addColumn('location', location);
+  addColumn('starts_at', startsAt);
+  addColumn('ends_at', endsAt);
+  addColumn('image', image || null);
+  addColumn('created_at', now);
+  addColumn('created_by', req.session.userId);
+  addColumn('approved', toDbFlagForColumn('events', 'approved', isAdmin));
+  addColumn('approved_by', isAdmin ? req.session.userId : null);
+  addColumn('approved_at', isAdmin ? now : null);
+  addColumn('show_response_counts', toDbFlagForColumn('events', 'show_response_counts', true));
+  addColumn('show_attendee_names', toDbFlagForColumn('events', 'show_attendee_names', false));
+  addColumn('show_decliner_names', toDbFlagForColumn('events', 'show_decliner_names', false));
+
+  if (!columns.length || !columns.includes('title')) {
+    throw new Error('events_table_missing_required_columns');
   }
+  const placeholders = columns.map(() => '?').join(', ');
+  const result = await sqlRunAsync(
+    `INSERT INTO events (${columns.join(', ')}) VALUES (${placeholders})`,
+    values
+  );
   notifyMentions({
     text: descriptionRaw,
     sourceUserId: req.session.userId,
