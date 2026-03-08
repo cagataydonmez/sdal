@@ -407,7 +407,6 @@ body.story-view-open .global-feedback {
     -webkit-overflow-scrolling: touch;
     gap: 6px;
   }
-  .scope-btn,
   .feed-tab-btn {
     padding: 0;
     gap: 0;
@@ -415,49 +414,70 @@ body.story-view-open .global-feedback {
     min-width: 42px;
     height: 42px;
   }
+  .scope-btn {
+    width: auto;
+    min-width: max-content;
+    height: 36px;
+    padding: 7px 10px;
+    gap: 6px;
+    border-radius: 999px;
+  }
   .feed-tab-btn {
     border-radius: 999px;
   }
   .scope-tabs .scope-btn {
-    min-width: 0;
-    flex: 0 0 42px;
+    min-width: max-content;
+    flex: 0 0 auto;
   }
   .scope-tabs-feedtype .scope-btn {
-    min-width: 42px;
-    flex: 0 0 42px;
+    min-width: max-content;
+    flex: 0 0 auto;
   }
   .scope-tabs-feedtype {
     display: flex;
     flex-wrap: nowrap;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .scope-tabs-filter {
     display: flex;
     flex-wrap: nowrap;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .scope-tabs-filter .scope-btn {
-    min-width: 42px;
-    flex: 0 0 42px;
+    min-width: max-content;
+    flex: 0 0 auto;
   }
-  .scope-btn-icon,
   .feed-tab-btn-icon {
     font-size: 11px;
   }
-  .scope-btn-label,
+  .scope-btn-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+  }
   .feed-tab-btn-label {
     display: none;
+  }
+  .scope-btn-label {
+    display: inline;
+    font-size: 12px;
   }
   .feed-tab-badge {
     top: -2px;
     right: -2px;
     transform: scale(0.9);
   }
-  .scope-mobile-selected-title,
+  .scope-mobile-selected-title {
+    display: none;
+  }
   .feed-mobile-selected-title {
     display: block;
     margin-top: 6px;

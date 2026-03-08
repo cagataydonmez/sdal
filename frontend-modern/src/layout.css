@@ -447,29 +447,28 @@
   }
 }
 .scope-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-.scope-tabs-feedtype {
   display: flex;
-  justify-content: center;
   flex-wrap: nowrap;
   align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.scope-tabs-feedtype {
+  justify-content: flex-start;
 }
 .scope-tabs-feedtype .scope-btn {
-  min-width: 0;
-  flex: 1 1 0;
+  min-width: 136px;
+  flex: 0 0 auto;
 }
 .scope-tabs-filter {
   margin-top: 12px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 .scope-tabs-filter .scope-btn {
-  flex: 0 1 180px;
+  min-width: 112px;
+  flex: 0 0 auto;
 }
 .feed-mobile-tabs-wrap {
   display: none;
@@ -503,11 +502,18 @@
   gap: 6px;
   position: relative;
 }
+.scope-btn {
+  font-size: 13px;
+  line-height: 1.2;
+}
+.scope-btn-label {
+  font-size: 13px;
+  line-height: 1.2;
+}
 .feed-tab-btn-label {
   font-size: 12px;
   line-height: 1.2;
 }
-.scope-btn-icon,
 .feed-tab-btn-icon {
   width: 22px;
   height: 22px;
@@ -520,6 +526,10 @@
   color: var(--accent-2);
   background: color-mix(in srgb, var(--accent-2) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-2) 34%, transparent);
+}
+.scope-btn-icon {
+  width: 20px;
+  height: 20px;
 }
 .feed-tab-badge {
   position: absolute;
