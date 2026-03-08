@@ -2427,6 +2427,7 @@ function toDbNumericFlag(value) {
 }
 
 const columnTypeCache = new Map();
+const tableColumnSetCache = new Map();
 
 function getColumnType(table, column) {
   const key = `${String(table || '').toLowerCase()}.${String(column || '').toLowerCase()}`;
@@ -2465,6 +2466,35 @@ function toDbFlagForColumn(table, column, value) {
   }
   // last-resort literal accepted by PostgreSQL boolean and numeric parsers
   return bool ? '1' : '0';
+}
+
+async function getTableColumnSetAsync(table) {
+  const tableName = String(table || '').toLowerCase();
+  if (!tableName) return new Set();
+  const cacheKey = `${dbDriver}:${tableName}`;
+  const cached = tableColumnSetCache.get(cacheKey);
+  if (cached) return new Set(cached);
+
+  let set = new Set();
+  try {
+    if (dbDriver === 'postgres') {
+      const rows = await sqlAllAsync(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = ?`,
+        [tableName]
+      );
+      set = new Set((rows || []).map((r) => String(r.column_name || '').toLowerCase()).filter(Boolean));
+    } else {
+      const safeTable = quoteIdentifier(tableName);
+      const rows = await sqlAllAsync(`PRAGMA table_info(${safeTable})`);
+      set = new Set((rows || []).map((r) => String(r.name || '').toLowerCase()).filter(Boolean));
+    }
+  } catch {
+    set = new Set();
+  }
+  tableColumnSetCache.set(cacheKey, Array.from(set));
+  return set;
 }
 
 function toDateMs(value) {
@@ -6386,49 +6416,81 @@ app.put('/api/profile', async (req, res) => {
     });
   }
 
+  const legacyCols = await getTableColumnSetAsync('uyeler');
+  const modernCols = await getTableColumnSetAsync('users');
+  const targetTable = modernCols.size ? 'users' : 'uyeler';
+  const targetCols = targetTable === 'users' ? modernCols : legacyCols;
   const setClauses = [];
   const params = [];
   const pushSet = (column, value) => {
-    if (!hasColumn('uyeler', column)) return;
+    if (!targetCols.has(String(column || '').toLowerCase())) return;
     setClauses.push(`${column} = ?`);
     params.push(value);
   };
 
-  pushSet('isim', isim);
-  pushSet('soyisim', soyisim);
-  pushSet('sehir', sehir);
-  pushSet('meslek', meslek);
-  pushSet('websitesi', websitesi);
-  pushSet('universite', universite);
-  pushSet('mezuniyetyili', mezuniyetyili);
-  pushSet('dogumgun', dogumgun);
-  pushSet('dogumay', dogumay);
-  pushSet('dogumyil', dogumyil);
-  pushSet('mailkapali', toDbFlagForColumn('uyeler', 'mailkapali', mailkapali));
-  pushSet('imza', imza);
-  pushSet('ilkbd', toDbFlagForColumn('uyeler', 'ilkbd', nextIlkbd));
-  pushSet('sirket', sirket);
-  pushSet('unvan', unvan);
-  pushSet('uzmanlik', uzmanlik);
-  pushSet('linkedin_url', linkedinUrl);
-  pushSet('universite_bolum', universiteBolum);
-  pushSet('mentor_opt_in', toDbFlagForColumn('uyeler', 'mentor_opt_in', mentorOptIn));
-  pushSet('mentor_konulari', mentorKonulari);
+  if (targetTable === 'users') {
+    pushSet('first_name', isim);
+    pushSet('last_name', soyisim);
+    pushSet('city', sehir);
+    pushSet('profession', meslek);
+    pushSet('website_url', websitesi);
+    pushSet('university_name', universite);
+    pushSet('graduation_year', mezuniyetyili);
+    pushSet('birth_day', dogumgun);
+    pushSet('birth_month', dogumay);
+    pushSet('birth_year', dogumyil);
+    pushSet('is_email_hidden', toDbFlagForColumn('users', 'is_email_hidden', mailkapali));
+    pushSet('signature', imza);
+    pushSet('is_profile_initialized', toDbFlagForColumn('users', 'is_profile_initialized', nextIlkbd));
+    pushSet('company_name', sirket);
+    pushSet('job_title', unvan);
+    pushSet('expertise', uzmanlik);
+    pushSet('linkedin_url', linkedinUrl);
+    pushSet('university_department', universiteBolum);
+    pushSet('is_mentor_opted_in', toDbFlagForColumn('users', 'is_mentor_opted_in', mentorOptIn));
+    pushSet('mentor_topics', mentorKonulari);
+  } else {
+    pushSet('isim', isim);
+    pushSet('soyisim', soyisim);
+    pushSet('sehir', sehir);
+    pushSet('meslek', meslek);
+    pushSet('websitesi', websitesi);
+    pushSet('universite', universite);
+    pushSet('mezuniyetyili', mezuniyetyili);
+    pushSet('dogumgun', dogumgun);
+    pushSet('dogumay', dogumay);
+    pushSet('dogumyil', dogumyil);
+    pushSet('mailkapali', toDbFlagForColumn('uyeler', 'mailkapali', mailkapali));
+    pushSet('imza', imza);
+    pushSet('ilkbd', toDbFlagForColumn('uyeler', 'ilkbd', nextIlkbd));
+    pushSet('sirket', sirket);
+    pushSet('unvan', unvan);
+    pushSet('uzmanlik', uzmanlik);
+    pushSet('linkedin_url', linkedinUrl);
+    pushSet('universite_bolum', universiteBolum);
+    pushSet('mentor_opt_in', toDbFlagForColumn('uyeler', 'mentor_opt_in', mentorOptIn));
+    pushSet('mentor_konulari', mentorKonulari);
+  }
 
   const nowIso = new Date().toISOString();
-  if (hasColumn('uyeler', 'kvkk_consent_at')) {
-    setClauses.push('kvkk_consent_at = COALESCE(kvkk_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)');
+  const kvkkColumn = targetTable === 'users' ? 'privacy_consent_at' : 'kvkk_consent_at';
+  const directoryColumn = 'directory_consent_at';
+  if (targetCols.has(kvkkColumn)) {
+    setClauses.push(`${kvkkColumn} = COALESCE(${kvkkColumn}, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)`);
     params.push(toDbNumericFlag(kvkkConsent), nowIso);
   }
-  if (hasColumn('uyeler', 'directory_consent_at')) {
-    setClauses.push('directory_consent_at = COALESCE(directory_consent_at, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)');
+  if (targetCols.has(directoryColumn)) {
+    setClauses.push(`${directoryColumn} = COALESCE(${directoryColumn}, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)`);
     params.push(toDbNumericFlag(directoryConsent), nowIso);
+  }
+  if (targetCols.has('updated_at')) {
+    pushSet('updated_at', nowIso);
   }
   if (!setClauses.length) {
     throw new Error('profile_update_no_columns');
   }
   params.push(req.session.userId);
-  await sqlRunAsync(`UPDATE uyeler SET ${setClauses.join(', ')} WHERE id = ?`, params);
+  await sqlRunAsync(`UPDATE ${targetTable} SET ${setClauses.join(', ')} WHERE id = ?`, params);
   invalidateCacheNamespace(cacheNamespaces.profile);
   res.json({ ok: true });
   } catch (err) {
@@ -9218,10 +9280,11 @@ async function createEventRecord(req, { image = null } = {}) {
   const user = getCurrentUser(req);
   const isAdmin = hasAdminSession(req, user);
   const now = new Date().toISOString();
+  const eventCols = await getTableColumnSetAsync('events');
   const columns = [];
   const values = [];
   const addColumn = (column, value) => {
-    if (!hasColumn('events', column)) return;
+    if (!eventCols.has(String(column || '').toLowerCase())) return;
     columns.push(column);
     values.push(value);
   };
@@ -9229,8 +9292,8 @@ async function createEventRecord(req, { image = null } = {}) {
   addColumn('title', title);
   addColumn('description', formatUserText(descriptionRaw));
   addColumn('location', location);
-  addColumn('starts_at', startsAt);
-  addColumn('ends_at', endsAt);
+  addColumn('starts_at', startsAt ? startsAt : null);
+  addColumn('ends_at', endsAt ? endsAt : null);
   addColumn('image', image || null);
   addColumn('created_at', now);
   addColumn('created_by', req.session.userId);
