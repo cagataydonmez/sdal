@@ -39,6 +39,43 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Preflight Secrets Check
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+          DO_APP_DIR: ${{ secrets.DO_APP_DIR }}
+          DO_ENV_FILE: ${{ secrets.DO_ENV_FILE }}
+        run: |
+          set -euo pipefail
+          missing=()
+
+          [[ -n "${DO_HOST:-}" ]] || missing+=("DO_HOST")
+          [[ -n "${DO_USER:-}" ]] || missing+=("DO_USER")
+          [[ -n "${DO_SSH_KEY:-}" ]] || missing+=("DO_SSH_KEY")
+          [[ -n "${DO_PORT:-}" ]] || missing+=("DO_PORT")
+          [[ -n "${DO_APP_DIR:-}" ]] || missing+=("DO_APP_DIR")
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error title=Missing required GitHub secrets::Set these secrets: ${missing[*]}"
+            exit 1
+          fi
+
+          if ! [[ "${DO_PORT}" =~ ^[0-9]+$ ]]; then
+            echo "::error title=Invalid DO_PORT::DO_PORT must be numeric, got '${DO_PORT}'."
+            exit 1
+          fi
+
+          if ! [[ "${DO_APP_DIR}" == /* ]]; then
+            echo "::error title=Invalid DO_APP_DIR::DO_APP_DIR must be an absolute path, got '${DO_APP_DIR}'."
+            exit 1
+          fi
+
+          if [[ -z "${DO_ENV_FILE:-}" ]]; then
+            echo "::warning title=DO_ENV_FILE not set::Falling back to /etc/sdal/sdal.env on the server."
+          fi
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
