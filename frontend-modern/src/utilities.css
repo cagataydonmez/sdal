@@ -415,23 +415,23 @@ body.story-view-open .global-feedback {
     height: 42px;
   }
   .scope-btn {
-    width: auto;
-    min-width: max-content;
-    height: 36px;
-    padding: 7px 10px;
-    gap: 6px;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    padding: 0;
+    gap: 0;
     border-radius: 999px;
   }
   .feed-tab-btn {
     border-radius: 999px;
   }
   .scope-tabs .scope-btn {
-    min-width: max-content;
-    flex: 0 0 auto;
+    min-width: 40px;
+    flex: 0 0 40px;
   }
   .scope-tabs-feedtype .scope-btn {
-    min-width: max-content;
-    flex: 0 0 auto;
+    min-width: 40px;
+    flex: 0 0 40px;
   }
   .scope-tabs-feedtype {
     display: flex;
@@ -452,8 +452,8 @@ body.story-view-open .global-feedback {
     -webkit-overflow-scrolling: touch;
   }
   .scope-tabs-filter .scope-btn {
-    min-width: max-content;
-    flex: 0 0 auto;
+    min-width: 40px;
+    flex: 0 0 40px;
   }
   .feed-tab-btn-icon {
     font-size: 11px;
@@ -467,8 +467,7 @@ body.story-view-open .global-feedback {
     display: none;
   }
   .scope-btn-label {
-    display: inline;
-    font-size: 12px;
+    display: none;
   }
   .feed-tab-badge {
     top: -2px;
