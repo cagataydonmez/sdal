@@ -1,6 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { adminClient } from '../../../admin/api/adminClient.js';
 
+function formatInteger(value) {
+  return new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function formatSizeFromMb(valueMb) {
+  const mb = Number(valueMb || 0);
+  if (!Number.isFinite(mb) || mb <= 0) return '0 MB';
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  return `${mb.toFixed(2)} MB`;
+}
+
+function formatPercent(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return '-';
+  return `%${numeric.toFixed(2)}`;
+}
+
 export default function DashboardSection({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [live, setLive] = useState({ activity: [], counts: {} });
@@ -43,6 +60,7 @@ export default function DashboardSection({ onNavigate }) {
 
   const counts = stats?.counts || {};
   const queue = live?.counts || {};
+  const storage = stats?.storage || {};
 
   return (
     <section className="stack">
@@ -65,6 +83,52 @@ export default function DashboardSection({ onNavigate }) {
         <button className="ops-kpi-card" onClick={() => onNavigate?.('groups')}><span>Pending Events</span><b>{queue.pendingEvents || 0}</b></button>
         <button className="ops-kpi-card" onClick={() => onNavigate?.('groups')}><span>Pending Announcements</span><b>{queue.pendingAnnouncements || 0}</b></button>
         <button className="ops-kpi-card" onClick={() => onNavigate?.('content')}><span>Pending Photos</span><b>{queue.pendingPhotos || 0}</b></button>
+      </div>
+
+      <div className="panel">
+        <div className="panel-body stack">
+          <h3>System & Storage</h3>
+          <div className="ops-kpi-grid">
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>CPU Usage</span>
+              <b>{storage.cpuSupported ? formatPercent(storage.cpuUsagePct) : '-'}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Disk Space (Total)</span>
+              <b>{storage.diskSupported ? formatSizeFromMb(storage.diskTotalMb) : '-'}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Disk Usage</span>
+              <b>
+                {storage.diskSupported
+                  ? `${formatSizeFromMb(storage.diskUsedMb)} (${formatPercent(storage.diskUsedPct)})`
+                  : '-'}
+              </b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Disk Free</span>
+              <b>
+                {storage.diskSupported
+                  ? `${formatSizeFromMb(storage.diskFreeMb)} (${formatPercent(storage.diskFreePct)})`
+                  : '-'}
+              </b>
+            </div>
+          </div>
+          <div className="ops-kpi-grid">
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Toplam Fotoğraf Media Sayısı</span>
+              <b>{formatInteger(storage.uploadedPhotoCount)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Media Kapladığı Yer</span>
+              <b>{formatSizeFromMb(storage.uploadedPhotoSizeMb)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>DB Kapladığı Yer</span>
+              <b>{formatSizeFromMb(storage.databaseSizeMb)}</b>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="panel">
