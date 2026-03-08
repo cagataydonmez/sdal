@@ -32,6 +32,7 @@ const ARTIFACT_DIR = path.resolve(argValue('out', process.env.E2E_OUT_DIR || '/t
 const APP_FILE = path.resolve(argValue('app-file', path.join(process.cwd(), 'server/app.js')));
 const DRY_RUN = argFlag('dry-run');
 const ALLOW_DESTRUCTIVE = argFlag('allow-destructive');
+const PROBE_ONLY = argFlag('probe-only') || String(process.env.E2E_PROBE_ONLY || '').trim().toLowerCase() === 'true';
 const ADVANCED_MODE = argFlag('advanced') || String(process.env.E2E_ADVANCED || '').trim().toLowerCase() === 'true';
 const ADVANCED_CONCURRENCY = Math.max(2, Number.parseInt(argValue('concurrency', process.env.E2E_CONCURRENCY || '6'), 10) || 6);
 const ADVANCED_RETRY_ATTEMPTS = Math.max(2, Number.parseInt(argValue('retry-attempts', process.env.E2E_RETRY_ATTEMPTS || '3'), 10) || 3);
@@ -1138,6 +1139,7 @@ async function main() {
   console.log(`[e2e] app_file=${APP_FILE}`);
   console.log(`[e2e] token=${E2E_TOKEN ? 'provided' : 'missing'}`);
   console.log(`[e2e] allow_destructive=${ALLOW_DESTRUCTIVE ? 'true' : 'false'}`);
+  console.log(`[e2e] probe_only=${PROBE_ONLY ? 'true' : 'false'}`);
   console.log(`[e2e] advanced=${ADVANCED_MODE ? 'true' : 'false'}`);
   if (typeof fetch !== 'function' || typeof FormData !== 'function' || typeof Blob !== 'function') {
     throw new Error('Node.js 18+ required (fetch/FormData/Blob unavailable)');
@@ -1148,6 +1150,10 @@ async function main() {
   }
 
   await assertE2EHarnessActive();
+  if (PROBE_ONLY) {
+    console.log('[e2e] probe-only success: harness/token doğrulandı');
+    return;
+  }
   await registerAndLoginUsers();
   await runCoreScenario();
   if (ADVANCED_MODE) {
