@@ -4205,6 +4205,15 @@ function readAdminStorageSnapshot() {
 
   const uploadStats = walkDirStats(uploadsDir);
   const dbSizeBytes = (() => {
+    if (isPostgresDb) {
+      try {
+        const row = sqlGet('SELECT pg_database_size(current_database())::bigint AS size');
+        const size = Number(row?.size || 0);
+        return Number.isFinite(size) && size > 0 ? size : 0;
+      } catch {
+        return 0;
+      }
+    }
     try {
       return fs.statSync(dbPath).size || 0;
     } catch {
