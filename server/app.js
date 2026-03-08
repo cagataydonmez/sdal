@@ -6365,140 +6365,187 @@ app.get('/api/profile', async (req, res) => {
 app.put('/api/profile', async (req, res) => {
   if (!req.session.userId) return res.status(401).send('Login required');
   try {
-  const isim = String(req.body.isim || '').trim();
-  const soyisim = String(req.body.soyisim || '').trim();
-  if (!isim) return res.status(400).send('İsmini girmedin');
-  if (isim.length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
-  if (!soyisim) return res.status(400).send('Soyismini girmedin');
-  if (soyisim.length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
+    const isim = String(req.body.isim || '').trim();
+    const soyisim = String(req.body.soyisim || '').trim();
+    if (!isim) return res.status(400).send('İsmini girmedin');
+    if (isim.length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
+    if (!soyisim) return res.status(400).send('Soyismini girmedin');
+    if (soyisim.length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
-  const sehir = String(req.body.sehir || '');
-  const meslek = String(req.body.meslek || '');
-  const websitesi = String(req.body.websitesi || '');
-  const universite = String(req.body.universite || '');
-  const mezuniyetyili = normalizeCohortValue(req.body.mezuniyetyili);
-  const kvkkConsent = Boolean(req.body.kvkk_consent);
-  const directoryConsent = Boolean(req.body.directory_consent);
-  const sirket = String(req.body.sirket || '').trim();
-  const unvan = String(req.body.unvan || '').trim();
-  const uzmanlik = String(req.body.uzmanlik || '').trim();
-  const linkedinUrl = String(req.body.linkedin_url || '').trim();
-  const universiteBolum = String(req.body.universite_bolum || '').trim();
-  const mentorOptIn = Boolean(req.body.mentor_opt_in);
-  const mentorKonulari = String(req.body.mentor_konulari || '').trim();
-  const dogumgun = parseInt(req.body.dogumgun || '0', 10) || 0;
-  const dogumay = parseInt(req.body.dogumay || '0', 10) || 0;
-  const dogumyil = parseInt(req.body.dogumyil || '0', 10) || 0;
-  const mailkapali = String(req.body.mailkapali || '0') === '1';
-  const imza = String(req.body.imza || '');
+    const sehir = String(req.body.sehir || '');
+    const meslek = String(req.body.meslek || '');
+    const websitesi = String(req.body.websitesi || '');
+    const universite = String(req.body.universite || '');
+    const mezuniyetyili = normalizeCohortValue(req.body.mezuniyetyili);
+    const kvkkConsent = Boolean(req.body.kvkk_consent);
+    const directoryConsent = Boolean(req.body.directory_consent);
+    const sirket = String(req.body.sirket || '').trim();
+    const unvan = String(req.body.unvan || '').trim();
+    const uzmanlik = String(req.body.uzmanlik || '').trim();
+    const linkedinUrl = String(req.body.linkedin_url || '').trim();
+    const universiteBolum = String(req.body.universite_bolum || '').trim();
+    const mentorOptIn = Boolean(req.body.mentor_opt_in);
+    const mentorKonulari = String(req.body.mentor_konulari || '').trim();
+    const dogumgun = parseInt(req.body.dogumgun || '0', 10) || 0;
+    const dogumay = parseInt(req.body.dogumay || '0', 10) || 0;
+    const dogumyil = parseInt(req.body.dogumyil || '0', 10) || 0;
+    const mailkapali = String(req.body.mailkapali || '0') === '1';
+    const imza = String(req.body.imza || '');
 
-  const current = await sqlGetAsync('SELECT * FROM uyeler WHERE id = ?', [req.session.userId]);
-  const nextIlkbd = current && current.ilkbd === 0 ? true : Boolean(current?.ilkbd ?? true);
+    if (!hasValidGraduationYear(mezuniyetyili)) {
+      return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR}-${MAX_GRADUATION_YEAR} aralığında olmalı veya Öğretmen seçilmelidir.`);
+    }
 
-  if (!hasValidGraduationYear(mezuniyetyili)) {
-    return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR}-${MAX_GRADUATION_YEAR} aralığında olmalı veya Öğretmen seçilmelidir.`);
-  }
-  const isOAuthUser = Boolean(String(current?.oauth_provider || '').trim());
-  const nextKvkkConsent = Boolean(current?.kvkk_consent_at) || kvkkConsent;
-  const nextDirectoryConsent = Boolean(current?.directory_consent_at) || directoryConsent;
-  if (isOAuthUser && !nextKvkkConsent) {
-    return res.status(400).send('Sosyal üyelik için KVKK Aydınlatma Metni onayı zorunludur.');
-  }
-  if (isOAuthUser && !nextDirectoryConsent) {
-    return res.status(400).send('Sosyal üyelik için Mezun Rehberi açık rıza onayı zorunludur.');
-  }
+    const legacyCols = await getTableColumnSetAsync('uyeler');
+    const modernCols = await getTableColumnSetAsync('users');
+    const targetTable = modernCols.size ? 'users' : 'uyeler';
+    const targetCols = targetTable === 'users' ? modernCols : legacyCols;
+    const current = targetTable === 'users'
+      ? await sqlGetAsync(
+        `SELECT id,
+                oauth_provider,
+                COALESCE(is_verified, FALSE) AS verified,
+                graduation_year AS mezuniyetyili,
+                COALESCE(is_profile_initialized, FALSE) AS ilkbd,
+                privacy_consent_at AS kvkk_consent_at,
+                directory_consent_at
+           FROM users
+          WHERE id = ?`,
+        [req.session.userId]
+      )
+      : await sqlGetAsync(
+        `SELECT id,
+                oauth_provider,
+                COALESCE(verified, 0) AS verified,
+                mezuniyetyili,
+                COALESCE(ilkbd, 0) AS ilkbd,
+                kvkk_consent_at,
+                directory_consent_at
+           FROM uyeler
+          WHERE id = ?`,
+        [req.session.userId]
+      );
+    const nextIlkbd = current && current.ilkbd === 0 ? true : Boolean(current?.ilkbd ?? true);
+    const isOAuthUser = Boolean(String(current?.oauth_provider || '').trim());
+    const nextKvkkConsent = Boolean(current?.kvkk_consent_at) || kvkkConsent;
+    const nextDirectoryConsent = Boolean(current?.directory_consent_at) || directoryConsent;
+    if (isOAuthUser && !nextKvkkConsent) {
+      return res.status(400).send('Sosyal üyelik için KVKK Aydınlatma Metni onayı zorunludur.');
+    }
+    if (isOAuthUser && !nextDirectoryConsent) {
+      return res.status(400).send('Sosyal üyelik için Mezun Rehberi açık rıza onayı zorunludur.');
+    }
 
-  if (Number(current?.verified || 0) === 1 && String(current?.mezuniyetyili || '') !== mezuniyetyili) {
-    return res.status(403).json({
-      error: 'GRADUATION_YEAR_LOCKED',
-      message: 'Doğrulanmış üyelerde mezuniyet yılı değiştirilemez. Yönetim talebi oluşturun.',
-      requestUrl: '/new/requests?category=graduation_year_change'
-    });
-  }
+    if (Number(current?.verified || 0) === 1 && String(current?.mezuniyetyili || '') !== mezuniyetyili) {
+      return res.status(403).json({
+        error: 'GRADUATION_YEAR_LOCKED',
+        message: 'Doğrulanmış üyelerde mezuniyet yılı değiştirilemez. Yönetim talebi oluşturun.',
+        requestUrl: '/new/requests?category=graduation_year_change'
+      });
+    }
 
-  const legacyCols = await getTableColumnSetAsync('uyeler');
-  const modernCols = await getTableColumnSetAsync('users');
-  const targetTable = modernCols.size ? 'users' : 'uyeler';
-  const targetCols = targetTable === 'users' ? modernCols : legacyCols;
-  const setClauses = [];
-  const params = [];
-  const pushSet = (column, value) => {
-    if (!targetCols.has(String(column || '').toLowerCase())) return;
-    setClauses.push(`${column} = ?`);
-    params.push(value);
-  };
+    const setClauses = [];
+    const params = [];
+    const pushSet = (column, value) => {
+      if (!targetCols.has(String(column || '').toLowerCase())) return;
+      setClauses.push(`${column} = ?`);
+      params.push(value);
+    };
 
-  if (targetTable === 'users') {
-    pushSet('first_name', isim);
-    pushSet('last_name', soyisim);
-    pushSet('city', sehir);
-    pushSet('profession', meslek);
-    pushSet('website_url', websitesi);
-    pushSet('university_name', universite);
-    pushSet('graduation_year', mezuniyetyili);
-    pushSet('birth_day', dogumgun);
-    pushSet('birth_month', dogumay);
-    pushSet('birth_year', dogumyil);
-    pushSet('is_email_hidden', toDbFlagForColumn('users', 'is_email_hidden', mailkapali));
-    pushSet('signature', imza);
-    pushSet('is_profile_initialized', toDbFlagForColumn('users', 'is_profile_initialized', nextIlkbd));
-    pushSet('company_name', sirket);
-    pushSet('job_title', unvan);
-    pushSet('expertise', uzmanlik);
-    pushSet('linkedin_url', linkedinUrl);
-    pushSet('university_department', universiteBolum);
-    pushSet('is_mentor_opted_in', toDbFlagForColumn('users', 'is_mentor_opted_in', mentorOptIn));
-    pushSet('mentor_topics', mentorKonulari);
-  } else {
-    pushSet('isim', isim);
-    pushSet('soyisim', soyisim);
-    pushSet('sehir', sehir);
-    pushSet('meslek', meslek);
-    pushSet('websitesi', websitesi);
-    pushSet('universite', universite);
-    pushSet('mezuniyetyili', mezuniyetyili);
-    pushSet('dogumgun', dogumgun);
-    pushSet('dogumay', dogumay);
-    pushSet('dogumyil', dogumyil);
-    pushSet('mailkapali', toDbFlagForColumn('uyeler', 'mailkapali', mailkapali));
-    pushSet('imza', imza);
-    pushSet('ilkbd', toDbFlagForColumn('uyeler', 'ilkbd', nextIlkbd));
-    pushSet('sirket', sirket);
-    pushSet('unvan', unvan);
-    pushSet('uzmanlik', uzmanlik);
-    pushSet('linkedin_url', linkedinUrl);
-    pushSet('universite_bolum', universiteBolum);
-    pushSet('mentor_opt_in', toDbFlagForColumn('uyeler', 'mentor_opt_in', mentorOptIn));
-    pushSet('mentor_konulari', mentorKonulari);
-  }
+    if (targetTable === 'users') {
+      pushSet('first_name', isim);
+      pushSet('last_name', soyisim);
+      pushSet('city', sehir);
+      pushSet('profession', meslek);
+      pushSet('website_url', websitesi);
+      pushSet('university_name', universite);
+      pushSet('graduation_year', mezuniyetyili);
+      pushSet('birth_day', dogumgun);
+      pushSet('birth_month', dogumay);
+      pushSet('birth_year', dogumyil);
+      pushSet('is_email_hidden', toDbFlagForColumn('users', 'is_email_hidden', mailkapali));
+      pushSet('signature', imza);
+      pushSet('is_profile_initialized', toDbFlagForColumn('users', 'is_profile_initialized', nextIlkbd));
+      pushSet('company_name', sirket);
+      pushSet('job_title', unvan);
+      pushSet('expertise', uzmanlik);
+      pushSet('linkedin_url', linkedinUrl);
+      pushSet('university_department', universiteBolum);
+      pushSet('is_mentor_opted_in', toDbFlagForColumn('users', 'is_mentor_opted_in', mentorOptIn));
+      pushSet('mentor_topics', mentorKonulari);
+    } else {
+      pushSet('isim', isim);
+      pushSet('soyisim', soyisim);
+      pushSet('sehir', sehir);
+      pushSet('meslek', meslek);
+      pushSet('websitesi', websitesi);
+      pushSet('universite', universite);
+      pushSet('mezuniyetyili', mezuniyetyili);
+      pushSet('dogumgun', dogumgun);
+      pushSet('dogumay', dogumay);
+      pushSet('dogumyil', dogumyil);
+      pushSet('mailkapali', toDbFlagForColumn('uyeler', 'mailkapali', mailkapali));
+      pushSet('imza', imza);
+      pushSet('ilkbd', toDbFlagForColumn('uyeler', 'ilkbd', nextIlkbd));
+      pushSet('sirket', sirket);
+      pushSet('unvan', unvan);
+      pushSet('uzmanlik', uzmanlik);
+      pushSet('linkedin_url', linkedinUrl);
+      pushSet('universite_bolum', universiteBolum);
+      pushSet('mentor_opt_in', toDbFlagForColumn('uyeler', 'mentor_opt_in', mentorOptIn));
+      pushSet('mentor_konulari', mentorKonulari);
+    }
 
-  const nowIso = new Date().toISOString();
-  const kvkkColumn = targetTable === 'users' ? 'privacy_consent_at' : 'kvkk_consent_at';
-  const directoryColumn = 'directory_consent_at';
-  if (targetCols.has(kvkkColumn)) {
-    setClauses.push(`${kvkkColumn} = COALESCE(${kvkkColumn}, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)`);
-    params.push(toDbNumericFlag(kvkkConsent), nowIso);
-  }
-  if (targetCols.has(directoryColumn)) {
-    setClauses.push(`${directoryColumn} = COALESCE(${directoryColumn}, CASE WHEN CAST(? AS INTEGER) = 1 THEN ? ELSE NULL END)`);
-    params.push(toDbNumericFlag(directoryConsent), nowIso);
-  }
-  if (targetCols.has('updated_at')) {
-    pushSet('updated_at', nowIso);
-  }
-  if (!setClauses.length) {
-    throw new Error('profile_update_no_columns');
-  }
-  params.push(req.session.userId);
-  await sqlRunAsync(`UPDATE ${targetTable} SET ${setClauses.join(', ')} WHERE id = ?`, params);
-  invalidateCacheNamespace(cacheNamespaces.profile);
-  res.json({ ok: true });
+    const nowIso = new Date().toISOString();
+    const kvkkColumn = targetTable === 'users' ? 'privacy_consent_at' : 'kvkk_consent_at';
+    const directoryColumn = 'directory_consent_at';
+    const appendConsentUpdate = (column, consentProvided) => {
+      if (!targetCols.has(column)) return;
+      const currentValue = current?.[column] ?? null;
+      const hasCurrentValue = currentValue !== null && currentValue !== undefined && String(currentValue).trim() !== '';
+      const type = String(getColumnType(targetTable, column) || '').toLowerCase();
+      if (type === 'boolean') {
+        pushSet(column, hasCurrentValue ? toDbFlagForColumn(targetTable, column, currentValue) : toDbFlagForColumn(targetTable, column, consentProvided));
+        return;
+      }
+      if (type.includes('int') || type === 'numeric' || type === 'real' || type === 'double precision') {
+        pushSet(column, hasCurrentValue ? Number(toTruthyFlag(currentValue)) : toDbNumericFlag(consentProvided));
+        return;
+      }
+      if (consentProvided && !hasCurrentValue) {
+        pushSet(column, nowIso);
+      }
+    };
+    appendConsentUpdate(kvkkColumn, kvkkConsent);
+    appendConsentUpdate(directoryColumn, directoryConsent);
+
+    if (targetCols.has('updated_at')) {
+      pushSet('updated_at', nowIso);
+    }
+    if (!setClauses.length) {
+      throw new Error('profile_update_no_columns');
+    }
+    params.push(req.session.userId);
+    await sqlRunAsync(`UPDATE ${targetTable} SET ${setClauses.join(', ')} WHERE id = ?`, params);
+    invalidateCacheNamespace(cacheNamespaces.profile);
+    res.json({ ok: true });
   } catch (err) {
     writeAppLog('error', 'profile_update_failed', {
       userId: req.session?.userId || null,
       message: err?.message || 'unknown_error',
       stack: String(err?.stack || '').slice(0, 1200)
     });
+    console.error('[profile_update_failed]', {
+      userId: req.session?.userId || null,
+      message: err?.message || 'unknown_error'
+    });
+    if (isE2EHarnessRequest(req)) {
+      return res.status(500).json({
+        ok: false,
+        error: 'profile_update_failed',
+        message: err?.message || 'unknown_error'
+      });
+    }
     return res.status(500).send('Profil güncellenirken bir hata oluştu.');
   }
 });
