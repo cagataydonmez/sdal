@@ -157,6 +157,45 @@ jobs:
               bash "$APP_DIR/ops/deploy-systemd.sh"
             fi
 
+      - name: Deploy Failure Diagnostics
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          port: ${{ secrets.DO_PORT }}
+          timeout: 40s
+          command_timeout: 10m
+          debug: true
+          script_stop: false
+          script: |
+            set -euo pipefail
+            echo "[diag] date=$(date -Iseconds)"
+            echo "[diag] whoami=$(whoami)"
+            echo "[diag] uname=$(uname -a)"
+            echo "[diag] systemctl status sdal-api.service"
+            if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+              sudo -n systemctl status sdal-api.service --no-pager -l || true
+              echo "[diag] systemctl status sdal-worker.service"
+              sudo -n systemctl status sdal-worker.service --no-pager -l || true
+              echo "[diag] systemctl show sdal-api.service (state/env)"
+              sudo -n systemctl show sdal-api.service --property=ActiveState --property=SubState --property=MainPID --property=Environment --property=EnvironmentFiles || true
+              echo "[diag] journalctl -u sdal-api.service -n 200"
+              sudo -n journalctl -u sdal-api.service -n 200 --no-pager || true
+            else
+              systemctl status sdal-api.service --no-pager -l || true
+              echo "[diag] systemctl status sdal-worker.service"
+              systemctl status sdal-worker.service --no-pager -l || true
+              echo "[diag] systemctl show sdal-api.service (state/env)"
+              systemctl show sdal-api.service --property=ActiveState --property=SubState --property=MainPID --property=Environment --property=EnvironmentFiles || true
+              echo "[diag] journalctl -u sdal-api.service -n 200"
+              journalctl -u sdal-api.service -n 200 --no-pager || true
+            fi
+            echo "[diag] listening ports"
+            ss -ltnp || true
+
       - name: Post-Deploy Health Verification
         uses: appleboy/ssh-action@v1.2.0
         with:

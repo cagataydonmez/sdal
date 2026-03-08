@@ -69,8 +69,10 @@ wait_for_api_health() {
   done
 
   log "health probe failed after ${retry_count} attempts on port ${port_value}"
+  run_with_priv systemctl show sdal-api.service --property=ActiveState --property=SubState --property=MainPID --property=Environment --property=EnvironmentFiles || true
   run_with_priv systemctl status sdal-api.service --no-pager -l || true
   run_with_priv journalctl -u sdal-api.service -n 120 --no-pager || true
+  run_with_priv ss -ltnp || true
   return 1
 }
 
