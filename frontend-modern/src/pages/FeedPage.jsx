@@ -196,9 +196,11 @@ export default function FeedPage() {
     if (sideDataInitializedRef.current) return;
     sideDataInitializedRef.current = true;
     const timer = setTimeout(() => {
-      loadUnreadMessages();
-      loadQuickAccess();
-      loadOnlineMembers();
+      Promise.allSettled([
+        loadUnreadMessages(),
+        loadQuickAccess(),
+        loadOnlineMembers()
+      ]).catch(() => {});
     }, 180);
     return () => clearTimeout(timer);
   }, [loadUnreadMessages, loadQuickAccess, loadOnlineMembers]);

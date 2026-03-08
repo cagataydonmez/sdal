@@ -9680,7 +9680,7 @@ app.delete('/api/new/announcements/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/new/jobs', requireAuth, (req, res) => {
+app.get('/api/new/jobs', requireAuth, async (req, res) => {
   const search = sanitizePlainUserText(String(req.query.search || '').trim(), 120).toLowerCase();
   const location = sanitizePlainUserText(String(req.query.location || '').trim(), 120).toLowerCase();
   const jobType = sanitizePlainUserText(String(req.query.job_type || '').trim(), 60).toLowerCase();
@@ -9702,7 +9702,7 @@ app.get('/api/new/jobs', requireAuth, (req, res) => {
     params.push(jobType);
   }
 
-  const rows = sqlAll(
+  const rows = await sqlAllAsync(
     `SELECT j.*, u.kadi AS poster_kadi, u.isim AS poster_isim, u.soyisim AS poster_soyisim
      FROM jobs j
      LEFT JOIN uyeler u ON u.id = j.poster_id
@@ -9715,7 +9715,7 @@ app.get('/api/new/jobs', requireAuth, (req, res) => {
   res.json({ items: rows, hasMore: rows.length === limit });
 });
 
-app.post('/api/new/jobs', requireAuth, (req, res) => {
+app.post('/api/new/jobs', requireAuth, async (req, res) => {
   const company = sanitizePlainUserText(String(req.body?.company || '').trim(), 140);
   const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   const description = formatUserText(String(req.body?.description || ''));
@@ -9727,7 +9727,7 @@ app.post('/api/new/jobs', requireAuth, (req, res) => {
   }
   if (link && !/^https?:\/\//i.test(link)) return res.status(400).send('Link http:// veya https:// ile başlamalı.');
   const now = new Date().toISOString();
-  const result = sqlRun(
+  const result = await sqlRunAsync(
     `INSERT INTO jobs (poster_id, company, title, description, location, job_type, link, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [req.session.userId, company, title, description, location, jobType, link || null, now]

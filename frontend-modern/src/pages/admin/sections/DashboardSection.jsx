@@ -16,35 +16,25 @@ export default function DashboardSection({ onNavigate }) {
     setLoadingStats(true);
     setLoadingLive(true);
     setError('');
-    try {
-      const statsData = await adminClient.get('/api/new/admin/stats');
-      if (requestSeq === requestSeqRef.current) {
-        setStats(statsData || null);
-      }
-    } catch (err) {
-      if (requestSeq === requestSeqRef.current) {
-        setError(err.message || 'Dashboard summary could not be loaded.');
-      }
-    } finally {
-      if (requestSeq === requestSeqRef.current) {
-        setLoadingStats(false);
-      }
-    }
+    const [statsResult, liveResult] = await Promise.allSettled([
+      adminClient.get('/api/new/admin/stats'),
+      adminClient.get('/api/new/admin/live')
+    ]);
+    if (requestSeq !== requestSeqRef.current) return;
 
-    try {
-      const liveData = await adminClient.get('/api/new/admin/live');
-      if (requestSeq === requestSeqRef.current) {
-        setLive(liveData || { activity: [], counts: {} });
-      }
-    } catch (err) {
-      if (requestSeq === requestSeqRef.current) {
-        setError((prev) => prev || err.message || 'Live activity could not be loaded.');
-      }
-    } finally {
-      if (requestSeq === requestSeqRef.current) {
-        setLoadingLive(false);
-      }
+    if (statsResult.status === 'fulfilled') {
+      setStats(statsResult.value || null);
+    } else {
+      setError(statsResult.reason?.message || 'Dashboard summary could not be loaded.');
     }
+    setLoadingStats(false);
+
+    if (liveResult.status === 'fulfilled') {
+      setLive(liveResult.value || { activity: [], counts: {} });
+    } else {
+      setError((prev) => prev || liveResult.reason?.message || 'Live activity could not be loaded.');
+    }
+    setLoadingLive(false);
   }, []);
 
   useEffect(() => {
