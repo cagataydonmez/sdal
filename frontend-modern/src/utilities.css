@@ -269,7 +269,7 @@ body.story-view-open .global-feedback {
 
 @media (min-width: 761px) and (max-width: 1024px) {
   .main-area {
-    padding: 18px 20px 24px;
+    padding: 18px 20px calc(24px + env(safe-area-inset-bottom, 0px));
   }
   .page-title h1 {
     font-size: 26px;
@@ -296,7 +296,7 @@ body.story-view-open .global-feedback {
     max-width: 48vw;
   }
   .main-area {
-    padding: 14px 14px 20px;
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom, 0px));
   }
   .content {
     padding: 6px;
@@ -370,15 +370,15 @@ body.story-view-open .global-feedback {
   }
   .feed-mobile-tabs-wrap {
     display: block;
-  }
-  .scope-btn-label,
-  .feed-tab-btn-label {
-    display: none;
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    z-index: 18;
+    backdrop-filter: blur(8px);
   }
   .scope-btn,
   .feed-tab-btn {
-    padding: 8px 4px;
-    gap: 0;
+    padding: 8px 10px;
+    gap: 6px;
   }
   .scope-tabs .scope-btn {
     min-width: 0;
@@ -388,9 +388,15 @@ body.story-view-open .global-feedback {
   .feed-tab-btn-icon {
     font-size: 11px;
   }
+  .feed-tab-btn-label {
+    display: block;
+    font-size: 11px;
+    line-height: 1.15;
+    text-align: left;
+  }
   .scope-mobile-selected-title,
   .feed-mobile-selected-title {
-    display: block;
+    display: none;
   }
   .feed-tab-panel {
     display: none;
@@ -405,7 +411,7 @@ body.story-view-open .global-feedback {
 
 @media (min-width: 1025px) and (max-width: 1366px) {
   .main-area {
-    padding: 24px 28px 42px;
+    padding: 24px 28px calc(42px + env(safe-area-inset-bottom, 0px));
   }
   .grid {
     gap: 20px;
@@ -429,7 +435,7 @@ body.story-view-open .global-feedback {
 
 @media (min-width: 1367px) and (max-width: 1720px) {
   .main-area {
-    padding: 30px 40px 52px;
+    padding: 30px 40px calc(52px + env(safe-area-inset-bottom, 0px));
   }
   .grid {
     grid-template-columns: 1.45fr 0.78fr;
@@ -439,7 +445,7 @@ body.story-view-open .global-feedback {
 
 @media (min-width: 1721px) {
   .main-area {
-    padding: 34px 56px 60px;
+    padding: 34px 56px calc(60px + env(safe-area-inset-bottom, 0px));
   }
   .content {
     max-width: 1640px;
@@ -455,7 +461,7 @@ body.story-view-open .global-feedback {
 
 @media (max-width: 430px) {
   .main-area {
-    padding: 12px 12px 18px;
+    padding: 12px 12px calc(18px + env(safe-area-inset-bottom, 0px));
   }
   .top-bar {
     gap: 8px;
@@ -477,7 +483,7 @@ body.story-view-open .global-feedback {
 
 @media (max-width: 390px) {
   .main-area {
-    padding: 10px 10px 16px;
+    padding: 10px 10px calc(16px + env(safe-area-inset-bottom, 0px));
   }
   .top-actions .language-select {
     min-width: 96px;

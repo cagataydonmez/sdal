@@ -15,6 +15,52 @@
 .feed-note {
   text-align: center;
 }
+.feed-panel-state {
+  display: grid;
+  gap: 10px;
+  align-items: start;
+}
+
+.skeleton-stack {
+  display: grid;
+  gap: 8px;
+}
+.skeleton-line,
+.skeleton-dot {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--soft-panel) 88%, #fff 12%) 20%, color-mix(in srgb, var(--soft-panel) 55%, #fff 45%) 38%, color-mix(in srgb, var(--soft-panel) 88%, #fff 12%) 64%);
+  background-size: 240% 100%;
+  animation: skeleton-shimmer 1.3s ease infinite;
+}
+.skeleton-line {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+}
+.skeleton-dot {
+  border-radius: 50%;
+}
+.skeleton-avatar {
+  width: 46px;
+  height: 46px;
+}
+.feed-skeleton-list {
+  display: grid;
+  gap: 12px;
+}
+.post-card-skeleton {
+  display: grid;
+  gap: 12px;
+}
+.post-header-skeleton {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
 
 .filter-grid {
   margin-top: 10px;

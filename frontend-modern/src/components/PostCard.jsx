@@ -17,6 +17,11 @@ export default function PostCard({ post, onRefresh, focused = false }) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content || '');
   const [postBusy, setPostBusy] = useState(false);
+  const [liked, setLiked] = useState(!!post.liked);
+  const [likeCount, setLikeCount] = useState(Number(post.likeCount || 0));
+  const [commentCount, setCommentCount] = useState(Number(post.commentCount || 0));
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [commentBusy, setCommentBusy] = useState(false);
 
   async function loadComments() {
     const res = await fetch(`/api/new/posts/${post.id}/comments`, { credentials: 'include' });
@@ -40,27 +45,69 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     if (!editing) setEditContent(post.content || '');
   }, [post.content, editing]);
 
+  useEffect(() => {
+    setLiked(!!post.liked);
+    setLikeCount(Number(post.likeCount || 0));
+    setCommentCount(Number(post.commentCount || 0));
+  }, [post.liked, post.likeCount, post.commentCount]);
+
   async function toggleLike() {
-    await fetch(`/api/new/posts/${post.id}/like`, { method: 'POST', credentials: 'include' });
-    emitAppChange('post:liked', { postId: post.id });
-    onRefresh?.();
+    if (likeBusy) return;
+    const prevLiked = liked;
+    const prevCount = likeCount;
+    const nextLiked = !prevLiked;
+    setLikeBusy(true);
+    setLiked(nextLiked);
+    setLikeCount((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
+    try {
+      const res = await fetch(`/api/new/posts/${post.id}/like`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) throw new Error(await res.text());
+      emitAppChange('post:liked', { postId: post.id });
+    } catch {
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+    } finally {
+      setLikeBusy(false);
+      setTimeout(() => onRefresh?.(), 1200);
+    }
   }
 
   async function submitComment(e) {
     e.preventDefault();
-    if (isRichTextEmpty(comment)) return;
-    await fetch(`/api/new/posts/${post.id}/comments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ comment })
-    });
-    setComment('');
-    setShowComments(true);
-    setShowCommentForm(true);
-    emitAppChange('post:commented', { postId: post.id });
-    loadComments();
-    onRefresh?.();
+    if (isRichTextEmpty(comment) || commentBusy) return;
+    setCommentBusy(true);
+    const optimisticId = `tmp-${Date.now()}`;
+    const draft = comment;
+    const optimisticComment = {
+      id: optimisticId,
+      user_id: user?.id || 0,
+      kadi: user?.kadi || 'you',
+      resim: user?.photo || '',
+      comment: draft
+    };
+    try {
+      setComment('');
+      setShowComments(true);
+      setShowCommentForm(true);
+      setCommentCount((count) => count + 1);
+      setComments((prev) => [...prev, optimisticComment]);
+      const res = await fetch(`/api/new/posts/${post.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ comment: draft })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      emitAppChange('post:commented', { postId: post.id });
+      await loadComments();
+    } catch {
+      setCommentCount((count) => Math.max(0, count - 1));
+      setComments((prev) => prev.filter((c) => String(c.id) !== optimisticId));
+      setComment(draft);
+    } finally {
+      setCommentBusy(false);
+      setTimeout(() => onRefresh?.(), 1200);
+    }
   }
 
   const authorId = Number(post.author?.id || post.user_id || 0) || null;
@@ -175,8 +222,8 @@ export default function PostCard({ post, onRefresh, focused = false }) {
         ) : null}
       </div>
       <div className="post-actions">
-        <button className={post.liked ? 'pill liked' : 'pill'} onClick={toggleLike}>
-          ♥ {post.likeCount}
+        <button className={liked ? 'pill liked' : 'pill'} onClick={toggleLike} disabled={likeBusy}>
+          ♥ {likeCount}
         </button>
         <button className="pill" onClick={() => {
           const next = !showCommentForm;
@@ -184,7 +231,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
           setShowComments(next);
           if (next) loadComments();
         }}>
-          💬 {post.commentCount}
+          💬 {commentCount}
         </button>
       </div>
       {showCommentForm ? (
@@ -196,7 +243,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
             minHeight={84}
             compact
           />
-          <button className="btn">{t('send')}</button>
+          <button className="btn" disabled={commentBusy}>{t('send')}</button>
         </form>
       ) : null}
       {showComments ? (

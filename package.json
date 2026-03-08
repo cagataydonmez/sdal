@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "tokens:sync": "node scripts/sync-design-tokens.mjs",
     "build": "npm --prefix frontend-classic run build && npm --prefix frontend-modern run build",
     "start": "npm --prefix server run start"
   },

@@ -9,6 +9,15 @@ This is the backend and frontend monolithic setup for SDAL.
 - Frontend: React + Vite (`frontend-classic`, `frontend-modern`)
 - Optional frontend path: Next.js can be added on top of existing `/api/*` contracts
 
+## Shared Design Tokens (Web + iOS + Android)
+
+- Canonical source: `design/tokens/sdal.tokens.json`
+- Sync command: `npm run tokens:sync`
+- Generated outputs:
+  - `frontend-modern/src/generated/design-tokens.css`
+  - `ios-native/SDALNative/UI/Generated/SDALDesignTokens.generated.swift`
+  - `android-native/theme/SDALDesignTokens.kt`
+
 Quick local bootstrap:
 
 ```bash

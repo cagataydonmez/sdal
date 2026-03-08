@@ -3,18 +3,48 @@ import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
 import { useI18n } from '../utils/i18n.jsx';
 
-export default function NotificationPanel({ limit = 5, showAllLink = true }) {
+function NotificationSkeleton() {
+  return (
+    <div className="skeleton-stack" aria-hidden="true">
+      <span className="skeleton-line" />
+      <span className="skeleton-line" />
+    </div>
+  );
+}
+
+export default function NotificationPanel({ limit = 5, showAllLink = true, showEmptyCta = false, onReload = null }) {
   const [items, setItems] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const { t } = useI18n();
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/new/notifications?limit=${Math.max(1, Number(limit) || 5)}&offset=0`, { credentials: 'include', cache: 'no-store' });
-    if (!res.ok) return;
-    const payload = await res.json();
-    setItems(payload.items || []);
-    setHasMore(Boolean(payload.hasMore));
+  const load = useCallback(async ({ background = true } = {}) => {
+    if (!background) {
+      setLoading(true);
+      setError('');
+    }
+    try {
+      const res = await fetch(`/api/new/notifications?limit=${Math.max(1, Number(limit) || 5)}&offset=0`, { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) {
+        if (!background) setError('load_failed');
+        if (!background) setLoading(false);
+        return;
+      }
+      const payload = await res.json();
+      setItems(payload.items || []);
+      setHasMore(Boolean(payload.hasMore));
+      if (!background) {
+        setError('');
+        setLoading(false);
+      }
+    } catch {
+      if (!background) {
+        setError('load_failed');
+        setLoading(false);
+      }
+    }
   }, [limit]);
 
   function getTarget(n) {
@@ -32,7 +62,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
   }
 
   useEffect(() => {
-    load();
+    load({ background: false }).catch(() => {});
   }, [load]);
 
   useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['notification:new', 'post:liked', 'post:commented', 'follow:changed'] });
@@ -66,6 +96,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
       setTimeout(() => {
         load().catch(() => {});
       }, 200);
+      onReload?.();
     } catch (err) {
       emitAppChange('toast', { type: 'error', message: err?.message || t('group_invite_respond_failed') });
     } finally {
@@ -77,8 +108,25 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
     <div className="panel">
       <h3>{t('nav_notifications')}</h3>
       <div className="panel-body">
-        {items.length === 0 ? <div className="muted">{t('notifications_empty')}</div> : null}
-        {items.map((n) => (
+        {loading ? <NotificationSkeleton /> : null}
+
+        {!loading && error ? (
+          <div className="feed-panel-state">
+            <div className="muted">{t('notifications_empty')}</div>
+            <button className="btn ghost" onClick={() => load({ background: false }).then(() => onReload?.())}>{t('games_refresh')}</button>
+          </div>
+        ) : null}
+
+        {!loading && !error && items.length === 0 ? (
+          showEmptyCta ? (
+            <div className="feed-panel-state">
+              <div className="muted">{t('notifications_empty')}</div>
+              <a className="btn ghost" href="/new/explore">{t('feed_discover_members')}</a>
+            </div>
+          ) : <div className="muted">{t('notifications_empty')}</div>
+        ) : null}
+
+        {!loading && !error && items.map((n) => (
           <div key={n.id} className={`notif notif-link${n.read_at ? '' : ' unread'}`}>
             <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
             <div className="notif-content">
@@ -123,6 +171,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true }) {
             </div>
           </div>
         ))}
+
         {showAllLink ? (
           <a className="btn ghost" href="/new/notifications">
             {t('all_notifications')}

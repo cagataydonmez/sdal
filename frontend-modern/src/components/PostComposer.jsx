@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 import RichTextEditor from './RichTextEditor.jsx';
@@ -22,6 +22,7 @@ export default function PostComposer({ onPost }) {
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
   const localizedFilters = useMemo(
     () => FILTERS.map((item) => ({
       ...item,
@@ -58,6 +59,7 @@ export default function PostComposer({ onPost }) {
       setContent('');
       setImage(null);
       setFilter('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       emitAppChange('post:created');
       onPost?.();
     } catch (err) {
@@ -77,7 +79,39 @@ export default function PostComposer({ onPost }) {
       />
       <div className="composer-actions">
         <NativeImageButtons onPick={setImage} onError={setError} />
-        <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
+
+        <button
+          type="button"
+          className="btn ghost composer-media-trigger"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {t('image_pick_gallery')}
+        </button>
+        <input
+          ref={fileInputRef}
+          className="composer-file-input"
+          type="file"
+          accept="image/*"
+          onChange={(e) => setImage(e.target.files?.[0] || null)}
+        />
+
+        {image ? (
+          <div className="composer-media-chip" title={image.name}>
+            <span className="composer-media-chip-name">{image.name || 'image'}</span>
+            <button
+              type="button"
+              className="btn ghost composer-media-remove"
+              onClick={() => {
+                setImage(null);
+                setFilter('');
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            >
+              {t('delete')}
+            </button>
+          </div>
+        ) : null}
+
         <button className="btn primary" disabled={loading}>{t('post_share')}</button>
       </div>
       {image ? (

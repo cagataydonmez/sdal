@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import PostComposer from '../components/PostComposer.jsx';
@@ -9,6 +9,57 @@ import LiveChatPanel from '../components/LiveChatPanel.jsx';
 import { useLiveRefresh } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { FEED_FILTER_CONTRACT, FEED_SCOPE_CONTRACT, FEED_TAB_CONTRACT } from '../contracts/feedUiContract.js';
+
+function FeedIcon({ name }) {
+  const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
+  switch (name) {
+    case 'feed':
+      return <svg aria-hidden="true" {...common}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>;
+    case 'notifications':
+      return <svg aria-hidden="true" {...common}><path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" /><path d="M9.5 17a2.5 2.5 0 0 0 5 0" /></svg>;
+    case 'livechat':
+      return <svg aria-hidden="true" {...common}><path d="M4 5h16v10H8l-4 4V5z" /></svg>;
+    case 'online':
+      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" /></svg>;
+    case 'messages':
+      return <svg aria-hidden="true" {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 8l9 6 9-6" /></svg>;
+    case 'quick':
+      return <svg aria-hidden="true" {...common}><path d="M12 3l2.4 4.9L20 9l-4 3.8.9 5.5-4.9-2.6-4.9 2.6.9-5.5L4 9l5.6-1.1L12 3z" /></svg>;
+    case 'main':
+      return <svg aria-hidden="true" {...common}><path d="M3 11.5L12 4l9 7.5" /><path d="M6.5 10.5V20h11V10.5" /></svg>;
+    case 'community':
+      return <svg aria-hidden="true" {...common}><circle cx="8" cy="10" r="3" /><circle cx="16" cy="10" r="3" /><path d="M3.5 19c.8-2.8 3.1-4 4.5-4" /><path d="M20.5 19c-.8-2.8-3.1-4-4.5-4" /><path d="M9 18c.8-2.4 2.2-3.5 3-3.5.8 0 2.2 1.1 3 3.5" /></svg>;
+    case 'latest':
+      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>;
+    case 'popular':
+      return <svg aria-hidden="true" {...common}><path d="M12 3l2.6 5.3L20.5 9l-4.2 4 .9 6-5.2-2.9L6.8 19l.9-6-4.2-4 5.9-.7L12 3z" /></svg>;
+    case 'following':
+      return <svg aria-hidden="true" {...common}><circle cx="8" cy="8" r="3" /><path d="M3 19c1-3 3.3-4.5 5-4.5 1.7 0 4 1.5 5 4.5" /><path d="M16 8h5" /><path d="M18.5 5.5v5" /></svg>;
+    default:
+      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /></svg>;
+  }
+}
+
+function SkeletonRows({ count = 3 }) {
+  return (
+    <div className="skeleton-stack" aria-hidden="true">
+      {Array.from({ length: count }).map((_, idx) => (
+        <span key={`sk-row-${idx}`} className="skeleton-line" />
+      ))}
+    </div>
+  );
+}
+
+function EmptyPanelState({ message, actionLabel, href, onRetry }) {
+  return (
+    <div className="feed-panel-state">
+      <div className="muted">{message}</div>
+      {href ? <a className="btn ghost" href={href}>{actionLabel}</a> : null}
+      {onRetry ? <button className="btn ghost" onClick={onRetry}>{actionLabel}</button> : null}
+    </div>
+  );
+}
 
 export default function FeedPage() {
   const { t } = useI18n();
@@ -17,6 +68,7 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [pendingPostsCount, setPendingPostsCount] = useState(0);
   const [pendingItems, setPendingItems] = useState(null);
   const [feedType, setFeedType] = useState('main');
@@ -26,6 +78,12 @@ export default function FeedPage() {
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [onlineMembersLoading, setOnlineMembersLoading] = useState(true);
+  const [onlineMembersError, setOnlineMembersError] = useState('');
+  const [quickAccessLoading, setQuickAccessLoading] = useState(true);
+  const [quickAccessError, setQuickAccessError] = useState('');
+  const [unreadMessagesLoading, setUnreadMessagesLoading] = useState(true);
+  const [unreadMessagesError, setUnreadMessagesError] = useState('');
   const [searchParams] = useSearchParams();
   const focusPostId = Number(searchParams.get('post') || 0) || null;
   const postsRef = useRef([]);
@@ -35,31 +93,35 @@ export default function FeedPage() {
   const initializedRef = useRef(false);
   const sideDataInitializedRef = useRef(false);
   const [mountLiveChat, setMountLiveChat] = useState(false);
-  const scopeOptions = [
-    ...(mainFeedOpen ? [{ key: 'main', label: t('main_feed'), icon: '○' }] : []),
-    { key: 'community', label: t('community_feed'), icon: '◓' }
-  ];
-  const filterOptions = [
-    { key: 'latest', label: t('latest'), icon: '◉' },
-    { key: 'popular', label: t('popular'), icon: '▲' },
-    { key: 'following', label: t('following'), icon: '◎' }
-  ];
-  const feedTabOptions = [
-    { key: 'posts', label: t('nav_feed'), icon: '▤' },
-    { key: 'notifications', label: t('nav_notifications'), icon: '◔' },
-    { key: 'livechat', label: t('live_chat_title'), icon: '◡' },
-    { key: 'online', label: t('online_members'), icon: '●' },
-    { key: 'messages', label: t('new_messages'), icon: '▭' },
-    { key: 'quick', label: t('quick_access'), icon: '◇' }
-  ];
-  const activeScopeLabel = scopeOptions.find((item) => item.key === feedType)?.label || t('main_feed');
-  const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
-  const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
+
+  const scopeOptions = useMemo(() => ([
+    ...FEED_SCOPE_CONTRACT
+      .filter((item) => item.key !== 'main' || mainFeedOpen)
+      .map((item) => ({ ...item, label: t(item.labelKey) }))
+  ]), [mainFeedOpen, t]);
+
+  const filterOptions = useMemo(() => ([
+    ...FEED_FILTER_CONTRACT.map((item) => ({ ...item, label: t(item.labelKey) }))
+  ]), [t]);
+
+  const feedTabOptions = useMemo(() => ([
+    ...FEED_TAB_CONTRACT.map((item) => ({
+      ...item,
+      label: t(item.labelKey),
+      badge:
+        item.key === 'notifications'
+          ? Math.max(0, Number(unreadNotifications) || 0)
+          : item.key === 'online'
+            ? Math.max(0, Number(onlineMembers.length) || 0)
+            : item.key === 'messages'
+              ? Math.max(0, Number(unreadMessages) || 0)
+              : 0
+    }))
+  ]), [t, unreadNotifications, onlineMembers.length, unreadMessages]);
 
   useEffect(() => {
     postsRef.current = posts;
   }, [posts]);
-
 
   useEffect(() => {
     let mounted = true;
@@ -73,7 +135,7 @@ export default function FeedPage() {
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, []);
+  }, [feedType]);
 
   useEffect(() => {
     if (!mainFeedOpen && feedType === 'main') setFeedType('community');
@@ -149,36 +211,68 @@ export default function FeedPage() {
     }
   }, [feedType, filter, hasMore, loadingMore]);
 
-  const loadUnreadMessages = useCallback(async () => {
+  const loadUnreadMessages = useCallback(async ({ background = true } = {}) => {
+    if (!background) {
+      setUnreadMessagesLoading(true);
+      setUnreadMessagesError('');
+    }
     try {
-      const res = await fetch('/api/new/messages/unread', { credentials: 'include' });
-      if (!res.ok) return;
+      const res = await fetch('/api/new/messages/unread', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) throw new Error('messages');
       const payload = await res.json();
       setUnreadMessages(payload.count || 0);
+      if (!background) setUnreadMessagesError('');
     } catch {
-      // ignore
+      if (!background) setUnreadMessagesError('messages');
+    } finally {
+      if (!background) setUnreadMessagesLoading(false);
     }
   }, []);
 
-  const loadQuickAccess = useCallback(async () => {
+  const loadUnreadNotifications = useCallback(async () => {
     try {
-      const res = await fetch('/api/quick-access', { credentials: 'include' });
+      const res = await fetch('/api/new/notifications/unread', { credentials: 'include', cache: 'no-store' });
       if (!res.ok) return;
+      const payload = await res.json();
+      setUnreadNotifications(payload.count || 0);
+    } catch {
+      // ignore background errors
+    }
+  }, []);
+
+  const loadQuickAccess = useCallback(async ({ background = true } = {}) => {
+    if (!background) {
+      setQuickAccessLoading(true);
+      setQuickAccessError('');
+    }
+    try {
+      const res = await fetch('/api/quick-access', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) throw new Error('quick');
       const payload = await res.json();
       setQuickUsers(payload.users || []);
+      if (!background) setQuickAccessError('');
     } catch {
-      // ignore
+      if (!background) setQuickAccessError('quick');
+    } finally {
+      if (!background) setQuickAccessLoading(false);
     }
   }, []);
 
-  const loadOnlineMembers = useCallback(async () => {
+  const loadOnlineMembers = useCallback(async ({ background = true } = {}) => {
+    if (!background) {
+      setOnlineMembersLoading(true);
+      setOnlineMembersError('');
+    }
     try {
       const res = await fetch('/api/new/online-members?limit=10&excludeSelf=1', { credentials: 'include', cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('online');
       const payload = await res.json();
       setOnlineMembers(payload.items || []);
+      if (!background) setOnlineMembersError('');
     } catch {
-      // ignore
+      if (!background) setOnlineMembersError('online');
+    } finally {
+      if (!background) setOnlineMembersLoading(false);
     }
   }, []);
 
@@ -197,13 +291,14 @@ export default function FeedPage() {
     sideDataInitializedRef.current = true;
     const timer = setTimeout(() => {
       Promise.allSettled([
-        loadUnreadMessages(),
-        loadQuickAccess(),
-        loadOnlineMembers()
+        loadUnreadMessages({ background: false }),
+        loadUnreadNotifications(),
+        loadQuickAccess({ background: false }),
+        loadOnlineMembers({ background: false })
       ]).catch(() => {});
     }, 180);
     return () => clearTimeout(timer);
-  }, [loadUnreadMessages, loadQuickAccess, loadOnlineMembers]);
+  }, [loadUnreadMessages, loadUnreadNotifications, loadQuickAccess, loadOnlineMembers]);
 
   useEffect(() => {
     const timer = setTimeout(() => setMountLiveChat(true), 1200);
@@ -222,6 +317,7 @@ export default function FeedPage() {
 
   useLiveRefresh(refreshFeedSilently, { intervalMs: 9000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created'] });
   useLiveRefresh(loadUnreadMessages, { intervalMs: 12000, eventTypes: ['message:created'] });
+  useLiveRefresh(loadUnreadNotifications, { intervalMs: 12000, eventTypes: ['notification:new'] });
   useLiveRefresh(loadQuickAccess, { intervalMs: 20000, eventTypes: [] });
   useLiveRefresh(loadOnlineMembers, { intervalMs: 12000, eventTypes: [] });
 
@@ -230,8 +326,9 @@ export default function FeedPage() {
       <div className="panel">
         <StoryBar title={t('stories_title')} />
       </div>
+
       <div className="panel feed-mobile-tabs-wrap">
-        <div className="panel-body feed-mobile-tabs">
+        <div className="panel-body feed-mobile-tabs" role="tablist" aria-label={t('nav_feed')}>
           {feedTabOptions.map((tabItem) => (
             <button
               key={`feed-tab-${tabItem.key}`}
@@ -239,14 +336,17 @@ export default function FeedPage() {
               onClick={() => setMobileTab(tabItem.key)}
               title={tabItem.label}
               aria-label={tabItem.label}
+              role="tab"
+              aria-selected={mobileTab === tabItem.key}
             >
-              <span className="feed-tab-btn-icon" aria-hidden="true">{tabItem.icon}</span>
+              <span className="feed-tab-btn-icon" aria-hidden="true"><FeedIcon name={tabItem.icon} /></span>
               <span className="feed-tab-btn-label">{tabItem.label}</span>
+              {tabItem.badge > 0 ? <span className="mini-badge feed-tab-badge">{tabItem.badge}</span> : null}
             </button>
           ))}
         </div>
-        <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
       </div>
+
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
           <div className="panel">
@@ -259,12 +359,12 @@ export default function FeedPage() {
                   title={scopeItem.label}
                   aria-label={scopeItem.label}
                 >
-                  <span className="scope-btn-icon" aria-hidden="true">{scopeItem.icon}</span>
+                  <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
                   <span className="scope-btn-label">{scopeItem.label}</span>
                 </button>
               ))}
             </div>
-            <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
+
             <div className="panel-body scope-tabs scope-tabs-filter">
               {filterOptions.map((filterItem) => (
                 <button
@@ -274,14 +374,14 @@ export default function FeedPage() {
                   title={filterItem.label}
                   aria-label={filterItem.label}
                 >
-                  <span className="scope-btn-icon" aria-hidden="true">{filterItem.icon}</span>
+                  <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
                   <span className="scope-btn-label">{filterItem.label}</span>
                 </button>
               ))}
             </div>
-            <div className="scope-mobile-selected-title">{activeFilterLabel}</div>
             <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
           </div>
+
           {pendingPostsCount > 0 ? (
             <button
               className="btn primary"
@@ -294,8 +394,28 @@ export default function FeedPage() {
               {t('feed_new_posts_refresh', { count: pendingPostsCount })}
             </button>
           ) : null}
+
           <PostComposer onPost={() => load({ silent: true, force: true })} />
-          {loading ? <div className="muted">{t('loading')}</div> : null}
+
+          {loading && posts.length === 0 ? (
+            <div className="feed-skeleton-list" aria-label={t('loading')}>
+              <div className="post-card post-card-skeleton">
+                <div className="post-header-skeleton">
+                  <span className="skeleton-dot skeleton-avatar" />
+                  <SkeletonRows count={2} />
+                </div>
+                <SkeletonRows count={3} />
+              </div>
+              <div className="post-card post-card-skeleton">
+                <div className="post-header-skeleton">
+                  <span className="skeleton-dot skeleton-avatar" />
+                  <SkeletonRows count={2} />
+                </div>
+                <SkeletonRows count={4} />
+              </div>
+            </div>
+          ) : null}
+
           {posts.map((p) => (
             <PostCard key={p.id} post={p} onRefresh={() => load({ silent: true, force: true })} focused={focusPostId === p.id} />
           ))}
@@ -303,14 +423,20 @@ export default function FeedPage() {
           {loadingMore ? <div className="muted">{t('feed_loading_more')}</div> : null}
           {!hasMore && posts.length > 0 ? <div className="muted">{t('feed_end')}</div> : null}
         </div>
+
         <div className="col-side feed-side">
           <div className={`feed-tab-panel ${mobileTab === 'notifications' ? 'is-active' : ''}`}>
-            <NotificationPanel limit={3} showAllLink />
+            <NotificationPanel limit={3} showAllLink showEmptyCta onReload={loadUnreadNotifications} />
           </div>
+
           <div className={`panel feed-tab-panel ${mobileTab === 'online' ? 'is-active' : ''}`}>
             <h3>{t('online_members')}</h3>
             <div className="panel-body">
-              {onlineMembers.map((u) => (
+              {onlineMembersLoading ? <SkeletonRows count={2} /> : null}
+              {!onlineMembersLoading && onlineMembersError ? (
+                <EmptyPanelState message={t('online_members_empty')} actionLabel={t('games_refresh')} onRetry={() => loadOnlineMembers({ background: false })} />
+              ) : null}
+              {!onlineMembersLoading && !onlineMembersError && onlineMembers.map((u) => (
                 <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>
@@ -319,28 +445,41 @@ export default function FeedPage() {
                   </div>
                 </a>
               ))}
-              {!onlineMembers.length ? <div className="muted">{t('online_members_empty')}</div> : null}
+              {!onlineMembersLoading && !onlineMembersError && !onlineMembers.length ? <div className="muted">{t('online_members_empty')}</div> : null}
             </div>
           </div>
+
           <div className={`panel feed-tab-panel ${mobileTab === 'messages' ? 'is-active' : ''}`}>
             <h3>{t('new_messages')}</h3>
             <div className="panel-body">
-              <a href="/new/messages">
-                {unreadMessages > 0 ? t('unread_messages_count', { count: unreadMessages }) : t('no_new_messages')}
-              </a>
+              {unreadMessagesLoading ? <SkeletonRows count={1} /> : null}
+              {!unreadMessagesLoading && unreadMessagesError ? (
+                <EmptyPanelState message={t('no_new_messages')} actionLabel={t('games_refresh')} onRetry={() => loadUnreadMessages({ background: false })} />
+              ) : null}
+              {!unreadMessagesLoading && !unreadMessagesError ? (
+                <a href="/new/messages">
+                  {unreadMessages > 0 ? t('unread_messages_count', { count: unreadMessages }) : t('no_new_messages')}
+                </a>
+              ) : null}
             </div>
           </div>
+
           <div className={`feed-tab-panel ${mobileTab === 'livechat' ? 'is-active' : ''}`}>
             {mountLiveChat || mobileTab === 'livechat' ? (
               <LiveChatPanel />
             ) : (
-              <div className="panel"><div className="panel-body muted">{t('loading')}</div></div>
+              <div className="panel"><div className="panel-body"><SkeletonRows count={4} /></div></div>
             )}
           </div>
+
           <div className={`panel feed-tab-panel ${mobileTab === 'quick' ? 'is-active' : ''}`}>
             <h3>{t('quick_access')}</h3>
             <div className="panel-body">
-              {quickUsers.map((u) => (
+              {quickAccessLoading ? <SkeletonRows count={3} /> : null}
+              {!quickAccessLoading && quickAccessError ? (
+                <EmptyPanelState message={t('feed_discover_members')} actionLabel={t('games_refresh')} onRetry={() => loadQuickAccess({ background: false })} />
+              ) : null}
+              {!quickAccessLoading && !quickAccessError && quickUsers.map((u) => (
                 <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>

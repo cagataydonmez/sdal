@@ -11,7 +11,7 @@
 }
 
 .main-area {
-  padding: 28px 36px 80px;
+  padding: 28px 36px calc(80px + env(safe-area-inset-bottom, 0px));
   width: 100%;
   background: linear-gradient(180deg, var(--surface-main) 0%, transparent 42%);
 }
@@ -200,6 +200,37 @@
   margin-top: 10px;
   gap: 10px;
   flex-wrap: wrap;
+}
+.composer-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.composer-media-trigger {
+  white-space: nowrap;
+}
+.composer-media-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(100%, 340px);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--soft-panel);
+}
+.composer-media-chip-name {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.composer-media-remove {
+  padding: 5px 9px;
 }
 
 .messenger-shell {
@@ -436,10 +467,12 @@
   display: none;
 }
 .feed-mobile-tabs {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
+  align-items: stretch;
   gap: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
 }
 .feed-mobile-tabs .btn,
 .scope-tabs .btn {
@@ -447,6 +480,7 @@
 }
 .feed-mobile-tabs .btn {
   white-space: nowrap;
+  flex: 1 0 120px;
 }
 .scope-tabs .btn {
   white-space: nowrap;
@@ -457,18 +491,29 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  position: relative;
+}
+.feed-tab-btn-label {
+  font-size: 12px;
+  line-height: 1.2;
 }
 .scope-btn-icon,
 .feed-tab-btn-icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
   color: var(--accent-2);
   background: color-mix(in srgb, var(--accent-2) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-2) 34%, transparent);
+}
+.feed-tab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  pointer-events: none;
 }
