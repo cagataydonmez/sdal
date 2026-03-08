@@ -376,12 +376,20 @@ body.story-view-open .global-feedback {
     flex-wrap: wrap;
     justify-content: space-between;
   }
-  .feed-mobile-tabs-wrap {
-    display: block;
+  .feed-mobile-sticky-stack {
+    display: grid;
+    gap: 8px;
     position: sticky;
     top: calc(env(safe-area-inset-top, 0px) + 8px);
-    z-index: 18;
+    z-index: 19;
+  }
+  .feed-mobile-stories-wrap,
+  .feed-mobile-tabs-wrap {
     backdrop-filter: blur(8px);
+  }
+  .feed-mobile-tabs-wrap {
+    display: block;
+    position: static;
   }
   .feed-mobile-tabs {
     flex-direction: row;
@@ -406,6 +414,24 @@ body.story-view-open .global-feedback {
     flex: 0 0 42px;
   }
   .scope-tabs-feedtype .scope-btn {
+    min-width: 42px;
+    flex: 0 0 42px;
+  }
+  .scope-tabs-feedtype {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+  }
+  .scope-tabs-filter {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+  }
+  .scope-tabs-filter .scope-btn {
     min-width: 42px;
     flex: 0 0 42px;
   }

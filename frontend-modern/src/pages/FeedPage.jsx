@@ -326,29 +326,31 @@ export default function FeedPage() {
 
   return (
     <Layout title={t('nav_feed')}>
-      <div className="panel">
-        <StoryBar title={t('stories_title')} />
-      </div>
-
-      <div className="panel feed-mobile-tabs-wrap">
-        <div className="panel-body feed-mobile-tabs" role="tablist" aria-label={t('nav_feed')}>
-          {feedTabOptions.map((tabItem) => (
-            <button
-              key={`feed-tab-${tabItem.key}`}
-              className={`btn feed-tab-btn ${mobileTab === tabItem.key ? 'primary' : 'ghost'}`}
-              onClick={() => setMobileTab(tabItem.key)}
-              title={tabItem.label}
-              aria-label={tabItem.label}
-              role="tab"
-              aria-selected={mobileTab === tabItem.key}
-            >
-              <span className="feed-tab-btn-icon" aria-hidden="true"><FeedIcon name={tabItem.icon} /></span>
-              <span className="feed-tab-btn-label">{tabItem.label}</span>
-              {tabItem.badge > 0 ? <span className="mini-badge feed-tab-badge">{tabItem.badge}</span> : null}
-            </button>
-          ))}
+      <div className="feed-mobile-sticky-stack">
+        <div className="panel feed-mobile-stories-wrap">
+          <StoryBar title={t('stories_title')} />
         </div>
-        <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
+
+        <div className="panel feed-mobile-tabs-wrap">
+          <div className="panel-body feed-mobile-tabs" role="tablist" aria-label={t('nav_feed')}>
+            {feedTabOptions.map((tabItem) => (
+              <button
+                key={`feed-tab-${tabItem.key}`}
+                className={`btn feed-tab-btn ${mobileTab === tabItem.key ? 'primary' : 'ghost'}`}
+                onClick={() => setMobileTab(tabItem.key)}
+                title={tabItem.label}
+                aria-label={tabItem.label}
+                role="tab"
+                aria-selected={mobileTab === tabItem.key}
+              >
+                <span className="feed-tab-btn-icon" aria-hidden="true"><FeedIcon name={tabItem.icon} /></span>
+                <span className="feed-tab-btn-label">{tabItem.label}</span>
+                {tabItem.badge > 0 ? <span className="mini-badge feed-tab-badge">{tabItem.badge}</span> : null}
+              </button>
+            ))}
+          </div>
+          <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
+        </div>
       </div>
 
       <div className="grid">
