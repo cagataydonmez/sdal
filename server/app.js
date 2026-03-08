@@ -9383,12 +9383,15 @@ app.get('/api/new/events', requireAuth, (req, res) => {
   const isAdmin = hasAdminSession(req, user);
   const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
   const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+  const orderExpr = dbDriver === 'postgres'
+    ? 'COALESCE(e.starts_at, e.created_at)'
+    : "COALESCE(NULLIF(e.starts_at, ''), e.created_at)";
   const rows = sqlAll(
     `SELECT e.*, u.kadi AS creator_kadi
      FROM events e
      LEFT JOIN uyeler u ON u.id = e.created_by
      ${isAdmin ? '' : "WHERE (COALESCE(CAST(e.approved AS INTEGER), 1) = 1 OR LOWER(CAST(e.approved AS TEXT)) IN ('true','evet','yes'))"}
-     ORDER BY COALESCE(NULLIF(e.starts_at, ''), e.created_at) ASC, e.id DESC
+     ORDER BY ${orderExpr} ASC, e.id DESC
      LIMIT ? OFFSET ?`,
     [limit, offset]
   );

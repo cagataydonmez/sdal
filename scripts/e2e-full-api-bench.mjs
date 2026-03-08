@@ -462,6 +462,41 @@ async function runCoreScenario() {
     });
   }
 
+  const genericUploadForm = pngForm('image', 'generic.png');
+  genericUploadForm.append('entityType', 'e2e_misc');
+  genericUploadForm.append('entityId', String(state.users.user1.id || 0));
+  await request(user1, 'POST', '/api/upload-image', {
+    form: genericUploadForm,
+    note: 'upload-image:user1'
+  });
+
+  const albumCategories = await request(user1, 'GET', '/api/album/categories/active');
+  const firstAlbumCategoryId = Number(albumCategories.json?.categories?.[0]?.id || 0) || null;
+  if (firstAlbumCategoryId) {
+    state.ids.albumCategoryId = firstAlbumCategoryId;
+    const albumUploadForm = pngForm('file', 'album.png');
+    albumUploadForm.append('kat', String(firstAlbumCategoryId));
+    albumUploadForm.append('baslik', `E2E album ${RUN_TAG}`);
+    albumUploadForm.append('aciklama', 'E2E album upload');
+    await request(user1, 'POST', '/api/album/upload', {
+      form: albumUploadForm,
+      note: 'album-upload:user1'
+    });
+    const albumDetail = await request(user1, 'GET', '/api/albums/:id', {
+      params: { id: firstAlbumCategoryId },
+      query: { page: 1, pageSize: 20 }
+    });
+    state.ids.albumPhotoId = Number(albumDetail.json?.photos?.[0]?.id || 0) || null;
+    if (state.ids.albumPhotoId) {
+      await request(user1, 'GET', '/api/photos/:id', { params: { id: state.ids.albumPhotoId } });
+      await request(user2, 'POST', '/api/photos/:id/comments', {
+        params: { id: state.ids.albumPhotoId },
+        json: { yorum: `E2E album comment ${RUN_TAG}` },
+        allow: [400]
+      });
+    }
+  }
+
   await request(user1, 'GET', '/api/members', { query: { page: 1, pageSize: 10 } });
   await request(user1, 'GET', '/api/members/:id', { params: { id: state.users.user2.id } });
 
@@ -565,6 +600,12 @@ async function runCoreScenario() {
       params: { id: state.ids.groupId },
       json: { content: `E2E group post ${RUN_TAG}` }
     });
+    const groupPostUploadForm = pngForm('image', 'group-post.png');
+    groupPostUploadForm.append('content', `E2E group uploaded post ${RUN_TAG}`);
+    await request(user1, 'POST', '/api/new/groups/:id/posts/upload', {
+      params: { id: state.ids.groupId },
+      form: groupPostUploadForm
+    });
     await request(user1, 'GET', '/api/new/groups/:id', { params: { id: state.ids.groupId } });
   }
 
@@ -591,6 +632,16 @@ async function runCoreScenario() {
       json: { comment: `E2E event comment ${RUN_TAG}` }
     });
   }
+  const eventUploadForm = pngForm('image', 'event.png');
+  eventUploadForm.append('title', `E2E Event Upload ${RUN_TAG}`);
+  eventUploadForm.append('description', 'E2E event upload description');
+  eventUploadForm.append('starts_at', new Date(Date.now() + 7200_000).toISOString());
+  eventUploadForm.append('location', 'Istanbul');
+  const eventUploadCreate = await request(user1, 'POST', '/api/new/events/upload', {
+    form: eventUploadForm
+  });
+  const uploadedEventId = Number(eventUploadCreate.json?.id || 0) || null;
+  if (!state.ids.eventId && uploadedEventId) state.ids.eventId = uploadedEventId;
 
   const annCreate = await request(user1, 'POST', '/api/new/announcements', {
     json: {
@@ -605,6 +656,10 @@ async function runCoreScenario() {
       json: { approved: 1 }
     });
   }
+  const annUploadForm = pngForm('image', 'announcement.png');
+  annUploadForm.append('title', `E2E Announcement Upload ${RUN_TAG}`);
+  annUploadForm.append('body', 'E2E announcement upload body');
+  await request(user1, 'POST', '/api/new/announcements/upload', { form: annUploadForm });
 
   const jobCreate = await request(user1, 'POST', '/api/new/jobs', {
     json: {
