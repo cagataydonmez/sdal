@@ -45,6 +45,35 @@ run_with_priv() {
   fi
 }
 
+wait_for_api_health() {
+  local port_value="$1"
+  local retry_count="${HEALTH_RETRY_COUNT:-30}"
+  local retry_delay="${HEALTH_RETRY_DELAY:-2}"
+  local attempt=1
+  local url
+
+  while [[ "$attempt" -le "$retry_count" ]]; do
+    for url in \
+      "http://127.0.0.1:${port_value}/api/health" \
+      "http://localhost:${port_value}/api/health" \
+      "http://127.0.0.1:${port_value}/health" \
+      "http://localhost:${port_value}/health"; do
+      if curl -fsS --max-time 4 "$url" >/dev/null 2>&1; then
+        log "health probe succeeded via ${url} (attempt ${attempt}/${retry_count})"
+        return 0
+      fi
+    done
+
+    sleep "$retry_delay"
+    attempt=$((attempt + 1))
+  done
+
+  log "health probe failed after ${retry_count} attempts on port ${port_value}"
+  run_with_priv systemctl status sdal-api.service --no-pager -l || true
+  run_with_priv journalctl -u sdal-api.service -n 120 --no-pager || true
+  return 1
+}
+
 capture_nginx_dump() {
   if ! command -v nginx >/dev/null 2>&1; then
     log "nginx not found; skipping nginx domain snapshot"
@@ -204,13 +233,13 @@ if [[ "${SDAL_DB_DRIVER:-}" == "postgres" && -n "${DATABASE_URL:-}" ]]; then
   npm --prefix server run migrate:up
 fi
 
-$SUDO systemctl daemon-reload || true
-$SUDO systemctl restart sdal-api.service
-$SUDO systemctl restart sdal-worker.service
+run_with_priv systemctl daemon-reload || true
+run_with_priv systemctl restart sdal-api.service
+run_with_priv systemctl restart sdal-worker.service
 
 PORT_VALUE="${PORT:-8787}"
-log "health probe on 127.0.0.1:${PORT_VALUE}"
-curl -fsS "http://127.0.0.1:${PORT_VALUE}/api/health" >/dev/null
+log "health probe on 127.0.0.1:${PORT_VALUE} (retries=${HEALTH_RETRY_COUNT:-30}, delay=${HEALTH_RETRY_DELAY:-2}s)"
+wait_for_api_health "$PORT_VALUE"
 
 capture_domain_statuses "$DOMAIN_STATUS_AFTER_FILE"
 if [[ "$CAPTURE_HOST_SNAPSHOT" == "1" ]]; then
