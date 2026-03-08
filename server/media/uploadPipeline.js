@@ -172,10 +172,8 @@ export async function processUpload({
 export async function deleteImageRecord(imageId, sqlGet, sqlRun, uploadsDir, writeAppLog) {
   const log = writeAppLog || (() => {});
 
-  const record = sqlGet('SELECT * FROM image_records WHERE id = ?', [imageId]);
+  const record = await Promise.resolve(sqlGet('SELECT * FROM image_records WHERE id = ?', [imageId]));
   if (!record) return;
-
-  const settings = loadMediaSettings(sqlGet);
 
   // Build provider based on the record's provider (not current settings)
   let provider;
@@ -185,7 +183,7 @@ export async function deleteImageRecord(imageId, sqlGet, sqlRun, uploadsDir, wri
     } catch {
       log('error', 'image_delete_spaces_unavailable', { imageId });
       // Can't delete from Spaces if credentials are gone; just remove DB record
-      sqlRun('DELETE FROM image_records WHERE id = ?', [imageId]);
+      await Promise.resolve(sqlRun('DELETE FROM image_records WHERE id = ?', [imageId]));
       return;
     }
   } else {
@@ -211,7 +209,7 @@ export async function deleteImageRecord(imageId, sqlGet, sqlRun, uploadsDir, wri
   }
 
   // Remove DB record
-  sqlRun('DELETE FROM image_records WHERE id = ?', [imageId]);
+  await Promise.resolve(sqlRun('DELETE FROM image_records WHERE id = ?', [imageId]));
 
   log('info', 'image_deleted', { imageId, provider: record.provider });
 }

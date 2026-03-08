@@ -1008,13 +1008,33 @@ const messengerSendIdempotency = createIdempotencyMiddleware({
 });
 
 async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writeAppLog }) {
+  const runGet = async (query, params = []) => Promise.resolve(sqlGet(query, params));
+  const runAll = async (query, params = []) => Promise.resolve(sqlAll(query, params));
+  const runExec = async (query, params = []) => Promise.resolve(sqlRun(query, params));
+
   const userIdStr = String(userId);
-  const user = sqlGet('SELECT kadi, resim FROM uyeler WHERE id = ?', [userId]);
+  const user = await runGet('SELECT kadi, resim FROM uyeler WHERE id = ?', [userId]);
   if (!user) return;
 
+  const metadataTables = [
+    'posts', 'post_comments', 'post_likes', 'stories', 'story_views',
+    'events', 'event_responses', 'event_comments', 'groups', 'group_members',
+    'group_join_requests', 'group_invites', 'group_events', 'group_announcements',
+    'album_fotoyorum', 'album_foto', 'gelenkutusu', 'sdal_messenger_messages',
+    'sdal_messenger_threads', 'follows', 'notifications', 'oyun_yilan',
+    'oyun_tetris', 'game_scores', 'verification_requests', 'member_engagement_scores',
+    'engagement_ab_assignments', 'oauth_accounts', 'chat_messages'
+  ];
+  const tableColumns = new Map();
+  await Promise.all(metadataTables.map(async (table) => {
+    const cols = await getTableColumnSetAsync(table);
+    tableColumns.set(table, cols);
+  }));
+  const hasTableLocal = (table) => (tableColumns.get(table)?.size || 0) > 0;
+  const hasColumnLocal = (table, column) => tableColumns.get(table)?.has(String(column || '').toLowerCase()) || false;
   const getUserColumn = (table) => {
-    if (hasColumn(table, 'user_id')) return 'user_id';
-    if (hasColumn(table, 'uye_id')) return 'uye_id';
+    if (hasColumnLocal(table, 'user_id')) return 'user_id';
+    if (hasColumnLocal(table, 'uye_id')) return 'uye_id';
     return '';
   };
 
@@ -1037,7 +1057,6 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
     chatMessages: getUserColumn('chat_messages')
   };
 
-  // 1. Avatar
   if (user.resim && user.resim !== 'yok' && user.resim.trim() !== '') {
     const avatarPath = path.join(uploadsDir, 'vesikalik', user.resim);
     try {
@@ -1047,81 +1066,72 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
     }
   }
 
-  // 2. Posts & variants
-  if (hasTable('posts') && userColumn.posts) {
-    const userPosts = sqlAll(`SELECT id, image_record_id FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
+  if (hasTableLocal('posts') && userColumn.posts) {
+    const userPosts = await runAll(`SELECT id, image_record_id FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
     for (const p of userPosts) {
       if (p.image_record_id) {
-        await deleteImageRecord(p.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+        await deleteImageRecord(p.image_record_id, runGet, runExec, uploadsDir, writeAppLog).catch(() => {});
       }
     }
-    sqlRun(`DELETE FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
+    await runExec(`DELETE FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
   }
-  if (hasTable('post_comments') && userColumn.postComments) sqlRun(`DELETE FROM post_comments WHERE ${userColumn.postComments} = ?`, [userId]);
-  if (hasTable('post_likes') && userColumn.postLikes) sqlRun(`DELETE FROM post_likes WHERE ${userColumn.postLikes} = ?`, [userId]);
+  if (hasTableLocal('post_comments') && userColumn.postComments) await runExec(`DELETE FROM post_comments WHERE ${userColumn.postComments} = ?`, [userId]);
+  if (hasTableLocal('post_likes') && userColumn.postLikes) await runExec(`DELETE FROM post_likes WHERE ${userColumn.postLikes} = ?`, [userId]);
 
-  // 3. Stories & variants
-  if (hasTable('stories') && userColumn.stories) {
-    const userStories = sqlAll(`SELECT id, image_record_id FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
+  if (hasTableLocal('stories') && userColumn.stories) {
+    const userStories = await runAll(`SELECT id, image_record_id FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
     for (const s of userStories) {
       if (s.image_record_id) {
-        await deleteImageRecord(s.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+        await deleteImageRecord(s.image_record_id, runGet, runExec, uploadsDir, writeAppLog).catch(() => {});
       }
     }
-    sqlRun(`DELETE FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
+    await runExec(`DELETE FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
   }
-  if (hasTable('story_views') && userColumn.storyViews) sqlRun(`DELETE FROM story_views WHERE ${userColumn.storyViews} = ?`, [userId]);
+  if (hasTableLocal('story_views') && userColumn.storyViews) await runExec(`DELETE FROM story_views WHERE ${userColumn.storyViews} = ?`, [userId]);
 
-  // 4. Events
-  if (hasTable('events')) sqlRun('DELETE FROM events WHERE created_by = ?', [userId]);
-  if (hasTable('event_responses') && userColumn.eventResponses) sqlRun(`DELETE FROM event_responses WHERE ${userColumn.eventResponses} = ?`, [userId]);
-  if (hasTable('event_comments') && userColumn.eventComments) sqlRun(`DELETE FROM event_comments WHERE ${userColumn.eventComments} = ?`, [userId]);
+  if (hasTableLocal('events')) await runExec('DELETE FROM events WHERE created_by = ?', [userId]);
+  if (hasTableLocal('event_responses') && userColumn.eventResponses) await runExec(`DELETE FROM event_responses WHERE ${userColumn.eventResponses} = ?`, [userId]);
+  if (hasTableLocal('event_comments') && userColumn.eventComments) await runExec(`DELETE FROM event_comments WHERE ${userColumn.eventComments} = ?`, [userId]);
 
-  // 5. Groups (Delete if owned)
-  if (hasTable('groups')) {
-    const ownedGroups = sqlAll('SELECT id FROM groups WHERE owner_id = ?', [userId]);
+  if (hasTableLocal('groups')) {
+    const ownedGroups = await runAll('SELECT id FROM groups WHERE owner_id = ?', [userId]);
     for (const g of ownedGroups) {
-      if (hasTable('group_members')) sqlRun('DELETE FROM group_members WHERE group_id = ?', [g.id]);
-      if (hasTable('group_join_requests')) sqlRun('DELETE FROM group_join_requests WHERE group_id = ?', [g.id]);
-      if (hasTable('group_invites')) sqlRun('DELETE FROM group_invites WHERE group_id = ?', [g.id]);
-      if (hasTable('group_events')) sqlRun('DELETE FROM group_events WHERE group_id = ?', [g.id]);
-      if (hasTable('group_announcements')) sqlRun('DELETE FROM group_announcements WHERE group_id = ?', [g.id]);
-      sqlRun('DELETE FROM groups WHERE id = ?', [g.id]);
+      if (hasTableLocal('group_members')) await runExec('DELETE FROM group_members WHERE group_id = ?', [g.id]);
+      if (hasTableLocal('group_join_requests')) await runExec('DELETE FROM group_join_requests WHERE group_id = ?', [g.id]);
+      if (hasTableLocal('group_invites')) await runExec('DELETE FROM group_invites WHERE group_id = ?', [g.id]);
+      if (hasTableLocal('group_events')) await runExec('DELETE FROM group_events WHERE group_id = ?', [g.id]);
+      if (hasTableLocal('group_announcements')) await runExec('DELETE FROM group_announcements WHERE group_id = ?', [g.id]);
+      await runExec('DELETE FROM groups WHERE id = ?', [g.id]);
     }
   }
-  if (hasTable('group_members') && userColumn.groupMembers) sqlRun(`DELETE FROM group_members WHERE ${userColumn.groupMembers} = ?`, [userId]);
-  if (hasTable('group_join_requests') && userColumn.groupJoinRequests) sqlRun(`DELETE FROM group_join_requests WHERE ${userColumn.groupJoinRequests} = ? OR reviewed_by = ?`, [userId, userId]);
-  if (hasTable('group_invites')) sqlRun('DELETE FROM group_invites WHERE invited_user_id = ? OR invited_by = ?', [userId, userId]);
+  if (hasTableLocal('group_members') && userColumn.groupMembers) await runExec(`DELETE FROM group_members WHERE ${userColumn.groupMembers} = ?`, [userId]);
+  if (hasTableLocal('group_join_requests') && userColumn.groupJoinRequests) await runExec(`DELETE FROM group_join_requests WHERE ${userColumn.groupJoinRequests} = ? OR reviewed_by = ?`, [userId, userId]);
+  if (hasTableLocal('group_invites')) await runExec('DELETE FROM group_invites WHERE invited_user_id = ? OR invited_by = ?', [userId, userId]);
 
-  // 6. Album (delete comments on user's photos first, then comments by user, then photos)
-  if (hasTable('album_fotoyorum') && hasTable('album_foto')) {
-    sqlRun('DELETE FROM album_fotoyorum WHERE fotoid IN (SELECT id FROM album_foto WHERE ekleyenid = ?)', [userId]);
+  if (hasTableLocal('album_fotoyorum') && hasTableLocal('album_foto')) {
+    await runExec('DELETE FROM album_fotoyorum WHERE fotoid IN (SELECT id FROM album_foto WHERE ekleyenid = ?)', [userId]);
   }
-  if (hasTable('album_fotoyorum')) {
-    sqlRun('DELETE FROM album_fotoyorum WHERE uyeadi = ?', [user.kadi]);
+  if (hasTableLocal('album_fotoyorum')) {
+    await runExec('DELETE FROM album_fotoyorum WHERE uyeadi = ?', [user.kadi]);
   }
-  if (hasTable('album_foto')) sqlRun('DELETE FROM album_foto WHERE ekleyenid = ?', [userId]);
+  if (hasTableLocal('album_foto')) await runExec('DELETE FROM album_foto WHERE ekleyenid = ?', [userId]);
 
-  // 7. Messaging
-  if (hasTable('gelenkutusu')) sqlRun('DELETE FROM gelenkutusu WHERE kime = ? OR kimden = ?', [userIdStr, userIdStr]);
-  if (hasTable('sdal_messenger_messages')) sqlRun('DELETE FROM sdal_messenger_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
-  if (hasTable('sdal_messenger_threads')) sqlRun('DELETE FROM sdal_messenger_threads WHERE user_a_id = ? OR user_b_id = ?', [userId, userId]);
+  if (hasTableLocal('gelenkutusu')) await runExec('DELETE FROM gelenkutusu WHERE kime = ? OR kimden = ?', [userIdStr, userIdStr]);
+  if (hasTableLocal('sdal_messenger_messages')) await runExec('DELETE FROM sdal_messenger_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+  if (hasTableLocal('sdal_messenger_threads')) await runExec('DELETE FROM sdal_messenger_threads WHERE user_a_id = ? OR user_b_id = ?', [userId, userId]);
 
-  // 8. Follows & Notifs
-  if (hasTable('follows')) sqlRun('DELETE FROM follows WHERE follower_id = ? OR following_id = ?', [userId, userId]);
-  if (hasTable('notifications') && userColumn.notifications) sqlRun(`DELETE FROM notifications WHERE ${userColumn.notifications} = ? OR source_user_id = ?`, [userId, userId]);
+  if (hasTableLocal('follows')) await runExec('DELETE FROM follows WHERE follower_id = ? OR following_id = ?', [userId, userId]);
+  if (hasTableLocal('notifications') && userColumn.notifications) await runExec(`DELETE FROM notifications WHERE ${userColumn.notifications} = ? OR source_user_id = ?`, [userId, userId]);
 
-  // 9. Games
-  if (hasTable('oyun_yilan')) sqlRun('DELETE FROM oyun_yilan WHERE isim = ?', [user.kadi]);
-  if (hasTable('oyun_tetris')) sqlRun('DELETE FROM oyun_tetris WHERE isim = ?', [user.kadi]);
-  if (hasTable('game_scores') && userColumn.gameScores) sqlRun(`DELETE FROM game_scores WHERE ${userColumn.gameScores} = ?`, [userId]);
+  if (hasTableLocal('oyun_yilan')) await runExec('DELETE FROM oyun_yilan WHERE isim = ?', [user.kadi]);
+  if (hasTableLocal('oyun_tetris')) await runExec('DELETE FROM oyun_tetris WHERE isim = ?', [user.kadi]);
+  if (hasTableLocal('game_scores') && userColumn.gameScores) await runExec(`DELETE FROM game_scores WHERE ${userColumn.gameScores} = ?`, [userId]);
 
-  // 10. System
-  if (hasTable('verification_requests') && userColumn.verificationRequests) {
-    const proofRows = sqlAll(`SELECT proof_path, proof_image_record_id FROM verification_requests WHERE ${userColumn.verificationRequests} = ?`, [userId]);
+  if (hasTableLocal('verification_requests') && userColumn.verificationRequests) {
+    const proofRows = await runAll(`SELECT proof_path, proof_image_record_id FROM verification_requests WHERE ${userColumn.verificationRequests} = ?`, [userId]);
     for (const row of proofRows) {
       if (row?.proof_image_record_id) {
-        await deleteImageRecord(row.proof_image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+        await deleteImageRecord(row.proof_image_record_id, runGet, runExec, uploadsDir, writeAppLog).catch(() => {});
         continue;
       }
       const proofPath = String(row?.proof_path || '').trim();
@@ -1134,15 +1144,14 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
         writeAppLog('error', 'verification_proof_delete_failed', { userId, path: absoluteProof, error: e.message });
       }
     }
-    sqlRun(`DELETE FROM verification_requests WHERE ${userColumn.verificationRequests} = ? OR reviewer_id = ?`, [userId, userId]);
+    await runExec(`DELETE FROM verification_requests WHERE ${userColumn.verificationRequests} = ? OR reviewer_id = ?`, [userId, userId]);
   }
-  if (hasTable('member_engagement_scores') && userColumn.memberEngagementScores) sqlRun(`DELETE FROM member_engagement_scores WHERE ${userColumn.memberEngagementScores} = ?`, [userId]);
-  if (hasTable('engagement_ab_assignments') && userColumn.engagementAbAssignments) sqlRun(`DELETE FROM engagement_ab_assignments WHERE ${userColumn.engagementAbAssignments} = ?`, [userId]);
-  if (hasTable('oauth_accounts') && userColumn.oauthAccounts) sqlRun(`DELETE FROM oauth_accounts WHERE ${userColumn.oauthAccounts} = ?`, [userId]);
-  if (hasTable('chat_messages') && userColumn.chatMessages) sqlRun(`DELETE FROM chat_messages WHERE ${userColumn.chatMessages} = ?`, [userId]);
+  if (hasTableLocal('member_engagement_scores') && userColumn.memberEngagementScores) await runExec(`DELETE FROM member_engagement_scores WHERE ${userColumn.memberEngagementScores} = ?`, [userId]);
+  if (hasTableLocal('engagement_ab_assignments') && userColumn.engagementAbAssignments) await runExec(`DELETE FROM engagement_ab_assignments WHERE ${userColumn.engagementAbAssignments} = ?`, [userId]);
+  if (hasTableLocal('oauth_accounts') && userColumn.oauthAccounts) await runExec(`DELETE FROM oauth_accounts WHERE ${userColumn.oauthAccounts} = ?`, [userId]);
+  if (hasTableLocal('chat_messages') && userColumn.chatMessages) await runExec(`DELETE FROM chat_messages WHERE ${userColumn.chatMessages} = ?`, [userId]);
 
-  // 11. Final purge
-  sqlRun('DELETE FROM uyeler WHERE id = ?', [userId]);
+  await runExec('DELETE FROM uyeler WHERE id = ?', [userId]);
   writeAppLog('info', 'member_hard_deleted', { userId, kadi: user.kadi });
 }
 
