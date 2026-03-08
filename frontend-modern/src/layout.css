@@ -451,13 +451,14 @@
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 2px;
   scrollbar-width: thin;
 }
 .scope-tabs-feedtype {
-  justify-content: flex-start;
+  justify-content: center;
 }
 .scope-tabs-feedtype .scope-btn {
   min-width: 136px;
@@ -465,7 +466,7 @@
 }
 .scope-tabs-filter {
   margin-top: 12px;
-  justify-content: flex-start;
+  justify-content: center;
 }
 .scope-tabs-filter .scope-btn {
   min-width: 112px;

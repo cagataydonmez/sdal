@@ -436,7 +436,7 @@ body.story-view-open .global-feedback {
   .scope-tabs-feedtype {
     display: flex;
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
     gap: 8px;
     overflow-x: auto;
@@ -445,7 +445,7 @@ body.story-view-open .global-feedback {
   .scope-tabs-filter {
     display: flex;
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
     gap: 8px;
     overflow-x: auto;
