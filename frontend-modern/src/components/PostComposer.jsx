@@ -92,6 +92,8 @@ export default function PostComposer({ onPost }) {
           className="composer-file-input"
           type="file"
           accept="image/*"
+          hidden
+          style={{ display: 'none' }}
           onChange={(e) => setImage(e.target.files?.[0] || null)}
         />
 

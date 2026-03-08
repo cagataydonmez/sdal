@@ -118,6 +118,9 @@ export default function FeedPage() {
               : 0
     }))
   ]), [t, unreadNotifications, onlineMembers.length, unreadMessages]);
+  const activeScopeLabel = scopeOptions.find((item) => item.key === feedType)?.label || t('main_feed');
+  const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
+  const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
 
   useEffect(() => {
     postsRef.current = posts;
@@ -345,6 +348,7 @@ export default function FeedPage() {
             </button>
           ))}
         </div>
+        <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
       </div>
 
       <div className="grid">
@@ -364,6 +368,7 @@ export default function FeedPage() {
                 </button>
               ))}
             </div>
+            <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
 
             <div className="panel-body scope-tabs scope-tabs-filter">
               {filterOptions.map((filterItem) => (
@@ -379,6 +384,7 @@ export default function FeedPage() {
                 </button>
               ))}
             </div>
+            <div className="scope-mobile-selected-title">{activeFilterLabel}</div>
             <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
           </div>
 

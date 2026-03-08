@@ -184,12 +184,12 @@ body.story-view-open .global-feedback {
     position: fixed;
     top: 0;
     left: 0;
-    width: min(86vw, 360px);
+    width: min(78vw, 320px);
     height: 100dvh;
     background: var(--card);
     border-right: 1px solid var(--line);
     box-shadow: var(--shadow);
-    padding: 14px 12px;
+    padding: 12px 10px;
     transform: translateX(-102%);
     transition: transform 0.2s ease;
     z-index: 45;
@@ -203,17 +203,25 @@ body.story-view-open .global-feedback {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
   .mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     overflow: auto;
     flex: 1;
+  }
+  .mobile-nav-links a {
+    padding: 8px 10px;
+    border-radius: 9px;
+    font-size: 15px;
   }
   .mobile-nav-foot {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-top: 12px;
+    gap: 6px;
+    margin-top: 10px;
   }
   .top-actions .theme-toggle {
     max-width: 56vw;
@@ -335,11 +343,11 @@ body.story-view-open .global-feedback {
   .top-actions .theme-toggle {
     padding: 7px 10px;
   }
-  .user-chip span {
-    max-width: 112px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .top-actions .user-chip {
+    padding: 6px;
+  }
+  .top-actions .user-chip span {
+    display: none;
   }
   .story-modal {
     place-items: stretch;
@@ -375,28 +383,52 @@ body.story-view-open .global-feedback {
     z-index: 18;
     backdrop-filter: blur(8px);
   }
+  .feed-mobile-tabs {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+  }
   .scope-btn,
   .feed-tab-btn {
-    padding: 8px 10px;
-    gap: 6px;
+    padding: 0;
+    gap: 0;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+  }
+  .feed-tab-btn {
+    border-radius: 999px;
   }
   .scope-tabs .scope-btn {
     min-width: 0;
-    flex: 1 1 0;
+    flex: 0 0 42px;
+  }
+  .scope-tabs-feedtype .scope-btn {
+    min-width: 42px;
+    flex: 0 0 42px;
   }
   .scope-btn-icon,
   .feed-tab-btn-icon {
     font-size: 11px;
   }
+  .scope-btn-label,
   .feed-tab-btn-label {
-    display: block;
-    font-size: 11px;
-    line-height: 1.15;
-    text-align: left;
+    display: none;
+  }
+  .feed-tab-badge {
+    top: -2px;
+    right: -2px;
+    transform: scale(0.9);
   }
   .scope-mobile-selected-title,
   .feed-mobile-selected-title {
-    display: none;
+    display: block;
+    margin-top: 6px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
   }
   .feed-tab-panel {
     display: none;

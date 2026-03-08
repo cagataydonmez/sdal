@@ -468,6 +468,8 @@
 }
 .feed-mobile-tabs {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 8px;
   overflow-x: auto;
@@ -480,7 +482,7 @@
 }
 .feed-mobile-tabs .btn {
   white-space: nowrap;
-  flex: 1 0 120px;
+  flex: 0 0 auto;
 }
 .scope-tabs .btn {
   white-space: nowrap;
