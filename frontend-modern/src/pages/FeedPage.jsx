@@ -355,7 +355,7 @@ export default function FeedPage() {
 
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
-          <div className="panel">
+          <div className="panel feed-mobile-scope-card">
             <div className="panel-body scope-tabs scope-tabs-feedtype">
               {scopeOptions.map((scopeItem) => (
                 <button

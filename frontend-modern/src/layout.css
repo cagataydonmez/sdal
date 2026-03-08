@@ -454,14 +454,22 @@
 .scope-tabs-feedtype {
   display: flex;
   justify-content: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  align-items: center;
 }
 .scope-tabs-feedtype .scope-btn {
   min-width: 170px;
-  flex: 0 0 auto;
+  flex: 0 1 220px;
 }
 .scope-tabs-filter {
   margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.scope-tabs-filter .scope-btn {
+  flex: 0 1 180px;
 }
 .feed-mobile-tabs-wrap {
   display: none;
