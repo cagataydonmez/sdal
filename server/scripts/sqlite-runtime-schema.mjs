@@ -274,6 +274,18 @@ export function ensureSqliteRuntimeSchema(db) {
       responded_at TEXT,
       UNIQUE(sender_id, receiver_id)
     );
+    CREATE TABLE IF NOT EXISTS mentorship_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      requester_id INTEGER NOT NULL,
+      mentor_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'requested',
+      focus_area TEXT,
+      message TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      responded_at TEXT,
+      UNIQUE(requester_id, mentor_id)
+    );
     CREATE TABLE IF NOT EXISTS email_change_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,

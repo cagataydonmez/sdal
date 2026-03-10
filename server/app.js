@@ -8205,6 +8205,13 @@ app.post('/api/new/stories/:id/view', requireAuth, (req, res) => {
 });
 
 
+
+function normalizeMentorshipStatus(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'requested' || raw === 'accepted' || raw === 'declined' || raw === 'cancelled') return raw;
+  return '';
+}
+
 function normalizeConnectionStatus(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (raw === 'pending' || raw === 'accepted' || raw === 'ignored') return raw;
@@ -8340,6 +8347,125 @@ app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['ignored', now, now, requestId]);
   return res.json({ ok: true, status: 'ignored' });
+});
+
+
+app.post('/api/new/mentorship/request/:id', requireAuth, (req, res) => {
+  const requesterId = Number(req.session?.userId || 0);
+  const mentorId = Number(req.params.id || 0);
+  if (!requesterId || !mentorId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
+  if (requesterId === mentorId) return res.status(400).send('Kendine mentorluk isteği gönderemezsin.');
+
+  const mentor = sqlGet('SELECT id, mentor_opt_in FROM uyeler WHERE id = ?', [mentorId]);
+  if (!mentor) return res.status(404).send('Mentor bulunamadı.');
+  if (Number(mentor.mentor_opt_in || 0) !== 1) {
+    return res.status(409).json({ code: 'MENTOR_NOT_AVAILABLE', message: 'Seçilen üye mentorluk taleplerini kabul etmiyor.' });
+  }
+
+  const focusArea = String(req.body?.focus_area || '').trim().slice(0, 120);
+  const message = String(req.body?.message || '').trim().slice(0, 2000);
+  const now = new Date().toISOString();
+
+  const existing = sqlGet('SELECT id, status FROM mentorship_requests WHERE requester_id = ? AND mentor_id = ?', [requesterId, mentorId]);
+  const existingStatus = String(existing?.status || '').toLowerCase();
+  if (existing && existingStatus === 'requested') {
+    return res.status(409).json({ code: 'REQUEST_ALREADY_PENDING', message: 'Bu mentor için zaten bekleyen bir talebin var.' });
+  }
+  if (existing && existingStatus === 'accepted') {
+    return res.status(409).json({ code: 'REQUEST_ALREADY_ACCEPTED', message: 'Bu mentor ile aktif bir mentorluk bağlantın var.' });
+  }
+
+  if (existing) {
+    sqlRun(
+      'UPDATE mentorship_requests SET status = ?, focus_area = ?, message = ?, updated_at = ?, responded_at = NULL WHERE id = ?',
+      ['requested', focusArea, message, now, existing.id]
+    );
+  } else {
+    sqlRun(
+      `INSERT INTO mentorship_requests (requester_id, mentor_id, status, focus_area, message, created_at, updated_at)
+       VALUES (?, ?, 'requested', ?, ?, ?, ?)`,
+      [requesterId, mentorId, focusArea, message, now, now]
+    );
+  }
+
+  addNotification({
+    userId: mentorId,
+    type: 'mentorship_request',
+    sourceUserId: requesterId,
+    entityId: mentorId,
+    message: 'Sana bir mentorluk isteği gönderdi.'
+  });
+
+  return res.json({ ok: true, status: 'requested' });
+});
+
+app.get('/api/new/mentorship/requests', requireAuth, async (req, res) => {
+  const userId = Number(req.session?.userId || 0);
+  const status = normalizeMentorshipStatus(req.query.status) || 'requested';
+  const direction = String(req.query.direction || 'incoming').trim().toLowerCase() === 'outgoing' ? 'outgoing' : 'incoming';
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+  const whereClause = direction === 'incoming' ? 'mr.mentor_id = ?' : 'mr.requester_id = ?';
+  const joinClause = direction === 'incoming'
+    ? 'LEFT JOIN uyeler u ON u.id = mr.requester_id'
+    : 'LEFT JOIN uyeler u ON u.id = mr.mentor_id';
+
+  try {
+    const rows = await sqlAllAsync(
+      `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM mentorship_requests mr
+       ${joinClause}
+       WHERE ${whereClause} AND mr.status = ?
+       ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
+       LIMIT ? OFFSET ?`,
+      [userId, status, limit, offset]
+    );
+    return res.json({ items: rows, hasMore: rows.length === limit, direction, status });
+  } catch (err) {
+    console.error('mentorship.requests failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.post('/api/new/mentorship/accept/:id', requireAuth, (req, res) => {
+  const requestId = Number(req.params.id || 0);
+  const currentUserId = Number(req.session?.userId || 0);
+  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+
+  const row = sqlGet('SELECT id, requester_id, mentor_id, status FROM mentorship_requests WHERE id = ?', [requestId]);
+  if (!row) return res.status(404).send('Mentorluk isteği bulunamadı.');
+  if (Number(row.mentor_id) !== currentUserId) return res.status(403).send('Bu mentorluk isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'requested') return res.status(409).send('Mentorluk isteği artık beklemede değil.');
+
+  const now = new Date().toISOString();
+  sqlRun('UPDATE mentorship_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['accepted', now, now, requestId]);
+
+  addNotification({
+    userId: Number(row.requester_id),
+    type: 'mentorship_accepted',
+    sourceUserId: currentUserId,
+    entityId: currentUserId,
+    message: 'Mentorluk isteğini kabul etti.'
+  });
+
+  return res.json({ ok: true, status: 'accepted' });
+});
+
+app.post('/api/new/mentorship/decline/:id', requireAuth, (req, res) => {
+  const requestId = Number(req.params.id || 0);
+  const currentUserId = Number(req.session?.userId || 0);
+  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+
+  const row = sqlGet('SELECT id, requester_id, mentor_id, status FROM mentorship_requests WHERE id = ?', [requestId]);
+  if (!row) return res.status(404).send('Mentorluk isteği bulunamadı.');
+  if (Number(row.mentor_id) !== currentUserId) return res.status(403).send('Bu mentorluk isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'requested') return res.status(409).send('Mentorluk isteği artık beklemede değil.');
+
+  const now = new Date().toISOString();
+  sqlRun('UPDATE mentorship_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['declined', now, now, requestId]);
+  return res.json({ ok: true, status: 'declined' });
 });
 
 app.post('/api/new/follow/:id', requireAuth, (req, res) => {
