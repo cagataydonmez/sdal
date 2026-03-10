@@ -254,7 +254,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 | **1.5** | Legacy wipe script | ✅ Done |
 | **1.5** | Recursive member delete | ✅ Done |
 | **2** | Profile extensions | ❌ Implement |
-| **2** | connection_requests | ❌ Implement |
+| **2** | connection_requests | ✅ Implemented (`/api/new/connections/*`, DB + contract test) |
 | **2** | Jobs table + JobsPage | ❌ Implement |
 | **2** | Expert/Mentor filters | ❌ Implement |
 | **3** | All items | ❌ Plan only |
