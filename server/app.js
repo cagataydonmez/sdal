@@ -8218,6 +8218,31 @@ function normalizeConnectionStatus(value) {
   return '';
 }
 
+function normalizeTeacherAlumniRelationshipType(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'taught_in_class' || raw === 'mentor' || raw === 'advisor') return raw;
+  return '';
+}
+
+function ensureTeacherAlumniLinksTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS teacher_alumni_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      teacher_user_id INTEGER NOT NULL,
+      alumni_user_id INTEGER NOT NULL,
+      relationship_type TEXT NOT NULL,
+      class_year INTEGER,
+      notes TEXT,
+      confidence_score REAL NOT NULL DEFAULT 1.0,
+      created_by INTEGER,
+      created_at TEXT NOT NULL,
+      UNIQUE(teacher_user_id, alumni_user_id, relationship_type, class_year)
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_alumni ON teacher_alumni_links (alumni_user_id, created_at DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_teacher ON teacher_alumni_links (teacher_user_id, created_at DESC)');
+}
+
 app.post('/api/new/connections/request/:id', requireAuth, (req, res) => {
   const senderId = Number(req.session?.userId || 0);
   const receiverId = Number(req.params.id || 0);
@@ -8466,6 +8491,104 @@ app.post('/api/new/mentorship/decline/:id', requireAuth, (req, res) => {
   const now = new Date().toISOString();
   sqlRun('UPDATE mentorship_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['declined', now, now, requestId]);
   return res.json({ ok: true, status: 'declined' });
+});
+
+app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
+  try {
+    ensureTeacherAlumniLinksTable();
+    const userId = Number(req.session?.userId || 0);
+    const direction = String(req.query.direction || 'my_teachers').trim().toLowerCase() === 'my_students' ? 'my_students' : 'my_teachers';
+    const relationshipType = normalizeTeacherAlumniRelationshipType(req.query.relationship_type);
+    const classYear = Number(req.query.class_year || 0);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+    const where = [];
+    const params = [];
+    if (direction === 'my_students') {
+      where.push('l.teacher_user_id = ?');
+      params.push(userId);
+    } else {
+      where.push('l.alumni_user_id = ?');
+      params.push(userId);
+    }
+    if (relationshipType) {
+      where.push('l.relationship_type = ?');
+      params.push(relationshipType);
+    }
+    if (classYear >= 1950 && classYear <= 2100) {
+      where.push('l.class_year = ?');
+      params.push(classYear);
+    }
+
+    const joinSql = direction === 'my_students'
+      ? 'LEFT JOIN uyeler u ON u.id = l.alumni_user_id'
+      : 'LEFT JOIN uyeler u ON u.id = l.teacher_user_id';
+
+    const rows = await sqlAllAsync(
+      `SELECT l.id, l.teacher_user_id, l.alumni_user_id, l.relationship_type, l.class_year, l.notes, l.confidence_score, l.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.role
+       FROM teacher_alumni_links l
+       ${joinSql}
+       WHERE ${where.join(' AND ')}
+       ORDER BY COALESCE(NULLIF(l.created_at, ''), '1970-01-01T00:00:00.000Z') DESC, l.id DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    return res.json({ items: rows, direction, hasMore: rows.length === limit });
+  } catch (err) {
+    console.error('teachers.network.list failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) => {
+  try {
+    ensureTeacherAlumniLinksTable();
+    const alumniUserId = Number(req.session?.userId || 0);
+    const teacherUserId = Number(req.params.teacherId || 0);
+    if (!alumniUserId || !teacherUserId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
+    if (alumniUserId === teacherUserId) return res.status(400).send('Kendiniz için öğretmen bağlantısı ekleyemezsiniz.');
+
+    const teacher = sqlGet('SELECT id, role FROM uyeler WHERE id = ?', [teacherUserId]);
+    if (!teacher) return res.status(404).send('Öğretmen bulunamadı.');
+
+    const relationshipType = normalizeTeacherAlumniRelationshipType(req.body?.relationship_type || 'taught_in_class') || 'taught_in_class';
+    const classYearRaw = Number(req.body?.class_year || 0);
+    const classYear = classYearRaw >= 1950 && classYearRaw <= 2100 ? classYearRaw : null;
+    const notes = String(req.body?.notes || '').trim().slice(0, 500);
+    const now = new Date().toISOString();
+
+    const existing = sqlGet(
+      `SELECT id FROM teacher_alumni_links
+       WHERE teacher_user_id = ? AND alumni_user_id = ? AND relationship_type = ? AND COALESCE(class_year, -1) = COALESCE(?, -1)`,
+      [teacherUserId, alumniUserId, relationshipType, classYear]
+    );
+    if (existing) {
+      return res.status(409).json({ code: 'RELATIONSHIP_ALREADY_EXISTS', message: 'Bu öğretmen bağlantısı zaten kayıtlı.' });
+    }
+
+    sqlRun(
+      `INSERT INTO teacher_alumni_links
+        (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, confidence_score, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [teacherUserId, alumniUserId, relationshipType, classYear, notes, 1, alumniUserId, now]
+    );
+
+    addNotification({
+      userId: teacherUserId,
+      type: 'teacher_network_linked',
+      sourceUserId: alumniUserId,
+      entityId: teacherUserId,
+      message: 'Seni öğretmen ağına ekledi.'
+    });
+
+    return res.json({ ok: true, status: 'linked', relationship_type: relationshipType, class_year: classYear });
+  } catch (err) {
+    console.error('teachers.network.link failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 app.post('/api/new/follow/:id', requireAuth, (req, res) => {
