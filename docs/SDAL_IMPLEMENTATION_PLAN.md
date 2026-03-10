@@ -312,6 +312,12 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 ## Next Delivery Slice (Social Hub Networking Ecosystem)
 
+### Progress update (2026-03)
+
+- ✅ Teacher graph browsing and link creation history page is available at `/new/network/teachers`.
+- ✅ Teacher graph entry points are now exposed from both Member Detail and Explore cards for teacher profiles.
+- ✅ Teacher users now have a direct profile CTA to open teacher network management.
+
 1. **Networking UX surface**
    - Add dedicated frontend page for teacher–alumni graph browsing and link creation history.
    - Expose teacher graph entry points from profile and explore views.
