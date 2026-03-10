@@ -8204,6 +8204,144 @@ app.post('/api/new/stories/:id/view', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+
+function normalizeConnectionStatus(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'pending' || raw === 'accepted' || raw === 'ignored') return raw;
+  return '';
+}
+
+app.post('/api/new/connections/request/:id', requireAuth, (req, res) => {
+  const senderId = Number(req.session?.userId || 0);
+  const receiverId = Number(req.params.id || 0);
+  if (!senderId || !receiverId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
+  if (senderId === receiverId) return res.status(400).send('Kendine bağlantı isteği gönderemezsin.');
+
+  const receiver = sqlGet('SELECT id FROM uyeler WHERE id = ?', [receiverId]);
+  if (!receiver) return res.status(404).send('Üye bulunamadı.');
+
+  const existingFollow = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [senderId, receiverId]);
+  const reverseFollow = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [receiverId, senderId]);
+  if (existingFollow && reverseFollow) {
+    return res.status(409).json({ code: 'ALREADY_CONNECTED', message: 'Bu üye ile zaten bağlantısınız.' });
+  }
+
+  const outgoing = sqlGet('SELECT id, status FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [senderId, receiverId]);
+  const incoming = sqlGet('SELECT id, status FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [receiverId, senderId]);
+
+  if (outgoing && String(outgoing.status || '').toLowerCase() === 'pending') {
+    return res.status(409).json({ code: 'REQUEST_ALREADY_PENDING', message: 'Bu üyeye zaten bekleyen bir bağlantı isteği gönderdiniz.' });
+  }
+  if (incoming && String(incoming.status || '').toLowerCase() === 'pending') {
+    return res.status(409).json({ code: 'REQUEST_PENDING_FROM_TARGET', message: 'Bu üyeden bekleyen bir bağlantı isteğiniz var. Kabul edebilirsiniz.' });
+  }
+
+  const now = new Date().toISOString();
+  if (outgoing) {
+    sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = NULL WHERE id = ?', ['pending', now, outgoing.id]);
+  } else {
+    sqlRun(
+      'INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      [senderId, receiverId, 'pending', now, now]
+    );
+  }
+
+  addNotification({
+    userId: receiverId,
+    type: 'connection_request',
+    sourceUserId: senderId,
+    entityId: receiverId,
+    message: 'Sana bir bağlantı isteği gönderdi.'
+  });
+
+  return res.json({ ok: true, status: 'pending' });
+});
+
+app.get('/api/new/connections/requests', requireAuth, async (req, res) => {
+  const userId = Number(req.session?.userId || 0);
+  const status = normalizeConnectionStatus(req.query.status) || 'pending';
+  const direction = String(req.query.direction || 'incoming').trim().toLowerCase() === 'outgoing' ? 'outgoing' : 'incoming';
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+  const whereClause = direction === 'incoming' ? 'cr.receiver_id = ?' : 'cr.sender_id = ?';
+  const joinClause = direction === 'incoming'
+    ? 'LEFT JOIN uyeler u ON u.id = cr.sender_id'
+    : 'LEFT JOIN uyeler u ON u.id = cr.receiver_id';
+
+  try {
+    const rows = await sqlAllAsync(
+      `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM connection_requests cr
+       ${joinClause}
+       WHERE ${whereClause} AND cr.status = ?
+       ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
+       LIMIT ? OFFSET ?`,
+      [userId, status, limit, offset]
+    );
+    return res.json({ items: rows, hasMore: rows.length === limit, direction, status });
+  } catch (err) {
+    console.error('connections.requests failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
+  const requestId = Number(req.params.id || 0);
+  const currentUserId = Number(req.session?.userId || 0);
+  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+
+  const row = sqlGet('SELECT id, sender_id, receiver_id, status FROM connection_requests WHERE id = ?', [requestId]);
+  if (!row) return res.status(404).send('Bağlantı isteği bulunamadı.');
+  if (Number(row.receiver_id) !== currentUserId) return res.status(403).send('Bu bağlantı isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'pending') return res.status(409).send('Bağlantı isteği artık beklemede değil.');
+
+  const now = new Date().toISOString();
+  sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['accepted', now, now, requestId]);
+
+  const senderId = Number(row.sender_id);
+  const receiverId = Number(row.receiver_id);
+
+  const senderToReceiver = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [senderId, receiverId]);
+  if (!senderToReceiver) {
+    sqlRun('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [senderId, receiverId, now]);
+  }
+  const receiverToSender = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [receiverId, senderId]);
+  if (!receiverToSender) {
+    sqlRun('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [receiverId, senderId, now]);
+  }
+
+  addNotification({
+    userId: senderId,
+    type: 'connection_accepted',
+    sourceUserId: receiverId,
+    entityId: receiverId,
+    message: 'Bağlantı isteğini kabul etti.'
+  });
+
+  exploreSuggestionsResponseCache.clear();
+  scheduleEngagementRecalculation('follow_changed');
+  invalidateCacheNamespace(cacheNamespaces.feed);
+
+  return res.json({ ok: true, status: 'accepted' });
+});
+
+app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
+  const requestId = Number(req.params.id || 0);
+  const currentUserId = Number(req.session?.userId || 0);
+  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+
+  const row = sqlGet('SELECT id, sender_id, receiver_id, status FROM connection_requests WHERE id = ?', [requestId]);
+  if (!row) return res.status(404).send('Bağlantı isteği bulunamadı.');
+  if (Number(row.receiver_id) !== currentUserId) return res.status(403).send('Bu bağlantı isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'pending') return res.status(409).send('Bağlantı isteği artık beklemede değil.');
+
+  const now = new Date().toISOString();
+  sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['ignored', now, now, requestId]);
+  return res.json({ ok: true, status: 'ignored' });
+});
+
 app.post('/api/new/follow/:id', requireAuth, (req, res) => {
   const targetId = req.params.id;
   if (String(targetId) === String(req.session.userId)) return res.status(400).send('Kendini takip edemezsin.');

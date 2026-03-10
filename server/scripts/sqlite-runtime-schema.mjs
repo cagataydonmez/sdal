@@ -264,6 +264,16 @@ export function ensureSqliteRuntimeSchema(db) {
       created_at TEXT,
       updated_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS connection_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL,
+      receiver_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT,
+      updated_at TEXT,
+      responded_at TEXT,
+      UNIQUE(sender_id, receiver_id)
+    );
     CREATE TABLE IF NOT EXISTS email_change_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -402,6 +412,10 @@ export function ensureSqliteRuntimeSchema(db) {
   }
   if (hasTable(db, 'member_requests')) {
     execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_member_requests_user_status ON member_requests(user_id, status)');
+  }
+  if (hasTable(db, 'connection_requests')) {
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_connection_requests_receiver_status ON connection_requests(receiver_id, status, created_at DESC)');
+    execSafely(db, 'CREATE INDEX IF NOT EXISTS idx_connection_requests_sender_status ON connection_requests(sender_id, status, created_at DESC)');
   }
 
   ensureUyelerCompatibilityColumns(db);
