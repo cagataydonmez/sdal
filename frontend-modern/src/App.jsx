@@ -38,6 +38,7 @@ const HelpPage = React.lazy(() => import('./pages/HelpPage.jsx'));
 const GamesPage = React.lazy(() => import('./pages/GamesPage.jsx'));
 const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage.jsx'));
 const JobsPage = React.lazy(() => import('./pages/JobsPage.jsx'));
+const TeachersNetworkPage = React.lazy(() => import('./pages/TeachersNetworkPage.jsx'));
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -102,6 +103,7 @@ export default function App() {
             <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
             <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
             <Route path="/new/jobs" element={<RequireAuth><JobsPage /></RequireAuth>} />
+            <Route path="/new/network/teachers" element={<RequireAuth><TeachersNetworkPage /></RequireAuth>} />
             <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
             <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />
             <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
