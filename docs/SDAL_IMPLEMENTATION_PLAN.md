@@ -244,6 +244,19 @@ CREATE TABLE IF NOT EXISTS jobs (
 - Deduplicate links by `(teacher_user_id, alumni_user_id, relationship_type, class_year)`.
 - Emit teacher notification on successful link creation to keep trust graph active.
 
+### 2.7 Job Applications (Networking Loop)
+
+**API:**
+
+- `POST /api/new/jobs/:id/apply` – authenticated member applies to a job post (optional `cover_letter`)
+- `GET /api/new/jobs/:id/applications` – poster/admin lists applicants for a job
+
+**Backend notes:**
+
+- Add `job_applications` table with dedupe constraint: `UNIQUE(job_id, applicant_id)`.
+- Block self-application and duplicate applications with explicit conflict codes.
+- Emit a notification to the job poster on new application.
+
 ---
 
 ## Phase 3: Association Infrastructure (V3) – Implementation Plan

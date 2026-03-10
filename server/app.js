@@ -8243,6 +8243,21 @@ function ensureTeacherAlumniLinksTable() {
   sqlRun('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_teacher ON teacher_alumni_links (teacher_user_id, created_at DESC)');
 }
 
+function ensureJobApplicationsTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS job_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER NOT NULL,
+      applicant_id INTEGER NOT NULL,
+      cover_letter TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(job_id, applicant_id)
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications (job_id, created_at DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications (applicant_id, created_at DESC)');
+}
+
 app.post('/api/new/connections/request/:id', requireAuth, (req, res) => {
   const senderId = Number(req.session?.userId || 0);
   const receiverId = Number(req.params.id || 0);
@@ -10122,6 +10137,68 @@ app.get('/api/new/jobs', requireAuth, async (req, res) => {
   );
 
   res.json({ items: rows, hasMore: rows.length === limit });
+});
+
+app.post('/api/new/jobs/:id/apply', requireAuth, async (req, res) => {
+  const jobId = Number(req.params.id || 0);
+  if (!jobId) return res.status(400).send('Geçersiz iş ilanı kimliği.');
+
+  ensureJobApplicationsTable();
+
+  const job = await sqlGetAsync('SELECT id, poster_id, title FROM jobs WHERE id = ?', [jobId]);
+  if (!job) return res.status(404).send('İş ilanı bulunamadı.');
+  if (sameUserId(job.poster_id, req.session.userId)) {
+    return res.status(409).json({ code: 'CANNOT_APPLY_OWN_JOB', message: 'Kendi ilanına başvuru yapamazsın.' });
+  }
+
+  const existing = await sqlGetAsync('SELECT id FROM job_applications WHERE job_id = ? AND applicant_id = ?', [jobId, req.session.userId]);
+  if (existing) {
+    return res.status(409).json({ code: 'ALREADY_APPLIED', message: 'Bu iş ilanına zaten başvuru yaptın.' });
+  }
+
+  const coverLetter = formatUserText(String(req.body?.cover_letter || ''));
+  const now = new Date().toISOString();
+  const result = await sqlRunAsync(
+    'INSERT INTO job_applications (job_id, applicant_id, cover_letter, created_at) VALUES (?, ?, ?, ?)',
+    [jobId, req.session.userId, isFormattedContentEmpty(coverLetter) ? null : coverLetter, now]
+  );
+
+  addNotification({
+    userId: Number(job.poster_id),
+    type: 'job_application',
+    sourceUserId: Number(req.session.userId),
+    entityId: jobId,
+    message: `"${job.title || 'İş ilanı'}" ilanına yeni bir başvuru geldi.`
+  });
+
+  res.json({ ok: true, id: result?.lastInsertRowid, status: 'applied' });
+});
+
+app.get('/api/new/jobs/:id/applications', requireAuth, async (req, res) => {
+  const jobId = Number(req.params.id || 0);
+  if (!jobId) return res.status(400).send('Geçersiz iş ilanı kimliği.');
+
+  ensureJobApplicationsTable();
+
+  const user = getCurrentUser(req);
+  const isAdmin = hasAdminSession(req, user);
+  const job = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [jobId]);
+  if (!job) return res.status(404).send('İş ilanı bulunamadı.');
+  if (!isAdmin && !sameUserId(job.poster_id, req.session.userId)) {
+    return res.status(403).send('Bu ilanın başvurularını görüntüleme yetkin yok.');
+  }
+
+  const rows = await sqlAllAsync(
+    `SELECT ja.id, ja.job_id, ja.applicant_id, ja.cover_letter, ja.created_at,
+            u.kadi, u.isim, u.soyisim, u.sirket, u.unvan, u.linkedin_url
+     FROM job_applications ja
+     LEFT JOIN uyeler u ON u.id = ja.applicant_id
+     WHERE ja.job_id = ?
+     ORDER BY ja.id DESC`,
+    [jobId]
+  );
+
+  res.json({ items: rows });
 });
 
 app.post('/api/new/jobs', requireAuth, async (req, res) => {
