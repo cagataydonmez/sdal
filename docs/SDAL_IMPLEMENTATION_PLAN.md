@@ -14,6 +14,19 @@ This document audits the current implementation against the roadmap and provides
 
 ---
 
+## Phase 1 Kickoff Execution (2026-03)
+
+- Added year-mode feed contract support on existing endpoint:
+  - `/api/new/feed?mode=year` resolves to cohort/community feed without breaking existing `scope` and `feedType` callers.
+  - `/api/new/feed?mode=global` forces main/global feed.
+- Added dedicated module gate for year feed:
+  - New module key `year_feed` for runtime controls and admin module settings.
+  - Year-mode requests now return `MODULE_CLOSED` when this module is disabled.
+- Seeded `year_feed` in default module settings migration and contract test bootstrap.
+- Extended Phase 1 contract suite to validate:
+  - year-mode feed returns cohort post,
+  - year feed module lock returns 403 with correct module key.
+
 ## Phase 1: Strengthen Alumni Network (MVP) – Audit & Gaps
 
 ### ✅ Implemented Correctly

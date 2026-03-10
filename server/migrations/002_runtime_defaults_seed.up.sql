@@ -13,6 +13,7 @@ INSERT INTO module_settings (module_key, is_open, updated_at)
 VALUES
   ('feed', TRUE, NOW()),
   ('main_feed', TRUE, NOW()),
+  ('year_feed', TRUE, NOW()),
   ('explore', TRUE, NOW()),
   ('following', TRUE, NOW()),
   ('groups', TRUE, NOW()),
