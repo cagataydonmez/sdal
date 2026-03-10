@@ -286,6 +286,25 @@ export function ensureSqliteRuntimeSchema(db) {
       responded_at TEXT,
       UNIQUE(requester_id, mentor_id)
     );
+    CREATE TABLE IF NOT EXISTS jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      poster_id INTEGER NOT NULL,
+      company TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      location TEXT,
+      job_type TEXT,
+      link TEXT,
+      created_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS job_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER NOT NULL,
+      applicant_id INTEGER NOT NULL,
+      cover_letter TEXT,
+      created_at TEXT,
+      UNIQUE(job_id, applicant_id)
+    );
     CREATE TABLE IF NOT EXISTS email_change_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
