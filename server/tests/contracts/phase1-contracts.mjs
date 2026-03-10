@@ -36,6 +36,18 @@ for (const sql of compatibilityColumns) {
     // column already exists
   }
 }
+
+const postsCompatibilityColumns = [
+  "ALTER TABLE posts ADD COLUMN group_id INTEGER;",
+  "ALTER TABLE posts ADD COLUMN image_record_id TEXT;"
+];
+for (const sql of postsCompatibilityColumns) {
+  try {
+    bootstrapDb.exec(sql);
+  } catch {
+    // column already exists
+  }
+}
 bootstrapDb.exec(`
   CREATE TABLE IF NOT EXISTS site_controls (
     id INTEGER PRIMARY KEY,
@@ -100,6 +112,15 @@ bootstrapDb.exec(`
     read_at TEXT,
     created_at TEXT
   );
+  CREATE TABLE IF NOT EXISTS groups (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    description TEXT,
+    owner_id INTEGER,
+    cover_image TEXT,
+    visibility TEXT,
+    created_at TEXT
+  );
   CREATE TABLE IF NOT EXISTS chat_messages (
     id INTEGER PRIMARY KEY,
     user_id INTEGER,
@@ -156,7 +177,7 @@ bootstrapDb
   .run('Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.', nowTs);
 const moduleKeys = [
   'feed', 'main_feed', 'explore', 'following', 'groups', 'messages', 'messenger', 'notifications',
-  'albums', 'games', 'events', 'announcements', 'jobs', 'profile', 'help', 'requests'
+  'albums', 'games', 'events', 'announcements', 'jobs', 'profile', 'help', 'requests', 'year_feed'
 ];
 for (const moduleKey of moduleKeys) {
   bootstrapDb
@@ -191,7 +212,17 @@ function seedUser({ username, password, role = 'user', admin = 0, graduationYear
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 1, ?, ?, 1, 'approved')`,
     [username, password, `${username}@example.com`, username, 'Contract', `${username}-act`, now, graduationYear, admin, role]
   );
-  return sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [username]).id;
+  const id = sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [username]).id;
+  try {
+    sqlRun(
+      `INSERT OR REPLACE INTO users (id, username, password_hash, email, first_name, last_name, graduation_year, is_active, is_verified, role, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)`,
+      [id, username, password, `${username}@example.com`, username, 'Contract', Number(graduationYear) || null, role, now]
+    );
+  } catch {
+    // users table may not exist in legacy-only test DB.
+  }
+  return id;
 }
 
 const adminUserId = seedUser({ username: 'admin1', password: 'adminpass', role: 'admin', admin: 1, graduationYear: '2010' });
@@ -279,6 +310,29 @@ try {
   const firstFeedItem = feed.json.items[0] || {};
   assert.deepEqual(sortedKeys(firstFeedItem), [...snapshot.feed.itemKeys].sort(), 'feed item keys mismatch');
   assert.deepEqual(sortedKeys(firstFeedItem.author || {}), [...snapshot.feed.authorKeys].sort(), 'feed author keys mismatch');
+
+
+  const now = new Date().toISOString();
+  sqlRun('INSERT INTO groups (name, description, owner_id, created_at) VALUES (?, ?, ?, ?)', [
+    '2011 Mezunları',
+    'phase1 contracts cohort',
+    userId,
+    now
+  ]);
+  const cohortGroup = sqlGet('SELECT id FROM groups WHERE name = ? ORDER BY id DESC LIMIT 1', ['2011 Mezunları']);
+  assert.ok(Number(cohortGroup?.id || 0) > 0, 'cohort group should exist for year mode test');
+  sqlRun('INSERT INTO posts (user_id, content, group_id, created_at) VALUES (?, ?, ?, ?)', [
+    userId,
+    'phase1 cohort feed post',
+    cohortGroup.id,
+    now
+  ]);
+
+  const yearFeed = await requestJson('/api/new/feed?mode=year&limit=10', {
+    cookie: userLogin.cookie
+  });
+  assert.equal(yearFeed.resp.status, 200, 'year mode feed status mismatch');
+  assert.ok(Array.isArray(yearFeed.json?.items), 'year mode feed items must be array');
 
   const commentCreate = await requestJson(`/api/new/posts/${createdPostId}/comments`, {
     method: 'POST',

@@ -19,12 +19,16 @@ export class FeedService {
     const offset = Math.max(parseInt(query?.offset || '0', 10), 0);
     const cursor = Math.max(parseInt(query?.cursor || '0', 10), 0);
     const legacyScope = String(query?.scope || '').trim();
+    const modeRaw = String(query?.mode || '').trim().toLowerCase();
     const feedTypeRaw = String(query?.feedType || query?.feed || '').trim();
     const filterRaw = String(query?.filter || query?.sort || '').trim();
     const legacyResolved = LEGACY_SCOPE_MAP[legacyScope] || null;
+    const modeResolvedFeedType = modeRaw === 'year'
+      ? 'community'
+      : (modeRaw === 'global' ? 'main' : '');
     const feedType = ['main', 'community'].includes(feedTypeRaw)
       ? feedTypeRaw
-      : (legacyResolved?.feedType || 'main');
+      : (modeResolvedFeedType || legacyResolved?.feedType || 'main');
     const filter = ['latest', 'popular', 'following'].includes(filterRaw)
       ? filterRaw
       : (legacyResolved?.filter || 'latest');
@@ -34,6 +38,14 @@ export class FeedService {
         error: 'MODULE_CLOSED',
         moduleKey: 'main_feed',
         message: 'Ana akış geçici olarak kapatıldı.'
+      });
+    }
+
+    if (feedType === 'community' && moduleMap?.year_feed === false) {
+      throw new HttpError(403, 'Dönem akışı geçici olarak kapatıldı.', {
+        error: 'MODULE_CLOSED',
+        moduleKey: 'year_feed',
+        message: 'Dönem akışı geçici olarak kapatıldı.'
       });
     }
 

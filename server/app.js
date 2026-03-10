@@ -1208,6 +1208,7 @@ const DEFAULT_SUPPORT_REQUEST_CATEGORIES = [
 const MODULE_DEFINITIONS = [
   { key: 'feed', label: 'Akış' },
   { key: 'main_feed', label: 'Ana Akış (Herkese Açık)' },
+  { key: 'year_feed', label: 'Yıl Akışı (Dönemim)' },
   { key: 'explore', label: 'Keşfet' },
   { key: 'following', label: 'Takip' },
   { key: 'groups', label: 'Gruplar' },
