@@ -261,6 +261,7 @@ export default function ProfilePage() {
           {Number(user?.verified || 0) === 1 ? <a className="btn ghost" href="/new/requests?category=graduation_year_change">{t('profile_graduation_change_request_cta')}</a> : null}
           <a className="btn ghost" href="/new/profile/photo">{t('profile_photo_title')}</a>
           {profile?.id ? <a className="btn ghost" href={`/new/members/${profile.id}`}>{t('profile_preview_members')}</a> : null}
+          {String(profile?.mezuniyetyili || '').toLowerCase() === 'teacher' ? <a className="btn ghost" href="/new/network/teachers">Öğretmen Ağı Yönetimi</a> : null}
           {Number(user?.verified || 0) !== 1 ? <a className="btn ghost" href="/new/profile/verification">{t('profile_verification_page_cta')}</a> : null}
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}

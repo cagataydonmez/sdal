@@ -233,6 +233,11 @@ export default function ExplorePage({ fullMode = false }) {
                   : t('connection_request')}
             </button>
           ) : null}
+          {String(m.role || '').toLowerCase() === 'teacher' ? (
+            <a className="btn ghost" href={`/new/network/teachers?teacherId=${m.id}`}>
+              Öğretmen Ağına Ekle
+            </a>
+          ) : null}
           <button
             className="btn ghost"
             onClick={() => toggleFollow(m.id)}
