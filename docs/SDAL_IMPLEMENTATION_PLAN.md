@@ -208,6 +208,23 @@ CREATE TABLE IF NOT EXISTS jobs (
 - Use `mentor_opt_in`, `mentor_konulari` from profile
 - Filterable "Mentors" view in directory
 
+
+### 2.6 Teacher–Alumni Network Graph
+
+**API:**
+
+- `POST /api/new/teachers/network/link/:teacherId` – alumni can add a teacher link (`relationship_type`, optional `class_year`, `notes`)
+- `GET /api/new/teachers/network` – list graph edges in two directions:
+  - `direction=my_teachers` (default, for alumni)
+  - `direction=my_students` (for teacher-facing views)
+- Filters: `relationship_type`, `class_year`, `limit`, `offset`
+
+**Backend notes:**
+
+- Add `teacher_alumni_links` relational table (idempotent create guard for SQLite runtimes).
+- Deduplicate links by `(teacher_user_id, alumni_user_id, relationship_type, class_year)`.
+- Emit teacher notification on successful link creation to keep trust graph active.
+
 ---
 
 ## Phase 3: Association Infrastructure (V3) – Implementation Plan

@@ -22,7 +22,8 @@
     "test:phase5-performance": "node tests/contracts/phase5-performance.mjs",
     "test:phase6-realtime-jobs": "node tests/contracts/phase6-realtime-jobs.mjs",
     "test:phase7-media-hardening": "node tests/contracts/phase7-media-hardening.mjs",
-    "test:phase9-email": "node tests/contracts/phase9-email.mjs"
+    "test:phase9-email": "node tests/contracts/phase9-email.mjs",
+    "test:phase2-teacher-network": "node tests/contracts/phase2-teacher-network.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",
