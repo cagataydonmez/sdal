@@ -122,6 +122,11 @@ export default function MemberDetailPage() {
                 {incomingConnectionId ? t('connection_accept') : outgoingPending ? t('connection_pending') : t('connection_request')}
               </button>
             ) : null}
+            {String(user?.id || '') !== String(member.id || '') && String(member.role || '').toLowerCase() === 'teacher' ? (
+              <a className="btn ghost" href={`/new/network/teachers?teacherId=${member.id}`}>
+                Öğretmen Ağına Ekle
+              </a>
+            ) : null}
             {String(user?.id || '') !== String(member.id || '') && Number(member.mentor_opt_in || 0) === 1 ? (
               <button
                 className="btn ghost"
