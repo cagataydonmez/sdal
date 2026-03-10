@@ -2,6 +2,16 @@
 
 This document audits the current implementation against the roadmap and provides actionable plans for Phase 1, 1.5, 2, and 3.
 
+## 2026 Social Hub Integration Addendum
+
+- Detailed architecture addendum for Alumni Social Hub & Networking Ecosystem:
+  - `docs/alumni-social-hub-networking-ecosystem.md`
+- Covers:
+  1. PostgreSQL schema (including teacher-alumni relationship model)
+  2. Year-based feed API endpoint design and ranking logic
+  3. Verification workflow for trusted closed-network onboarding
+  4. Incremental migration mapping to existing SDAL tables/endpoints and backward compatibility path
+
 ---
 
 ## Phase 1: Strengthen Alumni Network (MVP) – Audit & Gaps
