@@ -12,6 +12,9 @@ export default function MemberDetailPage() {
   const [member, setMember] = useState(null);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [loadingAction, setLoadingAction] = useState(false);
+  const [incomingConnectionId, setIncomingConnectionId] = useState(0);
+  const [outgoingPending, setOutgoingPending] = useState(false);
 
   useEffect(() => {
     fetch(`/api/members/${id}`, { credentials: 'include' })
@@ -22,6 +25,29 @@ export default function MemberDetailPage() {
       .then((p) => setMember(p.row || null))
       .catch((err) => setError(err.message));
   }, [id]);
+
+  useEffect(() => {
+    if (!id || String(user?.id || '') === String(id)) return;
+    let cancelled = false;
+    async function loadConnectionState() {
+      const [incomingRes, outgoingRes] = await Promise.all([
+        fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
+        fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
+      ]);
+      if (!incomingRes.ok || !outgoingRes.ok || cancelled) return;
+      const [incomingPayload, outgoingPayload] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
+      const targetId = Number(id || 0);
+      const incoming = (incomingPayload.items || []).find((item) => Number(item.sender_id) === targetId);
+      const outgoing = (outgoingPayload.items || []).some((item) => Number(item.receiver_id) === targetId);
+      if (cancelled) return;
+      setIncomingConnectionId(Number(incoming?.id || 0));
+      setOutgoingPending(Boolean(outgoing));
+    }
+    loadConnectionState();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user?.id]);
 
   if (!member) return <Layout title={t('member_title')}>{error ? <div className="error">{error}</div> : t('loading')}</Layout>;
 
@@ -66,6 +92,62 @@ export default function MemberDetailPage() {
               }}
               >
                 {t('member_quick_access_add')}
+              </button>
+            ) : null}
+            {String(user?.id || '') !== String(member.id || '') && member.verified ? (
+              <button
+                className="btn ghost"
+                disabled={loadingAction || outgoingPending}
+                onClick={async () => {
+                  setError('');
+                  setStatus('');
+                  setLoadingAction(true);
+                  try {
+                    const endpoint = incomingConnectionId
+                      ? `/api/new/connections/accept/${incomingConnectionId}`
+                      : `/api/new/connections/request/${member.id}`;
+                    const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
+                    if (!res.ok) {
+                      setError(await res.text());
+                      return;
+                    }
+                    setIncomingConnectionId(0);
+                    setOutgoingPending(true);
+                    setStatus(t(incomingConnectionId ? 'connection_status_accepted' : 'connection_status_pending'));
+                  } finally {
+                    setLoadingAction(false);
+                  }
+                }}
+              >
+                {incomingConnectionId ? t('connection_accept') : outgoingPending ? t('connection_pending') : t('connection_request')}
+              </button>
+            ) : null}
+            {String(user?.id || '') !== String(member.id || '') && Number(member.mentor_opt_in || 0) === 1 ? (
+              <button
+                className="btn ghost"
+                disabled={loadingAction}
+                onClick={async () => {
+                  setError('');
+                  setStatus('');
+                  setLoadingAction(true);
+                  try {
+                    const res = await fetch(`/api/new/mentorship/request/${member.id}`, {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({})
+                    });
+                    if (!res.ok) {
+                      setError(await res.text());
+                      return;
+                    }
+                    setStatus(t('mentorship_status_requested'));
+                  } finally {
+                    setLoadingAction(false);
+                  }
+                }}
+              >
+                {t('mentorship_request')}
               </button>
             ) : null}
           </div>

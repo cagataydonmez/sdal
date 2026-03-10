@@ -8,7 +8,10 @@ export default function ExplorePage({ fullMode = false }) {
   const [members, setMembers] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
+  const [incomingConnectionMap, setIncomingConnectionMap] = useState({});
+  const [outgoingConnectionIds, setOutgoingConnectionIds] = useState(() => new Set());
   const [pendingFollow, setPendingFollow] = useState({});
+  const [pendingConnection, setPendingConnection] = useState({});
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({
     relation: 'all',
@@ -96,10 +99,26 @@ export default function ExplorePage({ fullMode = false }) {
     setFollowingIds(next);
   }, []);
 
+  const loadConnectionRequests = useCallback(async () => {
+    const [incomingRes, outgoingRes] = await Promise.all([
+      fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
+      fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
+    ]);
+    if (!incomingRes.ok || !outgoingRes.ok) return;
+    const [incomingPayload, outgoingPayload] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
+    const incoming = {};
+    for (const item of (incomingPayload.items || [])) {
+      incoming[Number(item.sender_id)] = Number(item.id);
+    }
+    setIncomingConnectionMap(incoming);
+    setOutgoingConnectionIds(new Set((outgoingPayload.items || []).map((item) => Number(item.receiver_id))));
+  }, []);
+
   useEffect(() => {
     loadFollows();
+    loadConnectionRequests();
     loadSuggestions();
-  }, [loadFollows, loadSuggestions]);
+  }, [loadFollows, loadSuggestions, loadConnectionRequests]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -145,6 +164,36 @@ export default function ExplorePage({ fullMode = false }) {
     }
   }
 
+  async function sendConnectionRequest(id) {
+    const key = Number(id);
+    if (pendingConnection[key]) return;
+    setPendingConnection((prev) => ({ ...prev, [key]: true }));
+    try {
+      const incomingRequestId = Number(incomingConnectionMap[key] || 0);
+      const endpoint = incomingRequestId ? `/api/new/connections/accept/${incomingRequestId}` : `/api/new/connections/request/${id}`;
+      const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
+      if (!res.ok) return;
+      if (incomingRequestId) {
+        setIncomingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        setOutgoingConnectionIds((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      } else {
+        setOutgoingConnectionIds((prev) => new Set(prev).add(key));
+      }
+      loadFollows();
+      loadConnectionRequests();
+    } finally {
+      setPendingConnection((prev) => ({ ...prev, [key]: false }));
+    }
+  }
+
   function setFilter(key, value) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
@@ -170,13 +219,28 @@ export default function ExplorePage({ fullMode = false }) {
             </div>
           ) : null}
         </div>
-        <button
-          className="btn ghost"
-          onClick={() => toggleFollow(m.id)}
-          disabled={Boolean(pendingFollow[Number(m.id)])}
-        >
-          {followingIds.has(Number(m.id)) ? t('unfollow') : t('follow')}
-        </button>
+        <div className="composer-actions">
+          {Boolean(m.verified) ? (
+            <button
+              className="btn ghost"
+              onClick={() => sendConnectionRequest(m.id)}
+              disabled={Boolean(pendingConnection[Number(m.id)]) || outgoingConnectionIds.has(Number(m.id))}
+            >
+              {incomingConnectionMap[Number(m.id)]
+                ? t('connection_accept')
+                : outgoingConnectionIds.has(Number(m.id))
+                  ? t('connection_pending')
+                  : t('connection_request')}
+            </button>
+          ) : null}
+          <button
+            className="btn ghost"
+            onClick={() => toggleFollow(m.id)}
+            disabled={Boolean(pendingFollow[Number(m.id)])}
+          >
+            {followingIds.has(Number(m.id)) ? t('unfollow') : t('follow')}
+          </button>
+        </div>
       </div>
     );
   }
