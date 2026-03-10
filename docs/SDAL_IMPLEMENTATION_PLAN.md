@@ -12,6 +12,25 @@ This document audits the current implementation against the roadmap and provides
   3. Verification workflow for trusted closed-network onboarding
   4. Incremental migration mapping to existing SDAL tables/endpoints and backward compatibility path
 
+## Current Implementation Snapshot (2026-03)
+
+The codebase has progressed beyond the initial draft plan. In addition to the Phase 1 items above, these social-hub networking capabilities are already live:
+
+- `jobs` module is implemented end-to-end:
+  - API: `GET/POST/DELETE /api/new/jobs`
+  - UI: `frontend-modern/src/pages/JobsPage.jsx`
+- Professional profile extensions are active (`sirket`, `unvan`, `uzmanlik`, `linkedin_url`, `universite_bolum`, `mentor_opt_in`, `mentor_konulari`) in profile update and member directory payloads.
+- Mentorship workflow is active:
+  - `POST /api/new/mentorship/request/:id`
+  - `GET /api/new/mentorship/requests`
+  - `POST /api/new/mentorship/accept/:id`
+  - `POST /api/new/mentorship/decline/:id`
+- Teacher–alumni relationship graph API is active:
+  - `POST /api/new/teachers/network/link/:teacherId`
+  - `GET /api/new/teachers/network`
+
+Remaining work is now mostly UX refinement, ranking quality, and operational hardening rather than first-time endpoint creation.
+
 ---
 
 ## Phase 1 Kickoff Execution (2026-03)
@@ -270,12 +289,27 @@ CREATE TABLE IF NOT EXISTS jobs (
 | **1** | Verification proof upload | ✅ Implemented |
 | **1.5** | Legacy wipe script | ✅ Done |
 | **1.5** | Recursive member delete | ✅ Done |
-| **2** | Profile extensions | ❌ Implement |
+| **2** | Profile extensions | ✅ Implemented (profile GET/PUT + directory payload fields) |
 | **2** | connection_requests | ✅ Implemented (`/api/new/connections/*`, DB + contract test) |
-| **2** | Jobs table + JobsPage | ❌ Implement |
+| **2** | Jobs table + JobsPage | ✅ Implemented (`/api/new/jobs`, `frontend-modern/src/pages/JobsPage.jsx`) |
 | **2** | Expert/Mentor filters | ✅ Implemented (`/api/members` + Explore mentors filter) |
 | **2** | Mentorship requests workflow | ✅ Implemented (`/api/new/mentorship/*`, runtime schema + contract test) |
+| **2** | Teacher–Alumni network graph APIs | ✅ Implemented (`/api/new/teachers/network*`, contract test) |
 | **3** | All items | ❌ Plan only |
+
+## Next Delivery Slice (Social Hub Networking Ecosystem)
+
+1. **Networking UX surface**
+   - Add dedicated frontend page for teacher–alumni graph browsing and link creation history.
+   - Expose teacher graph entry points from profile and explore views.
+2. **Connection quality and trust scoring**
+   - Add weighted affinity score for suggestions (same cohort, shared groups, mentorship overlap, teacher links).
+   - Introduce request abuse controls (rate limits + cooldown) for connection and mentorship endpoints.
+3. **Operational analytics**
+   - Add cohort/network funnel metrics: request sent → accepted → active interaction.
+   - Add admin observability cards for mentorship and teacher-link adoption.
+4. **Contract hardening**
+   - Expand phase contract suite to cover edge cases: teacher-link authorization, class year validation, mentorship decline-retry semantics.
 
 ---
 
