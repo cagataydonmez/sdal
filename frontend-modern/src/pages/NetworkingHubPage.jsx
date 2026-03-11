@@ -20,6 +20,10 @@ function staleHint(value, t) {
 export default function NetworkingHubPage() {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [metricsWindow, setMetricsWindow] = useState('30d');
+  const [metrics, setMetrics] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [incoming, setIncoming] = useState([]);
   const [outgoing, setOutgoing] = useState([]);
   const [incomingMentorship, setIncomingMentorship] = useState([]);
@@ -31,6 +35,7 @@ export default function NetworkingHubPage() {
 
   const loadHub = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const [inboxRes, suggestionRes, followsRes] = await Promise.all([
         fetch('/api/new/network/inbox?limit=12', { credentials: 'include' }),
@@ -51,14 +56,37 @@ export default function NetworkingHubPage() {
       setTeacherEvents(inboxPayload?.inbox?.teacherLinks?.events || []);
       setSuggestions(suggestionPayload.items || []);
       setFollowingIds(new Set((followsPayload.items || []).map((item) => Number(item.following_id))));
+    } catch {
+      setLoadError(t('network_hub_load_error'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
+
+  const loadMetrics = useCallback(async (windowValue = metricsWindow) => {
+    setMetricsLoading(true);
+    try {
+      const res = await fetch(`/api/new/network/metrics?window=${encodeURIComponent(windowValue)}`, { credentials: 'include' });
+      if (!res.ok) {
+        setMetrics(null);
+        return;
+      }
+      const payload = await res.json();
+      setMetrics(payload?.metrics || null);
+    } catch {
+      setMetrics(null);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, [metricsWindow]);
 
   useEffect(() => {
     loadHub();
   }, [loadHub]);
+
+  useEffect(() => {
+    loadMetrics(metricsWindow);
+  }, [loadMetrics, metricsWindow]);
 
   async function runAction(key, action) {
     if (pendingAction[key]) return;
@@ -138,8 +166,64 @@ export default function NetworkingHubPage() {
       </div>
 
       <div className="panel">
+        <h3>{t('network_hub_metrics_title')}</h3>
+        <div className="panel-body stack">
+          <div className="composer-actions">
+            {['7d', '30d', '90d'].map((windowValue) => (
+              <button
+                key={windowValue}
+                className={`btn ${metricsWindow === windowValue ? 'primary' : 'ghost'}`}
+                onClick={() => setMetricsWindow(windowValue)}
+              >
+                {t('network_hub_window_days', { days: windowValue.replace('d', '') })}
+              </button>
+            ))}
+          </div>
+          {metricsLoading ? <div className="muted">{t('loading')}</div> : null}
+          {!metricsLoading && !metrics ? <div className="muted">{t('network_hub_metrics_empty')}</div> : null}
+          {!metricsLoading && metrics ? (
+            <div className="card-grid">
+              <div className="member-card">
+                <div className="chip">{t('network_hub_metric_connections')}</div>
+                <div>
+                  <div className="name">{metrics.connections?.accepted || 0}</div>
+                  <div className="meta">{t('network_hub_metric_accepted')}</div>
+                </div>
+                <div className="muted">{t('network_hub_metric_requested_short', { count: metrics.connections?.requested || 0 })}</div>
+              </div>
+              <div className="member-card">
+                <div className="chip">{t('network_hub_metric_pending')}</div>
+                <div>
+                  <div className="name">{metrics.connections?.pending_incoming || 0}</div>
+                  <div className="meta">{t('network_hub_metric_incoming')}</div>
+                </div>
+                <div className="muted">{t('network_hub_metric_outgoing_short', { count: metrics.connections?.pending_outgoing || 0 })}</div>
+              </div>
+              <div className="member-card">
+                <div className="chip">{t('network_hub_metric_mentorship')}</div>
+                <div>
+                  <div className="name">{metrics.mentorship?.accepted || 0}</div>
+                  <div className="meta">{t('network_hub_metric_accepted')}</div>
+                </div>
+                <div className="muted">{t('network_hub_metric_requested_short', { count: metrics.mentorship?.requested || 0 })}</div>
+              </div>
+              <div className="member-card">
+                <div className="chip">{t('network_hub_metric_teacher_links')}</div>
+                <div>
+                  <div className="name">{metrics.teacherLinks?.created || 0}</div>
+                  <div className="meta">{t('network_hub_metric_created')}</div>
+                </div>
+                <div className="muted">{metrics.time_to_first_network_success_days == null ? t('network_hub_metric_ttf_empty') : t('network_hub_metric_ttf_value', { days: metrics.time_to_first_network_success_days })}</div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="panel">
         <h3>{t('network_hub_incoming_title')}</h3>
         <div className="panel-body stack">
+          {loadError ? <div className="error">{loadError}</div> : null}
           {loading ? <div className="muted">{t('loading')}</div> : null}
           {!loading && incoming.length === 0 ? <div className="muted">{t('network_hub_incoming_empty')}</div> : null}
           {incoming.map((item) => (
