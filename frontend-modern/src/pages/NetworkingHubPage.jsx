@@ -32,23 +32,40 @@ export default function NetworkingHubPage() {
   const [teacherUnreadCount, setTeacherUnreadCount] = useState(0);
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
+  const [incomingConnectionMap, setIncomingConnectionMap] = useState({});
+  const [outgoingConnectionIds, setOutgoingConnectionIds] = useState(() => new Set());
   const [pendingAction, setPendingAction] = useState({});
+
+  function readConnectionUserField(item, legacyKey, modernKey) {
+    return item?.[legacyKey] || item?.[modernKey] || '';
+  }
 
   const loadHub = useCallback(async () => {
     setLoading(true);
     setLoadError('');
     try {
-      const [inboxRes, suggestionRes, followsRes] = await Promise.all([
+      const [inboxRes, suggestionRes, followsRes, incomingRes, outgoingRes] = await Promise.all([
         fetch('/api/new/network/inbox?limit=12', { credentials: 'include' }),
         fetch('/api/new/explore/suggestions?limit=8&offset=0', { credentials: 'include' }),
-        fetch('/api/new/follows?limit=400&offset=0', { credentials: 'include' })
+        fetch('/api/new/follows?limit=400&offset=0', { credentials: 'include' }),
+        fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
+        fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
       ]);
 
-      const [inboxPayload, suggestionPayload, followsPayload] = await Promise.all([
+      const [inboxPayload, suggestionPayload, followsPayload, incomingPayload, outgoingPayload] = await Promise.all([
         inboxRes.ok ? inboxRes.json() : Promise.resolve({ inbox: { connections: { incoming: [], outgoing: [] } } }),
         suggestionRes.ok ? suggestionRes.json() : Promise.resolve({ items: [] }),
-        followsRes.ok ? followsRes.json() : Promise.resolve({ items: [] })
+        followsRes.ok ? followsRes.json() : Promise.resolve({ items: [] }),
+        incomingRes.ok ? incomingRes.json() : Promise.resolve({ items: [] }),
+        outgoingRes.ok ? outgoingRes.json() : Promise.resolve({ items: [] })
       ]);
+
+      const nextIncomingMap = {};
+      for (const item of (incomingPayload.items || [])) {
+        const senderId = Number(item?.sender_id || 0);
+        if (!senderId) continue;
+        nextIncomingMap[senderId] = Number(item?.id || 0);
+      }
 
       setIncoming(inboxPayload?.inbox?.connections?.incoming || []);
       setOutgoing(inboxPayload?.inbox?.connections?.outgoing || []);
@@ -58,6 +75,8 @@ export default function NetworkingHubPage() {
       setTeacherUnreadCount(Number(inboxPayload?.inbox?.teacherLinks?.unread_count || 0));
       setSuggestions(suggestionPayload.items || []);
       setFollowingIds(new Set((followsPayload.items || []).map((item) => Number(item.following_id))));
+      setIncomingConnectionMap(nextIncomingMap);
+      setOutgoingConnectionIds(new Set((outgoingPayload.items || []).map((item) => Number(item.receiver_id))));
     } catch {
       setLoadError(t('network_hub_load_error'));
     } finally {
@@ -106,7 +125,7 @@ export default function NetworkingHubPage() {
       if (!res.ok) return;
       setIncoming((prev) => prev.filter((item) => Number(item.id) !== Number(requestId)));
       emitAppChange('connection:accepted', { requestId });
-      loadHub();
+      await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
     });
   }
 
@@ -116,15 +135,23 @@ export default function NetworkingHubPage() {
       if (!res.ok) return;
       setIncoming((prev) => prev.filter((item) => Number(item.id) !== Number(requestId)));
       emitAppChange('connection:ignored', { requestId });
+      await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
     });
   }
 
   async function connectUser(userId) {
     await runAction(`connect-${userId}`, async () => {
-      const res = await fetch(`/api/new/connections/request/${userId}`, { method: 'POST', credentials: 'include' });
+      const targetId = Number(userId || 0);
+      if (!targetId) return;
+      const incomingRequestId = Number(incomingConnectionMap[targetId] || 0);
+      if (!incomingRequestId && outgoingConnectionIds.has(targetId)) return;
+      const endpoint = incomingRequestId
+        ? `/api/new/connections/accept/${incomingRequestId}`
+        : `/api/new/connections/request/${targetId}`;
+      const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
       if (!res.ok) return;
-      emitAppChange('connection:request', { userId });
-      loadHub();
+      emitAppChange(incomingRequestId ? 'connection:accepted' : 'connection:request', { userId: targetId, requestId: incomingRequestId });
+      await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
     });
   }
 
@@ -246,11 +273,11 @@ export default function NetworkingHubPage() {
           {incoming.map((item) => (
             <div className="member-card" key={item.id}>
               <a href={`/new/members/${item.sender_id}`}>
-                <img src={item.user_resim ? `/api/media/vesikalik/${item.user_resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                <img src={readConnectionUserField(item, 'user_resim', 'resim') ? `/api/media/vesikalik/${readConnectionUserField(item, 'user_resim', 'resim')}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
               </a>
               <div>
-                <div className="name">{item.user_isim} {item.user_soyisim}</div>
-                <div className="handle">@{item.user_kadi}</div>
+                <div className="name">{readConnectionUserField(item, 'user_isim', 'isim')} {readConnectionUserField(item, 'user_soyisim', 'soyisim')}</div>
+                <div className="handle">@{readConnectionUserField(item, 'user_kadi', 'kadi')}</div>
               </div>
               <div className="composer-actions">
                 <button className="btn" onClick={() => acceptRequest(item.id)} disabled={Boolean(pendingAction[`accept-${item.id}`])}>{t('connection_accept')}</button>
@@ -268,11 +295,11 @@ export default function NetworkingHubPage() {
           {outgoing.map((item) => (
             <div className="member-card" key={item.id}>
               <a href={`/new/members/${item.receiver_id}`}>
-                <img src={item.user_resim ? `/api/media/vesikalik/${item.user_resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                <img src={readConnectionUserField(item, 'user_resim', 'resim') ? `/api/media/vesikalik/${readConnectionUserField(item, 'user_resim', 'resim')}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
               </a>
               <div>
-                <div className="name">{item.user_isim} {item.user_soyisim}</div>
-                <div className="handle">@{item.user_kadi}</div>
+                <div className="name">{readConnectionUserField(item, 'user_isim', 'isim')} {readConnectionUserField(item, 'user_soyisim', 'soyisim')}</div>
+                <div className="handle">@{readConnectionUserField(item, 'user_kadi', 'kadi')}</div>
               </div>
               <span className="chip">{t('connection_pending')}</span>
             </div>
@@ -377,13 +404,25 @@ export default function NetworkingHubPage() {
                   {Array.isArray(item.reasons) && item.reasons.length > 0 ? <div className="meta">{item.reasons[0]}</div> : null}
                 </div>
                 <div className="composer-actions">
-                  <button
-                    className="btn ghost"
-                    onClick={() => connectUser(item.id)}
-                    disabled={Boolean(pendingAction[`connect-${item.id}`])}
-                  >
-                    {t('connection_request')}
-                  </button>
+                  {(() => {
+                    const key = Number(item.id || 0);
+                    const incomingRequestId = Number(incomingConnectionMap[key] || 0);
+                    const outgoingPending = outgoingConnectionIds.has(key);
+                    const label = incomingRequestId
+                      ? t('connection_accept')
+                      : outgoingPending
+                        ? t('connection_pending')
+                        : t('connection_request');
+                    return (
+                      <button
+                        className="btn ghost"
+                        onClick={() => connectUser(item.id)}
+                        disabled={Boolean(pendingAction[`connect-${item.id}`]) || outgoingPending}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })()}
                   <button
                     className="btn ghost"
                     onClick={() => toggleFollow(item.id)}
