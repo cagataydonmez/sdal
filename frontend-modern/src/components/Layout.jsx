@@ -9,7 +9,7 @@ export default function Layout({ children, title, right }) {
   const location = useLocation();
   const { user, logout, refresh } = useAuth();
   const { mode, theme, cycleMode } = useTheme();
-  const { lang, setLang, t } = useI18n();
+  const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -81,7 +81,7 @@ export default function Layout({ children, title, right }) {
   }, [location.pathname]);
 
   const themeLabel = mobileThemeLabel
-    ? (mode === 'auto' ? 'Auto' : (mode === 'dark' ? t('theme_dark') : t('theme_light')))
+    ? (mode === 'auto' ? 'Otomatik' : (mode === 'dark' ? t('theme_dark') : t('theme_light')))
     : (mode === 'auto'
       ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') })
       : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') }));
@@ -171,12 +171,6 @@ export default function Layout({ children, title, right }) {
               <span></span>
               <span></span>
             </button>
-            <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>
-              <option value="tr">{t('lang_tr')}</option>
-              <option value="en">{t('lang_en')}</option>
-              <option value="de">{t('lang_de')}</option>
-              <option value="fr">{t('lang_fr')}</option>
-            </select>
             <button className="btn ghost theme-toggle" onClick={cycleMode} title={t('theme_mode_title')}>
               {themeLabel}
             </button>
@@ -224,12 +218,6 @@ export default function Layout({ children, title, right }) {
           {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="mobile-nav-foot">
-          <select className="input language-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('language_selector_aria')}>
-            <option value="tr">{t('lang_tr')}</option>
-            <option value="en">{t('lang_en')}</option>
-            <option value="de">{t('lang_de')}</option>
-            <option value="fr">{t('lang_fr')}</option>
-          </select>
           <button className="btn ghost" onClick={cycleMode}>{themeLabel}</button>
           <a className="btn ghost" href="/">{t('layout_classic_short')}</a>
           {user ? <button className="btn" onClick={handleLogout}>{t('logout')}</button> : null}
