@@ -336,6 +336,94 @@ CREATE TABLE IF NOT EXISTS jobs (
 4. **Contract hardening**
    - Expand phase contract suite to cover edge cases: teacher-link authorization, class year validation, mentorship decline-retry semantics.
 
+## Social Hub Networking Ecosystem – Continuation Plan (Wave 2)
+
+This section converts the social hub roadmap into an execution-ready wave focused on **network quality**, **trust visibility**, and **engagement loops**.
+
+### Wave 2 Objectives
+
+1. Turn existing network primitives (connections, mentorship, teacher links, jobs) into visible user journeys.
+2. Increase accepted connection rate with better suggestions and intent-aware CTAs.
+3. Add lightweight analytics to validate what is working before larger Phase 3 investments.
+
+### Workstream A — Suggestion Quality Upgrade
+
+1. **Backend ranking profile payload**
+   - Extend `/api/new/explore/suggestions` response with optional `scoreBreakdown`:
+     - `sameCohort`
+     - `sharedGroups`
+     - `mentorshipOverlap`
+     - `teacherGraphProximity`
+     - `profileCompleteness`
+2. **Confidence guards**
+   - Do not emit private internals to non-admin users; expose only coarse labels in UI (`high`, `medium`, `low`) when debug mode is off.
+3. **Frontend explainability**
+   - Add “Neden önerildi?” chips on suggestion cards (e.g., “Aynı dönem”, “Ortak mentor ağı”).
+
+### Workstream B — Networking Inbox & Follow-through
+
+1. Create a unified networking inbox page (`/new/network/inbox`) combining:
+   - pending connection requests,
+   - mentorship requests/status,
+   - teacher link notifications.
+2. Add one-click follow-through actions:
+   - “Profili görüntüle”,
+   - “Mesaj gönder”,
+   - “Takvime ekle” (for accepted mentorship, scaffold state only in Wave 2).
+3. Add stale-request nudges:
+   - 7-day reminder for pending requests,
+   - auto-close recommendation after 30 days (manual confirmation for now).
+
+### Workstream C — Social Proof & Trust Surface
+
+1. Member card trust badges:
+   - `Doğrulanmış Mezun`,
+   - `Mentor`,
+   - `Öğretmen Ağına Dahil`.
+2. Teacher profile social proof:
+   - show “X mezun tarafından ilişkilendirildi” count,
+   - list recent graduating years linked (privacy-safe aggregate only).
+3. Jobs trust loop:
+   - mark job posts by verified alumni with a trusted badge,
+   - show alumni network path hints when applicant has a teacher/cohort proximity.
+
+### Workstream D — Ecosystem Analytics (Operational)
+
+1. Extend admin analytics payload with networking funnel:
+   - `connections.requested`
+   - `connections.accepted`
+   - `connections.acceptance_rate`
+   - `mentorship.requested/accepted/declined`
+   - `teacher_links.created`
+2. Add cohort-level segmentation:
+   - top active graduation years,
+   - mentor supply vs demand by year.
+3. Add “time-to-first-network-success” metric:
+   - first accepted connection or mentorship acceptance since registration.
+
+### API Contract Additions (Wave 2)
+
+1. `GET /api/new/network/inbox`
+   - aggregates pending actions and recent network events.
+2. `GET /api/new/network/metrics?window=30d`
+   - returns personalized lightweight stats for member dashboard cards.
+3. `GET /api/new/admin/network/analytics?window=30d&cohort=YYYY`
+   - returns admin-ready networking funnel and cohort cuts.
+
+### Delivery Sequence
+
+1. **Sprint 1:** Suggestion explainability + score breakdown plumbing.
+2. **Sprint 2:** Networking inbox + follow-through CTAs.
+3. **Sprint 3:** Trust badges + teacher social proof aggregates.
+4. **Sprint 4:** Admin/network analytics endpoints + dashboard cards.
+
+### Exit Criteria
+
+1. Networking inbox is reachable from Explore, Profile, and Notifications surfaces.
+2. Suggestions have at least one explainability reason in 90%+ of non-empty results.
+3. Admin panel shows 30-day networking funnel without SQL/manual scripts.
+4. Contract tests cover inbox aggregation, metrics shape, and cohort filtering.
+
 ---
 
 *Last updated: 2026-03*
