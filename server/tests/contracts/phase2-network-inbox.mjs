@@ -59,6 +59,7 @@ bootstrapDb.exec(`
     entity_id INTEGER,
     message TEXT,
     is_read INTEGER DEFAULT 0,
+    read_at TEXT,
     created_at TEXT
   );
 
@@ -184,12 +185,25 @@ try {
   assert.equal(inbox.data.inbox.mentorship.counts.incoming_requested, 1);
   assert.equal(inbox.data.inbox.mentorship.counts.outgoing_requested, 1);
   assert.equal(inbox.data.inbox.teacherLinks.count, 1);
+  assert.equal(inbox.data.inbox.teacherLinks.unread_count, 1);
 
   const sender = inbox.data.inbox.connections.incoming[0];
   assert.equal(Number(sender.sender_id), senderId);
   const teacherEvent = inbox.data.inbox.teacherLinks.events[0];
   assert.equal(teacherEvent.type, 'teacher_network_linked');
   assert.equal(Number(teacherEvent.source_user_id), linkSourceId);
+
+  const markRead = await request('/api/new/network/inbox/teacher-links/read', {
+    method: 'POST',
+    cookie: cookieMe
+  });
+  assert.equal(markRead.res.status, 200);
+  assert.equal(markRead.data?.ok, true);
+  assert.equal(Number(markRead.data?.updated || 0) >= 1, true);
+
+  const inboxAfterRead = await request('/api/new/network/inbox?limit=10', { cookie: cookieMe });
+  assert.equal(inboxAfterRead.res.status, 200);
+  assert.equal(inboxAfterRead.data.inbox.teacherLinks.unread_count, 0);
 
   console.log('phase2 network inbox tests passed');
 } finally {

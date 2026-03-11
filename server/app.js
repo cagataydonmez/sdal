@@ -8734,7 +8734,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
         [userId, limit]
       ),
       sqlAllAsync(
-        `SELECT n.id, n.type, n.source_user_id, n.entity_id, n.message, n.created_at,
+        `SELECT n.id, n.type, n.source_user_id, n.entity_id, n.message, n.read_at, n.created_at,
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified
          FROM notifications n
          LEFT JOIN uyeler u ON u.id = n.source_user_id
@@ -8765,7 +8765,8 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
         },
         teacherLinks: {
           events: teacherLinkEvents,
-          count: teacherLinkEvents.length
+          count: teacherLinkEvents.length,
+          unread_count: teacherLinkEvents.reduce((sum, item) => (item.read_at ? sum : sum + 1), 0)
         }
       }
     });
@@ -8879,6 +8880,22 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('network.metrics failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.post('/api/new/network/inbox/teacher-links/read', requireAuth, async (req, res) => {
+  try {
+    const result = await sqlRunAsync(
+      `UPDATE notifications
+       SET read_at = COALESCE(read_at, ?)
+       WHERE user_id = ?
+         AND type = 'teacher_network_linked'`,
+      [new Date().toISOString(), req.session.userId]
+    );
+    return res.json({ ok: true, updated: Number(result?.changes || 0) });
+  } catch (err) {
+    console.error('network.inbox.teacher-links.read failed:', err);
     return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
 });

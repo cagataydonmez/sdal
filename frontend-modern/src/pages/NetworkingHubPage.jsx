@@ -29,6 +29,7 @@ export default function NetworkingHubPage() {
   const [incomingMentorship, setIncomingMentorship] = useState([]);
   const [outgoingMentorship, setOutgoingMentorship] = useState([]);
   const [teacherEvents, setTeacherEvents] = useState([]);
+  const [teacherUnreadCount, setTeacherUnreadCount] = useState(0);
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [pendingAction, setPendingAction] = useState({});
@@ -54,6 +55,7 @@ export default function NetworkingHubPage() {
       setIncomingMentorship(inboxPayload?.inbox?.mentorship?.incoming || []);
       setOutgoingMentorship(inboxPayload?.inbox?.mentorship?.outgoing || []);
       setTeacherEvents(inboxPayload?.inbox?.teacherLinks?.events || []);
+      setTeacherUnreadCount(Number(inboxPayload?.inbox?.teacherLinks?.unread_count || 0));
       setSuggestions(suggestionPayload.items || []);
       setFollowingIds(new Set((followsPayload.items || []).map((item) => Number(item.following_id))));
     } catch {
@@ -140,6 +142,14 @@ export default function NetworkingHubPage() {
       const res = await fetch(`/api/new/mentorship/decline/${id}`, { method: 'POST', credentials: 'include' });
       if (!res.ok) return;
       setIncomingMentorship((prev) => prev.filter((item) => Number(item.id) !== Number(id)));
+    });
+  }
+  async function markTeacherLinksRead() {
+    await runAction('teacher-links-read', async () => {
+      const res = await fetch('/api/new/network/inbox/teacher-links/read', { method: 'POST', credentials: 'include' });
+      if (!res.ok) return;
+      setTeacherUnreadCount(0);
+      setTeacherEvents((prev) => prev.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
     });
   }
 
@@ -315,8 +325,17 @@ export default function NetworkingHubPage() {
       </div>
 
       <div className="panel">
-        <h3>{t('network_hub_teacher_links_title')}</h3>
+        <h3>{t('network_hub_teacher_links_title')} {teacherUnreadCount > 0 ? <span className="chip">{t('network_hub_unread_count', { count: teacherUnreadCount })}</span> : null}</h3>
         <div className="panel-body stack">
+          {teacherUnreadCount > 0 ? (
+            <button
+              className="btn ghost"
+              onClick={markTeacherLinksRead}
+              disabled={Boolean(pendingAction['teacher-links-read'])}
+            >
+              {t('network_hub_mark_teacher_links_read')}
+            </button>
+          ) : null}
           {!loading && teacherEvents.length === 0 ? <div className="muted">{t('network_hub_teacher_links_empty')}</div> : null}
           {teacherEvents.map((item) => (
             <div className="member-card" key={`tl-${item.id}`}>

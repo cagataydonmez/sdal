@@ -136,6 +136,8 @@ const trFallbackMessages = {
   network_hub_teacher_links_title: 'Öğretmen Ağı Bildirimleri',
   network_hub_teacher_links_empty: 'Öğretmen ağı bildirimi bulunmuyor.',
   network_hub_teacher_links_default_message: 'Seni öğretmen ağına ekledi.',
+  network_hub_mark_teacher_links_read: 'Öğretmen ağı bildirimlerini okundu işaretle',
+  network_hub_unread_count: '{count} yeni',
   network_hub_decline: 'Reddet',
   network_hub_add_calendar: 'Takvime Ekle',
   network_hub_stale_7d: '7 gündür bekliyor · Hatırlatma gönder.',
