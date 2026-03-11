@@ -198,6 +198,18 @@ export default function ExplorePage({ fullMode = false }) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
+  function renderTrustBadges(member) {
+    const badges = Array.isArray(member?.trust_badges) ? member.trust_badges : [];
+    if (!badges.length) return null;
+    return (
+      <div className="composer-actions">
+        {badges.includes('verified_alumni') ? <span className="chip">{t('trust_badge_verified_alumni')}</span> : null}
+        {badges.includes('mentor') ? <span className="chip">{t('trust_badge_mentor')}</span> : null}
+        {badges.includes('teacher_network') ? <span className="chip">{t('trust_badge_teacher_network')}</span> : null}
+      </div>
+    );
+  }
+
   function renderMemberCard(m, showReasons = false) {
     return (
       <div className="member-card" key={`${showReasons ? 's' : 'm'}-${m.id}`}>
@@ -213,6 +225,7 @@ export default function ExplorePage({ fullMode = false }) {
           <div className="meta">{m.mezuniyetyili || ''}{Number(m.online || 0) === 1 ? ` · ${t('status_online')}` : ''}</div>
           {m.unvan || m.sirket ? <div className="meta">{[m.unvan, m.sirket].filter(Boolean).join(' @ ')}</div> : null}
           {m.uzmanlik ? <div className="meta">{m.uzmanlik}</div> : null}
+          {renderTrustBadges(m)}
           {showReasons && Array.isArray(m.reasons) && m.reasons.length ? (
             <div className="composer-actions">
               {m.reasons.slice(0, 2).map((r) => <span className="chip" key={`${m.id}-${r}`}>{r}</span>)}

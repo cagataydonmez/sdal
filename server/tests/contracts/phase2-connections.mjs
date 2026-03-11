@@ -231,6 +231,8 @@ try {
   assert.ok(suggestedB);
   const reasonText = (suggestedB.reasons || []).join(' | ').toLowerCase();
   assert.ok(reasonText.includes('mentorluk') || reasonText.includes('ogretmen') || reasonText.includes('ortak grup'));
+  assert.equal(Array.isArray(suggestedB.trust_badges), true);
+  assert.equal(suggestedB.trust_badges.includes('teacher_network'), true);
 
   console.log('phase2 connections tests passed');
 } finally {
