@@ -6817,6 +6817,7 @@ app.get('/api/sidebar', (req, res) => {
 app.get('/api/members', async (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).send('Login required');
+    ensureTeacherAlumniLinksTable();
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '10', 10), 1), 50);
     const term = req.query.term ? String(req.query.term).replace(/'/g, '') : '';
@@ -6905,7 +6906,13 @@ app.get('/api/members', async (req, res) => {
       sqlAllAsync(
         `SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.mailkapali, u.mezuniyetyili, u.dogumgun, u.dogumay, u.dogumyil,
                 u.sehir, u.universite, u.meslek, u.websitesi, u.imza, u.resim, u.online, u.sontarih, u.verified,
-                u.sirket, u.unvan, u.uzmanlik, u.linkedin_url, u.universite_bolum, u.mentor_opt_in, u.mentor_konulari
+                u.sirket, u.unvan, u.uzmanlik, u.linkedin_url, u.universite_bolum, u.mentor_opt_in, u.mentor_konulari,
+                u.role,
+                CASE WHEN EXISTS (
+                  SELECT 1
+                  FROM teacher_alumni_links tal
+                  WHERE tal.teacher_user_id = u.id OR tal.alumni_user_id = u.id
+                ) THEN 1 ELSE 0 END AS teacher_network_member
          FROM uyeler u
          LEFT JOIN member_engagement_scores es ON es.user_id = u.id
          WHERE ${where}
@@ -6923,7 +6930,18 @@ app.get('/api/members', async (req, res) => {
       ranges.push({ start, end });
     }
 
-    return res.json({ rows, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly } });
+    const rowsWithTrustBadges = rows.map((row) => {
+      const trustBadges = [];
+      if (Number(row.verified || 0) === 1) trustBadges.push('verified_alumni');
+      if (Number(row.mentor_opt_in || 0) === 1) trustBadges.push('mentor');
+      if (Number(row.teacher_network_member || 0) === 1 || String(row.role || '').toLowerCase() === 'teacher') trustBadges.push('teacher_network');
+      return {
+        ...row,
+        trust_badges: trustBadges
+      };
+    });
+
+    return res.json({ rows: rowsWithTrustBadges, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly } });
   } catch (err) {
     console.error('members.list failed:', err);
     return res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -9363,6 +9381,7 @@ app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
       sqlAllAsync('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]),
       sqlAllAsync(
         `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.mezuniyetyili, u.sehir, u.universite, u.meslek, u.online,
+                u.role, u.mentor_opt_in,
                 COALESCE(es.score, 0) AS engagement_score
          FROM uyeler u
          LEFT JOIN member_engagement_scores es ON es.user_id = u.id
@@ -9511,6 +9530,7 @@ app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
 
       const teacherOverlap = getOverlapCount(teacherPeersMap, req.session.userId, cid);
       const hasDirectTeacherLink = teacherPeersMap.get(Number(req.session.userId || 0))?.has(cid);
+      const isTeacherNetworkMember = Boolean(hasDirectTeacherLink || teacherOverlap > 0 || String(c.role || '').toLowerCase() === 'teacher');
       if (hasDirectTeacherLink) {
         score += 13;
         reasons.push('Dogrudan ogretmen agi baglantisi');
@@ -9528,10 +9548,16 @@ app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
       if (Number(c.verified || 0) === 1) score += 2;
       if (Number(c.online || 0) === 1) score += 1;
 
+      const trustBadges = [];
+      if (Number(c.verified || 0) === 1) trustBadges.push('verified_alumni');
+      if (Number(c.mentor_opt_in || 0) === 1) trustBadges.push('mentor');
+      if (isTeacherNetworkMember) trustBadges.push('teacher_network');
+
       scored.push({
         ...c,
         score,
-        reasons: reasons.slice(0, 3)
+        reasons: reasons.slice(0, 3),
+        trustBadges
       });
     }
 
@@ -9551,7 +9577,10 @@ app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
       verified: u.verified,
       mezuniyetyili: u.mezuniyetyili,
       online: u.online,
-      reasons: u.reasons
+      role: u.role,
+      mentor_opt_in: Number(u.mentor_opt_in || 0),
+      reasons: u.reasons,
+      trust_badges: u.trustBadges
     }));
     const payload = { items, hasMore: offset + items.length < scored.length, total: scored.length };
     writeExploreSuggestionsCache(cacheKey, payload);
