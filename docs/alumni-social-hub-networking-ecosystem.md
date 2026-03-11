@@ -578,3 +578,73 @@ verified -> suspended (fraud / policy)
 - If role=alumni: upsert alumni profile, upsert class circle membership.
 - If role=teacher: upsert teacher profile, grant podium + all class visibility scopes.
 - Always: write `compliance_audit_logs` with reviewer action and masked payload snapshot.
+
+---
+
+## 9) Wave 2 Execution Backlog (Social Hub Networking Ecosystem Continuation)
+
+This backlog continues implementation after the currently shipped networking baseline.
+
+### 9.1 Product outcomes targeted in this wave
+1. More accepted connections (not just more requests).
+2. Faster first meaningful interaction for new members.
+3. Stronger trust perception in profile/discovery/job surfaces.
+
+### 9.2 Execution tracks
+
+#### Track A — Discovery to connection conversion
+- Extend suggestions with explainability labels derived from existing ranking signals:
+  - same class year,
+  - shared groups,
+  - mentorship graph overlap,
+  - teacher-alumni graph proximity.
+- Show “why suggested” chips in Explore cards.
+- Add CTA variant tests:
+  - `Bağlantı Kur` vs `Tanışma İsteği Gönder`.
+
+#### Track B — Networking inbox and state consolidation
+- Add a unified inbox endpoint and view that merges:
+  - connection requests,
+  - mentorship requests,
+  - teacher-link related notifications.
+- Normalize action states (`pending`, `accepted`, `declined`, `ignored`, `expired`) across all networking entities.
+- Add reminders for stale requests (7 days) and expiration hints (30 days).
+
+#### Track C — Trust and social proof
+- Introduce reusable trust badge primitives:
+  - verified alumni,
+  - active mentor,
+  - teacher-network linked.
+- Add aggregate counts on teacher pages:
+  - linked alumni count,
+  - recent graduation-year distribution (bucketed, privacy-safe).
+- Add trusted poster indicator on jobs posted by verified alumni/teachers.
+
+#### Track D — Analytics and admin observability
+- Add network funnel cards to admin analytics:
+  - request sent,
+  - accepted,
+  - declined,
+  - acceptance rate,
+  - median response time.
+- Add cohort segmentation for mentoring demand/supply.
+- Add “time to first network success” (first accepted connection or mentorship acceptance).
+
+### 9.3 Incremental API additions
+1. `GET /api/new/network/inbox`
+2. `GET /api/new/network/metrics`
+3. `GET /api/new/admin/network/analytics`
+
+All additions should remain backward-compatible with current page contracts.
+
+### 9.4 Suggested milestone order
+1. Suggestions explainability + UI chips.
+2. Networking inbox aggregation endpoint + page shell.
+3. Trust badge system + teacher aggregate stats.
+4. Admin networking analytics cards + cohort filters.
+
+### 9.5 Definition of done for Wave 2
+1. Networking inbox reachable from profile and explore flows.
+2. Explainability reason exists for most suggestion cards.
+3. Admin can monitor networking funnel without manual SQL.
+4. Contract tests cover new endpoints and permission checks.
