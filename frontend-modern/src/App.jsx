@@ -105,6 +105,7 @@ export default function App() {
             <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
             <Route path="/new/jobs" element={<RequireAuth><JobsPage /></RequireAuth>} />
             <Route path="/new/network/hub" element={<RequireAuth><NetworkingHubPage /></RequireAuth>} />
+            <Route path="/new/network/inbox" element={<RequireAuth><NetworkingHubPage /></RequireAuth>} />
             <Route path="/new/network/teachers" element={<RequireAuth><TeachersNetworkPage /></RequireAuth>} />
             <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
             <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />

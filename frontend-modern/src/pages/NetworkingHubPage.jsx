@@ -15,22 +15,20 @@ export default function NetworkingHubPage() {
   const loadHub = useCallback(async () => {
     setLoading(true);
     try {
-      const [incomingRes, outgoingRes, suggestionRes, followsRes] = await Promise.all([
-        fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=12&offset=0', { credentials: 'include' }),
-        fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=12&offset=0', { credentials: 'include' }),
+      const [inboxRes, suggestionRes, followsRes] = await Promise.all([
+        fetch('/api/new/network/inbox?limit=12', { credentials: 'include' }),
         fetch('/api/new/explore/suggestions?limit=8&offset=0', { credentials: 'include' }),
         fetch('/api/new/follows?limit=400&offset=0', { credentials: 'include' })
       ]);
 
-      const [incomingPayload, outgoingPayload, suggestionPayload, followsPayload] = await Promise.all([
-        incomingRes.ok ? incomingRes.json() : Promise.resolve({ items: [] }),
-        outgoingRes.ok ? outgoingRes.json() : Promise.resolve({ items: [] }),
+      const [inboxPayload, suggestionPayload, followsPayload] = await Promise.all([
+        inboxRes.ok ? inboxRes.json() : Promise.resolve({ inbox: { connections: { incoming: [], outgoing: [] } } }),
         suggestionRes.ok ? suggestionRes.json() : Promise.resolve({ items: [] }),
         followsRes.ok ? followsRes.json() : Promise.resolve({ items: [] })
       ]);
 
-      setIncoming(incomingPayload.items || []);
-      setOutgoing(outgoingPayload.items || []);
+      setIncoming(inboxPayload?.inbox?.connections?.incoming || []);
+      setOutgoing(inboxPayload?.inbox?.connections?.outgoing || []);
       setSuggestions(suggestionPayload.items || []);
       setFollowingIds(new Set((followsPayload.items || []).map((item) => Number(item.following_id))));
     } finally {

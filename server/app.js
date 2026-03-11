@@ -8644,6 +8644,99 @@ app.post('/api/new/mentorship/decline/:id', requireAuth, (req, res) => {
   return res.json({ ok: true, status: 'declined' });
 });
 
+app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
+  try {
+    ensureConnectionRequestsTable();
+    ensureMentorshipRequestsTable();
+    ensureTeacherAlumniLinksTable();
+
+    const userId = Number(req.session?.userId || 0);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
+    const teacherLinkLimit = Math.min(Math.max(parseInt(req.query.teacher_limit || String(limit), 10), 1), 50);
+
+    const [incomingConnections, outgoingConnections, incomingMentorship, outgoingMentorship, teacherLinkEvents] = await Promise.all([
+      sqlAllAsync(
+        `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
+                u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM connection_requests cr
+         LEFT JOIN uyeler u ON u.id = cr.sender_id
+         WHERE cr.receiver_id = ? AND cr.status = 'pending'
+         ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
+         LIMIT ?`,
+        [userId, limit]
+      ),
+      sqlAllAsync(
+        `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
+                u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM connection_requests cr
+         LEFT JOIN uyeler u ON u.id = cr.receiver_id
+         WHERE cr.sender_id = ? AND cr.status = 'pending'
+         ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
+         LIMIT ?`,
+        [userId, limit]
+      ),
+      sqlAllAsync(
+        `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
+                u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM mentorship_requests mr
+         LEFT JOIN uyeler u ON u.id = mr.requester_id
+         WHERE mr.mentor_id = ? AND mr.status = 'requested'
+         ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
+         LIMIT ?`,
+        [userId, limit]
+      ),
+      sqlAllAsync(
+        `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
+                u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM mentorship_requests mr
+         LEFT JOIN uyeler u ON u.id = mr.mentor_id
+         WHERE mr.requester_id = ? AND mr.status = 'requested'
+         ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
+         LIMIT ?`,
+        [userId, limit]
+      ),
+      sqlAllAsync(
+        `SELECT n.id, n.type, n.source_user_id, n.entity_id, n.message, n.created_at,
+                u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM notifications n
+         LEFT JOIN uyeler u ON u.id = n.source_user_id
+         WHERE n.user_id = ? AND n.type = 'teacher_network_linked'
+         ORDER BY COALESCE(NULLIF(n.created_at, ''), '1970-01-01T00:00:00.000Z') DESC, n.id DESC
+         LIMIT ?`,
+        [userId, teacherLinkLimit]
+      )
+    ]);
+
+    return res.json({
+      inbox: {
+        connections: {
+          incoming: incomingConnections,
+          outgoing: outgoingConnections,
+          counts: {
+            incoming_pending: incomingConnections.length,
+            outgoing_pending: outgoingConnections.length
+          }
+        },
+        mentorship: {
+          incoming: incomingMentorship,
+          outgoing: outgoingMentorship,
+          counts: {
+            incoming_requested: incomingMentorship.length,
+            outgoing_requested: outgoingMentorship.length
+          }
+        },
+        teacherLinks: {
+          events: teacherLinkEvents,
+          count: teacherLinkEvents.length
+        }
+      }
+    });
+  } catch (err) {
+    console.error('network.inbox failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
 app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
   try {
     ensureTeacherAlumniLinksTable();
