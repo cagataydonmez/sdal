@@ -102,6 +102,7 @@ export default function Layout({ children, title, right }) {
       { to: '/new/events', label: t('nav_events'), module: 'events' },
       { to: '/new/announcements', label: t('nav_announcements'), module: 'announcements' },
       { to: '/new/jobs', label: t('nav_jobs'), module: 'jobs' },
+      { to: '/new/network/hub', label: t('nav_network_hub'), module: 'explore' },
       { to: '/new/network/teachers', label: t('nav_teacher_network'), module: 'teachers_network' },
       { to: '/new/profile', label: t('nav_profile'), module: 'profile' },
       { to: '/new/help', label: t('nav_help'), module: 'help' }
