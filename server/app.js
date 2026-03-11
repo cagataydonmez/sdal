@@ -1453,6 +1453,24 @@ function hasAdminRole(user) {
   return roleAtLeast(getUserRole(user), 'admin');
 }
 
+function isVerifiedMember(user) {
+  if (!user) return false;
+  if (Number(user.verified || 0) === 1) return true;
+  const status = String(user.verification_status || '').trim().toLowerCase();
+  return status === 'approved' || status === 'verified';
+}
+
+function ensureVerifiedSocialHubMember(req, res) {
+  const user = getCurrentUser(req);
+  if (hasAdminSession(req, user)) return true;
+  if (isVerifiedMember(user)) return true;
+  res.status(403).json({
+    code: 'VERIFICATION_REQUIRED',
+    message: 'Bu özelliği kullanmak için profil doğrulaması gerekli.'
+  });
+  return false;
+}
+
 function buildModeratorPermissionMap(userId) {
   const map = new Map();
   if (!userId) return map;
@@ -8354,6 +8372,7 @@ function ensureJobApplicationsTable() {
 }
 
 app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateLimit, (req, res) => {
+  if (!ensureVerifiedSocialHubMember(req, res)) return;
   ensureConnectionRequestsTable();
   const senderId = Number(req.session?.userId || 0);
   const receiverId = Number(req.params.id || 0);
@@ -8506,6 +8525,7 @@ app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
 
 
 app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLimit, (req, res) => {
+  if (!ensureVerifiedSocialHubMember(req, res)) return;
   ensureMentorshipRequestsTable();
   const requesterId = Number(req.session?.userId || 0);
   const mentorId = Number(req.params.id || 0);
@@ -8795,6 +8815,7 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
 
 app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) => {
   try {
+    if (!ensureVerifiedSocialHubMember(req, res)) return;
     ensureTeacherAlumniLinksTable();
     const alumniUserId = Number(req.session?.userId || 0);
     const teacherUserId = Number(req.params.teacherId || 0);
@@ -10497,6 +10518,7 @@ app.get('/api/new/jobs', requireAuth, async (req, res) => {
 });
 
 app.post('/api/new/jobs/:id/apply', requireAuth, async (req, res) => {
+  if (!ensureVerifiedSocialHubMember(req, res)) return;
   const jobId = Number(req.params.id || 0);
   if (!jobId) return res.status(400).send('Geçersiz iş ilanı kimliği.');
 
@@ -10559,6 +10581,7 @@ app.get('/api/new/jobs/:id/applications', requireAuth, async (req, res) => {
 });
 
 app.post('/api/new/jobs', requireAuth, async (req, res) => {
+  if (!ensureVerifiedSocialHubMember(req, res)) return;
   const company = sanitizePlainUserText(String(req.body?.company || '').trim(), 140);
   const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
   const description = formatUserText(String(req.body?.description || ''));
