@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 const I18N_KEY = 'sdal_new_lang';
-const SUPPORTED_LANGS = ['tr', 'en', 'de', 'fr'];
 
 const trFallbackMessages = {
   loading: 'Yükleniyor...',
@@ -415,7 +414,7 @@ const trFallbackMessages = {
   help_faq_2_q: 'Canlı sohbette eski mesajları nasıl görürüm?',
   help_faq_2_a: 'Sohbet kutusunda yukarı kaydırdıkça daha eski mesajlar yüklenir.',
   help_faq_3_q: 'Dil değiştirme:',
-  help_faq_3_a: 'Üst barda bulunan dil seçiciden Türkçe, İngilizce, Almanca, Fransızca arasında geçiş yapabilirsin.',
+  help_faq_3_a: 'Şu anda platform yalnızca Türkçe sunulmaktadır.',
   theme_mode_title: 'Tema modu: Otomatik -> Koyu -> Açık',
   theme_dark: 'Koyu',
   theme_light: 'Açık',
@@ -794,9 +793,6 @@ const I18nContext = createContext({
 });
 
 function readInitialLang() {
-  if (typeof window === 'undefined') return 'tr';
-  const value = String(window.localStorage.getItem(I18N_KEY) || 'tr').toLowerCase();
-  if (SUPPORTED_LANGS.includes(value)) return value;
   return 'tr';
 }
 
@@ -826,11 +822,17 @@ export function I18nProvider({ children }) {
     runtimeRef.current = runtimeMessages;
   }, [runtimeMessages]);
 
-  const setLang = (value) => {
-    const next = SUPPORTED_LANGS.includes(value) ? value : 'tr';
-    setLangState(next);
+  useEffect(() => {
+    setLangState('tr');
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(I18N_KEY, next);
+      window.localStorage.setItem(I18N_KEY, 'tr');
+    }
+  }, []);
+
+  const setLang = () => {
+    setLangState('tr');
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(I18N_KEY, 'tr');
     }
   };
 
