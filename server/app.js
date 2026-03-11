@@ -11092,7 +11092,10 @@ app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
       countsRow,
       recentUsers,
       recentPosts,
-      recentPhotos
+      recentPhotos,
+      networkFunnelRows,
+      mentorshipRows,
+      teacherLinkRows
     ] = await Promise.all([
       sqlGetAsync(
         `SELECT
@@ -11131,8 +11134,48 @@ app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
          ORDER BY f.id DESC
          LIMIT ?`,
         [recentLimit]
-      )
+      ),
+      hasTable('connection_requests')
+        ? sqlAllAsync(
+          `SELECT status, COUNT(*)::int AS count
+           FROM connection_requests
+           GROUP BY status`
+        )
+        : Promise.resolve([]),
+      hasTable('mentorship_requests')
+        ? sqlAllAsync(
+          `SELECT status, COUNT(*)::int AS count
+           FROM mentorship_requests
+           GROUP BY status`
+        )
+        : Promise.resolve([]),
+      hasTable('teacher_alumni_links')
+        ? sqlAllAsync(
+          `SELECT relationship_type, COUNT(*)::int AS count
+           FROM teacher_alumni_links
+           GROUP BY relationship_type`
+        )
+        : Promise.resolve([])
     ]);
+
+    const connectionStats = networkFunnelRows.reduce((acc, row) => {
+      const key = String(row?.status || '').toLowerCase();
+      if (!key) return acc;
+      acc[key] = Number(row?.count || 0);
+      return acc;
+    }, {});
+    const mentorshipStats = mentorshipRows.reduce((acc, row) => {
+      const key = String(row?.status || '').toLowerCase();
+      if (!key) return acc;
+      acc[key] = Number(row?.count || 0);
+      return acc;
+    }, {});
+    const teacherLinkByType = teacherLinkRows.reduce((acc, row) => {
+      const key = String(row?.relationship_type || '').toLowerCase();
+      if (!key) return acc;
+      acc[key] = Number(row?.count || 0);
+      return acc;
+    }, {});
 
     const counts = {
       users: Number(countsRow?.users || 0),
@@ -11150,6 +11193,23 @@ app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
     };
     const payload = {
       counts,
+      networking: {
+        connections: {
+          requested: connectionStats.pending || 0,
+          accepted: connectionStats.accepted || 0,
+          ignored: connectionStats.ignored || 0,
+          declined: connectionStats.declined || 0
+        },
+        mentorship: {
+          requested: mentorshipStats.requested || 0,
+          accepted: mentorshipStats.accepted || 0,
+          declined: mentorshipStats.declined || 0
+        },
+        teacherLinks: {
+          total: teacherLinkRows.reduce((sum, row) => sum + Number(row?.count || 0), 0),
+          byRelationshipType: teacherLinkByType
+        }
+      },
       storage: readAdminStorageSnapshot(),
       recentUsers,
       recentPosts,
