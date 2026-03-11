@@ -679,10 +679,10 @@ async function inspectPostgresSwitchTarget() {
 
   try {
     const tableCountResult = await pgQuery(
-      "SELECT COUNT(*)::int AS cnt FROM information_schema.tables WHERE table_schema = 'public'"
+      "SELECT CAST(COUNT(*) AS INTEGER) AS cnt FROM information_schema.tables WHERE table_schema = 'public'"
     );
     const usersTableResult = await pgQuery(
-      "SELECT COUNT(*)::int AS cnt FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('uyeler', 'users')"
+      "SELECT CAST(COUNT(*) AS INTEGER) AS cnt FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('uyeler', 'users')"
     );
     payload.tableCount = Number(tableCountResult.rows?.[0]?.cnt || 0);
     payload.usersTableExists = Number(usersTableResult.rows?.[0]?.cnt || 0) > 0;
@@ -11570,7 +11570,7 @@ app.post('/api/new/admin/engagement-ab/rebalance', requireAdmin, (req, res) => {
   res.json({ ok: true, keepAssignments });
 });
 
-app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
+const handleAdminDashboardSummary = async (req, res) => {
   try {
     const recentLimit = Math.min(Math.max(parseInt(req.query.recentLimit || '12', 10), 1), 80);
     const cacheKey = `recentLimit:${recentLimit}`;
@@ -11585,6 +11585,15 @@ app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
 
     cleanupStaleOnlineUsersAsync().catch(() => {});
 
+    const countBy = async (tableName, whereClause = '', params = []) => {
+      if (!hasTable(tableName)) return 0;
+      const row = await sqlGetAsync(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS cnt FROM ${tableName}${whereClause ? ` WHERE ${whereClause}` : ''}`,
+        params
+      );
+      return Number(row?.cnt || 0);
+    };
+
     const [
       countsRow,
       recentUsers,
@@ -11594,44 +11603,62 @@ app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
       mentorshipRows,
       teacherLinkRows
     ] = await Promise.all([
-      sqlGetAsync(
-        `SELECT
-           (SELECT COUNT(*)::int FROM uyeler) AS users,
-           (SELECT COUNT(*)::int FROM uyeler WHERE aktiv = 1 AND yasak = 0) AS active_users,
-           (SELECT COUNT(*)::int FROM uyeler WHERE aktiv = 0 AND yasak = 0) AS pending_users,
-           (SELECT COUNT(*)::int FROM uyeler WHERE yasak = 1) AS banned_users,
-           (SELECT COUNT(*)::int FROM posts) AS posts,
-           (SELECT COUNT(*)::int FROM album_foto) AS photos,
-           (SELECT COUNT(*)::int FROM stories) AS stories,
-           (SELECT COUNT(*)::int FROM groups) AS groups,
-           (SELECT COUNT(*)::int FROM gelenkutusu) AS messages,
-           (SELECT COUNT(*)::int FROM events) AS events,
-           (SELECT COUNT(*)::int FROM announcements) AS announcements,
-           (SELECT COUNT(*)::int FROM chat_messages) AS chat`
-      ),
-      sqlAllAsync(
-        `SELECT id, kadi, isim, soyisim, resim, ilktarih
-         FROM uyeler
-         ORDER BY id DESC
-         LIMIT ?`,
-        [recentLimit]
-      ),
-      sqlAllAsync(
-        `SELECT p.id, p.content, p.image, p.created_at, u.kadi
-         FROM posts p
-         LEFT JOIN uyeler u ON u.id = p.user_id
-         ORDER BY p.id DESC
-         LIMIT ?`,
-        [recentLimit]
-      ),
-      sqlAllAsync(
-        `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
-         FROM album_foto f
-         LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
-         ORDER BY f.id DESC
-         LIMIT ?`,
-        [recentLimit]
-      ),
+      Promise.all([
+        countBy('uyeler'),
+        countBy('uyeler', 'aktiv = 1 AND yasak = 0'),
+        countBy('uyeler', 'aktiv = 0 AND yasak = 0'),
+        countBy('uyeler', 'yasak = 1'),
+        countBy('posts'),
+        countBy('album_foto'),
+        countBy('stories'),
+        countBy('groups'),
+        countBy('gelenkutusu'),
+        countBy('events'),
+        countBy('announcements'),
+        countBy('chat_messages')
+      ]).then(([users, active_users, pending_users, banned_users, posts, photos, stories, groups, messages, events, announcements, chat]) => ({
+        users,
+        active_users,
+        pending_users,
+        banned_users,
+        posts,
+        photos,
+        stories,
+        groups,
+        messages,
+        events,
+        announcements,
+        chat
+      })),
+      hasTable('uyeler')
+        ? sqlAllAsync(
+          `SELECT id, kadi, isim, soyisim, resim, ilktarih
+           FROM uyeler
+           ORDER BY id DESC
+           LIMIT ?`,
+          [recentLimit]
+        )
+        : Promise.resolve([]),
+      hasTable('posts')
+        ? sqlAllAsync(
+          `SELECT p.id, p.content, p.image, p.created_at, u.kadi
+           FROM posts p
+           LEFT JOIN uyeler u ON u.id = p.user_id
+           ORDER BY p.id DESC
+           LIMIT ?`,
+          [recentLimit]
+        )
+        : Promise.resolve([]),
+      hasTable('album_foto')
+        ? sqlAllAsync(
+          `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, u.kadi
+           FROM album_foto f
+           LEFT JOIN uyeler u ON ${joinUserOnPhotoOwnerExpr}
+           ORDER BY f.id DESC
+           LIMIT ?`,
+          [recentLimit]
+        )
+        : Promise.resolve([]),
       hasTable('connection_requests')
         ? sqlAllAsync(
           `SELECT status, CAST(COUNT(*) AS INTEGER) AS count
@@ -11722,7 +11749,10 @@ app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
     console.error('admin.stats failed:', err);
     return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-});
+};
+
+app.get('/api/new/admin/stats', requireAdmin, handleAdminDashboardSummary);
+app.get('/api/admin/dashboard/summary', requireAdmin, handleAdminDashboardSummary);
 
 app.get('/api/new/admin/engagement-scores', requireAdmin, (req, res) => {
   const q = String(req.query.q || '').trim();
@@ -11831,7 +11861,7 @@ app.post('/api/new/admin/engagement-scores/recalculate', requireAdmin, (_req, re
   res.json({ ok: true, lastCalculatedAt });
 });
 
-app.get('/api/new/admin/live', requireAdmin, async (req, res) => {
+const handleAdminDashboardActivity = async (req, res) => {
   try {
     const chatLimit = Math.min(Math.max(parseInt(req.query.chatLimit || '8', 10), 1), 50);
     const postLimit = Math.min(Math.max(parseInt(req.query.postLimit || '8', 10), 1), 50);
@@ -11868,14 +11898,37 @@ app.get('/api/new/admin/live', requireAdmin, async (req, res) => {
       safeRead('online_members', () => listOnlineMembersAsync({ limit: 20, excludeUserId: null }), []),
       safeRead(
         'counts',
-        () => sqlGetAsync(
-          `SELECT
-             (SELECT COUNT(*)::int FROM verification_requests WHERE status = ?) AS pending_verifications,
-             (SELECT COUNT(*)::int FROM events WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_events,
-             (SELECT COUNT(*)::int FROM announcements WHERE LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')) AS pending_announcements,
-             (SELECT COUNT(*)::int FROM album_foto WHERE aktif = 0) AS pending_photos`,
-          ['pending']
-        ),
+        async () => {
+          const countBy = async (tableName, whereClause = '', params = []) => {
+            if (!hasTable(tableName)) return 0;
+            const row = await sqlGetAsync(
+              `SELECT CAST(COUNT(*) AS INTEGER) AS cnt FROM ${tableName}${whereClause ? ` WHERE ${whereClause}` : ''}`,
+              params
+            );
+            return Number(row?.cnt || 0);
+          };
+          return {
+            pending_verifications: await countBy('verification_requests', 'status = ?', ['pending']),
+            pending_events: await countBy(
+              'events',
+              hasColumn('events', 'approved')
+                ? "LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')"
+                : ''
+            ),
+            pending_announcements: await countBy(
+              'announcements',
+              hasColumn('announcements', 'approved')
+                ? "LOWER(COALESCE(NULLIF(TRIM(CAST(approved AS TEXT)), ''), '1')) IN ('0','false','hayir','no')"
+                : ''
+            ),
+            pending_photos: await countBy(
+              'album_foto',
+              hasColumn('album_foto', 'aktif')
+                ? 'aktif = 0'
+                : ''
+            )
+          };
+        },
         { pending_verifications: 0, pending_events: 0, pending_announcements: 0, pending_photos: 0 }
       ),
       safeRead(
@@ -11983,7 +12036,10 @@ app.get('/api/new/admin/live', requireAdmin, async (req, res) => {
     console.error('admin.live failed:', err);
     return res.status(500).send('Beklenmeyen bir hata oluştu.');
   }
-});
+};
+
+app.get('/api/new/admin/live', requireAdmin, handleAdminDashboardActivity);
+app.get('/api/admin/dashboard/activity', requireAdmin, handleAdminDashboardActivity);
 
 app.get('/api/new/admin/groups', requireModerationPermission('groups.view'), (req, res) => {
   const actor = req.authUser || getCurrentUser(req);

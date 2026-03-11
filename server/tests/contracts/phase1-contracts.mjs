@@ -365,6 +365,36 @@ try {
   const rootLogin = await login('root', 'RootPass!123');
   assert.equal(rootLogin.resp.status, 200, 'root login failed');
 
+  const legacyDashboardSummary = await requestJson('/api/new/admin/stats', {
+    cookie: rootLogin.cookie
+  });
+  assert.equal(legacyDashboardSummary.resp.status, 200, 'legacy dashboard summary status mismatch');
+
+  const dashboardSummary = await requestJson('/api/admin/dashboard/summary', {
+    cookie: rootLogin.cookie
+  });
+  assert.equal(dashboardSummary.resp.status, 200, 'dashboard summary status mismatch');
+  assert.deepEqual(
+    sortedKeys(dashboardSummary.json || {}),
+    sortedKeys(legacyDashboardSummary.json || {}),
+    'dashboard summary shape mismatch against legacy endpoint'
+  );
+
+  const legacyDashboardActivity = await requestJson('/api/new/admin/live', {
+    cookie: rootLogin.cookie
+  });
+  assert.equal(legacyDashboardActivity.resp.status, 200, 'legacy dashboard activity status mismatch');
+
+  const dashboardActivity = await requestJson('/api/admin/dashboard/activity', {
+    cookie: rootLogin.cookie
+  });
+  assert.equal(dashboardActivity.resp.status, 200, 'dashboard activity status mismatch');
+  assert.deepEqual(
+    sortedKeys(dashboardActivity.json || {}),
+    sortedKeys(legacyDashboardActivity.json || {}),
+    'dashboard activity shape mismatch against legacy endpoint'
+  );
+
   const roleUpdate = await requestJson(`/admin/users/${adminUserId}/role`, {
     method: 'POST',
     cookie: rootLogin.cookie,

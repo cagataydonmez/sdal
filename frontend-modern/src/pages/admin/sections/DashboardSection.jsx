@@ -34,8 +34,8 @@ export default function DashboardSection({ onNavigate }) {
     setLoadingLive(true);
     setError('');
     const [statsResult, liveResult] = await Promise.allSettled([
-      adminClient.get('/api/new/admin/stats'),
-      adminClient.get('/api/new/admin/live')
+      adminClient.get('/api/admin/dashboard/summary'),
+      adminClient.get('/api/admin/dashboard/activity')
     ]);
     if (requestSeq !== requestSeqRef.current) return;
 
