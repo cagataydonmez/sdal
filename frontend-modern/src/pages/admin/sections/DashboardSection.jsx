@@ -59,6 +59,12 @@ export default function DashboardSection({ onNavigate }) {
   }, [load]);
 
   const counts = stats?.counts || {};
+  const networking = stats?.networking || {};
+  const connection = networking.connections || {};
+  const mentorship = networking.mentorship || {};
+  const teacherLinks = networking.teacherLinks || {};
+  const teacherRelationshipBreakdown = Object.entries(teacherLinks.byRelationshipType || {})
+    .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0));
   const queue = live?.counts || {};
   const storage = stats?.storage || {};
 
@@ -83,6 +89,56 @@ export default function DashboardSection({ onNavigate }) {
         <button className="ops-kpi-card" onClick={() => onNavigate?.('groups')}><span>Pending Events</span><b>{queue.pendingEvents || 0}</b></button>
         <button className="ops-kpi-card" onClick={() => onNavigate?.('groups')}><span>Pending Announcements</span><b>{queue.pendingAnnouncements || 0}</b></button>
         <button className="ops-kpi-card" onClick={() => onNavigate?.('content')}><span>Pending Photos</span><b>{queue.pendingPhotos || 0}</b></button>
+      </div>
+
+      <div className="panel">
+        <div className="panel-body stack">
+          <h3>Social Hub Networking Funnel</h3>
+          <div className="ops-kpi-grid">
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Bağlantı İstekleri (Bekliyor)</span>
+              <b>{formatInteger(connection.requested)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Bağlantı İstekleri (Kabul)</span>
+              <b>{formatInteger(connection.accepted)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Mentorluk İstekleri (Bekliyor)</span>
+              <b>{formatInteger(mentorship.requested)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Mentorluk İstekleri (Kabul)</span>
+              <b>{formatInteger(mentorship.accepted)}</b>
+            </div>
+          </div>
+          <div className="ops-kpi-grid">
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Mentorluk İstekleri (Reddedildi)</span>
+              <b>{formatInteger(mentorship.declined)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Bağlantı İstekleri (Yoksayıldı)</span>
+              <b>{formatInteger(connection.ignored)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Bağlantı İstekleri (Reddedildi)</span>
+              <b>{formatInteger(connection.declined)}</b>
+            </div>
+            <div className="ops-kpi-card" role="status" aria-live="polite">
+              <span>Öğretmen-Ağ Link Toplamı</span>
+              <b>{formatInteger(teacherLinks.total)}</b>
+            </div>
+          </div>
+          {teacherRelationshipBreakdown.length ? (
+            <div className="muted">
+              Öğretmen ilişki kırılımı:{' '}
+              {teacherRelationshipBreakdown.map(([type, value]) => `${type}: ${formatInteger(value)}`).join(' · ')}
+            </div>
+          ) : (
+            <div className="muted">Öğretmen ilişki kırılımı henüz oluşmadı.</div>
+          )}
+        </div>
       </div>
 
       <div className="panel">
