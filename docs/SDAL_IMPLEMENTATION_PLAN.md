@@ -405,9 +405,9 @@ This section converts the social hub roadmap into an execution-ready wave focuse
 
 1. `GET /api/new/network/inbox`
    - aggregates pending actions and recent network events.
-2. `GET /api/new/network/metrics?window=30d`
+2. `GET /api/new/network/metrics?window=30d` ✅ Implemented (member-level networking snapshot + time-to-first-success)
    - returns personalized lightweight stats for member dashboard cards.
-3. `GET /api/new/admin/network/analytics?window=30d&cohort=YYYY`
+3. `GET /api/new/admin/network/analytics?window=30d&cohort=YYYY` ✅ Implemented (funnel, cohort slices, mentor supply-demand)
    - returns admin-ready networking funnel and cohort cuts.
 
 ### Delivery Sequence

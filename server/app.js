@@ -8757,6 +8757,235 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
   }
 });
 
+function parseNetworkWindowDays(raw) {
+  const value = String(raw || '30d').trim().toLowerCase();
+  if (value === '7d') return 7;
+  if (value === '90d') return 90;
+  return 30;
+}
+
+function toIsoThreshold(days) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
+  try {
+    ensureConnectionRequestsTable();
+    ensureMentorshipRequestsTable();
+    ensureTeacherAlumniLinksTable();
+
+    const userId = Number(req.session?.userId || 0);
+    const windowDays = parseNetworkWindowDays(req.query.window);
+    const sinceIso = toIsoThreshold(windowDays);
+
+    const [
+      userRow,
+      pendingIncoming,
+      pendingOutgoing,
+      requestedConnections,
+      acceptedConnections,
+      mentorshipRequested,
+      mentorshipAccepted,
+      teacherLinksCreated,
+      firstAcceptedConnection,
+      firstAcceptedMentorship
+    ] = await Promise.all([
+      sqlGetAsync('SELECT ilktarih FROM uyeler WHERE id = ?', [userId]),
+      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND status = 'pending'", [userId]),
+      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND status = 'pending'", [userId]),
+      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND created_at >= ?', [userId, sinceIso]),
+      sqlGetAsync(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS count
+         FROM connection_requests
+         WHERE status = 'accepted'
+           AND (sender_id = ? OR receiver_id = ?)
+           AND COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) >= ?`,
+        [userId, userId, sinceIso]
+      ),
+      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM mentorship_requests WHERE requester_id = ? AND created_at >= ?', [userId, sinceIso]),
+      sqlGetAsync(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS count
+         FROM mentorship_requests
+         WHERE status = 'accepted'
+           AND (requester_id = ? OR mentor_id = ?)
+           AND COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) >= ?`,
+        [userId, userId, sinceIso]
+      ),
+      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM teacher_alumni_links WHERE created_by = ? AND created_at >= ?', [userId, sinceIso]),
+      sqlGetAsync(
+        `SELECT COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) AS at
+         FROM connection_requests
+         WHERE status = 'accepted' AND (sender_id = ? OR receiver_id = ?)
+         ORDER BY at ASC, id ASC
+         LIMIT 1`,
+        [userId, userId]
+      ),
+      sqlGetAsync(
+        `SELECT COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) AS at
+         FROM mentorship_requests
+         WHERE status = 'accepted' AND (requester_id = ? OR mentor_id = ?)
+         ORDER BY at ASC, id ASC
+         LIMIT 1`,
+        [userId, userId]
+      )
+    ]);
+
+    const successCandidates = [firstAcceptedConnection?.at, firstAcceptedMentorship?.at]
+      .map((value) => new Date(String(value || '')).getTime())
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const firstSuccessAt = successCandidates.length ? new Date(Math.min(...successCandidates)).toISOString() : null;
+    const registrationAtMs = new Date(String(userRow?.ilktarih || '')).getTime();
+    const timeToFirstNetworkSuccessDays = firstSuccessAt && Number.isFinite(registrationAtMs) && registrationAtMs > 0
+      ? Math.max(0, Math.round((new Date(firstSuccessAt).getTime() - registrationAtMs) / (24 * 60 * 60 * 1000)))
+      : null;
+
+    return res.json({
+      window: `${windowDays}d`,
+      since: sinceIso,
+      metrics: {
+        connections: {
+          requested: Number(requestedConnections?.count || 0),
+          accepted: Number(acceptedConnections?.count || 0),
+          pending_incoming: Number(pendingIncoming?.count || 0),
+          pending_outgoing: Number(pendingOutgoing?.count || 0)
+        },
+        mentorship: {
+          requested: Number(mentorshipRequested?.count || 0),
+          accepted: Number(mentorshipAccepted?.count || 0)
+        },
+        teacherLinks: {
+          created: Number(teacherLinksCreated?.count || 0)
+        },
+        time_to_first_network_success_days: timeToFirstNetworkSuccessDays
+      }
+    });
+  } catch (err) {
+    console.error('network.metrics failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.get('/api/new/admin/network/analytics', requireAdmin, async (req, res) => {
+  try {
+    ensureConnectionRequestsTable();
+    ensureMentorshipRequestsTable();
+    ensureTeacherAlumniLinksTable();
+
+    const windowDays = parseNetworkWindowDays(req.query.window);
+    const sinceIso = toIsoThreshold(windowDays);
+    const cohort = normalizeCohortValue(req.query.cohort);
+    const includeCohort = cohort && cohort !== 'all';
+
+    const cohortClauseForAlias = (alias) => includeCohort ? ` AND LOWER(COALESCE(CAST(${alias}.mezuniyetyili AS TEXT), '')) = LOWER(?)` : '';
+    const cohortParams = includeCohort ? [cohort] : [];
+
+    const [connections, mentorship, teacherLinks, topCohorts, mentorSupplyRows, mentorDemandRows] = await Promise.all([
+      sqlAllAsync(
+        `SELECT cr.status, CAST(COUNT(*) AS INTEGER) AS count
+         FROM connection_requests cr
+         LEFT JOIN uyeler actor ON actor.id = cr.sender_id
+         WHERE cr.created_at >= ?${cohortClauseForAlias('actor')}
+         GROUP BY cr.status`,
+        [sinceIso, ...cohortParams]
+      ),
+      sqlAllAsync(
+        `SELECT mr.status, CAST(COUNT(*) AS INTEGER) AS count
+         FROM mentorship_requests mr
+         LEFT JOIN uyeler actor ON actor.id = mr.requester_id
+         WHERE mr.created_at >= ?${cohortClauseForAlias('actor')}
+         GROUP BY mr.status`,
+        [sinceIso, ...cohortParams]
+      ),
+      sqlGetAsync(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS count
+         FROM teacher_alumni_links l
+         LEFT JOIN uyeler actor ON actor.id = l.created_by
+         WHERE l.created_at >= ?${cohortClauseForAlias('actor')}`,
+        [sinceIso, ...cohortParams]
+      ),
+      sqlAllAsync(
+        `SELECT LOWER(COALESCE(NULLIF(CAST(actor.mezuniyetyili AS TEXT), ''), 'unknown')) AS cohort,
+                CAST(COUNT(*) AS INTEGER) AS actions
+         FROM (
+            SELECT sender_id AS actor_id, created_at FROM connection_requests WHERE created_at >= ?
+            UNION ALL
+            SELECT requester_id AS actor_id, created_at FROM mentorship_requests WHERE created_at >= ?
+         ) a
+         LEFT JOIN uyeler actor ON actor.id = a.actor_id
+         GROUP BY cohort
+         ORDER BY actions DESC, cohort ASC
+         LIMIT 5`,
+        [sinceIso, sinceIso]
+      ),
+      sqlAllAsync(
+        `SELECT LOWER(COALESCE(NULLIF(CAST(mezuniyetyili AS TEXT), ''), 'unknown')) AS cohort,
+                CAST(COUNT(*) AS INTEGER) AS count
+         FROM uyeler
+         WHERE mentor_opt_in = 1
+         GROUP BY cohort
+         ORDER BY count DESC, cohort ASC
+         LIMIT 10`
+      ),
+      sqlAllAsync(
+        `SELECT LOWER(COALESCE(NULLIF(CAST(u.mezuniyetyili AS TEXT), ''), 'unknown')) AS cohort,
+                CAST(COUNT(*) AS INTEGER) AS count
+         FROM mentorship_requests mr
+         LEFT JOIN uyeler u ON u.id = mr.requester_id
+         WHERE mr.created_at >= ?
+         GROUP BY cohort
+         ORDER BY count DESC, cohort ASC
+         LIMIT 10`,
+        [sinceIso]
+      )
+    ]);
+
+    const connectionMap = connections.reduce((acc, row) => {
+      const key = String(row?.status || '').toLowerCase();
+      if (key) acc[key] = Number(row?.count || 0);
+      return acc;
+    }, {});
+    const mentorshipMap = mentorship.reduce((acc, row) => {
+      const key = String(row?.status || '').toLowerCase();
+      if (key) acc[key] = Number(row?.count || 0);
+      return acc;
+    }, {});
+    const requested = Number(connectionMap.pending || 0) + Number(connectionMap.accepted || 0) + Number(connectionMap.ignored || 0) + Number(connectionMap.declined || 0);
+    const accepted = Number(connectionMap.accepted || 0);
+
+    return res.json({
+      window: `${windowDays}d`,
+      since: sinceIso,
+      cohort: includeCohort ? cohort : 'all',
+      networking: {
+        connections: {
+          requested,
+          accepted,
+          acceptance_rate: requested > 0 ? Number((accepted / requested).toFixed(4)) : 0,
+          pending: Number(connectionMap.pending || 0),
+          ignored: Number(connectionMap.ignored || 0),
+          declined: Number(connectionMap.declined || 0)
+        },
+        mentorship: {
+          requested: Number(mentorshipMap.requested || 0),
+          accepted: Number(mentorshipMap.accepted || 0),
+          declined: Number(mentorshipMap.declined || 0)
+        },
+        teacher_links: {
+          created: Number(teacherLinks?.count || 0)
+        },
+        top_active_graduation_years: topCohorts,
+        mentor_supply_vs_demand: {
+          supply: mentorSupplyRows,
+          demand: mentorDemandRows
+        }
+      }
+    });
+  } catch (err) {
+    console.error('admin.network.analytics failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
 app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
   try {
     ensureTeacherAlumniLinksTable();
@@ -11359,21 +11588,21 @@ app.get('/api/new/admin/stats', requireAdmin, async (req, res) => {
       ),
       hasTable('connection_requests')
         ? sqlAllAsync(
-          `SELECT status, COUNT(*)::int AS count
+          `SELECT status, CAST(COUNT(*) AS INTEGER) AS count
            FROM connection_requests
            GROUP BY status`
         )
         : Promise.resolve([]),
       hasTable('mentorship_requests')
         ? sqlAllAsync(
-          `SELECT status, COUNT(*)::int AS count
+          `SELECT status, CAST(COUNT(*) AS INTEGER) AS count
            FROM mentorship_requests
            GROUP BY status`
         )
         : Promise.resolve([]),
       hasTable('teacher_alumni_links')
         ? sqlAllAsync(
-          `SELECT relationship_type, COUNT(*)::int AS count
+          `SELECT relationship_type, CAST(COUNT(*) AS INTEGER) AS count
            FROM teacher_alumni_links
            GROUP BY relationship_type`
         )
