@@ -9038,6 +9038,83 @@ app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
 
     const secondDegreeMap = new Map(iFollowFollowers.map((r) => [Number(r.user_id), Number(r.cnt || 0)]));
     const followsMeSet = new Set(followsMe.map((r) => Number(r.follower_id)));
+    const candidateIds = candidates.map((row) => Number(row.id)).filter((id) => id > 0);
+    const hasGroupMembers = hasTable('group_members');
+    const hasMentorshipRequests = hasTable('mentorship_requests');
+    const hasTeacherLinks = hasTable('teacher_alumni_links');
+
+    const [sharedGroupsRows, mentorshipRows, teacherLinkRows] = await Promise.all([
+      hasGroupMembers && candidateIds.length
+        ? sqlAllAsync(
+          `SELECT gm.user_id AS candidate_id, COUNT(*) AS shared_count
+           FROM group_members gm
+           JOIN group_members mine ON mine.group_id = gm.group_id
+           WHERE mine.user_id = ?
+             AND gm.user_id IN (${candidateIds.map(() => '?').join(',')})
+           GROUP BY gm.user_id`,
+          [req.session.userId, ...candidateIds]
+        )
+        : Promise.resolve([]),
+      hasMentorshipRequests
+        ? sqlAllAsync(
+          `SELECT requester_id, mentor_id
+           FROM mentorship_requests
+           WHERE status = 'accepted'
+             AND (
+               requester_id = ?
+               OR mentor_id = ?
+               OR requester_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})
+               OR mentor_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})
+             )`,
+          [req.session.userId, req.session.userId, req.session.userId, ...candidateIds, req.session.userId, ...candidateIds]
+        )
+        : Promise.resolve([]),
+      hasTeacherLinks
+        ? sqlAllAsync(
+          `SELECT teacher_user_id, alumni_user_id
+           FROM teacher_alumni_links
+           WHERE teacher_user_id = ?
+              OR alumni_user_id = ?
+              OR teacher_user_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})
+              OR alumni_user_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})`,
+          [req.session.userId, req.session.userId, req.session.userId, ...candidateIds, req.session.userId, ...candidateIds]
+        )
+        : Promise.resolve([])
+    ]);
+
+    const sharedGroupsMap = new Map(sharedGroupsRows.map((row) => [Number(row.candidate_id), Number(row.shared_count || 0)]));
+    const mentorshipPeersMap = new Map();
+    const teacherPeersMap = new Map();
+
+    function addPeer(map, sourceId, targetId) {
+      const source = Number(sourceId || 0);
+      const target = Number(targetId || 0);
+      if (!source || !target || source === target) return;
+      if (!map.has(source)) map.set(source, new Set());
+      map.get(source).add(target);
+    }
+
+    for (const row of mentorshipRows) {
+      addPeer(mentorshipPeersMap, row.requester_id, row.mentor_id);
+      addPeer(mentorshipPeersMap, row.mentor_id, row.requester_id);
+    }
+
+    for (const row of teacherLinkRows) {
+      addPeer(teacherPeersMap, row.teacher_user_id, row.alumni_user_id);
+      addPeer(teacherPeersMap, row.alumni_user_id, row.teacher_user_id);
+    }
+
+    function getOverlapCount(map, sourceId, targetId) {
+      const sourcePeers = map.get(Number(sourceId || 0));
+      const targetPeers = map.get(Number(targetId || 0));
+      if (!sourcePeers || !targetPeers || !sourcePeers.size || !targetPeers.size) return 0;
+      let count = 0;
+      for (const peer of sourcePeers) {
+        if (targetPeers.has(peer)) count += 1;
+      }
+      return count;
+    }
+
     const scored = [];
     for (const c of candidates) {
       const cid = Number(c.id);
@@ -9071,6 +9148,35 @@ app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
         score += 10;
         reasons.push('Seni takip ediyor');
       }
+
+      const sharedGroups = sharedGroupsMap.get(cid) || 0;
+      if (sharedGroups > 0) {
+        score += Math.min(sharedGroups * 9, 18);
+        reasons.push(sharedGroups > 1 ? `${sharedGroups} ortak grup` : 'Ortak grup uyeligi');
+      }
+
+      const mentorshipOverlap = getOverlapCount(mentorshipPeersMap, req.session.userId, cid);
+      const hasDirectMentorshipLink = mentorshipPeersMap.get(Number(req.session.userId || 0))?.has(cid);
+      if (hasDirectMentorshipLink) {
+        score += 14;
+        reasons.push('Dogrudan mentorluk baglantisi');
+      }
+      if (mentorshipOverlap > 0) {
+        score += Math.min(mentorshipOverlap * 12, 24);
+        reasons.push('Mentorluk aginda yakinlik');
+      }
+
+      const teacherOverlap = getOverlapCount(teacherPeersMap, req.session.userId, cid);
+      const hasDirectTeacherLink = teacherPeersMap.get(Number(req.session.userId || 0))?.has(cid);
+      if (hasDirectTeacherLink) {
+        score += 13;
+        reasons.push('Dogrudan ogretmen agi baglantisi');
+      }
+      if (teacherOverlap > 0) {
+        score += Math.min(teacherOverlap * 11, 22);
+        reasons.push('Ogretmen aginda yakinlik');
+      }
+
       const engagementScore = Number(c.engagement_score || 0);
       if (engagementScore > 0) {
         score += Math.min(20, engagementScore * 0.2);

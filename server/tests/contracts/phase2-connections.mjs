@@ -28,6 +28,52 @@ bootstrapDb.exec(`
     responded_at TEXT,
     UNIQUE(sender_id, receiver_id)
   );
+  CREATE TABLE IF NOT EXISTS groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    description TEXT,
+    cover_image TEXT,
+    owner_id INTEGER,
+    created_at TEXT,
+    visibility TEXT DEFAULT 'public',
+    show_contact_hint INTEGER DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS group_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER,
+    user_id INTEGER,
+    role TEXT,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS mentorship_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requester_id INTEGER,
+    mentor_id INTEGER,
+    status TEXT DEFAULT 'requested',
+    focus_area TEXT,
+    message TEXT,
+    created_at TEXT,
+    updated_at TEXT,
+    responded_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS teacher_alumni_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    teacher_user_id INTEGER,
+    alumni_user_id INTEGER,
+    relationship_type TEXT,
+    class_year TEXT,
+    notes TEXT,
+    confidence_score REAL NOT NULL DEFAULT 1.0,
+    created_by INTEGER,
+    created_at TEXT,
+    UNIQUE(teacher_user_id, alumni_user_id, relationship_type, class_year)
+  );
+  CREATE TABLE IF NOT EXISTS member_engagement_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE,
+    score REAL DEFAULT 0,
+    updated_at TEXT
+  );
 
   CREATE TABLE IF NOT EXISTS site_controls (
     id INTEGER PRIMARY KEY,
@@ -95,6 +141,7 @@ function seedUser(username, password) {
 
 const userAId = seedUser('phase2_conn_a', 'phase2-pass-a');
 const userBId = seedUser('phase2_conn_b', 'phase2-pass-b');
+const userCId = seedUser('phase2_conn_c', 'phase2-pass-c');
 
 const server = app.listen(0, '127.0.0.1');
 await new Promise((resolve, reject) => {
@@ -130,6 +177,30 @@ async function login(kadi, sifre) {
 try {
   const cookieA = await login('phase2_conn_a', 'phase2-pass-a');
   const cookieB = await login('phase2_conn_b', 'phase2-pass-b');
+  const now = new Date().toISOString();
+  const groupId = Number(sqlRun('INSERT INTO groups (name, owner_id, created_at, visibility) VALUES (?, ?, ?, ?)', ['Phase2 Affinity', userAId, now, 'public']).lastInsertRowid);
+  sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [groupId, userAId, 'owner', now]);
+  sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [groupId, userBId, 'member', now]);
+  sqlRun(
+    `INSERT INTO mentorship_requests (requester_id, mentor_id, status, focus_area, message, created_at, updated_at, responded_at)
+     VALUES (?, ?, 'accepted', 'career', 'ok', ?, ?, ?)` ,
+    [userAId, userCId, now, now, now]
+  );
+  sqlRun(
+    `INSERT INTO mentorship_requests (requester_id, mentor_id, status, focus_area, message, created_at, updated_at, responded_at)
+     VALUES (?, ?, 'accepted', 'career', 'ok', ?, ?, ?)` ,
+    [userBId, userCId, now, now, now]
+  );
+  sqlRun(
+    `INSERT INTO teacher_alumni_links (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, created_by, created_at)
+     VALUES (?, ?, 'student', '2012', '', ?, ?)` ,
+    [userCId, userAId, userAId, now]
+  );
+  sqlRun(
+    `INSERT INTO teacher_alumni_links (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, created_by, created_at)
+     VALUES (?, ?, 'student', '2012', '', ?, ?)` ,
+    [userCId, userBId, userBId, now]
+  );
 
   const send = await request(`/api/new/connections/request/${userBId}`, { method: 'POST', cookie: cookieA });
   assert.equal(send.res.status, 200);
@@ -153,6 +224,13 @@ try {
   const sendAgain = await request(`/api/new/connections/request/${userBId}`, { method: 'POST', cookie: cookieA });
   assert.equal(sendAgain.res.status, 409);
   assert.equal(sendAgain.data?.code, 'ALREADY_CONNECTED');
+
+  const suggestions = await request('/api/new/explore/suggestions?limit=20&offset=0', { cookie: cookieA });
+  assert.equal(suggestions.res.status, 200);
+  const suggestedB = (suggestions.data?.items || []).find((item) => Number(item.id) === userCId);
+  assert.ok(suggestedB);
+  const reasonText = (suggestedB.reasons || []).join(' | ').toLowerCase();
+  assert.ok(reasonText.includes('mentorluk') || reasonText.includes('ogretmen') || reasonText.includes('ortak grup'));
 
   console.log('phase2 connections tests passed');
 } finally {
