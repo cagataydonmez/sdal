@@ -19,6 +19,7 @@
     "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs",
     "test:phase2-health": "node tests/contracts/phase2-health.mjs",
     "test:phase2-connections": "node tests/contracts/phase2-connections.mjs",
+    "test:phase2-network-hardening": "node tests/contracts/phase2-network-hardening.mjs",
     "test:phase5-performance": "node tests/contracts/phase5-performance.mjs",
     "test:phase6-realtime-jobs": "node tests/contracts/phase6-realtime-jobs.mjs",
     "test:phase7-media-hardening": "node tests/contracts/phase7-media-hardening.mjs",

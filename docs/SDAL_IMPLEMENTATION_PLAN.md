@@ -317,6 +317,12 @@ CREATE TABLE IF NOT EXISTS jobs (
 - ✅ Teacher graph browsing and link creation history page is available at `/new/network/teachers`.
 - ✅ Teacher graph entry points are now exposed from both Member Detail and Explore cards for teacher profiles.
 - ✅ Teacher users now have a direct profile CTA to open teacher network management.
+- ✅ Connection and mentorship request hardening is active:
+  - Per-user rate limits on `POST /api/new/connections/request/:id` and `POST /api/new/mentorship/request/:id`
+  - Cooldown after ignored/declined requests to prevent immediate re-spam
+- ✅ Teacher graph contract hardening:
+  - Teacher-link target validation (`INVALID_TEACHER_TARGET`)
+  - Strict class year validation (`INVALID_CLASS_YEAR`) on teacher-link create/list APIs
 
 1. **Networking UX surface**
    - Add dedicated frontend page for teacher–alumni graph browsing and link creation history.

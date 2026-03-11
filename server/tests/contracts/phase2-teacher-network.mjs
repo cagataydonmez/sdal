@@ -78,6 +78,7 @@ function seedUser(username, password, role = 'user') {
 
 const alumniId = seedUser('phase2_alumni_a', 'phase2-pass-a', 'user');
 const teacherId = seedUser('phase2_teacher_a', 'phase2-pass-b', 'teacher');
+const regularUserId = seedUser('phase2_regular_a', 'phase2-pass-c', 'user');
 
 const server = app.listen(0, '127.0.0.1');
 await new Promise((resolve, reject) => {
@@ -114,6 +115,22 @@ try {
   const alumniCookie = await login('phase2_alumni_a', 'phase2-pass-a');
   const teacherCookie = await login('phase2_teacher_a', 'phase2-pass-b');
 
+  const invalidYear = await request(`/api/new/teachers/network/link/${teacherId}`, {
+    method: 'POST',
+    cookie: alumniCookie,
+    body: { relationship_type: 'taught_in_class', class_year: 1899, notes: 'Invalid year' }
+  });
+  assert.equal(invalidYear.res.status, 400);
+  assert.equal(invalidYear.data?.code, 'INVALID_CLASS_YEAR');
+
+  const invalidTarget = await request(`/api/new/teachers/network/link/${regularUserId}`, {
+    method: 'POST',
+    cookie: alumniCookie,
+    body: { relationship_type: 'advisor', class_year: 2012 }
+  });
+  assert.equal(invalidTarget.res.status, 409);
+  assert.equal(invalidTarget.data?.code, 'INVALID_TEACHER_TARGET');
+
   const link = await request(`/api/new/teachers/network/link/${teacherId}`, {
     method: 'POST',
     cookie: alumniCookie,
@@ -141,6 +158,10 @@ try {
   assert.equal(Array.isArray(myStudents.data?.items), true);
   assert.equal(myStudents.data.items.length, 1);
   assert.equal(Number(myStudents.data.items[0].alumni_user_id), alumniId);
+
+  const invalidFilter = await request('/api/new/teachers/network?direction=my_students&class_year=2201', { cookie: teacherCookie });
+  assert.equal(invalidFilter.res.status, 400);
+  assert.equal(invalidFilter.data?.code, 'INVALID_CLASS_YEAR');
 
   console.log('phase2 teacher network tests passed');
 } finally {

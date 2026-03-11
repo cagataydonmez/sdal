@@ -921,6 +921,33 @@ const uploadRateLimit = createRateLimitMiddleware({
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`
 });
 
+const connectionRequestRateLimit = createRateLimitMiddleware({
+  bucket: 'connection_request_write',
+  limit: envInt('RATE_LIMIT_CONNECTION_REQUEST_MAX', 20),
+  windowSeconds: envInt('RATE_LIMIT_CONNECTION_REQUEST_WINDOW_SECONDS', 3600),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`,
+  onBlocked: (_req, res) => res.status(429).json({
+    code: 'CONNECTION_REQUEST_RATE_LIMITED',
+    message: 'Çok fazla bağlantı isteği gönderdin. Lütfen biraz bekleyip tekrar dene.'
+  })
+});
+
+const mentorshipRequestRateLimit = createRateLimitMiddleware({
+  bucket: 'mentorship_request_write',
+  limit: envInt('RATE_LIMIT_MENTORSHIP_REQUEST_MAX', 12),
+  windowSeconds: envInt('RATE_LIMIT_MENTORSHIP_REQUEST_WINDOW_SECONDS', 3600),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`,
+  onBlocked: (_req, res) => res.status(429).json({
+    code: 'MENTORSHIP_REQUEST_RATE_LIMITED',
+    message: 'Çok fazla mentorluk isteği gönderdin. Lütfen biraz bekleyip tekrar dene.'
+  })
+});
+
+const CONNECTION_REQUEST_COOLDOWN_SECONDS = envInt('CONNECTION_REQUEST_COOLDOWN_SECONDS', 48 * 60 * 60);
+const MENTORSHIP_REQUEST_COOLDOWN_SECONDS = envInt('MENTORSHIP_REQUEST_COOLDOWN_SECONDS', 72 * 60 * 60);
+const TEACHER_NETWORK_MIN_CLASS_YEAR = 1950;
+const TEACHER_NETWORK_MAX_CLASS_YEAR = 2100;
+
 function getMediaUploadLimitBytes() {
   try {
     const settings = loadMediaSettings(sqlGet);
@@ -8224,6 +8251,74 @@ function normalizeTeacherAlumniRelationshipType(value) {
   return '';
 }
 
+function parseTeacherNetworkClassYear(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return { provided: false, value: null, valid: true };
+  if (!/^\d{4}$/.test(raw)) return { provided: true, value: null, valid: false };
+  const year = Number.parseInt(raw, 10);
+  const valid = Number.isFinite(year) && year >= TEACHER_NETWORK_MIN_CLASS_YEAR && year <= TEACHER_NETWORK_MAX_CLASS_YEAR;
+  return { provided: true, value: valid ? year : null, valid };
+}
+
+function calculateCooldownRemainingSeconds(timestampValue, cooldownSeconds) {
+  const cooldown = Number(cooldownSeconds || 0);
+  if (!Number.isFinite(cooldown) || cooldown <= 0) return 0;
+  const fromMs = toDateMs(timestampValue);
+  if (fromMs === null) return 0;
+  const remainingMs = fromMs + cooldown * 1000 - Date.now();
+  return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+}
+
+function ensureConnectionRequestsTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS connection_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL,
+      receiver_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT,
+      updated_at TEXT,
+      responded_at TEXT,
+      UNIQUE(sender_id, receiver_id)
+    )
+  `);
+  if (!hasColumn('connection_requests', 'responded_at')) {
+    try {
+      sqlRun('ALTER TABLE connection_requests ADD COLUMN responded_at TEXT');
+    } catch {
+      // no-op; column may already exist in concurrent boot paths
+    }
+  }
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_connection_requests_sender ON connection_requests (sender_id, updated_at DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_connection_requests_receiver ON connection_requests (receiver_id, updated_at DESC)');
+}
+
+function ensureMentorshipRequestsTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS mentorship_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      requester_id INTEGER NOT NULL,
+      mentor_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'requested',
+      focus_area TEXT,
+      message TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      responded_at TEXT,
+      UNIQUE(requester_id, mentor_id)
+    )
+  `);
+  if (!hasColumn('mentorship_requests', 'responded_at')) {
+    try {
+      sqlRun('ALTER TABLE mentorship_requests ADD COLUMN responded_at TEXT');
+    } catch {
+      // no-op; column may already exist in concurrent boot paths
+    }
+  }
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_mentorship_requests_requester ON mentorship_requests (requester_id, updated_at DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_mentorship_requests_mentor ON mentorship_requests (mentor_id, updated_at DESC)');
+}
+
 function ensureTeacherAlumniLinksTable() {
   sqlRun(`
     CREATE TABLE IF NOT EXISTS teacher_alumni_links (
@@ -8258,7 +8353,8 @@ function ensureJobApplicationsTable() {
   sqlRun('CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications (applicant_id, created_at DESC)');
 }
 
-app.post('/api/new/connections/request/:id', requireAuth, (req, res) => {
+app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateLimit, (req, res) => {
+  ensureConnectionRequestsTable();
   const senderId = Number(req.session?.userId || 0);
   const receiverId = Number(req.params.id || 0);
   if (!senderId || !receiverId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
@@ -8273,14 +8369,30 @@ app.post('/api/new/connections/request/:id', requireAuth, (req, res) => {
     return res.status(409).json({ code: 'ALREADY_CONNECTED', message: 'Bu üye ile zaten bağlantısınız.' });
   }
 
-  const outgoing = sqlGet('SELECT id, status FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [senderId, receiverId]);
-  const incoming = sqlGet('SELECT id, status FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [receiverId, senderId]);
+  const outgoing = sqlGet('SELECT id, status, updated_at, responded_at FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [senderId, receiverId]);
+  const incoming = sqlGet('SELECT id, status, updated_at, responded_at FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [receiverId, senderId]);
+  const outgoingStatus = String(outgoing?.status || '').toLowerCase();
+  const incomingStatus = String(incoming?.status || '').toLowerCase();
 
-  if (outgoing && String(outgoing.status || '').toLowerCase() === 'pending') {
+  if (outgoing && outgoingStatus === 'pending') {
     return res.status(409).json({ code: 'REQUEST_ALREADY_PENDING', message: 'Bu üyeye zaten bekleyen bir bağlantı isteği gönderdiniz.' });
   }
-  if (incoming && String(incoming.status || '').toLowerCase() === 'pending') {
+  if (incoming && incomingStatus === 'pending') {
     return res.status(409).json({ code: 'REQUEST_PENDING_FROM_TARGET', message: 'Bu üyeden bekleyen bir bağlantı isteğiniz var. Kabul edebilirsiniz.' });
+  }
+  if (outgoing && outgoingStatus === 'ignored') {
+    const remainingSeconds = calculateCooldownRemainingSeconds(
+      outgoing.responded_at || outgoing.updated_at,
+      CONNECTION_REQUEST_COOLDOWN_SECONDS
+    );
+    if (remainingSeconds > 0) {
+      res.setHeader('Retry-After', String(remainingSeconds));
+      return res.status(429).json({
+        code: 'REQUEST_COOLDOWN_ACTIVE',
+        message: 'Bu üyeye tekrar bağlantı isteği göndermek için biraz beklemelisin.',
+        retry_after_seconds: remainingSeconds
+      });
+    }
   }
 
   const now = new Date().toISOString();
@@ -8305,6 +8417,7 @@ app.post('/api/new/connections/request/:id', requireAuth, (req, res) => {
 });
 
 app.get('/api/new/connections/requests', requireAuth, async (req, res) => {
+  ensureConnectionRequestsTable();
   const userId = Number(req.session?.userId || 0);
   const status = normalizeConnectionStatus(req.query.status) || 'pending';
   const direction = String(req.query.direction || 'incoming').trim().toLowerCase() === 'outgoing' ? 'outgoing' : 'incoming';
@@ -8335,6 +8448,7 @@ app.get('/api/new/connections/requests', requireAuth, async (req, res) => {
 });
 
 app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
+  ensureConnectionRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
   if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
@@ -8375,6 +8489,7 @@ app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
+  ensureConnectionRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
   if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
@@ -8390,7 +8505,8 @@ app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
 });
 
 
-app.post('/api/new/mentorship/request/:id', requireAuth, (req, res) => {
+app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLimit, (req, res) => {
+  ensureMentorshipRequestsTable();
   const requesterId = Number(req.session?.userId || 0);
   const mentorId = Number(req.params.id || 0);
   if (!requesterId || !mentorId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
@@ -8406,13 +8522,30 @@ app.post('/api/new/mentorship/request/:id', requireAuth, (req, res) => {
   const message = String(req.body?.message || '').trim().slice(0, 2000);
   const now = new Date().toISOString();
 
-  const existing = sqlGet('SELECT id, status FROM mentorship_requests WHERE requester_id = ? AND mentor_id = ?', [requesterId, mentorId]);
+  const existing = sqlGet(
+    'SELECT id, status, updated_at, responded_at FROM mentorship_requests WHERE requester_id = ? AND mentor_id = ?',
+    [requesterId, mentorId]
+  );
   const existingStatus = String(existing?.status || '').toLowerCase();
   if (existing && existingStatus === 'requested') {
     return res.status(409).json({ code: 'REQUEST_ALREADY_PENDING', message: 'Bu mentor için zaten bekleyen bir talebin var.' });
   }
   if (existing && existingStatus === 'accepted') {
     return res.status(409).json({ code: 'REQUEST_ALREADY_ACCEPTED', message: 'Bu mentor ile aktif bir mentorluk bağlantın var.' });
+  }
+  if (existing && existingStatus === 'declined') {
+    const remainingSeconds = calculateCooldownRemainingSeconds(
+      existing.responded_at || existing.updated_at,
+      MENTORSHIP_REQUEST_COOLDOWN_SECONDS
+    );
+    if (remainingSeconds > 0) {
+      res.setHeader('Retry-After', String(remainingSeconds));
+      return res.status(429).json({
+        code: 'MENTORSHIP_COOLDOWN_ACTIVE',
+        message: 'Aynı mentora tekrar istek göndermeden önce biraz beklemelisin.',
+        retry_after_seconds: remainingSeconds
+      });
+    }
   }
 
   if (existing) {
@@ -8440,6 +8573,7 @@ app.post('/api/new/mentorship/request/:id', requireAuth, (req, res) => {
 });
 
 app.get('/api/new/mentorship/requests', requireAuth, async (req, res) => {
+  ensureMentorshipRequestsTable();
   const userId = Number(req.session?.userId || 0);
   const status = normalizeMentorshipStatus(req.query.status) || 'requested';
   const direction = String(req.query.direction || 'incoming').trim().toLowerCase() === 'outgoing' ? 'outgoing' : 'incoming';
@@ -8470,6 +8604,7 @@ app.get('/api/new/mentorship/requests', requireAuth, async (req, res) => {
 });
 
 app.post('/api/new/mentorship/accept/:id', requireAuth, (req, res) => {
+  ensureMentorshipRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
   if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
@@ -8494,6 +8629,7 @@ app.post('/api/new/mentorship/accept/:id', requireAuth, (req, res) => {
 });
 
 app.post('/api/new/mentorship/decline/:id', requireAuth, (req, res) => {
+  ensureMentorshipRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
   if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
@@ -8514,7 +8650,13 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
     const userId = Number(req.session?.userId || 0);
     const direction = String(req.query.direction || 'my_teachers').trim().toLowerCase() === 'my_students' ? 'my_students' : 'my_teachers';
     const relationshipType = normalizeTeacherAlumniRelationshipType(req.query.relationship_type);
-    const classYear = Number(req.query.class_year || 0);
+    const classYear = parseTeacherNetworkClassYear(req.query.class_year);
+    if (classYear.provided && !classYear.valid) {
+      return res.status(400).json({
+        code: 'INVALID_CLASS_YEAR',
+        message: `Sınıf yılı ${TEACHER_NETWORK_MIN_CLASS_YEAR}-${TEACHER_NETWORK_MAX_CLASS_YEAR} aralığında olmalıdır.`
+      });
+    }
     const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
     const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
 
@@ -8531,9 +8673,9 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
       where.push('l.relationship_type = ?');
       params.push(relationshipType);
     }
-    if (classYear >= 1950 && classYear <= 2100) {
+    if (classYear.value !== null) {
       where.push('l.class_year = ?');
-      params.push(classYear);
+      params.push(classYear.value);
     }
 
     const joinSql = direction === 'my_students'
@@ -8566,19 +8708,35 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
     if (!alumniUserId || !teacherUserId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
     if (alumniUserId === teacherUserId) return res.status(400).send('Kendiniz için öğretmen bağlantısı ekleyemezsiniz.');
 
-    const teacher = sqlGet('SELECT id, role FROM uyeler WHERE id = ?', [teacherUserId]);
+    const teacher = sqlGet('SELECT id, role, mezuniyetyili FROM uyeler WHERE id = ?', [teacherUserId]);
     if (!teacher) return res.status(404).send('Öğretmen bulunamadı.');
+    const teacherRole = String(teacher.role || '').trim().toLowerCase();
+    const teacherCohort = normalizeCohortValue(teacher.mezuniyetyili);
+    const teacherTargetAllowed = teacherRole === 'teacher'
+      || teacherCohort === TEACHER_COHORT_VALUE
+      || roleAtLeast(teacherRole, 'admin');
+    if (!teacherTargetAllowed) {
+      return res.status(409).json({
+        code: 'INVALID_TEACHER_TARGET',
+        message: 'Seçilen kullanıcı öğretmen ağına eklenebilir bir öğretmen hesabı değil.'
+      });
+    }
 
     const relationshipType = normalizeTeacherAlumniRelationshipType(req.body?.relationship_type || 'taught_in_class') || 'taught_in_class';
-    const classYearRaw = Number(req.body?.class_year || 0);
-    const classYear = classYearRaw >= 1950 && classYearRaw <= 2100 ? classYearRaw : null;
+    const classYear = parseTeacherNetworkClassYear(req.body?.class_year);
+    if (classYear.provided && !classYear.valid) {
+      return res.status(400).json({
+        code: 'INVALID_CLASS_YEAR',
+        message: `Sınıf yılı ${TEACHER_NETWORK_MIN_CLASS_YEAR}-${TEACHER_NETWORK_MAX_CLASS_YEAR} aralığında olmalıdır.`
+      });
+    }
     const notes = String(req.body?.notes || '').trim().slice(0, 500);
     const now = new Date().toISOString();
 
     const existing = sqlGet(
       `SELECT id FROM teacher_alumni_links
        WHERE teacher_user_id = ? AND alumni_user_id = ? AND relationship_type = ? AND COALESCE(class_year, -1) = COALESCE(?, -1)`,
-      [teacherUserId, alumniUserId, relationshipType, classYear]
+      [teacherUserId, alumniUserId, relationshipType, classYear.value]
     );
     if (existing) {
       return res.status(409).json({ code: 'RELATIONSHIP_ALREADY_EXISTS', message: 'Bu öğretmen bağlantısı zaten kayıtlı.' });
@@ -8588,7 +8746,7 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
       `INSERT INTO teacher_alumni_links
         (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, confidence_score, created_by, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [teacherUserId, alumniUserId, relationshipType, classYear, notes, 1, alumniUserId, now]
+      [teacherUserId, alumniUserId, relationshipType, classYear.value, notes, 1, alumniUserId, now]
     );
 
     addNotification({
@@ -8599,7 +8757,7 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
       message: 'Seni öğretmen ağına ekledi.'
     });
 
-    return res.json({ ok: true, status: 'linked', relationship_type: relationshipType, class_year: classYear });
+    return res.json({ ok: true, status: 'linked', relationship_type: relationshipType, class_year: classYear.value });
   } catch (err) {
     console.error('teachers.network.link failed:', err);
     return res.status(500).send('Beklenmeyen bir hata oluştu.');
