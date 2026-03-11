@@ -26,6 +26,8 @@ export default function UsersSection({ canManageRoles }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [detail, setDetail] = useState(null);
   const [roleBusy, setRoleBusy] = useState(false);
+  const [graduationYearInput, setGraduationYearInput] = useState('');
+  const [savingGraduationYear, setSavingGraduationYear] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -50,6 +52,7 @@ export default function UsersSection({ canManageRoles }) {
       const data = await adminClient.get(`/api/admin/users/${row.id}`);
       setSelectedUser(row);
       setDetail(data.user || null);
+      setGraduationYearInput(String(data.user?.mezuniyetyili || ''));
     } catch (err) {
       setError(err.message || 'User detail could not be loaded.');
     }
@@ -68,6 +71,24 @@ export default function UsersSection({ canManageRoles }) {
       setRoleBusy(false);
     }
   }, [detail, loadUsers]);
+
+
+
+  const updateGraduationYear = useCallback(async () => {
+    if (!detail?.id) return;
+    setSavingGraduationYear(true);
+    setError('');
+    try {
+      await adminClient.put(`/api/new/admin/users/${detail.id}/graduation-year`, { mezuniyetyili: graduationYearInput });
+      const nextValue = String(graduationYearInput || '').trim();
+      setDetail((prev) => ({ ...(prev || {}), mezuniyetyili: nextValue }));
+      await loadUsers();
+    } catch (err) {
+      setError(err.message || 'Graduation year update failed.');
+    } finally {
+      setSavingGraduationYear(false);
+    }
+  }, [detail, graduationYearInput, loadUsers]);
 
   const columns = useMemo(() => ([
     { key: 'kadi', label: 'Username' },
@@ -132,13 +153,22 @@ export default function UsersSection({ canManageRoles }) {
       <AdminDetailDrawer
         title={detail ? `@${detail.kadi}` : 'User Detail'}
         open={!!detail}
-        onClose={() => { setDetail(null); setSelectedUser(null); }}
+        onClose={() => { setDetail(null); setSelectedUser(null); setGraduationYearInput(''); }}
       >
         {detail ? (
           <div className="stack">
             <div className="chip">Role: {detail.role || 'user'}</div>
             <div className="chip">Verification: {Number(detail.verified || 0) === 1 ? 'verified' : 'not verified'}</div>
             <div className="chip">Cohort: {detail.mezuniyetyili || '-'}</div>
+            <div className="ops-inline-actions">
+              <select className="input" value={graduationYearInput} onChange={(e) => setGraduationYearInput(e.target.value)} style={{ maxWidth: 220 }}>
+                <option value="teacher">Öğretmen</option>
+                {Array.from({ length: new Date().getFullYear() - 1999 + 1 }, (_, i) => String(new Date().getFullYear() - i)).map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+              <button className="btn ghost" disabled={savingGraduationYear} onClick={() => updateGraduationYear()}>
+                {savingGraduationYear ? 'Saving...' : 'Update Cohort'}
+              </button>
+            </div>
             <div className="chip">Email: {detail.email || '-'}</div>
             {canManageRoles ? (
               <div className="ops-inline-actions">

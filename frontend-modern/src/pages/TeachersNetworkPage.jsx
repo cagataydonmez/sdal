@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 
 const RELATIONSHIP_TYPES = [
@@ -8,8 +7,11 @@ const RELATIONSHIP_TYPES = [
   { value: 'advisor', label: 'Danışman' }
 ];
 
+function relationshipLabel(value) {
+  return RELATIONSHIP_TYPES.find((item) => item.value === value)?.label || value;
+}
+
 export default function TeachersNetworkPage() {
-  const location = useLocation();
   const [direction, setDirection] = useState('my_teachers');
   const [relationshipType, setRelationshipType] = useState('');
   const [classYear, setClassYear] = useState('');
@@ -19,26 +21,35 @@ export default function TeachersNetworkPage() {
   const [status, setStatus] = useState('');
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-
-  const queryTeacherId = useMemo(() => new URLSearchParams(location.search).get('teacherId') || '', [location.search]);
+  const [teacherOptions, setTeacherOptions] = useState([]);
+  const [teacherSearch, setTeacherSearch] = useState('');
 
   const [form, setForm] = useState({
-    teacherId: queryTeacherId,
+    teacherId: '',
     relationship_type: 'taught_in_class',
     class_year: '',
     notes: ''
   });
-
-  useEffect(() => {
-    if (!queryTeacherId) return;
-    setForm((prev) => (prev.teacherId ? prev : { ...prev, teacherId: String(queryTeacherId) }));
-  }, [queryTeacherId]);
 
   const years = useMemo(() => {
     const now = new Date().getFullYear();
     const all = [];
     for (let y = now; y >= 1999; y -= 1) all.push(String(y));
     return all;
+  }, []);
+
+  const loadTeacherOptions = useCallback(async (term = '') => {
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', '30');
+      if (term) params.set('term', term);
+      const res = await fetch(`/api/new/teachers/options?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(await res.text());
+      const payload = await res.json();
+      setTeacherOptions(payload.items || []);
+    } catch {
+      setTeacherOptions([]);
+    }
   }, []);
 
   const load = useCallback(async (nextOffset = 0, append = false) => {
@@ -66,6 +77,17 @@ export default function TeachersNetworkPage() {
   }, [direction, relationshipType, classYear]);
 
   useEffect(() => {
+    loadTeacherOptions('');
+  }, [loadTeacherOptions]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadTeacherOptions(teacherSearch);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [teacherSearch, loadTeacherOptions]);
+
+  useEffect(() => {
     load(0, false);
   }, [load]);
 
@@ -75,7 +97,7 @@ export default function TeachersNetworkPage() {
     setStatus('');
     const teacherId = Number(form.teacherId || 0);
     if (!teacherId) {
-      setError('Öğretmen üye ID zorunludur.');
+      setError('Lütfen listeden bir öğretmen seçin.');
       return;
     }
     const body = {
@@ -107,13 +129,29 @@ export default function TeachersNetworkPage() {
         <div className="panel-body">
           <form onSubmit={submitLink}>
             <div className="form-row">
-              <label>Öğretmen Üye ID</label>
+              <label>Öğretmen ara</label>
               <input
                 className="input"
-                inputMode="numeric"
-                value={form.teacherId}
-                onChange={(e) => setForm((prev) => ({ ...prev, teacherId: e.target.value.replace(/\D+/g, '') }))}
+                placeholder="Kullanıcı adı veya ad soyad"
+                value={teacherSearch}
+                onChange={(e) => setTeacherSearch(e.target.value)}
               />
+            </div>
+            <div className="form-row">
+              <label>Öğretmen seç</label>
+              <select
+                className="input"
+                value={form.teacherId}
+                onChange={(e) => setForm((prev) => ({ ...prev, teacherId: e.target.value }))}
+                required
+              >
+                <option value="">Öğretmen seçiniz</option>
+                {teacherOptions.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    @{teacher.kadi} · {teacher.isim || ''} {teacher.soyisim || ''}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-row">
               <label>İlişki türü</label>
@@ -166,7 +204,7 @@ export default function TeachersNetworkPage() {
           {items.map((item) => (
             <article key={item.id} className="card" style={{ marginBottom: 10 }}>
               <div className="meta"><strong>@{item.kadi || 'uye'}</strong> · {item.isim || ''} {item.soyisim || ''}</div>
-              <div className="meta">İlişki: {item.relationship_type}</div>
+              <div className="meta">İlişki: {relationshipLabel(item.relationship_type)}</div>
               {item.class_year ? <div className="meta">Sınıf yılı: {item.class_year}</div> : null}
               {item.notes ? <div>{item.notes}</div> : null}
             </article>

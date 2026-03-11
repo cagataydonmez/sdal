@@ -172,7 +172,14 @@ export default function NetworkingHubPage() {
     <Layout title={t('network_hub_title')}>
       <div className="panel">
         <h3>{t('network_hub_intro_title')}</h3>
-        <div className="panel-body muted">{t('network_hub_intro_subtitle')}</div>
+        <div className="panel-body stack">
+          <div className="muted">{t('network_hub_intro_subtitle')}</div>
+          <div className="composer-actions">
+            <a className="btn ghost" href="/new/network/teachers">Öğretmen Ağına Git</a>
+            <a className="btn ghost" href="/new/explore">Kişi Keşfet</a>
+            <a className="btn ghost" href="/new/messages">Mesajlara Git</a>
+          </div>
+        </div>
       </div>
 
       <div className="panel">
