@@ -25,7 +25,27 @@ import { createPostController } from '../http/controllers/postController.js';
 import { createChatController } from '../http/controllers/chatController.js';
 import { createAdminController } from '../http/controllers/adminController.js';
 
+function ensureLegacyPostCompatibilityColumns({ sqlRun, isPostgresDb }) {
+  if (isPostgresDb || typeof sqlRun !== 'function') return;
+
+  for (const statement of [
+    'ALTER TABLE posts ADD COLUMN group_id INTEGER',
+    'ALTER TABLE posts ADD COLUMN image_record_id TEXT'
+  ]) {
+    try {
+      sqlRun(statement);
+    } catch {
+      // Already exists or posts table is not present in this runtime.
+    }
+  }
+}
+
 export function createPhase1DomainLayer(deps) {
+  ensureLegacyPostCompatibilityColumns({
+    sqlRun: deps.sqlRun,
+    isPostgresDb: deps.isPostgresDb
+  });
+
   const repositories = {
     users: new LegacyUserRepository({
       sqlGet: deps.sqlGet,
