@@ -5517,6 +5517,29 @@ async function handleMemberDelete(req, res) {
 app.delete('/api/admin/users/:id', requireAdmin, handleMemberDelete);
 app.delete('/api/new/admin/members/:id', requireAdmin, handleMemberDelete);
 
+app.put('/api/new/admin/users/:id/graduation-year', requireAdmin, (req, res) => {
+  const userId = Number(req.params.id || 0);
+  if (!userId) return res.status(400).send('Geçersiz kullanıcı ID.');
+  const target = sqlGet('SELECT id, role, mezuniyetyili FROM uyeler WHERE id = ?', [userId]);
+  if (!target) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
+  const actorRole = getUserRole(req.authUser || req.adminUser);
+  if (normalizeRole(target.role) === 'root' && actorRole !== 'root') {
+    return res.status(403).send('Root kullanıcının mezuniyet yılı değiştirilemez.');
+  }
+  const nextYear = normalizeCohortValue(req.body?.mezuniyetyili);
+  if (!hasValidGraduationYear(nextYear)) {
+    return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR}-${MAX_GRADUATION_YEAR} aralığında olmalı veya Öğretmen seçilmelidir.`);
+  }
+  sqlRun('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [nextYear, userId]);
+  logAdminAction(req, 'user_graduation_year_updated', {
+    targetType: 'user',
+    targetId: userId,
+    previous: String(target.mezuniyetyili || ''),
+    next: nextYear
+  });
+  res.json({ ok: true, userId, mezuniyetyili: nextYear });
+});
+
 app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
   const target = sqlGet('SELECT * FROM uyeler WHERE id = ?', [req.params.id]);
   if (!target) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
@@ -9077,6 +9100,33 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/new/teachers/options', requireAuth, async (req, res) => {
+  try {
+    ensureTeacherAlumniLinksTable();
+    const term = String(req.query.term || '').trim();
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
+    const params = [];
+    let whereSql = "WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1 AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0 AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('teacher', 'ogretmen'))";
+    if (term) {
+      whereSql += ' AND (LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))';
+      params.push(`%${term}%`, `%${term}%`, `%${term}%`);
+    }
+    const rows = await sqlAllAsync(
+      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim,
+              (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id) AS student_count
+       FROM uyeler u
+       ${whereSql}
+       ORDER BY student_count DESC, u.kadi COLLATE NOCASE ASC
+       LIMIT ?`,
+      [...params, limit]
+    );
+    return res.json({ items: rows });
+  } catch (err) {
+    console.error('teachers.options failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
 app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) => {
   try {
     if (!ensureVerifiedSocialHubMember(req, res)) return;
@@ -11340,6 +11390,55 @@ app.post('/api/new/admin/requests/:id/review', requireModerationPermission('requ
     status
   });
   res.json({ ok: true });
+});
+
+app.get('/api/new/admin/teacher-network/links', requireModerationPermission('requests.view'), (req, res) => {
+  ensureTeacherAlumniLinksTable();
+  const actor = req.authUser || getCurrentUser(req);
+  const scope = getModerationScopeContext(actor);
+  const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 40, maxLimit: 200 });
+  const relationshipType = normalizeTeacherAlumniRelationshipType(req.query.relationship_type);
+  const q = String(req.query.q || '').trim();
+
+  const where = [];
+  const params = [];
+  if (relationshipType) {
+    where.push('l.relationship_type = ?');
+    params.push(relationshipType);
+  }
+  if (q) {
+    where.push('(LOWER(CAST(teacher.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(teacher.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(teacher.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(alumni.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(alumni.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(alumni.soyisim AS TEXT)) LIKE LOWER(?))');
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  const scopeFilter = applyModerationScopeFilter(scope, params, 'alumni.mezuniyetyili');
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}${scopeFilter}` : `WHERE 1=1${scopeFilter}`;
+
+  const total = Number(sqlGet(
+    `SELECT COUNT(*) AS cnt
+     FROM teacher_alumni_links l
+     LEFT JOIN uyeler teacher ON teacher.id = l.teacher_user_id
+     LEFT JOIN uyeler alumni ON alumni.id = l.alumni_user_id
+     ${whereSql}`,
+    params
+  )?.cnt || 0);
+  const pages = Math.max(Math.ceil(total / limit), 1);
+  const safePage = Math.min(page, pages);
+  const offset = (safePage - 1) * limit;
+
+  const items = sqlAll(
+    `SELECT l.id, l.relationship_type, l.class_year, l.notes, l.created_at,
+            teacher.id AS teacher_user_id, teacher.kadi AS teacher_kadi, teacher.isim AS teacher_isim, teacher.soyisim AS teacher_soyisim,
+            alumni.id AS alumni_user_id, alumni.kadi AS alumni_kadi, alumni.isim AS alumni_isim, alumni.soyisim AS alumni_soyisim, alumni.mezuniyetyili AS alumni_mezuniyetyili
+     FROM teacher_alumni_links l
+     LEFT JOIN uyeler teacher ON teacher.id = l.teacher_user_id
+     LEFT JOIN uyeler alumni ON alumni.id = l.alumni_user_id
+     ${whereSql}
+     ORDER BY l.id DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+
+  res.json({ items, meta: { page: safePage, pages, total, limit, q, relationship_type: relationshipType || '' } });
 });
 
 app.post('/api/new/admin/verify', requireAdmin, (req, res) => {

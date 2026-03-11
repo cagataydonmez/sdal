@@ -11,6 +11,7 @@ import GroupsEventsSection from './sections/GroupsEventsSection.jsx';
 import NotificationsSection from './sections/NotificationsSection.jsx';
 import SettingsSection from './sections/SettingsSection.jsx';
 import SystemSection from './sections/SystemSection.jsx';
+import TeacherNetworkSection from './sections/TeacherNetworkSection.jsx';
 
 function normalizeRole(value) {
   return String(value || '').trim().toLowerCase();
@@ -97,6 +98,13 @@ export default function AdminShellPage() {
             isAdmin={isAdmin}
           />
         )
+      },
+      {
+        key: 'teacher-network',
+        label: 'Teacher Network',
+        hint: 'Teacher/alumni relationship moderation and review',
+        visible: hasPermission('requests.view'),
+        render: () => <TeacherNetworkSection />
       },
       {
         key: 'settings',

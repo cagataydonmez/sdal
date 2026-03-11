@@ -84,6 +84,7 @@ export default function MemberRequestsPage() {
               <label>{t('profile_graduation')}</label>
               <select className="input" value={requestedGraduationYear} onChange={(e) => setRequestedGraduationYear(e.target.value)}>
                 <option value="">Yıl seçiniz</option>
+                <option value="teacher">Öğretmen</option>
                 {Array.from({ length: new Date().getFullYear() - 1999 + 1 }, (_, i) => String(new Date().getFullYear() - i)).map((year) => <option key={year} value={year}>{year}</option>)}
               </select>
             </div>
