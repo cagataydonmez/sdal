@@ -3,11 +3,28 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 
+function daysSince(value) {
+  if (!value) return null;
+  const ts = new Date(value).getTime();
+  if (!Number.isFinite(ts)) return null;
+  return Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
+}
+
+function staleHint(value, t) {
+  const age = daysSince(value);
+  if (age == null || age < 7) return null;
+  if (age >= 30) return t('network_hub_stale_30d');
+  return t('network_hub_stale_7d');
+}
+
 export default function NetworkingHubPage() {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [incoming, setIncoming] = useState([]);
   const [outgoing, setOutgoing] = useState([]);
+  const [incomingMentorship, setIncomingMentorship] = useState([]);
+  const [outgoingMentorship, setOutgoingMentorship] = useState([]);
+  const [teacherEvents, setTeacherEvents] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [pendingAction, setPendingAction] = useState({});
@@ -29,6 +46,9 @@ export default function NetworkingHubPage() {
 
       setIncoming(inboxPayload?.inbox?.connections?.incoming || []);
       setOutgoing(inboxPayload?.inbox?.connections?.outgoing || []);
+      setIncomingMentorship(inboxPayload?.inbox?.mentorship?.incoming || []);
+      setOutgoingMentorship(inboxPayload?.inbox?.mentorship?.outgoing || []);
+      setTeacherEvents(inboxPayload?.inbox?.teacherLinks?.events || []);
       setSuggestions(suggestionPayload.items || []);
       setFollowingIds(new Set((followsPayload.items || []).map((item) => Number(item.following_id))));
     } finally {
@@ -75,6 +95,23 @@ export default function NetworkingHubPage() {
       if (!res.ok) return;
       emitAppChange('connection:request', { userId });
       loadHub();
+    });
+  }
+
+  async function acceptMentorship(id) {
+    await runAction(`mentorship-accept-${id}`, async () => {
+      const res = await fetch(`/api/new/mentorship/accept/${id}`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) return;
+      setIncomingMentorship((prev) => prev.filter((item) => Number(item.id) !== Number(id)));
+      loadHub();
+    });
+  }
+
+  async function declineMentorship(id) {
+    await runAction(`mentorship-decline-${id}`, async () => {
+      const res = await fetch(`/api/new/mentorship/decline/${id}`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) return;
+      setIncomingMentorship((prev) => prev.filter((item) => Number(item.id) !== Number(id)));
     });
   }
 
@@ -137,6 +174,79 @@ export default function NetworkingHubPage() {
                 <div className="handle">@{item.user_kadi}</div>
               </div>
               <span className="chip">{t('connection_pending')}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>{t('network_hub_mentorship_incoming_title')}</h3>
+        <div className="panel-body stack">
+          {!loading && incomingMentorship.length === 0 ? <div className="muted">{t('network_hub_mentorship_incoming_empty')}</div> : null}
+          {incomingMentorship.map((item) => (
+            <div className="member-card" key={`mi-${item.id}`}>
+              <a href={`/new/members/${item.requester_id}`}>
+                <img src={item.resim ? `/api/media/vesikalik/${item.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+              </a>
+              <div>
+                <div className="name">{item.isim} {item.soyisim}</div>
+                <div className="handle">@{item.kadi}</div>
+                {item.focus_area ? <div className="meta">{item.focus_area}</div> : null}
+                {staleHint(item.created_at, t) ? <div className="meta">{staleHint(item.created_at, t)}</div> : null}
+              </div>
+              <div className="composer-actions">
+                <a className="btn ghost" href={`/new/members/${item.requester_id}`}>{t('profile_view')}</a>
+                <a className="btn ghost" href="/new/messages">{t('member_send_message')}</a>
+                <button className="btn" onClick={() => acceptMentorship(item.id)} disabled={Boolean(pendingAction[`mentorship-accept-${item.id}`])}>{t('connection_accept')}</button>
+                <button className="btn ghost" onClick={() => declineMentorship(item.id)} disabled={Boolean(pendingAction[`mentorship-decline-${item.id}`])}>{t('network_hub_decline')}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>{t('network_hub_mentorship_outgoing_title')}</h3>
+        <div className="panel-body stack">
+          {!loading && outgoingMentorship.length === 0 ? <div className="muted">{t('network_hub_mentorship_outgoing_empty')}</div> : null}
+          {outgoingMentorship.map((item) => (
+            <div className="member-card" key={`mo-${item.id}`}>
+              <a href={`/new/members/${item.mentor_id}`}>
+                <img src={item.resim ? `/api/media/vesikalik/${item.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+              </a>
+              <div>
+                <div className="name">{item.isim} {item.soyisim}</div>
+                <div className="handle">@{item.kadi}</div>
+                {item.focus_area ? <div className="meta">{item.focus_area}</div> : null}
+                {staleHint(item.created_at, t) ? <div className="meta">{staleHint(item.created_at, t)}</div> : null}
+              </div>
+              <div className="composer-actions">
+                <a className="btn ghost" href={`/new/members/${item.mentor_id}`}>{t('profile_view')}</a>
+                <a className="btn ghost" href="/new/messages">{t('member_send_message')}</a>
+                <button className="btn ghost" disabled>{t('network_hub_add_calendar')}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>{t('network_hub_teacher_links_title')}</h3>
+        <div className="panel-body stack">
+          {!loading && teacherEvents.length === 0 ? <div className="muted">{t('network_hub_teacher_links_empty')}</div> : null}
+          {teacherEvents.map((item) => (
+            <div className="member-card" key={`tl-${item.id}`}>
+              <a href={`/new/members/${item.source_user_id}`}>
+                <img src={item.resim ? `/api/media/vesikalik/${item.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+              </a>
+              <div>
+                <div className="name">{item.isim} {item.soyisim}</div>
+                <div className="handle">@{item.kadi}</div>
+                <div className="meta">{item.message || t('network_hub_teacher_links_default_message')}</div>
+              </div>
+              <div className="composer-actions">
+                <a className="btn ghost" href={`/new/members/${item.source_user_id}`}>{t('profile_view')}</a>
+              </div>
             </div>
           ))}
         </div>
