@@ -155,22 +155,22 @@ export default function Layout({ children, title, right }) {
       </aside>
 
 	      <main className="main-area">
-	        <header className="top-bar">
+        <header className="top-bar">
+          <button
+            className={`mobile-hamburger mobile-hamburger-left ${mobileNavOpen ? 'open' : ''}`}
+            aria-label={mobileNavOpen ? t('close') : t('open')}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((prev) => !prev)}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
           <div className="page-title">
             <h1>{title}</h1>
             <p>{t('layout_subtitle')}</p>
           </div>
 	          <div className="top-actions">
-            <button
-              className={`mobile-hamburger ${mobileNavOpen ? 'open' : ''}`}
-              aria-label={mobileNavOpen ? t('close') : t('open')}
-              aria-expanded={mobileNavOpen}
-              onClick={() => setMobileNavOpen((prev) => !prev)}
-            >
-              <span></span>
-              <span></span>
-              <span></span>
-            </button>
             <button className="btn ghost theme-toggle" onClick={cycleMode} title={t('theme_mode_title')}>
               {themeLabel}
             </button>

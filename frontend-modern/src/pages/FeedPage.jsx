@@ -65,6 +65,7 @@ export default function FeedPage() {
   const { t } = useI18n();
   const { user } = useAuth();
   const [mobileTab, setMobileTab] = useState('posts');
+  const [mobileTabsExpanded, setMobileTabsExpanded] = useState(false);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -122,9 +123,17 @@ export default function FeedPage() {
   const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
   const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
 
+  const mobileTabToggleLabel = mobileTabsExpanded
+    ? `${t('close')} • ${activeFeedTabLabel}`
+    : activeFeedTabLabel;
+
   useEffect(() => {
     postsRef.current = posts;
   }, [posts]);
+
+  useEffect(() => {
+    setMobileTabsExpanded(false);
+  }, [mobileTab]);
 
   useEffect(() => {
     let mounted = true;
@@ -331,8 +340,23 @@ export default function FeedPage() {
           <StoryBar title={t('stories_title')} />
         </div>
 
-        <div className="panel feed-mobile-tabs-wrap">
-          <div className="panel-body feed-mobile-tabs" role="tablist" aria-label={t('nav_feed')}>
+        <div className={`panel feed-mobile-tabs-wrap ${mobileTabsExpanded ? 'is-expanded' : ''}`}>
+          <button
+            className="btn ghost feed-mobile-tabs-toggle"
+            type="button"
+            onClick={() => setMobileTabsExpanded((prev) => !prev)}
+            aria-expanded={mobileTabsExpanded}
+            aria-controls="feed-mobile-tabs-menu"
+          >
+            <span className="feed-mobile-tabs-toggle-label">{mobileTabToggleLabel}</span>
+            <span className={`feed-mobile-tabs-toggle-icon ${mobileTabsExpanded ? 'open' : ''}`} aria-hidden="true">▾</span>
+          </button>
+          <div
+            id="feed-mobile-tabs-menu"
+            className={`panel-body feed-mobile-tabs ${mobileTabsExpanded ? 'open' : ''}`}
+            role="tablist"
+            aria-label={t('nav_feed')}
+          >
             {feedTabOptions.map((tabItem) => (
               <button
                 key={`feed-tab-${tabItem.key}`}
