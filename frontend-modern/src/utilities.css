@@ -418,6 +418,11 @@ body.story-view-open .global-feedback {
     border: 1px solid var(--line);
     box-shadow: 0 10px 26px rgba(8, 20, 40, 0.24);
     border-radius: 14px;
+    padding: 6px;
+    width: auto;
+    justify-items: end;
+  }
+  .feed-mobile-tabs-wrap.is-expanded {
     padding: 8px;
     width: min(220px, calc(100vw - 20px));
   }
@@ -536,11 +541,7 @@ body.story-view-open .global-feedback {
     display: none;
   }
   .feed-mobile-selected-title {
-    display: block;
-    margin-top: 6px;
-    text-align: center;
-    font-size: 13px;
-    font-weight: 700;
+    display: none;
   }
   .feed-tab-panel {
     display: none;
