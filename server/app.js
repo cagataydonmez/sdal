@@ -926,10 +926,16 @@ const connectionRequestRateLimit = createRateLimitMiddleware({
   limit: envInt('RATE_LIMIT_CONNECTION_REQUEST_MAX', 20),
   windowSeconds: envInt('RATE_LIMIT_CONNECTION_REQUEST_WINDOW_SECONDS', 3600),
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`,
-  onBlocked: (_req, res) => res.status(429).json({
-    code: 'CONNECTION_REQUEST_RATE_LIMITED',
-    message: 'Çok fazla bağlantı isteği gönderdin. Lütfen biraz bekleyip tekrar dene.'
-  })
+  onBlocked: (_req, res, verdict) => {
+    const retryAfterSeconds = Math.max(Number(verdict?.retryAfterSeconds) || 0, 1);
+    const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+    return res.status(429).json({
+      code: 'CONNECTION_REQUEST_RATE_LIMITED',
+      message: `Çok fazla bağlantı isteği gönderdin. Lütfen ${retryAfterMinutes} dakika sonra tekrar dene.`,
+      retryAfterSeconds,
+      retryAfterMinutes
+    });
+  }
 });
 
 const mentorshipRequestRateLimit = createRateLimitMiddleware({
@@ -8496,7 +8502,7 @@ app.get('/api/new/connections/requests', requireAuth, async (req, res) => {
        FROM connection_requests cr
        ${joinClause}
        WHERE ${whereClause} AND cr.status = ?
-       ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
+       ORDER BY COALESCE(CASE WHEN CAST(cr.updated_at AS TEXT) = '' THEN NULL ELSE cr.updated_at END, cr.created_at) DESC, cr.id DESC
        LIMIT ? OFFSET ?`,
       [userId, status, limit, offset]
     );
@@ -8669,7 +8675,7 @@ app.get('/api/new/mentorship/requests', requireAuth, async (req, res) => {
        FROM mentorship_requests mr
        ${joinClause}
        WHERE ${whereClause} AND mr.status = ?
-       ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
+       ORDER BY COALESCE(CASE WHEN CAST(mr.updated_at AS TEXT) = '' THEN NULL ELSE mr.updated_at END, mr.created_at) DESC, mr.id DESC
        LIMIT ? OFFSET ?`,
       [userId, status, limit, offset]
     );
@@ -8738,7 +8744,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
          FROM connection_requests cr
          LEFT JOIN uyeler u ON u.id = cr.sender_id
          WHERE cr.receiver_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
-         ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
+         ORDER BY COALESCE(CASE WHEN CAST(cr.updated_at AS TEXT) = '' THEN NULL ELSE cr.updated_at END, cr.created_at) DESC, cr.id DESC
          LIMIT ?`,
         [userId, limit]
       ),
@@ -8748,7 +8754,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
          FROM connection_requests cr
          LEFT JOIN uyeler u ON u.id = cr.receiver_id
          WHERE cr.sender_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
-         ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
+         ORDER BY COALESCE(CASE WHEN CAST(cr.updated_at AS TEXT) = '' THEN NULL ELSE cr.updated_at END, cr.created_at) DESC, cr.id DESC
          LIMIT ?`,
         [userId, limit]
       ),
@@ -8758,7 +8764,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
          FROM mentorship_requests mr
          LEFT JOIN uyeler u ON u.id = mr.requester_id
          WHERE mr.mentor_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
-         ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
+         ORDER BY COALESCE(CASE WHEN CAST(mr.updated_at AS TEXT) = '' THEN NULL ELSE mr.updated_at END, mr.created_at) DESC, mr.id DESC
          LIMIT ?`,
         [userId, limit]
       ),
@@ -8768,7 +8774,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
          FROM mentorship_requests mr
          LEFT JOIN uyeler u ON u.id = mr.mentor_id
          WHERE mr.requester_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
-         ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
+         ORDER BY COALESCE(CASE WHEN CAST(mr.updated_at AS TEXT) = '' THEN NULL ELSE mr.updated_at END, mr.created_at) DESC, mr.id DESC
          LIMIT ?`,
         [userId, limit]
       ),
@@ -8778,7 +8784,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
          FROM notifications n
          LEFT JOIN uyeler u ON u.id = n.source_user_id
          WHERE n.user_id = ? AND n.type = 'teacher_network_linked'
-         ORDER BY COALESCE(NULLIF(n.created_at, ''), '1970-01-01T00:00:00.000Z') DESC, n.id DESC
+         ORDER BY COALESCE(CASE WHEN CAST(n.created_at AS TEXT) = '' THEN NULL ELSE n.created_at END, '1970-01-01T00:00:00.000Z') DESC, n.id DESC
          LIMIT ?`,
         [userId, teacherLinkLimit]
       )
@@ -8851,13 +8857,22 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
       sqlGetAsync('SELECT ilktarih FROM uyeler WHERE id = ?', [userId]),
       sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
       sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
-      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND created_at >= ?', [userId, sinceIso]),
+      sqlGetAsync(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS count
+         FROM connection_requests
+         WHERE sender_id = ?
+           AND (
+             created_at >= ?
+             OR LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+           )`,
+        [userId, sinceIso]
+      ),
       sqlGetAsync(
         `SELECT CAST(COUNT(*) AS INTEGER) AS count
          FROM connection_requests
          WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
            AND (sender_id = ? OR receiver_id = ?)
-           AND COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) >= ?`,
+           AND COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) >= ?`,
         [userId, userId, sinceIso]
       ),
       sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM mentorship_requests WHERE requester_id = ? AND created_at >= ?', [userId, sinceIso]),
@@ -8866,12 +8881,12 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
          FROM mentorship_requests
          WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
            AND (requester_id = ? OR mentor_id = ?)
-           AND COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) >= ?`,
+           AND COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) >= ?`,
         [userId, userId, sinceIso]
       ),
       sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM teacher_alumni_links WHERE created_by = ? AND created_at >= ?', [userId, sinceIso]),
       sqlGetAsync(
-        `SELECT COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) AS at
+        `SELECT COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) AS at
          FROM connection_requests
          WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (sender_id = ? OR receiver_id = ?)
          ORDER BY at ASC, id ASC
@@ -8879,7 +8894,7 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
         [userId, userId]
       ),
       sqlGetAsync(
-        `SELECT COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) AS at
+        `SELECT COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) AS at
          FROM mentorship_requests
          WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (requester_id = ? OR mentor_id = ?)
          ORDER BY at ASC, id ASC
@@ -9104,7 +9119,7 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
        FROM teacher_alumni_links l
        ${joinSql}
        WHERE ${where.join(' AND ')}
-       ORDER BY COALESCE(NULLIF(l.created_at, ''), '1970-01-01T00:00:00.000Z') DESC, l.id DESC
+       ORDER BY COALESCE(CASE WHEN CAST(l.created_at AS TEXT) = '' THEN NULL ELSE l.created_at END, '1970-01-01T00:00:00.000Z') DESC, l.id DESC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );

@@ -26,7 +26,7 @@ export default function ExplorePage({ fullMode = false }) {
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [incomingConnectionMap, setIncomingConnectionMap] = useState({});
-  const [outgoingConnectionIds, setOutgoingConnectionIds] = useState(() => new Set());
+  const [outgoingConnectionMap, setOutgoingConnectionMap] = useState({});
   const [pendingFollow, setPendingFollow] = useState({});
   const [pendingConnection, setPendingConnection] = useState({});
   const [query, setQuery] = useState('');
@@ -128,7 +128,13 @@ export default function ExplorePage({ fullMode = false }) {
       incoming[Number(item.sender_id)] = Number(item.id);
     }
     setIncomingConnectionMap(incoming);
-    setOutgoingConnectionIds(new Set((outgoingPayload.items || []).map((item) => Number(item.receiver_id))));
+    const outgoing = {};
+    for (const item of (outgoingPayload.items || [])) {
+      const receiverId = Number(item.receiver_id || 0);
+      if (!receiverId) continue;
+      outgoing[receiverId] = Number(item.id || 0);
+    }
+    setOutgoingConnectionMap(outgoing);
   }, []);
 
   useEffect(() => {
@@ -187,10 +193,19 @@ export default function ExplorePage({ fullMode = false }) {
     setPendingConnection((prev) => ({ ...prev, [key]: true }));
     try {
       const incomingRequestId = Number(incomingConnectionMap[key] || 0);
-      const endpoint = incomingRequestId ? `/api/new/connections/accept/${incomingRequestId}` : `/api/new/connections/request/${id}`;
+      const outgoingRequestId = Number(outgoingConnectionMap[key] || 0);
+      const endpoint = incomingRequestId
+        ? `/api/new/connections/accept/${incomingRequestId}`
+        : outgoingRequestId
+          ? `/api/new/connections/cancel/${outgoingRequestId}`
+          : `/api/new/connections/request/${id}`;
       const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
       if (!res.ok) {
-        window.alert(await readResponseMessage(res, 'Bağlantı işlemi başarısız.'));
+        const message = await readResponseMessage(res, 'Bağlantı işlemi başarısız.');
+        if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
+          await loadConnectionRequests();
+        }
+        window.alert(message);
         return;
       }
       if (incomingRequestId) {
@@ -199,13 +214,17 @@ export default function ExplorePage({ fullMode = false }) {
           delete next[key];
           return next;
         });
-        setOutgoingConnectionIds((prev) => {
-          const next = new Set(prev);
-          next.delete(key);
+        setOutgoingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[key];
           return next;
         });
-      } else {
-        setOutgoingConnectionIds((prev) => new Set(prev).add(key));
+      } else if (outgoingRequestId) {
+        setOutgoingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
       }
       loadFollows();
       loadConnectionRequests();
@@ -257,12 +276,12 @@ export default function ExplorePage({ fullMode = false }) {
             <button
               className="btn ghost"
               onClick={() => sendConnectionRequest(m.id)}
-              disabled={Boolean(pendingConnection[Number(m.id)]) || outgoingConnectionIds.has(Number(m.id))}
+              disabled={Boolean(pendingConnection[Number(m.id)])}
             >
               {incomingConnectionMap[Number(m.id)]
                 ? t('connection_accept')
-                : outgoingConnectionIds.has(Number(m.id))
-                  ? t('connection_pending')
+                : outgoingConnectionMap[Number(m.id)]
+                  ? t('connection_withdraw')
                   : t('connection_request')}
             </button>
           ) : null}

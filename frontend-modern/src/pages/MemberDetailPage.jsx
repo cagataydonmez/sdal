@@ -14,7 +14,7 @@ export default function MemberDetailPage() {
   const [status, setStatus] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
   const [incomingConnectionId, setIncomingConnectionId] = useState(0);
-  const [outgoingPending, setOutgoingPending] = useState(false);
+  const [outgoingRequestId, setOutgoingRequestId] = useState(0);
 
   useEffect(() => {
     fetch(`/api/members/${id}`, { credentials: 'include' })
@@ -38,10 +38,10 @@ export default function MemberDetailPage() {
       const [incomingPayload, outgoingPayload] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
       const targetId = Number(id || 0);
       const incoming = (incomingPayload.items || []).find((item) => Number(item.sender_id) === targetId);
-      const outgoing = (outgoingPayload.items || []).some((item) => Number(item.receiver_id) === targetId);
+      const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === targetId);
       if (cancelled) return;
       setIncomingConnectionId(Number(incoming?.id || 0));
-      setOutgoingPending(Boolean(outgoing));
+      setOutgoingRequestId(Number(outgoing?.id || 0));
     }
     loadConnectionState();
     return () => {
@@ -97,7 +97,7 @@ export default function MemberDetailPage() {
             {String(user?.id || '') !== String(member.id || '') && member.verified ? (
               <button
                 className="btn ghost"
-                disabled={loadingAction || outgoingPending}
+                disabled={loadingAction}
                 onClick={async () => {
                   setError('');
                   setStatus('');
@@ -105,21 +105,53 @@ export default function MemberDetailPage() {
                   try {
                     const endpoint = incomingConnectionId
                       ? `/api/new/connections/accept/${incomingConnectionId}`
-                      : `/api/new/connections/request/${member.id}`;
+                      : outgoingRequestId
+                        ? `/api/new/connections/cancel/${outgoingRequestId}`
+                        : `/api/new/connections/request/${member.id}`;
                     const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
                     if (!res.ok) {
-                      setError(await res.text());
+                      let message = await res.text();
+                      if (!message) message = 'Bağlantı işlemi başarısız.';
+                      if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
+                        const [incomingRes, outgoingRes] = await Promise.all([
+                          fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
+                          fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
+                        ]);
+                        if (incomingRes.ok && outgoingRes.ok) {
+                          const [incomingPayload, outgoingPayload] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
+                          const targetId = Number(member.id || 0);
+                          const incoming = (incomingPayload.items || []).find((item) => Number(item.sender_id) === targetId);
+                          const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === targetId);
+                          setIncomingConnectionId(Number(incoming?.id || 0));
+                          setOutgoingRequestId(Number(outgoing?.id || 0));
+                        }
+                      }
+                      setError(message);
                       return;
                     }
                     setIncomingConnectionId(0);
-                    setOutgoingPending(true);
-                    setStatus(t(incomingConnectionId ? 'connection_status_accepted' : 'connection_status_pending'));
+                    if (outgoingRequestId) {
+                      setOutgoingRequestId(0);
+                    } else if (!incomingConnectionId) {
+                      const outgoingRes = await fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' });
+                      if (outgoingRes.ok) {
+                        const outgoingPayload = await outgoingRes.json();
+                        const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === Number(member.id || 0));
+                        setOutgoingRequestId(Number(outgoing?.id || 0));
+                      }
+                    }
+                    const statusKey = incomingConnectionId
+                      ? 'connection_status_accepted'
+                      : outgoingRequestId
+                        ? 'connection_withdraw'
+                        : 'connection_status_pending';
+                    setStatus(t(statusKey));
                   } finally {
                     setLoadingAction(false);
                   }
                 }}
               >
-                {incomingConnectionId ? t('connection_accept') : outgoingPending ? t('connection_pending') : t('connection_request')}
+                {incomingConnectionId ? t('connection_accept') : outgoingRequestId ? t('connection_withdraw') : t('connection_request')}
               </button>
             ) : null}
             {String(user?.id || '') !== String(member.id || '') && String(member.role || '').toLowerCase() === 'teacher' ? (
