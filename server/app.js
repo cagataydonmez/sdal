@@ -1718,12 +1718,11 @@ async function requireAuth(req, res, next) {
     '/api/new/verified/request',
     '/api/new/verified/proof',
     '/api/new/requests',
-    '/api/new/requests/upload',
-    '/api/new/connections'
+    '/api/new/requests/upload'
   ];
   if (writeMethod) {
     const user = req.authUser;
-    const isVerified = Number(user?.verified || 0) === 1;
+    const isVerified = isVerifiedMember(user);
     const canWriteWithoutVerification = writeAllowedWithoutVerification.some((item) => req.path === item || req.path.startsWith(`${item}/`));
     if (!isVerified && !canWriteWithoutVerification) {
       return res.status(403).json({
@@ -8414,6 +8413,7 @@ function ensureJobApplicationsTable() {
 }
 
 app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateLimit, (req, res) => {
+  if (!ensureVerifiedSocialHubMember(req, res)) return;
   ensureConnectionRequestsTable();
   const senderId = Number(req.session?.userId || 0);
   const receiverId = Number(req.params.id || 0);
