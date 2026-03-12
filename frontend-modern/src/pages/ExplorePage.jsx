@@ -3,6 +3,23 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 
+async function readResponseMessage(res, fallbackMessage) {
+  try {
+    const payload = await res.clone().json();
+    const message = payload?.message || payload?.error;
+    if (message) return String(message);
+  } catch {
+    // no-op
+  }
+  try {
+    const text = await res.text();
+    if (text) return text;
+  } catch {
+    // no-op
+  }
+  return fallbackMessage;
+}
+
 export default function ExplorePage({ fullMode = false }) {
   const { t } = useI18n();
   const [members, setMembers] = useState([]);
@@ -172,7 +189,10 @@ export default function ExplorePage({ fullMode = false }) {
       const incomingRequestId = Number(incomingConnectionMap[key] || 0);
       const endpoint = incomingRequestId ? `/api/new/connections/accept/${incomingRequestId}` : `/api/new/connections/request/${id}`;
       const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
-      if (!res.ok) return;
+      if (!res.ok) {
+        window.alert(await readResponseMessage(res, 'Bağlantı işlemi başarısız.'));
+        return;
+      }
       if (incomingRequestId) {
         setIncomingConnectionMap((prev) => {
           const next = { ...prev };
