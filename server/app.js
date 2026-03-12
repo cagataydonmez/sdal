@@ -926,10 +926,16 @@ const connectionRequestRateLimit = createRateLimitMiddleware({
   limit: envInt('RATE_LIMIT_CONNECTION_REQUEST_MAX', 20),
   windowSeconds: envInt('RATE_LIMIT_CONNECTION_REQUEST_WINDOW_SECONDS', 3600),
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`,
-  onBlocked: (_req, res) => res.status(429).json({
-    code: 'CONNECTION_REQUEST_RATE_LIMITED',
-    message: 'Çok fazla bağlantı isteği gönderdin. Lütfen biraz bekleyip tekrar dene.'
-  })
+  onBlocked: (_req, res, verdict) => {
+    const retryAfterSeconds = Math.max(Number(verdict?.retryAfterSeconds) || 0, 1);
+    const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+    return res.status(429).json({
+      code: 'CONNECTION_REQUEST_RATE_LIMITED',
+      message: `Çok fazla bağlantı isteği gönderdin. Lütfen ${retryAfterMinutes} dakika sonra tekrar dene.`,
+      retryAfterSeconds,
+      retryAfterMinutes
+    });
+  }
 });
 
 const mentorshipRequestRateLimit = createRateLimitMiddleware({
