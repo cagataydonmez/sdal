@@ -1718,7 +1718,8 @@ async function requireAuth(req, res, next) {
     '/api/new/verified/request',
     '/api/new/verified/proof',
     '/api/new/requests',
-    '/api/new/requests/upload'
+    '/api/new/requests/upload',
+    '/api/new/connections'
   ];
   if (writeMethod) {
     const user = req.authUser;
@@ -8413,7 +8414,6 @@ function ensureJobApplicationsTable() {
 }
 
 app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateLimit, (req, res) => {
-  if (!ensureVerifiedSocialHubMember(req, res)) return;
   ensureConnectionRequestsTable();
   const senderId = Number(req.session?.userId || 0);
   const receiverId = Number(req.params.id || 0);
