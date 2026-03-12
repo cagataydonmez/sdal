@@ -1722,7 +1722,7 @@ async function requireAuth(req, res, next) {
   ];
   if (writeMethod) {
     const user = req.authUser;
-    const isVerified = Number(user?.verified || 0) === 1;
+    const isVerified = isVerifiedMember(user);
     const canWriteWithoutVerification = writeAllowedWithoutVerification.some((item) => req.path === item || req.path.startsWith(`${item}/`));
     if (!isVerified && !canWriteWithoutVerification) {
       return res.status(403).json({
