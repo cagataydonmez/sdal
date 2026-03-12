@@ -102,6 +102,7 @@ const trFallbackMessages = {
   connection_request: 'Bağlantı Kur',
   connection_accept: 'Bağlantıyı Kabul Et',
   connection_pending: 'Bağlantı Beklemede',
+  connection_withdraw: 'Talebi Geri Çek',
   connection_status_pending: 'Bağlantı isteği gönderildi.',
   connection_status_accepted: 'Bağlantı isteği kabul edildi.',
   ignore: 'Yoksay',
