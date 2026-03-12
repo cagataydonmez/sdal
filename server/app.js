@@ -8435,20 +8435,46 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     return res.status(409).json({ code: 'ALREADY_CONNECTED', message: 'Bu üye ile zaten bağlantısınız.' });
   }
 
-  const outgoing = sqlGet('SELECT id, status, updated_at, responded_at FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [senderId, receiverId]);
-  const incoming = sqlGet('SELECT id, status, updated_at, responded_at FROM connection_requests WHERE sender_id = ? AND receiver_id = ?', [receiverId, senderId]);
-  const outgoingStatus = String(outgoing?.status || '').toLowerCase();
-  const incomingStatus = String(incoming?.status || '').toLowerCase();
-
-  if (outgoing && outgoingStatus === 'pending') {
+  const outgoingPending = sqlGet(
+    `SELECT id
+     FROM connection_requests
+     WHERE sender_id = ?
+       AND receiver_id = ?
+       AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+     ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC, id DESC
+     LIMIT 1`,
+    [senderId, receiverId]
+  );
+  if (outgoingPending) {
     return res.status(409).json({ code: 'REQUEST_ALREADY_PENDING', message: 'Bu üyeye zaten bekleyen bir bağlantı isteği gönderdiniz.' });
   }
-  if (incoming && incomingStatus === 'pending') {
+
+  const incomingPending = sqlGet(
+    `SELECT id
+     FROM connection_requests
+     WHERE sender_id = ?
+       AND receiver_id = ?
+       AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+     ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC, id DESC
+     LIMIT 1`,
+    [receiverId, senderId]
+  );
+  if (incomingPending) {
     return res.status(409).json({ code: 'REQUEST_PENDING_FROM_TARGET', message: 'Bu üyeden bekleyen bir bağlantı isteğiniz var. Kabul edebilirsiniz.' });
   }
-  if (outgoing && outgoingStatus === 'ignored') {
+
+  const latestOutgoing = sqlGet(
+    `SELECT id, status, updated_at, responded_at
+     FROM connection_requests
+     WHERE sender_id = ? AND receiver_id = ?
+     ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC, id DESC
+     LIMIT 1`,
+    [senderId, receiverId]
+  );
+  const latestOutgoingStatus = String(latestOutgoing?.status || '').toLowerCase();
+  if (latestOutgoing && latestOutgoingStatus === 'ignored') {
     const remainingSeconds = calculateCooldownRemainingSeconds(
-      outgoing.responded_at || outgoing.updated_at,
+      latestOutgoing.responded_at || latestOutgoing.updated_at,
       CONNECTION_REQUEST_COOLDOWN_SECONDS
     );
     if (remainingSeconds > 0) {
@@ -8462,8 +8488,8 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
   }
 
   const now = new Date().toISOString();
-  if (outgoing) {
-    sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = NULL WHERE id = ?', ['pending', now, outgoing.id]);
+  if (latestOutgoing) {
+    sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = NULL WHERE id = ?', ['pending', now, latestOutgoing.id]);
   } else {
     sqlRun(
       'INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
