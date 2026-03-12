@@ -926,10 +926,16 @@ const connectionRequestRateLimit = createRateLimitMiddleware({
   limit: envInt('RATE_LIMIT_CONNECTION_REQUEST_MAX', 20),
   windowSeconds: envInt('RATE_LIMIT_CONNECTION_REQUEST_WINDOW_SECONDS', 3600),
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}`,
-  onBlocked: (_req, res) => res.status(429).json({
-    code: 'CONNECTION_REQUEST_RATE_LIMITED',
-    message: 'Çok fazla bağlantı isteği gönderdin. Lütfen biraz bekleyip tekrar dene.'
-  })
+  onBlocked: (_req, res, verdict) => {
+    const retryAfterSeconds = Math.max(Number(verdict?.retryAfterSeconds) || 0, 1);
+    const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+    return res.status(429).json({
+      code: 'CONNECTION_REQUEST_RATE_LIMITED',
+      message: `Çok fazla bağlantı isteği gönderdin. Lütfen ${retryAfterMinutes} dakika sonra tekrar dene.`,
+      retryAfterSeconds,
+      retryAfterMinutes
+    });
+  }
 });
 
 const mentorshipRequestRateLimit = createRateLimitMiddleware({
@@ -8851,7 +8857,16 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
       sqlGetAsync('SELECT ilktarih FROM uyeler WHERE id = ?', [userId]),
       sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
       sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
-      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND created_at >= ?', [userId, sinceIso]),
+      sqlGetAsync(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS count
+         FROM connection_requests
+         WHERE sender_id = ?
+           AND (
+             created_at >= ?
+             OR LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+           )`,
+        [userId, sinceIso]
+      ),
       sqlGetAsync(
         `SELECT CAST(COUNT(*) AS INTEGER) AS count
          FROM connection_requests

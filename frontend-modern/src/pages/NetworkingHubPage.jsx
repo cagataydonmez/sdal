@@ -184,7 +184,11 @@ export default function NetworkingHubPage() {
           : `/api/new/connections/request/${targetId}`;
       const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
       if (!res.ok) {
-        window.alert(await readResponseMessage(res, 'Bağlantı işlemi başarısız.'));
+        const message = await readResponseMessage(res, 'Bağlantı işlemi başarısız.');
+        if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
+          await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
+        }
+        window.alert(message);
         return;
       }
       emitAppChange(
