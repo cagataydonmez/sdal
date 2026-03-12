@@ -8857,7 +8857,16 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
       sqlGetAsync('SELECT ilktarih FROM uyeler WHERE id = ?', [userId]),
       sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
       sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
-      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND created_at >= ?', [userId, sinceIso]),
+      sqlGetAsync(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS count
+         FROM connection_requests
+         WHERE sender_id = ?
+           AND (
+             created_at >= ?
+             OR LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+           )`,
+        [userId, sinceIso]
+      ),
       sqlGetAsync(
         `SELECT CAST(COUNT(*) AS INTEGER) AS count
          FROM connection_requests
