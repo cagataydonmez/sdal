@@ -3,6 +3,23 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 
+async function readResponseMessage(res, fallbackMessage) {
+  try {
+    const payload = await res.clone().json();
+    const message = payload?.message || payload?.error;
+    if (message) return String(message);
+  } catch {
+    // no-op
+  }
+  try {
+    const text = await res.text();
+    if (text) return text;
+  } catch {
+    // no-op
+  }
+  return fallbackMessage;
+}
+
 function daysSince(value) {
   if (!value) return null;
   const ts = new Date(value).getTime();
@@ -166,7 +183,10 @@ export default function NetworkingHubPage() {
           ? `/api/new/connections/cancel/${outgoingRequestId}`
           : `/api/new/connections/request/${targetId}`;
       const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
-      if (!res.ok) return;
+      if (!res.ok) {
+        window.alert(await readResponseMessage(res, 'Bağlantı işlemi başarısız.'));
+        return;
+      }
       emitAppChange(
         incomingRequestId ? 'connection:accepted' : outgoingRequestId ? 'connection:cancelled' : 'connection:request',
         { userId: targetId, requestId: incomingRequestId || outgoingRequestId }
