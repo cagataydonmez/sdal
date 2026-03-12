@@ -8721,7 +8721,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified
          FROM connection_requests cr
          LEFT JOIN uyeler u ON u.id = cr.sender_id
-         WHERE cr.receiver_id = ? AND cr.status = 'pending'
+         WHERE cr.receiver_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
          ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
          LIMIT ?`,
         [userId, limit]
@@ -8731,7 +8731,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified
          FROM connection_requests cr
          LEFT JOIN uyeler u ON u.id = cr.receiver_id
-         WHERE cr.sender_id = ? AND cr.status = 'pending'
+         WHERE cr.sender_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
          ORDER BY COALESCE(NULLIF(cr.updated_at, ''), cr.created_at) DESC, cr.id DESC
          LIMIT ?`,
         [userId, limit]
@@ -8741,7 +8741,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified
          FROM mentorship_requests mr
          LEFT JOIN uyeler u ON u.id = mr.requester_id
-         WHERE mr.mentor_id = ? AND mr.status = 'requested'
+         WHERE mr.mentor_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
          ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
          LIMIT ?`,
         [userId, limit]
@@ -8751,7 +8751,7 @@ app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified
          FROM mentorship_requests mr
          LEFT JOIN uyeler u ON u.id = mr.mentor_id
-         WHERE mr.requester_id = ? AND mr.status = 'requested'
+         WHERE mr.requester_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
          ORDER BY COALESCE(NULLIF(mr.updated_at, ''), mr.created_at) DESC, mr.id DESC
          LIMIT ?`,
         [userId, limit]
@@ -8833,13 +8833,13 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
       firstAcceptedMentorship
     ] = await Promise.all([
       sqlGetAsync('SELECT ilktarih FROM uyeler WHERE id = ?', [userId]),
-      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND status = 'pending'", [userId]),
-      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND status = 'pending'", [userId]),
+      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
+      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
       sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND created_at >= ?', [userId, sinceIso]),
       sqlGetAsync(
         `SELECT CAST(COUNT(*) AS INTEGER) AS count
          FROM connection_requests
-         WHERE status = 'accepted'
+         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
            AND (sender_id = ? OR receiver_id = ?)
            AND COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) >= ?`,
         [userId, userId, sinceIso]
@@ -8848,7 +8848,7 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
       sqlGetAsync(
         `SELECT CAST(COUNT(*) AS INTEGER) AS count
          FROM mentorship_requests
-         WHERE status = 'accepted'
+         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
            AND (requester_id = ? OR mentor_id = ?)
            AND COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) >= ?`,
         [userId, userId, sinceIso]
@@ -8857,7 +8857,7 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
       sqlGetAsync(
         `SELECT COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) AS at
          FROM connection_requests
-         WHERE status = 'accepted' AND (sender_id = ? OR receiver_id = ?)
+         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (sender_id = ? OR receiver_id = ?)
          ORDER BY at ASC, id ASC
          LIMIT 1`,
         [userId, userId]
@@ -8865,7 +8865,7 @@ app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
       sqlGetAsync(
         `SELECT COALESCE(NULLIF(responded_at, ''), NULLIF(updated_at, ''), created_at) AS at
          FROM mentorship_requests
-         WHERE status = 'accepted' AND (requester_id = ? OR mentor_id = ?)
+         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (requester_id = ? OR mentor_id = ?)
          ORDER BY at ASC, id ASC
          LIMIT 1`,
         [userId, userId]
