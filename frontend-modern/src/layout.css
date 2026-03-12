@@ -91,6 +91,31 @@
 .mobile-hamburger-left {
   margin-right: 2px;
 }
+
+@media (max-width: 760px) {
+  .top-bar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'title title title'
+      'menu . actions';
+    align-items: center;
+    row-gap: 10px;
+  }
+  .page-title {
+    grid-area: title;
+  }
+  .mobile-hamburger-left {
+    grid-area: menu;
+    margin-right: 0;
+    justify-self: start;
+  }
+  .top-actions {
+    grid-area: actions;
+    width: auto;
+    justify-content: flex-end;
+  }
+}
 .mobile-nav-overlay {
   display: none;
 }

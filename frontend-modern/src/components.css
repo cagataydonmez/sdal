@@ -191,6 +191,13 @@
   box-shadow: var(--shadow);
   margin-bottom: 16px;
 }
+
+.feed-main > .post-card:nth-of-type(odd) {
+  background: color-mix(in srgb, var(--card-alt) 92%, var(--surface-side) 8%);
+}
+.feed-main > .post-card:nth-of-type(even) {
+  background: color-mix(in srgb, var(--card-alt) 84%, var(--surface-side) 16%);
+}
 .post-header {
   display: grid;
   grid-template-columns: 48px 1fr auto;

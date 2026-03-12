@@ -8564,6 +8564,22 @@ app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
   return res.json({ ok: true, status: 'ignored' });
 });
 
+app.post('/api/new/connections/cancel/:id', requireAuth, (req, res) => {
+  ensureConnectionRequestsTable();
+  const requestId = Number(req.params.id || 0);
+  const currentUserId = Number(req.session?.userId || 0);
+  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+
+  const row = sqlGet('SELECT id, sender_id, receiver_id, status FROM connection_requests WHERE id = ?', [requestId]);
+  if (!row) return res.status(404).send('Bağlantı isteği bulunamadı.');
+  if (Number(row.sender_id) !== currentUserId) return res.status(403).send('Bu bağlantı isteğini geri çekemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'pending') return res.status(409).send('Bağlantı isteği artık beklemede değil.');
+
+  const now = new Date().toISOString();
+  sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['cancelled', now, now, requestId]);
+  return res.json({ ok: true, status: 'cancelled' });
+});
+
 
 app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLimit, (req, res) => {
   if (!ensureVerifiedSocialHubMember(req, res)) return;

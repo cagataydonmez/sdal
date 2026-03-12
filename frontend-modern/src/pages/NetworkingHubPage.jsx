@@ -17,12 +17,21 @@ function staleHint(value, t) {
   return t('network_hub_stale_7d');
 }
 
+function emptyMetrics() {
+  return {
+    connections: { requested: 0, accepted: 0, pending_incoming: 0, pending_outgoing: 0 },
+    mentorship: { requested: 0, accepted: 0 },
+    teacherLinks: { created: 0 },
+    time_to_first_network_success_days: null
+  };
+}
+
 export default function NetworkingHubPage() {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsWindow, setMetricsWindow] = useState('30d');
-  const [metrics, setMetrics] = useState(null);
+  const [metrics, setMetrics] = useState(() => emptyMetrics());
   const [loadError, setLoadError] = useState('');
   const [incoming, setIncoming] = useState([]);
   const [outgoing, setOutgoing] = useState([]);
@@ -33,7 +42,7 @@ export default function NetworkingHubPage() {
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
   const [incomingConnectionMap, setIncomingConnectionMap] = useState({});
-  const [outgoingConnectionIds, setOutgoingConnectionIds] = useState(() => new Set());
+  const [outgoingConnectionMap, setOutgoingConnectionMap] = useState({});
   const [pendingAction, setPendingAction] = useState({});
 
   function readConnectionUserField(item, legacyKey, modernKey) {
@@ -75,8 +84,14 @@ export default function NetworkingHubPage() {
       setTeacherUnreadCount(Number(inboxPayload?.inbox?.teacherLinks?.unread_count || 0));
       setSuggestions(suggestionPayload.items || []);
       setFollowingIds(new Set((followsPayload.items || []).map((item) => Number(item.following_id))));
+      const nextOutgoingMap = {};
+      for (const item of (outgoingPayload.items || [])) {
+        const receiverId = Number(item?.receiver_id || 0);
+        if (!receiverId) continue;
+        nextOutgoingMap[receiverId] = Number(item?.id || 0);
+      }
       setIncomingConnectionMap(nextIncomingMap);
-      setOutgoingConnectionIds(new Set((outgoingPayload.items || []).map((item) => Number(item.receiver_id))));
+      setOutgoingConnectionMap(nextOutgoingMap);
     } catch {
       setLoadError(t('network_hub_load_error'));
     } finally {
@@ -89,13 +104,13 @@ export default function NetworkingHubPage() {
     try {
       const res = await fetch(`/api/new/network/metrics?window=${encodeURIComponent(windowValue)}`, { credentials: 'include' });
       if (!res.ok) {
-        setMetrics(null);
+        setMetrics(emptyMetrics());
         return;
       }
       const payload = await res.json();
-      setMetrics(payload?.metrics || null);
+      setMetrics(payload?.metrics || emptyMetrics());
     } catch {
-      setMetrics(null);
+      setMetrics(emptyMetrics());
     } finally {
       setMetricsLoading(false);
     }
@@ -144,13 +159,18 @@ export default function NetworkingHubPage() {
       const targetId = Number(userId || 0);
       if (!targetId) return;
       const incomingRequestId = Number(incomingConnectionMap[targetId] || 0);
-      if (!incomingRequestId && outgoingConnectionIds.has(targetId)) return;
+      const outgoingRequestId = Number(outgoingConnectionMap[targetId] || 0);
       const endpoint = incomingRequestId
         ? `/api/new/connections/accept/${incomingRequestId}`
-        : `/api/new/connections/request/${targetId}`;
+        : outgoingRequestId
+          ? `/api/new/connections/cancel/${outgoingRequestId}`
+          : `/api/new/connections/request/${targetId}`;
       const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
       if (!res.ok) return;
-      emitAppChange(incomingRequestId ? 'connection:accepted' : 'connection:request', { userId: targetId, requestId: incomingRequestId });
+      emitAppChange(
+        incomingRequestId ? 'connection:accepted' : outgoingRequestId ? 'connection:cancelled' : 'connection:request',
+        { userId: targetId, requestId: incomingRequestId || outgoingRequestId }
+      );
       await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
     });
   }
@@ -407,17 +427,18 @@ export default function NetworkingHubPage() {
                   {(() => {
                     const key = Number(item.id || 0);
                     const incomingRequestId = Number(incomingConnectionMap[key] || 0);
-                    const outgoingPending = outgoingConnectionIds.has(key);
+                    const outgoingRequestId = Number(outgoingConnectionMap[key] || 0);
+                    const outgoingPending = outgoingRequestId > 0;
                     const label = incomingRequestId
                       ? t('connection_accept')
                       : outgoingPending
-                        ? t('connection_pending')
+                        ? t('connection_withdraw')
                         : t('connection_request');
                     return (
                       <button
                         className="btn ghost"
                         onClick={() => connectUser(item.id)}
-                        disabled={Boolean(pendingAction[`connect-${item.id}`]) || outgoingPending}
+                        disabled={Boolean(pendingAction[`connect-${item.id}`])}
                       >
                         {label}
                       </button>

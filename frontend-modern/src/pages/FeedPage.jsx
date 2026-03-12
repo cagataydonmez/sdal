@@ -94,6 +94,7 @@ export default function FeedPage() {
   const initializedRef = useRef(false);
   const sideDataInitializedRef = useRef(false);
   const [mountLiveChat, setMountLiveChat] = useState(false);
+  const mobileTabsWrapRef = useRef(null);
 
   const scopeOptions = useMemo(() => ([
     ...FEED_SCOPE_CONTRACT
@@ -134,6 +135,17 @@ export default function FeedPage() {
   useEffect(() => {
     setMobileTabsExpanded(false);
   }, [mobileTab]);
+
+  useEffect(() => {
+    if (!mobileTabsExpanded || typeof document === 'undefined') return undefined;
+    const closeOnOutside = (event) => {
+      if (!mobileTabsWrapRef.current) return;
+      if (mobileTabsWrapRef.current.contains(event.target)) return;
+      setMobileTabsExpanded(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => document.removeEventListener('pointerdown', closeOnOutside);
+  }, [mobileTabsExpanded]);
 
   useEffect(() => {
     let mounted = true;
@@ -340,20 +352,10 @@ export default function FeedPage() {
           <StoryBar title={t('stories_title')} />
         </div>
 
-        <div className={`panel feed-mobile-tabs-wrap ${mobileTabsExpanded ? 'is-expanded' : ''}`}>
-          <button
-            className="btn ghost feed-mobile-tabs-toggle"
-            type="button"
-            onClick={() => setMobileTabsExpanded((prev) => !prev)}
-            aria-expanded={mobileTabsExpanded}
-            aria-controls="feed-mobile-tabs-menu"
-          >
-            <span className="feed-mobile-tabs-toggle-label">{mobileTabToggleLabel}</span>
-            <span className={`feed-mobile-tabs-toggle-icon ${mobileTabsExpanded ? 'open' : ''}`} aria-hidden="true">▾</span>
-          </button>
+        <div ref={mobileTabsWrapRef} className={`panel feed-mobile-tabs-wrap ${mobileTabsExpanded ? 'is-expanded' : ''}`}>
           <div
             id="feed-mobile-tabs-menu"
-            className={`panel-body feed-mobile-tabs ${mobileTabsExpanded ? 'open' : ''}`}
+            className={`feed-mobile-tabs ${mobileTabsExpanded ? 'open' : ''}`}
             role="tablist"
             aria-label={t('nav_feed')}
           >
@@ -373,6 +375,23 @@ export default function FeedPage() {
               </button>
             ))}
           </div>
+          <button
+            className="btn ghost feed-mobile-tabs-toggle"
+            type="button"
+            onClick={() => setMobileTabsExpanded((prev) => !prev)}
+            aria-expanded={mobileTabsExpanded}
+            aria-controls="feed-mobile-tabs-menu"
+            aria-label={mobileTabsExpanded ? t('close') : t('open')}
+          >
+            <span className="feed-mobile-tabs-toggle-label">{mobileTabToggleLabel}</span>
+            <span className={`feed-mobile-tabs-toggle-icon ${mobileTabsExpanded ? 'open' : ''}`} aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="7" x2="20" y2="7" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="17" x2="20" y2="17" />
+              </svg>
+            </span>
+          </button>
           <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
         </div>
       </div>
