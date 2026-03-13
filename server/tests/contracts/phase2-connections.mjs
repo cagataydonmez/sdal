@@ -204,16 +204,26 @@ try {
 
   const send = await request(`/api/new/connections/request/${userBId}`, { method: 'POST', cookie: cookieA });
   assert.equal(send.res.status, 200);
+  assert.equal(send.data?.ok, true);
+  assert.equal(send.data?.code, 'CONNECTION_REQUEST_CREATED');
+  assert.equal(typeof send.data?.message, 'string');
+  assert.equal(send.data?.data?.status, 'pending');
   assert.equal(send.data?.status, 'pending');
 
   const pending = await request('/api/new/connections/requests?direction=incoming&status=pending', { cookie: cookieB });
   assert.equal(pending.res.status, 200);
+  assert.equal(pending.data?.ok, true);
+  assert.equal(pending.data?.code, 'CONNECTION_REQUESTS_LIST_OK');
+  assert.equal(Array.isArray(pending.data?.data?.items), true);
   assert.equal(Array.isArray(pending.data?.items), true);
   assert.equal(pending.data.items.length, 1);
 
   const reqId = Number(pending.data.items[0].id);
   const accept = await request(`/api/new/connections/accept/${reqId}`, { method: 'POST', cookie: cookieB });
   assert.equal(accept.res.status, 200);
+  assert.equal(accept.data?.ok, true);
+  assert.equal(accept.data?.code, 'CONNECTION_REQUEST_ACCEPTED');
+  assert.equal(accept.data?.data?.status, 'accepted');
   assert.equal(accept.data?.status, 'accepted');
 
   const followAB = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [userAId, userBId]);
@@ -223,10 +233,14 @@ try {
 
   const sendAgain = await request(`/api/new/connections/request/${userBId}`, { method: 'POST', cookie: cookieA });
   assert.equal(sendAgain.res.status, 409);
+  assert.equal(sendAgain.data?.ok, false);
   assert.equal(sendAgain.data?.code, 'ALREADY_CONNECTED');
 
   const suggestions = await request('/api/new/explore/suggestions?limit=20&offset=0', { cookie: cookieA });
   assert.equal(suggestions.res.status, 200);
+  assert.equal(suggestions.data?.ok, true);
+  assert.equal(suggestions.data?.code, 'EXPLORE_SUGGESTIONS_OK');
+  assert.equal(Array.isArray(suggestions.data?.data?.items), true);
   const suggestedB = (suggestions.data?.items || []).find((item) => Number(item.id) === userCId);
   assert.ok(suggestedB);
   const reasonText = (suggestedB.reasons || []).join(' | ').toLowerCase();

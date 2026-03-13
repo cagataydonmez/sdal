@@ -121,6 +121,7 @@ try {
     body: { relationship_type: 'taught_in_class', class_year: 1899, notes: 'Invalid year' }
   });
   assert.equal(invalidYear.res.status, 400);
+  assert.equal(invalidYear.data?.ok, false);
   assert.equal(invalidYear.data?.code, 'INVALID_CLASS_YEAR');
 
   const invalidTarget = await request(`/api/new/teachers/network/link/${regularUserId}`, {
@@ -129,6 +130,7 @@ try {
     body: { relationship_type: 'advisor', class_year: 2012 }
   });
   assert.equal(invalidTarget.res.status, 409);
+  assert.equal(invalidTarget.data?.ok, false);
   assert.equal(invalidTarget.data?.code, 'INVALID_TEACHER_TARGET');
 
   const link = await request(`/api/new/teachers/network/link/${teacherId}`, {
@@ -137,6 +139,9 @@ try {
     body: { relationship_type: 'taught_in_class', class_year: 2012, notes: 'Mathematics' }
   });
   assert.equal(link.res.status, 200);
+  assert.equal(link.data?.ok, true);
+  assert.equal(link.data?.code, 'TEACHER_NETWORK_LINK_CREATED');
+  assert.equal(link.data?.data?.status, 'linked');
   assert.equal(link.data?.status, 'linked');
 
   const duplicate = await request(`/api/new/teachers/network/link/${teacherId}`, {
@@ -145,27 +150,36 @@ try {
     body: { relationship_type: 'taught_in_class', class_year: 2012 }
   });
   assert.equal(duplicate.res.status, 409);
+  assert.equal(duplicate.data?.ok, false);
   assert.equal(duplicate.data?.code, 'RELATIONSHIP_ALREADY_EXISTS');
 
   const myTeachers = await request('/api/new/teachers/network?direction=my_teachers&relationship_type=taught_in_class', { cookie: alumniCookie });
   assert.equal(myTeachers.res.status, 200);
+  assert.equal(myTeachers.data?.ok, true);
+  assert.equal(myTeachers.data?.code, 'TEACHER_NETWORK_LIST_OK');
+  assert.equal(Array.isArray(myTeachers.data?.data?.items), true);
   assert.equal(Array.isArray(myTeachers.data?.items), true);
   assert.equal(myTeachers.data.items.length, 1);
   assert.equal(Number(myTeachers.data.items[0].teacher_user_id), teacherId);
 
   const myStudents = await request('/api/new/teachers/network?direction=my_students&class_year=2012', { cookie: teacherCookie });
   assert.equal(myStudents.res.status, 200);
+  assert.equal(myStudents.data?.ok, true);
   assert.equal(Array.isArray(myStudents.data?.items), true);
   assert.equal(myStudents.data.items.length, 1);
   assert.equal(Number(myStudents.data.items[0].alumni_user_id), alumniId);
 
   const optionsWithInclude = await request(`/api/new/teachers/options?term=no-match&limit=10&include_id=${teacherId}`, { cookie: alumniCookie });
   assert.equal(optionsWithInclude.res.status, 200);
+  assert.equal(optionsWithInclude.data?.ok, true);
+  assert.equal(optionsWithInclude.data?.code, 'TEACHER_OPTIONS_OK');
+  assert.equal(Array.isArray(optionsWithInclude.data?.data?.items), true);
   assert.equal(Array.isArray(optionsWithInclude.data?.items), true);
   assert.equal(Number(optionsWithInclude.data.items[0]?.id || 0), teacherId);
 
   const invalidFilter = await request('/api/new/teachers/network?direction=my_students&class_year=2201', { cookie: teacherCookie });
   assert.equal(invalidFilter.res.status, 400);
+  assert.equal(invalidFilter.data?.ok, false);
   assert.equal(invalidFilter.data?.code, 'INVALID_CLASS_YEAR');
 
   console.log('phase2 teacher network tests passed');

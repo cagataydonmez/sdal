@@ -174,6 +174,10 @@ try {
 
   const inbox = await request('/api/new/network/inbox?limit=10', { cookie: cookieMe });
   assert.equal(inbox.res.status, 200);
+  assert.equal(inbox.data?.ok, true);
+  assert.equal(inbox.data?.code, 'NETWORK_INBOX_OK');
+  assert.equal(typeof inbox.data?.message, 'string');
+  assert.equal(Array.isArray(inbox.data?.data?.inbox?.connections?.incoming), true);
   assert.equal(Array.isArray(inbox.data?.inbox?.connections?.incoming), true);
   assert.equal(Array.isArray(inbox.data?.inbox?.connections?.outgoing), true);
   assert.equal(Array.isArray(inbox.data?.inbox?.mentorship?.incoming), true);
@@ -199,6 +203,8 @@ try {
   });
   assert.equal(markRead.res.status, 200);
   assert.equal(markRead.data?.ok, true);
+  assert.equal(markRead.data?.code, 'NETWORK_TEACHER_LINKS_MARKED_READ');
+  assert.equal(Number(markRead.data?.data?.updated || 0) >= 1, true);
   assert.equal(Number(markRead.data?.updated || 0) >= 1, true);
 
   const inboxAfterRead = await request('/api/new/network/inbox?limit=10', { cookie: cookieMe });

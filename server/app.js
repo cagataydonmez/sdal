@@ -8334,6 +8334,22 @@ function calculateCooldownRemainingSeconds(timestampValue, cooldownSeconds) {
   return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
 }
 
+function apiSuccessEnvelope(code, message, data = null, legacy = null) {
+  const payload = { ok: true, code, message, data };
+  if (legacy && typeof legacy === 'object') Object.assign(payload, legacy);
+  return payload;
+}
+
+function apiErrorEnvelope(code, message, data = null, legacy = null) {
+  const payload = { ok: false, code, message, data };
+  if (legacy && typeof legacy === 'object') Object.assign(payload, legacy);
+  return payload;
+}
+
+function sendApiError(res, statusCode, code, message, data = null, legacy = null) {
+  return res.status(statusCode).json(apiErrorEnvelope(code, message, data, legacy));
+}
+
 function ensureConnectionRequestsTable() {
   sqlRun(`
     CREATE TABLE IF NOT EXISTS connection_requests (
@@ -8423,16 +8439,16 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
   ensureConnectionRequestsTable();
   const senderId = Number(req.session?.userId || 0);
   const receiverId = Number(req.params.id || 0);
-  if (!senderId || !receiverId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
-  if (senderId === receiverId) return res.status(400).send('Kendine bağlantı isteği gönderemezsin.');
+  if (!senderId || !receiverId) return sendApiError(res, 400, 'INVALID_USER_ID', 'Geçersiz kullanıcı kimliği.');
+  if (senderId === receiverId) return sendApiError(res, 400, 'SELF_CONNECTION_NOT_ALLOWED', 'Kendine bağlantı isteği gönderemezsin.');
 
   const receiver = sqlGet('SELECT id FROM uyeler WHERE id = ?', [receiverId]);
-  if (!receiver) return res.status(404).send('Üye bulunamadı.');
+  if (!receiver) return sendApiError(res, 404, 'MEMBER_NOT_FOUND', 'Üye bulunamadı.');
 
   const existingFollow = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [senderId, receiverId]);
   const reverseFollow = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [receiverId, senderId]);
   if (existingFollow && reverseFollow) {
-    return res.status(409).json({ code: 'ALREADY_CONNECTED', message: 'Bu üye ile zaten bağlantısınız.' });
+    return sendApiError(res, 409, 'ALREADY_CONNECTED', 'Bu üye ile zaten bağlantısınız.');
   }
 
   const outgoingPending = sqlGet(
@@ -8446,7 +8462,7 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     [senderId, receiverId]
   );
   if (outgoingPending) {
-    return res.status(409).json({ code: 'REQUEST_ALREADY_PENDING', message: 'Bu üyeye zaten bekleyen bir bağlantı isteği gönderdiniz.' });
+    return sendApiError(res, 409, 'REQUEST_ALREADY_PENDING', 'Bu üyeye zaten bekleyen bir bağlantı isteği gönderdiniz.');
   }
 
   const incomingPending = sqlGet(
@@ -8460,7 +8476,7 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     [receiverId, senderId]
   );
   if (incomingPending) {
-    return res.status(409).json({ code: 'REQUEST_PENDING_FROM_TARGET', message: 'Bu üyeden bekleyen bir bağlantı isteğiniz var. Kabul edebilirsiniz.' });
+    return sendApiError(res, 409, 'REQUEST_PENDING_FROM_TARGET', 'Bu üyeden bekleyen bir bağlantı isteğiniz var. Kabul edebilirsiniz.');
   }
 
   const latestOutgoing = sqlGet(
@@ -8479,11 +8495,14 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     );
     if (remainingSeconds > 0) {
       res.setHeader('Retry-After', String(remainingSeconds));
-      return res.status(429).json({
-        code: 'REQUEST_COOLDOWN_ACTIVE',
-        message: 'Bu üyeye tekrar bağlantı isteği göndermek için biraz beklemelisin.',
-        retry_after_seconds: remainingSeconds
-      });
+      return sendApiError(
+        res,
+        429,
+        'REQUEST_COOLDOWN_ACTIVE',
+        'Bu üyeye tekrar bağlantı isteği göndermek için biraz beklemelisin.',
+        { retry_after_seconds: remainingSeconds },
+        { retry_after_seconds: remainingSeconds }
+      );
     }
   }
 
@@ -8508,7 +8527,12 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     message: 'Sana bir bağlantı isteği gönderdi.'
   });
 
-  return res.json({ ok: true, status: 'pending', request_id: requestId });
+  return res.json(apiSuccessEnvelope(
+    'CONNECTION_REQUEST_CREATED',
+    'Yeni bağlantı isteği gönderildi.',
+    { status: 'pending', request_id: requestId },
+    { status: 'pending', request_id: requestId }
+  ));
 });
 
 app.get('/api/new/connections/requests', requireAuth, async (req, res) => {
@@ -8535,10 +8559,11 @@ app.get('/api/new/connections/requests', requireAuth, async (req, res) => {
        LIMIT ? OFFSET ?`,
       [userId, status, limit, offset]
     );
-    return res.json({ items: rows, hasMore: rows.length === limit, direction, status });
+    const payload = { items: rows, hasMore: rows.length === limit, direction, status };
+    return res.json(apiSuccessEnvelope('CONNECTION_REQUESTS_LIST_OK', 'Bağlantı istekleri listelendi.', payload, payload));
   } catch (err) {
     console.error('connections.requests failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'CONNECTION_REQUESTS_LIST_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -8546,12 +8571,12 @@ app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
   ensureConnectionRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
-  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+  if (!requestId || !currentUserId) return sendApiError(res, 400, 'INVALID_CONNECTION_REQUEST_ID', 'Geçersiz istek kimliği.');
 
   const row = sqlGet('SELECT id, sender_id, receiver_id, status FROM connection_requests WHERE id = ?', [requestId]);
-  if (!row) return res.status(404).send('Bağlantı isteği bulunamadı.');
-  if (Number(row.receiver_id) !== currentUserId) return res.status(403).send('Bu bağlantı isteğini yönetemezsiniz.');
-  if (String(row.status || '').toLowerCase() !== 'pending') return res.status(409).send('Bağlantı isteği artık beklemede değil.');
+  if (!row) return sendApiError(res, 404, 'CONNECTION_REQUEST_NOT_FOUND', 'Bağlantı isteği bulunamadı.');
+  if (Number(row.receiver_id) !== currentUserId) return sendApiError(res, 403, 'CONNECTION_REQUEST_FORBIDDEN', 'Bu bağlantı isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'pending') return sendApiError(res, 409, 'CONNECTION_REQUEST_NOT_PENDING', 'Bağlantı isteği artık beklemede değil.');
 
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['accepted', now, now, requestId]);
@@ -8580,39 +8605,54 @@ app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
   scheduleEngagementRecalculation('follow_changed');
   invalidateCacheNamespace(cacheNamespaces.feed);
 
-  return res.json({ ok: true, status: 'accepted', request_id: requestId });
+  return res.json(apiSuccessEnvelope(
+    'CONNECTION_REQUEST_ACCEPTED',
+    'Bağlantı isteği kabul edildi.',
+    { status: 'accepted', request_id: requestId },
+    { status: 'accepted', request_id: requestId }
+  ));
 });
 
 app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
   ensureConnectionRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
-  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+  if (!requestId || !currentUserId) return sendApiError(res, 400, 'INVALID_CONNECTION_REQUEST_ID', 'Geçersiz istek kimliği.');
 
   const row = sqlGet('SELECT id, sender_id, receiver_id, status FROM connection_requests WHERE id = ?', [requestId]);
-  if (!row) return res.status(404).send('Bağlantı isteği bulunamadı.');
-  if (Number(row.receiver_id) !== currentUserId) return res.status(403).send('Bu bağlantı isteğini yönetemezsiniz.');
-  if (String(row.status || '').toLowerCase() !== 'pending') return res.status(409).send('Bağlantı isteği artık beklemede değil.');
+  if (!row) return sendApiError(res, 404, 'CONNECTION_REQUEST_NOT_FOUND', 'Bağlantı isteği bulunamadı.');
+  if (Number(row.receiver_id) !== currentUserId) return sendApiError(res, 403, 'CONNECTION_REQUEST_FORBIDDEN', 'Bu bağlantı isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'pending') return sendApiError(res, 409, 'CONNECTION_REQUEST_NOT_PENDING', 'Bağlantı isteği artık beklemede değil.');
 
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['ignored', now, now, requestId]);
-  return res.json({ ok: true, status: 'ignored', request_id: requestId });
+  return res.json(apiSuccessEnvelope(
+    'CONNECTION_REQUEST_IGNORED',
+    'Bağlantı isteği yok sayıldı.',
+    { status: 'ignored', request_id: requestId },
+    { status: 'ignored', request_id: requestId }
+  ));
 });
 
 app.post('/api/new/connections/cancel/:id', requireAuth, (req, res) => {
   ensureConnectionRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
-  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+  if (!requestId || !currentUserId) return sendApiError(res, 400, 'INVALID_CONNECTION_REQUEST_ID', 'Geçersiz istek kimliği.');
 
   const row = sqlGet('SELECT id, sender_id, receiver_id, status FROM connection_requests WHERE id = ?', [requestId]);
-  if (!row) return res.status(404).send('Bağlantı isteği bulunamadı.');
-  if (Number(row.sender_id) !== currentUserId) return res.status(403).send('Bu bağlantı isteğini geri çekemezsiniz.');
-  if (String(row.status || '').toLowerCase() !== 'pending') return res.status(409).send('Bağlantı isteği artık beklemede değil.');
+  if (!row) return sendApiError(res, 404, 'CONNECTION_REQUEST_NOT_FOUND', 'Bağlantı isteği bulunamadı.');
+  if (Number(row.sender_id) !== currentUserId) return sendApiError(res, 403, 'CONNECTION_REQUEST_CANCEL_FORBIDDEN', 'Bu bağlantı isteğini geri çekemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'pending') return sendApiError(res, 409, 'CONNECTION_REQUEST_NOT_PENDING', 'Bağlantı isteği artık beklemede değil.');
 
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['cancelled', now, now, requestId]);
-  return res.json({ ok: true, status: 'cancelled', request_id: requestId });
+  return res.json(apiSuccessEnvelope(
+    'CONNECTION_REQUEST_CANCELLED',
+    'Bağlantı isteği geri çekildi.',
+    { status: 'cancelled', request_id: requestId },
+    { status: 'cancelled', request_id: requestId }
+  ));
 });
 
 
@@ -8621,13 +8661,13 @@ app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLi
   ensureMentorshipRequestsTable();
   const requesterId = Number(req.session?.userId || 0);
   const mentorId = Number(req.params.id || 0);
-  if (!requesterId || !mentorId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
-  if (requesterId === mentorId) return res.status(400).send('Kendine mentorluk isteği gönderemezsin.');
+  if (!requesterId || !mentorId) return sendApiError(res, 400, 'INVALID_USER_ID', 'Geçersiz kullanıcı kimliği.');
+  if (requesterId === mentorId) return sendApiError(res, 400, 'SELF_MENTORSHIP_NOT_ALLOWED', 'Kendine mentorluk isteği gönderemezsin.');
 
   const mentor = sqlGet('SELECT id, mentor_opt_in FROM uyeler WHERE id = ?', [mentorId]);
-  if (!mentor) return res.status(404).send('Mentor bulunamadı.');
+  if (!mentor) return sendApiError(res, 404, 'MENTOR_NOT_FOUND', 'Mentor bulunamadı.');
   if (Number(mentor.mentor_opt_in || 0) !== 1) {
-    return res.status(409).json({ code: 'MENTOR_NOT_AVAILABLE', message: 'Seçilen üye mentorluk taleplerini kabul etmiyor.' });
+    return sendApiError(res, 409, 'MENTOR_NOT_AVAILABLE', 'Seçilen üye mentorluk taleplerini kabul etmiyor.');
   }
 
   const focusArea = String(req.body?.focus_area || '').trim().slice(0, 120);
@@ -8640,10 +8680,10 @@ app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLi
   );
   const existingStatus = String(existing?.status || '').toLowerCase();
   if (existing && existingStatus === 'requested') {
-    return res.status(409).json({ code: 'REQUEST_ALREADY_PENDING', message: 'Bu mentor için zaten bekleyen bir talebin var.' });
+    return sendApiError(res, 409, 'REQUEST_ALREADY_PENDING', 'Bu mentor için zaten bekleyen bir talebin var.');
   }
   if (existing && existingStatus === 'accepted') {
-    return res.status(409).json({ code: 'REQUEST_ALREADY_ACCEPTED', message: 'Bu mentor ile aktif bir mentorluk bağlantın var.' });
+    return sendApiError(res, 409, 'REQUEST_ALREADY_ACCEPTED', 'Bu mentor ile aktif bir mentorluk bağlantın var.');
   }
   if (existing && existingStatus === 'declined') {
     const remainingSeconds = calculateCooldownRemainingSeconds(
@@ -8652,11 +8692,14 @@ app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLi
     );
     if (remainingSeconds > 0) {
       res.setHeader('Retry-After', String(remainingSeconds));
-      return res.status(429).json({
-        code: 'MENTORSHIP_COOLDOWN_ACTIVE',
-        message: 'Aynı mentora tekrar istek göndermeden önce biraz beklemelisin.',
-        retry_after_seconds: remainingSeconds
-      });
+      return sendApiError(
+        res,
+        429,
+        'MENTORSHIP_COOLDOWN_ACTIVE',
+        'Aynı mentora tekrar istek göndermeden önce biraz beklemelisin.',
+        { retry_after_seconds: remainingSeconds },
+        { retry_after_seconds: remainingSeconds }
+      );
     }
   }
 
@@ -8681,7 +8724,12 @@ app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLi
     message: 'Sana bir mentorluk isteği gönderdi.'
   });
 
-  return res.json({ ok: true, status: 'requested' });
+  return res.json(apiSuccessEnvelope(
+    'MENTORSHIP_REQUEST_CREATED',
+    'Mentorluk talebi gönderildi.',
+    { status: 'requested' },
+    { status: 'requested' }
+  ));
 });
 
 app.get('/api/new/mentorship/requests', requireAuth, async (req, res) => {
@@ -8708,10 +8756,11 @@ app.get('/api/new/mentorship/requests', requireAuth, async (req, res) => {
        LIMIT ? OFFSET ?`,
       [userId, status, limit, offset]
     );
-    return res.json({ items: rows, hasMore: rows.length === limit, direction, status });
+    const payload = { items: rows, hasMore: rows.length === limit, direction, status };
+    return res.json(apiSuccessEnvelope('MENTORSHIP_REQUESTS_LIST_OK', 'Mentorluk talepleri listelendi.', payload, payload));
   } catch (err) {
     console.error('mentorship.requests failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'MENTORSHIP_REQUESTS_LIST_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -8719,12 +8768,12 @@ app.post('/api/new/mentorship/accept/:id', requireAuth, (req, res) => {
   ensureMentorshipRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
-  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+  if (!requestId || !currentUserId) return sendApiError(res, 400, 'INVALID_MENTORSHIP_REQUEST_ID', 'Geçersiz istek kimliği.');
 
   const row = sqlGet('SELECT id, requester_id, mentor_id, status FROM mentorship_requests WHERE id = ?', [requestId]);
-  if (!row) return res.status(404).send('Mentorluk isteği bulunamadı.');
-  if (Number(row.mentor_id) !== currentUserId) return res.status(403).send('Bu mentorluk isteğini yönetemezsiniz.');
-  if (String(row.status || '').toLowerCase() !== 'requested') return res.status(409).send('Mentorluk isteği artık beklemede değil.');
+  if (!row) return sendApiError(res, 404, 'MENTORSHIP_REQUEST_NOT_FOUND', 'Mentorluk isteği bulunamadı.');
+  if (Number(row.mentor_id) !== currentUserId) return sendApiError(res, 403, 'MENTORSHIP_REQUEST_FORBIDDEN', 'Bu mentorluk isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'requested') return sendApiError(res, 409, 'MENTORSHIP_REQUEST_NOT_PENDING', 'Mentorluk isteği artık beklemede değil.');
 
   const now = new Date().toISOString();
   sqlRun('UPDATE mentorship_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['accepted', now, now, requestId]);
@@ -8737,116 +8786,45 @@ app.post('/api/new/mentorship/accept/:id', requireAuth, (req, res) => {
     message: 'Mentorluk isteğini kabul etti.'
   });
 
-  return res.json({ ok: true, status: 'accepted' });
+  return res.json(apiSuccessEnvelope(
+    'MENTORSHIP_REQUEST_ACCEPTED',
+    'Mentorluk talebi kabul edildi.',
+    { status: 'accepted', request_id: requestId },
+    { status: 'accepted', request_id: requestId }
+  ));
 });
 
 app.post('/api/new/mentorship/decline/:id', requireAuth, (req, res) => {
   ensureMentorshipRequestsTable();
   const requestId = Number(req.params.id || 0);
   const currentUserId = Number(req.session?.userId || 0);
-  if (!requestId || !currentUserId) return res.status(400).send('Geçersiz istek kimliği.');
+  if (!requestId || !currentUserId) return sendApiError(res, 400, 'INVALID_MENTORSHIP_REQUEST_ID', 'Geçersiz istek kimliği.');
 
   const row = sqlGet('SELECT id, requester_id, mentor_id, status FROM mentorship_requests WHERE id = ?', [requestId]);
-  if (!row) return res.status(404).send('Mentorluk isteği bulunamadı.');
-  if (Number(row.mentor_id) !== currentUserId) return res.status(403).send('Bu mentorluk isteğini yönetemezsiniz.');
-  if (String(row.status || '').toLowerCase() !== 'requested') return res.status(409).send('Mentorluk isteği artık beklemede değil.');
+  if (!row) return sendApiError(res, 404, 'MENTORSHIP_REQUEST_NOT_FOUND', 'Mentorluk isteği bulunamadı.');
+  if (Number(row.mentor_id) !== currentUserId) return sendApiError(res, 403, 'MENTORSHIP_REQUEST_FORBIDDEN', 'Bu mentorluk isteğini yönetemezsiniz.');
+  if (String(row.status || '').toLowerCase() !== 'requested') return sendApiError(res, 409, 'MENTORSHIP_REQUEST_NOT_PENDING', 'Mentorluk isteği artık beklemede değil.');
 
   const now = new Date().toISOString();
   sqlRun('UPDATE mentorship_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['declined', now, now, requestId]);
-  return res.json({ ok: true, status: 'declined' });
+  return res.json(apiSuccessEnvelope(
+    'MENTORSHIP_REQUEST_DECLINED',
+    'Mentorluk talebi reddedildi.',
+    { status: 'declined', request_id: requestId },
+    { status: 'declined', request_id: requestId }
+  ));
 });
 
 app.get('/api/new/network/inbox', requireAuth, async (req, res) => {
   try {
-    ensureConnectionRequestsTable();
-    ensureMentorshipRequestsTable();
-    ensureTeacherAlumniLinksTable();
-
     const userId = Number(req.session?.userId || 0);
     const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
     const teacherLinkLimit = Math.min(Math.max(parseInt(req.query.teacher_limit || String(limit), 10), 1), 50);
-
-    const [incomingConnections, outgoingConnections, incomingMentorship, outgoingMentorship, teacherLinkEvents] = await Promise.all([
-      sqlAllAsync(
-        `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
-                u.kadi, u.isim, u.soyisim, u.resim, u.verified
-         FROM connection_requests cr
-         LEFT JOIN uyeler u ON u.id = cr.sender_id
-         WHERE cr.receiver_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
-         ORDER BY COALESCE(CASE WHEN CAST(cr.updated_at AS TEXT) = '' THEN NULL ELSE cr.updated_at END, cr.created_at) DESC, cr.id DESC
-         LIMIT ?`,
-        [userId, limit]
-      ),
-      sqlAllAsync(
-        `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
-                u.kadi, u.isim, u.soyisim, u.resim, u.verified
-         FROM connection_requests cr
-         LEFT JOIN uyeler u ON u.id = cr.receiver_id
-         WHERE cr.sender_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
-         ORDER BY COALESCE(CASE WHEN CAST(cr.updated_at AS TEXT) = '' THEN NULL ELSE cr.updated_at END, cr.created_at) DESC, cr.id DESC
-         LIMIT ?`,
-        [userId, limit]
-      ),
-      sqlAllAsync(
-        `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
-                u.kadi, u.isim, u.soyisim, u.resim, u.verified
-         FROM mentorship_requests mr
-         LEFT JOIN uyeler u ON u.id = mr.requester_id
-         WHERE mr.mentor_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
-         ORDER BY COALESCE(CASE WHEN CAST(mr.updated_at AS TEXT) = '' THEN NULL ELSE mr.updated_at END, mr.created_at) DESC, mr.id DESC
-         LIMIT ?`,
-        [userId, limit]
-      ),
-      sqlAllAsync(
-        `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
-                u.kadi, u.isim, u.soyisim, u.resim, u.verified
-         FROM mentorship_requests mr
-         LEFT JOIN uyeler u ON u.id = mr.mentor_id
-         WHERE mr.requester_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
-         ORDER BY COALESCE(CASE WHEN CAST(mr.updated_at AS TEXT) = '' THEN NULL ELSE mr.updated_at END, mr.created_at) DESC, mr.id DESC
-         LIMIT ?`,
-        [userId, limit]
-      ),
-      sqlAllAsync(
-        `SELECT n.id, n.type, n.source_user_id, n.entity_id, n.message, n.read_at, n.created_at,
-                u.kadi, u.isim, u.soyisim, u.resim, u.verified
-         FROM notifications n
-         LEFT JOIN uyeler u ON u.id = n.source_user_id
-         WHERE n.user_id = ? AND n.type = 'teacher_network_linked'
-         ORDER BY COALESCE(CASE WHEN CAST(n.created_at AS TEXT) = '' THEN NULL ELSE n.created_at END, '1970-01-01T00:00:00.000Z') DESC, n.id DESC
-         LIMIT ?`,
-        [userId, teacherLinkLimit]
-      )
-    ]);
-
-    return res.json({
-      inbox: {
-        connections: {
-          incoming: incomingConnections,
-          outgoing: outgoingConnections,
-          counts: {
-            incoming_pending: incomingConnections.length,
-            outgoing_pending: outgoingConnections.length
-          }
-        },
-        mentorship: {
-          incoming: incomingMentorship,
-          outgoing: outgoingMentorship,
-          counts: {
-            incoming_requested: incomingMentorship.length,
-            outgoing_requested: outgoingMentorship.length
-          }
-        },
-        teacherLinks: {
-          events: teacherLinkEvents,
-          count: teacherLinkEvents.length,
-          unread_count: teacherLinkEvents.reduce((sum, item) => (item.read_at ? sum : sum + 1), 0)
-        }
-      }
-    });
+    const inbox = await buildNetworkInboxPayload(userId, { limit, teacherLinkLimit });
+    return res.json(apiSuccessEnvelope('NETWORK_INBOX_OK', 'Networking inbox hazır.', { inbox }, { inbox }));
   } catch (err) {
     console.error('network.inbox failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'NETWORK_INBOX_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -8861,109 +8839,523 @@ function toIsoThreshold(days) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
-app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
-  try {
-    ensureConnectionRequestsTable();
-    ensureMentorshipRequestsTable();
-    ensureTeacherAlumniLinksTable();
+async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit = limit } = {}) {
+  ensureConnectionRequestsTable();
+  ensureMentorshipRequestsTable();
+  ensureTeacherAlumniLinksTable();
 
-    const userId = Number(req.session?.userId || 0);
-    const windowDays = parseNetworkWindowDays(req.query.window);
-    const sinceIso = toIsoThreshold(windowDays);
+  const [incomingConnections, outgoingConnections, incomingMentorship, outgoingMentorship, teacherLinkEvents] = await Promise.all([
+    sqlAllAsync(
+      `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM connection_requests cr
+       LEFT JOIN uyeler u ON u.id = cr.sender_id
+       WHERE cr.receiver_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
+       ORDER BY COALESCE(CASE WHEN CAST(cr.updated_at AS TEXT) = '' THEN NULL ELSE cr.updated_at END, cr.created_at) DESC, cr.id DESC
+       LIMIT ?`,
+      [userId, limit]
+    ),
+    sqlAllAsync(
+      `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM connection_requests cr
+       LEFT JOIN uyeler u ON u.id = cr.receiver_id
+       WHERE cr.sender_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
+       ORDER BY COALESCE(CASE WHEN CAST(cr.updated_at AS TEXT) = '' THEN NULL ELSE cr.updated_at END, cr.created_at) DESC, cr.id DESC
+       LIMIT ?`,
+      [userId, limit]
+    ),
+    sqlAllAsync(
+      `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM mentorship_requests mr
+       LEFT JOIN uyeler u ON u.id = mr.requester_id
+       WHERE mr.mentor_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
+       ORDER BY COALESCE(CASE WHEN CAST(mr.updated_at AS TEXT) = '' THEN NULL ELSE mr.updated_at END, mr.created_at) DESC, mr.id DESC
+       LIMIT ?`,
+      [userId, limit]
+    ),
+    sqlAllAsync(
+      `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM mentorship_requests mr
+       LEFT JOIN uyeler u ON u.id = mr.mentor_id
+       WHERE mr.requester_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
+       ORDER BY COALESCE(CASE WHEN CAST(mr.updated_at AS TEXT) = '' THEN NULL ELSE mr.updated_at END, mr.created_at) DESC, mr.id DESC
+       LIMIT ?`,
+      [userId, limit]
+    ),
+    sqlAllAsync(
+      `SELECT n.id, n.type, n.source_user_id, n.entity_id, n.message, n.read_at, n.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM notifications n
+       LEFT JOIN uyeler u ON u.id = n.source_user_id
+       WHERE n.user_id = ? AND n.type = 'teacher_network_linked'
+       ORDER BY COALESCE(CASE WHEN CAST(n.created_at AS TEXT) = '' THEN NULL ELSE n.created_at END, '1970-01-01T00:00:00.000Z') DESC, n.id DESC
+       LIMIT ?`,
+      [userId, teacherLinkLimit]
+    )
+  ]);
 
-    const [
-      userRow,
-      pendingIncoming,
-      pendingOutgoing,
-      requestedConnections,
-      acceptedConnections,
-      mentorshipRequested,
-      mentorshipAccepted,
-      teacherLinksCreated,
-      firstAcceptedConnection,
-      firstAcceptedMentorship
-    ] = await Promise.all([
-      sqlGetAsync('SELECT ilktarih FROM uyeler WHERE id = ?', [userId]),
-      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
-      sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
-      sqlGetAsync(
-        `SELECT CAST(COUNT(*) AS INTEGER) AS count
-         FROM connection_requests
-         WHERE sender_id = ?
-           AND (
-             created_at >= ?
-             OR LOWER(TRIM(COALESCE(status, ''))) = 'pending'
-           )`,
-        [userId, sinceIso]
-      ),
-      sqlGetAsync(
-        `SELECT CAST(COUNT(*) AS INTEGER) AS count
-         FROM connection_requests
-         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
-           AND (sender_id = ? OR receiver_id = ?)
-           AND COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) >= ?`,
-        [userId, userId, sinceIso]
-      ),
-      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM mentorship_requests WHERE requester_id = ? AND created_at >= ?', [userId, sinceIso]),
-      sqlGetAsync(
-        `SELECT CAST(COUNT(*) AS INTEGER) AS count
-         FROM mentorship_requests
-         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
-           AND (requester_id = ? OR mentor_id = ?)
-           AND COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) >= ?`,
-        [userId, userId, sinceIso]
-      ),
-      sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM teacher_alumni_links WHERE created_by = ? AND created_at >= ?', [userId, sinceIso]),
-      sqlGetAsync(
-        `SELECT COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) AS at
-         FROM connection_requests
-         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (sender_id = ? OR receiver_id = ?)
-         ORDER BY at ASC, id ASC
-         LIMIT 1`,
-        [userId, userId]
-      ),
-      sqlGetAsync(
-        `SELECT COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) AS at
-         FROM mentorship_requests
-         WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (requester_id = ? OR mentor_id = ?)
-         ORDER BY at ASC, id ASC
-         LIMIT 1`,
-        [userId, userId]
-      )
-    ]);
-
-    const successCandidates = [firstAcceptedConnection?.at, firstAcceptedMentorship?.at]
-      .map((value) => new Date(String(value || '')).getTime())
-      .filter((value) => Number.isFinite(value) && value > 0);
-    const firstSuccessAt = successCandidates.length ? new Date(Math.min(...successCandidates)).toISOString() : null;
-    const registrationAtMs = new Date(String(userRow?.ilktarih || '')).getTime();
-    const timeToFirstNetworkSuccessDays = firstSuccessAt && Number.isFinite(registrationAtMs) && registrationAtMs > 0
-      ? Math.max(0, Math.round((new Date(firstSuccessAt).getTime() - registrationAtMs) / (24 * 60 * 60 * 1000)))
-      : null;
-
-    return res.json({
-      window: `${windowDays}d`,
-      since: sinceIso,
-      metrics: {
-        connections: {
-          requested: Number(requestedConnections?.count || 0),
-          accepted: Number(acceptedConnections?.count || 0),
-          pending_incoming: Number(pendingIncoming?.count || 0),
-          pending_outgoing: Number(pendingOutgoing?.count || 0)
-        },
-        mentorship: {
-          requested: Number(mentorshipRequested?.count || 0),
-          accepted: Number(mentorshipAccepted?.count || 0)
-        },
-        teacherLinks: {
-          created: Number(teacherLinksCreated?.count || 0)
-        },
-        time_to_first_network_success_days: timeToFirstNetworkSuccessDays
+  return {
+    connections: {
+      incoming: incomingConnections,
+      outgoing: outgoingConnections,
+      counts: {
+        incoming_pending: incomingConnections.length,
+        outgoing_pending: outgoingConnections.length
       }
+    },
+    mentorship: {
+      incoming: incomingMentorship,
+      outgoing: outgoingMentorship,
+      counts: {
+        incoming_requested: incomingMentorship.length,
+        outgoing_requested: outgoingMentorship.length
+      }
+    },
+    teacherLinks: {
+      events: teacherLinkEvents,
+      count: teacherLinkEvents.length,
+      unread_count: teacherLinkEvents.reduce((sum, item) => (item.read_at ? sum : sum + 1), 0)
+    }
+  };
+}
+
+async function buildNetworkMetricsPayload(userId, windowDays) {
+  ensureConnectionRequestsTable();
+  ensureMentorshipRequestsTable();
+  ensureTeacherAlumniLinksTable();
+
+  const sinceIso = toIsoThreshold(windowDays);
+
+  const [
+    userRow,
+    pendingIncoming,
+    pendingOutgoing,
+    requestedConnections,
+    acceptedConnections,
+    mentorshipRequested,
+    mentorshipAccepted,
+    teacherLinksCreated,
+    firstAcceptedConnection,
+    firstAcceptedMentorship
+  ] = await Promise.all([
+    sqlGetAsync('SELECT ilktarih FROM uyeler WHERE id = ?', [userId]),
+    sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE receiver_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
+    sqlGetAsync("SELECT CAST(COUNT(*) AS INTEGER) AS count FROM connection_requests WHERE sender_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'", [userId]),
+    sqlGetAsync(
+      `SELECT CAST(COUNT(*) AS INTEGER) AS count
+       FROM connection_requests
+       WHERE sender_id = ?
+         AND (
+           created_at >= ?
+           OR LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+         )`,
+      [userId, sinceIso]
+    ),
+    sqlGetAsync(
+      `SELECT CAST(COUNT(*) AS INTEGER) AS count
+       FROM connection_requests
+       WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
+         AND (sender_id = ? OR receiver_id = ?)
+         AND COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) >= ?`,
+      [userId, userId, sinceIso]
+    ),
+    sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM mentorship_requests WHERE requester_id = ? AND created_at >= ?', [userId, sinceIso]),
+    sqlGetAsync(
+      `SELECT CAST(COUNT(*) AS INTEGER) AS count
+       FROM mentorship_requests
+       WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted'
+         AND (requester_id = ? OR mentor_id = ?)
+         AND COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) >= ?`,
+      [userId, userId, sinceIso]
+    ),
+    sqlGetAsync('SELECT CAST(COUNT(*) AS INTEGER) AS count FROM teacher_alumni_links WHERE created_by = ? AND created_at >= ?', [userId, sinceIso]),
+    sqlGetAsync(
+      `SELECT COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) AS at
+       FROM connection_requests
+       WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (sender_id = ? OR receiver_id = ?)
+       ORDER BY at ASC, id ASC
+       LIMIT 1`,
+      [userId, userId]
+    ),
+    sqlGetAsync(
+      `SELECT COALESCE(CASE WHEN CAST(responded_at AS TEXT) = '' THEN NULL ELSE responded_at END, CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) AS at
+       FROM mentorship_requests
+       WHERE LOWER(TRIM(COALESCE(status, ''))) = 'accepted' AND (requester_id = ? OR mentor_id = ?)
+       ORDER BY at ASC, id ASC
+       LIMIT 1`,
+      [userId, userId]
+    )
+  ]);
+
+  const successCandidates = [firstAcceptedConnection?.at, firstAcceptedMentorship?.at]
+    .map((value) => new Date(String(value || '')).getTime())
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const firstSuccessAt = successCandidates.length ? new Date(Math.min(...successCandidates)).toISOString() : null;
+  const registrationAtMs = new Date(String(userRow?.ilktarih || '')).getTime();
+  const timeToFirstNetworkSuccessDays = firstSuccessAt && Number.isFinite(registrationAtMs) && registrationAtMs > 0
+    ? Math.max(0, Math.round((new Date(firstSuccessAt).getTime() - registrationAtMs) / (24 * 60 * 60 * 1000)))
+    : null;
+
+  return {
+    window: `${windowDays}d`,
+    since: sinceIso,
+    metrics: {
+      connections: {
+        requested: Number(requestedConnections?.count || 0),
+        accepted: Number(acceptedConnections?.count || 0),
+        pending_incoming: Number(pendingIncoming?.count || 0),
+        pending_outgoing: Number(pendingOutgoing?.count || 0)
+      },
+      mentorship: {
+        requested: Number(mentorshipRequested?.count || 0),
+        accepted: Number(mentorshipAccepted?.count || 0)
+      },
+      teacherLinks: {
+        created: Number(teacherLinksCreated?.count || 0)
+      },
+      time_to_first_network_success_days: timeToFirstNetworkSuccessDays
+    }
+  };
+}
+
+async function buildPendingConnectionMaps(userId, { limit = 100 } = {}) {
+  ensureConnectionRequestsTable();
+  const [incomingRows, outgoingRows] = await Promise.all([
+    sqlAllAsync(
+      `SELECT id, sender_id
+       FROM connection_requests
+       WHERE receiver_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+       ORDER BY COALESCE(CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) DESC, id DESC
+       LIMIT ?`,
+      [userId, limit]
+    ),
+    sqlAllAsync(
+      `SELECT id, receiver_id
+       FROM connection_requests
+       WHERE sender_id = ? AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'
+       ORDER BY COALESCE(CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) DESC, id DESC
+       LIMIT ?`,
+      [userId, limit]
+    )
+  ]);
+
+  const incoming = {};
+  for (const row of incomingRows) {
+    const senderId = Number(row?.sender_id || 0);
+    if (!senderId) continue;
+    incoming[senderId] = Number(row?.id || 0);
+  }
+
+  const outgoing = {};
+  for (const row of outgoingRows) {
+    const receiverId = Number(row?.receiver_id || 0);
+    if (!receiverId) continue;
+    outgoing[receiverId] = Number(row?.id || 0);
+  }
+
+  return { incoming, outgoing };
+}
+
+async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 } = {}) {
+  const safeUserId = Number(userId || 0);
+  const safeLimit = Math.min(Math.max(parseInt(limit || '12', 10), 1), 40);
+  const safeOffset = Math.max(parseInt(offset || '0', 10), 0);
+  const cacheKey = `${safeUserId}:${safeLimit}:${safeOffset}`;
+  const cached = readExploreSuggestionsCache(cacheKey);
+  if (cached) return cached;
+
+  const me = await sqlGetAsync(
+    `SELECT id, mezuniyetyili, sehir, universite, meslek
+     FROM uyeler
+     WHERE id = ?`,
+    [safeUserId]
+  );
+  if (!me) return { items: [], hasMore: false, total: 0 };
+  const hasEngagementScores = hasTable('member_engagement_scores');
+
+  const [iFollowFollowers, followsMe, candidates] = await Promise.all([
+    sqlAllAsync(
+      `SELECT f2.following_id AS user_id, COUNT(*) AS cnt
+       FROM follows f1
+       JOIN follows f2 ON f2.follower_id = f1.following_id
+       WHERE f1.follower_id = ?
+       GROUP BY f2.following_id`,
+      [safeUserId]
+    ),
+    sqlAllAsync('SELECT follower_id FROM follows WHERE following_id = ?', [safeUserId]),
+    sqlAllAsync(
+      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.mezuniyetyili, u.sehir, u.universite, u.meslek, u.online,
+              u.role, u.mentor_opt_in,
+              ${hasEngagementScores ? 'COALESCE(es.score, 0)' : '0'} AS engagement_score
+       FROM uyeler u
+       ${hasEngagementScores ? 'LEFT JOIN member_engagement_scores es ON es.user_id = u.id' : ''}
+       WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
+         AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
+         AND u.id != ?
+         AND NOT EXISTS (
+           SELECT 1
+           FROM follows f
+           WHERE f.follower_id = ?
+             AND f.following_id = u.id
+         )`,
+      [safeUserId, safeUserId]
+    )
+  ]);
+
+  const secondDegreeMap = new Map(iFollowFollowers.map((r) => [Number(r.user_id), Number(r.cnt || 0)]));
+  const followsMeSet = new Set(followsMe.map((r) => Number(r.follower_id)));
+  const candidateIds = candidates.map((row) => Number(row.id)).filter((id) => id > 0);
+  const hasGroupMembers = hasTable('group_members');
+  const hasMentorshipRequests = hasTable('mentorship_requests');
+  const hasTeacherLinks = hasTable('teacher_alumni_links');
+
+  const [sharedGroupsRows, mentorshipRows, teacherLinkRows] = await Promise.all([
+    hasGroupMembers && candidateIds.length
+      ? sqlAllAsync(
+        `SELECT gm.user_id AS candidate_id, COUNT(*) AS shared_count
+         FROM group_members gm
+         JOIN group_members mine ON mine.group_id = gm.group_id
+         WHERE mine.user_id = ?
+           AND gm.user_id IN (${candidateIds.map(() => '?').join(',')})
+         GROUP BY gm.user_id`,
+        [safeUserId, ...candidateIds]
+      )
+      : Promise.resolve([]),
+    hasMentorshipRequests
+      ? sqlAllAsync(
+        `SELECT requester_id, mentor_id
+         FROM mentorship_requests
+         WHERE status = 'accepted'
+           AND (
+             requester_id = ?
+             OR mentor_id = ?
+             OR requester_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})
+             OR mentor_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})
+           )`,
+        [safeUserId, safeUserId, safeUserId, ...candidateIds, safeUserId, ...candidateIds]
+      )
+      : Promise.resolve([]),
+    hasTeacherLinks
+      ? sqlAllAsync(
+        `SELECT teacher_user_id, alumni_user_id
+         FROM teacher_alumni_links
+         WHERE teacher_user_id = ?
+            OR alumni_user_id = ?
+            OR teacher_user_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})
+            OR alumni_user_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})`,
+        [safeUserId, safeUserId, safeUserId, ...candidateIds, safeUserId, ...candidateIds]
+      )
+      : Promise.resolve([])
+  ]);
+
+  const sharedGroupsMap = new Map(sharedGroupsRows.map((row) => [Number(row.candidate_id), Number(row.shared_count || 0)]));
+  const mentorshipPeersMap = new Map();
+  const teacherPeersMap = new Map();
+
+  function addPeer(map, sourceId, targetId) {
+    const source = Number(sourceId || 0);
+    const target = Number(targetId || 0);
+    if (!source || !target || source === target) return;
+    if (!map.has(source)) map.set(source, new Set());
+    map.get(source).add(target);
+  }
+
+  for (const row of mentorshipRows) {
+    addPeer(mentorshipPeersMap, row.requester_id, row.mentor_id);
+    addPeer(mentorshipPeersMap, row.mentor_id, row.requester_id);
+  }
+
+  for (const row of teacherLinkRows) {
+    addPeer(teacherPeersMap, row.teacher_user_id, row.alumni_user_id);
+    addPeer(teacherPeersMap, row.alumni_user_id, row.teacher_user_id);
+  }
+
+  function getOverlapCount(map, sourceId, targetId) {
+    const sourcePeers = map.get(Number(sourceId || 0));
+    const targetPeers = map.get(Number(targetId || 0));
+    if (!sourcePeers || !targetPeers || !sourcePeers.size || !targetPeers.size) return 0;
+    let count = 0;
+    for (const peer of sourcePeers) {
+      if (targetPeers.has(peer)) count += 1;
+    }
+    return count;
+  }
+
+  const scored = [];
+  for (const c of candidates) {
+    const cid = Number(c.id);
+    if (!cid) continue;
+    let score = 0;
+    const reasons = [];
+
+    const secondDegree = secondDegreeMap.get(cid) || 0;
+    if (secondDegree > 0) {
+      score += Math.min(secondDegree * 18, 54);
+      reasons.push(`${secondDegree} ortak baglanti`);
+    }
+
+    if (Number(c.mezuniyetyili || 0) > 0 && String(c.mezuniyetyili) === String(me.mezuniyetyili || '')) {
+      score += 22;
+      reasons.push('Ayni mezuniyet yili');
+    }
+    if (me.sehir && c.sehir && String(me.sehir).trim() && String(me.sehir).trim().toLowerCase() === String(c.sehir).trim().toLowerCase()) {
+      score += 8;
+      reasons.push('Ayni sehir');
+    }
+    if (me.universite && c.universite && String(me.universite).trim() && String(me.universite).trim().toLowerCase() === String(c.universite).trim().toLowerCase()) {
+      score += 8;
+      reasons.push('Ayni universite');
+    }
+    if (me.meslek && c.meslek && String(me.meslek).trim() && String(me.meslek).trim().toLowerCase() === String(c.meslek).trim().toLowerCase()) {
+      score += 5;
+      reasons.push('Benzer meslek');
+    }
+    if (followsMeSet.has(cid)) {
+      score += 10;
+      reasons.push('Seni takip ediyor');
+    }
+
+    const sharedGroups = sharedGroupsMap.get(cid) || 0;
+    if (sharedGroups > 0) {
+      score += Math.min(sharedGroups * 9, 18);
+      reasons.push(sharedGroups > 1 ? `${sharedGroups} ortak grup` : 'Ortak grup uyeligi');
+    }
+
+    const mentorshipOverlap = getOverlapCount(mentorshipPeersMap, safeUserId, cid);
+    const hasDirectMentorshipLink = mentorshipPeersMap.get(safeUserId)?.has(cid);
+    if (hasDirectMentorshipLink) {
+      score += 14;
+      reasons.push('Dogrudan mentorluk baglantisi');
+    }
+    if (mentorshipOverlap > 0) {
+      score += Math.min(mentorshipOverlap * 12, 24);
+      reasons.push('Mentorluk aginda yakinlik');
+    }
+
+    const teacherOverlap = getOverlapCount(teacherPeersMap, safeUserId, cid);
+    const hasDirectTeacherLink = teacherPeersMap.get(safeUserId)?.has(cid);
+    const isTeacherNetworkMember = Boolean(hasDirectTeacherLink || teacherOverlap > 0 || String(c.role || '').toLowerCase() === 'teacher');
+    if (hasDirectTeacherLink) {
+      score += 13;
+      reasons.push('Dogrudan ogretmen agi baglantisi');
+    }
+    if (teacherOverlap > 0) {
+      score += Math.min(teacherOverlap * 11, 22);
+      reasons.push('Ogretmen aginda yakinlik');
+    }
+
+    const engagementScore = Number(c.engagement_score || 0);
+    if (engagementScore > 0) {
+      score += Math.min(20, engagementScore * 0.2);
+      if (engagementScore >= 70) reasons.push('Toplulukta aktif');
+    }
+    if (Number(c.verified || 0) === 1) score += 2;
+    if (Number(c.online || 0) === 1) score += 1;
+
+    const trustBadges = [];
+    if (Number(c.verified || 0) === 1) trustBadges.push('verified_alumni');
+    if (Number(c.mentor_opt_in || 0) === 1) trustBadges.push('mentor');
+    if (isTeacherNetworkMember) trustBadges.push('teacher_network');
+
+    scored.push({
+      ...c,
+      score,
+      reasons: reasons.slice(0, 3),
+      trustBadges
+    });
+  }
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (Number(b.online || 0) !== Number(a.online || 0)) return Number(b.online || 0) - Number(a.online || 0);
+    if (Number(b.verified || 0) !== Number(a.verified || 0)) return Number(b.verified || 0) - Number(a.verified || 0);
+    return Number(b.id || 0) - Number(a.id || 0);
+  });
+
+  const items = scored.slice(safeOffset, safeOffset + safeLimit).map((u) => ({
+    id: u.id,
+    kadi: u.kadi,
+    isim: u.isim,
+    soyisim: u.soyisim,
+    resim: u.resim,
+    verified: u.verified,
+    mezuniyetyili: u.mezuniyetyili,
+    online: u.online,
+    role: u.role,
+    mentor_opt_in: Number(u.mentor_opt_in || 0),
+    reasons: u.reasons,
+    trust_badges: u.trustBadges
+  }));
+  const payload = { items, hasMore: safeOffset + items.length < scored.length, total: scored.length };
+  writeExploreSuggestionsCache(cacheKey, payload);
+  return payload;
+}
+
+async function buildNetworkHubPayload(userId, { windowDays = 30, limit = 12, teacherLinkLimit = limit, suggestionLimit = 8 } = {}) {
+  const [inbox, metricsBundle, discovery, connectionMaps] = await Promise.all([
+    buildNetworkInboxPayload(userId, { limit, teacherLinkLimit }),
+    buildNetworkMetricsPayload(userId, windowDays),
+    buildExploreSuggestionsPayload(userId, { limit: suggestionLimit, offset: 0 }),
+    buildPendingConnectionMaps(userId, { limit: 100 })
+  ]);
+
+  return {
+    window: metricsBundle.window,
+    since: metricsBundle.since,
+    inbox,
+    metrics: metricsBundle.metrics,
+    discovery: {
+      suggestions: discovery.items || [],
+      hasMore: Boolean(discovery.hasMore),
+      total: Number(discovery.total || 0),
+      connection_maps: connectionMaps
+    },
+    counts: {
+      actionable:
+        Number(inbox.connections?.counts?.incoming_pending || 0)
+        + Number(inbox.mentorship?.counts?.incoming_requested || 0)
+        + Number(inbox.teacherLinks?.unread_count || 0)
+    }
+  };
+}
+
+app.get('/api/new/network/hub', requireAuth, async (req, res) => {
+  try {
+    const userId = Number(req.session?.userId || 0);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
+    const teacherLinkLimit = Math.min(Math.max(parseInt(req.query.teacher_limit || String(limit), 10), 1), 50);
+    const suggestionLimit = Math.min(Math.max(parseInt(req.query.suggestion_limit || '8', 10), 1), 20);
+    const windowDays = parseNetworkWindowDays(req.query.window);
+    const hub = await buildNetworkHubPayload(userId, { windowDays, limit, teacherLinkLimit, suggestionLimit });
+    return res.json({
+      ok: true,
+      code: 'NETWORK_HUB_BOOTSTRAP_OK',
+      message: 'Networking hub bootstrap hazir.',
+      data: { hub }
     });
   } catch (err) {
+    console.error('network.hub failed:', err);
+    return res.status(500).json({
+      ok: false,
+      code: 'NETWORK_HUB_BOOTSTRAP_FAILED',
+      message: 'Networking hub verileri hazirlanamadi.',
+      data: null
+    });
+  }
+});
+
+app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
+  try {
+    const userId = Number(req.session?.userId || 0);
+    const windowDays = parseNetworkWindowDays(req.query.window);
+    const payload = await buildNetworkMetricsPayload(userId, windowDays);
+    return res.json(apiSuccessEnvelope('NETWORK_METRICS_OK', 'Networking metrikleri hazır.', payload, payload));
+  } catch (err) {
     console.error('network.metrics failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'NETWORK_METRICS_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -8976,10 +9368,16 @@ app.post('/api/new/network/inbox/teacher-links/read', requireAuth, async (req, r
          AND type = 'teacher_network_linked'`,
       [new Date().toISOString(), req.session.userId]
     );
-    return res.json({ ok: true, updated: Number(result?.changes || 0) });
+    const updated = Number(result?.changes || 0);
+    return res.json(apiSuccessEnvelope(
+      'NETWORK_TEACHER_LINKS_MARKED_READ',
+      'Öğretmen ağı bildirimleri okundu olarak işaretlendi.',
+      { updated },
+      { updated }
+    ));
   } catch (err) {
     console.error('network.inbox.teacher-links.read failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'NETWORK_TEACHER_LINKS_MARK_READ_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -9112,10 +9510,12 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
     const relationshipType = normalizeTeacherAlumniRelationshipType(req.query.relationship_type);
     const classYear = parseTeacherNetworkClassYear(req.query.class_year);
     if (classYear.provided && !classYear.valid) {
-      return res.status(400).json({
-        code: 'INVALID_CLASS_YEAR',
-        message: `Sınıf yılı ${TEACHER_NETWORK_MIN_CLASS_YEAR}-${TEACHER_NETWORK_MAX_CLASS_YEAR} aralığında olmalıdır.`
-      });
+      return sendApiError(
+        res,
+        400,
+        'INVALID_CLASS_YEAR',
+        `Sınıf yılı ${TEACHER_NETWORK_MIN_CLASS_YEAR}-${TEACHER_NETWORK_MAX_CLASS_YEAR} aralığında olmalıdır.`
+      );
     }
     const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
     const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
@@ -9153,10 +9553,11 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({ items: rows, direction, hasMore: rows.length === limit });
+    const payload = { items: rows, direction, hasMore: rows.length === limit };
+    return res.json(apiSuccessEnvelope('TEACHER_NETWORK_LIST_OK', 'Öğretmen ağı kayıtları listelendi.', payload, payload));
   } catch (err) {
     console.error('teachers.network.list failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'TEACHER_NETWORK_LIST_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -9197,10 +9598,11 @@ app.get('/api/new/teachers/options', requireAuth, async (req, res) => {
       if (selectedRow) rows = [selectedRow, ...rows].slice(0, limit);
     }
 
-    return res.json({ items: rows });
+    const payload = { items: rows };
+    return res.json(apiSuccessEnvelope('TEACHER_OPTIONS_OK', 'Öğretmen seçenekleri hazır.', payload, payload));
   } catch (err) {
     console.error('teachers.options failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'TEACHER_OPTIONS_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -9210,30 +9612,29 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
     ensureTeacherAlumniLinksTable();
     const alumniUserId = Number(req.session?.userId || 0);
     const teacherUserId = Number(req.params.teacherId || 0);
-    if (!alumniUserId || !teacherUserId) return res.status(400).send('Geçersiz kullanıcı kimliği.');
-    if (alumniUserId === teacherUserId) return res.status(400).send('Kendiniz için öğretmen bağlantısı ekleyemezsiniz.');
+    if (!alumniUserId || !teacherUserId) return sendApiError(res, 400, 'INVALID_USER_ID', 'Geçersiz kullanıcı kimliği.');
+    if (alumniUserId === teacherUserId) return sendApiError(res, 400, 'SELF_TEACHER_LINK_NOT_ALLOWED', 'Kendiniz için öğretmen bağlantısı ekleyemezsiniz.');
 
     const teacher = sqlGet('SELECT id, role, mezuniyetyili FROM uyeler WHERE id = ?', [teacherUserId]);
-    if (!teacher) return res.status(404).send('Öğretmen bulunamadı.');
+    if (!teacher) return sendApiError(res, 404, 'TEACHER_NOT_FOUND', 'Öğretmen bulunamadı.');
     const teacherRole = String(teacher.role || '').trim().toLowerCase();
     const teacherCohort = normalizeCohortValue(teacher.mezuniyetyili);
     const teacherTargetAllowed = teacherRole === 'teacher'
       || teacherCohort === TEACHER_COHORT_VALUE
       || roleAtLeast(teacherRole, 'admin');
     if (!teacherTargetAllowed) {
-      return res.status(409).json({
-        code: 'INVALID_TEACHER_TARGET',
-        message: 'Seçilen kullanıcı öğretmen ağına eklenebilir bir öğretmen hesabı değil.'
-      });
+      return sendApiError(res, 409, 'INVALID_TEACHER_TARGET', 'Seçilen kullanıcı öğretmen ağına eklenebilir bir öğretmen hesabı değil.');
     }
 
     const relationshipType = normalizeTeacherAlumniRelationshipType(req.body?.relationship_type || 'taught_in_class') || 'taught_in_class';
     const classYear = parseTeacherNetworkClassYear(req.body?.class_year);
     if (classYear.provided && !classYear.valid) {
-      return res.status(400).json({
-        code: 'INVALID_CLASS_YEAR',
-        message: `Sınıf yılı ${TEACHER_NETWORK_MIN_CLASS_YEAR}-${TEACHER_NETWORK_MAX_CLASS_YEAR} aralığında olmalıdır.`
-      });
+      return sendApiError(
+        res,
+        400,
+        'INVALID_CLASS_YEAR',
+        `Sınıf yılı ${TEACHER_NETWORK_MIN_CLASS_YEAR}-${TEACHER_NETWORK_MAX_CLASS_YEAR} aralığında olmalıdır.`
+      );
     }
     const notes = String(req.body?.notes || '').trim().slice(0, 500);
     const now = new Date().toISOString();
@@ -9244,7 +9645,7 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
       [teacherUserId, alumniUserId, relationshipType, classYear.value]
     );
     if (existing) {
-      return res.status(409).json({ code: 'RELATIONSHIP_ALREADY_EXISTS', message: 'Bu öğretmen bağlantısı zaten kayıtlı.' });
+      return sendApiError(res, 409, 'RELATIONSHIP_ALREADY_EXISTS', 'Bu öğretmen bağlantısı zaten kayıtlı.');
     }
 
     sqlRun(
@@ -9262,10 +9663,15 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
       message: 'Seni öğretmen ağına ekledi.'
     });
 
-    return res.json({ ok: true, status: 'linked', relationship_type: relationshipType, class_year: classYear.value });
+    return res.json(apiSuccessEnvelope(
+      'TEACHER_NETWORK_LINK_CREATED',
+      'Öğretmen bağlantısı başarıyla kaydedildi.',
+      { status: 'linked', relationship_type: relationshipType, class_year: classYear.value },
+      { status: 'linked', relationship_type: relationshipType, class_year: classYear.value }
+    ));
   } catch (err) {
     console.error('teachers.network.link failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'TEACHER_NETWORK_LINK_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -9499,239 +9905,14 @@ app.get('/api/new/admin/follows/:userId', requireAdmin, async (req, res) => {
 
 app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
   try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 40);
-    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-    const cacheKey = `${Number(req.session.userId || 0)}:${limit}:${offset}`;
-    const cached = readExploreSuggestionsCache(cacheKey);
-    if (cached) return res.json(cached);
-
-    const me = await sqlGetAsync(
-      `SELECT id, mezuniyetyili, sehir, universite, meslek
-       FROM uyeler
-       WHERE id = ?`,
-      [req.session.userId]
-    );
-    if (!me) return res.json({ items: [] });
-
-    const [iFollowFollowers, followsMe, candidates] = await Promise.all([
-      sqlAllAsync(
-        `SELECT f2.following_id AS user_id, COUNT(*) AS cnt
-         FROM follows f1
-         JOIN follows f2 ON f2.follower_id = f1.following_id
-         WHERE f1.follower_id = ?
-         GROUP BY f2.following_id`,
-        [req.session.userId]
-      ),
-      sqlAllAsync('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]),
-      sqlAllAsync(
-        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.mezuniyetyili, u.sehir, u.universite, u.meslek, u.online,
-                u.role, u.mentor_opt_in,
-                COALESCE(es.score, 0) AS engagement_score
-         FROM uyeler u
-         LEFT JOIN member_engagement_scores es ON es.user_id = u.id
-         WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
-           AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
-           AND u.id != ?
-           AND NOT EXISTS (
-             SELECT 1
-             FROM follows f
-             WHERE f.follower_id = ?
-               AND f.following_id = u.id
-           )`,
-        [req.session.userId, req.session.userId]
-      )
-    ]);
-
-    const secondDegreeMap = new Map(iFollowFollowers.map((r) => [Number(r.user_id), Number(r.cnt || 0)]));
-    const followsMeSet = new Set(followsMe.map((r) => Number(r.follower_id)));
-    const candidateIds = candidates.map((row) => Number(row.id)).filter((id) => id > 0);
-    const hasGroupMembers = hasTable('group_members');
-    const hasMentorshipRequests = hasTable('mentorship_requests');
-    const hasTeacherLinks = hasTable('teacher_alumni_links');
-
-    const [sharedGroupsRows, mentorshipRows, teacherLinkRows] = await Promise.all([
-      hasGroupMembers && candidateIds.length
-        ? sqlAllAsync(
-          `SELECT gm.user_id AS candidate_id, COUNT(*) AS shared_count
-           FROM group_members gm
-           JOIN group_members mine ON mine.group_id = gm.group_id
-           WHERE mine.user_id = ?
-             AND gm.user_id IN (${candidateIds.map(() => '?').join(',')})
-           GROUP BY gm.user_id`,
-          [req.session.userId, ...candidateIds]
-        )
-        : Promise.resolve([]),
-      hasMentorshipRequests
-        ? sqlAllAsync(
-          `SELECT requester_id, mentor_id
-           FROM mentorship_requests
-           WHERE status = 'accepted'
-             AND (
-               requester_id = ?
-               OR mentor_id = ?
-               OR requester_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})
-               OR mentor_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})
-             )`,
-          [req.session.userId, req.session.userId, req.session.userId, ...candidateIds, req.session.userId, ...candidateIds]
-        )
-        : Promise.resolve([]),
-      hasTeacherLinks
-        ? sqlAllAsync(
-          `SELECT teacher_user_id, alumni_user_id
-           FROM teacher_alumni_links
-           WHERE teacher_user_id = ?
-              OR alumni_user_id = ?
-              OR teacher_user_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})
-              OR alumni_user_id IN (${[req.session.userId, ...candidateIds].map(() => '?').join(',')})`,
-          [req.session.userId, req.session.userId, req.session.userId, ...candidateIds, req.session.userId, ...candidateIds]
-        )
-        : Promise.resolve([])
-    ]);
-
-    const sharedGroupsMap = new Map(sharedGroupsRows.map((row) => [Number(row.candidate_id), Number(row.shared_count || 0)]));
-    const mentorshipPeersMap = new Map();
-    const teacherPeersMap = new Map();
-
-    function addPeer(map, sourceId, targetId) {
-      const source = Number(sourceId || 0);
-      const target = Number(targetId || 0);
-      if (!source || !target || source === target) return;
-      if (!map.has(source)) map.set(source, new Set());
-      map.get(source).add(target);
-    }
-
-    for (const row of mentorshipRows) {
-      addPeer(mentorshipPeersMap, row.requester_id, row.mentor_id);
-      addPeer(mentorshipPeersMap, row.mentor_id, row.requester_id);
-    }
-
-    for (const row of teacherLinkRows) {
-      addPeer(teacherPeersMap, row.teacher_user_id, row.alumni_user_id);
-      addPeer(teacherPeersMap, row.alumni_user_id, row.teacher_user_id);
-    }
-
-    function getOverlapCount(map, sourceId, targetId) {
-      const sourcePeers = map.get(Number(sourceId || 0));
-      const targetPeers = map.get(Number(targetId || 0));
-      if (!sourcePeers || !targetPeers || !sourcePeers.size || !targetPeers.size) return 0;
-      let count = 0;
-      for (const peer of sourcePeers) {
-        if (targetPeers.has(peer)) count += 1;
-      }
-      return count;
-    }
-
-    const scored = [];
-    for (const c of candidates) {
-      const cid = Number(c.id);
-      if (!cid) continue;
-      let score = 0;
-      const reasons = [];
-
-      const secondDegree = secondDegreeMap.get(cid) || 0;
-      if (secondDegree > 0) {
-        score += Math.min(secondDegree * 18, 54);
-        reasons.push(`${secondDegree} ortak baglanti`);
-      }
-
-      if (Number(c.mezuniyetyili || 0) > 0 && String(c.mezuniyetyili) === String(me.mezuniyetyili || '')) {
-        score += 22;
-        reasons.push('Ayni mezuniyet yili');
-      }
-      if (me.sehir && c.sehir && String(me.sehir).trim() && String(me.sehir).trim().toLowerCase() === String(c.sehir).trim().toLowerCase()) {
-        score += 8;
-        reasons.push('Ayni sehir');
-      }
-      if (me.universite && c.universite && String(me.universite).trim() && String(me.universite).trim().toLowerCase() === String(c.universite).trim().toLowerCase()) {
-        score += 8;
-        reasons.push('Ayni universite');
-      }
-      if (me.meslek && c.meslek && String(me.meslek).trim() && String(me.meslek).trim().toLowerCase() === String(c.meslek).trim().toLowerCase()) {
-        score += 5;
-        reasons.push('Benzer meslek');
-      }
-      if (followsMeSet.has(cid)) {
-        score += 10;
-        reasons.push('Seni takip ediyor');
-      }
-
-      const sharedGroups = sharedGroupsMap.get(cid) || 0;
-      if (sharedGroups > 0) {
-        score += Math.min(sharedGroups * 9, 18);
-        reasons.push(sharedGroups > 1 ? `${sharedGroups} ortak grup` : 'Ortak grup uyeligi');
-      }
-
-      const mentorshipOverlap = getOverlapCount(mentorshipPeersMap, req.session.userId, cid);
-      const hasDirectMentorshipLink = mentorshipPeersMap.get(Number(req.session.userId || 0))?.has(cid);
-      if (hasDirectMentorshipLink) {
-        score += 14;
-        reasons.push('Dogrudan mentorluk baglantisi');
-      }
-      if (mentorshipOverlap > 0) {
-        score += Math.min(mentorshipOverlap * 12, 24);
-        reasons.push('Mentorluk aginda yakinlik');
-      }
-
-      const teacherOverlap = getOverlapCount(teacherPeersMap, req.session.userId, cid);
-      const hasDirectTeacherLink = teacherPeersMap.get(Number(req.session.userId || 0))?.has(cid);
-      const isTeacherNetworkMember = Boolean(hasDirectTeacherLink || teacherOverlap > 0 || String(c.role || '').toLowerCase() === 'teacher');
-      if (hasDirectTeacherLink) {
-        score += 13;
-        reasons.push('Dogrudan ogretmen agi baglantisi');
-      }
-      if (teacherOverlap > 0) {
-        score += Math.min(teacherOverlap * 11, 22);
-        reasons.push('Ogretmen aginda yakinlik');
-      }
-
-      const engagementScore = Number(c.engagement_score || 0);
-      if (engagementScore > 0) {
-        score += Math.min(20, engagementScore * 0.2);
-        if (engagementScore >= 70) reasons.push('Toplulukta aktif');
-      }
-      if (Number(c.verified || 0) === 1) score += 2;
-      if (Number(c.online || 0) === 1) score += 1;
-
-      const trustBadges = [];
-      if (Number(c.verified || 0) === 1) trustBadges.push('verified_alumni');
-      if (Number(c.mentor_opt_in || 0) === 1) trustBadges.push('mentor');
-      if (isTeacherNetworkMember) trustBadges.push('teacher_network');
-
-      scored.push({
-        ...c,
-        score,
-        reasons: reasons.slice(0, 3),
-        trustBadges
-      });
-    }
-
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      if (Number(b.online || 0) !== Number(a.online || 0)) return Number(b.online || 0) - Number(a.online || 0);
-      if (Number(b.verified || 0) !== Number(a.verified || 0)) return Number(b.verified || 0) - Number(a.verified || 0);
-      return Number(b.id || 0) - Number(a.id || 0);
+    const payload = await buildExploreSuggestionsPayload(req.session.userId, {
+      limit: req.query.limit || '12',
+      offset: req.query.offset || '0'
     });
-
-    const items = scored.slice(offset, offset + limit).map((u) => ({
-      id: u.id,
-      kadi: u.kadi,
-      isim: u.isim,
-      soyisim: u.soyisim,
-      resim: u.resim,
-      verified: u.verified,
-      mezuniyetyili: u.mezuniyetyili,
-      online: u.online,
-      role: u.role,
-      mentor_opt_in: Number(u.mentor_opt_in || 0),
-      reasons: u.reasons,
-      trust_badges: u.trustBadges
-    }));
-    const payload = { items, hasMore: offset + items.length < scored.length, total: scored.length };
-    writeExploreSuggestionsCache(cacheKey, payload);
-    return res.json(payload);
+    return res.json(apiSuccessEnvelope('EXPLORE_SUGGESTIONS_OK', 'Önerilen mezun kartları hazır.', payload, payload));
   } catch (err) {
     console.error('explore.suggestions failed:', err);
-    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    return sendApiError(res, 500, 'EXPLORE_SUGGESTIONS_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 

@@ -133,24 +133,35 @@ try {
     body: { focus_area: 'Backend', message: 'Kariyer yönlendirmesi isterim.' }
   });
   assert.equal(send.res.status, 200);
+  assert.equal(send.data?.ok, true);
+  assert.equal(send.data?.code, 'MENTORSHIP_REQUEST_CREATED');
+  assert.equal(send.data?.data?.status, 'requested');
   assert.equal(send.data?.status, 'requested');
 
   const incoming = await request('/api/new/mentorship/requests?direction=incoming&status=requested', { cookie: mentorCookie });
   assert.equal(incoming.res.status, 200);
+  assert.equal(incoming.data?.ok, true);
+  assert.equal(incoming.data?.code, 'MENTORSHIP_REQUESTS_LIST_OK');
+  assert.equal(Array.isArray(incoming.data?.data?.items), true);
   assert.equal(Array.isArray(incoming.data?.items), true);
   assert.equal(incoming.data.items.length, 1);
 
   const requestId = Number(incoming.data.items[0].id);
   const accept = await request(`/api/new/mentorship/accept/${requestId}`, { method: 'POST', cookie: mentorCookie });
   assert.equal(accept.res.status, 200);
+  assert.equal(accept.data?.ok, true);
+  assert.equal(accept.data?.code, 'MENTORSHIP_REQUEST_ACCEPTED');
+  assert.equal(accept.data?.data?.status, 'accepted');
   assert.equal(accept.data?.status, 'accepted');
 
   const accepted = await request('/api/new/mentorship/requests?direction=outgoing&status=accepted', { cookie: menteeCookie });
   assert.equal(accepted.res.status, 200);
+  assert.equal(accepted.data?.ok, true);
   assert.equal(accepted.data.items.length, 1);
 
   const duplicate = await request(`/api/new/mentorship/request/${mentorId}`, { method: 'POST', cookie: menteeCookie });
   assert.equal(duplicate.res.status, 409);
+  assert.equal(duplicate.data?.ok, false);
   assert.equal(duplicate.data?.code, 'REQUEST_ALREADY_ACCEPTED');
 
   console.log('phase2 mentorship tests passed');

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sdal-phase2-network-metrics-'));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sdal-phase2-network-hub-'));
 const bootstrapPath = path.join(tmpDir, 'bootstrap.sqlite');
 const runtimeDbPath = path.join(tmpDir, 'runtime.sqlite');
 const sourceDb = path.resolve(process.cwd(), '../db/sdal.sqlite');
@@ -12,6 +12,12 @@ fs.copyFileSync(sourceDb, bootstrapPath);
 
 const bootstrapDb = new Database(bootstrapPath);
 bootstrapDb.exec(`
+  CREATE TABLE IF NOT EXISTS follows (
+    id INTEGER PRIMARY KEY,
+    follower_id INTEGER,
+    following_id INTEGER,
+    created_at TEXT
+  );
   CREATE TABLE IF NOT EXISTS connection_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender_id INTEGER,
@@ -45,6 +51,17 @@ bootstrapDb.exec(`
     created_at TEXT,
     UNIQUE(teacher_user_id, alumni_user_id, relationship_type, class_year)
   );
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    type TEXT,
+    source_user_id INTEGER,
+    entity_id INTEGER,
+    message TEXT,
+    is_read INTEGER DEFAULT 0,
+    read_at TEXT,
+    created_at TEXT
+  );
   CREATE TABLE IF NOT EXISTS site_controls (
     id INTEGER PRIMARY KEY,
     site_open INTEGER DEFAULT 1,
@@ -70,7 +87,7 @@ bootstrapDb.close();
 
 process.env.SDAL_DB_PATH = runtimeDbPath;
 process.env.SDAL_DB_BOOTSTRAP_PATH = bootstrapPath;
-process.env.SDAL_SESSION_SECRET = 'phase2-network-metrics-secret';
+process.env.SDAL_SESSION_SECRET = 'phase2-network-hub-secret';
 process.env.SDAL_ADMIN_PASSWORD = 'AdminPanel!123';
 process.env.ROOT_BOOTSTRAP_PASSWORD = 'RootPass!123';
 process.env.MAIL_ALLOW_MOCK = 'true';
@@ -82,20 +99,23 @@ const { default: app, onServerStarted } = await import('../../app.js');
 const { sqlRun, sqlGet } = await import('../../db.js');
 await onServerStarted();
 
-function seedUser(username, password, role = 'user', admin = 0, year = '2011') {
+function seedUser(username, password, role = 'user', year = '2011', mentorOptIn = 0) {
   const now = new Date().toISOString();
   sqlRun(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, mezuniyetyili, ilkbd, admin, role, verified, verification_status, mentor_opt_in)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 1, ?, ?, 1, 'approved', 0)`,
-    [username, password, `${username}@example.com`, username, 'Metrics', `${username}-act`, now, year, admin, role]
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 1, 0, ?, 1, 'approved', ?)`,
+    [username, password, `${username}@example.com`, username, 'Hub', `${username}-act`, now, year, role, mentorOptIn]
   );
   return Number(sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [username]).id);
 }
 
-const meId = seedUser('phase2_metrics_me', 'phase2-pass-me', 'user', 0, '2011');
-const otherId = seedUser('phase2_metrics_other', 'phase2-pass-other', 'user', 0, '2012');
-const mentorId = seedUser('phase2_metrics_mentor', 'phase2-pass-mentor', 'teacher', 0, 'teacher');
-const adminId = seedUser('phase2_metrics_admin', 'phase2-pass-admin', 'admin', 1, '2005');
+const meId = seedUser('phase2_hub_me', 'phase2-pass-me', 'teacher', 'teacher', 1);
+const senderId = seedUser('phase2_hub_sender', 'phase2-pass-sender', 'user', '2011');
+const receiverId = seedUser('phase2_hub_receiver', 'phase2-pass-receiver', 'user', '2012');
+const menteeId = seedUser('phase2_hub_mentee', 'phase2-pass-mentee', 'user', '2011');
+const mentorId = seedUser('phase2_hub_mentor', 'phase2-pass-mentor', 'teacher', 'teacher', 1);
+const candidateId = seedUser('phase2_hub_candidate', 'phase2-pass-candidate', 'user', '2011', 1);
+const teacherSourceId = seedUser('phase2_hub_teacher_source', 'phase2-pass-teacher-source', 'user', '2011');
 
 const server = app.listen(0, '127.0.0.1');
 await new Promise((resolve, reject) => {
@@ -129,51 +149,61 @@ async function login(kadi, sifre) {
 }
 
 try {
-  const cookieMe = await login('phase2_metrics_me', 'phase2-pass-me');
-  const cookieAdmin = await login('phase2_metrics_admin', 'phase2-pass-admin');
+  const cookieMe = await login('phase2_hub_me', 'phase2-pass-me');
   const now = new Date().toISOString();
 
   sqlRun('UPDATE uyeler SET ilktarih = ? WHERE id = ?', ['2026-01-01T00:00:00.000Z', meId]);
 
-  sqlRun('INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at, responded_at) VALUES (?, ?, ?, ?, ?, ?)', [meId, otherId, 'accepted', now, now, now]);
-  sqlRun('INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [otherId, meId, 'pending', now, now]);
+  sqlRun('INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [senderId, meId, 'pending', now, now]);
+  sqlRun('INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [meId, receiverId, 'pending', now, now]);
+  sqlRun('INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at, responded_at) VALUES (?, ?, ?, ?, ?, ?)', [meId, candidateId, 'accepted', now, now, now]);
 
   sqlRun(
+    `INSERT INTO mentorship_requests (requester_id, mentor_id, status, focus_area, message, created_at, updated_at)
+     VALUES (?, ?, 'requested', 'career', 'yardim', ?, ?)`,
+    [menteeId, meId, now, now]
+  );
+  sqlRun(
     `INSERT INTO mentorship_requests (requester_id, mentor_id, status, focus_area, message, created_at, updated_at, responded_at)
-     VALUES (?, ?, 'accepted', 'career', 'yardim', ?, ?, ?)` ,
+     VALUES (?, ?, 'accepted', 'career', 'tesekkurler', ?, ?, ?)`,
     [meId, mentorId, now, now, now]
   );
 
   sqlRun(
     `INSERT INTO teacher_alumni_links (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, created_by, created_at)
-     VALUES (?, ?, 'student', '2011', 'test', ?, ?)`,
-    [mentorId, meId, meId, now]
+     VALUES (?, ?, 'mentor', '2011', 'graph', ?, ?)`,
+    [meId, candidateId, meId, now]
   );
 
-  const metrics = await request('/api/new/network/metrics?window=30d', { cookie: cookieMe });
-  assert.equal(metrics.res.status, 200);
-  assert.equal(metrics.data?.ok, true);
-  assert.equal(metrics.data?.code, 'NETWORK_METRICS_OK');
-  assert.equal(metrics.data?.data?.window, '30d');
-  assert.equal(metrics.data?.window, '30d');
-  assert.equal(metrics.data?.metrics?.connections?.requested, 1);
-  assert.equal(metrics.data?.metrics?.connections?.accepted, 1);
-  assert.equal(metrics.data?.metrics?.connections?.pending_incoming, 1);
-  assert.equal(metrics.data?.metrics?.mentorship?.accepted, 1);
-  assert.equal(metrics.data?.metrics?.teacherLinks?.created, 1);
+  sqlRun(
+    `INSERT INTO notifications (user_id, type, source_user_id, entity_id, message, created_at)
+     VALUES (?, 'teacher_network_linked', ?, ?, 'Seni öğretmen ağına ekledi.', ?)`,
+    [meId, teacherSourceId, meId, now]
+  );
 
-  const analytics = await request('/api/new/admin/network/analytics?window=30d', { cookie: cookieAdmin });
-  assert.equal(analytics.res.status, 200);
-  assert.equal(analytics.data?.window, '30d');
-  assert.equal(analytics.data?.networking?.connections?.accepted >= 1, true);
-  assert.equal(typeof analytics.data?.networking?.connections?.acceptance_rate, 'number');
-  assert.equal(Array.isArray(analytics.data?.networking?.top_active_graduation_years), true);
+  const hub = await request('/api/new/network/hub?window=30d&limit=10&suggestion_limit=6', { cookie: cookieMe });
+  assert.equal(hub.res.status, 200);
+  assert.equal(hub.data?.ok, true);
+  assert.equal(hub.data?.code, 'NETWORK_HUB_BOOTSTRAP_OK');
+  assert.equal(typeof hub.data?.message, 'string');
 
-  const cohortScoped = await request('/api/new/admin/network/analytics?window=30d&cohort=2011', { cookie: cookieAdmin });
-  assert.equal(cohortScoped.res.status, 200);
-  assert.equal(cohortScoped.data?.cohort, '2011');
+  const payload = hub.data?.data?.hub;
+  assert.equal(payload?.window, '30d');
+  assert.equal(Array.isArray(payload?.inbox?.connections?.incoming), true);
+  assert.equal(Array.isArray(payload?.inbox?.connections?.outgoing), true);
+  assert.equal(Array.isArray(payload?.inbox?.mentorship?.incoming), true);
+  assert.equal(Array.isArray(payload?.discovery?.suggestions), true);
+  assert.equal(typeof payload?.discovery?.connection_maps?.incoming, 'object');
+  assert.equal(typeof payload?.discovery?.connection_maps?.outgoing, 'object');
+  assert.equal(payload?.metrics?.connections?.pending_incoming, 1);
+  assert.equal(payload?.metrics?.connections?.pending_outgoing, 1);
+  assert.equal(payload?.metrics?.mentorship?.accepted, 1);
+  assert.equal(payload?.inbox?.teacherLinks?.unread_count, 1);
+  assert.equal(payload?.counts?.actionable, 3);
+  assert.equal(Number(payload?.discovery?.connection_maps?.incoming?.[senderId] || 0) >= 1, true);
+  assert.equal(Number(payload?.discovery?.connection_maps?.outgoing?.[receiverId] || 0) >= 1, true);
 
-  console.log('phase2 network metrics/analytics tests passed');
+  console.log('phase2 network hub tests passed');
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }

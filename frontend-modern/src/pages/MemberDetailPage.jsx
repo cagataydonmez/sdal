@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import StoryBar from '../components/StoryBar.jsx';
+import { readApiPayload } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
 
 function canLinkToTeacherNetwork(member) {
@@ -41,7 +42,10 @@ export default function MemberDetailPage() {
         fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
       ]);
       if (!incomingRes.ok || !outgoingRes.ok || cancelled) return;
-      const [incomingPayload, outgoingPayload] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
+      const [{ data: incomingPayload }, { data: outgoingPayload }] = await Promise.all([
+        readApiPayload(incomingRes, ''),
+        readApiPayload(outgoingRes, '')
+      ]);
       const targetId = Number(id || 0);
       const incoming = (incomingPayload.items || []).find((item) => Number(item.sender_id) === targetId);
       const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === targetId);
@@ -116,15 +120,17 @@ export default function MemberDetailPage() {
                         : `/api/new/connections/request/${member.id}`;
                     const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
                     if (!res.ok) {
-                      let message = await res.text();
-                      if (!message) message = 'Bağlantı işlemi başarısız.';
+                      const { message } = await readApiPayload(res, 'Bağlantı işlemi başarısız.');
                       if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
                         const [incomingRes, outgoingRes] = await Promise.all([
                           fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
                           fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
                         ]);
                         if (incomingRes.ok && outgoingRes.ok) {
-                          const [incomingPayload, outgoingPayload] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
+                          const [{ data: incomingPayload }, { data: outgoingPayload }] = await Promise.all([
+                            readApiPayload(incomingRes, ''),
+                            readApiPayload(outgoingRes, '')
+                          ]);
                           const targetId = Number(member.id || 0);
                           const incoming = (incomingPayload.items || []).find((item) => Number(item.sender_id) === targetId);
                           const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === targetId);
@@ -141,7 +147,7 @@ export default function MemberDetailPage() {
                     } else if (!incomingConnectionId) {
                       const outgoingRes = await fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' });
                       if (outgoingRes.ok) {
-                        const outgoingPayload = await outgoingRes.json();
+                        const { data: outgoingPayload } = await readApiPayload(outgoingRes, '');
                         const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === Number(member.id || 0));
                         setOutgoingRequestId(Number(outgoing?.id || 0));
                       }
@@ -181,10 +187,12 @@ export default function MemberDetailPage() {
                       body: JSON.stringify({})
                     });
                     if (!res.ok) {
-                      setError(await res.text());
+                      const { message } = await readApiPayload(res, 'Mentorluk isteği gönderilemedi.');
+                      setError(message);
                       return;
                     }
-                    setStatus(t('mentorship_status_requested'));
+                    const { message } = await readApiPayload(res, t('mentorship_status_requested'));
+                    setStatus(message || t('mentorship_status_requested'));
                   } finally {
                     setLoadingAction(false);
                   }

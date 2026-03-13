@@ -1,12 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
+import { readApiPayload } from '../utils/api.js';
 
 const RELATIONSHIP_TYPES = [
   { value: 'taught_in_class', label: 'Aynı sınıfta ders aldım' },
   { value: 'mentor', label: 'Mentor' },
   { value: 'advisor', label: 'Danışman' }
 ];
+
+const RELATIONSHIP_HELPERS = {
+  taught_in_class: 'Dersi doğrudan bu öğretmenden aldıysan kullan. Mezuniyet yılı ile birlikte girildiğinde bağ daha okunabilir olur.',
+  mentor: 'Resmi veya gayriresmi mentorluk, proje yönlendirmesi ya da kariyer rehberliği aldıysan seç.',
+  advisor: 'Kulüp, bölüm, proje veya akademik danışmanlık ilişkisini belirtmek için uygundur.'
+};
 
 function relationshipLabel(value) {
   return RELATIONSHIP_TYPES.find((item) => item.value === value)?.label || value;
@@ -15,20 +22,6 @@ function relationshipLabel(value) {
 function teacherOptionLabel(teacher) {
   const fullName = [teacher?.isim, teacher?.soyisim].filter(Boolean).join(' ').trim();
   return fullName ? `@${teacher.kadi} · ${fullName}` : `@${teacher.kadi || 'ogretmen'}`;
-}
-
-async function readApiPayload(res, fallbackMessage) {
-  const text = await res.text();
-  if (!text) return { message: fallbackMessage, payload: null };
-  try {
-    const payload = JSON.parse(text);
-    return {
-      payload,
-      message: payload?.message || payload?.error || fallbackMessage
-    };
-  } catch {
-    return { message: text, payload: null };
-  }
 }
 
 export default function TeachersNetworkPage() {
@@ -66,6 +59,7 @@ export default function TeachersNetworkPage() {
   const activeHistorySubtitle = direction === 'my_teachers'
     ? 'Bu görünüm mezun olarak ilişkilendirdiğin öğretmenleri ve geçmiş bağlarını gösterir.'
     : 'Bu görünüm öğretmen hesabına bağlanan öğrencileri ve ilişki bağlamını listeler.';
+  const relationshipHelper = RELATIONSHIP_HELPERS[form.relationship_type] || RELATIONSHIP_HELPERS.taught_in_class;
 
   const loadTeacherOptions = useCallback(async (term = '') => {
     try {
@@ -74,9 +68,9 @@ export default function TeachersNetworkPage() {
       if (term) params.set('term', term);
       if (deepLinkedTeacherId > 0) params.set('include_id', String(deepLinkedTeacherId));
       const res = await fetch(`/api/new/teachers/options?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Öğretmen listesi alınamadı.');
-      const payload = await res.json();
-      const nextItems = payload.items || [];
+      const { data, message } = await readApiPayload(res, 'Öğretmen listesi alınamadı.');
+      if (!res.ok) throw new Error(message);
+      const nextItems = data?.items || [];
       setTeacherOptions(nextItems);
       if (deepLinkedTeacherId > 0) {
         const hasDeepLinkedTeacher = nextItems.some((teacher) => Number(teacher.id) === deepLinkedTeacherId);
@@ -100,12 +94,12 @@ export default function TeachersNetworkPage() {
       if (relationshipType) params.set('relationship_type', relationshipType);
       if (classYear) params.set('class_year', classYear);
       const res = await fetch(`/api/new/teachers/network?${params.toString()}`, { credentials: 'include' });
-      const { message, payload } = await readApiPayload(res, 'Öğretmen ağı yüklenemedi.');
+      const { message, data } = await readApiPayload(res, 'Öğretmen ağı yüklenemedi.');
       if (!res.ok) throw new Error(message);
-      const nextItems = payload?.items || [];
+      const nextItems = data?.items || [];
       setItems((prev) => (append ? [...prev, ...nextItems] : nextItems));
       setOffset(nextOffset + nextItems.length);
-      setHasMore(Boolean(payload?.hasMore));
+      setHasMore(Boolean(data?.hasMore));
     } catch (err) {
       setError(err.message || 'Öğretmen ağı yüklenemedi.');
     } finally {
@@ -157,7 +151,7 @@ export default function TeachersNetworkPage() {
         setError(message);
         return;
       }
-      setStatus('Öğretmen bağlantısı başarıyla kaydedildi.');
+      setStatus(message || 'Öğretmen bağlantısı başarıyla kaydedildi.');
       setForm((prev) => ({
         ...prev,
         teacherId: '',
@@ -208,6 +202,7 @@ export default function TeachersNetworkPage() {
             <div>
               <span className="network-section-kicker">Yeni ilişki ekle</span>
               <h3>Öğretmen bağlantısı oluştur</h3>
+              <p>Bu form, mezun-öğretmen bağını kayıt altına alır ve teacher graph içine doğrulanabilir bir ilişki ekler.</p>
             </div>
             {deepLinkedTeacherId > 0 ? <span className="chip">Profil üzerinden ön seçim geldi</span> : null}
           </div>
@@ -247,6 +242,7 @@ export default function TeachersNetworkPage() {
                 >
                   {RELATIONSHIP_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
+                <span className="network-field-hint">{relationshipHelper}</span>
               </div>
               <div className="form-row">
                 <label>Sınıf yılı</label>
@@ -281,40 +277,83 @@ export default function TeachersNetworkPage() {
           </div>
         </div>
 
-        <div className="panel">
-          <div className="network-section-head">
-            <div>
-              <span className="network-section-kicker">Seçili profil</span>
-              <h3>Bağlantı önizlemesi</h3>
+        <div className="network-column">
+          <div className="panel">
+            <div className="network-section-head">
+              <div>
+                <span className="network-section-kicker">Bu kayıt ne işe yarar?</span>
+                <h3>Teacher Network değer paneli</h3>
+                <p>Bu alan sadece form doldurmak için değil, platformun güven graph'ını büyütmek için vardır.</p>
+              </div>
+            </div>
+            <div className="panel-body stack">
+              <div className="network-value-list">
+                <div className="network-value-card">
+                  <strong>Profil güven sinyali üretir</strong>
+                  <span>Teacher link kayıtları suggestion motoru ve trust badge sistemi için güçlü ek bağlam oluşturur.</span>
+                </div>
+                <div className="network-value-card">
+                  <strong>Öğretmene görünürlük sağlar</strong>
+                  <span>Bağ eklendiğinde öğretmen hesabına bildirim gider; böylece graph iki taraf için de görünür hale gelir.</span>
+                </div>
+                <div className="network-value-card">
+                  <strong>Geçmiş bağı okunabilir kılar</strong>
+                  <span>Sınıf yılı, ilişki türü ve not alanı birlikte girildiğinde sadece isim değil bağlam da kayda geçer.</span>
+                </div>
+                <div className="network-value-card">
+                  <strong>Ağ kalitesini artırır</strong>
+                  <span>Teacher Network genişledikçe öneri kartları, güven sinyalleri ve topluluk haritası daha isabetli çalışır.</span>
+                </div>
+              </div>
+              <div className="network-guidance-list">
+                <div className="network-guidance-item">
+                  <strong>Ne zaman eklemelisin?</strong>
+                  <span>Ders aldığın, mentorluk aldığın veya danışmanlık ilişkisi yaşadığın öğretmenlerde bu form doğru yerdir.</span>
+                </div>
+                <div className="network-guidance-item">
+                  <strong>Öğretmene ne yansır?</strong>
+                  <span>Kayıt eklendiğinde networking merkezindeki teacher graph bildirim akışına düşer ve görünürlük oluşur.</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="panel-body stack">
-            {selectedTeacher ? (
-              <div className="network-highlight-card">
-                <div className="network-highlight-title">{teacherOptionLabel(selectedTeacher)}</div>
-                <div className="network-highlight-meta">
-                  <span className="chip">Öğrenci sayısı: {selectedTeacher.student_count || 0}</span>
-                  {selectedTeacher.mezuniyetyili ? <span className="chip">Kohort: {selectedTeacher.mezuniyetyili}</span> : null}
+
+          <div className="panel">
+            <div className="network-section-head">
+              <div>
+                <span className="network-section-kicker">Seçili profil</span>
+                <h3>Bağlantı önizlemesi</h3>
+                <p>Kaydetmeden önce doğru öğretmeni seçtiğini ve ilişki bağlamının mantıklı olduğunu bu alanda kontrol edebilirsin.</p>
+              </div>
+            </div>
+            <div className="panel-body stack">
+              {selectedTeacher ? (
+                <div className="network-highlight-card">
+                  <div className="network-highlight-title">{teacherOptionLabel(selectedTeacher)}</div>
+                  <div className="network-highlight-meta">
+                    <span className="chip">Öğrenci sayısı: {selectedTeacher.student_count || 0}</span>
+                    {selectedTeacher.mezuniyetyili ? <span className="chip">Kohort: {selectedTeacher.mezuniyetyili}</span> : null}
+                  </div>
+                  <p className="muted">
+                    Bu öğretmen için bağlantı eklediğinde öğretmen hesabına bildirim gider ve networking merkezi
+                    üzerinden izlenebilir hale gelir.
+                  </p>
                 </div>
-                <p className="muted">
-                  Bu öğretmen için bağlantı eklediğinde öğretmen hesabına bildirim gider ve networking merkezi
-                  üzerinden izlenebilir hale gelir.
-                </p>
-              </div>
-            ) : (
-              <div className="network-empty-state">
-                <strong>Henüz bir öğretmen seçilmedi.</strong>
-                <span>Bir profilden geldiysen seçim otomatik doldurulur; aksi durumda listeden bir öğretmen seç.</span>
-              </div>
-            )}
-            <div className="network-guidance-list">
-              <div className="network-guidance-item">
-                <strong>Derin link desteği</strong>
-                <span>Profil kartından gelen `teacherId` parametresi artık forma doğrudan taşınıyor.</span>
-              </div>
-              <div className="network-guidance-item">
-                <strong>Daha güvenli seçim</strong>
-                <span>Arama sonucu eşleşmese bile seçili öğretmen opsiyon listesinde korunuyor.</span>
+              ) : (
+                <div className="network-empty-state">
+                  <strong>Henüz bir öğretmen seçilmedi.</strong>
+                  <span>Bir profilden geldiysen seçim otomatik doldurulur; aksi durumda listeden bir öğretmen seç.</span>
+                </div>
+              )}
+              <div className="network-guidance-list">
+                <div className="network-guidance-item">
+                  <strong>Derin link desteği</strong>
+                  <span>Profil kartından gelen `teacherId` parametresi artık forma doğrudan taşınıyor.</span>
+                </div>
+                <div className="network-guidance-item">
+                  <strong>Daha güvenli seçim</strong>
+                  <span>Arama sonucu eşleşmese bile seçili öğretmen opsiyon listesinde korunuyor.</span>
+                </div>
               </div>
             </div>
           </div>
@@ -352,7 +391,7 @@ export default function TeachersNetworkPage() {
           {!items.length && !loading ? (
             <div className="network-empty-state network-empty-state-wide">
               <strong>Henüz öğretmen ağı bağlantısı yok.</strong>
-              <span>Soldaki formu kullanarak ilk doğrulanmış öğretmen bağını ekleyebilirsin.</span>
+              <span>Soldaki formu kullanarak ilk doğrulanmış öğretmen bağını eklediğinde hem graph görünürlüğü hem güven sinyali güçlenir.</span>
             </div>
           ) : null}
 
