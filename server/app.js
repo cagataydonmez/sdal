@@ -9113,6 +9113,114 @@ function listNetworkSuggestionAbRecentChanges(limit = 8) {
   }));
 }
 
+function pickPrimaryRecommendationVariant(change) {
+  return resolveNetworkSuggestionVariant(
+    change?.payload?.variant
+      || change?.after_snapshot?.[0]?.variant
+      || change?.before_snapshot?.[0]?.variant
+      || 'A'
+  );
+}
+
+function toWindowShiftIso(value, daysDelta) {
+  const baseMs = toDateMs(value);
+  if (baseMs === null) return '';
+  return new Date(baseMs + Number(daysDelta || 0) * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function buildVariantDelta(beforeRow = {}, afterRow = {}) {
+  const beforeActivation = Number(beforeRow?.activation_rate || 0);
+  const afterActivation = Number(afterRow?.activation_rate || 0);
+  const beforeConnection = Number(beforeRow?.connection_request_rate || 0);
+  const afterConnection = Number(afterRow?.connection_request_rate || 0);
+  const beforeMentorship = Number(beforeRow?.mentorship_request_rate || 0);
+  const afterMentorship = Number(afterRow?.mentorship_request_rate || 0);
+  const beforeTeacher = Number(beforeRow?.teacher_link_create_rate || 0);
+  const afterTeacher = Number(afterRow?.teacher_link_create_rate || 0);
+
+  const weightedBefore = beforeActivation * 0.55 + beforeConnection * 0.2 + beforeMentorship * 0.15 + beforeTeacher * 0.1;
+  const weightedAfter = afterActivation * 0.55 + afterConnection * 0.2 + afterMentorship * 0.15 + afterTeacher * 0.1;
+  const weightedDelta = Number((weightedAfter - weightedBefore).toFixed(4));
+
+  let status = 'neutral';
+  if (Number(afterRow?.exposure_users || 0) < 1 || Number(beforeRow?.exposure_users || 0) < 1) {
+    status = 'insufficient_data';
+  } else if (weightedDelta >= 0.03) {
+    status = 'positive';
+  } else if (weightedDelta <= -0.03) {
+    status = 'negative';
+  }
+
+  return {
+    status,
+    weighted_delta: weightedDelta,
+    exposure_users_delta: Number(afterRow?.exposure_users || 0) - Number(beforeRow?.exposure_users || 0),
+    activation_rate_delta: Number((afterActivation - beforeActivation).toFixed(4)),
+    connection_request_rate_delta: Number((afterConnection - beforeConnection).toFixed(4)),
+    mentorship_request_rate_delta: Number((afterMentorship - beforeMentorship).toFixed(4)),
+    teacher_link_create_rate_delta: Number((afterTeacher - beforeTeacher).toFixed(4))
+  };
+}
+
+async function evaluateNetworkSuggestionChange(change) {
+  if (!change || String(change.action_type || '') !== 'apply') return null;
+  const variant = pickPrimaryRecommendationVariant(change);
+  const windowDays = Math.max(1, Number(change.window_days || 30));
+  const beforeSinceIso = toWindowShiftIso(change.created_at, -windowDays);
+  const afterUntilIso = change.rolled_back_at || toWindowShiftIso(change.created_at, windowDays) || new Date().toISOString();
+  const effectiveAfterUntilIso = toDateMs(afterUntilIso) !== null && toDateMs(afterUntilIso) < Date.now()
+    ? afterUntilIso
+    : new Date().toISOString();
+
+  const [beforeDataset, afterDataset] = await Promise.all([
+    getNetworkSuggestionExperimentDataset({
+      sinceIso: beforeSinceIso,
+      untilIso: change.created_at,
+      cohort: change.cohort || 'all'
+    }),
+    getNetworkSuggestionExperimentDataset({
+      sinceIso: change.created_at,
+      untilIso: effectiveAfterUntilIso,
+      cohort: change.cohort || 'all'
+    })
+  ]);
+
+  const configs = getNetworkSuggestionAbConfigs();
+  const beforePerformance = buildNetworkSuggestionExperimentAnalytics({
+    exposureRows: beforeDataset.exposureRows,
+    actionRows: beforeDataset.actionRows,
+    configs,
+    assignmentCounts: beforeDataset.assignmentCounts
+  });
+  const afterPerformance = buildNetworkSuggestionExperimentAnalytics({
+    exposureRows: afterDataset.exposureRows,
+    actionRows: afterDataset.actionRows,
+    configs,
+    assignmentCounts: afterDataset.assignmentCounts
+  });
+  const beforeRow = beforePerformance.variants.find((row) => resolveNetworkSuggestionVariant(row.variant) === variant) || { variant };
+  const afterRow = afterPerformance.variants.find((row) => resolveNetworkSuggestionVariant(row.variant) === variant) || { variant };
+  const delta = buildVariantDelta(beforeRow, afterRow);
+
+  return {
+    variant,
+    window_days: windowDays,
+    before: beforeRow,
+    after: afterRow,
+    delta,
+    status: delta.status
+  };
+}
+
+async function listNetworkSuggestionAbRecentChangesWithEvaluation(limit = 8) {
+  const changes = listNetworkSuggestionAbRecentChanges(limit);
+  const enriched = await Promise.all(changes.map(async (change) => ({
+    ...change,
+    evaluation: await evaluateNetworkSuggestionChange(change)
+  })));
+  return enriched;
+}
+
 function buildNetworkSuggestionExperimentAnalytics({
   exposureRows = [],
   actionRows = [],
@@ -9448,15 +9556,19 @@ function buildNetworkSuggestionAbRecommendations(configs = [], performance = [],
   return recommendations;
 }
 
-async function getNetworkSuggestionExperimentDataset({ sinceIso, cohort = 'all' } = {}) {
+async function getNetworkSuggestionExperimentDataset({ sinceIso, untilIso = '', cohort = 'all' } = {}) {
   ensureNetworkingTelemetryEventsTable();
   ensureNetworkSuggestionAbTables();
   const includeCohort = String(cohort || 'all').trim().toLowerCase() !== 'all';
   const normalizedCohort = normalizeCohortValue(cohort);
+  const includeUpperBound = Boolean(untilIso);
   const telemetryCohortSql = includeCohort
     ? "AND LOWER(COALESCE(NULLIF(CAST(u.mezuniyetyili AS TEXT), ''), 'unknown')) = LOWER(?)"
     : '';
-  const telemetryParams = includeCohort ? [sinceIso, normalizedCohort] : [sinceIso];
+  const telemetryUpperSql = includeUpperBound ? 'AND e.created_at < ?' : '';
+  const telemetryParams = includeCohort
+    ? (includeUpperBound ? [sinceIso, untilIso, normalizedCohort] : [sinceIso, normalizedCohort])
+    : (includeUpperBound ? [sinceIso, untilIso] : [sinceIso]);
   const assignmentParams = includeCohort ? [normalizedCohort] : [];
   const assignmentWhere = includeCohort
     ? "WHERE LOWER(COALESCE(NULLIF(CAST(u.mezuniyetyili AS TEXT), ''), 'unknown')) = LOWER(?)"
@@ -9469,6 +9581,7 @@ async function getNetworkSuggestionExperimentDataset({ sinceIso, cohort = 'all' 
        LEFT JOIN network_suggestion_ab_assignments a ON a.user_id = e.user_id
        LEFT JOIN uyeler u ON u.id = e.user_id
        WHERE e.created_at >= ?
+         ${telemetryUpperSql}
          AND e.event_name IN ('network_hub_suggestions_loaded', 'network_explore_suggestions_loaded')
          ${telemetryCohortSql}
        ORDER BY e.user_id ASC, e.created_at ASC`,
@@ -9480,6 +9593,7 @@ async function getNetworkSuggestionExperimentDataset({ sinceIso, cohort = 'all' 
        LEFT JOIN network_suggestion_ab_assignments a ON a.user_id = e.user_id
        LEFT JOIN uyeler u ON u.id = e.user_id
        WHERE e.created_at >= ?
+         ${telemetryUpperSql}
          AND e.event_name IN ('follow_created', 'connection_requested', 'mentorship_requested', 'teacher_link_created')
          ${telemetryCohortSql}
        ORDER BY e.user_id ASC, e.created_at ASC`,
@@ -10877,13 +10991,14 @@ app.get('/api/new/admin/network/analytics', requireAdmin, async (req, res) => {
     const accepted = Number(summaryTotals?.connections_accepted || 0);
     const analyticsAlerts = buildNetworkingAnalyticsAlerts(summaryTotals, mentorDemandRows, mentorSupplyRows);
     const experimentConfigs = getNetworkSuggestionAbConfigs();
+    const recentSuggestionChanges = await listNetworkSuggestionAbRecentChangesWithEvaluation(6);
     const suggestionExperiment = buildNetworkSuggestionExperimentAnalytics({
       exposureRows: experimentDataset.exposureRows,
       actionRows: experimentDataset.actionRows,
       configs: experimentConfigs,
       assignmentCounts: experimentDataset.assignmentCounts
     });
-    suggestionExperiment.recent_changes = listNetworkSuggestionAbRecentChanges(6);
+    suggestionExperiment.recent_changes = recentSuggestionChanges;
     suggestionExperiment.recommendations = buildNetworkSuggestionAbRecommendations(
       experimentConfigs,
       suggestionExperiment.variants,
@@ -13607,11 +13722,12 @@ app.post('/api/new/admin/engagement-ab/rebalance', requireAdmin, (req, res) => {
   res.json({ ok: true, keepAssignments });
 });
 
-app.get('/api/new/admin/network-suggestion-ab', requireAdmin, (_req, res) => {
-  const windowDays = parseNetworkWindowDays(_req.query.window);
-  const sinceIso = toIsoThreshold(windowDays);
-  const cohort = normalizeCohortValue(_req.query.cohort);
-  getNetworkSuggestionExperimentDataset({ sinceIso, cohort }).then((dataset) => {
+app.get('/api/new/admin/network-suggestion-ab', requireAdmin, async (_req, res) => {
+  try {
+    const windowDays = parseNetworkWindowDays(_req.query.window);
+    const sinceIso = toIsoThreshold(windowDays);
+    const cohort = normalizeCohortValue(_req.query.cohort);
+    const dataset = await getNetworkSuggestionExperimentDataset({ sinceIso, cohort });
     const configs = getNetworkSuggestionAbConfigs().map((cfg) => ({
       variant: cfg.variant,
       name: cfg.name,
@@ -13627,7 +13743,8 @@ app.get('/api/new/admin/network-suggestion-ab', requireAdmin, (_req, res) => {
       configs,
       assignmentCounts: dataset.assignmentCounts
     });
-    const recommendations = buildNetworkSuggestionAbRecommendations(configs, performanceBundle.variants, listNetworkSuggestionAbRecentChanges(10));
+    const recentSuggestionChanges = await listNetworkSuggestionAbRecentChangesWithEvaluation(10);
+    const recommendations = buildNetworkSuggestionAbRecommendations(configs, performanceBundle.variants, recentSuggestionChanges);
     const lastObservedAt = [...dataset.exposureRows, ...dataset.actionRows]
       .map((row) => row?.created_at)
       .filter(Boolean)
@@ -13642,17 +13759,17 @@ app.get('/api/new/admin/network-suggestion-ab', requireAdmin, (_req, res) => {
       assignmentCounts: performanceBundle.assignment_counts,
       recommendations,
       leadingVariant: performanceBundle.leading_variant,
-      recentChanges: listNetworkSuggestionAbRecentChanges(10),
+      recentChanges: recentSuggestionChanges,
       totals: {
         exposure_users: performanceBundle.total_exposure_users,
         exposure_events: performanceBundle.total_exposure_events
       },
       lastObservedAt
     });
-  }).catch((err) => {
+  } catch (err) {
     console.error('admin.network-suggestion-ab failed:', err);
     res.status(500).send('Beklenmeyen bir hata oluştu.');
-  });
+  }
 });
 
 app.post('/api/new/admin/network-suggestion-ab/apply', requireAdmin, async (req, res) => {

@@ -18,6 +18,24 @@ function formatPercent(value) {
   return `%${numeric.toFixed(2)}`;
 }
 
+function formatSignedPercent(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '-';
+  const rendered = `%${Math.abs(numeric).toFixed(2)}`;
+  if (numeric > 0) return `+${rendered}`;
+  if (numeric < 0) return `-${rendered}`;
+  return rendered;
+}
+
+function evaluationLabel(status) {
+  const key = String(status || '').trim().toLowerCase();
+  if (key === 'positive') return 'positive';
+  if (key === 'negative') return 'negative';
+  if (key === 'neutral') return 'neutral';
+  if (key === 'insufficient_data') return 'insufficient data';
+  return 'unknown';
+}
+
 export default function DashboardSection({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [analytics, setAnalytics] = useState(null);
@@ -458,6 +476,17 @@ export default function DashboardSection({ onNavigate }) {
                       ? row.after_snapshot.map((item) => `${item.variant}:${item.trafficPct}%`).join(' · ')
                       : 'No snapshot'}
                   </div>
+                  {row.evaluation ? (
+                    <div className="meta">
+                      {evaluationLabel(row.evaluation.status)}
+                      {' · '}
+                      activation {formatSignedPercent(Number(row.evaluation.delta?.activation_rate_delta || 0) * 100)}
+                      {' · '}
+                      connection {formatSignedPercent(Number(row.evaluation.delta?.connection_request_rate_delta || 0) * 100)}
+                      {' · '}
+                      mentorship {formatSignedPercent(Number(row.evaluation.delta?.mentorship_request_rate_delta || 0) * 100)}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="stack" style={{ alignItems: 'flex-end' }}>
                   <b>{row.rolled_back_at ? 'rolled back' : 'active'}</b>

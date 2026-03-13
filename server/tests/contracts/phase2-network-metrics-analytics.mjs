@@ -268,6 +268,7 @@ try {
   assert.equal(analytics.data?.networking?.experiments?.network_suggestions?.variants.some((row) => row.variant === experimentVariant), true);
   assert.equal(typeof analytics.data?.networking?.experiments?.network_suggestions?.leading_variant?.variant, 'string');
   assert.equal(Array.isArray(analytics.data?.networking?.experiments?.network_suggestions?.recommendations), true);
+  assert.equal(Array.isArray(analytics.data?.networking?.experiments?.network_suggestions?.recent_changes), true);
   assert.equal(analytics.data?.networking?.alerts.some((item) => item.code === 'teacher_link_reads_lagging'), true);
   assert.equal(Array.isArray(analytics.data?.networking?.top_active_graduation_years), true);
 
@@ -278,6 +279,9 @@ try {
   assert.equal(Array.isArray(suggestionAb.data?.performance), true);
   assert.equal(Array.isArray(suggestionAb.data?.recommendations), true);
   assert.equal(Array.isArray(suggestionAb.data?.recentChanges), true);
+  if (suggestionAb.data?.recentChanges.length > 0) {
+    assert.equal(typeof suggestionAb.data.recentChanges[0]?.evaluation?.status, 'string');
+  }
   assert.equal(suggestionAb.data?.performance.some((row) => row.variant === 'B'), true);
   if (suggestionAb.data?.recommendations.length > 0) {
     assert.equal(typeof suggestionAb.data.recommendations[0]?.confidence, 'number');
@@ -340,6 +344,7 @@ try {
       assert.deepEqual({ ...rolledBackVariantB, updatedAt: null }, { ...beforeVariantB, updatedAt: null });
     }
     assert.equal(suggestionAbRolledBack.data?.recentChanges.some((row) => Number(row.id) === Number(applyRecommendation.data?.data?.history_id) && typeof row.rolled_back_at === 'string'), true);
+    assert.equal(suggestionAbRolledBack.data?.recentChanges.some((row) => Number(row.id) === Number(applyRecommendation.data?.data?.history_id) && typeof row.evaluation?.status === 'string'), true);
   }
   assert.equal(typeof suggestionAb.data?.leadingVariant?.variant, 'string');
 

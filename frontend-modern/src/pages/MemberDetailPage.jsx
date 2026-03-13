@@ -62,6 +62,34 @@ export default function MemberDetailPage() {
 
   if (!member) return <Layout title={t('member_title')}>{error ? <div className="error">{error}</div> : t('loading')}</Layout>;
 
+  const isSelf = String(user?.id || '') === String(member.id || '');
+  const canMessage = !isSelf;
+  const canQuickAccess = !isSelf;
+  const canConnect = !isSelf && Boolean(member.verified);
+  const canRequestMentorship = !isSelf && Number(member.mentor_opt_in || 0) === 1;
+  const canAddTeacherLink = !isSelf && canLinkToTeacherNetwork(member);
+  const connectionActionLabel = incomingConnectionId
+    ? t('connection_accept')
+    : outgoingRequestId
+      ? t('connection_withdraw')
+      : t('connection_request');
+  const networkingHeading = incomingConnectionId
+    ? 'Bu profil senden bağlantı cevabı bekliyor'
+    : outgoingRequestId
+      ? 'Bağlantı isteği gönderildi'
+      : canConnect
+        ? 'Önce bağlantıyı kur, sonra ağı genişlet'
+        : 'Networking aksiyonları sınırlı'
+  ;
+  const networkingHint = incomingConnectionId
+    ? 'Bağlantıyı kabul edersen mesajlaşma ve diğer networking akışları daha net hale gelir.'
+    : outgoingRequestId
+      ? 'İstek beklemede. Bu sırada mentorluk veya Teacher Network ilişkisini ayrıca yönetebilirsin.'
+      : canConnect
+        ? 'Bu bölümden bağlantı isteği, mentorluk talebi ve Teacher Network ilişkisini öncelik sırasıyla yönetebilirsin.'
+        : 'Bağlantı isteği doğrulanmış profiller için açılıyor. Diğer aksiyonlar profil tipine göre gösterilir.'
+  ;
+
   return (
     <Layout title={`${member.isim} ${member.soyisim}`}>
       <div className="panel">
@@ -83,132 +111,151 @@ export default function MemberDetailPage() {
             </div>
           ) : null}
           <div>{member.imza}</div>
-          <div className="composer-actions">
-            <a className="btn primary" href={`/new/messages/compose?to=${member.id}`}>{t('member_send_message')}</a>
-            {String(user?.id || '') !== String(member.id || '') ? (
-              <button className="btn ghost" onClick={async () => {
-                setError('');
-                setStatus('');
-                const res = await fetch('/api/quick-access/add', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
-                  body: JSON.stringify({ id: member.id })
-                });
-                if (!res.ok) {
-                  setError(await res.text());
-                  return;
-                }
-                setStatus(t('member_quick_access_added'));
-              }}
-              >
-                {t('member_quick_access_add')}
-              </button>
-            ) : null}
-            {String(user?.id || '') !== String(member.id || '') && member.verified ? (
-              <button
-                className="btn ghost"
-                disabled={loadingAction}
-                onClick={async () => {
-                  setError('');
-                  setStatus('');
-                  setLoadingAction(true);
-                  try {
-                    const endpoint = incomingConnectionId
-                      ? `/api/new/connections/accept/${incomingConnectionId}`
-                      : outgoingRequestId
-                        ? `/api/new/connections/cancel/${outgoingRequestId}`
-                        : `/api/new/connections/request/${member.id}`;
-                    const res = await fetch(endpoint, {
+          {status ? <div className="ok">{status}</div> : null}
+          {error ? <div className="error">{error}</div> : null}
+          <div className="member-detail-actions">
+            <div className="member-detail-action-group">
+              <div className="member-detail-action-heading">İletişim</div>
+              <div className="member-detail-action-copy">
+                Bu bölüm doğrudan erişim ve mesajlaşma aksiyonlarını içerir.
+              </div>
+              <div className="composer-actions">
+                {canMessage ? <a className="btn primary" href={`/new/messages/compose?to=${member.id}`}>{t('member_send_message')}</a> : null}
+                {canQuickAccess ? (
+                  <button className="btn ghost" onClick={async () => {
+                    setError('');
+                    setStatus('');
+                    const res = await fetch('/api/quick-access/add', {
                       method: 'POST',
-                      credentials: 'include',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ source_surface: 'member_detail_page' })
+                      credentials: 'include',
+                      body: JSON.stringify({ id: member.id })
                     });
                     if (!res.ok) {
-                      const { message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.connectionActionFailed);
-                      if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
-                        const [incomingRes, outgoingRes] = await Promise.all([
-                          fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
-                          fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
-                        ]);
-                        if (incomingRes.ok && outgoingRes.ok) {
-                          const [{ data: incomingPayload }, { data: outgoingPayload }] = await Promise.all([
-                            readApiPayload(incomingRes, ''),
-                            readApiPayload(outgoingRes, '')
-                          ]);
-                          const targetId = Number(member.id || 0);
-                          const incoming = (incomingPayload.items || []).find((item) => Number(item.sender_id) === targetId);
-                          const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === targetId);
-                          setIncomingConnectionId(Number(incoming?.id || 0));
-                          setOutgoingRequestId(Number(outgoing?.id || 0));
+                      setError(await res.text());
+                      return;
+                    }
+                    setStatus(t('member_quick_access_added'));
+                  }}
+                  >
+                    {t('member_quick_access_add')}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {!isSelf ? (
+              <div className="member-detail-action-group member-detail-action-group-networking">
+                <div className="member-detail-action-heading">Networking</div>
+                <div className="member-detail-action-title">{networkingHeading}</div>
+                <div className="member-detail-action-copy">{networkingHint}</div>
+                <div className="composer-actions">
+                  {canConnect ? (
+                    <button
+                      className={incomingConnectionId || !outgoingRequestId ? 'btn primary' : 'btn ghost'}
+                      disabled={loadingAction}
+                      onClick={async () => {
+                        setError('');
+                        setStatus('');
+                        setLoadingAction(true);
+                        try {
+                          const endpoint = incomingConnectionId
+                            ? `/api/new/connections/accept/${incomingConnectionId}`
+                            : outgoingRequestId
+                              ? `/api/new/connections/cancel/${outgoingRequestId}`
+                              : `/api/new/connections/request/${member.id}`;
+                          const res = await fetch(endpoint, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ source_surface: 'member_detail_page' })
+                          });
+                          if (!res.ok) {
+                            const { message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.connectionActionFailed);
+                            if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
+                              const [incomingRes, outgoingRes] = await Promise.all([
+                                fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
+                                fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
+                              ]);
+                              if (incomingRes.ok && outgoingRes.ok) {
+                                const [{ data: incomingPayload }, { data: outgoingPayload }] = await Promise.all([
+                                  readApiPayload(incomingRes, ''),
+                                  readApiPayload(outgoingRes, '')
+                                ]);
+                                const targetId = Number(member.id || 0);
+                                const incoming = (incomingPayload.items || []).find((item) => Number(item.sender_id) === targetId);
+                                const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === targetId);
+                                setIncomingConnectionId(Number(incoming?.id || 0));
+                                setOutgoingRequestId(Number(outgoing?.id || 0));
+                              }
+                            }
+                            setError(message);
+                            return;
+                          }
+                          setIncomingConnectionId(0);
+                          if (outgoingRequestId) {
+                            setOutgoingRequestId(0);
+                          } else if (!incomingConnectionId) {
+                            const outgoingRes = await fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' });
+                            if (outgoingRes.ok) {
+                              const { data: outgoingPayload } = await readApiPayload(outgoingRes, '');
+                              const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === Number(member.id || 0));
+                              setOutgoingRequestId(Number(outgoing?.id || 0));
+                            }
+                          }
+                          const statusKey = incomingConnectionId
+                            ? 'connection_status_accepted'
+                            : outgoingRequestId
+                              ? 'connection_withdraw'
+                              : 'connection_status_pending';
+                          setStatus(t(statusKey));
+                        } finally {
+                          setLoadingAction(false);
                         }
-                      }
-                      setError(message);
-                      return;
-                    }
-                    setIncomingConnectionId(0);
-                    if (outgoingRequestId) {
-                      setOutgoingRequestId(0);
-                    } else if (!incomingConnectionId) {
-                      const outgoingRes = await fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' });
-                      if (outgoingRes.ok) {
-                        const { data: outgoingPayload } = await readApiPayload(outgoingRes, '');
-                        const outgoing = (outgoingPayload.items || []).find((item) => Number(item.receiver_id) === Number(member.id || 0));
-                        setOutgoingRequestId(Number(outgoing?.id || 0));
-                      }
-                    }
-                    const statusKey = incomingConnectionId
-                      ? 'connection_status_accepted'
-                      : outgoingRequestId
-                        ? 'connection_withdraw'
-                        : 'connection_status_pending';
-                    setStatus(t(statusKey));
-                  } finally {
-                    setLoadingAction(false);
-                  }
-                }}
-              >
-                {incomingConnectionId ? t('connection_accept') : outgoingRequestId ? t('connection_withdraw') : t('connection_request')}
-              </button>
-            ) : null}
-            {String(user?.id || '') !== String(member.id || '') && canLinkToTeacherNetwork(member) ? (
-              <a className="btn ghost" href={`/new/network/teachers?teacherId=${member.id}`}>
-                Öğretmen Ağına Ekle
-              </a>
-            ) : null}
-            {String(user?.id || '') !== String(member.id || '') && Number(member.mentor_opt_in || 0) === 1 ? (
-              <button
-                className="btn ghost"
-                disabled={loadingAction}
-                onClick={async () => {
-                  setError('');
-                  setStatus('');
-                  setLoadingAction(true);
-                  try {
-                    const res = await fetch(`/api/new/mentorship/request/${member.id}`, {
-                      method: 'POST',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ source_surface: 'member_detail_page' })
-                    });
-                    if (!res.ok) {
-                      const { message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.mentorshipRequestFailed);
-                      setError(message);
-                      return;
-                    }
-                    const { message } = await readApiPayload(res, NETWORKING_MESSAGES.success.mentorshipRequested);
-                    setStatus(message || NETWORKING_MESSAGES.success.mentorshipRequested || t('mentorship_status_requested'));
-                  } finally {
-                    setLoadingAction(false);
-                  }
-                }}
-              >
-                {t('mentorship_request')}
-              </button>
+                      }}
+                    >
+                      {connectionActionLabel}
+                    </button>
+                  ) : null}
+                  {canRequestMentorship ? (
+                    <button
+                      className="btn ghost"
+                      disabled={loadingAction}
+                      onClick={async () => {
+                        setError('');
+                        setStatus('');
+                        setLoadingAction(true);
+                        try {
+                          const res = await fetch(`/api/new/mentorship/request/${member.id}`, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ source_surface: 'member_detail_page' })
+                          });
+                          if (!res.ok) {
+                            const { message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.mentorshipRequestFailed);
+                            setError(message);
+                            return;
+                          }
+                          const { message } = await readApiPayload(res, NETWORKING_MESSAGES.success.mentorshipRequested);
+                          setStatus(message || NETWORKING_MESSAGES.success.mentorshipRequested || t('mentorship_status_requested'));
+                        } finally {
+                          setLoadingAction(false);
+                        }
+                      }}
+                    >
+                      {t('mentorship_request')}
+                    </button>
+                  ) : null}
+                  {canAddTeacherLink ? (
+                    <a className="btn ghost" href={`/new/network/teachers?teacherId=${member.id}`}>
+                      Öğretmen Ağına Ekle
+                    </a>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
-          {status ? <div className="ok">{status}</div> : null}
         </div>
       </div>
       <div className="panel">
