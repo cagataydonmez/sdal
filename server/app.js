@@ -8488,13 +8488,16 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
   }
 
   const now = new Date().toISOString();
+  let requestId = 0;
   if (latestOutgoing) {
     sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = NULL WHERE id = ?', ['pending', now, latestOutgoing.id]);
+    requestId = Number(latestOutgoing.id || 0);
   } else {
-    sqlRun(
+    const result = sqlRun(
       'INSERT INTO connection_requests (sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       [senderId, receiverId, 'pending', now, now]
     );
+    requestId = Number(result?.lastInsertRowid || 0);
   }
 
   addNotification({
@@ -8505,7 +8508,7 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     message: 'Sana bir bağlantı isteği gönderdi.'
   });
 
-  return res.json({ ok: true, status: 'pending' });
+  return res.json({ ok: true, status: 'pending', request_id: requestId });
 });
 
 app.get('/api/new/connections/requests', requireAuth, async (req, res) => {
@@ -8577,7 +8580,7 @@ app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
   scheduleEngagementRecalculation('follow_changed');
   invalidateCacheNamespace(cacheNamespaces.feed);
 
-  return res.json({ ok: true, status: 'accepted' });
+  return res.json({ ok: true, status: 'accepted', request_id: requestId });
 });
 
 app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
@@ -8593,7 +8596,7 @@ app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
 
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['ignored', now, now, requestId]);
-  return res.json({ ok: true, status: 'ignored' });
+  return res.json({ ok: true, status: 'ignored', request_id: requestId });
 });
 
 app.post('/api/new/connections/cancel/:id', requireAuth, (req, res) => {
@@ -8609,7 +8612,7 @@ app.post('/api/new/connections/cancel/:id', requireAuth, (req, res) => {
 
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['cancelled', now, now, requestId]);
-  return res.json({ ok: true, status: 'cancelled' });
+  return res.json({ ok: true, status: 'cancelled', request_id: requestId });
 });
 
 

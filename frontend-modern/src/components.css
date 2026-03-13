@@ -557,8 +557,15 @@
   background: color-mix(in srgb, var(--card) 76%, var(--surface-side) 24%);
   color: var(--muted);
 }
+.network-feedback-slot {
+  min-height: 52px;
+  margin-bottom: 8px;
+}
 .network-section-card {
   margin-bottom: 16px;
+}
+.network-section-body {
+  min-height: 132px;
 }
 .network-section-head {
   display: flex;
@@ -707,6 +714,9 @@
   border: 1px dashed color-mix(in srgb, var(--line) 72%, transparent);
   color: var(--muted);
   background: color-mix(in srgb, var(--soft-panel) 72%, transparent);
+}
+.network-loading-state {
+  border-style: solid;
 }
 .network-empty-state strong {
   color: var(--ink);

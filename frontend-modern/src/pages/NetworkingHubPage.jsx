@@ -1,16 +1,20 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
-import { emitAppChange, useLiveRefresh } from '../utils/live.js';
+import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 
-async function readResponseMessage(res, fallbackMessage) {
+async function readResponsePayload(res) {
   try {
-    const payload = await res.clone().json();
-    const message = payload?.message || payload?.error;
-    if (message) return String(message);
+    return await res.clone().json();
   } catch {
-    // no-op
+    return null;
   }
+}
+
+async function readResponseMessage(res, fallbackMessage) {
+  const payload = await readResponsePayload(res);
+  const message = payload?.message || payload?.error;
+  if (message) return String(message);
   try {
     const text = await res.text();
     if (text) return text;
@@ -95,15 +99,25 @@ function SectionCard({ title, kicker, count, actions, children }) {
           {actions}
         </div>
       </div>
-      <div className="panel-body">{children}</div>
+      <div className="panel-body network-section-body">{children}</div>
     </section>
+  );
+}
+
+function LoadingState({ label = 'Yükleniyor...' }) {
+  return (
+    <div className="network-empty-state network-loading-state">
+      <strong>{label}</strong>
+      <span>Veriler arka planda hazırlanıyor.</span>
+    </div>
   );
 }
 
 export default function NetworkingHubPage() {
   const { t } = useI18n();
-  const [loading, setLoading] = useState(true);
-  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [bootstrapping, setBootstrapping] = useState(true);
+  const [hubRefreshing, setHubRefreshing] = useState(false);
+  const [discoveryLoading, setDiscoveryLoading] = useState(true);
   const [metricsWindow, setMetricsWindow] = useState('30d');
   const [metrics, setMetrics] = useState(() => emptyMetrics());
   const [loadError, setLoadError] = useState('');
@@ -121,18 +135,60 @@ export default function NetworkingHubPage() {
   const [outgoingConnectionMap, setOutgoingConnectionMap] = useState({});
   const [pendingAction, setPendingAction] = useState({});
 
-  const loadHub = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    setLoadNotice('');
+  const hasMountedRef = useRef(false);
+  const hubRequestRef = useRef(0);
+  const discoveryRequestRef = useRef(0);
 
-    const [inboxRes, suggestionRes, followsRes, incomingRes, outgoingRes] = await Promise.all([
+  const loadHubData = useCallback(async ({ silent = false, windowValue = '30d' } = {}) => {
+    const requestId = hubRequestRef.current + 1;
+    hubRequestRef.current = requestId;
+
+    if (!silent) {
+      if (hasMountedRef.current) setHubRefreshing(true);
+      else setBootstrapping(true);
+    }
+    setLoadError('');
+    if (!silent) setLoadNotice('');
+
+    const [inboxRes, metricsRes] = await Promise.all([
       fetchJson('/api/new/network/inbox?limit=12', { inbox: { connections: { incoming: [], outgoing: [] }, mentorship: { incoming: [], outgoing: [] }, teacherLinks: { events: [], unread_count: 0 } } }),
+      fetchJson(`/api/new/network/metrics?window=${encodeURIComponent(windowValue)}`, { metrics: emptyMetrics() })
+    ]);
+
+    if (requestId !== hubRequestRef.current) return;
+
+    startTransition(() => {
+      setIncoming(inboxRes.data?.inbox?.connections?.incoming || []);
+      setOutgoing(inboxRes.data?.inbox?.connections?.outgoing || []);
+      setIncomingMentorship(inboxRes.data?.inbox?.mentorship?.incoming || []);
+      setOutgoingMentorship(inboxRes.data?.inbox?.mentorship?.outgoing || []);
+      setTeacherEvents(inboxRes.data?.inbox?.teacherLinks?.events || []);
+      setTeacherUnreadCount(Number(inboxRes.data?.inbox?.teacherLinks?.unread_count || 0));
+      setMetrics(metricsRes.data?.metrics || emptyMetrics());
+    });
+
+    if (!inboxRes.ok) {
+      setLoadError(t('network_hub_load_error'));
+    } else if (!metricsRes.ok && !silent) {
+      setLoadNotice('Metrikler güncellenemedi. İşlem listesi hazır, sağlık kartları son bilinen veriyle gösteriliyor.');
+    }
+
+    setBootstrapping(false);
+    setHubRefreshing(false);
+  }, [t]);
+
+  const loadDiscoveryData = useCallback(async ({ silent = false } = {}) => {
+    const requestId = discoveryRequestRef.current + 1;
+    discoveryRequestRef.current = requestId;
+    if (!silent) setDiscoveryLoading(true);
+
+    const [suggestionRes, incomingRes, outgoingRes] = await Promise.all([
       fetchJson('/api/new/explore/suggestions?limit=8&offset=0', { items: [] }),
-      fetchJson('/api/new/follows?limit=400&offset=0', { items: [] }),
       fetchJson('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { items: [] }),
       fetchJson('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { items: [] })
     ]);
+
+    if (requestId !== discoveryRequestRef.current) return;
 
     const nextIncomingMap = {};
     for (const item of (incomingRes.data?.items || [])) {
@@ -148,54 +204,50 @@ export default function NetworkingHubPage() {
       nextOutgoingMap[receiverId] = Number(item?.id || 0);
     }
 
-    setIncoming(inboxRes.data?.inbox?.connections?.incoming || []);
-    setOutgoing(inboxRes.data?.inbox?.connections?.outgoing || []);
-    setIncomingMentorship(inboxRes.data?.inbox?.mentorship?.incoming || []);
-    setOutgoingMentorship(inboxRes.data?.inbox?.mentorship?.outgoing || []);
-    setTeacherEvents(inboxRes.data?.inbox?.teacherLinks?.events || []);
-    setTeacherUnreadCount(Number(inboxRes.data?.inbox?.teacherLinks?.unread_count || 0));
-    setSuggestions(suggestionRes.data?.items || []);
-    setFollowingIds(new Set((followsRes.data?.items || []).map((item) => Number(item.following_id))));
-    setIncomingConnectionMap(nextIncomingMap);
-    setOutgoingConnectionMap(nextOutgoingMap);
+    startTransition(() => {
+      setSuggestions(suggestionRes.data?.items || []);
+      setIncomingConnectionMap(nextIncomingMap);
+      setOutgoingConnectionMap(nextOutgoingMap);
+    });
 
-    if (!inboxRes.ok) {
-      setLoadError(t('network_hub_load_error'));
-    } else {
-      const degradedResults = [suggestionRes, followsRes, incomingRes, outgoingRes].filter((result) => !result.ok);
-      if (degradedResults.length > 0) {
-        setLoadNotice('Bazı networking bileşenleri eksik yüklendi. Sayfa temel akışıyla çalışıyor, yenileme ile tam veri alınabilir.');
-      }
+    if (!silent && (!suggestionRes.ok || !incomingRes.ok || !outgoingRes.ok)) {
+      setLoadNotice('Öneriler yavaş yanıt veriyor. Öncelikli istekler hazır, keşif kartları arka planda yenileniyor.');
     }
+    setDiscoveryLoading(false);
+  }, []);
 
-    setLoading(false);
-  }, [t]);
-
-  const loadMetrics = useCallback(async (windowValue = metricsWindow) => {
-    setMetricsLoading(true);
-    const res = await fetchJson(`/api/new/network/metrics?window=${encodeURIComponent(windowValue)}`, emptyMetrics());
-    setMetrics(res.ok ? (res.data?.metrics || emptyMetrics()) : emptyMetrics());
-    setMetricsLoading(false);
-  }, [metricsWindow]);
+  const refreshAfterAction = useCallback(() => {
+    void loadHubData({ silent: true, windowValue: metricsWindow });
+    void loadDiscoveryData({ silent: true });
+  }, [loadDiscoveryData, loadHubData, metricsWindow]);
 
   useEffect(() => {
-    loadHub();
-  }, [loadHub]);
+    hasMountedRef.current = true;
+    void loadHubData({ silent: false, windowValue: metricsWindow });
+    const discoveryTimer = window.setTimeout(() => {
+      void loadDiscoveryData({ silent: false });
+    }, 80);
+
+    return () => {
+      window.clearTimeout(discoveryTimer);
+      hasMountedRef.current = false;
+    };
+  }, [loadDiscoveryData, loadHubData]);
 
   useEffect(() => {
-    loadMetrics(metricsWindow);
-  }, [loadMetrics, metricsWindow]);
+    if (!hasMountedRef.current) return;
+    const refreshTimer = window.setInterval(() => {
+      void loadHubData({ silent: true, windowValue: metricsWindow });
+      void loadDiscoveryData({ silent: true });
+    }, 25000);
+    return () => window.clearInterval(refreshTimer);
+  }, [loadDiscoveryData, loadHubData, metricsWindow]);
 
-  useLiveRefresh(loadHub, {
-    intervalMs: 15000,
-    eventTypes: ['connection:accepted', 'connection:ignored', 'connection:cancelled', 'connection:request', 'follow:changed', 'mentorship:accepted', 'teacher-links:read'],
-    enabled: true
-  });
-  useLiveRefresh(() => loadMetrics(metricsWindow), {
-    intervalMs: 20000,
-    eventTypes: ['connection:accepted', 'connection:request', 'mentorship:accepted'],
-    enabled: true
-  });
+  useEffect(() => {
+    if (!bootstrapping) {
+      void loadHubData({ silent: true, windowValue: metricsWindow });
+    }
+  }, [bootstrapping, loadHubData, metricsWindow]);
 
   async function runAction(key, action) {
     if (pendingAction[key]) return;
@@ -208,29 +260,73 @@ export default function NetworkingHubPage() {
     }
   }
 
+  function incrementMetric(path, delta) {
+    setMetrics((prev) => {
+      const next = {
+        ...prev,
+        connections: { ...(prev.connections || {}) },
+        mentorship: { ...(prev.mentorship || {}) },
+        teacherLinks: { ...(prev.teacherLinks || {}) }
+      };
+      if (path === 'connections.accepted') next.connections.accepted = Math.max(0, Number(next.connections.accepted || 0) + delta);
+      if (path === 'connections.pending_incoming') next.connections.pending_incoming = Math.max(0, Number(next.connections.pending_incoming || 0) + delta);
+      if (path === 'connections.pending_outgoing') next.connections.pending_outgoing = Math.max(0, Number(next.connections.pending_outgoing || 0) + delta);
+      if (path === 'mentorship.accepted') next.mentorship.accepted = Math.max(0, Number(next.mentorship.accepted || 0) + delta);
+      if (path === 'teacherLinks.created') next.teacherLinks.created = Math.max(0, Number(next.teacherLinks.created || 0) + delta);
+      return next;
+    });
+  }
+
   async function acceptRequest(requestId) {
     await runAction(`accept-${requestId}`, async () => {
+      const senderId = Number(incoming.find((item) => Number(item.id) === Number(requestId))?.sender_id || 0);
       const res = await fetch(`/api/new/connections/accept/${requestId}`, { method: 'POST', credentials: 'include' });
       if (!res.ok) {
         setFeedback({ type: 'error', message: await readResponseMessage(res, 'Bağlantı isteği kabul edilemedi.') });
         return;
       }
+      setIncoming((prev) => prev.filter((item) => Number(item.id) !== Number(requestId)));
+      if (senderId > 0) {
+        setIncomingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[senderId];
+          return next;
+        });
+        setOutgoingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[senderId];
+          return next;
+        });
+        setSuggestions((prev) => prev.filter((item) => Number(item.id) !== senderId));
+      }
+      incrementMetric('connections.pending_incoming', -1);
+      incrementMetric('connections.accepted', 1);
       emitAppChange('connection:accepted', { requestId });
       setFeedback({ type: 'ok', message: 'Bağlantı isteği kabul edildi.' });
-      await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
+      refreshAfterAction();
     });
   }
 
   async function ignoreRequest(requestId) {
     await runAction(`ignore-${requestId}`, async () => {
+      const senderId = Number(incoming.find((item) => Number(item.id) === Number(requestId))?.sender_id || 0);
       const res = await fetch(`/api/new/connections/ignore/${requestId}`, { method: 'POST', credentials: 'include' });
       if (!res.ok) {
         setFeedback({ type: 'error', message: await readResponseMessage(res, 'Bağlantı isteği yok sayılamadı.') });
         return;
       }
+      setIncoming((prev) => prev.filter((item) => Number(item.id) !== Number(requestId)));
+      if (senderId > 0) {
+        setIncomingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[senderId];
+          return next;
+        });
+      }
+      incrementMetric('connections.pending_incoming', -1);
       emitAppChange('connection:ignored', { requestId });
       setFeedback({ type: 'ok', message: 'Bağlantı isteği yok sayıldı.' });
-      await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
+      refreshAfterAction();
     });
   }
 
@@ -248,21 +344,51 @@ export default function NetworkingHubPage() {
       const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
       if (!res.ok) {
         const message = await readResponseMessage(res, 'Bağlantı işlemi başarısız.');
-        if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen')) {
-          await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
-        }
         setFeedback({ type: 'error', message });
+        refreshAfterAction();
         return;
       }
+
+      const payload = await readResponsePayload(res);
+      if (incomingRequestId) {
+        setIncoming((prev) => prev.filter((item) => Number(item.id) !== incomingRequestId));
+        setSuggestions((prev) => prev.filter((item) => Number(item.id) !== targetId));
+        setIncomingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+        setOutgoingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+        incrementMetric('connections.pending_incoming', -1);
+        incrementMetric('connections.accepted', 1);
+      } else if (outgoingRequestId) {
+        setOutgoingConnectionMap((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+        incrementMetric('connections.pending_outgoing', -1);
+      } else {
+        const nextRequestId = Number(payload?.request_id || 0);
+        if (nextRequestId > 0) {
+          setOutgoingConnectionMap((prev) => ({ ...prev, [targetId]: nextRequestId }));
+        }
+        incrementMetric('connections.pending_outgoing', 1);
+      }
+
       emitAppChange(
         incomingRequestId ? 'connection:accepted' : outgoingRequestId ? 'connection:cancelled' : 'connection:request',
-        { userId: targetId, requestId: incomingRequestId || outgoingRequestId }
+        { userId: targetId, requestId: incomingRequestId || outgoingRequestId || payload?.request_id || 0 }
       );
       setFeedback({
         type: 'ok',
         message: incomingRequestId ? 'Bağlantı isteği kabul edildi.' : outgoingRequestId ? 'Bağlantı isteği geri çekildi.' : 'Yeni bağlantı isteği gönderildi.'
       });
-      await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
+      refreshAfterAction();
     });
   }
 
@@ -273,9 +399,11 @@ export default function NetworkingHubPage() {
         setFeedback({ type: 'error', message: await readResponseMessage(res, 'Mentorluk talebi kabul edilemedi.') });
         return;
       }
+      setIncomingMentorship((prev) => prev.filter((item) => Number(item.id) !== Number(id)));
+      incrementMetric('mentorship.accepted', 1);
       emitAppChange('mentorship:accepted', { id });
       setFeedback({ type: 'ok', message: 'Mentorluk talebi kabul edildi.' });
-      await Promise.all([loadHub(), loadMetrics(metricsWindow)]);
+      refreshAfterAction();
     });
   }
 
@@ -286,8 +414,9 @@ export default function NetworkingHubPage() {
         setFeedback({ type: 'error', message: await readResponseMessage(res, 'Mentorluk talebi reddedilemedi.') });
         return;
       }
+      setIncomingMentorship((prev) => prev.filter((item) => Number(item.id) !== Number(id)));
       setFeedback({ type: 'ok', message: 'Mentorluk talebi reddedildi.' });
-      await loadHub();
+      refreshAfterAction();
     });
   }
 
@@ -321,6 +450,8 @@ export default function NetworkingHubPage() {
       });
       emitAppChange('follow:changed', { userId });
       setFeedback({ type: 'ok', message: 'Takip durumu güncellendi.' });
+      setSuggestions((prev) => prev.filter((item) => Number(item.id) !== Number(userId)));
+      refreshAfterAction();
     });
   }
 
@@ -355,12 +486,15 @@ export default function NetworkingHubPage() {
           <a className="btn primary" href="/new/explore">Yeni kişi keşfet</a>
           <a className="btn ghost" href="/new/network/teachers">Öğretmen ağına git</a>
           <a className="btn ghost" href="/new/messages">Mesaj kutusuna git</a>
+          {hubRefreshing ? <span className="chip">Arka planda güncelleniyor</span> : null}
         </div>
       </section>
 
-      {feedback.message ? <div className={feedback.type === 'error' ? 'error' : 'ok'}>{feedback.message}</div> : null}
-      {loadError ? <div className="error">{loadError}</div> : null}
-      {loadNotice ? <div className="network-soft-alert">{loadNotice}</div> : null}
+      <div className="network-feedback-slot">
+        {feedback.message ? <div className={feedback.type === 'error' ? 'error' : 'ok'}>{feedback.message}</div> : null}
+        {loadError ? <div className="error">{loadError}</div> : null}
+        {loadNotice ? <div className="network-soft-alert">{loadNotice}</div> : null}
+      </div>
 
       <section className="panel network-section-card">
         <div className="network-section-head">
@@ -382,9 +516,8 @@ export default function NetworkingHubPage() {
             </div>
           </div>
         </div>
-        <div className="panel-body">
-          {metricsLoading ? <div className="muted">{t('loading')}</div> : null}
-          {!metricsLoading ? (
+        <div className="panel-body network-section-body">
+          {bootstrapping ? <LoadingState label={t('loading')} /> : (
             <div className="network-metric-grid">
               <div className="network-metric-card">
                 <span className="network-metric-label">{t('network_hub_metric_connections')}</span>
@@ -411,60 +544,57 @@ export default function NetworkingHubPage() {
                 </p>
               </div>
             </div>
-          ) : null}
+          )}
         </div>
       </section>
 
       <div className="network-dashboard">
         <div className="network-column">
-          <SectionCard
-            title={t('network_hub_incoming_title')}
-            kicker="Priority queue"
-            count={incoming.length}
-          >
-            {loading ? <div className="muted">{t('loading')}</div> : null}
-            {!loading && incoming.length === 0 ? <div className="network-empty-state"><strong>Temiz görünüm.</strong><span>{t('network_hub_incoming_empty')}</span></div> : null}
-            <div className="network-list">
-              {incoming.map((item) => (
-                <article className="network-action-card" key={item.id}>
-                  <PersonLink
-                    href={`/new/members/${item.sender_id}`}
-                    photo={readConnectionUserField(item, 'user_resim', 'resim')}
-                    name={`${readConnectionUserField(item, 'user_isim', 'isim')} ${readConnectionUserField(item, 'user_soyisim', 'soyisim')}`}
-                    handle={readConnectionUserField(item, 'user_kadi', 'kadi')}
-                  />
-                  <div className="network-card-actions">
-                    <button className="btn primary" onClick={() => acceptRequest(item.id)} disabled={Boolean(pendingAction[`accept-${item.id}`])}>{t('connection_accept')}</button>
-                    <button className="btn ghost" onClick={() => ignoreRequest(item.id)} disabled={Boolean(pendingAction[`ignore-${item.id}`])}>{t('ignore')}</button>
-                  </div>
-                </article>
-              ))}
-            </div>
+          <SectionCard title={t('network_hub_incoming_title')} kicker="Priority queue" count={incoming.length}>
+            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {!bootstrapping && incoming.length === 0 ? <div className="network-empty-state"><strong>Temiz görünüm.</strong><span>{t('network_hub_incoming_empty')}</span></div> : null}
+            {!bootstrapping ? (
+              <div className="network-list">
+                {incoming.map((item) => (
+                  <article className="network-action-card" key={item.id}>
+                    <PersonLink
+                      href={`/new/members/${item.sender_id}`}
+                      photo={readConnectionUserField(item, 'user_resim', 'resim')}
+                      name={`${readConnectionUserField(item, 'user_isim', 'isim')} ${readConnectionUserField(item, 'user_soyisim', 'soyisim')}`}
+                      handle={readConnectionUserField(item, 'user_kadi', 'kadi')}
+                    />
+                    <div className="network-card-actions">
+                      <button className="btn primary" onClick={() => acceptRequest(item.id)} disabled={Boolean(pendingAction[`accept-${item.id}`])}>{t('connection_accept')}</button>
+                      <button className="btn ghost" onClick={() => ignoreRequest(item.id)} disabled={Boolean(pendingAction[`ignore-${item.id}`])}>{t('ignore')}</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </SectionCard>
 
-          <SectionCard
-            title={t('network_hub_mentorship_incoming_title')}
-            kicker="Mentor queue"
-            count={incomingMentorship.length}
-          >
-            {!loading && incomingMentorship.length === 0 ? <div className="network-empty-state"><strong>Mentorluk kuyruğu boş.</strong><span>{t('network_hub_mentorship_incoming_empty')}</span></div> : null}
-            <div className="network-list">
-              {incomingMentorship.map((item) => (
-                <article className="network-action-card" key={`mi-${item.id}`}>
-                  <PersonLink
-                    href={`/new/members/${item.requester_id}`}
-                    photo={item.resim}
-                    name={`${item.isim} ${item.soyisim}`}
-                    handle={item.kadi}
-                    meta={item.focus_area || staleHint(item.created_at, t)}
-                  />
-                  <div className="network-card-actions">
-                    <button className="btn primary" onClick={() => acceptMentorship(item.id)} disabled={Boolean(pendingAction[`mentorship-accept-${item.id}`])}>{t('connection_accept')}</button>
-                    <button className="btn ghost" onClick={() => declineMentorship(item.id)} disabled={Boolean(pendingAction[`mentorship-decline-${item.id}`])}>{t('network_hub_decline')}</button>
-                  </div>
-                </article>
-              ))}
-            </div>
+          <SectionCard title={t('network_hub_mentorship_incoming_title')} kicker="Mentor queue" count={incomingMentorship.length}>
+            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {!bootstrapping && incomingMentorship.length === 0 ? <div className="network-empty-state"><strong>Mentorluk kuyruğu boş.</strong><span>{t('network_hub_mentorship_incoming_empty')}</span></div> : null}
+            {!bootstrapping ? (
+              <div className="network-list">
+                {incomingMentorship.map((item) => (
+                  <article className="network-action-card" key={`mi-${item.id}`}>
+                    <PersonLink
+                      href={`/new/members/${item.requester_id}`}
+                      photo={item.resim}
+                      name={`${item.isim} ${item.soyisim}`}
+                      handle={item.kadi}
+                      meta={item.focus_area || staleHint(item.created_at, t)}
+                    />
+                    <div className="network-card-actions">
+                      <button className="btn primary" onClick={() => acceptMentorship(item.id)} disabled={Boolean(pendingAction[`mentorship-accept-${item.id}`])}>{t('connection_accept')}</button>
+                      <button className="btn ghost" onClick={() => declineMentorship(item.id)} disabled={Boolean(pendingAction[`mentorship-decline-${item.id}`])}>{t('network_hub_decline')}</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </SectionCard>
         </div>
 
@@ -479,113 +609,114 @@ export default function NetworkingHubPage() {
               </button>
             ) : null}
           >
-            {!loading && teacherEvents.length === 0 ? <div className="network-empty-state"><strong>Yeni öğretmen bildirimi yok.</strong><span>{t('network_hub_teacher_links_empty')}</span></div> : null}
-            <div className="network-list">
-              {teacherEvents.map((item) => (
-                <article className="network-action-card" key={`tl-${item.id}`}>
-                  <PersonLink
-                    href={`/new/members/${item.source_user_id}`}
-                    photo={item.resim}
-                    name={`${item.isim} ${item.soyisim}`}
-                    handle={item.kadi}
-                    meta={item.message || t('network_hub_teacher_links_default_message')}
-                  />
-                  {!item.read_at ? <span className="chip">Yeni</span> : null}
-                </article>
-              ))}
-            </div>
+            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {!bootstrapping && teacherEvents.length === 0 ? <div className="network-empty-state"><strong>Yeni öğretmen bildirimi yok.</strong><span>{t('network_hub_teacher_links_empty')}</span></div> : null}
+            {!bootstrapping ? (
+              <div className="network-list">
+                {teacherEvents.map((item) => (
+                  <article className="network-action-card" key={`tl-${item.id}`}>
+                    <PersonLink
+                      href={`/new/members/${item.source_user_id}`}
+                      photo={item.resim}
+                      name={`${item.isim} ${item.soyisim}`}
+                      handle={item.kadi}
+                      meta={item.message || t('network_hub_teacher_links_default_message')}
+                    />
+                    {!item.read_at ? <span className="chip">Yeni</span> : null}
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </SectionCard>
 
-          <SectionCard
-            title={t('network_hub_outgoing_title')}
-            kicker="Pipeline"
-            count={outgoing.length}
-          >
-            {!loading && outgoing.length === 0 ? <div className="network-empty-state"><strong>Bekleyen giden istek yok.</strong><span>{t('network_hub_outgoing_empty')}</span></div> : null}
-            <div className="network-list">
-              {outgoing.map((item) => (
-                <article className="network-action-card" key={item.id}>
-                  <PersonLink
-                    href={`/new/members/${item.receiver_id}`}
-                    photo={readConnectionUserField(item, 'user_resim', 'resim')}
-                    name={`${readConnectionUserField(item, 'user_isim', 'isim')} ${readConnectionUserField(item, 'user_soyisim', 'soyisim')}`}
-                    handle={readConnectionUserField(item, 'user_kadi', 'kadi')}
-                  />
-                  <span className="chip">{t('connection_pending')}</span>
-                </article>
-              ))}
-            </div>
+          <SectionCard title={t('network_hub_outgoing_title')} kicker="Pipeline" count={outgoing.length}>
+            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {!bootstrapping && outgoing.length === 0 ? <div className="network-empty-state"><strong>Bekleyen giden istek yok.</strong><span>{t('network_hub_outgoing_empty')}</span></div> : null}
+            {!bootstrapping ? (
+              <div className="network-list">
+                {outgoing.map((item) => (
+                  <article className="network-action-card" key={item.id}>
+                    <PersonLink
+                      href={`/new/members/${item.receiver_id}`}
+                      photo={readConnectionUserField(item, 'user_resim', 'resim')}
+                      name={`${readConnectionUserField(item, 'user_isim', 'isim')} ${readConnectionUserField(item, 'user_soyisim', 'soyisim')}`}
+                      handle={readConnectionUserField(item, 'user_kadi', 'kadi')}
+                    />
+                    <span className="chip">{t('connection_pending')}</span>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </SectionCard>
 
-          <SectionCard
-            title={t('network_hub_mentorship_outgoing_title')}
-            kicker="Outbound mentor asks"
-            count={outgoingMentorship.length}
-          >
-            {!loading && outgoingMentorship.length === 0 ? <div className="network-empty-state"><strong>Bekleyen mentorluk isteği yok.</strong><span>{t('network_hub_mentorship_outgoing_empty')}</span></div> : null}
-            <div className="network-list">
-              {outgoingMentorship.map((item) => (
-                <article className="network-action-card" key={`mo-${item.id}`}>
-                  <PersonLink
-                    href={`/new/members/${item.mentor_id}`}
-                    photo={item.resim}
-                    name={`${item.isim} ${item.soyisim}`}
-                    handle={item.kadi}
-                    meta={item.focus_area || staleHint(item.created_at, t)}
-                  />
-                  <a className="btn ghost" href="/new/messages">{t('member_send_message')}</a>
-                </article>
-              ))}
-            </div>
+          <SectionCard title={t('network_hub_mentorship_outgoing_title')} kicker="Outbound mentor asks" count={outgoingMentorship.length}>
+            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {!bootstrapping && outgoingMentorship.length === 0 ? <div className="network-empty-state"><strong>Bekleyen mentorluk isteği yok.</strong><span>{t('network_hub_mentorship_outgoing_empty')}</span></div> : null}
+            {!bootstrapping ? (
+              <div className="network-list">
+                {outgoingMentorship.map((item) => (
+                  <article className="network-action-card" key={`mo-${item.id}`}>
+                    <PersonLink
+                      href={`/new/members/${item.mentor_id}`}
+                      photo={item.resim}
+                      name={`${item.isim} ${item.soyisim}`}
+                      handle={item.kadi}
+                      meta={item.focus_area || staleHint(item.created_at, t)}
+                    />
+                    <a className="btn ghost" href="/new/messages">{t('member_send_message')}</a>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </SectionCard>
         </div>
       </div>
 
-      <SectionCard
-        title={t('network_hub_suggestions_title')}
-        kicker="Discovery engine"
-        count={suggestions.length}
-      >
-        <div className="network-suggestion-grid">
-          {suggestions.map((item) => {
-            const key = Number(item.id || 0);
-            const incomingRequestId = Number(incomingConnectionMap[key] || 0);
-            const outgoingRequestId = Number(outgoingConnectionMap[key] || 0);
-            const outgoingPending = outgoingRequestId > 0;
-            const label = incomingRequestId
-              ? t('connection_accept')
-              : outgoingPending
-                ? t('connection_withdraw')
-                : t('connection_request');
-            return (
-              <article className="network-suggestion-card" key={item.id}>
-                <PersonLink
-                  href={`/new/members/${item.id}`}
-                  photo={item.resim}
-                  name={`${item.isim} ${item.soyisim}${item.verified ? ' ✓' : ''}`}
-                  handle={item.kadi}
-                  meta={Array.isArray(item.reasons) && item.reasons.length > 0 ? item.reasons[0] : ''}
-                />
-                <div className="network-card-actions">
-                  <button
-                    className="btn ghost"
-                    onClick={() => connectUser(item.id)}
-                    disabled={Boolean(pendingAction[`connect-${item.id}`])}
-                  >
-                    {label}
-                  </button>
-                  <button
-                    className="btn ghost"
-                    onClick={() => toggleFollow(item.id)}
-                    disabled={Boolean(pendingAction[`follow-${item.id}`])}
-                  >
-                    {followingIds.has(Number(item.id)) ? t('unfollow') : t('follow')}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+      <SectionCard title={t('network_hub_suggestions_title')} kicker="Discovery engine" count={suggestions.length}>
+        {discoveryLoading ? <LoadingState label="Öneriler hazırlanıyor..." /> : null}
+        {!discoveryLoading && suggestions.length === 0 ? <div className="network-empty-state"><strong>Şimdilik yeni öneri yok.</strong><span>Biraz sonra tekrar yenilendiğinde yeni bağlantı adayları görünecek.</span></div> : null}
+        {!discoveryLoading ? (
+          <div className="network-suggestion-grid">
+            {suggestions.map((item) => {
+              const key = Number(item.id || 0);
+              const incomingRequestId = Number(incomingConnectionMap[key] || 0);
+              const outgoingRequestId = Number(outgoingConnectionMap[key] || 0);
+              const outgoingPending = outgoingRequestId > 0;
+              const label = incomingRequestId
+                ? t('connection_accept')
+                : outgoingPending
+                  ? t('connection_withdraw')
+                  : t('connection_request');
+              return (
+                <article className="network-suggestion-card" key={item.id}>
+                  <PersonLink
+                    href={`/new/members/${item.id}`}
+                    photo={item.resim}
+                    name={`${item.isim} ${item.soyisim}${item.verified ? ' ✓' : ''}`}
+                    handle={item.kadi}
+                    meta={Array.isArray(item.reasons) && item.reasons.length > 0 ? item.reasons[0] : ''}
+                  />
+                  <div className="network-card-actions">
+                    <button
+                      className="btn ghost"
+                      onClick={() => connectUser(item.id)}
+                      disabled={Boolean(pendingAction[`connect-${item.id}`])}
+                    >
+                      {label}
+                    </button>
+                    <button
+                      className="btn ghost"
+                      onClick={() => toggleFollow(item.id)}
+                      disabled={Boolean(pendingAction[`follow-${item.id}`])}
+                    >
+                      {followingIds.has(Number(item.id)) ? t('unfollow') : t('follow')}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
       </SectionCard>
     </Layout>
   );
