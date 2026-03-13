@@ -8441,7 +8441,7 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
      WHERE sender_id = ?
        AND receiver_id = ?
        AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'
-     ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC, id DESC
+     ORDER BY COALESCE(CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) DESC, id DESC
      LIMIT 1`,
     [senderId, receiverId]
   );
@@ -8455,7 +8455,7 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
      WHERE sender_id = ?
        AND receiver_id = ?
        AND LOWER(TRIM(COALESCE(status, ''))) = 'pending'
-     ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC, id DESC
+     ORDER BY COALESCE(CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) DESC, id DESC
      LIMIT 1`,
     [receiverId, senderId]
   );
@@ -8467,7 +8467,7 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     `SELECT id, status, updated_at, responded_at
      FROM connection_requests
      WHERE sender_id = ? AND receiver_id = ?
-     ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC, id DESC
+     ORDER BY COALESCE(CASE WHEN CAST(updated_at AS TEXT) = '' THEN NULL ELSE updated_at END, created_at) DESC, id DESC
      LIMIT 1`,
     [senderId, receiverId]
   );
