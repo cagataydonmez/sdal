@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { NETWORKING_EVENTS } from '../utils/networkingRegistry.js';
 
 const PAGE_SIZE = 24;
 
@@ -76,7 +77,7 @@ export default function ExploreSuggestionsPage() {
         else next.add(key);
         return next;
       });
-      emitAppChange('follow:changed', { userId: id });
+      emitAppChange(NETWORKING_EVENTS.followChanged, { userId: id });
     } finally {
       setPendingFollow((prev) => ({ ...prev, [key]: false }));
     }

@@ -241,12 +241,15 @@ try {
   assert.equal(suggestions.data?.ok, true);
   assert.equal(suggestions.data?.code, 'EXPLORE_SUGGESTIONS_OK');
   assert.equal(Array.isArray(suggestions.data?.data?.items), true);
+  assert.equal(typeof (suggestions.data?.data?.experiment_variant || suggestions.data?.experiment_variant), 'string');
   const suggestedB = (suggestions.data?.items || []).find((item) => Number(item.id) === userCId);
   assert.ok(suggestedB);
   const reasonText = (suggestedB.reasons || []).join(' | ').toLowerCase();
   assert.ok(reasonText.includes('mentorluk') || reasonText.includes('ogretmen') || reasonText.includes('ortak grup'));
   assert.equal(Array.isArray(suggestedB.trust_badges), true);
   assert.equal(suggestedB.trust_badges.includes('teacher_network'), true);
+  const suggestionAssignment = sqlGet('SELECT variant FROM network_suggestion_ab_assignments WHERE user_id = ?', [userAId]);
+  assert.equal(typeof suggestionAssignment?.variant, 'string');
 
   console.log('phase2 connections tests passed');
 } finally {

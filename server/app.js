@@ -34,6 +34,17 @@ import { consumeUploadQuota } from './src/infra/uploadQuota.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
 import { pgQuery } from './src/infra/postgresPool.js';
+import {
+  buildMemberTrustBadges,
+  buildScoredNetworkSuggestion,
+  createPeerMap,
+  getPeerOverlapCount,
+  mapNetworkSuggestionForApi,
+  networkSuggestionDefaultParams,
+  networkSuggestionDefaultVariants,
+  normalizeNetworkSuggestionParams,
+  sortNetworkSuggestions
+} from './src/services/networkSuggestionService.js';
 
 const __dirname = getDirname(import.meta.url);
 
@@ -1056,7 +1067,7 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
     'album_fotoyorum', 'album_foto', 'gelenkutusu', 'sdal_messenger_messages',
     'sdal_messenger_threads', 'follows', 'notifications', 'oyun_yilan',
     'oyun_tetris', 'game_scores', 'verification_requests', 'member_engagement_scores',
-    'engagement_ab_assignments', 'oauth_accounts', 'chat_messages'
+    'engagement_ab_assignments', 'network_suggestion_ab_assignments', 'oauth_accounts', 'chat_messages'
   ];
   const tableColumns = new Map();
   await Promise.all(metadataTables.map(async (table) => {
@@ -1086,6 +1097,7 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
     verificationRequests: getUserColumn('verification_requests'),
     memberEngagementScores: getUserColumn('member_engagement_scores'),
     engagementAbAssignments: getUserColumn('engagement_ab_assignments'),
+    networkSuggestionAbAssignments: getUserColumn('network_suggestion_ab_assignments'),
     oauthAccounts: getUserColumn('oauth_accounts'),
     chatMessages: getUserColumn('chat_messages')
   };
@@ -1181,6 +1193,9 @@ async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writ
   }
   if (hasTableLocal('member_engagement_scores') && userColumn.memberEngagementScores) await runExec(`DELETE FROM member_engagement_scores WHERE ${userColumn.memberEngagementScores} = ?`, [userId]);
   if (hasTableLocal('engagement_ab_assignments') && userColumn.engagementAbAssignments) await runExec(`DELETE FROM engagement_ab_assignments WHERE ${userColumn.engagementAbAssignments} = ?`, [userId]);
+  if (hasTableLocal('network_suggestion_ab_assignments') && userColumn.networkSuggestionAbAssignments) {
+    await runExec(`DELETE FROM network_suggestion_ab_assignments WHERE ${userColumn.networkSuggestionAbAssignments} = ?`, [userId]);
+  }
   if (hasTableLocal('oauth_accounts') && userColumn.oauthAccounts) await runExec(`DELETE FROM oauth_accounts WHERE ${userColumn.oauthAccounts} = ?`, [userId]);
   if (hasTableLocal('chat_messages') && userColumn.chatMessages) await runExec(`DELETE FROM chat_messages WHERE ${userColumn.chatMessages} = ?`, [userId]);
 
@@ -2658,6 +2673,114 @@ function getEngagementAbConfigs() {
     }));
   }
   return items;
+}
+
+function ensureNetworkSuggestionAbConfigRows() {
+  ensureNetworkSuggestionAbTables();
+  const now = new Date().toISOString();
+  for (const [variant, cfg] of Object.entries(networkSuggestionDefaultVariants)) {
+    const existing = sqlGet('SELECT variant FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
+    if (existing) continue;
+    sqlRun(
+      `INSERT INTO network_suggestion_ab_config
+       (variant, name, description, traffic_pct, enabled, params_json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        variant,
+        cfg.name,
+        cfg.description,
+        cfg.trafficPct,
+        toDbBooleanParam(cfg.enabled),
+        JSON.stringify(cfg.params),
+        now
+      ]
+    );
+  }
+}
+
+function getNetworkSuggestionAbConfigs() {
+  ensureNetworkSuggestionAbConfigRows();
+  const rows = sqlAll(
+    `SELECT variant, name, description, traffic_pct, enabled, params_json, updated_at
+     FROM network_suggestion_ab_config
+     ORDER BY variant ASC`
+  );
+  const items = [];
+  for (const row of rows) {
+    const variant = String(row.variant || '').trim().toUpperCase();
+    const fallback = networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams;
+    let parsed = {};
+    try {
+      parsed = row.params_json ? JSON.parse(row.params_json) : {};
+    } catch {
+      parsed = {};
+    }
+    items.push({
+      variant,
+      name: String(row.name || networkSuggestionDefaultVariants[variant]?.name || variant),
+      description: String(row.description || networkSuggestionDefaultVariants[variant]?.description || ''),
+      trafficPct: clamp(Number(row.traffic_pct || 0), 0, 100),
+      enabled: Number(row.enabled || 0) === 1 ? 1 : 0,
+      params: normalizeNetworkSuggestionParams(parsed, fallback),
+      updatedAt: row.updated_at || null
+    });
+  }
+  if (!items.length) {
+    return Object.entries(networkSuggestionDefaultVariants).map(([variant, cfg]) => ({
+      variant,
+      name: cfg.name,
+      description: cfg.description,
+      trafficPct: cfg.trafficPct,
+      enabled: cfg.enabled,
+      params: normalizeNetworkSuggestionParams(cfg.params, networkSuggestionDefaultParams),
+      updatedAt: null
+    }));
+  }
+  return items;
+}
+
+function getAssignedNetworkSuggestionVariant(userId) {
+  const safeUserId = Number(userId || 0);
+  const configs = getNetworkSuggestionAbConfigs();
+  const enabledVariants = new Set(
+    configs
+      .filter((cfg) => Number(cfg.enabled || 0) === 1 && Number(cfg.trafficPct || 0) > 0)
+      .map((cfg) => cfg.variant)
+  );
+  const existing = safeUserId
+    ? sqlGet('SELECT variant FROM network_suggestion_ab_assignments WHERE user_id = ?', [safeUserId])
+    : null;
+  let variant = String(existing?.variant || '').trim().toUpperCase();
+  if (!variant || !enabledVariants.has(variant)) {
+    variant = chooseVariantForUser(safeUserId, configs);
+    if (safeUserId > 0) {
+      const now = new Date().toISOString();
+      if (existing) {
+        sqlRun(
+          `UPDATE network_suggestion_ab_assignments
+           SET variant = ?, updated_at = ?
+           WHERE user_id = ?`,
+          [variant, now, safeUserId]
+        );
+      } else {
+        sqlRun(
+          `INSERT INTO network_suggestion_ab_assignments (user_id, variant, assigned_at, updated_at)
+           VALUES (?, ?, ?, ?)`,
+          [safeUserId, variant, now, now]
+        );
+      }
+    }
+  }
+  const config = configs.find((item) => item.variant === variant) || {
+    variant: 'A',
+    name: networkSuggestionDefaultVariants.A.name,
+    description: networkSuggestionDefaultVariants.A.description,
+    trafficPct: networkSuggestionDefaultVariants.A.trafficPct,
+    enabled: networkSuggestionDefaultVariants.A.enabled,
+    params: { ...networkSuggestionDefaultParams },
+    updatedAt: null
+  };
+  return { variant: config.variant, config, configs };
 }
 
 function hashUserSlot(userId) {
@@ -6959,16 +7082,10 @@ app.get('/api/members', async (req, res) => {
       ranges.push({ start, end });
     }
 
-    const rowsWithTrustBadges = rows.map((row) => {
-      const trustBadges = [];
-      if (Number(row.verified || 0) === 1) trustBadges.push('verified_alumni');
-      if (Number(row.mentor_opt_in || 0) === 1) trustBadges.push('mentor');
-      if (Number(row.teacher_network_member || 0) === 1 || String(row.role || '').toLowerCase() === 'teacher') trustBadges.push('teacher_network');
-      return {
-        ...row,
-        trust_badges: trustBadges
-      };
-    });
+    const rowsWithTrustBadges = rows.map((row) => ({
+      ...row,
+      trust_badges: buildMemberTrustBadges(row)
+    }));
 
     return res.json({ rows: rowsWithTrustBadges, page: safePage, pages, total, ranges, pageSize, term, filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly } });
   } catch (err) {
@@ -8316,6 +8433,78 @@ function normalizeTeacherAlumniRelationshipType(value) {
   return '';
 }
 
+function normalizeTeacherLinkCreatedVia(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'manual_alumni_link' || raw === 'admin_review_update' || raw === 'import') return raw;
+  return 'manual_alumni_link';
+}
+
+function normalizeTeacherLinkSourceSurface(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'teachers_network_page' || raw === 'member_detail_page' || raw === 'network_hub' || raw === 'admin_panel') return raw;
+  return 'teachers_network_page';
+}
+
+function normalizeTeacherLinkReviewStatus(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'pending' || raw === 'confirmed' || raw === 'flagged' || raw === 'rejected' || raw === 'merged') return raw;
+  return '';
+}
+
+const NETWORKING_TELEMETRY_CLIENT_EVENT_NAMES = new Set([
+  'network_hub_viewed',
+  'network_hub_suggestions_loaded',
+  'network_explore_viewed',
+  'network_explore_suggestions_loaded',
+  'teacher_network_viewed'
+]);
+
+const NETWORKING_TELEMETRY_ACTION_EVENT_NAMES = new Set([
+  'connection_requested',
+  'connection_accepted',
+  'connection_ignored',
+  'connection_cancelled',
+  'mentorship_requested',
+  'mentorship_accepted',
+  'mentorship_declined',
+  'teacher_link_created',
+  'teacher_links_read',
+  'follow_created',
+  'follow_removed'
+]);
+
+const NETWORKING_DAILY_SUMMARY_REBUILD_INTERVAL_MS = 60 * 1000;
+let networkingDailySummaryRefreshPromise = null;
+
+function normalizeNetworkingTelemetryEventName(value, { allowClientEvents = true, allowActionEvents = true } = {}) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  if (allowClientEvents && NETWORKING_TELEMETRY_CLIENT_EVENT_NAMES.has(raw)) return raw;
+  if (allowActionEvents && NETWORKING_TELEMETRY_ACTION_EVENT_NAMES.has(raw)) return raw;
+  return '';
+}
+
+function normalizeNetworkingTelemetrySourceSurface(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'network_hub' || raw === 'explore_page' || raw === 'teachers_network_page' || raw === 'member_detail_page' || raw === 'admin_panel' || raw === 'server_action') return raw;
+  return 'server_action';
+}
+
+function normalizeNetworkingTelemetryEntityType(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'user' || raw === 'connection_request' || raw === 'mentorship_request' || raw === 'teacher_link' || raw === 'suggestion_batch' || raw === 'notification') return raw;
+  return '';
+}
+
+function normalizeTeacherLinkReviewNote(value) {
+  return String(value || '').trim().slice(0, 500);
+}
+
+function normalizeBooleanFlag(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
 function parseTeacherNetworkClassYear(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return { provided: false, value: null, valid: true };
@@ -8410,13 +8599,1234 @@ function ensureTeacherAlumniLinksTable() {
       class_year INTEGER,
       notes TEXT,
       confidence_score REAL NOT NULL DEFAULT 1.0,
+      created_via TEXT NOT NULL DEFAULT 'manual_alumni_link',
+      source_surface TEXT NOT NULL DEFAULT 'teachers_network_page',
+      last_reviewed_by INTEGER,
+      review_status TEXT NOT NULL DEFAULT 'pending',
+      review_note TEXT,
+      reviewed_at TEXT,
+      merged_into_link_id INTEGER,
       created_by INTEGER,
       created_at TEXT NOT NULL,
       UNIQUE(teacher_user_id, alumni_user_id, relationship_type, class_year)
     )
   `);
+  if (!hasColumn('teacher_alumni_links', 'created_via')) {
+    try {
+      sqlRun("ALTER TABLE teacher_alumni_links ADD COLUMN created_via TEXT NOT NULL DEFAULT 'manual_alumni_link'");
+    } catch {
+      // no-op
+    }
+  }
+  if (!hasColumn('teacher_alumni_links', 'source_surface')) {
+    try {
+      sqlRun("ALTER TABLE teacher_alumni_links ADD COLUMN source_surface TEXT NOT NULL DEFAULT 'teachers_network_page'");
+    } catch {
+      // no-op
+    }
+  }
+  if (!hasColumn('teacher_alumni_links', 'last_reviewed_by')) {
+    try {
+      sqlRun('ALTER TABLE teacher_alumni_links ADD COLUMN last_reviewed_by INTEGER');
+    } catch {
+      // no-op
+    }
+  }
+  if (!hasColumn('teacher_alumni_links', 'review_status')) {
+    try {
+      sqlRun("ALTER TABLE teacher_alumni_links ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'");
+    } catch {
+      // no-op
+    }
+  }
+  if (!hasColumn('teacher_alumni_links', 'review_note')) {
+    try {
+      sqlRun('ALTER TABLE teacher_alumni_links ADD COLUMN review_note TEXT');
+    } catch {
+      // no-op
+    }
+  }
+  if (!hasColumn('teacher_alumni_links', 'reviewed_at')) {
+    try {
+      sqlRun('ALTER TABLE teacher_alumni_links ADD COLUMN reviewed_at TEXT');
+    } catch {
+      // no-op
+    }
+  }
+  if (!hasColumn('teacher_alumni_links', 'merged_into_link_id')) {
+    try {
+      sqlRun('ALTER TABLE teacher_alumni_links ADD COLUMN merged_into_link_id INTEGER');
+    } catch {
+      // no-op
+    }
+  }
   sqlRun('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_alumni ON teacher_alumni_links (alumni_user_id, created_at DESC)');
   sqlRun('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_teacher ON teacher_alumni_links (teacher_user_id, created_at DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_review_status ON teacher_alumni_links (review_status, created_at DESC)');
+}
+
+function ensureTeacherAlumniLinkModerationEventsTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS teacher_alumni_link_moderation_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      link_id INTEGER NOT NULL,
+      actor_user_id INTEGER,
+      event_type TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      note TEXT,
+      merge_target_id INTEGER,
+      created_at TEXT NOT NULL
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_teacher_link_moderation_events_link ON teacher_alumni_link_moderation_events (link_id, created_at DESC)');
+}
+
+function ensureNetworkingTelemetryEventsTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS networking_telemetry_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      event_name TEXT NOT NULL,
+      source_surface TEXT NOT NULL DEFAULT 'server_action',
+      target_user_id INTEGER,
+      entity_type TEXT,
+      entity_id INTEGER,
+      metadata_json TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_networking_telemetry_event_name ON networking_telemetry_events (event_name, created_at DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_networking_telemetry_user_id ON networking_telemetry_events (user_id, created_at DESC)');
+}
+
+function ensureMemberNetworkingDailySummaryTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS member_networking_daily_summary (
+      user_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      cohort TEXT,
+      connections_requested INTEGER NOT NULL DEFAULT 0,
+      connections_accepted INTEGER NOT NULL DEFAULT 0,
+      connections_pending INTEGER NOT NULL DEFAULT 0,
+      connections_ignored INTEGER NOT NULL DEFAULT 0,
+      connections_declined INTEGER NOT NULL DEFAULT 0,
+      connections_cancelled INTEGER NOT NULL DEFAULT 0,
+      mentorship_requested INTEGER NOT NULL DEFAULT 0,
+      mentorship_accepted INTEGER NOT NULL DEFAULT 0,
+      mentorship_declined INTEGER NOT NULL DEFAULT 0,
+      teacher_links_created INTEGER NOT NULL DEFAULT 0,
+      teacher_links_read INTEGER NOT NULL DEFAULT 0,
+      follow_created INTEGER NOT NULL DEFAULT 0,
+      follow_removed INTEGER NOT NULL DEFAULT 0,
+      hub_views INTEGER NOT NULL DEFAULT 0,
+      hub_suggestion_loads INTEGER NOT NULL DEFAULT 0,
+      explore_views INTEGER NOT NULL DEFAULT 0,
+      explore_suggestion_loads INTEGER NOT NULL DEFAULT 0,
+      teacher_network_views INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, date)
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_member_networking_daily_summary_date ON member_networking_daily_summary (date DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_member_networking_daily_summary_cohort ON member_networking_daily_summary (cohort, date DESC)');
+}
+
+function ensureNetworkingSummaryMetaTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS networking_summary_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT NOT NULL
+    )
+  `);
+}
+
+function ensureNetworkSuggestionAbTables() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS network_suggestion_ab_config (
+      variant TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      traffic_pct INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      params_json TEXT,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS network_suggestion_ab_assignments (
+      user_id INTEGER PRIMARY KEY,
+      variant TEXT NOT NULL,
+      assigned_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_network_suggestion_ab_assignments_variant ON network_suggestion_ab_assignments (variant, updated_at DESC)');
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS network_suggestion_ab_change_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action_type TEXT NOT NULL DEFAULT 'apply',
+      related_change_id INTEGER,
+      actor_user_id INTEGER,
+      recommendation_index INTEGER,
+      cohort TEXT,
+      window_days INTEGER,
+      payload_json TEXT,
+      before_snapshot_json TEXT,
+      after_snapshot_json TEXT,
+      created_at TEXT NOT NULL,
+      rolled_back_at TEXT,
+      rollback_change_id INTEGER
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_network_suggestion_ab_change_log_created_at ON network_suggestion_ab_change_log (created_at DESC)');
+}
+
+function toSummaryDateKey(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return raw.slice(0, 10);
+}
+
+function incrementNetworkingDailySummaryMetric(bucket, key, delta = 1) {
+  const metricKey = String(key || '').trim();
+  if (!metricKey) return;
+  bucket[metricKey] = Math.max(0, Number(bucket[metricKey] || 0) + Number(delta || 0));
+}
+
+async function rebuildMemberNetworkingDailySummary() {
+  ensureConnectionRequestsTable();
+  ensureMentorshipRequestsTable();
+  ensureTeacherAlumniLinksTable();
+  ensureNetworkingTelemetryEventsTable();
+  ensureMemberNetworkingDailySummaryTable();
+  ensureNetworkingSummaryMetaTable();
+
+  const [userRows, connectionRows, mentorshipRows, teacherLinkRows, telemetryRows] = await Promise.all([
+    sqlAllAsync(`SELECT id, LOWER(COALESCE(NULLIF(CAST(mezuniyetyili AS TEXT), ''), 'unknown')) AS cohort FROM uyeler`),
+    sqlAllAsync(`SELECT sender_id AS user_id, status, created_at FROM connection_requests WHERE COALESCE(TRIM(created_at), '') <> ''`),
+    sqlAllAsync(`SELECT requester_id AS user_id, status, created_at FROM mentorship_requests WHERE COALESCE(TRIM(created_at), '') <> ''`),
+    sqlAllAsync(`SELECT COALESCE(created_by, alumni_user_id) AS user_id, created_at FROM teacher_alumni_links WHERE COALESCE(TRIM(created_at), '') <> ''`),
+    sqlAllAsync(`SELECT user_id, event_name, created_at FROM networking_telemetry_events WHERE COALESCE(TRIM(created_at), '') <> ''`)
+  ]);
+
+  const cohortMap = new Map();
+  for (const row of userRows || []) {
+    cohortMap.set(Number(row?.id || 0), String(row?.cohort || 'unknown').trim().toLowerCase() || 'unknown');
+  }
+
+  const summaryMap = new Map();
+  function getBucket(userId, dateKey) {
+    const safeUserId = Number(userId || 0);
+    if (!safeUserId || !dateKey) return null;
+    const mapKey = `${safeUserId}:${dateKey}`;
+    if (!summaryMap.has(mapKey)) {
+      summaryMap.set(mapKey, {
+        user_id: safeUserId,
+        date: dateKey,
+        cohort: cohortMap.get(safeUserId) || 'unknown',
+        connections_requested: 0,
+        connections_accepted: 0,
+        connections_pending: 0,
+        connections_ignored: 0,
+        connections_declined: 0,
+        connections_cancelled: 0,
+        mentorship_requested: 0,
+        mentorship_accepted: 0,
+        mentorship_declined: 0,
+        teacher_links_created: 0,
+        teacher_links_read: 0,
+        follow_created: 0,
+        follow_removed: 0,
+        hub_views: 0,
+        hub_suggestion_loads: 0,
+        explore_views: 0,
+        explore_suggestion_loads: 0,
+        teacher_network_views: 0
+      });
+    }
+    return summaryMap.get(mapKey);
+  }
+
+  for (const row of connectionRows || []) {
+    const bucket = getBucket(row?.user_id, toSummaryDateKey(row?.created_at));
+    if (!bucket) continue;
+    incrementNetworkingDailySummaryMetric(bucket, 'connections_requested', 1);
+    const status = String(row?.status || '').trim().toLowerCase();
+    if (status === 'accepted') incrementNetworkingDailySummaryMetric(bucket, 'connections_accepted', 1);
+    else if (status === 'pending') incrementNetworkingDailySummaryMetric(bucket, 'connections_pending', 1);
+    else if (status === 'ignored') incrementNetworkingDailySummaryMetric(bucket, 'connections_ignored', 1);
+    else if (status === 'declined') incrementNetworkingDailySummaryMetric(bucket, 'connections_declined', 1);
+    else if (status === 'cancelled') incrementNetworkingDailySummaryMetric(bucket, 'connections_cancelled', 1);
+  }
+
+  for (const row of mentorshipRows || []) {
+    const bucket = getBucket(row?.user_id, toSummaryDateKey(row?.created_at));
+    if (!bucket) continue;
+    incrementNetworkingDailySummaryMetric(bucket, 'mentorship_requested', 1);
+    const status = String(row?.status || '').trim().toLowerCase();
+    if (status === 'accepted') incrementNetworkingDailySummaryMetric(bucket, 'mentorship_accepted', 1);
+    else if (status === 'declined') incrementNetworkingDailySummaryMetric(bucket, 'mentorship_declined', 1);
+  }
+
+  for (const row of teacherLinkRows || []) {
+    const bucket = getBucket(row?.user_id, toSummaryDateKey(row?.created_at));
+    if (!bucket) continue;
+    incrementNetworkingDailySummaryMetric(bucket, 'teacher_links_created', 1);
+  }
+
+  for (const row of telemetryRows || []) {
+    const bucket = getBucket(row?.user_id, toSummaryDateKey(row?.created_at));
+    if (!bucket) continue;
+    const eventName = String(row?.event_name || '').trim().toLowerCase();
+    if (eventName === 'teacher_links_read') incrementNetworkingDailySummaryMetric(bucket, 'teacher_links_read', 1);
+    else if (eventName === 'follow_created') incrementNetworkingDailySummaryMetric(bucket, 'follow_created', 1);
+    else if (eventName === 'follow_removed') incrementNetworkingDailySummaryMetric(bucket, 'follow_removed', 1);
+    else if (eventName === 'network_hub_viewed') incrementNetworkingDailySummaryMetric(bucket, 'hub_views', 1);
+    else if (eventName === 'network_hub_suggestions_loaded') incrementNetworkingDailySummaryMetric(bucket, 'hub_suggestion_loads', 1);
+    else if (eventName === 'network_explore_viewed') incrementNetworkingDailySummaryMetric(bucket, 'explore_views', 1);
+    else if (eventName === 'network_explore_suggestions_loaded') incrementNetworkingDailySummaryMetric(bucket, 'explore_suggestion_loads', 1);
+    else if (eventName === 'teacher_network_viewed') incrementNetworkingDailySummaryMetric(bucket, 'teacher_network_views', 1);
+  }
+
+  sqlRun('DELETE FROM member_networking_daily_summary');
+  const now = new Date().toISOString();
+  for (const row of summaryMap.values()) {
+    sqlRun(
+      `INSERT INTO member_networking_daily_summary (
+         user_id, date, cohort, connections_requested, connections_accepted, connections_pending,
+         connections_ignored, connections_declined, connections_cancelled, mentorship_requested,
+         mentorship_accepted, mentorship_declined, teacher_links_created, teacher_links_read,
+         follow_created, follow_removed, hub_views, hub_suggestion_loads, explore_views,
+         explore_suggestion_loads, teacher_network_views, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        row.user_id,
+        row.date,
+        row.cohort,
+        row.connections_requested,
+        row.connections_accepted,
+        row.connections_pending,
+        row.connections_ignored,
+        row.connections_declined,
+        row.connections_cancelled,
+        row.mentorship_requested,
+        row.mentorship_accepted,
+        row.mentorship_declined,
+        row.teacher_links_created,
+        row.teacher_links_read,
+        row.follow_created,
+        row.follow_removed,
+        row.hub_views,
+        row.hub_suggestion_loads,
+        row.explore_views,
+        row.explore_suggestion_loads,
+        row.teacher_network_views,
+        now
+      ]
+    );
+  }
+
+  sqlRun(
+    `INSERT INTO networking_summary_meta (key, value, updated_at)
+     VALUES ('member_networking_daily_summary:last_rebuilt_at', ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    [now, now]
+  );
+
+  return { lastRebuiltAt: now, rows: summaryMap.size };
+}
+
+async function refreshMemberNetworkingDailySummaryIfStale() {
+  ensureNetworkingSummaryMetaTable();
+  ensureMemberNetworkingDailySummaryTable();
+  const lastRebuiltAt = sqlGet(
+    "SELECT value FROM networking_summary_meta WHERE key = 'member_networking_daily_summary:last_rebuilt_at'"
+  )?.value || '';
+  const lastRebuiltMs = toDateMs(lastRebuiltAt);
+  const hasRows = Number(sqlGet('SELECT COUNT(*) AS cnt FROM member_networking_daily_summary')?.cnt || 0) > 0;
+  const isFresh = hasRows && lastRebuiltMs !== null && (Date.now() - lastRebuiltMs) < NETWORKING_DAILY_SUMMARY_REBUILD_INTERVAL_MS;
+  if (isFresh) {
+    return { lastRebuiltAt, rows: Number(sqlGet('SELECT COUNT(*) AS cnt FROM member_networking_daily_summary')?.cnt || 0), skipped: true };
+  }
+  if (!networkingDailySummaryRefreshPromise) {
+    networkingDailySummaryRefreshPromise = rebuildMemberNetworkingDailySummary()
+      .finally(() => {
+        networkingDailySummaryRefreshPromise = null;
+      });
+  }
+  return networkingDailySummaryRefreshPromise;
+}
+
+function buildNetworkingAnalyticsAlerts(summaryTotals, mentorDemandRows = [], mentorSupplyRows = []) {
+  const alerts = [];
+  const connectionsRequested = Number(summaryTotals?.connections_requested || 0);
+  const connectionsAccepted = Number(summaryTotals?.connections_accepted || 0);
+  const mentorshipRequested = Number(summaryTotals?.mentorship_requested || 0);
+  const mentorshipAccepted = Number(summaryTotals?.mentorship_accepted || 0);
+  const teacherLinksCreated = Number(summaryTotals?.teacher_links_created || 0);
+  const teacherLinksRead = Number(summaryTotals?.teacher_links_read || 0);
+  const hubViews = Number(summaryTotals?.hub_views || 0);
+  const exploreViews = Number(summaryTotals?.explore_views || 0);
+  const activationActions = connectionsRequested + mentorshipRequested + teacherLinksCreated;
+  const connectionAcceptanceRate = connectionsRequested > 0 ? connectionsAccepted / connectionsRequested : 0;
+  const mentorshipAcceptanceRate = mentorshipRequested > 0 ? mentorshipAccepted / mentorshipRequested : 0;
+  const teacherLinkReadRate = teacherLinksCreated > 0 ? teacherLinksRead / teacherLinksCreated : 1;
+
+  if (connectionsRequested >= 3 && connectionAcceptanceRate < 0.35) {
+    alerts.push({
+      code: 'connection_acceptance_low',
+      severity: 'high',
+      title: 'Connection acceptance rate is low',
+      description: 'Bağlantı istekleri gönderiliyor ama kabul oranı beklenen seviyenin altında kaldı.',
+      metric: Number((connectionAcceptanceRate * 100).toFixed(2))
+    });
+  }
+
+  if (mentorshipRequested >= 2 && mentorshipAcceptanceRate < 0.25) {
+    alerts.push({
+      code: 'mentorship_acceptance_low',
+      severity: 'medium',
+      title: 'Mentorship acceptance rate is low',
+      description: 'Mentorluk talep hacmi var ancak kabul oranı zayıf görünüyor.',
+      metric: Number((mentorshipAcceptanceRate * 100).toFixed(2))
+    });
+  }
+
+  if (teacherLinksCreated >= 1 && teacherLinkReadRate < 0.5) {
+    alerts.push({
+      code: 'teacher_link_reads_lagging',
+      severity: teacherLinksRead === 0 ? 'high' : 'medium',
+      title: 'Teacher link read rate is lagging',
+      description: 'Öğretmen bağı üretiliyor fakat bildirimlerin okunma oranı düşük; trust feedback görünürlüğü zayıf olabilir.',
+      metric: Number((teacherLinkReadRate * 100).toFixed(2))
+    });
+  }
+
+  const mentorSupplyMap = new Map(
+    (mentorSupplyRows || []).map((row) => [String(row?.cohort || '').trim().toLowerCase(), Number(row?.count || 0)])
+  );
+  const demandGap = (mentorDemandRows || [])
+    .map((row) => {
+      const cohort = String(row?.cohort || '').trim().toLowerCase();
+      const demand = Number(row?.count || 0);
+      const supply = Number(mentorSupplyMap.get(cohort) || 0);
+      return { cohort, demand, supply, gap: demand - supply };
+    })
+    .sort((a, b) => b.gap - a.gap)[0];
+  if (demandGap && demandGap.gap >= 2) {
+    alerts.push({
+      code: 'mentor_supply_gap',
+      severity: 'medium',
+      title: 'Mentor supply is behind demand',
+      description: `${demandGap.cohort} cohortunda mentorluk talebi arzın önüne geçti.`,
+      metric: demandGap.gap,
+      cohort: demandGap.cohort
+    });
+  }
+
+  if ((hubViews + exploreViews) >= 10 && activationActions === 0) {
+    alerts.push({
+      code: 'networking_activation_low',
+      severity: 'medium',
+      title: 'Visibility is not turning into networking actions',
+      description: 'Hub ve Explore görüntüleniyor fakat bağlantı, mentorluk veya teacher-link aksiyonları oluşmuyor.',
+      metric: hubViews + exploreViews
+    });
+  }
+
+  return alerts;
+}
+
+function parseTelemetryMetadataJson(value) {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(String(value || '{}'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function resolveNetworkSuggestionVariant(value, fallback = 'A') {
+  const raw = String(value || fallback || 'A').trim().toUpperCase();
+  return raw || 'A';
+}
+
+function rateFromCounts(numerator, denominator) {
+  const top = Number(numerator || 0);
+  const bottom = Number(denominator || 0);
+  if (bottom <= 0) return 0;
+  return Number((top / bottom).toFixed(4));
+}
+
+function parseJsonValue(value, fallback = null) {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function snapshotNetworkSuggestionConfigs(configs = [], variants = []) {
+  const variantSet = new Set((variants || []).map((variant) => resolveNetworkSuggestionVariant(variant)));
+  return (configs || [])
+    .filter((cfg) => variantSet.has(resolveNetworkSuggestionVariant(cfg.variant)))
+    .map((cfg) => ({
+      variant: resolveNetworkSuggestionVariant(cfg.variant),
+      name: String(cfg.name || ''),
+      description: String(cfg.description || ''),
+      trafficPct: Number(cfg.trafficPct || 0),
+      enabled: Number(cfg.enabled || 0) === 1 ? 1 : 0,
+      params: { ...(cfg.params || {}) },
+      updatedAt: cfg.updatedAt || null
+    }))
+    .sort((a, b) => String(a.variant).localeCompare(String(b.variant)));
+}
+
+function listNetworkSuggestionAbRecentChanges(limit = 8) {
+  ensureNetworkSuggestionAbTables();
+  const rows = sqlAll(
+    `SELECT id, action_type, related_change_id, actor_user_id, recommendation_index, cohort, window_days,
+            payload_json, before_snapshot_json, after_snapshot_json, created_at, rolled_back_at, rollback_change_id
+     FROM network_suggestion_ab_change_log
+     ORDER BY id DESC
+     LIMIT ?`,
+    [Math.min(Math.max(Number(limit || 8), 1), 20)]
+  );
+  return rows.map((row) => ({
+    id: Number(row.id || 0),
+    action_type: String(row.action_type || 'apply'),
+    related_change_id: Number(row.related_change_id || 0) || null,
+    actor_user_id: Number(row.actor_user_id || 0) || null,
+    recommendation_index: Number(row.recommendation_index || 0),
+    cohort: String(row.cohort || 'all'),
+    window_days: Number(row.window_days || 30),
+    payload: parseJsonValue(row.payload_json, {}) || {},
+    before_snapshot: parseJsonValue(row.before_snapshot_json, []) || [],
+    after_snapshot: parseJsonValue(row.after_snapshot_json, []) || [],
+    created_at: row.created_at || null,
+    rolled_back_at: row.rolled_back_at || null,
+    rollback_change_id: Number(row.rollback_change_id || 0) || null
+  }));
+}
+
+function buildNetworkSuggestionExperimentAnalytics({
+  exposureRows = [],
+  actionRows = [],
+  configs = [],
+  assignmentCounts = []
+} = {}) {
+  const variantMetaMap = new Map((configs || []).map((cfg) => [String(cfg.variant || '').trim().toUpperCase(), cfg]));
+  const variants = new Map();
+
+  function ensureVariantBucket(variantKey) {
+    const variant = resolveNetworkSuggestionVariant(variantKey);
+    if (!variants.has(variant)) {
+      const meta = variantMetaMap.get(variant) || {};
+      variants.set(variant, {
+        variant,
+        name: String(meta.name || variant),
+        description: String(meta.description || ''),
+        traffic_pct: Number(meta.trafficPct || 0),
+        enabled: Number(meta.enabled || 0) === 1 ? 1 : 0,
+        assignment_count: 0,
+        exposure_user_ids: new Set(),
+        exposed_user_ids: new Set(),
+        activated_user_ids: new Set(),
+        follow_user_ids: new Set(),
+        connection_user_ids: new Set(),
+        mentorship_user_ids: new Set(),
+        teacher_link_user_ids: new Set(),
+        exposure_events: 0,
+        suggestion_impressions: 0,
+        action_events: 0,
+        actions: {
+          follow_created: 0,
+          connection_requested: 0,
+          mentorship_requested: 0,
+          teacher_link_created: 0
+        }
+      });
+    }
+    return variants.get(variant);
+  }
+
+  for (const cfg of configs || []) {
+    ensureVariantBucket(cfg?.variant);
+  }
+
+  for (const row of assignmentCounts || []) {
+    const bucket = ensureVariantBucket(row?.variant);
+    bucket.assignment_count = Number(row?.cnt || 0);
+  }
+
+  const exposureTimelineByUser = new Map();
+  for (const row of exposureRows || []) {
+    const userId = Number(row?.user_id || 0);
+    if (!userId) continue;
+    const metadata = parseTelemetryMetadataJson(row?.metadata_json);
+    const variant = resolveNetworkSuggestionVariant(
+      metadata.experiment_variant || metadata.network_suggestion_variant || row?.assigned_variant || 'A'
+    );
+    const bucket = ensureVariantBucket(variant);
+    const suggestionCount = Math.max(0, Number(metadata.suggestion_count || 0));
+    const ts = toDateMs(row?.created_at);
+    bucket.exposure_events += 1;
+    bucket.suggestion_impressions += suggestionCount;
+    bucket.exposure_user_ids.add(userId);
+
+    if (!exposureTimelineByUser.has(userId)) exposureTimelineByUser.set(userId, []);
+    exposureTimelineByUser.get(userId).push({
+      variant,
+      ts: ts === null ? Number.MIN_SAFE_INTEGER : ts
+    });
+  }
+
+  for (const timeline of exposureTimelineByUser.values()) {
+    timeline.sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0));
+  }
+
+  for (const row of actionRows || []) {
+    const userId = Number(row?.user_id || 0);
+    if (!userId) continue;
+    const timeline = exposureTimelineByUser.get(userId);
+    if (!timeline?.length) continue;
+    const actionTs = toDateMs(row?.created_at);
+    const comparableTs = actionTs === null ? Number.MAX_SAFE_INTEGER : actionTs;
+    let attributedExposure = null;
+    for (const exposure of timeline) {
+      if (Number(exposure.ts || 0) <= comparableTs) attributedExposure = exposure;
+      else break;
+    }
+    if (!attributedExposure) continue;
+    const bucket = ensureVariantBucket(attributedExposure.variant);
+    const eventName = normalizeNetworkingTelemetryEventName(row?.event_name);
+    if (!['follow_created', 'connection_requested', 'mentorship_requested', 'teacher_link_created'].includes(eventName)) continue;
+    bucket.action_events += 1;
+    bucket.activated_user_ids.add(userId);
+    bucket.exposed_user_ids.add(userId);
+    bucket.actions[eventName] = Number(bucket.actions[eventName] || 0) + 1;
+    if (eventName === 'follow_created') bucket.follow_user_ids.add(userId);
+    else if (eventName === 'connection_requested') bucket.connection_user_ids.add(userId);
+    else if (eventName === 'mentorship_requested') bucket.mentorship_user_ids.add(userId);
+    else if (eventName === 'teacher_link_created') bucket.teacher_link_user_ids.add(userId);
+  }
+
+  for (const bucket of variants.values()) {
+    for (const userId of bucket.exposure_user_ids) {
+      bucket.exposed_user_ids.add(userId);
+    }
+  }
+
+  const variantRows = Array.from(variants.values()).map((bucket) => {
+    const exposureUsers = bucket.exposed_user_ids.size;
+    const activatedUsers = bucket.activated_user_ids.size;
+    return {
+      variant: bucket.variant,
+      name: bucket.name,
+      description: bucket.description,
+      traffic_pct: bucket.traffic_pct,
+      enabled: bucket.enabled,
+      assignment_count: bucket.assignment_count,
+      exposure_users: exposureUsers,
+      exposure_events: bucket.exposure_events,
+      suggestion_impressions: bucket.suggestion_impressions,
+      activated_users: activatedUsers,
+      activation_rate: rateFromCounts(activatedUsers, exposureUsers),
+      action_events: bucket.action_events,
+      follow_created: Number(bucket.actions.follow_created || 0),
+      follow_conversion_rate: rateFromCounts(bucket.follow_user_ids.size, exposureUsers),
+      connection_requested: Number(bucket.actions.connection_requested || 0),
+      connection_request_rate: rateFromCounts(bucket.connection_user_ids.size, exposureUsers),
+      mentorship_requested: Number(bucket.actions.mentorship_requested || 0),
+      mentorship_request_rate: rateFromCounts(bucket.mentorship_user_ids.size, exposureUsers),
+      teacher_link_created: Number(bucket.actions.teacher_link_created || 0),
+      teacher_link_create_rate: rateFromCounts(bucket.teacher_link_user_ids.size, exposureUsers)
+    };
+  }).sort((a, b) => {
+    if (Number(b.activation_rate || 0) !== Number(a.activation_rate || 0)) return Number(b.activation_rate || 0) - Number(a.activation_rate || 0);
+    if (Number(b.activated_users || 0) !== Number(a.activated_users || 0)) return Number(b.activated_users || 0) - Number(a.activated_users || 0);
+    return String(a.variant || '').localeCompare(String(b.variant || ''));
+  });
+
+  const leadingVariant = variantRows.find((row) => Number(row.exposure_users || 0) > 0) || null;
+  const totalExposureUsers = variantRows.reduce((sum, row) => sum + Number(row.exposure_users || 0), 0);
+  const totalExposureEvents = variantRows.reduce((sum, row) => sum + Number(row.exposure_events || 0), 0);
+
+  return {
+    assignment_counts: (assignmentCounts || []).map((row) => ({
+      variant: resolveNetworkSuggestionVariant(row?.variant),
+      count: Number(row?.cnt || 0)
+    })),
+    total_exposure_users: totalExposureUsers,
+    total_exposure_events: totalExposureEvents,
+    leading_variant: leadingVariant
+      ? {
+          variant: leadingVariant.variant,
+          activation_rate: leadingVariant.activation_rate,
+          activated_users: leadingVariant.activated_users
+        }
+      : null,
+    variants: variantRows
+  };
+}
+
+const NETWORK_SUGGESTION_APPLY_MIN_EXPOSURE_USERS = 2;
+const NETWORK_SUGGESTION_APPLY_COOLDOWN_MS = 10 * 60 * 1000;
+const NETWORK_SUGGESTION_APPLY_CONFIRMATION_TOKEN = 'apply';
+
+function buildNetworkSuggestionRecommendationGuardrails(recommendation, performanceByVariant, recentChanges = []) {
+  const blockers = [];
+  let minimumExposureUsers = 0;
+  const touchedVariants = new Set();
+
+  if (recommendation?.patch) touchedVariants.add(resolveNetworkSuggestionVariant(recommendation.variant));
+  if (recommendation?.trafficPatch && typeof recommendation.trafficPatch === 'object') {
+    for (const variantKey of Object.keys(recommendation.trafficPatch)) {
+      touchedVariants.add(resolveNetworkSuggestionVariant(variantKey));
+    }
+  }
+
+  for (const variant of touchedVariants) {
+    const perf = performanceByVariant.get(variant);
+    const exposureUsers = Number(perf?.exposure_users || 0);
+    minimumExposureUsers = minimumExposureUsers === 0 ? exposureUsers : Math.min(minimumExposureUsers, exposureUsers);
+  }
+
+  if (minimumExposureUsers < NETWORK_SUGGESTION_APPLY_MIN_EXPOSURE_USERS) {
+    blockers.push(`Minimum ${NETWORK_SUGGESTION_APPLY_MIN_EXPOSURE_USERS} exposure user gereklidir.`);
+  }
+
+  const lastApply = (recentChanges || []).find((row) => row?.action_type === 'apply' && !row?.rolled_back_at);
+  const lastApplyMs = toDateMs(lastApply?.created_at);
+  const cooldownRemainingMs = lastApplyMs !== null
+    ? Math.max(0, NETWORK_SUGGESTION_APPLY_COOLDOWN_MS - (Date.now() - lastApplyMs))
+    : 0;
+  if (cooldownRemainingMs > 0) {
+    blockers.push(`Cooldown aktif. Yaklaşık ${Math.ceil(cooldownRemainingMs / 60_000)} dakika bekleyin.`);
+  }
+
+  return {
+    confirmation_required: true,
+    confirmation_token: NETWORK_SUGGESTION_APPLY_CONFIRMATION_TOKEN,
+    minimum_exposure_users: NETWORK_SUGGESTION_APPLY_MIN_EXPOSURE_USERS,
+    observed_minimum_exposure_users: minimumExposureUsers,
+    cooldown_active: cooldownRemainingMs > 0,
+    cooldown_remaining_seconds: Math.ceil(cooldownRemainingMs / 1000),
+    can_apply: blockers.length === 0,
+    blockers
+  };
+}
+
+function buildNetworkSuggestionAbRecommendations(configs = [], performance = [], recentChanges = []) {
+  const perfMap = new Map((performance || []).map((row) => [resolveNetworkSuggestionVariant(row?.variant), row]));
+  const configMap = new Map((configs || []).map((cfg) => [resolveNetworkSuggestionVariant(cfg?.variant), cfg]));
+  const baseline = perfMap.get('A') || performance?.[0] || null;
+  const recommendations = [];
+
+  for (const cfg of (configs || [])) {
+    const variant = resolveNetworkSuggestionVariant(cfg?.variant);
+    const perf = perfMap.get(variant);
+    if (!perf) continue;
+    if (Number(perf.exposure_users || 0) < 1) continue;
+
+    const p = cfg.params || networkSuggestionDefaultParams;
+    const patch = {};
+    const reasons = [];
+    const confidenceParts = [];
+
+    if (baseline && baseline.variant !== variant && Number(baseline.exposure_users || 0) >= 1) {
+      const baselineActivation = Math.max(Number(baseline.activation_rate || 0), 0.01);
+      const baselineConnection = Math.max(Number(baseline.connection_request_rate || 0), 0.01);
+      const baselineMentorship = Math.max(Number(baseline.mentorship_request_rate || 0), 0.01);
+      const baselineTeacher = Math.max(Number(baseline.teacher_link_create_rate || 0), 0.01);
+
+      const activationDelta = (Number(perf.activation_rate || 0) - baselineActivation) / baselineActivation;
+      const connectionDelta = (Number(perf.connection_request_rate || 0) - baselineConnection) / baselineConnection;
+      const mentorshipDelta = (Number(perf.mentorship_request_rate || 0) - baselineMentorship) / baselineMentorship;
+      const teacherDelta = (Number(perf.teacher_link_create_rate || 0) - baselineTeacher) / baselineTeacher;
+
+      if (activationDelta < -0.12) {
+        patch.secondDegreeWeight = round2(p.secondDegreeWeight * 1.06);
+        patch.sharedGroupWeight = round2(p.sharedGroupWeight * 1.08);
+        if (Number(p.engagementWeight || 0) > 0.12) patch.engagementWeight = round2(p.engagementWeight * 0.9);
+        reasons.push(`Aktivasyon oranı baseline'ın gerisinde (${round2(activationDelta * 100)}%).`);
+        confidenceParts.push(Math.min(0.35, Math.abs(activationDelta)));
+      } else if (activationDelta > 0.1) {
+        reasons.push(`Aktivasyon oranı baseline'ın üzerinde (${round2(activationDelta * 100)}%).`);
+        confidenceParts.push(Math.min(0.28, activationDelta));
+      }
+
+      if (connectionDelta > 0.12) {
+        patch.secondDegreeWeight = round2((patch.secondDegreeWeight || p.secondDegreeWeight) * 1.04);
+        patch.maxSecondDegreeBonus = round2((patch.maxSecondDegreeBonus || p.maxSecondDegreeBonus) * 1.03);
+        reasons.push('Bağlantı isteği dönüşümü güçlü; graph yakınlığı biraz daha öne çıkarılabilir.');
+        confidenceParts.push(Math.min(0.2, connectionDelta));
+      }
+
+      if (mentorshipDelta > 0.12) {
+        patch.directMentorshipBonus = round2((patch.directMentorshipBonus || p.directMentorshipBonus) * 1.05);
+        patch.mentorshipOverlapWeight = round2((patch.mentorshipOverlapWeight || p.mentorshipOverlapWeight) * 1.04);
+        reasons.push('Mentorluk talebi üretimi güçlü; mentorluk sinyalleri korunup hafif artırılabilir.');
+        confidenceParts.push(Math.min(0.2, mentorshipDelta));
+      }
+
+      if (teacherDelta > 0.12) {
+        patch.directTeacherBonus = round2((patch.directTeacherBonus || p.directTeacherBonus) * 1.05);
+        patch.teacherOverlapWeight = round2((patch.teacherOverlapWeight || p.teacherOverlapWeight) * 1.04);
+        reasons.push('Teacher network aksiyonları güçlü; öğretmen yakınlığı sinyali biraz daha artırılabilir.');
+        confidenceParts.push(Math.min(0.2, teacherDelta));
+      }
+    }
+
+    if (Number(perf.follow_conversion_rate || 0) > 0.2 && Number(perf.connection_request_rate || 0) < 0.08) {
+      patch.secondDegreeWeight = round2((patch.secondDegreeWeight || p.secondDegreeWeight) * 1.04);
+      patch.sharedGroupWeight = round2((patch.sharedGroupWeight || p.sharedGroupWeight) * 1.04);
+      reasons.push('Follow dönüşümü var ama daha derin networking aksiyonları düşük; graph sinyalleri hafif güçlendirilebilir.');
+      confidenceParts.push(0.12);
+    }
+
+    const normalizedPatch = normalizeNetworkSuggestionParams(
+      { ...p, ...patch },
+      networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
+    );
+    const finalPatch = {};
+    for (const key of Object.keys(p)) {
+      if (Number(normalizedPatch[key]) !== Number(p[key])) finalPatch[key] = normalizedPatch[key];
+    }
+    if (!Object.keys(finalPatch).length) continue;
+
+    const sampleFactor = Math.min(1, Number(perf.exposure_users || 0) / 40);
+    const confidence = round2(clamp(0.18 + confidenceParts.reduce((sum, value) => sum + value, 0) + sampleFactor * 0.32, 0, 0.9));
+    const recommendation = {
+      variant,
+      confidence,
+      reasons: reasons.slice(0, 4),
+      patch: finalPatch
+    };
+    recommendation.guardrails = buildNetworkSuggestionRecommendationGuardrails(recommendation, perfMap, recentChanges);
+    recommendations.push(recommendation);
+  }
+
+  const activeConfigs = (configs || []).filter((cfg) => Number(cfg.enabled || 0) === 1);
+  if (activeConfigs.length >= 2) {
+    const scored = activeConfigs
+      .map((cfg) => {
+        const perf = perfMap.get(resolveNetworkSuggestionVariant(cfg.variant));
+        if (!perf || Number(perf.exposure_users || 0) < 1) return null;
+        const quality = Number(perf.activation_rate || 0) * 0.55
+          + Number(perf.connection_request_rate || 0) * 0.2
+          + Number(perf.mentorship_request_rate || 0) * 0.15
+          + Number(perf.teacher_link_create_rate || 0) * 0.1;
+        return { variant: resolveNetworkSuggestionVariant(cfg.variant), quality, exposureUsers: Number(perf.exposure_users || 0) };
+      })
+      .filter(Boolean)
+      .sort((a, b) => Number(b.quality || 0) - Number(a.quality || 0));
+
+    if (scored.length >= 2 && Number(scored[0].quality || 0) > Number(scored[1].quality || 0) * 1.08) {
+      const winner = configMap.get(scored[0].variant);
+      const loser = configMap.get(scored[scored.length - 1].variant);
+      if (winner && loser) {
+        const recommendation = {
+          variant: scored[0].variant,
+          confidence: round2(clamp(0.24 + Math.min(0.35, Number(scored[0].quality || 0) - Number(scored[1].quality || 0)), 0, 0.82)),
+          reasons: [`${scored[0].variant} varyantı recommendation quality metriğinde daha güçlü performans gösteriyor.`],
+          trafficPatch: {
+            [scored[0].variant]: clamp(Number(winner.trafficPct || 0) + 5, 0, 100),
+            [scored[scored.length - 1].variant]: clamp(Number(loser.trafficPct || 0) - 5, 0, 100)
+          }
+        };
+        recommendation.guardrails = buildNetworkSuggestionRecommendationGuardrails(recommendation, perfMap, recentChanges);
+        recommendations.push(recommendation);
+      }
+    }
+  }
+
+  return recommendations;
+}
+
+async function getNetworkSuggestionExperimentDataset({ sinceIso, cohort = 'all' } = {}) {
+  ensureNetworkingTelemetryEventsTable();
+  ensureNetworkSuggestionAbTables();
+  const includeCohort = String(cohort || 'all').trim().toLowerCase() !== 'all';
+  const normalizedCohort = normalizeCohortValue(cohort);
+  const telemetryCohortSql = includeCohort
+    ? "AND LOWER(COALESCE(NULLIF(CAST(u.mezuniyetyili AS TEXT), ''), 'unknown')) = LOWER(?)"
+    : '';
+  const telemetryParams = includeCohort ? [sinceIso, normalizedCohort] : [sinceIso];
+  const assignmentParams = includeCohort ? [normalizedCohort] : [];
+  const assignmentWhere = includeCohort
+    ? "WHERE LOWER(COALESCE(NULLIF(CAST(u.mezuniyetyili AS TEXT), ''), 'unknown')) = LOWER(?)"
+    : '';
+
+  const [exposureRows, actionRows, assignmentCounts] = await Promise.all([
+    sqlAllAsync(
+      `SELECT e.user_id, e.event_name, e.metadata_json, e.created_at, a.variant AS assigned_variant
+       FROM networking_telemetry_events e
+       LEFT JOIN network_suggestion_ab_assignments a ON a.user_id = e.user_id
+       LEFT JOIN uyeler u ON u.id = e.user_id
+       WHERE e.created_at >= ?
+         AND e.event_name IN ('network_hub_suggestions_loaded', 'network_explore_suggestions_loaded')
+         ${telemetryCohortSql}
+       ORDER BY e.user_id ASC, e.created_at ASC`,
+      telemetryParams
+    ),
+    sqlAllAsync(
+      `SELECT e.user_id, e.event_name, e.metadata_json, e.created_at, a.variant AS assigned_variant
+       FROM networking_telemetry_events e
+       LEFT JOIN network_suggestion_ab_assignments a ON a.user_id = e.user_id
+       LEFT JOIN uyeler u ON u.id = e.user_id
+       WHERE e.created_at >= ?
+         AND e.event_name IN ('follow_created', 'connection_requested', 'mentorship_requested', 'teacher_link_created')
+         ${telemetryCohortSql}
+       ORDER BY e.user_id ASC, e.created_at ASC`,
+      telemetryParams
+    ),
+    sqlAllAsync(
+      `SELECT a.variant, COUNT(*) AS cnt
+       FROM network_suggestion_ab_assignments a
+       LEFT JOIN uyeler u ON u.id = a.user_id
+       ${assignmentWhere}
+       GROUP BY a.variant
+       ORDER BY a.variant ASC`,
+      assignmentParams
+    )
+  ]);
+
+  return { exposureRows, actionRows, assignmentCounts };
+}
+
+function recordNetworkingTelemetryEvent({
+  userId = null,
+  eventName = '',
+  sourceSurface = 'server_action',
+  targetUserId = null,
+  entityType = '',
+  entityId = null,
+  metadata = null,
+  createdAt = null
+} = {}) {
+  const normalizedEventName = normalizeNetworkingTelemetryEventName(eventName);
+  if (!normalizedEventName) return;
+  ensureNetworkingTelemetryEventsTable();
+  let metadataJson = null;
+  if (metadata && typeof metadata === 'object') {
+    try {
+      metadataJson = JSON.stringify(metadata).slice(0, 4000);
+    } catch {
+      metadataJson = null;
+    }
+  }
+  sqlRun(
+    `INSERT INTO networking_telemetry_events
+       (user_id, event_name, source_surface, target_user_id, entity_type, entity_id, metadata_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      Number(userId || 0) || null,
+      normalizedEventName,
+      normalizeNetworkingTelemetrySourceSurface(sourceSurface),
+      Number(targetUserId || 0) || null,
+      normalizeNetworkingTelemetryEntityType(entityType) || null,
+      Number(entityId || 0) || null,
+      metadataJson,
+      createdAt || new Date().toISOString()
+    ]
+  );
+}
+
+function clampTeacherLinkConfidenceScore(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return 0.05;
+  return Math.max(0.05, Math.min(0.99, numeric));
+}
+
+function roundTeacherLinkConfidenceScore(value) {
+  return Number(clampTeacherLinkConfidenceScore(value).toFixed(2));
+}
+
+function computeTeacherLinkConfidenceScore(row, duplicateProximityCount = 0) {
+  let score = 0.52;
+  const createdVia = normalizeTeacherLinkCreatedVia(row?.created_via);
+  const sourceSurface = normalizeTeacherLinkSourceSurface(row?.source_surface);
+  const reviewStatus = normalizeTeacherLinkReviewStatus(row?.review_status) || 'pending';
+  const teacherRole = String(row?.teacher_role || '').trim().toLowerCase();
+  const teacherCohort = normalizeCohortValue(row?.teacher_cohort);
+
+  if (createdVia === 'manual_alumni_link') score += 0.08;
+  if (createdVia === 'import') score += 0.03;
+
+  if (sourceSurface === 'member_detail_page') score += 0.08;
+  else if (sourceSurface === 'teachers_network_page') score += 0.04;
+  else if (sourceSurface === 'network_hub') score += 0.03;
+
+  if (Number(row?.teacher_verified || 0) === 1 || teacherRole === 'teacher' || teacherCohort === TEACHER_COHORT_VALUE || roleAtLeast(teacherRole, 'admin')) {
+    score += 0.16;
+  }
+  if (Number(row?.alumni_verified || 0) === 1) score += 0.06;
+  if (row?.class_year !== null && row?.class_year !== undefined && String(row.class_year).trim() !== '') score += 0.05;
+  if (String(row?.notes || '').trim().length >= 12) score += 0.04;
+  if (String(row?.relationship_type || '').trim().toLowerCase() === 'mentor') score += 0.05;
+
+  if (reviewStatus === 'confirmed') score += 0.18;
+  if (reviewStatus === 'flagged') score -= 0.28;
+
+  const duplicatePenalty = Math.min(0.25, Math.max(0, Number(duplicateProximityCount || 0)) * 0.09);
+  score -= duplicatePenalty;
+
+  return roundTeacherLinkConfidenceScore(score);
+}
+
+function isTeacherLinkActiveStatus(value) {
+  const status = normalizeTeacherLinkReviewStatus(value) || 'pending';
+  return status !== 'rejected' && status !== 'merged';
+}
+
+function canTransitionTeacherLinkReviewStatus(currentStatus, nextStatus) {
+  const current = normalizeTeacherLinkReviewStatus(currentStatus) || 'pending';
+  const next = normalizeTeacherLinkReviewStatus(nextStatus);
+  if (!next) return false;
+  const allowedTransitions = {
+    pending: ['confirmed', 'flagged', 'rejected', 'merged'],
+    confirmed: ['pending', 'flagged', 'rejected', 'merged'],
+    flagged: ['pending', 'confirmed', 'rejected', 'merged'],
+    rejected: ['pending', 'confirmed', 'flagged'],
+    merged: ['pending', 'confirmed', 'flagged']
+  };
+  return allowedTransitions[current]?.includes(next) || false;
+}
+
+function selectTeacherLinkMergeTarget(linkId, teacherUserId, alumniUserId, requestedTargetId = 0) {
+  const safeLinkId = Number(linkId || 0);
+  const safeTeacherUserId = Number(teacherUserId || 0);
+  const safeAlumniUserId = Number(alumniUserId || 0);
+  const safeRequestedTargetId = Number(requestedTargetId || 0);
+  if (!safeLinkId || !safeTeacherUserId || !safeAlumniUserId) return null;
+
+  if (safeRequestedTargetId > 0 && safeRequestedTargetId !== safeLinkId) {
+    return sqlGet(
+      `SELECT id, review_status
+       FROM teacher_alumni_links
+       WHERE id = ?
+         AND teacher_user_id = ?
+         AND alumni_user_id = ?
+         AND COALESCE(review_status, 'pending') NOT IN ('rejected', 'merged')
+       LIMIT 1`,
+      [safeRequestedTargetId, safeTeacherUserId, safeAlumniUserId]
+    ) || null;
+  }
+
+  return sqlGet(
+    `SELECT id, review_status
+     FROM teacher_alumni_links
+     WHERE teacher_user_id = ?
+       AND alumni_user_id = ?
+       AND id <> ?
+       AND COALESCE(review_status, 'pending') NOT IN ('rejected', 'merged')
+     ORDER BY CASE WHEN COALESCE(review_status, 'pending') = 'confirmed' THEN 0 ELSE 1 END ASC,
+              COALESCE(confidence_score, 0) DESC,
+              COALESCE(CASE WHEN CAST(created_at AS TEXT) = '' THEN NULL ELSE created_at END, '1970-01-01T00:00:00.000Z') DESC,
+              id DESC
+     LIMIT 1`,
+    [safeTeacherUserId, safeAlumniUserId, safeLinkId]
+  ) || null;
+}
+
+function logTeacherLinkModerationEvent({ linkId, actorUserId = null, eventType, fromStatus = '', toStatus = '', note = '', mergeTargetId = null }) {
+  const safeLinkId = Number(linkId || 0);
+  const safeMergeTargetId = Number(mergeTargetId || 0) || null;
+  const safeEventType = String(eventType || '').trim().slice(0, 64);
+  if (!safeLinkId || !safeEventType) return;
+  ensureTeacherAlumniLinkModerationEventsTable();
+  sqlRun(
+    `INSERT INTO teacher_alumni_link_moderation_events
+       (link_id, actor_user_id, event_type, from_status, to_status, note, merge_target_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      safeLinkId,
+      Number(actorUserId || 0) || null,
+      safeEventType,
+      normalizeTeacherLinkReviewStatus(fromStatus) || null,
+      normalizeTeacherLinkReviewStatus(toStatus) || null,
+      normalizeTeacherLinkReviewNote(note) || null,
+      safeMergeTargetId,
+      new Date().toISOString()
+    ]
+  );
+}
+
+function buildTeacherLinkModerationAssessment(row) {
+  const reviewStatus = normalizeTeacherLinkReviewStatus(row?.review_status) || 'pending';
+  const confidenceScore = Number(row?.confidence_score || 0);
+  const noteLength = String(row?.notes || '').trim().length;
+  const classYearPresent = row?.class_year !== null && row?.class_year !== undefined && String(row.class_year).trim() !== '';
+  const duplicateActiveCount = Math.max(0, Number(row?.active_pair_link_count || 0) - 1);
+  const teacherVerified = Number(row?.teacher_verified || 0) === 1;
+  const alumniVerified = Number(row?.alumni_verified || 0) === 1;
+  const createdVia = normalizeTeacherLinkCreatedVia(row?.created_via);
+  const sourceSurface = normalizeTeacherLinkSourceSurface(row?.source_surface);
+
+  const riskSignals = [];
+  const positiveSignals = [];
+  let riskScore = 0;
+
+  if (confidenceScore < 0.45) {
+    riskSignals.push({ code: 'low_confidence', label: 'Confidence score is low', severity: 'high' });
+    riskScore += 3;
+  } else if (confidenceScore < 0.65) {
+    riskSignals.push({ code: 'medium_confidence', label: 'Confidence score needs review', severity: 'medium' });
+    riskScore += 1;
+  } else {
+    positiveSignals.push({ code: 'healthy_confidence', label: 'Confidence score is strong' });
+  }
+
+  if (!classYearPresent) {
+    riskSignals.push({ code: 'missing_class_year', label: 'Class year is missing', severity: 'medium' });
+    riskScore += 1;
+  } else {
+    positiveSignals.push({ code: 'class_year_present', label: 'Class year is provided' });
+  }
+
+  if (noteLength === 0) {
+    riskSignals.push({ code: 'missing_notes', label: 'No supporting note was added', severity: 'high' });
+    riskScore += 2;
+  } else if (noteLength < 12) {
+    riskSignals.push({ code: 'short_notes', label: 'Supporting note is very short', severity: 'medium' });
+    riskScore += 1;
+  } else {
+    positiveSignals.push({ code: 'detailed_notes', label: 'Supporting note adds context' });
+  }
+
+  if (duplicateActiveCount > 0) {
+    riskSignals.push({ code: 'duplicate_active_pair', label: 'Another active link exists for the same teacher-alumni pair', severity: 'high' });
+    riskScore += 3;
+  } else {
+    positiveSignals.push({ code: 'single_active_pair_record', label: 'No competing active duplicate exists' });
+  }
+
+  if (teacherVerified) positiveSignals.push({ code: 'teacher_verified', label: 'Teacher account is verified' });
+  else {
+    riskSignals.push({ code: 'teacher_unverified', label: 'Teacher account is not verified', severity: 'medium' });
+    riskScore += 1;
+  }
+
+  if (alumniVerified) positiveSignals.push({ code: 'alumni_verified', label: 'Alumni account is verified' });
+  else {
+    riskSignals.push({ code: 'alumni_unverified', label: 'Alumni account is not verified', severity: 'medium' });
+    riskScore += 1;
+  }
+
+  if (createdVia === 'import') {
+    riskSignals.push({ code: 'imported_record', label: 'Record came from import flow', severity: 'medium' });
+    riskScore += 1;
+  } else {
+    positiveSignals.push({ code: 'manual_submission', label: 'Record was submitted manually' });
+  }
+
+  if (sourceSurface === 'member_detail_page') {
+    positiveSignals.push({ code: 'contextual_source_surface', label: 'Created from a contextual member detail flow' });
+  }
+
+  if (reviewStatus === 'flagged') {
+    riskSignals.push({ code: 'previously_flagged', label: 'Record is already flagged', severity: 'high' });
+    riskScore += 2;
+  }
+
+  const riskLevel = riskScore >= 6 ? 'high' : riskScore >= 3 ? 'medium' : 'low';
+  let recommendedAction = 'keep_pending';
+  let recommendationLabel = 'Keep pending';
+  let decisionHint = 'Needs another moderation pass.';
+
+  if (reviewStatus === 'merged') {
+    recommendedAction = 'keep_merged';
+    recommendationLabel = 'Keep merged';
+    decisionHint = 'This record is already merged into another active link.';
+  } else if (reviewStatus === 'rejected') {
+    recommendedAction = 'keep_rejected';
+    recommendationLabel = 'Keep rejected';
+    decisionHint = 'This record is already removed from the active graph.';
+  } else if (duplicateActiveCount > 0) {
+    recommendedAction = 'merge';
+    recommendationLabel = 'Merge';
+    decisionHint = 'A duplicate active pair exists. Prefer merging instead of keeping two active claims.';
+  } else if (confidenceScore >= 0.75 && teacherVerified && alumniVerified && (classYearPresent || noteLength >= 12)) {
+    recommendedAction = 'confirm';
+    recommendationLabel = 'Confirm';
+    decisionHint = 'Core trust signals are present and the record looks safe to confirm.';
+  } else if (riskLevel === 'high' && (!classYearPresent || noteLength === 0)) {
+    recommendedAction = 'reject';
+    recommendationLabel = 'Reject';
+    decisionHint = 'Critical trust signals are missing. Reject unless stronger evidence is provided.';
+  } else if (riskLevel === 'high' || confidenceScore < 0.55 || reviewStatus === 'flagged') {
+    recommendedAction = 'flag';
+    recommendationLabel = 'Flag';
+    decisionHint = 'Signals are weak or conflicting. Escalate for closer review.';
+  }
+
+  return {
+    risk_level: riskLevel,
+    risk_score: riskScore,
+    duplicate_active_count: duplicateActiveCount,
+    recommended_action: recommendedAction,
+    recommended_action_label: recommendationLabel,
+    decision_hint: decisionHint,
+    risk_signals: riskSignals,
+    positive_signals: positiveSignals
+  };
+}
+
+function refreshTeacherLinkConfidenceScore(linkId) {
+  const safeLinkId = Number(linkId || 0);
+  if (!safeLinkId) return 0;
+  const row = sqlGet(
+    `SELECT l.id, l.teacher_user_id, l.alumni_user_id, l.relationship_type, l.class_year, l.notes,
+            COALESCE(l.created_via, 'manual_alumni_link') AS created_via,
+            COALESCE(l.source_surface, 'teachers_network_page') AS source_surface,
+            COALESCE(l.review_status, 'pending') AS review_status,
+            teacher.verified AS teacher_verified,
+            teacher.role AS teacher_role,
+            teacher.mezuniyetyili AS teacher_cohort,
+            alumni.verified AS alumni_verified
+     FROM teacher_alumni_links l
+     LEFT JOIN uyeler teacher ON teacher.id = l.teacher_user_id
+     LEFT JOIN uyeler alumni ON alumni.id = l.alumni_user_id
+     WHERE l.id = ?`,
+    [safeLinkId]
+  );
+  if (!row) return 0;
+
+  const duplicateProximityCount = Number(sqlGet(
+    `SELECT COUNT(*) AS cnt
+     FROM teacher_alumni_links
+     WHERE teacher_user_id = ?
+       AND alumni_user_id = ?
+       AND id <> ?
+       AND COALESCE(review_status, 'pending') NOT IN ('rejected', 'merged')`,
+    [row.teacher_user_id, row.alumni_user_id, safeLinkId]
+  )?.cnt || 0);
+
+  const nextScore = computeTeacherLinkConfidenceScore(row, duplicateProximityCount);
+  sqlRun('UPDATE teacher_alumni_links SET confidence_score = ? WHERE id = ?', [nextScore, safeLinkId]);
+  return nextScore;
+}
+
+function listTeacherLinkPairDuplicates(alumniUserId, teacherUserId) {
+  const safeAlumniUserId = Number(alumniUserId || 0);
+  const safeTeacherUserId = Number(teacherUserId || 0);
+  if (!safeAlumniUserId || !safeTeacherUserId) return [];
+  return sqlAll(
+    `SELECT id, relationship_type, class_year, notes, created_at,
+            COALESCE(review_status, 'pending') AS review_status,
+            confidence_score
+     FROM teacher_alumni_links
+     WHERE alumni_user_id = ?
+       AND teacher_user_id = ?
+       AND COALESCE(review_status, 'pending') NOT IN ('rejected', 'merged')
+     ORDER BY COALESCE(CASE WHEN CAST(created_at AS TEXT) = '' THEN NULL ELSE created_at END, '1970-01-01T00:00:00.000Z') DESC, id DESC`,
+    [safeAlumniUserId, safeTeacherUserId]
+  ) || [];
 }
 
 function ensureJobApplicationsTable() {
@@ -8526,6 +9936,14 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     entityId: receiverId,
     message: 'Sana bir bağlantı isteği gönderdi.'
   });
+  recordNetworkingTelemetryEvent({
+    userId: senderId,
+    eventName: 'connection_requested',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: receiverId,
+    entityType: 'connection_request',
+    entityId: requestId
+  });
 
   return res.json(apiSuccessEnvelope(
     'CONNECTION_REQUEST_CREATED',
@@ -8600,6 +10018,14 @@ app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
     entityId: receiverId,
     message: 'Bağlantı isteğini kabul etti.'
   });
+  recordNetworkingTelemetryEvent({
+    userId: receiverId,
+    eventName: 'connection_accepted',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: senderId,
+    entityType: 'connection_request',
+    entityId: requestId
+  });
 
   exploreSuggestionsResponseCache.clear();
   scheduleEngagementRecalculation('follow_changed');
@@ -8626,6 +10052,14 @@ app.post('/api/new/connections/ignore/:id', requireAuth, (req, res) => {
 
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['ignored', now, now, requestId]);
+  recordNetworkingTelemetryEvent({
+    userId: currentUserId,
+    eventName: 'connection_ignored',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: Number(row.sender_id || 0),
+    entityType: 'connection_request',
+    entityId: requestId
+  });
   return res.json(apiSuccessEnvelope(
     'CONNECTION_REQUEST_IGNORED',
     'Bağlantı isteği yok sayıldı.',
@@ -8647,6 +10081,14 @@ app.post('/api/new/connections/cancel/:id', requireAuth, (req, res) => {
 
   const now = new Date().toISOString();
   sqlRun('UPDATE connection_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['cancelled', now, now, requestId]);
+  recordNetworkingTelemetryEvent({
+    userId: currentUserId,
+    eventName: 'connection_cancelled',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: Number(row.receiver_id || 0),
+    entityType: 'connection_request',
+    entityId: requestId
+  });
   return res.json(apiSuccessEnvelope(
     'CONNECTION_REQUEST_CANCELLED',
     'Bağlantı isteği geri çekildi.',
@@ -8723,6 +10165,22 @@ app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLi
     entityId: mentorId,
     message: 'Sana bir mentorluk isteği gönderdi.'
   });
+  const mentorshipRequestId = Number(existing?.id || sqlGet(
+    'SELECT id FROM mentorship_requests WHERE requester_id = ? AND mentor_id = ?',
+    [requesterId, mentorId]
+  )?.id || 0);
+  recordNetworkingTelemetryEvent({
+    userId: requesterId,
+    eventName: 'mentorship_requested',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: mentorId,
+    entityType: 'mentorship_request',
+    entityId: mentorshipRequestId,
+    metadata: {
+      focus_area: focusArea || '',
+      has_message: message.length > 0
+    }
+  });
 
   return res.json(apiSuccessEnvelope(
     'MENTORSHIP_REQUEST_CREATED',
@@ -8785,6 +10243,14 @@ app.post('/api/new/mentorship/accept/:id', requireAuth, (req, res) => {
     entityId: currentUserId,
     message: 'Mentorluk isteğini kabul etti.'
   });
+  recordNetworkingTelemetryEvent({
+    userId: currentUserId,
+    eventName: 'mentorship_accepted',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: Number(row.requester_id || 0),
+    entityType: 'mentorship_request',
+    entityId: requestId
+  });
 
   return res.json(apiSuccessEnvelope(
     'MENTORSHIP_REQUEST_ACCEPTED',
@@ -8807,6 +10273,14 @@ app.post('/api/new/mentorship/decline/:id', requireAuth, (req, res) => {
 
   const now = new Date().toISOString();
   sqlRun('UPDATE mentorship_requests SET status = ?, updated_at = ?, responded_at = ? WHERE id = ?', ['declined', now, now, requestId]);
+  recordNetworkingTelemetryEvent({
+    userId: currentUserId,
+    eventName: 'mentorship_declined',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: Number(row.requester_id || 0),
+    entityType: 'mentorship_request',
+    entityId: requestId
+  });
   return res.json(apiSuccessEnvelope(
     'MENTORSHIP_REQUEST_DECLINED',
     'Mentorluk talebi reddedildi.',
@@ -9063,7 +10537,9 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
   const safeUserId = Number(userId || 0);
   const safeLimit = Math.min(Math.max(parseInt(limit || '12', 10), 1), 40);
   const safeOffset = Math.max(parseInt(offset || '0', 10), 0);
-  const cacheKey = `${safeUserId}:${safeLimit}:${safeOffset}`;
+  const experiment = getAssignedNetworkSuggestionVariant(safeUserId);
+  const configVersion = String(experiment?.config?.updatedAt || 'default');
+  const cacheKey = `${safeUserId}:${safeLimit}:${safeOffset}:${experiment.variant}:${configVersion}`;
   const cached = readExploreSuggestionsCache(cacheKey);
   if (cached) return cached;
 
@@ -9073,7 +10549,7 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
      WHERE id = ?`,
     [safeUserId]
   );
-  if (!me) return { items: [], hasMore: false, total: 0 };
+  if (!me) return { items: [], hasMore: false, total: 0, experiment_variant: experiment.variant };
   const hasEngagementScores = hasTable('member_engagement_scores');
 
   const [iFollowFollowers, followsMe, candidates] = await Promise.all([
@@ -9152,144 +10628,40 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
   ]);
 
   const sharedGroupsMap = new Map(sharedGroupsRows.map((row) => [Number(row.candidate_id), Number(row.shared_count || 0)]));
-  const mentorshipPeersMap = new Map();
-  const teacherPeersMap = new Map();
-
-  function addPeer(map, sourceId, targetId) {
-    const source = Number(sourceId || 0);
-    const target = Number(targetId || 0);
-    if (!source || !target || source === target) return;
-    if (!map.has(source)) map.set(source, new Set());
-    map.get(source).add(target);
-  }
-
-  for (const row of mentorshipRows) {
-    addPeer(mentorshipPeersMap, row.requester_id, row.mentor_id);
-    addPeer(mentorshipPeersMap, row.mentor_id, row.requester_id);
-  }
-
-  for (const row of teacherLinkRows) {
-    addPeer(teacherPeersMap, row.teacher_user_id, row.alumni_user_id);
-    addPeer(teacherPeersMap, row.alumni_user_id, row.teacher_user_id);
-  }
-
-  function getOverlapCount(map, sourceId, targetId) {
-    const sourcePeers = map.get(Number(sourceId || 0));
-    const targetPeers = map.get(Number(targetId || 0));
-    if (!sourcePeers || !targetPeers || !sourcePeers.size || !targetPeers.size) return 0;
-    let count = 0;
-    for (const peer of sourcePeers) {
-      if (targetPeers.has(peer)) count += 1;
-    }
-    return count;
-  }
+  const mentorshipPeersMap = createPeerMap(mentorshipRows, 'requester_id', 'mentor_id');
+  const teacherPeersMap = createPeerMap(teacherLinkRows, 'teacher_user_id', 'alumni_user_id');
 
   const scored = [];
   for (const c of candidates) {
     const cid = Number(c.id);
     if (!cid) continue;
-    let score = 0;
-    const reasons = [];
-
     const secondDegree = secondDegreeMap.get(cid) || 0;
-    if (secondDegree > 0) {
-      score += Math.min(secondDegree * 18, 54);
-      reasons.push(`${secondDegree} ortak baglanti`);
-    }
-
-    if (Number(c.mezuniyetyili || 0) > 0 && String(c.mezuniyetyili) === String(me.mezuniyetyili || '')) {
-      score += 22;
-      reasons.push('Ayni mezuniyet yili');
-    }
-    if (me.sehir && c.sehir && String(me.sehir).trim() && String(me.sehir).trim().toLowerCase() === String(c.sehir).trim().toLowerCase()) {
-      score += 8;
-      reasons.push('Ayni sehir');
-    }
-    if (me.universite && c.universite && String(me.universite).trim() && String(me.universite).trim().toLowerCase() === String(c.universite).trim().toLowerCase()) {
-      score += 8;
-      reasons.push('Ayni universite');
-    }
-    if (me.meslek && c.meslek && String(me.meslek).trim() && String(me.meslek).trim().toLowerCase() === String(c.meslek).trim().toLowerCase()) {
-      score += 5;
-      reasons.push('Benzer meslek');
-    }
-    if (followsMeSet.has(cid)) {
-      score += 10;
-      reasons.push('Seni takip ediyor');
-    }
-
     const sharedGroups = sharedGroupsMap.get(cid) || 0;
-    if (sharedGroups > 0) {
-      score += Math.min(sharedGroups * 9, 18);
-      reasons.push(sharedGroups > 1 ? `${sharedGroups} ortak grup` : 'Ortak grup uyeligi');
-    }
-
-    const mentorshipOverlap = getOverlapCount(mentorshipPeersMap, safeUserId, cid);
+    const mentorshipOverlap = getPeerOverlapCount(mentorshipPeersMap, safeUserId, cid);
     const hasDirectMentorshipLink = mentorshipPeersMap.get(safeUserId)?.has(cid);
-    if (hasDirectMentorshipLink) {
-      score += 14;
-      reasons.push('Dogrudan mentorluk baglantisi');
-    }
-    if (mentorshipOverlap > 0) {
-      score += Math.min(mentorshipOverlap * 12, 24);
-      reasons.push('Mentorluk aginda yakinlik');
-    }
-
-    const teacherOverlap = getOverlapCount(teacherPeersMap, safeUserId, cid);
+    const teacherOverlap = getPeerOverlapCount(teacherPeersMap, safeUserId, cid);
     const hasDirectTeacherLink = teacherPeersMap.get(safeUserId)?.has(cid);
-    const isTeacherNetworkMember = Boolean(hasDirectTeacherLink || teacherOverlap > 0 || String(c.role || '').toLowerCase() === 'teacher');
-    if (hasDirectTeacherLink) {
-      score += 13;
-      reasons.push('Dogrudan ogretmen agi baglantisi');
-    }
-    if (teacherOverlap > 0) {
-      score += Math.min(teacherOverlap * 11, 22);
-      reasons.push('Ogretmen aginda yakinlik');
-    }
-
-    const engagementScore = Number(c.engagement_score || 0);
-    if (engagementScore > 0) {
-      score += Math.min(20, engagementScore * 0.2);
-      if (engagementScore >= 70) reasons.push('Toplulukta aktif');
-    }
-    if (Number(c.verified || 0) === 1) score += 2;
-    if (Number(c.online || 0) === 1) score += 1;
-
-    const trustBadges = [];
-    if (Number(c.verified || 0) === 1) trustBadges.push('verified_alumni');
-    if (Number(c.mentor_opt_in || 0) === 1) trustBadges.push('mentor');
-    if (isTeacherNetworkMember) trustBadges.push('teacher_network');
-
-    scored.push({
-      ...c,
-      score,
-      reasons: reasons.slice(0, 3),
-      trustBadges
-    });
+    scored.push(buildScoredNetworkSuggestion(c, {
+      viewer: me,
+      secondDegree,
+      followsViewer: followsMeSet.has(cid),
+      sharedGroups,
+      mentorshipOverlap,
+      hasDirectMentorshipLink,
+      teacherOverlap,
+      hasDirectTeacherLink,
+      params: experiment.config.params
+    }));
   }
 
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (Number(b.online || 0) !== Number(a.online || 0)) return Number(b.online || 0) - Number(a.online || 0);
-    if (Number(b.verified || 0) !== Number(a.verified || 0)) return Number(b.verified || 0) - Number(a.verified || 0);
-    return Number(b.id || 0) - Number(a.id || 0);
-  });
-
-  const items = scored.slice(safeOffset, safeOffset + safeLimit).map((u) => ({
-    id: u.id,
-    kadi: u.kadi,
-    isim: u.isim,
-    soyisim: u.soyisim,
-    resim: u.resim,
-    verified: u.verified,
-    mezuniyetyili: u.mezuniyetyili,
-    online: u.online,
-    role: u.role,
-    mentor_opt_in: Number(u.mentor_opt_in || 0),
-    reasons: u.reasons,
-    trust_badges: u.trustBadges
-  }));
-  const payload = { items, hasMore: safeOffset + items.length < scored.length, total: scored.length };
+  const sortedScored = sortNetworkSuggestions(scored);
+  const items = sortedScored.slice(safeOffset, safeOffset + safeLimit).map(mapNetworkSuggestionForApi);
+  const payload = {
+    items,
+    hasMore: safeOffset + items.length < sortedScored.length,
+    total: sortedScored.length,
+    experiment_variant: experiment.variant
+  };
   writeExploreSuggestionsCache(cacheKey, payload);
   return payload;
 }
@@ -9311,6 +10683,7 @@ async function buildNetworkHubPayload(userId, { windowDays = 30, limit = 12, tea
       suggestions: discovery.items || [],
       hasMore: Boolean(discovery.hasMore),
       total: Number(discovery.total || 0),
+      experiment_variant: String(discovery.experiment_variant || 'A'),
       connection_maps: connectionMaps
     },
     counts: {
@@ -9369,6 +10742,15 @@ app.post('/api/new/network/inbox/teacher-links/read', requireAuth, async (req, r
       [new Date().toISOString(), req.session.userId]
     );
     const updated = Number(result?.changes || 0);
+    if (updated > 0) {
+      recordNetworkingTelemetryEvent({
+        userId: req.session.userId,
+        eventName: 'teacher_links_read',
+        sourceSurface: req.body?.source_surface,
+        entityType: 'notification',
+        metadata: { updated }
+      });
+    }
     return res.json(apiSuccessEnvelope(
       'NETWORK_TEACHER_LINKS_MARKED_READ',
       'Öğretmen ağı bildirimleri okundu olarak işaretlendi.',
@@ -9381,57 +10763,92 @@ app.post('/api/new/network/inbox/teacher-links/read', requireAuth, async (req, r
   }
 });
 
+app.post('/api/new/network/telemetry', requireAuth, async (req, res) => {
+  try {
+    const userId = Number(req.session?.userId || 0);
+    const eventName = normalizeNetworkingTelemetryEventName(req.body?.event_name, { allowClientEvents: true, allowActionEvents: false });
+    if (!eventName) {
+      return sendApiError(res, 400, 'INVALID_NETWORKING_TELEMETRY_EVENT', 'Geçersiz networking telemetry olayı.');
+    }
+    recordNetworkingTelemetryEvent({
+      userId,
+      eventName,
+      sourceSurface: req.body?.source_surface,
+      targetUserId: req.body?.target_user_id,
+      entityType: req.body?.entity_type,
+      entityId: req.body?.entity_id,
+      metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : null
+    });
+    return res.json(apiSuccessEnvelope(
+      'NETWORKING_TELEMETRY_RECORDED',
+      'Networking telemetry kaydedildi.',
+      { recorded: true, event_name: eventName },
+      { recorded: true, event_name: eventName }
+    ));
+  } catch (err) {
+    console.error('network.telemetry.record failed:', err);
+    return sendApiError(res, 500, 'NETWORKING_TELEMETRY_RECORD_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
 app.get('/api/new/admin/network/analytics', requireAdmin, async (req, res) => {
   try {
     ensureConnectionRequestsTable();
     ensureMentorshipRequestsTable();
     ensureTeacherAlumniLinksTable();
+    ensureNetworkingTelemetryEventsTable();
+    ensureMemberNetworkingDailySummaryTable();
+    ensureNetworkSuggestionAbTables();
 
     const windowDays = parseNetworkWindowDays(req.query.window);
     const sinceIso = toIsoThreshold(windowDays);
+    const sinceDate = toSummaryDateKey(sinceIso);
     const cohort = normalizeCohortValue(req.query.cohort);
     const includeCohort = cohort && cohort !== 'all';
+    const summaryRefresh = await refreshMemberNetworkingDailySummaryIfStale();
 
-    const cohortClauseForAlias = (alias) => includeCohort ? ` AND LOWER(COALESCE(CAST(${alias}.mezuniyetyili AS TEXT), '')) = LOWER(?)` : '';
-    const cohortParams = includeCohort ? [cohort] : [];
+    const summaryWhere = ['s.date >= ?'];
+    const summaryParams = [sinceDate];
+    if (includeCohort) {
+      summaryWhere.push('LOWER(COALESCE(s.cohort, ?)) = LOWER(?)');
+      summaryParams.push('unknown', cohort);
+    }
+    const summaryWhereSql = `WHERE ${summaryWhere.join(' AND ')}`;
 
-    const [connections, mentorship, teacherLinks, topCohorts, mentorSupplyRows, mentorDemandRows] = await Promise.all([
-      sqlAllAsync(
-        `SELECT cr.status, CAST(COUNT(*) AS INTEGER) AS count
-         FROM connection_requests cr
-         LEFT JOIN uyeler actor ON actor.id = cr.sender_id
-         WHERE cr.created_at >= ?${cohortClauseForAlias('actor')}
-         GROUP BY cr.status`,
-        [sinceIso, ...cohortParams]
-      ),
-      sqlAllAsync(
-        `SELECT mr.status, CAST(COUNT(*) AS INTEGER) AS count
-         FROM mentorship_requests mr
-         LEFT JOIN uyeler actor ON actor.id = mr.requester_id
-         WHERE mr.created_at >= ?${cohortClauseForAlias('actor')}
-         GROUP BY mr.status`,
-        [sinceIso, ...cohortParams]
-      ),
+    const [summaryTotals, topCohorts, mentorSupplyRows, mentorDemandRows, experimentDataset] = await Promise.all([
       sqlGetAsync(
-        `SELECT CAST(COUNT(*) AS INTEGER) AS count
-         FROM teacher_alumni_links l
-         LEFT JOIN uyeler actor ON actor.id = l.created_by
-         WHERE l.created_at >= ?${cohortClauseForAlias('actor')}`,
-        [sinceIso, ...cohortParams]
+        `SELECT
+            CAST(COALESCE(SUM(s.connections_requested), 0) AS INTEGER) AS connections_requested,
+            CAST(COALESCE(SUM(s.connections_accepted), 0) AS INTEGER) AS connections_accepted,
+            CAST(COALESCE(SUM(s.connections_pending), 0) AS INTEGER) AS connections_pending,
+            CAST(COALESCE(SUM(s.connections_ignored), 0) AS INTEGER) AS connections_ignored,
+            CAST(COALESCE(SUM(s.connections_declined), 0) AS INTEGER) AS connections_declined,
+            CAST(COALESCE(SUM(s.connections_cancelled), 0) AS INTEGER) AS connections_cancelled,
+            CAST(COALESCE(SUM(s.mentorship_requested), 0) AS INTEGER) AS mentorship_requested,
+            CAST(COALESCE(SUM(s.mentorship_accepted), 0) AS INTEGER) AS mentorship_accepted,
+            CAST(COALESCE(SUM(s.mentorship_declined), 0) AS INTEGER) AS mentorship_declined,
+            CAST(COALESCE(SUM(s.teacher_links_created), 0) AS INTEGER) AS teacher_links_created,
+            CAST(COALESCE(SUM(s.teacher_links_read), 0) AS INTEGER) AS teacher_links_read,
+            CAST(COALESCE(SUM(s.follow_created), 0) AS INTEGER) AS follow_created,
+            CAST(COALESCE(SUM(s.follow_removed), 0) AS INTEGER) AS follow_removed,
+            CAST(COALESCE(SUM(s.hub_views), 0) AS INTEGER) AS hub_views,
+            CAST(COALESCE(SUM(s.hub_suggestion_loads), 0) AS INTEGER) AS hub_suggestion_loads,
+            CAST(COALESCE(SUM(s.explore_views), 0) AS INTEGER) AS explore_views,
+            CAST(COALESCE(SUM(s.explore_suggestion_loads), 0) AS INTEGER) AS explore_suggestion_loads,
+            CAST(COALESCE(SUM(s.teacher_network_views), 0) AS INTEGER) AS teacher_network_views
+         FROM member_networking_daily_summary s
+         ${summaryWhereSql}`,
+        summaryParams
       ),
       sqlAllAsync(
-        `SELECT LOWER(COALESCE(NULLIF(CAST(actor.mezuniyetyili AS TEXT), ''), 'unknown')) AS cohort,
-                CAST(COUNT(*) AS INTEGER) AS actions
-         FROM (
-            SELECT sender_id AS actor_id, created_at FROM connection_requests WHERE created_at >= ?
-            UNION ALL
-            SELECT requester_id AS actor_id, created_at FROM mentorship_requests WHERE created_at >= ?
-         ) a
-         LEFT JOIN uyeler actor ON actor.id = a.actor_id
-         GROUP BY cohort
+        `SELECT LOWER(COALESCE(s.cohort, 'unknown')) AS cohort,
+                CAST(COALESCE(SUM(s.connections_requested + s.mentorship_requested), 0) AS INTEGER) AS actions
+         FROM member_networking_daily_summary s
+         ${summaryWhereSql}
+         GROUP BY LOWER(COALESCE(s.cohort, 'unknown'))
          ORDER BY actions DESC, cohort ASC
          LIMIT 5`,
-        [sinceIso, sinceIso]
+        summaryParams
       ),
       sqlAllAsync(
         `SELECT LOWER(COALESCE(NULLIF(CAST(mezuniyetyili AS TEXT), ''), 'unknown')) AS cohort,
@@ -9443,51 +10860,109 @@ app.get('/api/new/admin/network/analytics', requireAdmin, async (req, res) => {
          LIMIT 10`
       ),
       sqlAllAsync(
-        `SELECT LOWER(COALESCE(NULLIF(CAST(u.mezuniyetyili AS TEXT), ''), 'unknown')) AS cohort,
-                CAST(COUNT(*) AS INTEGER) AS count
-         FROM mentorship_requests mr
-         LEFT JOIN uyeler u ON u.id = mr.requester_id
-         WHERE mr.created_at >= ?
-         GROUP BY cohort
+        `SELECT LOWER(COALESCE(s.cohort, 'unknown')) AS cohort,
+                CAST(COALESCE(SUM(s.mentorship_requested), 0) AS INTEGER) AS count
+         FROM member_networking_daily_summary s
+         ${summaryWhereSql}
+         GROUP BY LOWER(COALESCE(s.cohort, 'unknown'))
+         HAVING CAST(COALESCE(SUM(s.mentorship_requested), 0) AS INTEGER) > 0
          ORDER BY count DESC, cohort ASC
          LIMIT 10`,
-        [sinceIso]
-      )
+        summaryParams
+      ),
+      getNetworkSuggestionExperimentDataset({ sinceIso, cohort })
     ]);
 
-    const connectionMap = connections.reduce((acc, row) => {
-      const key = String(row?.status || '').toLowerCase();
-      if (key) acc[key] = Number(row?.count || 0);
-      return acc;
-    }, {});
-    const mentorshipMap = mentorship.reduce((acc, row) => {
-      const key = String(row?.status || '').toLowerCase();
-      if (key) acc[key] = Number(row?.count || 0);
-      return acc;
-    }, {});
-    const requested = Number(connectionMap.pending || 0) + Number(connectionMap.accepted || 0) + Number(connectionMap.ignored || 0) + Number(connectionMap.declined || 0);
-    const accepted = Number(connectionMap.accepted || 0);
+    const requested = Number(summaryTotals?.connections_requested || 0);
+    const accepted = Number(summaryTotals?.connections_accepted || 0);
+    const analyticsAlerts = buildNetworkingAnalyticsAlerts(summaryTotals, mentorDemandRows, mentorSupplyRows);
+    const experimentConfigs = getNetworkSuggestionAbConfigs();
+    const suggestionExperiment = buildNetworkSuggestionExperimentAnalytics({
+      exposureRows: experimentDataset.exposureRows,
+      actionRows: experimentDataset.actionRows,
+      configs: experimentConfigs,
+      assignmentCounts: experimentDataset.assignmentCounts
+    });
+    suggestionExperiment.recent_changes = listNetworkSuggestionAbRecentChanges(6);
+    suggestionExperiment.recommendations = buildNetworkSuggestionAbRecommendations(
+      experimentConfigs,
+      suggestionExperiment.variants,
+      suggestionExperiment.recent_changes || []
+    );
 
     return res.json({
       window: `${windowDays}d`,
       since: sinceIso,
+      summary: {
+        source: 'member_networking_daily_summary',
+        granularity: 'day',
+        last_rebuilt_at: summaryRefresh?.lastRebuiltAt || null,
+        rebuilt_rows: Number(summaryRefresh?.rows || 0),
+        skipped_refresh: Boolean(summaryRefresh?.skipped)
+      },
       cohort: includeCohort ? cohort : 'all',
       networking: {
         connections: {
           requested,
           accepted,
           acceptance_rate: requested > 0 ? Number((accepted / requested).toFixed(4)) : 0,
-          pending: Number(connectionMap.pending || 0),
-          ignored: Number(connectionMap.ignored || 0),
-          declined: Number(connectionMap.declined || 0)
+          pending: Number(summaryTotals?.connections_pending || 0),
+          ignored: Number(summaryTotals?.connections_ignored || 0),
+          declined: Number(summaryTotals?.connections_declined || 0),
+          cancelled: Number(summaryTotals?.connections_cancelled || 0)
         },
         mentorship: {
-          requested: Number(mentorshipMap.requested || 0),
-          accepted: Number(mentorshipMap.accepted || 0),
-          declined: Number(mentorshipMap.declined || 0)
+          requested: Number(summaryTotals?.mentorship_requested || 0),
+          accepted: Number(summaryTotals?.mentorship_accepted || 0),
+          declined: Number(summaryTotals?.mentorship_declined || 0)
         },
         teacher_links: {
-          created: Number(teacherLinks?.count || 0)
+          created: Number(summaryTotals?.teacher_links_created || 0)
+        },
+        telemetry: {
+          frontend: {
+            hub_views: Number(summaryTotals?.hub_views || 0),
+            hub_suggestion_loads: Number(summaryTotals?.hub_suggestion_loads || 0),
+            explore_views: Number(summaryTotals?.explore_views || 0),
+            explore_suggestion_loads: Number(summaryTotals?.explore_suggestion_loads || 0),
+            teacher_network_views: Number(summaryTotals?.teacher_network_views || 0)
+          },
+          actions: {
+            connection_requested: Number(summaryTotals?.connections_requested || 0),
+            connection_accepted: Number(summaryTotals?.connections_accepted || 0),
+            connection_ignored: Number(summaryTotals?.connections_ignored || 0),
+            connection_cancelled: Number(summaryTotals?.connections_cancelled || 0),
+            mentorship_requested: Number(summaryTotals?.mentorship_requested || 0),
+            mentorship_accepted: Number(summaryTotals?.mentorship_accepted || 0),
+            mentorship_declined: Number(summaryTotals?.mentorship_declined || 0),
+            teacher_link_created: Number(summaryTotals?.teacher_links_created || 0),
+            teacher_links_read: Number(summaryTotals?.teacher_links_read || 0),
+            follow_created: Number(summaryTotals?.follow_created || 0),
+            follow_removed: Number(summaryTotals?.follow_removed || 0)
+          },
+          top_events: [
+            { event_name: 'connection_requested', count: Number(summaryTotals?.connections_requested || 0) },
+            { event_name: 'connection_accepted', count: Number(summaryTotals?.connections_accepted || 0) },
+            { event_name: 'connection_ignored', count: Number(summaryTotals?.connections_ignored || 0) },
+            { event_name: 'connection_cancelled', count: Number(summaryTotals?.connections_cancelled || 0) },
+            { event_name: 'mentorship_requested', count: Number(summaryTotals?.mentorship_requested || 0) },
+            { event_name: 'mentorship_accepted', count: Number(summaryTotals?.mentorship_accepted || 0) },
+            { event_name: 'mentorship_declined', count: Number(summaryTotals?.mentorship_declined || 0) },
+            { event_name: 'teacher_link_created', count: Number(summaryTotals?.teacher_links_created || 0) },
+            { event_name: 'teacher_links_read', count: Number(summaryTotals?.teacher_links_read || 0) },
+            { event_name: 'follow_created', count: Number(summaryTotals?.follow_created || 0) },
+            { event_name: 'follow_removed', count: Number(summaryTotals?.follow_removed || 0) },
+            { event_name: 'network_hub_viewed', count: Number(summaryTotals?.hub_views || 0) },
+            { event_name: 'network_hub_suggestions_loaded', count: Number(summaryTotals?.hub_suggestion_loads || 0) },
+            { event_name: 'network_explore_viewed', count: Number(summaryTotals?.explore_views || 0) },
+            { event_name: 'network_explore_suggestions_loaded', count: Number(summaryTotals?.explore_suggestion_loads || 0) },
+            { event_name: 'teacher_network_viewed', count: Number(summaryTotals?.teacher_network_views || 0) }
+          ].filter((item) => item.count > 0)
+            .sort((a, b) => Number(b.count || 0) - Number(a.count || 0) || String(a.event_name).localeCompare(String(b.event_name)))
+        },
+        alerts: analyticsAlerts,
+        experiments: {
+          network_suggestions: suggestionExperiment
         },
         top_active_graduation_years: topCohorts,
         mentor_supply_vs_demand: {
@@ -9537,6 +11012,7 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
       where.push('l.class_year = ?');
       params.push(classYear.value);
     }
+    where.push("COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')");
 
     const joinSql = direction === 'my_students'
       ? 'LEFT JOIN uyeler u ON u.id = l.alumni_user_id'
@@ -9544,6 +11020,10 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
 
     const rows = await sqlAllAsync(
       `SELECT l.id, l.teacher_user_id, l.alumni_user_id, l.relationship_type, l.class_year, l.notes, l.confidence_score, l.created_at,
+              COALESCE(l.created_via, 'manual_alumni_link') AS created_via,
+              COALESCE(l.source_surface, 'teachers_network_page') AS source_surface,
+              COALESCE(l.review_status, 'pending') AS review_status,
+              l.last_reviewed_by,
               u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.role
        FROM teacher_alumni_links l
        ${joinSql}
@@ -9564,6 +11044,7 @@ app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
 app.get('/api/new/teachers/options', requireAuth, async (req, res) => {
   try {
     ensureTeacherAlumniLinksTable();
+    const alumniUserId = Number(req.session?.userId || 0);
     const term = String(req.query.term || '').trim();
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
     const includeId = Math.max(parseInt(req.query.include_id || '0', 10), 0);
@@ -9575,25 +11056,31 @@ app.get('/api/new/teachers/options', requireAuth, async (req, res) => {
     }
     let rows = await sqlAllAsync(
       `SELECT u.id, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim,
-              (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id) AS student_count
+              (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS student_count,
+              (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND l.alumni_user_id = ? AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS existing_link_count,
+              (SELECT GROUP_CONCAT(DISTINCT l.relationship_type) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND l.alumni_user_id = ? AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS existing_relationship_types,
+              (SELECT GROUP_CONCAT(DISTINCT CAST(COALESCE(l.class_year, '') AS TEXT)) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND l.alumni_user_id = ? AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS existing_class_years
        FROM uyeler u
        ${whereSql}
        ORDER BY student_count DESC, u.kadi COLLATE NOCASE ASC
        LIMIT ?`,
-      [...params, limit]
+      [alumniUserId, alumniUserId, alumniUserId, ...params, limit]
     );
 
     if (includeId > 0 && !rows.some((row) => Number(row?.id || 0) === includeId)) {
       const selectedRow = await sqlGetAsync(
         `SELECT u.id, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim,
-                (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id) AS student_count
+                (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS student_count,
+                (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND l.alumni_user_id = ? AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS existing_link_count,
+                (SELECT GROUP_CONCAT(DISTINCT l.relationship_type) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND l.alumni_user_id = ? AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS existing_relationship_types,
+                (SELECT GROUP_CONCAT(DISTINCT CAST(COALESCE(l.class_year, '') AS TEXT)) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id AND l.alumni_user_id = ? AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')) AS existing_class_years
          FROM uyeler u
          WHERE u.id = ?
            AND COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
            AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
            AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('teacher', 'ogretmen'))
          LIMIT 1`,
-        [includeId]
+        [alumniUserId, alumniUserId, alumniUserId, includeId]
       );
       if (selectedRow) rows = [selectedRow, ...rows].slice(0, limit);
     }
@@ -9637,23 +11124,52 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
       );
     }
     const notes = String(req.body?.notes || '').trim().slice(0, 500);
+    const createdVia = normalizeTeacherLinkCreatedVia(req.body?.created_via);
+    const sourceSurface = normalizeTeacherLinkSourceSurface(req.body?.source_surface);
+    const confirmSimilar = normalizeBooleanFlag(req.body?.confirm_similar);
     const now = new Date().toISOString();
 
-    const existing = sqlGet(
-      `SELECT id FROM teacher_alumni_links
-       WHERE teacher_user_id = ? AND alumni_user_id = ? AND relationship_type = ? AND COALESCE(class_year, -1) = COALESCE(?, -1)`,
-      [teacherUserId, alumniUserId, relationshipType, classYear.value]
-    );
-    if (existing) {
-      return sendApiError(res, 409, 'RELATIONSHIP_ALREADY_EXISTS', 'Bu öğretmen bağlantısı zaten kayıtlı.');
+    const pairLinks = listTeacherLinkPairDuplicates(alumniUserId, teacherUserId);
+    const exactDuplicate = pairLinks.find((item) => (
+      String(item?.relationship_type || '').trim().toLowerCase() === relationshipType
+      && Number(item?.class_year ?? -1) === Number(classYear.value ?? -1)
+    ));
+    if (exactDuplicate) {
+      return sendApiError(
+        res,
+        409,
+        'RELATIONSHIP_ALREADY_EXISTS',
+        'Bu öğretmen bağlantısı zaten kayıtlı.',
+        { duplicates: pairLinks.slice(0, 5) },
+        { duplicates: pairLinks.slice(0, 5) }
+      );
     }
 
-    sqlRun(
+    if (pairLinks.length > 0 && !confirmSimilar) {
+      return sendApiError(
+        res,
+        409,
+        'SIMILAR_RELATIONSHIP_EXISTS',
+        'Aynı öğretmen için benzer bir bağlantın zaten var. Devam etmeden önce mevcut kayıtları kontrol et.',
+        {
+          similar_links: pairLinks.slice(0, 5),
+          requires_confirmation: true
+        },
+        {
+          similar_links: pairLinks.slice(0, 5),
+          requires_confirmation: true
+        }
+      );
+    }
+
+    const result = sqlRun(
       `INSERT INTO teacher_alumni_links
-        (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, confidence_score, created_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [teacherUserId, alumniUserId, relationshipType, classYear.value, notes, 1, alumniUserId, now]
+        (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, confidence_score, created_via, source_surface, review_status, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [teacherUserId, alumniUserId, relationshipType, classYear.value, notes, 0.5, createdVia, sourceSurface, 'pending', alumniUserId, now]
     );
+    const linkId = Number(result?.lastInsertRowid || 0);
+    const confidenceScore = linkId ? refreshTeacherLinkConfidenceScore(linkId) : 0.5;
 
     addNotification({
       userId: teacherUserId,
@@ -9662,12 +11178,45 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
       entityId: teacherUserId,
       message: 'Seni öğretmen ağına ekledi.'
     });
+    recordNetworkingTelemetryEvent({
+      userId: alumniUserId,
+      eventName: 'teacher_link_created',
+      sourceSurface,
+      targetUserId: teacherUserId,
+      entityType: 'teacher_link',
+      entityId: linkId,
+      metadata: {
+        relationship_type: relationshipType,
+        has_class_year: classYear.value !== null,
+        review_status: 'pending'
+      }
+    });
 
     return res.json(apiSuccessEnvelope(
       'TEACHER_NETWORK_LINK_CREATED',
       'Öğretmen bağlantısı başarıyla kaydedildi.',
-      { status: 'linked', relationship_type: relationshipType, class_year: classYear.value },
-      { status: 'linked', relationship_type: relationshipType, class_year: classYear.value }
+      {
+        status: 'linked',
+        relationship_type: relationshipType,
+        class_year: classYear.value,
+        confidence_score: confidenceScore,
+        audit: {
+          created_via: createdVia,
+          source_surface: sourceSurface,
+          review_status: 'pending',
+          last_reviewed_by: null
+        }
+      },
+      {
+        status: 'linked',
+        relationship_type: relationshipType,
+        class_year: classYear.value,
+        confidence_score: confidenceScore,
+        created_via: createdVia,
+        source_surface: sourceSurface,
+        review_status: 'pending',
+        last_reviewed_by: null
+      }
     ));
   } catch (err) {
     console.error('teachers.network.link failed:', err);
@@ -9681,6 +11230,14 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
   const existing = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [req.session.userId, targetId]);
   if (existing) {
     sqlRun('DELETE FROM follows WHERE id = ?', [existing.id]);
+    recordNetworkingTelemetryEvent({
+      userId: req.session.userId,
+      eventName: 'follow_removed',
+      sourceSurface: req.body?.source_surface,
+      targetUserId: targetId,
+      entityType: 'user',
+      entityId: targetId
+    });
     exploreSuggestionsResponseCache.clear();
     scheduleEngagementRecalculation('follow_changed');
     invalidateCacheNamespace(cacheNamespaces.feed);
@@ -9697,6 +11254,14 @@ app.post('/api/new/follow/:id', requireAuth, (req, res) => {
     sourceUserId: req.session.userId,
     entityId: targetId,
     message: 'Seni takip etmeye başladı.'
+  });
+  recordNetworkingTelemetryEvent({
+    userId: req.session.userId,
+    eventName: 'follow_created',
+    sourceSurface: req.body?.source_surface,
+    targetUserId: targetId,
+    entityType: 'user',
+    entityId: targetId
   });
   exploreSuggestionsResponseCache.clear();
   scheduleEngagementRecalculation('follow_changed');
@@ -11652,10 +13217,12 @@ app.post('/api/new/admin/requests/:id/review', requireModerationPermission('requ
 
 app.get('/api/new/admin/teacher-network/links', requireModerationPermission('requests.view'), (req, res) => {
   ensureTeacherAlumniLinksTable();
+  ensureTeacherAlumniLinkModerationEventsTable();
   const actor = req.authUser || getCurrentUser(req);
   const scope = getModerationScopeContext(actor);
   const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 40, maxLimit: 200 });
   const relationshipType = normalizeTeacherAlumniRelationshipType(req.query.relationship_type);
+  const reviewStatus = normalizeTeacherLinkReviewStatus(req.query.review_status);
   const q = String(req.query.q || '').trim();
 
   const where = [];
@@ -11663,6 +13230,10 @@ app.get('/api/new/admin/teacher-network/links', requireModerationPermission('req
   if (relationshipType) {
     where.push('l.relationship_type = ?');
     params.push(relationshipType);
+  }
+  if (reviewStatus) {
+    where.push('LOWER(COALESCE(l.review_status, ?)) = ?');
+    params.push('pending', reviewStatus);
   }
   if (q) {
     where.push('(LOWER(CAST(teacher.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(teacher.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(teacher.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(alumni.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(alumni.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(alumni.soyisim AS TEXT)) LIKE LOWER(?))');
@@ -11684,19 +13255,128 @@ app.get('/api/new/admin/teacher-network/links', requireModerationPermission('req
   const offset = (safePage - 1) * limit;
 
   const items = sqlAll(
-    `SELECT l.id, l.relationship_type, l.class_year, l.notes, l.created_at,
-            teacher.id AS teacher_user_id, teacher.kadi AS teacher_kadi, teacher.isim AS teacher_isim, teacher.soyisim AS teacher_soyisim,
-            alumni.id AS alumni_user_id, alumni.kadi AS alumni_kadi, alumni.isim AS alumni_isim, alumni.soyisim AS alumni_soyisim, alumni.mezuniyetyili AS alumni_mezuniyetyili
+    `SELECT l.id, l.relationship_type, l.class_year, l.notes, l.created_at, l.confidence_score,
+            COALESCE(l.created_via, 'manual_alumni_link') AS created_via,
+            COALESCE(l.source_surface, 'teachers_network_page') AS source_surface,
+            COALESCE(l.review_status, 'pending') AS review_status,
+            l.last_reviewed_by, l.review_note, l.reviewed_at, l.merged_into_link_id,
+            teacher.id AS teacher_user_id, teacher.kadi AS teacher_kadi, teacher.isim AS teacher_isim, teacher.soyisim AS teacher_soyisim, teacher.verified AS teacher_verified, teacher.role AS teacher_role, teacher.mezuniyetyili AS teacher_cohort,
+            alumni.id AS alumni_user_id, alumni.kadi AS alumni_kadi, alumni.isim AS alumni_isim, alumni.soyisim AS alumni_soyisim, alumni.mezuniyetyili AS alumni_mezuniyetyili, alumni.verified AS alumni_verified,
+            reviewer.kadi AS reviewer_kadi, reviewer.isim AS reviewer_isim, reviewer.soyisim AS reviewer_soyisim,
+            (SELECT COUNT(*) FROM teacher_alumni_links pair_link WHERE pair_link.teacher_user_id = l.teacher_user_id AND pair_link.alumni_user_id = l.alumni_user_id AND COALESCE(pair_link.review_status, 'pending') NOT IN ('rejected', 'merged')) AS active_pair_link_count,
+            (SELECT COUNT(*) FROM teacher_alumni_links teacher_link WHERE teacher_link.teacher_user_id = l.teacher_user_id AND COALESCE(teacher_link.review_status, 'pending') NOT IN ('rejected', 'merged')) AS teacher_active_link_count,
+            (SELECT COUNT(*) FROM teacher_alumni_link_moderation_events e WHERE e.link_id = l.id) AS moderation_event_count,
+            (SELECT e.event_type FROM teacher_alumni_link_moderation_events e WHERE e.link_id = l.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS last_event_type,
+            (SELECT e.created_at FROM teacher_alumni_link_moderation_events e WHERE e.link_id = l.id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS last_event_at
      FROM teacher_alumni_links l
      LEFT JOIN uyeler teacher ON teacher.id = l.teacher_user_id
      LEFT JOIN uyeler alumni ON alumni.id = l.alumni_user_id
+     LEFT JOIN uyeler reviewer ON reviewer.id = l.last_reviewed_by
      ${whereSql}
      ORDER BY l.id DESC
      LIMIT ? OFFSET ?`,
     [...params, limit, offset]
   );
 
-  res.json({ items, meta: { page: safePage, pages, total, limit, q, relationship_type: relationshipType || '' } });
+  const decoratedItems = items.map((item) => ({
+    ...item,
+    moderation_assessment: buildTeacherLinkModerationAssessment(item)
+  }));
+
+  res.json({ items: decoratedItems, meta: { page: safePage, pages, total, limit, q, relationship_type: relationshipType || '', review_status: reviewStatus || '' } });
+});
+
+app.post('/api/new/admin/teacher-network/links/:id/review', requireModerationPermission('requests.moderate'), (req, res) => {
+  ensureTeacherAlumniLinksTable();
+  ensureTeacherAlumniLinkModerationEventsTable();
+  const linkId = Number(req.params.id || 0);
+  const reviewStatus = normalizeTeacherLinkReviewStatus(req.body?.status);
+  const reviewNote = normalizeTeacherLinkReviewNote(req.body?.note);
+  const requestedMergeTargetId = Number(req.body?.merge_into_link_id || 0);
+  const actor = req.authUser || getCurrentUser(req);
+  if (!linkId) return res.status(400).send('Geçersiz teacher network link ID.');
+  if (!reviewStatus) return res.status(400).send('Geçersiz review status.');
+
+  const row = sqlGet(
+    `SELECT l.id, l.teacher_user_id, l.alumni_user_id, COALESCE(l.review_status, 'pending') AS review_status, alumni.mezuniyetyili
+     FROM teacher_alumni_links l
+     LEFT JOIN uyeler alumni ON alumni.id = l.alumni_user_id
+     WHERE l.id = ?`,
+    [linkId]
+  );
+  if (!row) return res.status(404).send('Teacher network link bulunamadı.');
+  if (!canTransitionTeacherLinkReviewStatus(row.review_status, reviewStatus) && row.review_status !== reviewStatus) {
+    return res.status(409).send('Bu teacher network kaydı seçilen review durumuna geçirilemez.');
+  }
+
+  const scope = getModerationScopeContext(actor);
+  if (scope.isScopedModerator) {
+    const targetYear = String(row.mezuniyetyili || '').trim();
+    if (!targetYear || !scope.years.includes(targetYear)) {
+      return res.status(403).send('Bu kayıt kapsamınız dışında.');
+    }
+  }
+
+  let mergeTargetId = null;
+  if (reviewStatus === 'merged') {
+    const mergeTarget = selectTeacherLinkMergeTarget(linkId, row.teacher_user_id, row.alumni_user_id, requestedMergeTargetId);
+    if (!mergeTarget) {
+      return res.status(409).send('Bu kaydı birleştirmek için aynı öğretmen-mezun eşleşmesinde aktif bir hedef kayıt bulunamadı.');
+    }
+    mergeTargetId = Number(mergeTarget.id || 0);
+  }
+  const reviewedAt = new Date().toISOString();
+  sqlRun(
+    `UPDATE teacher_alumni_links
+     SET review_status = ?,
+         last_reviewed_by = ?,
+         review_note = ?,
+         reviewed_at = ?,
+         merged_into_link_id = ?
+     WHERE id = ?`,
+    [reviewStatus, actor?.id || null, reviewNote || null, reviewedAt, mergeTargetId, linkId]
+  );
+  const confidenceScore = refreshTeacherLinkConfidenceScore(linkId);
+  const affectedSiblingIds = sqlAll(
+    `SELECT id
+     FROM teacher_alumni_links
+     WHERE teacher_user_id = ?
+       AND alumni_user_id = ?
+       AND id <> ?
+       AND COALESCE(review_status, 'pending') NOT IN ('rejected', 'merged')`,
+    [row.teacher_user_id, row.alumni_user_id, linkId]
+  ) || [];
+  for (const sibling of affectedSiblingIds) {
+    refreshTeacherLinkConfidenceScore(sibling?.id);
+  }
+  logTeacherLinkModerationEvent({
+    linkId,
+    actorUserId: actor?.id || null,
+    eventType: reviewStatus === 'merged' ? 'teacher_link_merged' : 'teacher_link_reviewed',
+    fromStatus: row.review_status,
+    toStatus: reviewStatus,
+    note: reviewNote,
+    mergeTargetId
+  });
+
+  logAdminAction(req, 'teacher_network_link_review', {
+    targetType: 'teacher_network_link',
+    targetId: linkId,
+    reviewStatus,
+    alumniUserId: Number(row.alumni_user_id || 0),
+    mergeTargetId,
+    reviewedAt
+  });
+
+  res.json({
+    ok: true,
+    status: reviewStatus,
+    id: linkId,
+    confidence_score: confidenceScore,
+    review_note: reviewNote,
+    reviewed_at: reviewedAt,
+    merged_into_link_id: mergeTargetId
+  });
 });
 
 app.post('/api/new/admin/verify', requireAdmin, (req, res) => {
@@ -11924,6 +13604,379 @@ app.post('/api/new/admin/engagement-ab/rebalance', requireAdmin, (req, res) => {
   }
   recalculateMemberEngagementScores('admin_rebalance_ab');
   logAdminAction(req, 'engagement_ab_rebalance', { keepAssignments });
+  res.json({ ok: true, keepAssignments });
+});
+
+app.get('/api/new/admin/network-suggestion-ab', requireAdmin, (_req, res) => {
+  const windowDays = parseNetworkWindowDays(_req.query.window);
+  const sinceIso = toIsoThreshold(windowDays);
+  const cohort = normalizeCohortValue(_req.query.cohort);
+  getNetworkSuggestionExperimentDataset({ sinceIso, cohort }).then((dataset) => {
+    const configs = getNetworkSuggestionAbConfigs().map((cfg) => ({
+      variant: cfg.variant,
+      name: cfg.name,
+      description: cfg.description,
+      trafficPct: cfg.trafficPct,
+      enabled: cfg.enabled,
+      params: cfg.params,
+      updatedAt: cfg.updatedAt
+    }));
+    const performanceBundle = buildNetworkSuggestionExperimentAnalytics({
+      exposureRows: dataset.exposureRows,
+      actionRows: dataset.actionRows,
+      configs,
+      assignmentCounts: dataset.assignmentCounts
+    });
+    const recommendations = buildNetworkSuggestionAbRecommendations(configs, performanceBundle.variants, listNetworkSuggestionAbRecentChanges(10));
+    const lastObservedAt = [...dataset.exposureRows, ...dataset.actionRows]
+      .map((row) => row?.created_at)
+      .filter(Boolean)
+      .sort((a, b) => String(b).localeCompare(String(a)))[0] || null;
+
+    res.json({
+      window: `${windowDays}d`,
+      since: sinceIso,
+      cohort: String(cohort || 'all'),
+      configs,
+      performance: performanceBundle.variants,
+      assignmentCounts: performanceBundle.assignment_counts,
+      recommendations,
+      leadingVariant: performanceBundle.leading_variant,
+      recentChanges: listNetworkSuggestionAbRecentChanges(10),
+      totals: {
+        exposure_users: performanceBundle.total_exposure_users,
+        exposure_events: performanceBundle.total_exposure_events
+      },
+      lastObservedAt
+    });
+  }).catch((err) => {
+    console.error('admin.network-suggestion-ab failed:', err);
+    res.status(500).send('Beklenmeyen bir hata oluştu.');
+  });
+});
+
+app.post('/api/new/admin/network-suggestion-ab/apply', requireAdmin, async (req, res) => {
+  try {
+    const windowDays = parseNetworkWindowDays(req.body?.window || req.query?.window);
+    const sinceIso = toIsoThreshold(windowDays);
+    const cohort = normalizeCohortValue(req.body?.cohort || req.query?.cohort);
+    const recommendationIndex = Math.max(0, parseInt(req.body?.index ?? req.body?.recommendationIndex ?? '0', 10) || 0);
+    const dataset = await getNetworkSuggestionExperimentDataset({ sinceIso, cohort });
+    const configs = getNetworkSuggestionAbConfigs();
+    const performanceBundle = buildNetworkSuggestionExperimentAnalytics({
+      exposureRows: dataset.exposureRows,
+      actionRows: dataset.actionRows,
+      configs,
+      assignmentCounts: dataset.assignmentCounts
+    });
+    const recommendations = buildNetworkSuggestionAbRecommendations(configs, performanceBundle.variants, listNetworkSuggestionAbRecentChanges(10));
+    const recommendation = recommendations[recommendationIndex];
+    if (!recommendation) {
+      return res.status(404).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_RECOMMENDATION_NOT_FOUND',
+        message: 'Uygulanabilir recommendation bulunamadı.',
+        data: null
+      });
+    }
+    if (!recommendation.guardrails?.can_apply) {
+      return res.status(409).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_RECOMMENDATION_GUARDRAIL_BLOCKED',
+        message: 'Recommendation guardrail nedeniyle uygulanamıyor.',
+        data: {
+          recommendation_index: recommendationIndex,
+          recommendation,
+          guardrails: recommendation.guardrails
+        }
+      });
+    }
+    if (String(req.body?.confirmation || '').trim().toLowerCase() !== NETWORK_SUGGESTION_APPLY_CONFIRMATION_TOKEN) {
+      return res.status(409).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_RECOMMENDATION_CONFIRM_REQUIRED',
+        message: 'Recommendation uygulamak için ikinci onay gerekli.',
+        data: {
+          recommendation_index: recommendationIndex,
+          confirmation_token: NETWORK_SUGGESTION_APPLY_CONFIRMATION_TOKEN,
+          recommendation
+        }
+      });
+    }
+
+    const now = new Date().toISOString();
+    const touchedVariants = new Set();
+    const beforeSnapshot = [];
+    if (recommendation.patch && typeof recommendation.patch === 'object') {
+      const variant = resolveNetworkSuggestionVariant(recommendation.variant);
+      const existing = sqlGet('SELECT variant, params_json FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
+      if (!existing) {
+        return res.status(404).json({
+          ok: false,
+          code: 'NETWORK_SUGGESTION_VARIANT_NOT_FOUND',
+          message: 'Recommendation varyantı bulunamadı.',
+          data: null
+        });
+      }
+      beforeSnapshot.push(...snapshotNetworkSuggestionConfigs(configs, [variant]));
+      let currentParams = networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams;
+      try {
+        currentParams = existing.params_json ? JSON.parse(existing.params_json) : currentParams;
+      } catch {
+        // keep defaults
+      }
+      const mergedParams = normalizeNetworkSuggestionParams(
+        { ...currentParams, ...recommendation.patch },
+        networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
+      );
+      sqlRun(
+        `UPDATE network_suggestion_ab_config
+         SET params_json = ?, updated_at = ?
+         WHERE variant = ?`,
+        [JSON.stringify(mergedParams), now, variant]
+      );
+      touchedVariants.add(variant);
+    }
+
+    if (recommendation.trafficPatch && typeof recommendation.trafficPatch === 'object') {
+      const trafficVariants = Object.keys(recommendation.trafficPatch || {}).map((variantKey) => resolveNetworkSuggestionVariant(variantKey));
+      const trafficSnapshot = snapshotNetworkSuggestionConfigs(configs, trafficVariants);
+      for (const row of trafficSnapshot) {
+        if (!beforeSnapshot.some((item) => item.variant === row.variant)) beforeSnapshot.push(row);
+      }
+      for (const [variantKey, nextTraffic] of Object.entries(recommendation.trafficPatch)) {
+        const variant = resolveNetworkSuggestionVariant(variantKey);
+        sqlRun(
+          `UPDATE network_suggestion_ab_config
+           SET traffic_pct = ?, updated_at = ?
+           WHERE variant = ?`,
+          [clamp(Math.round(Number(nextTraffic || 0)), 0, 100), now, variant]
+        );
+        touchedVariants.add(variant);
+      }
+    }
+
+    const afterSnapshot = snapshotNetworkSuggestionConfigs(getNetworkSuggestionAbConfigs(), Array.from(touchedVariants));
+    const historyResult = sqlRun(
+      `INSERT INTO network_suggestion_ab_change_log
+       (action_type, related_change_id, actor_user_id, recommendation_index, cohort, window_days, payload_json,
+        before_snapshot_json, after_snapshot_json, created_at, rolled_back_at, rollback_change_id)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+      [
+        'apply',
+        Number(req.session?.userId || 0) || null,
+        recommendationIndex,
+        String(cohort || 'all'),
+        windowDays,
+        JSON.stringify(recommendation),
+        JSON.stringify(beforeSnapshot),
+        JSON.stringify(afterSnapshot),
+        now
+      ]
+    );
+    const historyId = Number(historyResult?.lastInsertRowid || 0) || null;
+
+    logAdminAction(req, 'network_suggestion_ab_recommendation_apply', {
+      historyId,
+      recommendationIndex,
+      variant: recommendation.variant,
+      touchedVariants: Array.from(touchedVariants),
+      hasPatch: Boolean(recommendation.patch && typeof recommendation.patch === 'object'),
+      hasTrafficPatch: Boolean(recommendation.trafficPatch && typeof recommendation.trafficPatch === 'object')
+    });
+
+    return res.json({
+      ok: true,
+      code: 'NETWORK_SUGGESTION_RECOMMENDATION_APPLIED',
+      message: 'Recommendation konfigürasyona uygulandı.',
+      data: {
+        history_id: historyId,
+        recommendation_index: recommendationIndex,
+        applied: recommendation,
+        touched_variants: Array.from(touchedVariants),
+        before_snapshot: beforeSnapshot,
+        after_snapshot: afterSnapshot
+      }
+    });
+  } catch (err) {
+    console.error('admin.network-suggestion-ab.apply failed:', err);
+    return res.status(500).json({
+      ok: false,
+      code: 'NETWORK_SUGGESTION_RECOMMENDATION_APPLY_FAILED',
+      message: 'Recommendation uygulanamadı.',
+      data: null
+    });
+  }
+});
+
+app.post('/api/new/admin/network-suggestion-ab/rollback/:id', requireAdmin, async (req, res) => {
+  try {
+    ensureNetworkSuggestionAbTables();
+    const changeId = Number(req.params.id || 0);
+    if (!changeId) {
+      return res.status(400).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_ROLLBACK_ID_REQUIRED',
+        message: 'Rollback için geçerli kayıt ID gerekli.',
+        data: null
+      });
+    }
+    const row = sqlGet(
+      `SELECT id, action_type, payload_json, before_snapshot_json, after_snapshot_json, rolled_back_at, rollback_change_id
+       FROM network_suggestion_ab_change_log
+       WHERE id = ?`,
+      [changeId]
+    );
+    if (!row) {
+      return res.status(404).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_CHANGE_NOT_FOUND',
+        message: 'Rollback kaydı bulunamadı.',
+        data: null
+      });
+    }
+    if (String(row.action_type || '') !== 'apply') {
+      return res.status(409).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_ROLLBACK_ONLY_APPLY',
+        message: 'Sadece apply kayıtları rollback edilebilir.',
+        data: null
+      });
+    }
+    if (row.rolled_back_at || Number(row.rollback_change_id || 0) > 0) {
+      return res.status(409).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_ALREADY_ROLLED_BACK',
+        message: 'Bu recommendation zaten rollback edilmiş.',
+        data: null
+      });
+    }
+
+    const beforeSnapshot = parseJsonValue(row.before_snapshot_json, []) || [];
+    const afterSnapshot = parseJsonValue(row.after_snapshot_json, []) || [];
+    if (!Array.isArray(beforeSnapshot) || !beforeSnapshot.length) {
+      return res.status(409).json({
+        ok: false,
+        code: 'NETWORK_SUGGESTION_ROLLBACK_SNAPSHOT_MISSING',
+        message: 'Rollback için gerekli snapshot bulunamadı.',
+        data: null
+      });
+    }
+
+    const now = new Date().toISOString();
+    for (const snapshot of beforeSnapshot) {
+      const variant = resolveNetworkSuggestionVariant(snapshot?.variant);
+      const params = normalizeNetworkSuggestionParams(
+        snapshot?.params && typeof snapshot.params === 'object' ? snapshot.params : {},
+        networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
+      );
+      sqlRun(
+        `UPDATE network_suggestion_ab_config
+         SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
+         WHERE variant = ?`,
+        [
+          String(snapshot?.name || networkSuggestionDefaultVariants[variant]?.name || variant),
+          String(snapshot?.description || networkSuggestionDefaultVariants[variant]?.description || ''),
+          clamp(Math.round(Number(snapshot?.trafficPct || 0)), 0, 100),
+          toDbBooleanParam(Number(snapshot?.enabled || 0) === 1),
+          JSON.stringify(params),
+          now,
+          variant
+        ]
+      );
+    }
+
+    const restoredSnapshot = snapshotNetworkSuggestionConfigs(getNetworkSuggestionAbConfigs(), beforeSnapshot.map((item) => item.variant));
+    const rollbackResult = sqlRun(
+      `INSERT INTO network_suggestion_ab_change_log
+       (action_type, related_change_id, actor_user_id, recommendation_index, cohort, window_days, payload_json,
+        before_snapshot_json, after_snapshot_json, created_at, rolled_back_at, rollback_change_id)
+       VALUES (?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, NULL, NULL)`,
+      [
+        'rollback',
+        changeId,
+        Number(req.session?.userId || 0) || null,
+        'all',
+        JSON.stringify({ source_change_id: changeId }),
+        JSON.stringify(afterSnapshot),
+        JSON.stringify(restoredSnapshot),
+        now
+      ]
+    );
+    const rollbackHistoryId = Number(rollbackResult?.lastInsertRowid || 0) || null;
+    sqlRun(
+      `UPDATE network_suggestion_ab_change_log
+       SET rolled_back_at = ?, rollback_change_id = ?
+       WHERE id = ?`,
+      [now, rollbackHistoryId, changeId]
+    );
+
+    logAdminAction(req, 'network_suggestion_ab_recommendation_rollback', {
+      changeId,
+      rollbackHistoryId,
+      restoredVariants: beforeSnapshot.map((item) => resolveNetworkSuggestionVariant(item.variant))
+    });
+
+    return res.json({
+      ok: true,
+      code: 'NETWORK_SUGGESTION_RECOMMENDATION_ROLLED_BACK',
+      message: 'Recommendation değişikliği geri alındı.',
+      data: {
+        change_id: changeId,
+        rollback_history_id: rollbackHistoryId,
+        restored_snapshot: restoredSnapshot
+      }
+    });
+  } catch (err) {
+    console.error('admin.network-suggestion-ab.rollback failed:', err);
+    return res.status(500).json({
+      ok: false,
+      code: 'NETWORK_SUGGESTION_ROLLBACK_FAILED',
+      message: 'Recommendation rollback edilemedi.',
+      data: null
+    });
+  }
+});
+
+app.put('/api/new/admin/network-suggestion-ab/:variant', requireAdmin, (req, res) => {
+  const variant = String(req.params.variant || '').trim().toUpperCase();
+  if (!variant) return res.status(400).send('Variant gerekli.');
+  const existing = sqlGet('SELECT variant, params_json FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
+  if (!existing) return res.status(404).send('Variant bulunamadı.');
+  let currentParams = networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams;
+  try {
+    currentParams = existing.params_json ? JSON.parse(existing.params_json) : currentParams;
+  } catch {
+    // ignore parse error and keep fallback
+  }
+  const payload = req.body || {};
+  const mergedParams = normalizeNetworkSuggestionParams(
+    payload.params && typeof payload.params === 'object'
+      ? { ...currentParams, ...payload.params }
+      : currentParams,
+    networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
+  );
+  const trafficPct = clamp(Math.round(Number(payload.trafficPct ?? payload.traffic_pct ?? 50) || 0), 0, 100);
+  const enabled = String(payload.enabled ?? '1') === '1' ? 1 : 0;
+  const enabledDbValue = toDbBooleanParam(enabled);
+  const name = String(payload.name || '').trim() || (networkSuggestionDefaultVariants[variant]?.name || variant);
+  const description = String(payload.description || '').trim() || (networkSuggestionDefaultVariants[variant]?.description || '');
+  sqlRun(
+    `UPDATE network_suggestion_ab_config
+     SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
+     WHERE variant = ?`,
+    [name, description, trafficPct, enabledDbValue, JSON.stringify(mergedParams), new Date().toISOString(), variant]
+  );
+  logAdminAction(req, 'network_suggestion_ab_config_update', { variant, trafficPct, enabled });
+  res.json({ ok: true });
+});
+
+app.post('/api/new/admin/network-suggestion-ab/rebalance', requireAdmin, (req, res) => {
+  const keepAssignments = String(req.body?.keepAssignments || '0') === '1';
+  if (!keepAssignments) {
+    sqlRun('DELETE FROM network_suggestion_ab_assignments');
+  }
+  logAdminAction(req, 'network_suggestion_ab_rebalance', { keepAssignments });
   res.json({ ok: true, keepAssignments });
 });
 

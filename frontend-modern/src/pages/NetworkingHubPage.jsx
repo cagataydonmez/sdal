@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useNetworkingHubState } from '../hooks/useNetworkingHubState.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
 
 function daysSince(value) {
   if (!value) return null;
@@ -120,6 +121,14 @@ export default function NetworkingHubPage() {
   const acceptedConnections = Number(metrics.connections?.accepted || 0);
   const mentorshipWins = Number(metrics.mentorship?.accepted || 0);
   const teacherLinksCreated = Number(metrics.teacherLinks?.created || 0);
+
+  useEffect(() => {
+    void sendNetworkingTelemetry({
+      eventName: NETWORKING_TELEMETRY_EVENTS.hubViewed,
+      sourceSurface: 'network_hub'
+    });
+  }, []);
+
   const priorityCards = [
     incoming.length > 0
       ? {

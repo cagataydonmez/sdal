@@ -5,6 +5,7 @@ import { useAuth } from '../utils/auth.jsx';
 import StoryBar from '../components/StoryBar.jsx';
 import { readApiPayload } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { NETWORKING_MESSAGES } from '../utils/networkingRegistry.js';
 
 function canLinkToTeacherNetwork(member) {
   const role = String(member?.role || '').trim().toLowerCase();
@@ -118,9 +119,14 @@ export default function MemberDetailPage() {
                       : outgoingRequestId
                         ? `/api/new/connections/cancel/${outgoingRequestId}`
                         : `/api/new/connections/request/${member.id}`;
-                    const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
+                    const res = await fetch(endpoint, {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ source_surface: 'member_detail_page' })
+                    });
                     if (!res.ok) {
-                      const { message } = await readApiPayload(res, 'Bağlantı işlemi başarısız.');
+                      const { message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.connectionActionFailed);
                       if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
                         const [incomingRes, outgoingRes] = await Promise.all([
                           fetch('/api/new/connections/requests?direction=incoming&status=pending&limit=100&offset=0', { credentials: 'include' }),
@@ -184,15 +190,15 @@ export default function MemberDetailPage() {
                       method: 'POST',
                       credentials: 'include',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({})
+                      body: JSON.stringify({ source_surface: 'member_detail_page' })
                     });
                     if (!res.ok) {
-                      const { message } = await readApiPayload(res, 'Mentorluk isteği gönderilemedi.');
+                      const { message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.mentorshipRequestFailed);
                       setError(message);
                       return;
                     }
-                    const { message } = await readApiPayload(res, t('mentorship_status_requested'));
-                    setStatus(message || t('mentorship_status_requested'));
+                    const { message } = await readApiPayload(res, NETWORKING_MESSAGES.success.mentorshipRequested);
+                    setStatus(message || NETWORKING_MESSAGES.success.mentorshipRequested || t('mentorship_status_requested'));
                   } finally {
                     setLoadingAction(false);
                   }

@@ -3,6 +3,7 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { NETWORKING_EVENTS } from '../utils/networkingRegistry.js';
 
 export default function FollowingPage() {
   const { t } = useI18n();
@@ -56,7 +57,7 @@ export default function FollowingPage() {
 
   async function unfollow(id) {
     await fetch(`/api/new/follow/${id}`, { method: 'POST', credentials: 'include' });
-    emitAppChange('follow:changed', { userId: id });
+    emitAppChange(NETWORKING_EVENTS.followChanged, { userId: id });
     load(false);
   }
 

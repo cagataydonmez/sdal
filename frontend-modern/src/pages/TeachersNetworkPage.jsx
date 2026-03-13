@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { readApiPayload } from '../utils/api.js';
+import { NETWORKING_MESSAGES } from '../utils/networkingRegistry.js';
+import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
 
 const RELATIONSHIP_TYPES = [
   { value: 'taught_in_class', label: 'Aynı sınıfta ders aldım' },
@@ -24,6 +26,26 @@ function teacherOptionLabel(teacher) {
   return fullName ? `@${teacher.kadi} · ${fullName}` : `@${teacher.kadi || 'ogretmen'}`;
 }
 
+function reviewStatusLabel(value) {
+  const status = String(value || '').trim().toLowerCase();
+  if (status === 'confirmed') return 'İnceleme: Onaylandı';
+  if (status === 'flagged') return 'İnceleme: İşaretlendi';
+  return 'İnceleme: Beklemede';
+}
+
+function confidenceLabel(value) {
+  const score = Number(value || 0);
+  if (!Number.isFinite(score) || score <= 0) return 'Güven skoru belirsiz';
+  return `Güven skoru ${(score * 100).toFixed(0)}%`;
+}
+
+function parseOptionList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export default function TeachersNetworkPage() {
   const [searchParams] = useSearchParams();
   const deepLinkedTeacherId = Math.max(parseInt(searchParams.get('teacherId') || '0', 10), 0);
@@ -39,6 +61,7 @@ export default function TeachersNetworkPage() {
   const [teacherOptions, setTeacherOptions] = useState([]);
   const [teacherSearch, setTeacherSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [similarWarning, setSimilarWarning] = useState(null);
 
   const [form, setForm] = useState({
     teacherId: deepLinkedTeacherId > 0 ? String(deepLinkedTeacherId) : '',
@@ -55,6 +78,8 @@ export default function TeachersNetworkPage() {
   }, []);
 
   const selectedTeacher = teacherOptions.find((teacher) => String(teacher.id) === String(form.teacherId));
+  const selectedTeacherExistingTypes = parseOptionList(selectedTeacher?.existing_relationship_types);
+  const selectedTeacherExistingYears = parseOptionList(selectedTeacher?.existing_class_years);
   const activeHistoryTitle = direction === 'my_teachers' ? 'Eklediğin öğretmen bağlantıları' : 'Sana bağlı öğrenciler';
   const activeHistorySubtitle = direction === 'my_teachers'
     ? 'Bu görünüm mezun olarak ilişkilendirdiğin öğretmenleri ve geçmiş bağlarını gösterir.'
@@ -68,7 +93,7 @@ export default function TeachersNetworkPage() {
       if (term) params.set('term', term);
       if (deepLinkedTeacherId > 0) params.set('include_id', String(deepLinkedTeacherId));
       const res = await fetch(`/api/new/teachers/options?${params.toString()}`, { credentials: 'include' });
-      const { data, message } = await readApiPayload(res, 'Öğretmen listesi alınamadı.');
+      const { data, message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.teacherOptionsLoadFailed);
       if (!res.ok) throw new Error(message);
       const nextItems = data?.items || [];
       setTeacherOptions(nextItems);
@@ -94,18 +119,28 @@ export default function TeachersNetworkPage() {
       if (relationshipType) params.set('relationship_type', relationshipType);
       if (classYear) params.set('class_year', classYear);
       const res = await fetch(`/api/new/teachers/network?${params.toString()}`, { credentials: 'include' });
-      const { message, data } = await readApiPayload(res, 'Öğretmen ağı yüklenemedi.');
+      const { message, data } = await readApiPayload(res, NETWORKING_MESSAGES.errors.teacherNetworkLoadFailed);
       if (!res.ok) throw new Error(message);
       const nextItems = data?.items || [];
       setItems((prev) => (append ? [...prev, ...nextItems] : nextItems));
       setOffset(nextOffset + nextItems.length);
       setHasMore(Boolean(data?.hasMore));
     } catch (err) {
-      setError(err.message || 'Öğretmen ağı yüklenemedi.');
+      setError(err.message || NETWORKING_MESSAGES.errors.teacherNetworkLoadFailed);
     } finally {
       setLoading(false);
     }
   }, [classYear, direction, relationshipType]);
+
+  useEffect(() => {
+    void sendNetworkingTelemetry({
+      eventName: NETWORKING_TELEMETRY_EVENTS.teacherNetworkViewed,
+      sourceSurface: 'teachers_network_page',
+      targetUserId: deepLinkedTeacherId || null,
+      entityType: deepLinkedTeacherId > 0 ? 'user' : '',
+      entityId: deepLinkedTeacherId || null
+    });
+  }, [deepLinkedTeacherId]);
 
   useEffect(() => {
     loadTeacherOptions('');
@@ -122,7 +157,11 @@ export default function TeachersNetworkPage() {
     load(0, false);
   }, [load]);
 
-  async function submitLink(e) {
+  useEffect(() => {
+    setSimilarWarning(null);
+  }, [form.teacherId, form.relationship_type, form.class_year]);
+
+  async function submitLink(e, { confirmSimilar = false } = {}) {
     e.preventDefault();
     setError('');
     setStatus('');
@@ -133,8 +172,11 @@ export default function TeachersNetworkPage() {
     }
     const body = {
       relationship_type: form.relationship_type,
-      notes: String(form.notes || '').trim()
+      notes: String(form.notes || '').trim(),
+      created_via: 'manual_alumni_link',
+      source_surface: deepLinkedTeacherId > 0 ? 'member_detail_page' : 'teachers_network_page'
     };
+    if (confirmSimilar) body.confirm_similar = true;
     const selectedClassYear = Number(form.class_year || 0);
     if (selectedClassYear >= 1950 && selectedClassYear <= 2100) body.class_year = selectedClassYear;
 
@@ -146,12 +188,21 @@ export default function TeachersNetworkPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      const { message } = await readApiPayload(res, 'Öğretmen bağlantısı kaydedilemedi.');
+      const { message, payload, data } = await readApiPayload(res, NETWORKING_MESSAGES.errors.teacherLinkCreateFailed);
       if (!res.ok) {
+        if (payload?.code === 'SIMILAR_RELATIONSHIP_EXISTS') {
+          setSimilarWarning({
+            message,
+            links: data?.similar_links || payload?.similar_links || [],
+            requiresConfirmation: Boolean(data?.requires_confirmation || payload?.requires_confirmation)
+          });
+          return;
+        }
         setError(message);
         return;
       }
-      setStatus(message || 'Öğretmen bağlantısı başarıyla kaydedildi.');
+      setSimilarWarning(null);
+      setStatus(message || NETWORKING_MESSAGES.success.teacherLinkCreated);
       setForm((prev) => ({
         ...prev,
         teacherId: '',
@@ -272,6 +323,30 @@ export default function TeachersNetworkPage() {
                 <span className="muted">Doğrulanmış bir kayıt öğretmen ağı görünürlüğünü güçlendirir.</span>
               </div>
             </form>
+            {similarWarning?.links?.length ? (
+              <div className="network-soft-alert">
+                <strong>Benzer kayıt uyarısı</strong>
+                <div>{similarWarning.message}</div>
+                <div className="network-guidance-list">
+                  {similarWarning.links.map((item) => (
+                    <div key={item.id} className="network-guidance-item">
+                      <strong>{relationshipLabel(item.relationship_type)} {item.class_year ? `· ${item.class_year}` : ''}</strong>
+                      <span>{reviewStatusLabel(item.review_status)} · {confidenceLabel(item.confidence_score)}</span>
+                    </div>
+                  ))}
+                </div>
+                {similarWarning.requiresConfirmation ? (
+                  <div className="composer-actions">
+                    <button className="btn ghost" type="button" onClick={() => setSimilarWarning(null)}>
+                      Vazgeç
+                    </button>
+                    <button className="btn primary" type="button" disabled={submitting} onClick={(event) => submitLink(event, { confirmSimilar: true })}>
+                      Benzer kayda rağmen devam et
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {status ? <div className="ok">{status}</div> : null}
             {error ? <div className="error">{error}</div> : null}
           </div>
@@ -333,11 +408,28 @@ export default function TeachersNetworkPage() {
                   <div className="network-highlight-meta">
                     <span className="chip">Öğrenci sayısı: {selectedTeacher.student_count || 0}</span>
                     {selectedTeacher.mezuniyetyili ? <span className="chip">Kohort: {selectedTeacher.mezuniyetyili}</span> : null}
+                    {Number(selectedTeacher.existing_link_count || 0) > 0 ? <span className="chip">Sende kayıtlı bağ: {selectedTeacher.existing_link_count}</span> : null}
                   </div>
                   <p className="muted">
                     Bu öğretmen için bağlantı eklediğinde öğretmen hesabına bildirim gider ve networking merkezi
                     üzerinden izlenebilir hale gelir.
                   </p>
+                  {Number(selectedTeacher.existing_link_count || 0) > 0 ? (
+                    <div className="network-guidance-list">
+                      {selectedTeacherExistingTypes.length ? (
+                        <div className="network-guidance-item">
+                          <strong>Mevcut ilişki türleri</strong>
+                          <span>{selectedTeacherExistingTypes.join(', ')}</span>
+                        </div>
+                      ) : null}
+                      {selectedTeacherExistingYears.length ? (
+                        <div className="network-guidance-item">
+                          <strong>Mevcut sınıf yılları</strong>
+                          <span>{selectedTeacherExistingYears.join(', ')}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="network-empty-state">
@@ -407,6 +499,8 @@ export default function TeachersNetworkPage() {
                     <span className="chip">{relationshipLabel(item.relationship_type)}</span>
                     {item.class_year ? <span className="chip">Sınıf yılı {item.class_year}</span> : null}
                     {item.verified ? <span className="chip">Doğrulanmış profil</span> : null}
+                    <span className="chip">{reviewStatusLabel(item.review_status)}</span>
+                    <span className="chip">{confidenceLabel(item.confidence_score)}</span>
                   </div>
                 </div>
                 {item.notes ? <p className="muted">{item.notes}</p> : <p className="muted">Not eklenmemiş.</p>}

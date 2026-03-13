@@ -193,6 +193,7 @@ try {
   assert.equal(Array.isArray(payload?.inbox?.connections?.outgoing), true);
   assert.equal(Array.isArray(payload?.inbox?.mentorship?.incoming), true);
   assert.equal(Array.isArray(payload?.discovery?.suggestions), true);
+  assert.equal(typeof payload?.discovery?.experiment_variant, 'string');
   assert.equal(typeof payload?.discovery?.connection_maps?.incoming, 'object');
   assert.equal(typeof payload?.discovery?.connection_maps?.outgoing, 'object');
   assert.equal(payload?.metrics?.connections?.pending_incoming, 1);
@@ -202,6 +203,8 @@ try {
   assert.equal(payload?.counts?.actionable, 3);
   assert.equal(Number(payload?.discovery?.connection_maps?.incoming?.[senderId] || 0) >= 1, true);
   assert.equal(Number(payload?.discovery?.connection_maps?.outgoing?.[receiverId] || 0) >= 1, true);
+  const suggestionAssignment = sqlGet('SELECT variant FROM network_suggestion_ab_assignments WHERE user_id = ?', [meId]);
+  assert.equal(typeof suggestionAssignment?.variant, 'string');
 
   console.log('phase2 network hub tests passed');
 } finally {

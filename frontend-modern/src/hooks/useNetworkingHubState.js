@@ -1,6 +1,13 @@
 import { startTransition, useCallback, useEffect, useReducer, useRef } from 'react';
 import { emitAppChange } from '../utils/live.js';
 import { unwrapApiData } from '../utils/api.js';
+import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
+import {
+  getConnectionActionEvent,
+  getConnectionActionSuccessMessage,
+  NETWORKING_EVENTS,
+  NETWORKING_MESSAGES
+} from '../utils/networkingRegistry.js';
 
 function readConnectionUserField(item, key) {
   return Number(item?.[key] || 0);
@@ -266,6 +273,7 @@ export function useNetworkingHubState(t) {
   const discoveryRequestRef = useRef(0);
   const metricsWindowReadyRef = useRef(false);
   const silentRefreshTimerRef = useRef(null);
+  const discoveryTelemetrySentRef = useRef(false);
   const stateRef = useRef(state);
 
   useEffect(() => {
@@ -287,6 +295,19 @@ export function useNetworkingHubState(t) {
     if (requestId !== hubRequestRef.current) return;
 
     const hub = bootstrapRes.data?.hub || hubFallback().data.hub;
+    if (bootstrapRes.ok && !discoveryTelemetrySentRef.current) {
+      discoveryTelemetrySentRef.current = true;
+      void sendNetworkingTelemetry({
+        eventName: NETWORKING_TELEMETRY_EVENTS.hubSuggestionsLoaded,
+        sourceSurface: 'network_hub',
+        entityType: 'suggestion_batch',
+        metadata: {
+          suggestion_count: Array.isArray(hub.discovery?.suggestions) ? hub.discovery.suggestions.length : 0,
+          actionable_count: Number(hub.counts?.actionable || 0),
+          experiment_variant: String(hub.discovery?.experiment_variant || 'A')
+        }
+      });
+    }
 
     startTransition(() => {
       dispatch({
@@ -420,30 +441,40 @@ export function useNetworkingHubState(t) {
     async acceptRequest(requestId) {
       await runAction(`accept-${requestId}`, async () => {
         const senderId = Number(stateRef.current.incoming.find((item) => Number(item.id) === Number(requestId))?.sender_id || 0);
-        const res = await fetch(`/api/new/connections/accept/${requestId}`, { method: 'POST', credentials: 'include' });
+        const res = await fetch(`/api/new/connections/accept/${requestId}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_surface: 'network_hub' })
+        });
         if (!res.ok) {
-          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, 'Bağlantı isteği kabul edilemedi.') } });
+          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, NETWORKING_MESSAGES.errors.connectionAcceptFailed) } });
           return;
         }
         const payload = await readResponsePayload(res);
         dispatch({ type: 'CONNECTION_ACCEPTED', payload: { requestId, senderId } });
-        emitAppChange('connection:accepted', { requestId });
-        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || 'Bağlantı isteği kabul edildi.' } });
+        emitAppChange(NETWORKING_EVENTS.connectionAccepted, { requestId });
+        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || NETWORKING_MESSAGES.success.connectionAccepted } });
         queueSilentRefresh({ hub: true, discovery: true });
       });
     },
     async ignoreRequest(requestId) {
       await runAction(`ignore-${requestId}`, async () => {
         const senderId = Number(stateRef.current.incoming.find((item) => Number(item.id) === Number(requestId))?.sender_id || 0);
-        const res = await fetch(`/api/new/connections/ignore/${requestId}`, { method: 'POST', credentials: 'include' });
+        const res = await fetch(`/api/new/connections/ignore/${requestId}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_surface: 'network_hub' })
+        });
         if (!res.ok) {
-          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, 'Bağlantı isteği yok sayılamadı.') } });
+          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, NETWORKING_MESSAGES.errors.connectionIgnoreFailed) } });
           return;
         }
         const payload = await readResponsePayload(res);
         dispatch({ type: 'CONNECTION_IGNORED', payload: { requestId, senderId } });
-        emitAppChange('connection:ignored', { requestId });
-        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || 'Bağlantı isteği yok sayıldı.' } });
+        emitAppChange(NETWORKING_EVENTS.connectionIgnored, { requestId });
+        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || NETWORKING_MESSAGES.success.connectionIgnored } });
         queueSilentRefresh({ hub: true, discovery: true });
       });
     },
@@ -458,9 +489,14 @@ export function useNetworkingHubState(t) {
           : outgoingRequestId
             ? `/api/new/connections/cancel/${outgoingRequestId}`
             : `/api/new/connections/request/${targetId}`;
-        const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_surface: 'network_hub' })
+        });
         if (!res.ok) {
-          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, 'Bağlantı işlemi başarısız.') } });
+          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, NETWORKING_MESSAGES.errors.connectionActionFailed) } });
           queueSilentRefresh({ hub: true, discovery: true, delay: 0 });
           return;
         }
@@ -475,15 +511,15 @@ export function useNetworkingHubState(t) {
           dispatch({ type: 'CONNECTION_REQUEST_SENT', payload: { targetId, requestId: Number(responseData?.request_id || payload?.request_id || 0) } });
         }
 
-        emitAppChange(
-          incomingRequestId ? 'connection:accepted' : outgoingRequestId ? 'connection:cancelled' : 'connection:request',
-          { userId: targetId, requestId: incomingRequestId || outgoingRequestId || responseData?.request_id || payload?.request_id || 0 }
-        );
+        emitAppChange(getConnectionActionEvent({ incomingRequestId, outgoingRequestId }), {
+          userId: targetId,
+          requestId: incomingRequestId || outgoingRequestId || responseData?.request_id || payload?.request_id || 0
+        });
         dispatch({
           type: 'SET_FEEDBACK',
           value: {
             type: 'ok',
-            message: payload?.message || (incomingRequestId ? 'Bağlantı isteği kabul edildi.' : outgoingRequestId ? 'Bağlantı isteği geri çekildi.' : 'Yeni bağlantı isteği gönderildi.')
+            message: payload?.message || getConnectionActionSuccessMessage({ incomingRequestId, outgoingRequestId })
           }
         });
         queueSilentRefresh({ hub: true, discovery: true });
@@ -491,54 +527,74 @@ export function useNetworkingHubState(t) {
     },
     async acceptMentorship(id) {
       await runAction(`mentorship-accept-${id}`, async () => {
-        const res = await fetch(`/api/new/mentorship/accept/${id}`, { method: 'POST', credentials: 'include' });
+        const res = await fetch(`/api/new/mentorship/accept/${id}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_surface: 'network_hub' })
+        });
         if (!res.ok) {
-          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, 'Mentorluk talebi kabul edilemedi.') } });
+          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, NETWORKING_MESSAGES.errors.mentorshipAcceptFailed) } });
           return;
         }
         const payload = await readResponsePayload(res);
         dispatch({ type: 'MENTORSHIP_ACCEPTED', id });
-        emitAppChange('mentorship:accepted', { id });
-        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || 'Mentorluk talebi kabul edildi.' } });
+        emitAppChange(NETWORKING_EVENTS.mentorshipAccepted, { id });
+        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || NETWORKING_MESSAGES.success.mentorshipAccepted } });
         queueSilentRefresh({ hub: true, discovery: true });
       });
     },
     async declineMentorship(id) {
       await runAction(`mentorship-decline-${id}`, async () => {
-        const res = await fetch(`/api/new/mentorship/decline/${id}`, { method: 'POST', credentials: 'include' });
+        const res = await fetch(`/api/new/mentorship/decline/${id}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_surface: 'network_hub' })
+        });
         if (!res.ok) {
-          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, 'Mentorluk talebi reddedilemedi.') } });
+          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, NETWORKING_MESSAGES.errors.mentorshipDeclineFailed) } });
           return;
         }
         const payload = await readResponsePayload(res);
         dispatch({ type: 'MENTORSHIP_DECLINED', id });
-        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || 'Mentorluk talebi reddedildi.' } });
+        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || NETWORKING_MESSAGES.success.mentorshipDeclined } });
         queueSilentRefresh({ hub: true, discovery: true });
       });
     },
     async markTeacherLinksRead() {
       await runAction('teacher-links-read', async () => {
-        const res = await fetch('/api/new/network/inbox/teacher-links/read', { method: 'POST', credentials: 'include' });
+        const res = await fetch('/api/new/network/inbox/teacher-links/read', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_surface: 'network_hub' })
+        });
         if (!res.ok) {
-          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, 'Bildirimler güncellenemedi.') } });
+          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, NETWORKING_MESSAGES.errors.teacherLinksReadFailed) } });
           return;
         }
         const payload = await readResponsePayload(res);
-        emitAppChange('teacher-links:read');
+        emitAppChange(NETWORKING_EVENTS.teacherLinksRead);
         dispatch({ type: 'MARK_TEACHER_LINKS_READ', readAt: new Date().toISOString() });
-        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || 'Öğretmen ağı bildirimleri okundu olarak işaretlendi.' } });
+        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: payload?.message || NETWORKING_MESSAGES.success.teacherLinksRead } });
       });
     },
     async toggleFollow(userId) {
       await runAction(`follow-${userId}`, async () => {
-        const res = await fetch(`/api/new/follow/${userId}`, { method: 'POST', credentials: 'include' });
+        const res = await fetch(`/api/new/follow/${userId}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_surface: 'network_hub' })
+        });
         if (!res.ok) {
-          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, 'Takip durumu değiştirilemedi.') } });
+          dispatch({ type: 'SET_FEEDBACK', value: { type: 'error', message: await readResponseMessage(res, NETWORKING_MESSAGES.errors.followUpdateFailed) } });
           return;
         }
         dispatch({ type: 'TOGGLE_FOLLOW', userId: Number(userId) });
-        emitAppChange('follow:changed', { userId });
-        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: 'Takip durumu güncellendi.' } });
+        emitAppChange(NETWORKING_EVENTS.followChanged, { userId });
+        dispatch({ type: 'SET_FEEDBACK', value: { type: 'ok', message: NETWORKING_MESSAGES.success.followUpdated } });
         queueSilentRefresh({ hub: false, discovery: true });
       });
     }

@@ -1,24 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
+import { readApiPayload, unwrapApiData } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
-
-async function readResponseMessage(res, fallbackMessage) {
-  try {
-    const payload = await res.clone().json();
-    const message = payload?.message || payload?.error;
-    if (message) return String(message);
-  } catch {
-    // no-op
-  }
-  try {
-    const text = await res.text();
-    if (text) return text;
-  } catch {
-    // no-op
-  }
-  return fallbackMessage;
-}
+import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
+import {
+  getConnectionActionEvent,
+  NETWORKING_EVENTS,
+  NETWORKING_MESSAGES
+} from '../utils/networkingRegistry.js';
 
 export default function ExplorePage({ fullMode = false }) {
   const { t } = useI18n();
@@ -48,6 +38,7 @@ export default function ExplorePage({ fullMode = false }) {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const sentinelRef = useRef(null);
+  const suggestionTelemetrySentRef = useRef(false);
 
   const yearNow = new Date().getFullYear();
   const yearOptions = useMemo(() => {
@@ -102,7 +93,20 @@ export default function ExplorePage({ fullMode = false }) {
         return;
       }
       const payload = await res.json();
-      setSuggestions(payload.items || []);
+      const data = unwrapApiData(payload) || payload;
+      setSuggestions(data.items || []);
+      if (!suggestionTelemetrySentRef.current) {
+        suggestionTelemetrySentRef.current = true;
+        void sendNetworkingTelemetry({
+          eventName: NETWORKING_TELEMETRY_EVENTS.exploreSuggestionsLoaded,
+          sourceSurface: 'explore_page',
+          entityType: 'suggestion_batch',
+          metadata: {
+            suggestion_count: Array.isArray(data.items) ? data.items.length : 0,
+            experiment_variant: String(data.experiment_variant || 'A')
+          }
+        });
+      }
     } finally {
       setLoadingSuggestions(false);
     }
@@ -122,7 +126,9 @@ export default function ExplorePage({ fullMode = false }) {
       fetch('/api/new/connections/requests?direction=outgoing&status=pending&limit=100&offset=0', { credentials: 'include' })
     ]);
     if (!incomingRes.ok || !outgoingRes.ok) return;
-    const [incomingPayload, outgoingPayload] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
+    const [incomingRaw, outgoingRaw] = await Promise.all([incomingRes.json(), outgoingRes.json()]);
+    const incomingPayload = unwrapApiData(incomingRaw) || incomingRaw;
+    const outgoingPayload = unwrapApiData(outgoingRaw) || outgoingRaw;
     const incoming = {};
     for (const item of (incomingPayload.items || [])) {
       incoming[Number(item.sender_id)] = Number(item.id);
@@ -138,10 +144,15 @@ export default function ExplorePage({ fullMode = false }) {
   }, []);
 
   useEffect(() => {
+    void sendNetworkingTelemetry({
+      eventName: NETWORKING_TELEMETRY_EVENTS.exploreViewed,
+      sourceSurface: 'explore_page',
+      metadata: { full_mode: Boolean(fullMode) }
+    });
     loadFollows();
     loadConnectionRequests();
     loadSuggestions();
-  }, [loadFollows, loadSuggestions, loadConnectionRequests]);
+  }, [fullMode, loadFollows, loadSuggestions, loadConnectionRequests]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -171,7 +182,12 @@ export default function ExplorePage({ fullMode = false }) {
     if (pendingFollow[key]) return;
     setPendingFollow((prev) => ({ ...prev, [key]: true }));
     try {
-      const res = await fetch(`/api/new/follow/${id}`, { method: 'POST', credentials: 'include' });
+      const res = await fetch(`/api/new/follow/${id}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_surface: 'explore_page' })
+      });
       if (!res.ok) return;
       setFollowingIds((prev) => {
         const next = new Set(prev);
@@ -180,7 +196,7 @@ export default function ExplorePage({ fullMode = false }) {
         return next;
       });
       setSuggestions((prev) => prev.filter((u) => Number(u.id) !== key));
-      emitAppChange('follow:changed', { userId: id });
+      emitAppChange(NETWORKING_EVENTS.followChanged, { userId: id });
       loadSuggestions();
     } finally {
       setPendingFollow((prev) => ({ ...prev, [key]: false }));
@@ -199,15 +215,21 @@ export default function ExplorePage({ fullMode = false }) {
         : outgoingRequestId
           ? `/api/new/connections/cancel/${outgoingRequestId}`
           : `/api/new/connections/request/${id}`;
-      const res = await fetch(endpoint, { method: 'POST', credentials: 'include' });
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_surface: 'explore_page' })
+      });
       if (!res.ok) {
-        const message = await readResponseMessage(res, 'Bağlantı işlemi başarısız.');
+        const { message } = await readApiPayload(res, NETWORKING_MESSAGES.errors.connectionActionFailed);
         if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
           await loadConnectionRequests();
         }
         window.alert(message);
         return;
       }
+      emitAppChange(getConnectionActionEvent({ incomingRequestId, outgoingRequestId }), { userId: id });
       if (incomingRequestId) {
         setIncomingConnectionMap((prev) => {
           const next = { ...prev };

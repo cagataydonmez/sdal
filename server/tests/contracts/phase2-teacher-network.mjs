@@ -63,15 +63,16 @@ process.env.REDIS_URL = '';
 process.env.JOB_INLINE_WORKER = 'true';
 
 const { default: app, onServerStarted } = await import('../../app.js');
-const { sqlRun, sqlGet } = await import('../../db.js');
+const { sqlRun, sqlGet, sqlAll } = await import('../../db.js');
 await onServerStarted();
 
 function seedUser(username, password, role = 'user') {
   const now = new Date().toISOString();
+  const admin = role === 'admin' ? 1 : 0;
   sqlRun(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, mezuniyetyili, ilkbd, admin, role, verified, verification_status)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 1, 0, ?, 1, 'approved')`,
-    [username, password, `${username}@example.com`, username, 'Network', `${username}-act`, now, '2012', role]
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 1, ?, ?, 1, 'approved')`,
+    [username, password, `${username}@example.com`, username, 'Network', `${username}-act`, now, '2012', admin, role]
   );
   return Number(sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [username]).id);
 }
@@ -79,6 +80,7 @@ function seedUser(username, password, role = 'user') {
 const alumniId = seedUser('phase2_alumni_a', 'phase2-pass-a', 'user');
 const teacherId = seedUser('phase2_teacher_a', 'phase2-pass-b', 'teacher');
 const regularUserId = seedUser('phase2_regular_a', 'phase2-pass-c', 'user');
+const adminId = seedUser('phase2_admin_a', 'phase2-pass-admin', 'admin');
 
 const server = app.listen(0, '127.0.0.1');
 await new Promise((resolve, reject) => {
@@ -114,6 +116,7 @@ async function login(kadi, sifre) {
 try {
   const alumniCookie = await login('phase2_alumni_a', 'phase2-pass-a');
   const teacherCookie = await login('phase2_teacher_a', 'phase2-pass-b');
+  const adminCookie = await login('phase2_admin_a', 'phase2-pass-admin');
 
   const invalidYear = await request(`/api/new/teachers/network/link/${teacherId}`, {
     method: 'POST',
@@ -136,12 +139,17 @@ try {
   const link = await request(`/api/new/teachers/network/link/${teacherId}`, {
     method: 'POST',
     cookie: alumniCookie,
-    body: { relationship_type: 'taught_in_class', class_year: 2012, notes: 'Mathematics' }
+    body: { relationship_type: 'taught_in_class', class_year: 2012, notes: 'Mathematics', created_via: 'manual_alumni_link', source_surface: 'member_detail_page' }
   });
   assert.equal(link.res.status, 200);
   assert.equal(link.data?.ok, true);
   assert.equal(link.data?.code, 'TEACHER_NETWORK_LINK_CREATED');
   assert.equal(link.data?.data?.status, 'linked');
+  assert.equal(link.data?.data?.audit?.created_via, 'manual_alumni_link');
+  assert.equal(link.data?.data?.audit?.source_surface, 'member_detail_page');
+  assert.equal(link.data?.data?.audit?.review_status, 'pending');
+  assert.equal(typeof link.data?.data?.confidence_score, 'number');
+  assert.equal(link.data?.data?.confidence_score > 0, true);
   assert.equal(link.data?.status, 'linked');
 
   const duplicate = await request(`/api/new/teachers/network/link/${teacherId}`, {
@@ -152,6 +160,28 @@ try {
   assert.equal(duplicate.res.status, 409);
   assert.equal(duplicate.data?.ok, false);
   assert.equal(duplicate.data?.code, 'RELATIONSHIP_ALREADY_EXISTS');
+  assert.equal(Array.isArray(duplicate.data?.duplicates), true);
+
+  const similarWarning = await request(`/api/new/teachers/network/link/${teacherId}`, {
+    method: 'POST',
+    cookie: alumniCookie,
+    body: { relationship_type: 'mentor', class_year: 2012, notes: 'Second relationship' }
+  });
+  assert.equal(similarWarning.res.status, 409);
+  assert.equal(similarWarning.data?.ok, false);
+  assert.equal(similarWarning.data?.code, 'SIMILAR_RELATIONSHIP_EXISTS');
+  assert.equal(Array.isArray(similarWarning.data?.similar_links), true);
+  assert.equal(similarWarning.data?.similar_links.length >= 1, true);
+  assert.equal(similarWarning.data?.requires_confirmation, true);
+
+  const similarConfirmed = await request(`/api/new/teachers/network/link/${teacherId}`, {
+    method: 'POST',
+    cookie: alumniCookie,
+    body: { relationship_type: 'mentor', class_year: 2012, notes: 'Second relationship', confirm_similar: true }
+  });
+  assert.equal(similarConfirmed.res.status, 200);
+  assert.equal(similarConfirmed.data?.ok, true);
+  assert.equal(similarConfirmed.data?.data?.status, 'linked');
 
   const myTeachers = await request('/api/new/teachers/network?direction=my_teachers&relationship_type=taught_in_class', { cookie: alumniCookie });
   assert.equal(myTeachers.res.status, 200);
@@ -161,13 +191,140 @@ try {
   assert.equal(Array.isArray(myTeachers.data?.items), true);
   assert.equal(myTeachers.data.items.length, 1);
   assert.equal(Number(myTeachers.data.items[0].teacher_user_id), teacherId);
+  assert.equal(myTeachers.data.items[0].review_status, 'pending');
+  assert.equal(myTeachers.data.items[0].created_via, 'manual_alumni_link');
+  assert.equal(myTeachers.data.items[0].source_surface, 'member_detail_page');
+  assert.equal(typeof myTeachers.data.items[0].confidence_score, 'number');
 
   const myStudents = await request('/api/new/teachers/network?direction=my_students&class_year=2012', { cookie: teacherCookie });
   assert.equal(myStudents.res.status, 200);
   assert.equal(myStudents.data?.ok, true);
   assert.equal(Array.isArray(myStudents.data?.items), true);
-  assert.equal(myStudents.data.items.length, 1);
+  assert.equal(myStudents.data.items.length, 2);
   assert.equal(Number(myStudents.data.items[0].alumni_user_id), alumniId);
+
+  const adminList = await request('/api/new/admin/teacher-network/links?relationship_type=taught_in_class', { cookie: adminCookie });
+  assert.equal(adminList.res.status, 200);
+  assert.equal(Array.isArray(adminList.data?.items), true);
+  assert.equal(adminList.data.items.length, 1);
+  const adminRow = adminList.data.items[0];
+  assert.equal(adminRow.review_status, 'pending');
+  assert.equal(adminRow.created_via, 'manual_alumni_link');
+  assert.equal(adminRow.source_surface, 'member_detail_page');
+  assert.equal(adminRow.moderation_assessment?.risk_level, 'medium');
+  assert.equal(adminRow.moderation_assessment?.recommended_action, 'merge');
+  assert.equal(Array.isArray(adminRow.moderation_assessment?.risk_signals), true);
+  assert.equal(Array.isArray(adminRow.moderation_assessment?.positive_signals), true);
+  const initialConfidence = Number(adminRow.confidence_score || 0);
+  assert.equal(initialConfidence > 0, true);
+
+  const review = await request(`/api/new/admin/teacher-network/links/${adminRow.id}/review`, {
+    method: 'POST',
+    cookie: adminCookie,
+    body: { status: 'confirmed', note: 'Matches alumni statement' }
+  });
+  assert.equal(review.res.status, 200);
+  assert.equal(review.data?.ok, true);
+  assert.equal(review.data?.status, 'confirmed');
+  assert.equal(review.data?.review_note, 'Matches alumni statement');
+  assert.equal(typeof review.data?.reviewed_at, 'string');
+  assert.equal(Number(review.data?.confidence_score || 0) >= initialConfidence, true);
+
+  const adminListAfterReview = await request('/api/new/admin/teacher-network/links?review_status=confirmed', { cookie: adminCookie });
+  assert.equal(adminListAfterReview.res.status, 200);
+  assert.equal(Array.isArray(adminListAfterReview.data?.items), true);
+  assert.equal(adminListAfterReview.data.items.length, 1);
+  assert.equal(adminListAfterReview.data.items[0].review_status, 'confirmed');
+  assert.equal(Number(adminListAfterReview.data.items[0].last_reviewed_by || 0), adminId);
+  assert.equal(adminListAfterReview.data.items[0].reviewer_kadi, 'phase2_admin_a');
+  assert.equal(adminListAfterReview.data.items[0].review_note, 'Matches alumni statement');
+  assert.equal(typeof adminListAfterReview.data.items[0].reviewed_at, 'string');
+  assert.equal(Number(adminListAfterReview.data.items[0].confidence_score || 0) >= initialConfidence, true);
+
+  const myTeachersAfterReview = await request('/api/new/teachers/network?direction=my_teachers&relationship_type=taught_in_class', { cookie: alumniCookie });
+  assert.equal(myTeachersAfterReview.res.status, 200);
+  assert.equal(myTeachersAfterReview.data.items[0].review_status, 'confirmed');
+  assert.equal(Number(myTeachersAfterReview.data.items[0].confidence_score || 0) >= initialConfidence, true);
+
+  const adminMentorList = await request('/api/new/admin/teacher-network/links?relationship_type=mentor', { cookie: adminCookie });
+  assert.equal(adminMentorList.res.status, 200);
+  assert.equal(Array.isArray(adminMentorList.data?.items), true);
+  assert.equal(adminMentorList.data.items.length, 1);
+  const mentorRow = adminMentorList.data.items[0];
+  assert.equal(mentorRow.moderation_assessment?.recommended_action, 'merge');
+  assert.equal(mentorRow.moderation_assessment?.duplicate_active_count >= 1, true);
+  assert.equal(mentorRow.moderation_assessment?.risk_signals.some((item) => item.code === 'duplicate_active_pair'), true);
+
+  const mergeReview = await request(`/api/new/admin/teacher-network/links/${mentorRow.id}/review`, {
+    method: 'POST',
+    cookie: adminCookie,
+    body: { status: 'merged', note: 'Duplicate claim merged into primary record', merge_into_link_id: adminRow.id }
+  });
+  assert.equal(mergeReview.res.status, 200);
+  assert.equal(mergeReview.data?.ok, true);
+  assert.equal(mergeReview.data?.status, 'merged');
+  assert.equal(Number(mergeReview.data?.merged_into_link_id || 0), adminRow.id);
+
+  const adminMergedList = await request('/api/new/admin/teacher-network/links?review_status=merged', { cookie: adminCookie });
+  assert.equal(adminMergedList.res.status, 200);
+  assert.equal(Array.isArray(adminMergedList.data?.items), true);
+  assert.equal(adminMergedList.data.items.length, 1);
+  assert.equal(Number(adminMergedList.data.items[0].merged_into_link_id || 0), adminRow.id);
+  assert.equal(adminMergedList.data.items[0].review_note, 'Duplicate claim merged into primary record');
+
+  const myStudentsAfterMerge = await request('/api/new/teachers/network?direction=my_students&class_year=2012', { cookie: teacherCookie });
+  assert.equal(myStudentsAfterMerge.res.status, 200);
+  assert.equal(Array.isArray(myStudentsAfterMerge.data?.items), true);
+  assert.equal(myStudentsAfterMerge.data.items.length, 1);
+
+  const optionsAfterMerge = await request(`/api/new/teachers/options?term=no-match&limit=10&include_id=${teacherId}`, { cookie: alumniCookie });
+  assert.equal(optionsAfterMerge.res.status, 200);
+  assert.equal(Number(optionsAfterMerge.data.items[0]?.existing_link_count || 0), 1);
+
+  const rejectReview = await request(`/api/new/admin/teacher-network/links/${adminRow.id}/review`, {
+    method: 'POST',
+    cookie: adminCookie,
+    body: { status: 'rejected', note: 'Evidence not strong enough yet' }
+  });
+  assert.equal(rejectReview.res.status, 200);
+  assert.equal(rejectReview.data?.status, 'rejected');
+
+  const adminRejectedList = await request('/api/new/admin/teacher-network/links?review_status=rejected', { cookie: adminCookie });
+  assert.equal(adminRejectedList.res.status, 200);
+  assert.equal(Array.isArray(adminRejectedList.data?.items), true);
+  assert.equal(adminRejectedList.data.items.length, 1);
+  assert.equal(adminRejectedList.data.items[0].review_note, 'Evidence not strong enough yet');
+
+  const myTeachersAfterReject = await request('/api/new/teachers/network?direction=my_teachers&relationship_type=taught_in_class', { cookie: alumniCookie });
+  assert.equal(myTeachersAfterReject.res.status, 200);
+  assert.equal(Array.isArray(myTeachersAfterReject.data?.items), true);
+  assert.equal(myTeachersAfterReject.data.items.length, 0);
+
+  const resetReview = await request(`/api/new/admin/teacher-network/links/${adminRow.id}/review`, {
+    method: 'POST',
+    cookie: adminCookie,
+    body: { status: 'pending', note: 'Returned to queue for another pass' }
+  });
+  assert.equal(resetReview.res.status, 200);
+  assert.equal(resetReview.data?.status, 'pending');
+
+  const myTeachersAfterReset = await request('/api/new/teachers/network?direction=my_teachers&relationship_type=taught_in_class', { cookie: alumniCookie });
+  assert.equal(myTeachersAfterReset.res.status, 200);
+  assert.equal(myTeachersAfterReset.data.items.length, 1);
+  assert.equal(myTeachersAfterReset.data.items[0].review_status, 'pending');
+
+  const moderationEvents = sqlAll(
+    `SELECT event_type, to_status
+     FROM teacher_alumni_link_moderation_events
+     WHERE link_id IN (?, ?)
+     ORDER BY id ASC`,
+    [adminRow.id, mentorRow.id]
+  );
+  assert.equal(moderationEvents.length >= 4, true);
+  assert.equal(moderationEvents.some((row) => row.event_type === 'teacher_link_reviewed' && row.to_status === 'confirmed'), true);
+  assert.equal(moderationEvents.some((row) => row.event_type === 'teacher_link_merged' && row.to_status === 'merged'), true);
+  assert.equal(moderationEvents.some((row) => row.event_type === 'teacher_link_reviewed' && row.to_status === 'rejected'), true);
+  assert.equal(moderationEvents.some((row) => row.event_type === 'teacher_link_reviewed' && row.to_status === 'pending'), true);
 
   const optionsWithInclude = await request(`/api/new/teachers/options?term=no-match&limit=10&include_id=${teacherId}`, { cookie: alumniCookie });
   assert.equal(optionsWithInclude.res.status, 200);
@@ -176,6 +333,7 @@ try {
   assert.equal(Array.isArray(optionsWithInclude.data?.data?.items), true);
   assert.equal(Array.isArray(optionsWithInclude.data?.items), true);
   assert.equal(Number(optionsWithInclude.data.items[0]?.id || 0), teacherId);
+  assert.equal(Number(optionsWithInclude.data.items[0]?.existing_link_count || 0), 1);
 
   const invalidFilter = await request('/api/new/teachers/network?direction=my_students&class_year=2201', { cookie: teacherCookie });
   assert.equal(invalidFilter.res.status, 400);

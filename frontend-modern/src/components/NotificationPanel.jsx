@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { NETWORKING_EVENTS } from '../utils/networkingRegistry.js';
 
 function NotificationSkeleton() {
   return (
@@ -65,7 +66,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
     load({ background: false }).catch(() => {});
   }, [load]);
 
-  useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['notification:new', 'post:liked', 'post:commented', 'follow:changed'] });
+  useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['notification:new', 'post:liked', 'post:commented', NETWORKING_EVENTS.followChanged] });
 
   function inviteStatusLabel(status) {
     if (status === 'accepted') return t('group_invite_accepted');

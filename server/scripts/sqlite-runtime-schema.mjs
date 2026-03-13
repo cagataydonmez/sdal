@@ -331,6 +331,36 @@ export function ensureSqliteRuntimeSchema(db) {
       assigned_at TEXT,
       updated_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS network_suggestion_ab_config (
+      variant TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      traffic_pct INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      params_json TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS network_suggestion_ab_assignments (
+      user_id INTEGER PRIMARY KEY,
+      variant TEXT NOT NULL,
+      assigned_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS network_suggestion_ab_change_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action_type TEXT NOT NULL DEFAULT 'apply',
+      related_change_id INTEGER,
+      actor_user_id INTEGER,
+      recommendation_index INTEGER,
+      cohort TEXT,
+      window_days INTEGER,
+      payload_json TEXT,
+      before_snapshot_json TEXT,
+      after_snapshot_json TEXT,
+      created_at TEXT NOT NULL,
+      rolled_back_at TEXT,
+      rollback_change_id INTEGER
+    );
     CREATE TABLE IF NOT EXISTS member_engagement_scores (
       user_id INTEGER PRIMARY KEY,
       ab_variant TEXT,

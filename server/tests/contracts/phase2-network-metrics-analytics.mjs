@@ -162,16 +162,197 @@ try {
   assert.equal(metrics.data?.metrics?.mentorship?.accepted, 1);
   assert.equal(metrics.data?.metrics?.teacherLinks?.created, 1);
 
+  const hubViewTelemetry = await request('/api/new/network/telemetry', {
+    method: 'POST',
+    cookie: cookieMe,
+    body: {
+      event_name: 'network_hub_viewed',
+      source_surface: 'network_hub',
+      metadata: { window: '30d' }
+    }
+  });
+  assert.equal(hubViewTelemetry.res.status, 200);
+  assert.equal(hubViewTelemetry.data?.ok, true);
+
+  const teacherViewTelemetry = await request('/api/new/network/telemetry', {
+    method: 'POST',
+    cookie: cookieMe,
+    body: {
+      event_name: 'teacher_network_viewed',
+      source_surface: 'teachers_network_page'
+    }
+  });
+  assert.equal(teacherViewTelemetry.res.status, 200);
+
+  const exploreSuggestions = await request('/api/new/explore/suggestions?limit=12&offset=0', { cookie: cookieMe });
+  assert.equal(exploreSuggestions.res.status, 200);
+  assert.equal(exploreSuggestions.data?.ok, true);
+  const experimentVariant = String(exploreSuggestions.data?.data?.experiment_variant || exploreSuggestions.data?.experiment_variant || 'A');
+
+  const exploreSuggestionTelemetry = await request('/api/new/network/telemetry', {
+    method: 'POST',
+    cookie: cookieMe,
+    body: {
+      event_name: 'network_explore_suggestions_loaded',
+      source_surface: 'explore_page',
+      metadata: {
+        suggestion_count: Array.isArray(exploreSuggestions.data?.data?.items) ? exploreSuggestions.data.data.items.length : 0,
+        experiment_variant: experimentVariant
+      }
+    }
+  });
+  assert.equal(exploreSuggestionTelemetry.res.status, 200);
+
+  sqlRun(
+    `INSERT OR REPLACE INTO network_suggestion_ab_assignments (user_id, variant, assigned_at, updated_at)
+     VALUES (?, 'B', ?, ?)`,
+    [otherId, now, now]
+  );
+  sqlRun(
+    `INSERT OR REPLACE INTO network_suggestion_ab_assignments (user_id, variant, assigned_at, updated_at)
+     VALUES (?, 'A', ?, ?)`,
+    [mentorId, now, now]
+  );
+  sqlRun(
+    `INSERT INTO networking_telemetry_events (user_id, event_name, source_surface, metadata_json, created_at)
+     VALUES (?, 'network_explore_suggestions_loaded', 'explore_page', ?, ?)`,
+    [otherId, JSON.stringify({ suggestion_count: 6, experiment_variant: 'B' }), now]
+  );
+  sqlRun(
+    `INSERT INTO networking_telemetry_events (user_id, event_name, source_surface, metadata_json, created_at)
+     VALUES (?, 'network_explore_suggestions_loaded', 'explore_page', ?, ?)`,
+    [mentorId, JSON.stringify({ suggestion_count: 5, experiment_variant: 'A' }), now]
+  );
+  sqlRun(
+    `INSERT INTO networking_telemetry_events (user_id, event_name, source_surface, target_user_id, created_at)
+     VALUES (?, 'connection_requested', 'explore_page', ?, ?)`,
+    [otherId, meId, now]
+  );
+  sqlRun(
+    `INSERT INTO networking_telemetry_events (user_id, event_name, source_surface, target_user_id, created_at)
+     VALUES (?, 'mentorship_requested', 'explore_page', ?, ?)`,
+    [otherId, mentorId, now]
+  );
+
+  const followCreated = await request(`/api/new/follow/${otherId}`, {
+    method: 'POST',
+    cookie: cookieMe,
+    body: { source_surface: 'explore_page' }
+  });
+  assert.equal(followCreated.res.status, 200);
+  assert.equal(followCreated.data?.following, true);
+
+  const followRemoved = await request(`/api/new/follow/${otherId}`, {
+    method: 'POST',
+    cookie: cookieMe,
+    body: { source_surface: 'explore_page' }
+  });
+  assert.equal(followRemoved.res.status, 200);
+  assert.equal(followRemoved.data?.following, false);
+
   const analytics = await request('/api/new/admin/network/analytics?window=30d', { cookie: cookieAdmin });
   assert.equal(analytics.res.status, 200);
   assert.equal(analytics.data?.window, '30d');
+  assert.equal(analytics.data?.summary?.source, 'member_networking_daily_summary');
+  assert.equal(analytics.data?.summary?.granularity, 'day');
+  assert.equal(typeof analytics.data?.summary?.last_rebuilt_at, 'string');
   assert.equal(analytics.data?.networking?.connections?.accepted >= 1, true);
   assert.equal(typeof analytics.data?.networking?.connections?.acceptance_rate, 'number');
+  assert.equal(analytics.data?.networking?.telemetry?.frontend?.hub_views, 1);
+  assert.equal(analytics.data?.networking?.telemetry?.frontend?.teacher_network_views, 1);
+  assert.equal(analytics.data?.networking?.telemetry?.actions?.follow_created, 1);
+  assert.equal(analytics.data?.networking?.telemetry?.actions?.follow_removed, 1);
+  assert.equal(Array.isArray(analytics.data?.networking?.telemetry?.top_events), true);
+  assert.equal(Array.isArray(analytics.data?.networking?.alerts), true);
+  assert.equal(Array.isArray(analytics.data?.networking?.experiments?.network_suggestions?.variants), true);
+  assert.equal(analytics.data?.networking?.experiments?.network_suggestions?.variants.some((row) => row.variant === experimentVariant), true);
+  assert.equal(typeof analytics.data?.networking?.experiments?.network_suggestions?.leading_variant?.variant, 'string');
+  assert.equal(Array.isArray(analytics.data?.networking?.experiments?.network_suggestions?.recommendations), true);
+  assert.equal(analytics.data?.networking?.alerts.some((item) => item.code === 'teacher_link_reads_lagging'), true);
   assert.equal(Array.isArray(analytics.data?.networking?.top_active_graduation_years), true);
+
+  const suggestionAb = await request('/api/new/admin/network-suggestion-ab?window=30d', { cookie: cookieAdmin });
+  assert.equal(suggestionAb.res.status, 200);
+  assert.equal(suggestionAb.data?.window, '30d');
+  assert.equal(Array.isArray(suggestionAb.data?.configs), true);
+  assert.equal(Array.isArray(suggestionAb.data?.performance), true);
+  assert.equal(Array.isArray(suggestionAb.data?.recommendations), true);
+  assert.equal(Array.isArray(suggestionAb.data?.recentChanges), true);
+  assert.equal(suggestionAb.data?.performance.some((row) => row.variant === 'B'), true);
+  if (suggestionAb.data?.recommendations.length > 0) {
+    assert.equal(typeof suggestionAb.data.recommendations[0]?.confidence, 'number');
+    assert.equal(typeof suggestionAb.data.recommendations[0]?.guardrails?.confirmation_required, 'boolean');
+    const beforeVariantA = suggestionAb.data.configs.find((row) => row.variant === 'A');
+    const beforeVariantB = suggestionAb.data.configs.find((row) => row.variant === 'B');
+    const applyWithoutConfirmation = await request('/api/new/admin/network-suggestion-ab/apply', {
+      method: 'POST',
+      cookie: cookieAdmin,
+      body: { index: 0, window: '30d', cohort: 'all' }
+    });
+    assert.equal(applyWithoutConfirmation.res.status, 409);
+    assert.equal(applyWithoutConfirmation.data?.code, 'NETWORK_SUGGESTION_RECOMMENDATION_CONFIRM_REQUIRED');
+
+    const applyRecommendation = await request('/api/new/admin/network-suggestion-ab/apply', {
+      method: 'POST',
+      cookie: cookieAdmin,
+      body: { index: 0, window: '30d', cohort: 'all', confirmation: 'apply' }
+    });
+    assert.equal(applyRecommendation.res.status, 200);
+    assert.equal(applyRecommendation.data?.ok, true);
+    assert.equal(applyRecommendation.data?.code, 'NETWORK_SUGGESTION_RECOMMENDATION_APPLIED');
+    assert.equal(typeof applyRecommendation.data?.data?.history_id, 'number');
+    assert.equal(Array.isArray(applyRecommendation.data?.data?.touched_variants), true);
+    assert.equal(applyRecommendation.data?.data?.touched_variants.length >= 1, true);
+    assert.equal(Array.isArray(applyRecommendation.data?.data?.before_snapshot), true);
+    assert.equal(Array.isArray(applyRecommendation.data?.data?.after_snapshot), true);
+
+    const suggestionAbAfter = await request('/api/new/admin/network-suggestion-ab?window=30d', { cookie: cookieAdmin });
+    assert.equal(suggestionAbAfter.res.status, 200);
+    if (suggestionAbAfter.data?.recommendations?.length > 0) {
+      assert.equal(suggestionAbAfter.data.recommendations.some((row) => row.guardrails?.cooldown_active === true), true);
+    }
+    const afterVariantA = suggestionAbAfter.data?.configs?.find((row) => row.variant === 'A');
+    const afterVariantB = suggestionAbAfter.data?.configs?.find((row) => row.variant === 'B');
+    const changedVariant = applyRecommendation.data?.data?.touched_variants?.[0];
+    if (changedVariant === 'A') {
+      assert.notDeepEqual(afterVariantA, beforeVariantA);
+    } else if (changedVariant === 'B') {
+      assert.notDeepEqual(afterVariantB, beforeVariantB);
+    }
+
+    const rollbackRecommendation = await request(`/api/new/admin/network-suggestion-ab/rollback/${applyRecommendation.data?.data?.history_id}`, {
+      method: 'POST',
+      cookie: cookieAdmin,
+      body: {}
+    });
+    assert.equal(rollbackRecommendation.res.status, 200);
+    assert.equal(rollbackRecommendation.data?.ok, true);
+    assert.equal(rollbackRecommendation.data?.code, 'NETWORK_SUGGESTION_RECOMMENDATION_ROLLED_BACK');
+    assert.equal(Array.isArray(rollbackRecommendation.data?.data?.restored_snapshot), true);
+
+    const suggestionAbRolledBack = await request('/api/new/admin/network-suggestion-ab?window=30d', { cookie: cookieAdmin });
+    assert.equal(suggestionAbRolledBack.res.status, 200);
+    const rolledBackVariantA = suggestionAbRolledBack.data?.configs?.find((row) => row.variant === 'A');
+    const rolledBackVariantB = suggestionAbRolledBack.data?.configs?.find((row) => row.variant === 'B');
+    if (changedVariant === 'A') {
+      assert.deepEqual({ ...rolledBackVariantA, updatedAt: null }, { ...beforeVariantA, updatedAt: null });
+    } else if (changedVariant === 'B') {
+      assert.deepEqual({ ...rolledBackVariantB, updatedAt: null }, { ...beforeVariantB, updatedAt: null });
+    }
+    assert.equal(suggestionAbRolledBack.data?.recentChanges.some((row) => Number(row.id) === Number(applyRecommendation.data?.data?.history_id) && typeof row.rolled_back_at === 'string'), true);
+  }
+  assert.equal(typeof suggestionAb.data?.leadingVariant?.variant, 'string');
 
   const cohortScoped = await request('/api/new/admin/network/analytics?window=30d&cohort=2011', { cookie: cookieAdmin });
   assert.equal(cohortScoped.res.status, 200);
   assert.equal(cohortScoped.data?.cohort, '2011');
+  assert.equal(cohortScoped.data?.networking?.telemetry?.frontend?.hub_views, 1);
+  assert.equal(typeof cohortScoped.data?.summary?.last_rebuilt_at, 'string');
+
+  const summaryRows = Number(sqlGet('SELECT COUNT(*) AS cnt FROM member_networking_daily_summary')?.cnt || 0);
+  assert.equal(summaryRows >= 1, true);
+  const suggestionAssignment = sqlGet('SELECT variant FROM network_suggestion_ab_assignments WHERE user_id = ?', [meId]);
+  assert.equal(suggestionAssignment?.variant, experimentVariant);
 
   console.log('phase2 network metrics/analytics tests passed');
 } finally {
