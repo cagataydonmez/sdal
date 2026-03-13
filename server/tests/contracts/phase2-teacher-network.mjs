@@ -159,6 +159,11 @@ try {
   assert.equal(myStudents.data.items.length, 1);
   assert.equal(Number(myStudents.data.items[0].alumni_user_id), alumniId);
 
+  const optionsWithInclude = await request(`/api/new/teachers/options?term=no-match&limit=10&include_id=${teacherId}`, { cookie: alumniCookie });
+  assert.equal(optionsWithInclude.res.status, 200);
+  assert.equal(Array.isArray(optionsWithInclude.data?.items), true);
+  assert.equal(Number(optionsWithInclude.data.items[0]?.id || 0), teacherId);
+
   const invalidFilter = await request('/api/new/teachers/network?direction=my_students&class_year=2201', { cookie: teacherCookie });
   assert.equal(invalidFilter.res.status, 400);
   assert.equal(invalidFilter.data?.code, 'INVALID_CLASS_YEAR');

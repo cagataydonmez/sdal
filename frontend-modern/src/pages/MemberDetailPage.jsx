@@ -5,6 +5,12 @@ import { useAuth } from '../utils/auth.jsx';
 import StoryBar from '../components/StoryBar.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
+function canLinkToTeacherNetwork(member) {
+  const role = String(member?.role || '').trim().toLowerCase();
+  const cohort = String(member?.mezuniyetyili || '').trim().toLowerCase();
+  return role === 'teacher' || role === 'admin' || role === 'root' || cohort === 'teacher' || cohort === 'ogretmen';
+}
+
 export default function MemberDetailPage() {
   const { t } = useI18n();
   const { id } = useParams();
@@ -154,7 +160,7 @@ export default function MemberDetailPage() {
                 {incomingConnectionId ? t('connection_accept') : outgoingRequestId ? t('connection_withdraw') : t('connection_request')}
               </button>
             ) : null}
-            {String(user?.id || '') !== String(member.id || '') && String(member.role || '').toLowerCase() === 'teacher' ? (
+            {String(user?.id || '') !== String(member.id || '') && canLinkToTeacherNetwork(member) ? (
               <a className="btn ghost" href={`/new/network/teachers?teacherId=${member.id}`}>
                 Öğretmen Ağına Ekle
               </a>

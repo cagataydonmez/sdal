@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 
 const RELATIONSHIP_TYPES = [
@@ -11,7 +12,28 @@ function relationshipLabel(value) {
   return RELATIONSHIP_TYPES.find((item) => item.value === value)?.label || value;
 }
 
+function teacherOptionLabel(teacher) {
+  const fullName = [teacher?.isim, teacher?.soyisim].filter(Boolean).join(' ').trim();
+  return fullName ? `@${teacher.kadi} · ${fullName}` : `@${teacher.kadi || 'ogretmen'}`;
+}
+
+async function readApiPayload(res, fallbackMessage) {
+  const text = await res.text();
+  if (!text) return { message: fallbackMessage, payload: null };
+  try {
+    const payload = JSON.parse(text);
+    return {
+      payload,
+      message: payload?.message || payload?.error || fallbackMessage
+    };
+  } catch {
+    return { message: text, payload: null };
+  }
+}
+
 export default function TeachersNetworkPage() {
+  const [searchParams] = useSearchParams();
+  const deepLinkedTeacherId = Math.max(parseInt(searchParams.get('teacherId') || '0', 10), 0);
   const [direction, setDirection] = useState('my_teachers');
   const [relationshipType, setRelationshipType] = useState('');
   const [classYear, setClassYear] = useState('');
@@ -23,9 +45,10 @@ export default function TeachersNetworkPage() {
   const [hasMore, setHasMore] = useState(false);
   const [teacherOptions, setTeacherOptions] = useState([]);
   const [teacherSearch, setTeacherSearch] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
-    teacherId: '',
+    teacherId: deepLinkedTeacherId > 0 ? String(deepLinkedTeacherId) : '',
     relationship_type: 'taught_in_class',
     class_year: '',
     notes: ''
@@ -38,19 +61,33 @@ export default function TeachersNetworkPage() {
     return all;
   }, []);
 
+  const selectedTeacher = teacherOptions.find((teacher) => String(teacher.id) === String(form.teacherId));
+  const activeHistoryTitle = direction === 'my_teachers' ? 'Eklediğin öğretmen bağlantıları' : 'Sana bağlı öğrenciler';
+  const activeHistorySubtitle = direction === 'my_teachers'
+    ? 'Bu görünüm mezun olarak ilişkilendirdiğin öğretmenleri ve geçmiş bağlarını gösterir.'
+    : 'Bu görünüm öğretmen hesabına bağlanan öğrencileri ve ilişki bağlamını listeler.';
+
   const loadTeacherOptions = useCallback(async (term = '') => {
     try {
       const params = new URLSearchParams();
       params.set('limit', '30');
       if (term) params.set('term', term);
+      if (deepLinkedTeacherId > 0) params.set('include_id', String(deepLinkedTeacherId));
       const res = await fetch(`/api/new/teachers/options?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error('Öğretmen listesi alınamadı.');
       const payload = await res.json();
-      setTeacherOptions(payload.items || []);
+      const nextItems = payload.items || [];
+      setTeacherOptions(nextItems);
+      if (deepLinkedTeacherId > 0) {
+        const hasDeepLinkedTeacher = nextItems.some((teacher) => Number(teacher.id) === deepLinkedTeacherId);
+        if (hasDeepLinkedTeacher) {
+          setForm((prev) => (prev.teacherId ? prev : { ...prev, teacherId: String(deepLinkedTeacherId) }));
+        }
+      }
     } catch {
       setTeacherOptions([]);
     }
-  }, []);
+  }, [deepLinkedTeacherId]);
 
   const load = useCallback(async (nextOffset = 0, append = false) => {
     setLoading(true);
@@ -63,18 +100,18 @@ export default function TeachersNetworkPage() {
       if (relationshipType) params.set('relationship_type', relationshipType);
       if (classYear) params.set('class_year', classYear);
       const res = await fetch(`/api/new/teachers/network?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(await res.text());
-      const payload = await res.json();
-      const nextItems = payload.items || [];
+      const { message, payload } = await readApiPayload(res, 'Öğretmen ağı yüklenemedi.');
+      if (!res.ok) throw new Error(message);
+      const nextItems = payload?.items || [];
       setItems((prev) => (append ? [...prev, ...nextItems] : nextItems));
       setOffset(nextOffset + nextItems.length);
-      setHasMore(Boolean(payload.hasMore));
+      setHasMore(Boolean(payload?.hasMore));
     } catch (err) {
       setError(err.message || 'Öğretmen ağı yüklenemedi.');
     } finally {
       setLoading(false);
     }
-  }, [direction, relationshipType, classYear]);
+  }, [classYear, direction, relationshipType]);
 
   useEffect(() => {
     loadTeacherOptions('');
@@ -107,84 +144,194 @@ export default function TeachersNetworkPage() {
     const selectedClassYear = Number(form.class_year || 0);
     if (selectedClassYear >= 1950 && selectedClassYear <= 2100) body.class_year = selectedClassYear;
 
-    const res = await fetch(`/api/new/teachers/network/link/${teacherId}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) {
-      setError(await res.text());
-      return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/new/teachers/network/link/${teacherId}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const { message } = await readApiPayload(res, 'Öğretmen bağlantısı kaydedilemedi.');
+      if (!res.ok) {
+        setError(message);
+        return;
+      }
+      setStatus('Öğretmen bağlantısı başarıyla kaydedildi.');
+      setForm((prev) => ({
+        ...prev,
+        teacherId: '',
+        relationship_type: 'taught_in_class',
+        class_year: '',
+        notes: ''
+      }));
+      await Promise.all([load(0, false), loadTeacherOptions(teacherSearch)]);
+    } finally {
+      setSubmitting(false);
     }
-    setStatus('Öğretmen bağlantısı eklendi.');
-    setForm({ teacherId: '', relationship_type: 'taught_in_class', class_year: '', notes: '' });
-    load(0, false);
   }
 
   return (
     <Layout title="Öğretmen Ağı">
-      <div className="panel">
-        <h3>Öğretmen bağlantısı ekle</h3>
-        <div className="panel-body">
-          <form onSubmit={submitLink}>
-            <div className="form-row">
-              <label>Öğretmen ara</label>
-              <input
-                className="input"
-                placeholder="Kullanıcı adı veya ad soyad"
-                value={teacherSearch}
-                onChange={(e) => setTeacherSearch(e.target.value)}
-              />
+      <section className="network-hero network-hero-teachers">
+        <div className="network-hero-copy">
+          <span className="network-eyebrow">Teacher network graph</span>
+          <h2>Öğretmen bağlantılarını tek merkezden yönet</h2>
+          <p>
+            Mezun-öğretmen ilişkilerini doğrula, geçmiş bağları kayıt altına al ve öğretmen ekosistemini
+            daha okunabilir bir yapıda büyüt.
+          </p>
+          <div className="network-inline-stats">
+            <div className="network-inline-stat">
+              <strong>{teacherOptions.length}</strong>
+              <span>Erişilebilir öğretmen profili</span>
             </div>
-            <div className="form-row">
-              <label>Öğretmen seç</label>
-              <select
-                className="input"
-                value={form.teacherId}
-                onChange={(e) => setForm((prev) => ({ ...prev, teacherId: e.target.value }))}
-                required
-              >
-                <option value="">Öğretmen seçiniz</option>
-                {teacherOptions.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    @{teacher.kadi} · {teacher.isim || ''} {teacher.soyisim || ''}
-                  </option>
-                ))}
-              </select>
+            <div className="network-inline-stat">
+              <strong>{items.length}</strong>
+              <span>Aktif görünümdeki bağlantı</span>
             </div>
-            <div className="form-row">
-              <label>İlişki türü</label>
-              <select
-                className="input"
-                value={form.relationship_type}
-                onChange={(e) => setForm((prev) => ({ ...prev, relationship_type: e.target.value }))}
-              >
-                {RELATIONSHIP_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
+            <div className="network-inline-stat">
+              <strong>{hasMore ? `${offset}+` : offset}</strong>
+              <span>Yüklenen kayıt</span>
             </div>
-            <div className="form-row">
-              <label>Sınıf yılı (opsiyonel)</label>
-              <select className="input" value={form.class_year} onChange={(e) => setForm((prev) => ({ ...prev, class_year: e.target.value }))}>
-                <option value="">Seçiniz</option>
-                {years.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
+          </div>
+        </div>
+        <div className="network-hero-actions">
+          <a className="btn primary" href="/new/network/hub">Networking merkezine dön</a>
+          <a className="btn ghost" href="/new/explore">Yeni mezun keşfet</a>
+        </div>
+      </section>
+
+      <div className="network-dashboard network-dashboard-tight">
+        <div className="panel network-panel-emphasis">
+          <div className="network-section-head">
+            <div>
+              <span className="network-section-kicker">Yeni ilişki ekle</span>
+              <h3>Öğretmen bağlantısı oluştur</h3>
             </div>
-            <div className="form-row">
-              <label>Not (opsiyonel)</label>
-              <textarea className="input" value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} maxLength={500} />
+            {deepLinkedTeacherId > 0 ? <span className="chip">Profil üzerinden ön seçim geldi</span> : null}
+          </div>
+          <div className="panel-body">
+            <form className="network-form-grid" onSubmit={submitLink}>
+              <div className="form-row">
+                <label>Öğretmen ara</label>
+                <input
+                  className="input"
+                  placeholder="Kullanıcı adı veya ad soyad"
+                  value={teacherSearch}
+                  onChange={(e) => setTeacherSearch(e.target.value)}
+                />
+              </div>
+              <div className="form-row">
+                <label>Öğretmen seç</label>
+                <select
+                  className="input"
+                  value={form.teacherId}
+                  onChange={(e) => setForm((prev) => ({ ...prev, teacherId: e.target.value }))}
+                  required
+                >
+                  <option value="">Öğretmen seçiniz</option>
+                  {teacherOptions.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacherOptionLabel(teacher)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row">
+                <label>İlişki türü</label>
+                <select
+                  className="input"
+                  value={form.relationship_type}
+                  onChange={(e) => setForm((prev) => ({ ...prev, relationship_type: e.target.value }))}
+                >
+                  {RELATIONSHIP_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </div>
+              <div className="form-row">
+                <label>Sınıf yılı</label>
+                <select
+                  className="input"
+                  value={form.class_year}
+                  onChange={(e) => setForm((prev) => ({ ...prev, class_year: e.target.value }))}
+                >
+                  <option value="">Seçiniz</option>
+                  {years.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <div className="form-row network-form-wide">
+                <label>Not</label>
+                <textarea
+                  className="input"
+                  value={form.notes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  maxLength={500}
+                  placeholder="Bu ilişkiyi hangi bağlamda eklediğini kısaca yaz."
+                />
+              </div>
+              <div className="network-form-footer">
+                <button className="btn primary" type="submit" disabled={submitting}>
+                  {submitting ? 'Kaydediliyor...' : 'Bağlantıyı Kaydet'}
+                </button>
+                <span className="muted">Doğrulanmış bir kayıt öğretmen ağı görünürlüğünü güçlendirir.</span>
+              </div>
+            </form>
+            {status ? <div className="ok">{status}</div> : null}
+            {error ? <div className="error">{error}</div> : null}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="network-section-head">
+            <div>
+              <span className="network-section-kicker">Seçili profil</span>
+              <h3>Bağlantı önizlemesi</h3>
             </div>
-            <button className="btn primary" type="submit">Bağlantıyı Kaydet</button>
-          </form>
-          {status ? <div className="ok">{status}</div> : null}
-          {error ? <div className="error">{error}</div> : null}
+          </div>
+          <div className="panel-body stack">
+            {selectedTeacher ? (
+              <div className="network-highlight-card">
+                <div className="network-highlight-title">{teacherOptionLabel(selectedTeacher)}</div>
+                <div className="network-highlight-meta">
+                  <span className="chip">Öğrenci sayısı: {selectedTeacher.student_count || 0}</span>
+                  {selectedTeacher.mezuniyetyili ? <span className="chip">Kohort: {selectedTeacher.mezuniyetyili}</span> : null}
+                </div>
+                <p className="muted">
+                  Bu öğretmen için bağlantı eklediğinde öğretmen hesabına bildirim gider ve networking merkezi
+                  üzerinden izlenebilir hale gelir.
+                </p>
+              </div>
+            ) : (
+              <div className="network-empty-state">
+                <strong>Henüz bir öğretmen seçilmedi.</strong>
+                <span>Bir profilden geldiysen seçim otomatik doldurulur; aksi durumda listeden bir öğretmen seç.</span>
+              </div>
+            )}
+            <div className="network-guidance-list">
+              <div className="network-guidance-item">
+                <strong>Derin link desteği</strong>
+                <span>Profil kartından gelen `teacherId` parametresi artık forma doğrudan taşınıyor.</span>
+              </div>
+              <div className="network-guidance-item">
+                <strong>Daha güvenli seçim</strong>
+                <span>Arama sonucu eşleşmese bile seçili öğretmen opsiyon listesinde korunuyor.</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="panel">
-        <h3>Bağlantı geçmişi</h3>
+        <div className="network-section-head">
+          <div>
+            <span className="network-section-kicker">İlişki geçmişi</span>
+            <h3>{activeHistoryTitle}</h3>
+            <p>{activeHistorySubtitle}</p>
+          </div>
+          <span className="chip">{items.length} kayıt</span>
+        </div>
         <div className="panel-body">
-          <div className="composer-actions" style={{ marginBottom: 12 }}>
+          <div className="network-filter-bar">
             <select className="input" value={direction} onChange={(e) => setDirection(e.target.value)}>
               <option value="my_teachers">Öğretmenlerim</option>
               <option value="my_students">Öğrencilerim</option>
@@ -197,18 +344,36 @@ export default function TeachersNetworkPage() {
               <option value="">Tüm yıllar</option>
               {years.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
-            <button className="btn ghost" type="button" onClick={() => load(0, false)} disabled={loading}>Filtreyi Uygula</button>
+            <button className="btn ghost" type="button" onClick={() => load(0, false)} disabled={loading}>
+              {loading ? 'Yenileniyor...' : 'Filtreyi Uygula'}
+            </button>
           </div>
 
-          {!items.length && !loading ? <div className="muted">Henüz öğretmen ağı bağlantısı bulunmuyor.</div> : null}
-          {items.map((item) => (
-            <article key={item.id} className="card" style={{ marginBottom: 10 }}>
-              <div className="meta"><strong>@{item.kadi || 'uye'}</strong> · {item.isim || ''} {item.soyisim || ''}</div>
-              <div className="meta">İlişki: {relationshipLabel(item.relationship_type)}</div>
-              {item.class_year ? <div className="meta">Sınıf yılı: {item.class_year}</div> : null}
-              {item.notes ? <div>{item.notes}</div> : null}
-            </article>
-          ))}
+          {!items.length && !loading ? (
+            <div className="network-empty-state network-empty-state-wide">
+              <strong>Henüz öğretmen ağı bağlantısı yok.</strong>
+              <span>Soldaki formu kullanarak ilk doğrulanmış öğretmen bağını ekleyebilirsin.</span>
+            </div>
+          ) : null}
+
+          <div className="network-history-list">
+            {items.map((item) => (
+              <article key={item.id} className="network-history-card">
+                <div className="network-history-main">
+                  <div className="network-history-title">
+                    <strong>@{item.kadi || 'uye'}</strong>
+                    <span>{item.isim || ''} {item.soyisim || ''}</span>
+                  </div>
+                  <div className="network-history-meta">
+                    <span className="chip">{relationshipLabel(item.relationship_type)}</span>
+                    {item.class_year ? <span className="chip">Sınıf yılı {item.class_year}</span> : null}
+                    {item.verified ? <span className="chip">Doğrulanmış profil</span> : null}
+                  </div>
+                </div>
+                {item.notes ? <p className="muted">{item.notes}</p> : <p className="muted">Not eklenmemiş.</p>}
+              </article>
+            ))}
+          </div>
 
           {hasMore ? (
             <button className="btn ghost" type="button" onClick={() => load(offset, true)} disabled={loading}>

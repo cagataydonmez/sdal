@@ -9162,13 +9162,14 @@ app.get('/api/new/teachers/options', requireAuth, async (req, res) => {
     ensureTeacherAlumniLinksTable();
     const term = String(req.query.term || '').trim();
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
+    const includeId = Math.max(parseInt(req.query.include_id || '0', 10), 0);
     const params = [];
     let whereSql = "WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1 AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0 AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('teacher', 'ogretmen'))";
     if (term) {
       whereSql += ' AND (LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))';
       params.push(`%${term}%`, `%${term}%`, `%${term}%`);
     }
-    const rows = await sqlAllAsync(
+    let rows = await sqlAllAsync(
       `SELECT u.id, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim,
               (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id) AS student_count
        FROM uyeler u
@@ -9177,6 +9178,22 @@ app.get('/api/new/teachers/options', requireAuth, async (req, res) => {
        LIMIT ?`,
       [...params, limit]
     );
+
+    if (includeId > 0 && !rows.some((row) => Number(row?.id || 0) === includeId)) {
+      const selectedRow = await sqlGetAsync(
+        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim,
+                (SELECT COUNT(*) FROM teacher_alumni_links l WHERE l.teacher_user_id = u.id) AS student_count
+         FROM uyeler u
+         WHERE u.id = ?
+           AND COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
+           AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
+           AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('teacher', 'ogretmen'))
+         LIMIT 1`,
+        [includeId]
+      );
+      if (selectedRow) rows = [selectedRow, ...rows].slice(0, limit);
+    }
+
     return res.json({ items: rows });
   } catch (err) {
     console.error('teachers.options failed:', err);
