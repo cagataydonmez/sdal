@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useNetworkingHubState } from '../hooks/useNetworkingHubState.js';
 import { useI18n } from '../utils/i18n.jsx';

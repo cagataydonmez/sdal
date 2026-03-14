@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import PostCard from '../components/PostCard.jsx';
 import { useAuth } from '../utils/auth.jsx';

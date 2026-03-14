@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from '../router.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useTheme } from '../utils/theme.jsx';

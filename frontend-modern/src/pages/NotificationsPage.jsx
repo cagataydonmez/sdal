@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { readApiPayload } from '../utils/api.js';
 import { bulkReadNotifications, openNotification, readNotification, runNotificationAction } from '../utils/notificationApi.js';

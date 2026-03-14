@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
 import { useI18n } from '../utils/i18n.jsx';

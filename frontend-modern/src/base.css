@@ -1,6 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;600;700&display=swap');
 @import './generated/design-tokens.css';
 
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+
 /* Theme variables are generated from design/tokens/sdal.tokens.json. */
 
 * { box-sizing: border-box; }
