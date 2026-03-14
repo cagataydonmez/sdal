@@ -339,9 +339,9 @@
 
 .request-payload-card {
   margin-top: 8px;
-  border: 1px solid #e7dccb;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, var(--accent-soft-line) 18%);
   border-radius: 12px;
-  background: #fffaf3;
+  background: color-mix(in srgb, var(--soft-panel) 88%, var(--accent-soft-bg) 12%);
   padding: 10px;
 }
 .request-payload-row {
@@ -351,13 +351,19 @@
   font-size: 13px;
   margin-bottom: 6px;
 }
-.request-payload-key { color: #7c6f5f; font-weight: 700; }
-.request-payload-value { color: #2d2620; word-break: break-word; }
+.request-payload-key {
+  color: color-mix(in srgb, var(--muted) 78%, var(--ink) 22%);
+  font-weight: 700;
+}
+.request-payload-value {
+  color: var(--ink);
+  word-break: break-word;
+}
 .request-payload-attachments { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
 .notification-focus-card {
-  border-color: #d3a85f;
-  box-shadow: 0 0 0 2px rgba(211, 168, 95, 0.16);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line) 58%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft-line) 28%, transparent);
   scroll-margin-top: 100px;
 }
 
@@ -365,13 +371,13 @@
   margin-top: 12px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid #ead8b2;
-  background: #fffaf0;
+  border: 1px solid color-mix(in srgb, var(--accent-soft-line) 52%, var(--line) 48%);
+  background: color-mix(in srgb, var(--soft-panel) 74%, var(--accent-soft-bg) 26%);
 }
 
 .network-focus-card {
-  border-color: #d3a85f;
-  box-shadow: 0 0 0 2px rgba(211, 168, 95, 0.16);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line) 58%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft-line) 28%, transparent);
 }
 
 .notification-card-stack {
@@ -390,12 +396,12 @@
 }
 
 .notification-card.unread {
-  border-color: #d8c18f;
-  background: #fffaf2;
+  border-color: color-mix(in srgb, var(--accent-soft-line) 42%, var(--line) 58%);
+  background: color-mix(in srgb, var(--card) 78%, var(--accent-soft-bg) 22%);
 }
 
 .notification-card.actionable {
-  box-shadow: 0 0 0 1px rgba(211, 168, 95, 0.12);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-soft-line) 24%, transparent);
 }
 
 .notification-card.compact {
