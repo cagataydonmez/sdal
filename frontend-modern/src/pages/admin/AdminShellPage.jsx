@@ -5,6 +5,7 @@ import { useAuth } from '../../utils/auth.jsx';
 import AdminSidebar from '../../admin/components/AdminSidebar.jsx';
 import DashboardSection from './sections/DashboardSection.jsx';
 import UsersSection from './sections/UsersSection.jsx';
+import AlbumSection from './sections/AlbumSection.jsx';
 import ContentModerationSection from './sections/ContentModerationSection.jsx';
 import MessagingSafetySection from './sections/MessagingSafetySection.jsx';
 import GroupsEventsSection from './sections/GroupsEventsSection.jsx';
@@ -22,8 +23,9 @@ export default function AdminShellPage() {
   const role = normalizeRole(user?.role);
   const isRoot = role === 'root';
   const isAdmin = isRoot || role === 'admin' || Number(user?.admin || 0) === 1;
+  const isAlbumAdmin = isAdmin || Number(user?.albumadmin || 0) === 1;
   const isModerator = role === 'mod';
-  const canUseAdminConsole = isAdmin || isModerator;
+  const canUseAdminConsole = isAlbumAdmin || isModerator;
 
   const permissionSet = useMemo(() => new Set(user?.moderationPermissionKeys || []), [user?.moderationPermissionKeys]);
   const hasPermission = useCallback((permissionKey) => isAdmin || permissionSet.has(permissionKey), [isAdmin, permissionSet]);
@@ -57,6 +59,13 @@ export default function AdminShellPage() {
             canDeleteStories={hasPermission('stories.delete')}
           />
         )
+      },
+      {
+        key: 'albums',
+        label: 'Photo Albums',
+        hint: 'Album categories and photo moderation',
+        visible: isAlbumAdmin,
+        render: () => <AlbumSection canManageAlbums={isAlbumAdmin} />
       },
       {
         key: 'messaging',
@@ -123,7 +132,7 @@ export default function AdminShellPage() {
     ];
 
     return definition.filter((item) => item.visible);
-  }, [hasPermission, isAdmin]);
+  }, [hasPermission, isAdmin, isAlbumAdmin]);
 
   const [activeKey, setActiveKey] = useState('dashboard');
 
@@ -170,6 +179,7 @@ export default function AdminShellPage() {
               </div>
               <div className="ops-inline-actions">
                 {isAdmin ? <span className="chip">Global admin</span> : null}
+                {!isAdmin && isAlbumAdmin ? <span className="chip">Album admin</span> : null}
                 {isModerator ? <span className="chip">Scoped moderator</span> : null}
               </div>
             </div>

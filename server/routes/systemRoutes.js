@@ -121,6 +121,7 @@ export function registerSystemRoutes(app, deps) {
         soyisim: current.soyisim,
         photo: current.resim,
         admin: current.admin,
+        albumadmin: current.albumadmin,
         role: current.role,
         verified: current.verified,
         mezuniyetyili: current.mezuniyetyili,
