@@ -320,7 +320,7 @@ export function useNetworkingHubState(t) {
           teacherEvents: hub.inbox?.teacherLinks?.events || [],
           teacherUnreadCount: Number(hub.inbox?.teacherLinks?.unread_count || 0),
           metrics: hub.metrics || emptyMetrics(),
-          loadError: bootstrapRes.ok ? '' : t('network_hub_load_error'),
+          loadError: bootstrapRes.ok ? '' : (bootstrapRes.message || t('network_hub_load_error')),
           loadNotice: bootstrapRes.ok ? '' : ''
         }
       });

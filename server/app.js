@@ -12060,6 +12060,10 @@ function createEmptyExploreSuggestionsPayload(variant = 'A') {
   };
 }
 
+function selectOptionalColumnSql(table, alias, column, fallbackSql = 'NULL') {
+  return hasColumn(table, column) ? `${alias}.${column}` : fallbackSql;
+}
+
 async function safeNetworkSection(label, fallbackValue, callback) {
   try {
     return await callback();
@@ -12075,11 +12079,21 @@ async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit =
   ensureTeacherAlumniLinksTable();
   if (!hasTable('uyeler')) return createEmptyNetworkInboxPayload();
   const hasNotifications = hasTable('notifications');
+  const userVerifiedSql = `${selectOptionalColumnSql('uyeler', 'u', 'verified', '0')} AS verified`;
+  const canLoadTeacherLinkEvents =
+    hasNotifications
+    && hasColumn('notifications', 'user_id')
+    && hasColumn('notifications', 'type');
+  const teacherNotificationSourceUserIdSql = selectOptionalColumnSql('notifications', 'n', 'source_user_id', 'NULL');
+  const teacherNotificationEntityIdSql = `${selectOptionalColumnSql('notifications', 'n', 'entity_id', 'NULL')} AS entity_id`;
+  const teacherNotificationMessageSql = `${selectOptionalColumnSql('notifications', 'n', 'message', "''")} AS message`;
+  const teacherNotificationReadAtSql = `${selectOptionalColumnSql('notifications', 'n', 'read_at', 'NULL')} AS read_at`;
+  const teacherNotificationCreatedAtSql = selectOptionalColumnSql('notifications', 'n', 'created_at', 'NULL');
 
   const [incomingConnections, outgoingConnections, incomingMentorship, outgoingMentorship, teacherLinkEvents] = await Promise.all([
     sqlAllAsync(
       `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
-              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+              u.kadi, u.isim, u.soyisim, u.resim, ${userVerifiedSql}
        FROM connection_requests cr
        LEFT JOIN uyeler u ON u.id = cr.sender_id
        WHERE cr.receiver_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
@@ -12089,7 +12103,7 @@ async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit =
     ),
     sqlAllAsync(
       `SELECT cr.id, cr.sender_id, cr.receiver_id, cr.status, cr.created_at, cr.updated_at, cr.responded_at,
-              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+              u.kadi, u.isim, u.soyisim, u.resim, ${userVerifiedSql}
        FROM connection_requests cr
        LEFT JOIN uyeler u ON u.id = cr.receiver_id
        WHERE cr.sender_id = ? AND LOWER(TRIM(COALESCE(cr.status, ''))) = 'pending'
@@ -12099,7 +12113,7 @@ async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit =
     ),
     sqlAllAsync(
       `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
-              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+              u.kadi, u.isim, u.soyisim, u.resim, ${userVerifiedSql}
        FROM mentorship_requests mr
        LEFT JOIN uyeler u ON u.id = mr.requester_id
        WHERE mr.mentor_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
@@ -12109,7 +12123,7 @@ async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit =
     ),
     sqlAllAsync(
       `SELECT mr.id, mr.requester_id, mr.mentor_id, mr.status, mr.focus_area, mr.message, mr.created_at, mr.updated_at, mr.responded_at,
-              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+              u.kadi, u.isim, u.soyisim, u.resim, ${userVerifiedSql}
        FROM mentorship_requests mr
        LEFT JOIN uyeler u ON u.id = mr.mentor_id
        WHERE mr.requester_id = ? AND LOWER(TRIM(COALESCE(mr.status, ''))) = 'requested'
@@ -12117,14 +12131,14 @@ async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit =
        LIMIT ?`,
       [userId, limit]
     ),
-    hasNotifications
+    canLoadTeacherLinkEvents
       ? sqlAllAsync(
-      `SELECT n.id, n.type, n.source_user_id, n.entity_id, n.message, n.read_at, n.created_at,
-              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+      `SELECT n.id, n.type, ${teacherNotificationSourceUserIdSql} AS source_user_id, ${teacherNotificationEntityIdSql}, ${teacherNotificationMessageSql}, ${teacherNotificationReadAtSql}, ${teacherNotificationCreatedAtSql} AS created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, ${userVerifiedSql}
        FROM notifications n
-       LEFT JOIN uyeler u ON u.id = n.source_user_id
+       LEFT JOIN uyeler u ON u.id = ${teacherNotificationSourceUserIdSql}
        WHERE n.user_id = ? AND n.type = 'teacher_network_linked'
-       ORDER BY COALESCE(CASE WHEN CAST(n.created_at AS TEXT) = '' THEN NULL ELSE n.created_at END, '1970-01-01T00:00:00.000Z') DESC, n.id DESC
+       ORDER BY COALESCE(CASE WHEN CAST(${teacherNotificationCreatedAtSql} AS TEXT) = '' THEN NULL ELSE ${teacherNotificationCreatedAtSql} END, '1970-01-01T00:00:00.000Z') DESC, n.id DESC
        LIMIT ?`,
       [userId, teacherLinkLimit]
     )
@@ -12319,6 +12333,8 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
   );
   if (!me) return { items: [], hasMore: false, total: 0, experiment_variant: experiment.variant };
   const hasEngagementScores = hasTable('member_engagement_scores');
+  const candidateVerifiedSql = `${selectOptionalColumnSql('uyeler', 'u', 'verified', '0')} AS verified`;
+  const candidateRoleSql = `${selectOptionalColumnSql('uyeler', 'u', 'role', "'user'")} AS role`;
 
   const [iFollowFollowers, followsMe, candidates] = await Promise.all([
     hasFollows
@@ -12333,8 +12349,8 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
       : Promise.resolve([]),
     hasFollows ? sqlAllAsync('SELECT follower_id FROM follows WHERE following_id = ?', [safeUserId]) : Promise.resolve([]),
     sqlAllAsync(
-      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.mezuniyetyili, u.sehir, u.universite, u.meslek, ${hasOnline ? 'u.online' : '0'} AS online,
-              u.role, ${hasMentorOptIn ? 'u.mentor_opt_in' : '0'} AS mentor_opt_in,
+      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, ${candidateVerifiedSql}, u.mezuniyetyili, u.sehir, u.universite, u.meslek, ${hasOnline ? 'u.online' : '0'} AS online,
+              ${candidateRoleSql}, ${hasMentorOptIn ? 'u.mentor_opt_in' : '0'} AS mentor_opt_in,
               ${hasEngagementScores ? 'COALESCE(es.score, 0)' : '0'} AS engagement_score
        FROM uyeler u
        ${hasEngagementScores ? 'LEFT JOIN member_engagement_scores es ON es.user_id = u.id' : ''}

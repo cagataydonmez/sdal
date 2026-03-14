@@ -12,6 +12,23 @@ fs.copyFileSync(sourceDb, bootstrapPath);
 
 const bootstrapDb = new Database(bootstrapPath);
 bootstrapDb.exec(`
+  PRAGMA foreign_keys = OFF;
+  CREATE TABLE IF NOT EXISTS notifications_legacy (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    type TEXT,
+    source_user_id INTEGER,
+    entity_id INTEGER,
+    message TEXT,
+    created_at TEXT
+  );
+  INSERT INTO notifications_legacy (id, user_id, type, source_user_id, entity_id, message, created_at)
+  SELECT id, user_id, type, source_user_id, entity_id, message, created_at
+  FROM notifications;
+  DROP TABLE notifications;
+  ALTER TABLE notifications_legacy RENAME TO notifications;
+  PRAGMA foreign_keys = ON;
+
   CREATE TABLE IF NOT EXISTS follows (
     id INTEGER PRIMARY KEY,
     follower_id INTEGER,
@@ -58,8 +75,6 @@ bootstrapDb.exec(`
     source_user_id INTEGER,
     entity_id INTEGER,
     message TEXT,
-    is_read INTEGER DEFAULT 0,
-    read_at TEXT,
     created_at TEXT
   );
   CREATE TABLE IF NOT EXISTS site_controls (
