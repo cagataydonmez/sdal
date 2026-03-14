@@ -269,7 +269,8 @@ export function registerAdminOperationsRoutes(app, deps) {
       full_width,
       webp_quality,
       max_upload_bytes,
-      avif_enabled
+      avif_enabled,
+      album_uploads_require_approval
     } = req.body || {};
 
     if (storage_provider === 'spaces') {
@@ -288,6 +289,11 @@ export function registerAdminOperationsRoutes(app, deps) {
     if (max_upload_bytes && Number(max_upload_bytes) >= 1048576 && Number(max_upload_bytes) <= 52428800) updates.max_upload_bytes = Number(max_upload_bytes);
     if (avif_enabled !== undefined) {
       updates.avif_enabled = dbDriver === 'postgres' ? !!avif_enabled : (avif_enabled ? 1 : 0);
+    }
+    if (album_uploads_require_approval !== undefined) {
+      updates.album_uploads_require_approval = dbDriver === 'postgres'
+        ? !!album_uploads_require_approval
+        : (album_uploads_require_approval ? 1 : 0);
     }
 
     const setClauses = Object.keys(updates).map((key) => `${key} = ?`);

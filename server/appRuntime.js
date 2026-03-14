@@ -543,10 +543,14 @@ function ensureRuntimeDefaults() {
       );
     }
     sqlRun(
+      `ALTER TABLE media_settings
+       ADD COLUMN IF NOT EXISTS album_uploads_require_approval BOOLEAN NOT NULL DEFAULT FALSE`
+    );
+    sqlRun(
       `INSERT INTO media_settings
-        (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
+        (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, album_uploads_require_approval, updated_at)
        VALUES
-        (1, 'local', ?, 200, 800, 1600, 80, 10485760, FALSE, ?)
+        (1, 'local', ?, 200, 800, 1600, 80, 10485760, FALSE, FALSE, ?)
        ON CONFLICT (id) DO NOTHING`,
       [uploadsDir, now]
     );
@@ -590,6 +594,7 @@ function ensureRuntimeDefaults() {
       webp_quality INTEGER DEFAULT 80,
       max_upload_bytes INTEGER DEFAULT 10485760,
       avif_enabled INTEGER DEFAULT 0,
+      album_uploads_require_approval INTEGER DEFAULT 0,
       updated_at TEXT
     )
   `);
@@ -609,9 +614,9 @@ function ensureRuntimeDefaults() {
   }
   sqlRun(
     `INSERT INTO media_settings
-      (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
+      (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, album_uploads_require_approval, updated_at)
      VALUES
-      (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, ?)
+      (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, 0, ?)
      ON CONFLICT(id) DO NOTHING`,
     [uploadsDir, now]
   );
@@ -2985,11 +2990,23 @@ async function sendImage(res, filePath, options = {}) {
     let image = sharp(filePath);
     if (options.grayscale) image = image.grayscale();
     if (options.threshold != null) image = image.threshold(options.threshold);
-  if (options.resize) image = image.resize({ ...options.resize, withoutEnlargement: true });
-    res.type('image/jpeg');
+    if (options.resize) image = image.resize({ ...options.resize, withoutEnlargement: true });
     const buf = await image.jpeg({ quality: 85 }).toBuffer();
+    res.type('image/jpeg');
     res.send(buf);
   } catch (err) {
+    try {
+      writeAppLog('warn', 'legacy_image_processing_failed', {
+        filePath,
+        message: err?.message || 'unknown_error'
+      });
+    } catch {
+      // best effort logging
+    }
+    if (filePath && fs.existsSync(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+      return res.sendFile(filePath);
+    }
     res.status(500).send('Image processing failed');
   }
 }
@@ -3678,6 +3695,7 @@ registerMemberCommunicationRoutes(app, {
   messengerSendIdempotency,
   albumUpload,
   processDiskImageUpload,
+  loadMediaSettings,
   uploadImagePresets,
   getCurrentUser,
   addNotification

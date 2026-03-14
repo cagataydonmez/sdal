@@ -8,7 +8,8 @@ const DEFAULT_MEDIA_FORM = {
   full_width: 1920,
   webp_quality: 82,
   max_upload_bytes: 10485760,
-  avif_enabled: false
+  avif_enabled: false,
+  album_uploads_require_approval: false
 };
 
 export default function SettingsSection({ isAdmin = false }) {
@@ -44,7 +45,8 @@ export default function SettingsSection({ isAdmin = false }) {
       full_width: Number(settings.full_width || DEFAULT_MEDIA_FORM.full_width),
       webp_quality: Number(settings.webp_quality || DEFAULT_MEDIA_FORM.webp_quality),
       max_upload_bytes: Number(settings.max_upload_bytes || DEFAULT_MEDIA_FORM.max_upload_bytes),
-      avif_enabled: Number(settings.avif_enabled || 0) === 1 || settings.avif_enabled === true
+      avif_enabled: Number(settings.avif_enabled || 0) === 1 || settings.avif_enabled === true,
+      album_uploads_require_approval: Number(settings.album_uploads_require_approval || 0) === 1 || settings.album_uploads_require_approval === true
     });
     setMediaConnectionInfo({
       spacesConfigured: !!data.spacesConfigured,
@@ -256,6 +258,14 @@ export default function SettingsSection({ isAdmin = false }) {
               onChange={(e) => setMediaForm((prev) => ({ ...prev, avif_enabled: e.target.checked }))}
             />
             <span>Enable AVIF generation</span>
+          </label>
+          <label className="ops-check-row">
+            <input
+              type="checkbox"
+              checked={!!mediaForm.album_uploads_require_approval}
+              onChange={(e) => setMediaForm((prev) => ({ ...prev, album_uploads_require_approval: e.target.checked }))}
+            />
+            <span>Require album photo approval before publishing</span>
           </label>
           <div className="meta">
             Spaces configured: {mediaConnectionInfo.spacesConfigured ? 'yes' : 'no'}

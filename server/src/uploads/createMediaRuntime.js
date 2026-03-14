@@ -88,7 +88,10 @@ export function createMediaRuntime({
   } = {}) {
     if (!filePath || !fs.existsSync(filePath)) return filePath;
     const parsed = path.parse(filePath);
-    const outputPath = path.join(parsed.dir, `${parsed.name}.webp`);
+    const finalOutputPath = path.join(parsed.dir, `${parsed.name}.webp`);
+    const tempOutputPath = finalOutputPath === filePath
+      ? path.join(parsed.dir, `${parsed.name}.optimized.webp`)
+      : finalOutputPath;
     await sharp(filePath)
       .rotate()
       .resize(width || null, height || null, {
@@ -97,15 +100,27 @@ export function createMediaRuntime({
         background
       })
       .webp({ quality, effort: 4 })
-      .toFile(outputPath);
-    if (outputPath !== filePath && fs.existsSync(filePath)) {
+      .toFile(tempOutputPath);
+    if (tempOutputPath !== finalOutputPath) {
+      try {
+        if (fs.existsSync(finalOutputPath)) fs.unlinkSync(finalOutputPath);
+      } catch {
+        // ignore cleanup errors
+      }
+      try {
+        fs.renameSync(tempOutputPath, finalOutputPath);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+    if (filePath !== finalOutputPath && fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
       } catch {
         // ignore cleanup errors
       }
     }
-    return outputPath;
+    return finalOutputPath;
   }
 
   function toUploadUrl(filePath) {

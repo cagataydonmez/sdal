@@ -26,6 +26,7 @@ export function registerMemberCommunicationRoutes(app, {
   messengerSendIdempotency,
   albumUpload,
   processDiskImageUpload,
+  loadMediaSettings,
   uploadImagePresets,
   getCurrentUser,
   addNotification
@@ -691,15 +692,24 @@ export function registerMemberCommunicationRoutes(app, {
     if (!processed.ok) return res.status(processed.statusCode).send(processed.message);
 
     const storedFilename = path.basename(processed.path || req.file.path);
+    const mediaSettings = loadMediaSettings(sqlGet);
+    const requireApproval = mediaSettings.albumUploadsRequireApproval === true;
+    const initialActiveValue = requireApproval ? toDbFlagForColumn('album_foto', 'aktif', false) : albumActiveValue;
 
     sqlRun('UPDATE album_kat SET sonekleme = ?, sonekleyen = ? WHERE id = ?', [new Date().toISOString(), req.session.userId, category.id]);
     sqlRun(
       `INSERT INTO album_foto (dosyaadi, katid, baslik, aciklama, aktif, ekleyenid, tarih, hit)
        VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-      [storedFilename, String(category.id), baslik, aciklama, albumActiveValue, req.session.userId, new Date().toISOString()]
+      [storedFilename, String(category.id), baslik, aciklama, initialActiveValue, req.session.userId, new Date().toISOString()]
     );
 
-    res.json({ ok: true, file: storedFilename, categoryId: category.id });
+    res.json({
+      ok: true,
+      file: storedFilename,
+      categoryId: category.id,
+      active: !requireApproval,
+      requiresApproval: requireApproval
+    });
   });
 
   app.get('/api/albums/:id', (req, res) => {

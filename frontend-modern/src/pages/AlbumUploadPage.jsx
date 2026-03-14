@@ -34,7 +34,11 @@ export default function AlbumUploadPage() {
       return;
     }
     const data = await res.json();
-    setStatus(t('album_upload_status_success', { categoryId: data.categoryId }));
+    setStatus(
+      data?.requiresApproval
+        ? t('album_upload_status_pending', { categoryId: data.categoryId })
+        : t('album_upload_status_success', { categoryId: data.categoryId })
+    );
     setForm({ kat: '', baslik: '', aciklama: '' });
     setFile(null);
   }

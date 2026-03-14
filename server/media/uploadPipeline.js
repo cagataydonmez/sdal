@@ -32,6 +32,7 @@ export function loadMediaSettings(sqlGet) {
     webpQuality: Number(row?.webp_quality) || 80,
     maxUploadBytes: Number(row?.max_upload_bytes) || 10485760,
     avifEnabled: Number(row?.avif_enabled) || 0,
+    albumUploadsRequireApproval: Number(row?.album_uploads_require_approval || 0) === 1 || row?.album_uploads_require_approval === true
   };
 }
 
