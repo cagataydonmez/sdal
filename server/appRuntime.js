@@ -8,9 +8,7 @@ import fs from 'fs';
 import os from 'os';
 import { execFileSync } from 'child_process';
 import crypto from 'crypto';
-import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
-import { WebSocketServer } from 'ws';
 import { processUpload, deleteImageRecord, getImageVariants, getImageVariantsBatch, loadMediaSettings } from './media/uploadPipeline.js';
 import { getDirname } from './config/paths.js';
 import { isProd, port, uploadsDir, legacyDir, ONLINE_HEARTBEAT_MS } from './config/env.js';
@@ -42,10 +40,12 @@ import { registerStoryRoutes } from './routes/storyRoutes.js';
 import { registerTeacherNetworkRoutes } from './routes/teacherNetworkRoutes.js';
 import { createPhase1DomainLayer } from './src/bootstrap/createPhase1DomainLayer.js';
 import { createDbAdminRuntime } from './src/admin/createDbAdminRuntime.js';
+import { hardDeleteUser as executeHardDeleteUser } from './src/admin/hardDeleteUser.js';
 import { createAdminInsightsRuntime } from './src/admin/createAdminInsightsRuntime.js';
 import { createNotificationGovernanceRuntime } from './src/notifications/createNotificationGovernanceRuntime.js';
 import { createNotificationPresentationRuntime } from './src/notifications/createNotificationPresentationRuntime.js';
 import { createNetworkingRuntime } from './src/networking/createNetworkingRuntime.js';
+import { createWebSocketRuntime } from './src/realtime/createWebSocketRuntime.js';
 import { createEventChatRuntime } from './src/events/createEventChatRuntime.js';
 import { createAuthRuntime } from './src/auth/createAuthRuntime.js';
 import { createAuthHelpers } from './src/auth/createAuthHelpers.js';
@@ -56,6 +56,7 @@ import { createRealtimeBus } from './src/infra/realtimeBus.js';
 import { createJobQueue } from './src/infra/jobQueue.js';
 import { createMailSender } from './src/infra/mailSender.js';
 import { createUploadSecurity } from './src/uploads/createUploadSecurity.js';
+import { createMediaRuntime } from './src/uploads/createMediaRuntime.js';
 import { consumeUploadQuota } from './src/infra/uploadQuota.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
@@ -372,68 +373,6 @@ const MENTORSHIP_REQUEST_COOLDOWN_SECONDS = envInt('MENTORSHIP_REQUEST_COOLDOWN_
 const TEACHER_NETWORK_MIN_CLASS_YEAR = 1950;
 const TEACHER_NETWORK_MAX_CLASS_YEAR = 2100;
 
-function getMediaUploadLimitBytes() {
-  try {
-    const settings = loadMediaSettings(sqlGet);
-    const maxUploadBytes = Number(settings?.maxUploadBytes || 0);
-    if (Number.isFinite(maxUploadBytes) && maxUploadBytes > 0) return maxUploadBytes;
-  } catch {
-    // fallback to env default
-  }
-  return envInt('MEDIA_MAX_UPLOAD_BYTES', 10 * 1024 * 1024);
-}
-
-function validateUploadedImageFile(filePath, { allowedMimes = allowedImageSafetyMimes, maxBytes = null } = {}) {
-  const validation = validateUploadedFileSafety(filePath, { allowedMimes });
-  if (!validation.ok) return validation;
-  let size = 0;
-  try {
-    size = fs.statSync(filePath).size || 0;
-  } catch {
-    return { ok: false, reason: 'Dosya boyutu doğrulanamadı.' };
-  }
-  const limit = Number.isFinite(Number(maxBytes)) && Number(maxBytes) > 0 ? Number(maxBytes) : getMediaUploadLimitBytes();
-  if (size > limit) {
-    const maxMb = (limit / (1024 * 1024)).toFixed(1);
-    return { ok: false, reason: `Dosya boyutu çok büyük. Maksimum: ${maxMb} MB.` };
-  }
-  return { ok: true, mime: validation.mime, size };
-}
-
-async function enforceUploadQuota(req, res, { fileSize = 0, bucket = 'uploads' } = {}) {
-  const currentUser = getCurrentUser(req);
-  const role = getUserRole(currentUser);
-  const roleMultiplier = roleAtLeast(role, 'admin')
-    ? Math.max(envInt('UPLOAD_QUOTA_ADMIN_MULTIPLIER', 3), 1)
-    : 1;
-
-  const maxFiles = envInt('UPLOAD_QUOTA_MAX_FILES', 140) * roleMultiplier;
-  const maxBytes = envInt('UPLOAD_QUOTA_MAX_BYTES', 350 * 1024 * 1024) * roleMultiplier;
-  const windowSeconds = envInt('UPLOAD_QUOTA_WINDOW_SECONDS', 24 * 60 * 60);
-  const scope = req.session?.userId
-    ? `user:${Number(req.session.userId)}`
-    : `ip:${String(req.ip || 'unknown')}`;
-
-  const verdict = await consumeUploadQuota({
-    bucket,
-    scope,
-    bytes: Math.max(Number(fileSize || 0), 0),
-    maxFiles,
-    maxBytes,
-    windowSeconds
-  });
-
-  if (verdict.limitFiles) res.setHeader('X-Upload-Quota-Limit-Files', String(verdict.limitFiles));
-  if (verdict.limitBytes) res.setHeader('X-Upload-Quota-Limit-Bytes', String(verdict.limitBytes));
-  if (verdict.remainingFiles !== null) res.setHeader('X-Upload-Quota-Remaining-Files', String(verdict.remainingFiles));
-  if (verdict.remainingBytes !== null) res.setHeader('X-Upload-Quota-Remaining-Bytes', String(verdict.remainingBytes));
-  if (verdict.retryAfterSeconds) res.setHeader('X-Upload-Quota-Reset', String(verdict.retryAfterSeconds));
-
-  if (verdict.allowed) return true;
-  if (verdict.retryAfterSeconds) res.setHeader('Retry-After', String(verdict.retryAfterSeconds));
-  return false;
-}
-
 const createPostIdempotency = createIdempotencyMiddleware({
   namespace: 'new_post_create',
   pendingTtlSeconds: envInt('IDEMPOTENCY_POST_PENDING_TTL_SECONDS', 45),
@@ -458,156 +397,12 @@ const messengerSendIdempotency = createIdempotencyMiddleware({
   onPending: (_req, res) => res.status(409).send('Bu messenger isteği zaten işleniyor.')
 });
 
-async function hardDeleteUser(userId, { sqlRun, sqlGet, sqlAll, uploadsDir, writeAppLog }) {
-  const runGet = async (query, params = []) => Promise.resolve(sqlGet(query, params));
-  const runAll = async (query, params = []) => Promise.resolve(sqlAll(query, params));
-  const runExec = async (query, params = []) => Promise.resolve(sqlRun(query, params));
-
-  const userIdStr = String(userId);
-  const user = await runGet('SELECT kadi, resim FROM uyeler WHERE id = ?', [userId]);
-  if (!user) return;
-
-  const metadataTables = [
-    'posts', 'post_comments', 'post_likes', 'stories', 'story_views',
-    'events', 'event_responses', 'event_comments', 'groups', 'group_members',
-    'group_join_requests', 'group_invites', 'group_events', 'group_announcements',
-    'album_fotoyorum', 'album_foto', 'gelenkutusu', 'sdal_messenger_messages',
-    'sdal_messenger_threads', 'follows', 'notifications', 'oyun_yilan',
-    'oyun_tetris', 'game_scores', 'verification_requests', 'member_engagement_scores',
-    'engagement_ab_assignments', 'network_suggestion_ab_assignments', 'oauth_accounts', 'chat_messages'
-  ];
-  const tableColumns = new Map();
-  await Promise.all(metadataTables.map(async (table) => {
-    const cols = await getTableColumnSetAsync(table);
-    tableColumns.set(table, cols);
-  }));
-  const hasTableLocal = (table) => (tableColumns.get(table)?.size || 0) > 0;
-  const hasColumnLocal = (table, column) => tableColumns.get(table)?.has(String(column || '').toLowerCase()) || false;
-  const getUserColumn = (table) => {
-    if (hasColumnLocal(table, 'user_id')) return 'user_id';
-    if (hasColumnLocal(table, 'uye_id')) return 'uye_id';
-    return '';
-  };
-
-  const userColumn = {
-    posts: getUserColumn('posts'),
-    postComments: getUserColumn('post_comments'),
-    postLikes: getUserColumn('post_likes'),
-    stories: getUserColumn('stories'),
-    storyViews: getUserColumn('story_views'),
-    eventResponses: getUserColumn('event_responses'),
-    eventComments: getUserColumn('event_comments'),
-    groupMembers: getUserColumn('group_members'),
-    groupJoinRequests: getUserColumn('group_join_requests'),
-    notifications: getUserColumn('notifications'),
-    gameScores: getUserColumn('game_scores'),
-    verificationRequests: getUserColumn('verification_requests'),
-    memberEngagementScores: getUserColumn('member_engagement_scores'),
-    engagementAbAssignments: getUserColumn('engagement_ab_assignments'),
-    networkSuggestionAbAssignments: getUserColumn('network_suggestion_ab_assignments'),
-    oauthAccounts: getUserColumn('oauth_accounts'),
-    chatMessages: getUserColumn('chat_messages')
-  };
-
-  if (user.resim && user.resim !== 'yok' && user.resim.trim() !== '') {
-    const avatarPath = path.join(uploadsDir, 'vesikalik', user.resim);
-    try {
-      if (fs.existsSync(avatarPath)) fs.unlinkSync(avatarPath);
-    } catch (e) {
-      writeAppLog('error', 'avatar_delete_failed', { userId, path: avatarPath, error: e.message });
-    }
-  }
-
-  if (hasTableLocal('posts') && userColumn.posts) {
-    const userPosts = await runAll(`SELECT id, image_record_id FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
-    for (const p of userPosts) {
-      if (p.image_record_id) {
-        await deleteImageRecord(p.image_record_id, runGet, runExec, uploadsDir, writeAppLog).catch(() => {});
-      }
-    }
-    await runExec(`DELETE FROM posts WHERE ${userColumn.posts} = ?`, [userId]);
-  }
-  if (hasTableLocal('post_comments') && userColumn.postComments) await runExec(`DELETE FROM post_comments WHERE ${userColumn.postComments} = ?`, [userId]);
-  if (hasTableLocal('post_likes') && userColumn.postLikes) await runExec(`DELETE FROM post_likes WHERE ${userColumn.postLikes} = ?`, [userId]);
-
-  if (hasTableLocal('stories') && userColumn.stories) {
-    const userStories = await runAll(`SELECT id, image_record_id FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
-    for (const s of userStories) {
-      if (s.image_record_id) {
-        await deleteImageRecord(s.image_record_id, runGet, runExec, uploadsDir, writeAppLog).catch(() => {});
-      }
-    }
-    await runExec(`DELETE FROM stories WHERE ${userColumn.stories} = ?`, [userId]);
-  }
-  if (hasTableLocal('story_views') && userColumn.storyViews) await runExec(`DELETE FROM story_views WHERE ${userColumn.storyViews} = ?`, [userId]);
-
-  if (hasTableLocal('events')) await runExec('DELETE FROM events WHERE created_by = ?', [userId]);
-  if (hasTableLocal('event_responses') && userColumn.eventResponses) await runExec(`DELETE FROM event_responses WHERE ${userColumn.eventResponses} = ?`, [userId]);
-  if (hasTableLocal('event_comments') && userColumn.eventComments) await runExec(`DELETE FROM event_comments WHERE ${userColumn.eventComments} = ?`, [userId]);
-
-  if (hasTableLocal('groups')) {
-    const ownedGroups = await runAll('SELECT id FROM groups WHERE owner_id = ?', [userId]);
-    for (const g of ownedGroups) {
-      if (hasTableLocal('group_members')) await runExec('DELETE FROM group_members WHERE group_id = ?', [g.id]);
-      if (hasTableLocal('group_join_requests')) await runExec('DELETE FROM group_join_requests WHERE group_id = ?', [g.id]);
-      if (hasTableLocal('group_invites')) await runExec('DELETE FROM group_invites WHERE group_id = ?', [g.id]);
-      if (hasTableLocal('group_events')) await runExec('DELETE FROM group_events WHERE group_id = ?', [g.id]);
-      if (hasTableLocal('group_announcements')) await runExec('DELETE FROM group_announcements WHERE group_id = ?', [g.id]);
-      await runExec('DELETE FROM groups WHERE id = ?', [g.id]);
-    }
-  }
-  if (hasTableLocal('group_members') && userColumn.groupMembers) await runExec(`DELETE FROM group_members WHERE ${userColumn.groupMembers} = ?`, [userId]);
-  if (hasTableLocal('group_join_requests') && userColumn.groupJoinRequests) await runExec(`DELETE FROM group_join_requests WHERE ${userColumn.groupJoinRequests} = ? OR reviewed_by = ?`, [userId, userId]);
-  if (hasTableLocal('group_invites')) await runExec('DELETE FROM group_invites WHERE invited_user_id = ? OR invited_by = ?', [userId, userId]);
-
-  if (hasTableLocal('album_fotoyorum') && hasTableLocal('album_foto')) {
-    await runExec('DELETE FROM album_fotoyorum WHERE fotoid IN (SELECT id FROM album_foto WHERE ekleyenid = ?)', [userId]);
-  }
-  if (hasTableLocal('album_fotoyorum')) {
-    await runExec('DELETE FROM album_fotoyorum WHERE uyeadi = ?', [user.kadi]);
-  }
-  if (hasTableLocal('album_foto')) await runExec('DELETE FROM album_foto WHERE ekleyenid = ?', [userId]);
-
-  if (hasTableLocal('gelenkutusu')) await runExec('DELETE FROM gelenkutusu WHERE kime = ? OR kimden = ?', [userIdStr, userIdStr]);
-  if (hasTableLocal('sdal_messenger_messages')) await runExec('DELETE FROM sdal_messenger_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
-  if (hasTableLocal('sdal_messenger_threads')) await runExec('DELETE FROM sdal_messenger_threads WHERE user_a_id = ? OR user_b_id = ?', [userId, userId]);
-
-  if (hasTableLocal('follows')) await runExec('DELETE FROM follows WHERE follower_id = ? OR following_id = ?', [userId, userId]);
-  if (hasTableLocal('notifications') && userColumn.notifications) await runExec(`DELETE FROM notifications WHERE ${userColumn.notifications} = ? OR source_user_id = ?`, [userId, userId]);
-
-  if (hasTableLocal('oyun_yilan')) await runExec('DELETE FROM oyun_yilan WHERE isim = ?', [user.kadi]);
-  if (hasTableLocal('oyun_tetris')) await runExec('DELETE FROM oyun_tetris WHERE isim = ?', [user.kadi]);
-  if (hasTableLocal('game_scores') && userColumn.gameScores) await runExec(`DELETE FROM game_scores WHERE ${userColumn.gameScores} = ?`, [userId]);
-
-  if (hasTableLocal('verification_requests') && userColumn.verificationRequests) {
-    const proofRows = await runAll(`SELECT proof_path, proof_image_record_id FROM verification_requests WHERE ${userColumn.verificationRequests} = ?`, [userId]);
-    for (const row of proofRows) {
-      if (row?.proof_image_record_id) {
-        await deleteImageRecord(row.proof_image_record_id, runGet, runExec, uploadsDir, writeAppLog).catch(() => {});
-        continue;
-      }
-      const proofPath = String(row?.proof_path || '').trim();
-      if (!proofPath.startsWith('/uploads/verification-proofs/')) continue;
-      const relativeProof = proofPath.replace(/^\/+/, '').replace(/^uploads\//, '');
-      const absoluteProof = path.join(uploadsDir, relativeProof);
-      try {
-        if (fs.existsSync(absoluteProof)) fs.unlinkSync(absoluteProof);
-      } catch (e) {
-        writeAppLog('error', 'verification_proof_delete_failed', { userId, path: absoluteProof, error: e.message });
-      }
-    }
-    await runExec(`DELETE FROM verification_requests WHERE ${userColumn.verificationRequests} = ? OR reviewer_id = ?`, [userId, userId]);
-  }
-  if (hasTableLocal('member_engagement_scores') && userColumn.memberEngagementScores) await runExec(`DELETE FROM member_engagement_scores WHERE ${userColumn.memberEngagementScores} = ?`, [userId]);
-  if (hasTableLocal('engagement_ab_assignments') && userColumn.engagementAbAssignments) await runExec(`DELETE FROM engagement_ab_assignments WHERE ${userColumn.engagementAbAssignments} = ?`, [userId]);
-  if (hasTableLocal('network_suggestion_ab_assignments') && userColumn.networkSuggestionAbAssignments) {
-    await runExec(`DELETE FROM network_suggestion_ab_assignments WHERE ${userColumn.networkSuggestionAbAssignments} = ?`, [userId]);
-  }
-  if (hasTableLocal('oauth_accounts') && userColumn.oauthAccounts) await runExec(`DELETE FROM oauth_accounts WHERE ${userColumn.oauthAccounts} = ?`, [userId]);
-  if (hasTableLocal('chat_messages') && userColumn.chatMessages) await runExec(`DELETE FROM chat_messages WHERE ${userColumn.chatMessages} = ?`, [userId]);
-
-  await runExec('DELETE FROM uyeler WHERE id = ?', [userId]);
-  writeAppLog('info', 'member_hard_deleted', { userId, kadi: user.kadi });
+async function hardDeleteUser(userId, deps) {
+  return executeHardDeleteUser(userId, {
+    ...deps,
+    getTableColumnSetAsync,
+    deleteImageRecord
+  });
 }
 
 function quoteIdentifier(value) {
@@ -943,6 +738,27 @@ const {
   moderationActionDefinitions: MODERATION_ACTION_DEFINITIONS,
   moderationResourceDefinitions: MODERATION_RESOURCE_DEFINITIONS,
   moderationPermissionKeySet: MODERATION_PERMISSION_KEY_SET
+});
+
+const {
+  getMediaUploadLimitBytes,
+  validateUploadedImageFile,
+  enforceUploadQuota,
+  processDiskImageUpload
+} = createMediaRuntime({
+  sqlGet,
+  loadMediaSettings,
+  envInt,
+  allowedImageSafetyMimes,
+  validateUploadedFileSafety,
+  cleanupUploadedFile,
+  applyImageFilter,
+  getCurrentUser,
+  getUserRole,
+  roleAtLeast,
+  consumeUploadQuota,
+  uploadsDir,
+  writeAppLog
 });
 
 function writeAuditLog(req, { actorUserId = null, action, targetType = null, targetId = null, metadata = {} } = {}) {
@@ -3219,105 +3035,6 @@ const uploadImagePresets = Object.freeze({
   announcementImage: { width: 1900, height: 1900, fit: 'inside', quality: 84, background: '#ffffff' }
 });
 
-async function optimizeUploadedImage(filePath, {
-  width = 1600,
-  height = 1600,
-  fit = 'inside',
-  quality = 84,
-  background = '#121212'
-} = {}) {
-  if (!filePath || !fs.existsSync(filePath)) return filePath;
-  const parsed = path.parse(filePath);
-  const outputPath = path.join(parsed.dir, `${parsed.name}.webp`);
-  await sharp(filePath)
-    .rotate()
-    .resize(width || null, height || null, {
-      fit,
-      withoutEnlargement: true,
-      background
-    })
-    .webp({ quality, effort: 4 })
-    .toFile(outputPath);
-  if (outputPath !== filePath && fs.existsSync(filePath)) {
-    try {
-      fs.unlinkSync(filePath);
-    } catch {
-      // ignore cleanup errors
-    }
-  }
-  return outputPath;
-}
-
-function toUploadUrl(filePath) {
-  if (!filePath) return null;
-  const rel = path.relative(uploadsDir, filePath).split(path.sep).join('/');
-  return `/uploads/${rel}`;
-}
-
-async function processDiskImageUpload({
-  req,
-  res,
-  file,
-  bucket,
-  preset,
-  filter,
-  allowedMimes = allowedImageSafetyMimes
-}) {
-  if (!file?.path) {
-    return { ok: false, statusCode: 400, message: 'Görsel seçilmedi.' };
-  }
-
-  const validation = validateUploadedImageFile(file.path, {
-    allowedMimes,
-    maxBytes: getMediaUploadLimitBytes()
-  });
-  if (!validation.ok) {
-    cleanupUploadedFile(file.path);
-    return { ok: false, statusCode: 400, message: validation.reason || 'Dosya güvenlik kontrolünden geçemedi.' };
-  }
-
-  const quotaOk = await enforceUploadQuota(req, res, {
-    fileSize: validation.size || file.size || 0,
-    bucket
-  });
-  if (!quotaOk) {
-    cleanupUploadedFile(file.path);
-    return {
-      ok: false,
-      statusCode: 429,
-      message: 'Günlük yükleme kotan doldu. Lütfen daha sonra tekrar dene.'
-    };
-  }
-
-  let finalPath = file.path;
-  if (filter) {
-    try {
-      await applyImageFilter(finalPath, filter);
-    } catch {
-      // keep original if filter fails
-    }
-  }
-  if (preset) {
-    try {
-      finalPath = await optimizeUploadedImage(finalPath, preset);
-    } catch {
-      // keep original path
-    }
-  }
-
-  const outputExt = path.extname(finalPath || '').toLowerCase();
-  const outputMime = outputExt === '.webp' ? 'image/webp' : validation.mime;
-
-  return {
-    ok: true,
-    path: finalPath,
-    url: toUploadUrl(finalPath),
-    mime: outputMime || validation.mime,
-    originalMime: validation.mime,
-    size: validation.size || file.size || 0
-  };
-}
-
 function walkDirStats(rootDir) {
   const stack = [rootDir];
   let files = 0;
@@ -4964,6 +4681,21 @@ app.use((err, req, res, _next) => {
 setTimeout(() => recalculateMemberEngagementScores('startup'), 2500);
 setInterval(() => recalculateMemberEngagementScores('interval_10m'), 10 * 60 * 1000);
 
+const { attachWebSocketServers } = createWebSocketRuntime({
+  sessionParser,
+  normalizeUserId,
+  allowLegacyWsQueryAuth,
+  writeAppLog,
+  sqlGet,
+  formatUserText,
+  isFormattedContentEmpty,
+  sqlRun,
+  scheduleEngagementRecalculation,
+  broadcastChatMessage,
+  setChatWss: (value) => { chatWss = value; },
+  setMessengerWss: (value) => { messengerWss = value; }
+});
+
 async function onServerStarted() {
   ensureRuntimeDefaults();
   await ensureRootBootstrapAccount();
@@ -5085,116 +4817,6 @@ function setupProcessHandlers() {
   });
   process.on('beforeExit', () => {
     shutdown('beforeExit');
-  });
-}
-
-function parseWsUserIdFromQuery(req) {
-  try {
-    const url = new URL(req.url || '', 'http://localhost');
-    const userId = Number(url.searchParams.get('userId') || 0);
-    return userId > 0 ? userId : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function attachSessionToUpgradeRequest(req) {
-  return new Promise((resolve) => {
-    const fakeRes = {
-      getHeader() { return undefined; },
-      setHeader() {},
-      writeHead() {},
-      end() {}
-    };
-    try {
-      sessionParser(req, fakeRes, () => resolve(req.session || null));
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
-async function resolveWsUser(req) {
-  const session = await attachSessionToUpgradeRequest(req);
-  const sessionUserId = Number(normalizeUserId(session?.userId) || 0);
-  const queryUserId = parseWsUserIdFromQuery(req);
-
-  if (sessionUserId > 0) {
-    if (queryUserId > 0 && queryUserId !== sessionUserId) {
-      return { userId: 0, reason: 'session_query_mismatch' };
-    }
-    return { userId: sessionUserId, source: 'session' };
-  }
-
-  if (allowLegacyWsQueryAuth && queryUserId > 0) {
-    writeAppLog('warn', 'ws_legacy_query_auth_used', { path: req.url || '', userId: queryUserId });
-    return { userId: queryUserId, source: 'legacy_query' };
-  }
-
-  return { userId: 0, reason: 'missing_session' };
-}
-
-function attachWebSocketServers(server) {
-  chatWss = new WebSocketServer({ server, path: '/ws/chat' });
-  chatWss.on('connection', async (ws, req) => {
-    const auth = await resolveWsUser(req);
-    if (!auth.userId) {
-      ws.close(1008, 'Unauthorized');
-      return;
-    }
-    ws.sdalUserId = auth.userId;
-
-    ws.on('message', (data) => {
-      try {
-        const payload = JSON.parse(String(data || '{}'));
-        const userId = Number(ws.sdalUserId || 0);
-        const rawMessage = String(payload?.message || '').slice(0, 5000);
-        if (!userId || !rawMessage) return;
-        const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [userId]) || null;
-        if (!user?.id) return;
-        const message = formatUserText(rawMessage || '');
-        if (isFormattedContentEmpty(message)) return;
-        const now = new Date().toISOString();
-        const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
-          userId,
-          message,
-          now
-        ]);
-        scheduleEngagementRecalculation('chat_message_created');
-        const item = {
-          id: result?.lastInsertRowid,
-          user_id: user.id,
-          message,
-          created_at: now,
-          user: {
-            id: user.id,
-            kadi: user.kadi,
-            isim: user.isim,
-            soyisim: user.soyisim,
-            resim: user.resim,
-            verified: user.verified
-          }
-        };
-        broadcastChatMessage(item);
-      } catch {
-        // ignore
-      }
-    });
-  });
-
-  messengerWss = new WebSocketServer({ server, path: '/ws/messenger' });
-  messengerWss.on('connection', async (ws, req) => {
-    const auth = await resolveWsUser(req);
-    if (!auth.userId) {
-      ws.close(1008, 'Unauthorized');
-      return;
-    }
-    ws.sdalUserId = auth.userId;
-    try {
-      ws.send(JSON.stringify({ type: 'messenger:hello', userId: auth.userId }));
-    } catch {
-      // ignore
-    }
   });
 }
 
