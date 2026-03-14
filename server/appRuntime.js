@@ -3905,7 +3905,7 @@ registerMemberCommunicationRoutes(app, {
   sqlGetAsync,
   sqlAllAsync,
   sqlRunAsync,
-  ensureTeacherAlumniLinksTable,
+  ensureTeacherAlumniLinksTable: (...args) => ensureTeacherAlumniLinksTable(...args),
   getCachedActiveMemberNameRows,
   buildMemberTrustBadges,
   toNumericUserIdOrNull,
@@ -4160,8 +4160,8 @@ registerNotificationRoutes(app, {
   buildNotificationOrderSql,
   enrichNotificationRows,
   buildNotificationCursor,
-  apiSuccessEnvelope,
-  sendApiError,
+  apiSuccessEnvelope: (...args) => apiSuccessEnvelope(...args),
+  sendApiError: (...args) => sendApiError(...args),
   normalizeNotificationTelemetryEventName,
   recordNotificationTelemetryEvent,
   readNotificationPreferenceRow,
@@ -4176,9 +4176,9 @@ registerNotificationRoutes(app, {
   notificationGovernanceChecklist,
   ensureNotificationExperimentConfigsTable,
   ensureNotificationDeliveryAuditTable,
-  ensureNotificationTelemetryEventsTable,
-  parseNetworkWindowDays,
-  toIsoThreshold,
+  ensureNotificationTelemetryEventsTable: (...args) => ensureNetworkingTelemetryEventsTable(...args),
+  parseNetworkWindowDays: (...args) => parseNetworkWindowDays(...args),
+  toIsoThreshold: (...args) => toIsoThreshold(...args),
   notificationTypeInventory
 });
 
