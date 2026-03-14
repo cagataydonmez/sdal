@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useLocation } from '../router.jsx';
+import { Link, useLocation } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
@@ -91,7 +91,7 @@ export default function ProfileVerificationPage() {
           </div>
           <div className="inline-actions">
             <button className="btn primary" onClick={submitVerification}>{t('profile_verify_request')}</button>
-            <a className="btn ghost" href="/new/profile">{t('back')}</a>
+            <Link className="btn ghost" to="/new/profile">{t('back')}</Link>
           </div>
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}

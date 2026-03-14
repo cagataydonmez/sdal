@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -212,7 +213,7 @@ export default function RegisterPage() {
             {error ? <div className="error prominent-alert" role="alert">{error}</div> : null}
           </form>
           <div className="muted">
-            {t('register_activation_resend_prefix')} <a href="/new/activation/resend">{t('register_activation_resend_link')}</a> {t('register_activation_resend_suffix')}
+            {t('register_activation_resend_prefix')} <Link to="/new/activation/resend">{t('register_activation_resend_link')}</Link> {t('register_activation_resend_suffix')}
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { readApiPayload } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
@@ -175,7 +176,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
           showEmptyCta ? (
             <div className="feed-panel-state">
               <div className="muted">{t('notifications_empty')}</div>
-              <a className="btn ghost" href="/new/explore">{t('feed_discover_members')}</a>
+              <Link className="btn ghost" to="/new/explore">{t('feed_discover_members')}</Link>
             </div>
           ) : <div className="muted">{t('notifications_empty')}</div>
         ) : null}
@@ -219,10 +220,10 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
         ) : null}
 
         {showAllLink ? (
-          <a className="btn ghost" href="/new/notifications">
+          <Link className="btn ghost" to="/new/notifications">
             {t('all_notifications')}
             {hasMore ? ' +' : ''}
-          </a>
+          </Link>
         ) : null}
       </div>
     </div>

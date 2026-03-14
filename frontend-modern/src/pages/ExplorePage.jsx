@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { readApiPayload, unwrapApiData } from '../utils/api.js';
@@ -274,9 +275,9 @@ export default function ExplorePage({ fullMode = false }) {
   function renderMemberCard(m, showReasons = false) {
     return (
       <div className="member-card" key={`${showReasons ? 's' : 'm'}-${m.id}`}>
-        <a href={`/new/members/${m.id}`}>
+        <Link to={`/new/members/${m.id}`}>
           <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-        </a>
+        </Link>
         <div>
           <div className="name">
             {m.isim} {m.soyisim}
@@ -308,9 +309,9 @@ export default function ExplorePage({ fullMode = false }) {
             </button>
           ) : null}
           {String(m.role || '').toLowerCase() === 'teacher' ? (
-            <a className="btn ghost" href={`/new/network/teachers?teacherId=${m.id}`}>
+            <Link className="btn ghost" to={`/new/network/teachers?teacherId=${m.id}`}>
               Öğretmen Ağına Ekle
-            </a>
+            </Link>
           ) : null}
           <button
             className="btn ghost"
@@ -337,7 +338,7 @@ export default function ExplorePage({ fullMode = false }) {
           <div className="card-grid">
             {suggestionItems.map((m) => renderMemberCard(m, true))}
           </div>
-          {!fullMode ? <a className="btn ghost" href="/new/explore/suggestions">{t('see_all')}</a> : null}
+          {!fullMode ? <Link className="btn ghost" to="/new/explore/suggestions">{t('see_all')}</Link> : null}
         </div>
       </div>
 
@@ -388,7 +389,7 @@ export default function ExplorePage({ fullMode = false }) {
             <input className="input" placeholder={t('profile_title')} value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
           </div>
           {loading ? <div className="muted">{t('searching')}</div> : null}
-          {!fullMode ? <a className="btn ghost" href="/new/explore/members">{t('see_all')}</a> : null}
+          {!fullMode ? <Link className="btn ghost" to="/new/explore/members">{t('see_all')}</Link> : null}
         </div>
       </div>
 

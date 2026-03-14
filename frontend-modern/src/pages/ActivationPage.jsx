@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from '../router.jsx';
+import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -37,7 +37,7 @@ export default function ActivationPage() {
         <div className="panel-body">
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
-          <a className="btn ghost" href="/new/login">{t('login_submit')}</a>
+          <Link className="btn ghost" to="/new/login">{t('login_submit')}</Link>
         </div>
       </div>
     </Layout>

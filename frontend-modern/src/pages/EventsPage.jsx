@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from '../router.jsx';
+import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
@@ -380,9 +380,9 @@ export default function EventsPage() {
                 {(comments[e.id] || []).map((c) => (
                   <div key={c.id} className="comment-line">
                     {(Number(c.user_id || c.uye_id || 0) || null) ? (
-                      <a href={`/new/members/${Number(c.user_id || c.uye_id || 0)}`} aria-label={t('go_profile_aria', { username: c.kadi || t('member_fallback') })}>
+                      <Link to={`/new/members/${Number(c.user_id || c.uye_id || 0)}`} aria-label={t('go_profile_aria', { username: c.kadi || t('member_fallback') })}>
                         <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-                      </a>
+                      </Link>
                     ) : (
                       <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                     )}

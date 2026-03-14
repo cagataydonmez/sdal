@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
@@ -66,7 +67,7 @@ export default function FollowingPage() {
       <div className="list">
         {items.map((m) => (
           <div key={m.following_id} className="list-item">
-            <a href={`/new/members/${m.following_id}`} className="verify-user">
+            <Link to={`/new/members/${m.following_id}`} className="verify-user">
               <img className="avatar" src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
               <div>
                 <div className="name">{m.isim} {m.soyisim}</div>
@@ -75,7 +76,7 @@ export default function FollowingPage() {
                   {t('score')}: {Number(m.engagement_score || 0).toFixed(1)} • {t('follow_date')}: {m.followed_at ? formatDateTime(m.followed_at) : '-'}
                 </div>
               </div>
-            </a>
+            </Link>
             <button className="btn ghost" onClick={() => unfollow(m.following_id)}>{t('unfollow')}</button>
           </div>
         ))}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from '../router.jsx';
+import { Link, useParams, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import StoryBar from '../components/StoryBar.jsx';
@@ -142,7 +142,7 @@ export default function MemberDetailPage() {
                 Bu bölüm doğrudan erişim ve mesajlaşma aksiyonlarını içerir.
               </div>
               <div className="composer-actions">
-                {canMessage ? <a className="btn primary" href={`/new/messages/compose?to=${member.id}`}>{t('member_send_message')}</a> : null}
+                {canMessage ? <Link className="btn primary" to={`/new/messages/compose?to=${member.id}`}>{t('member_send_message')}</Link> : null}
                 {canQuickAccess ? (
                   <button className="btn ghost" onClick={async () => {
                     setError('');
@@ -270,9 +270,9 @@ export default function MemberDetailPage() {
                     </button>
                   ) : null}
                   {canAddTeacherLink ? (
-                    <a className="btn ghost" href={`/new/network/teachers?teacherId=${member.id}`}>
+                    <Link className="btn ghost" to={`/new/network/teachers?teacherId=${member.id}`}>
                       Öğretmen Ağına Ekle
-                    </a>
+                    </Link>
                   ) : null}
                 </div>
               </div>

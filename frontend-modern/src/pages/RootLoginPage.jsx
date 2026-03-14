@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from '../router.jsx';
+import { Link, useNavigate } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
@@ -52,7 +52,7 @@ export default function RootLoginPage() {
             <button className="btn primary" type="submit" disabled={busy}>{busy ? 'Giriş yapılıyor...' : 'Root olarak giriş yap'}</button>
             {status ? <div className="error">{status}</div> : null}
           </form>
-          <a className="btn ghost" href="/new/login">Normal giriş sayfasına dön</a>
+          <Link className="btn ghost" to="/new/login">Normal giriş sayfasına dön</Link>
         </div>
       </div>
     </Layout>

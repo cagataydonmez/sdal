@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from '../router.jsx';
+import { Link, useParams, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import PostCard from '../components/PostCard.jsx';
 import { useAuth } from '../utils/auth.jsx';
@@ -547,9 +547,9 @@ export default function GroupDetailPage() {
             <div className="panel-body">
               {members.map((m) => (
                 <div key={m.id} className="notif">
-                  <a href={`/new/members/${m.id}`} aria-label={t('go_profile_aria', { username: m.kadi || t('member_fallback') })}>
+                  <Link to={`/new/members/${m.id}`} aria-label={t('go_profile_aria', { username: m.kadi || t('member_fallback') })}>
                     <img className="avatar" src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-                  </a>
+                  </Link>
                   <div>
                     <b>{m.isim} {m.soyisim}</b>{m.verified ? <span className="badge">✓</span> : null}
                     <div className="meta">@{m.kadi}</div>
@@ -580,9 +580,9 @@ export default function GroupDetailPage() {
                 {!joinRequests.length ? <div className="muted">{t('group_join_requests_empty')}</div> : null}
                 {joinRequests.map((r) => (
                   <div key={r.id} className={`notif${focusedRequestId === Number(r.id || 0) ? ' notification-focus-inline-panel' : ''}`}>
-                    <a href={`/new/members/${r.user_id}`} aria-label={t('go_profile_aria', { username: r.kadi || t('member_fallback') })}>
+                    <Link to={`/new/members/${r.user_id}`} aria-label={t('go_profile_aria', { username: r.kadi || t('member_fallback') })}>
                       <img className="avatar" src={r.resim ? `/api/media/vesikalik/${r.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-                    </a>
+                    </Link>
                     <div>
                       <b>{r.isim} {r.soyisim}</b>{r.verified ? <span className="badge">✓</span> : null}
                       <div className="meta">@{r.kadi}</div>
@@ -635,9 +635,9 @@ export default function GroupDetailPage() {
                 {!pendingInvites.length ? <div className="muted">{t('group_pending_invites_empty')}</div> : null}
                 {pendingInvites.map((inv) => (
                   <div key={inv.id} className="notif">
-                    <a href={`/new/members/${inv.invited_user_id}`} aria-label={t('go_profile_aria', { username: inv.kadi || t('member_fallback') })}>
+                    <Link to={`/new/members/${inv.invited_user_id}`} aria-label={t('go_profile_aria', { username: inv.kadi || t('member_fallback') })}>
                       <img className="avatar" src={inv.resim ? `/api/media/vesikalik/${inv.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-                    </a>
+                    </Link>
                     <div>
                       <b>{inv.isim} {inv.soyisim}</b>{inv.verified ? <span className="badge">✓</span> : null}
                       <div className="meta">@{inv.kadi}</div>

@@ -192,6 +192,20 @@
 
 .content { display: block; }
 
+@supports (view-transition-name: page-title) {
+  .route-title-shell {
+    view-transition-name: page-title;
+    transform-origin: top left;
+    will-change: transform, opacity, filter;
+  }
+
+  .route-content-shell {
+    view-transition-name: page-content;
+    transform-origin: top center;
+    will-change: transform, opacity, filter;
+  }
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1.4fr 0.8fr;

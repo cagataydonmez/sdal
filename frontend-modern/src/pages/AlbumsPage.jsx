@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -59,16 +60,16 @@ export default function AlbumsPage() {
         <h3>{t('albums_categories')}</h3>
         <div className="panel-body">
           {categories.map((c) => (
-            <a key={c.id} className="chip" href={`/new/albums/${c.id}`}>{c.kategori}</a>
+            <Link key={c.id} className="chip" to={`/new/albums/${c.id}`}>{c.kategori}</Link>
           ))}
-          <a className="btn primary" href="/new/albums/upload">{t('albums_upload')}</a>
+          <Link className="btn primary" to="/new/albums/upload">{t('albums_upload')}</Link>
         </div>
       </div>
       <div className="photo-grid">
         {latest.map((p) => (
-          <a key={p.id} href={`/new/albums/photo/${p.id}`}>
+          <Link key={p.id} to={`/new/albums/photo/${p.id}`}>
             <img src={`/api/media/kucukresim?width=200&file=${encodeURIComponent(p.dosyaadi)}`} alt="" />
-          </a>
+          </Link>
         ))}
       </div>
       <div ref={sentinelRef} />

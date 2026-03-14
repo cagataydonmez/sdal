@@ -13,6 +13,7 @@ import {
   useParams,
   useSearchParams
 } from 'react-router-dom';
+import { applyViewTransitionContext } from './viewTransitions.js';
 
 function supportsViewTransitions() {
   return typeof document !== 'undefined' && typeof document.startViewTransition === 'function';
@@ -23,12 +24,43 @@ function resolveViewTransitionFlag(requested) {
   return supportsViewTransitions();
 }
 
+function isModifiedEvent(event) {
+  return Boolean(event.metaKey || event.altKey || event.ctrlKey || event.shiftKey);
+}
+
+function shouldPrepareTransition(event, target) {
+  if (!event) return true;
+  if (event.defaultPrevented) return false;
+  if (event.button !== 0) return false;
+  if (target && target !== '_self') return false;
+  if (isModifiedEvent(event)) return false;
+  return true;
+}
+
 export const Link = React.forwardRef(function Link({ viewTransition, ...props }, ref) {
-  return <ReactRouterLink ref={ref} viewTransition={resolveViewTransitionFlag(viewTransition)} {...props} />;
+  const { onClick, target, to, ...rest } = props;
+
+  function handleClick(event) {
+    if (onClick) onClick(event);
+    if (resolveViewTransitionFlag(viewTransition) && shouldPrepareTransition(event, target)) {
+      applyViewTransitionContext(to);
+    }
+  }
+
+  return <ReactRouterLink ref={ref} viewTransition={resolveViewTransitionFlag(viewTransition)} onClick={handleClick} target={target} to={to} {...rest} />;
 });
 
 export const NavLink = React.forwardRef(function NavLink({ viewTransition, ...props }, ref) {
-  return <ReactRouterNavLink ref={ref} viewTransition={resolveViewTransitionFlag(viewTransition)} {...props} />;
+  const { onClick, target, to, ...rest } = props;
+
+  function handleClick(event) {
+    if (onClick) onClick(event);
+    if (resolveViewTransitionFlag(viewTransition) && shouldPrepareTransition(event, target)) {
+      applyViewTransitionContext(to);
+    }
+  }
+
+  return <ReactRouterNavLink ref={ref} viewTransition={resolveViewTransitionFlag(viewTransition)} onClick={handleClick} target={target} to={to} {...rest} />;
 });
 
 export function useNavigate() {
@@ -36,6 +68,9 @@ export function useNavigate() {
 
   return React.useCallback((to, options) => {
     if (typeof to === 'number') return navigate(to);
+    if ((options?.viewTransition ?? true) !== false) {
+      applyViewTransitionContext(to);
+    }
     if (options && Object.prototype.hasOwnProperty.call(options, 'viewTransition')) {
       return navigate(to, options);
     }

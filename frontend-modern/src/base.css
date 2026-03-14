@@ -5,9 +5,297 @@
   navigation: auto;
 }
 
+html {
+  --vt-duration-fast: 180ms;
+  --vt-duration-base: 260ms;
+  --vt-duration-slow: 340ms;
+  --vt-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --vt-ease-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 180ms;
+  animation-duration: var(--vt-duration-base);
+  animation-timing-function: var(--vt-ease-smooth);
+}
+
+::view-transition-group(page-title),
+::view-transition-group(page-content) {
+  animation-duration: var(--vt-duration-base);
+  animation-timing-function: var(--vt-ease-smooth);
+}
+
+::view-transition-old(page-title),
+::view-transition-new(page-title) {
+  animation-duration: 220ms;
+  animation-timing-function: var(--vt-ease-smooth);
+}
+
+::view-transition-old(page-content),
+::view-transition-new(page-content) {
+  animation-duration: var(--vt-duration-base);
+  animation-timing-function: var(--vt-ease-smooth);
+}
+
+html[data-route-transition='feed']::view-transition-old(root),
+html[data-route-transition='social']::view-transition-old(root),
+html[data-route-transition='bulletin']::view-transition-old(root) {
+  animation-name: vt-root-soft-out;
+}
+
+html[data-route-transition='feed']::view-transition-new(root),
+html[data-route-transition='social']::view-transition-new(root),
+html[data-route-transition='bulletin']::view-transition-new(root) {
+  animation-name: vt-root-soft-in;
+}
+
+html[data-route-transition='messages']::view-transition-old(root),
+html[data-route-transition='network']::view-transition-old(root) {
+  animation-name: vt-root-side-out;
+}
+
+html[data-route-transition='messages']::view-transition-new(root),
+html[data-route-transition='network']::view-transition-new(root) {
+  animation-name: vt-root-side-in;
+}
+
+html[data-route-transition='profile']::view-transition-old(root),
+html[data-route-transition='media']::view-transition-old(root) {
+  animation-name: vt-root-glass-out;
+}
+
+html[data-route-transition='profile']::view-transition-new(root),
+html[data-route-transition='media']::view-transition-new(root) {
+  animation-name: vt-root-glass-in;
+}
+
+html[data-route-transition='games']::view-transition-old(root),
+html[data-route-transition='admin']::view-transition-old(root),
+html[data-route-transition='auth']::view-transition-old(root) {
+  animation-name: vt-root-spotlight-out;
+}
+
+html[data-route-transition='games']::view-transition-new(root),
+html[data-route-transition='admin']::view-transition-new(root),
+html[data-route-transition='auth']::view-transition-new(root) {
+  animation-name: vt-root-spotlight-in;
+}
+
+html[data-route-transition='feed']::view-transition-old(page-title),
+html[data-route-transition='social']::view-transition-old(page-title),
+html[data-route-transition='bulletin']::view-transition-old(page-title) {
+  animation-name: vt-title-rise-out;
+}
+
+html[data-route-transition='feed']::view-transition-new(page-title),
+html[data-route-transition='social']::view-transition-new(page-title),
+html[data-route-transition='bulletin']::view-transition-new(page-title) {
+  animation-name: vt-title-rise-in;
+}
+
+html[data-route-transition='messages']::view-transition-old(page-title),
+html[data-route-transition='network']::view-transition-old(page-title) {
+  animation-name: vt-title-slide-out;
+}
+
+html[data-route-transition='messages']::view-transition-new(page-title),
+html[data-route-transition='network']::view-transition-new(page-title) {
+  animation-name: vt-title-slide-in;
+}
+
+html[data-route-transition='profile']::view-transition-old(page-title),
+html[data-route-transition='media']::view-transition-old(page-title) {
+  animation-name: vt-title-focus-out;
+}
+
+html[data-route-transition='profile']::view-transition-new(page-title),
+html[data-route-transition='media']::view-transition-new(page-title) {
+  animation-name: vt-title-focus-in;
+}
+
+html[data-route-transition='games']::view-transition-old(page-title),
+html[data-route-transition='admin']::view-transition-old(page-title),
+html[data-route-transition='auth']::view-transition-old(page-title) {
+  animation-name: vt-title-arcade-out;
+}
+
+html[data-route-transition='games']::view-transition-new(page-title),
+html[data-route-transition='admin']::view-transition-new(page-title),
+html[data-route-transition='auth']::view-transition-new(page-title) {
+  animation-name: vt-title-arcade-in;
+}
+
+html[data-route-transition='feed']::view-transition-old(page-content),
+html[data-route-transition='social']::view-transition-old(page-content),
+html[data-route-transition='bulletin']::view-transition-old(page-content) {
+  animation-name: vt-content-lift-out;
+}
+
+html[data-route-transition='feed']::view-transition-new(page-content),
+html[data-route-transition='social']::view-transition-new(page-content),
+html[data-route-transition='bulletin']::view-transition-new(page-content) {
+  animation-name: vt-content-lift-in;
+}
+
+html[data-route-transition='messages']::view-transition-old(page-content),
+html[data-route-transition='network']::view-transition-old(page-content) {
+  animation-name: vt-content-side-out;
+}
+
+html[data-route-transition='messages']::view-transition-new(page-content),
+html[data-route-transition='network']::view-transition-new(page-content) {
+  animation-name: vt-content-side-in;
+}
+
+html[data-route-transition='profile']::view-transition-old(page-content),
+html[data-route-transition='media']::view-transition-old(page-content) {
+  animation-name: vt-content-focus-out;
+}
+
+html[data-route-transition='profile']::view-transition-new(page-content),
+html[data-route-transition='media']::view-transition-new(page-content) {
+  animation-name: vt-content-focus-in;
+}
+
+html[data-route-transition='games']::view-transition-old(page-content),
+html[data-route-transition='admin']::view-transition-old(page-content),
+html[data-route-transition='auth']::view-transition-old(page-content) {
+  animation-name: vt-content-arcade-out;
+}
+
+html[data-route-transition='games']::view-transition-new(page-content),
+html[data-route-transition='admin']::view-transition-new(page-content),
+html[data-route-transition='auth']::view-transition-new(page-content) {
+  animation-name: vt-content-arcade-in;
+}
+
+html[data-route-kind='detail']::view-transition-new(page-content) {
+  animation-duration: 300ms;
+}
+
+html[data-route-kind='play']::view-transition-new(page-content),
+html[data-route-kind='dashboard']::view-transition-new(page-content) {
+  animation-duration: var(--vt-duration-slow);
+}
+
+@keyframes vt-root-soft-out {
+  from { opacity: 1; filter: blur(0); transform: scale(1); }
+  to { opacity: 0; filter: blur(8px); transform: scale(0.988); }
+}
+
+@keyframes vt-root-soft-in {
+  from { opacity: 0; filter: blur(10px); transform: scale(1.012); }
+  to { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+
+@keyframes vt-root-side-out {
+  from { opacity: 1; transform: translateX(0); filter: blur(0); }
+  to { opacity: 0; transform: translateX(-24px); filter: blur(8px); }
+}
+
+@keyframes vt-root-side-in {
+  from { opacity: 0; transform: translateX(28px); filter: blur(10px); }
+  to { opacity: 1; transform: translateX(0); filter: blur(0); }
+}
+
+@keyframes vt-root-glass-out {
+  from { opacity: 1; filter: saturate(1) blur(0); transform: scale(1); }
+  to { opacity: 0; filter: saturate(1.15) blur(10px); transform: scale(0.982); }
+}
+
+@keyframes vt-root-glass-in {
+  from { opacity: 0; filter: saturate(1.2) blur(12px); transform: scale(1.018); }
+  to { opacity: 1; filter: saturate(1) blur(0); transform: scale(1); }
+}
+
+@keyframes vt-root-spotlight-out {
+  from { opacity: 1; transform: scale(1) rotate(0deg); filter: contrast(1) blur(0); }
+  to { opacity: 0; transform: scale(0.975) rotate(-0.35deg); filter: contrast(1.08) blur(10px); }
+}
+
+@keyframes vt-root-spotlight-in {
+  from { opacity: 0; transform: scale(1.03) rotate(0.35deg); filter: contrast(1.1) blur(12px); }
+  to { opacity: 1; transform: scale(1) rotate(0deg); filter: contrast(1) blur(0); }
+}
+
+@keyframes vt-title-rise-out {
+  from { opacity: 1; transform: translateY(0); letter-spacing: 0; }
+  to { opacity: 0; transform: translateY(-14px); letter-spacing: 0.04em; }
+}
+
+@keyframes vt-title-rise-in {
+  from { opacity: 0; transform: translateY(16px); letter-spacing: 0.06em; }
+  to { opacity: 1; transform: translateY(0); letter-spacing: 0; }
+}
+
+@keyframes vt-title-slide-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-20px); }
+}
+
+@keyframes vt-title-slide-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes vt-title-focus-out {
+  from { opacity: 1; transform: scale(1); filter: blur(0); }
+  to { opacity: 0; transform: scale(0.96); filter: blur(6px); }
+}
+
+@keyframes vt-title-focus-in {
+  from { opacity: 0; transform: scale(1.04); filter: blur(8px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes vt-title-arcade-out {
+  from { opacity: 1; transform: translateY(0) rotate(0deg); }
+  to { opacity: 0; transform: translateY(-10px) rotate(-1deg); }
+}
+
+@keyframes vt-title-arcade-in {
+  from { opacity: 0; transform: translateY(16px) rotate(1deg); }
+  to { opacity: 1; transform: translateY(0) rotate(0deg); }
+}
+
+@keyframes vt-content-lift-out {
+  from { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  to { opacity: 0; transform: translateY(-18px) scale(0.99); filter: blur(10px); }
+}
+
+@keyframes vt-content-lift-in {
+  from { opacity: 0; transform: translateY(22px) scale(1.01); filter: blur(12px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes vt-content-side-out {
+  from { opacity: 1; transform: translateX(0); filter: blur(0); }
+  to { opacity: 0; transform: translateX(-26px); filter: blur(8px); }
+}
+
+@keyframes vt-content-side-in {
+  from { opacity: 0; transform: translateX(30px); filter: blur(10px); }
+  to { opacity: 1; transform: translateX(0); filter: blur(0); }
+}
+
+@keyframes vt-content-focus-out {
+  from { opacity: 1; transform: scale(1); filter: saturate(1) blur(0); }
+  to { opacity: 0; transform: scale(0.975); filter: saturate(1.08) blur(10px); }
+}
+
+@keyframes vt-content-focus-in {
+  from { opacity: 0; transform: scale(1.025); filter: saturate(1.1) blur(12px); }
+  to { opacity: 1; transform: scale(1); filter: saturate(1) blur(0); }
+}
+
+@keyframes vt-content-arcade-out {
+  from { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+  to { opacity: 0; transform: translateY(-18px) scale(0.965) rotate(-0.55deg); }
+}
+
+@keyframes vt-content-arcade-in {
+  from { opacity: 0; transform: translateY(24px) scale(1.03) rotate(0.55deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
 }
 
 /* Theme variables are generated from design/tokens/sdal.tokens.json. */

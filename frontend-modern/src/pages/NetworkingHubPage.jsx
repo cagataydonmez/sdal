@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useSearchParams } from '../router.jsx';
+import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useNetworkingHubState } from '../hooks/useNetworkingHubState.js';
 import { useI18n } from '../utils/i18n.jsx';
@@ -31,9 +31,9 @@ function avatarUrl(photo) {
 function PersonLink({ href, photo, name, handle, meta }) {
   return (
     <div className="network-person-block">
-      <a href={href} className="network-avatar-link">
+      <Link to={href} className="network-avatar-link">
         <img src={avatarUrl(photo)} alt="" />
-      </a>
+      </Link>
       <div className="network-person-copy">
         <div className="network-person-name">{name}</div>
         <div className="network-person-handle">@{handle}</div>
@@ -76,7 +76,7 @@ function EmptyState({ title, description, actionLabel, actionHref }) {
     <div className="network-empty-state">
       <strong>{title}</strong>
       <span>{description}</span>
-      {actionLabel && actionHref ? <a className="btn ghost" href={actionHref}>{actionLabel}</a> : null}
+      {actionLabel && actionHref ? <Link className="btn ghost" to={actionHref}>{actionLabel}</Link> : null}
     </div>
   );
 }
@@ -90,7 +90,7 @@ function PriorityCard({ label, count, title, description, actionLabel, actionHre
       </div>
       <strong>{title}</strong>
       <p>{description}</p>
-      <a className="btn ghost" href={actionHref}>{actionLabel}</a>
+      <Link className="btn ghost" to={actionHref}>{actionLabel}</Link>
     </article>
   );
 }
@@ -251,9 +251,9 @@ export default function NetworkingHubPage() {
           </div>
         </div>
         <div className="network-hero-actions">
-          <a className="btn primary" href="/new/explore">Yeni kişi keşfet</a>
-          <a className="btn ghost" href="/new/network/teachers">Öğretmen ağına git</a>
-          <a className="btn ghost" href="/new/messages">Mesaj kutusuna git</a>
+          <Link className="btn primary" to="/new/explore">Yeni kişi keşfet</Link>
+          <Link className="btn ghost" to="/new/network/teachers">Öğretmen ağına git</Link>
+          <Link className="btn ghost" to="/new/messages">Mesaj kutusuna git</Link>
           {hubRefreshing ? <span className="chip">Arka planda güncelleniyor</span> : null}
         </div>
       </section>
@@ -528,7 +528,7 @@ export default function NetworkingHubPage() {
                       handle={item.kadi}
                       meta={item.focus_area || staleHint(item.created_at, t)}
                     />
-                    <a className="btn ghost" href="/new/messages">{t('member_send_message')}</a>
+                    <Link className="btn ghost" to="/new/messages">{t('member_send_message')}</Link>
                   </article>
                 ))}
               </div>

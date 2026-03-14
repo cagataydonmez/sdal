@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
@@ -94,7 +95,7 @@ export default function MessagesPage() {
       <div className="message-mailbox">
         <aside className="panel mailbox-sidebar">
           <div className="panel-body stack">
-            <a className="btn primary" href="/new/messages/compose">{t('message_compose_title')}</a>
+            <Link className="btn primary" to="/new/messages/compose">{t('message_compose_title')}</Link>
             <button
               className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`}
               onClick={() => {
@@ -169,8 +170,8 @@ export default function MessagesPage() {
                 <div className="mailbox-preview-head">
                   <h3>{selected.konu || t('message_title')}</h3>
                   <div className="composer-actions">
-                    <a className="btn ghost" href={`/new/messages/${selected.id}`}>{t('messages_fullscreen')}</a>
-                    <a className="btn primary" href={`/new/messages/compose?to=${box === 'inbox' ? selected.kimden : selected.kime}&replyTo=${selected.id}`}>{t('reply')}</a>
+                    <Link className="btn ghost" to={`/new/messages/${selected.id}`}>{t('messages_fullscreen')}</Link>
+                    <Link className="btn primary" to={`/new/messages/compose?to=${box === 'inbox' ? selected.kimden : selected.kime}&replyTo=${selected.id}`}>{t('reply')}</Link>
                   </div>
                 </div>
                 <div className="meta">{selected.kimden_kadi} → {selected.kime_kadi}</div>

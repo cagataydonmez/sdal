@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -40,7 +41,7 @@ export default function ProfileEmailChangePage() {
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@mail.com" />
           </div>
           <button className="btn primary" onClick={submit} disabled={busy}>{busy ? t('sending') : t('profile_email_change_send')}</button>
-          <a className="btn ghost" href="/new/profile">{t('back')}</a>
+          <Link className="btn ghost" to="/new/profile">{t('back')}</Link>
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
         </div>

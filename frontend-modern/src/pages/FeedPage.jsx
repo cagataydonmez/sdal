@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from '../router.jsx';
+import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import PostComposer from '../components/PostComposer.jsx';
 import PostCard from '../components/PostCard.jsx';
@@ -488,13 +488,13 @@ export default function FeedPage() {
                 <EmptyPanelState message={t('online_members_empty')} actionLabel={t('games_refresh')} onRetry={() => loadOnlineMembers({ background: false })} />
               ) : null}
               {!onlineMembersLoading && !onlineMembersError && onlineMembers.map((u) => (
-                <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
+                <Link key={u.id} className="verify-user" to={`/new/members/${u.id}`}>
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>
                     <div>@{u.kadi}</div>
                     <div className="meta">{t('status_online')}</div>
                   </div>
-                </a>
+                </Link>
               ))}
               {!onlineMembersLoading && !onlineMembersError && !onlineMembers.length ? <div className="muted">{t('online_members_empty')}</div> : null}
             </div>
@@ -508,9 +508,9 @@ export default function FeedPage() {
                 <EmptyPanelState message={t('no_new_messages')} actionLabel={t('games_refresh')} onRetry={() => loadUnreadMessages({ background: false })} />
               ) : null}
               {!unreadMessagesLoading && !unreadMessagesError ? (
-                <a href="/new/messages">
+                <Link to="/new/messages">
                   {unreadMessages > 0 ? t('unread_messages_count', { count: unreadMessages }) : t('no_new_messages')}
-                </a>
+                </Link>
               ) : null}
             </div>
           </div>
@@ -531,17 +531,17 @@ export default function FeedPage() {
                 <EmptyPanelState message={t('feed_discover_members')} actionLabel={t('games_refresh')} onRetry={() => loadQuickAccess({ background: false })} />
               ) : null}
               {!quickAccessLoading && !quickAccessError && quickUsers.map((u) => (
-                <a key={u.id} className="verify-user" href={`/new/members/${u.id}`}>
+                <Link key={u.id} className="verify-user" to={`/new/members/${u.id}`}>
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>
                     <div>@{u.kadi}</div>
                     <div className="meta">{Number(u.online) === 1 ? t('status_online') : t('status_offline')}</div>
                   </div>
-                </a>
+                </Link>
               ))}
-              <a href="/new/explore">{t('feed_discover_members')}</a>
-              <a href="/new/events">{t('feed_upcoming_events')}</a>
-              <a href="/new/announcements">{t('nav_announcements')}</a>
+              <Link to="/new/explore">{t('feed_discover_members')}</Link>
+              <Link to="/new/events">{t('feed_upcoming_events')}</Link>
+              <Link to="/new/announcements">{t('nav_announcements')}</Link>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
@@ -115,7 +116,7 @@ export default function GroupsPage() {
               <div className="name">{g.name}</div>
               <TranslatableHtml html={g.description || ''} className="meta" />
               <div className="meta">{t('groups_member_count', { count: g.members })} {g.visibility === 'members_only' ? `· ${t('private')}` : ''}</div>
-              <a className="btn ghost" href={`/new/groups/${g.id}`}>{t('open')}</a>
+              <Link className="btn ghost" to={`/new/groups/${g.id}`}>{t('open')}</Link>
             </div>
             <button className="btn" onClick={() => toggleJoin(g.id)}>
               {g.joined ? t('leave') : (g.invited ? t('group_invite_accept') : (g.pending ? t('group_request_cancel') : t('group_request_join')))}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from '../router.jsx';
+import { Link, useNavigate } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
@@ -92,8 +92,8 @@ export default function LoginPage() {
             </div>
           ) : null}
           <div className="panel-body">
-            <a className="btn ghost" href="/new/register">{t('register_submit')}</a>
-            <a className="btn ghost" href="/new/password-reset">{t('login_forgot_password')}</a>
+            <Link className="btn ghost" to="/new/register">{t('register_submit')}</Link>
+            <Link className="btn ghost" to="/new/password-reset">{t('login_forgot_password')}</Link>
           </div>
         </div>
       </div>

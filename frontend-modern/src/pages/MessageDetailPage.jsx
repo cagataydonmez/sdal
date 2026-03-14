@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from '../router.jsx';
+import { Link, useNavigate, useParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
@@ -83,8 +83,8 @@ export default function MessageDetailPage() {
       <div className="panel">
         <div className="panel-body">
           <div className="composer-actions">
-            <a className="btn ghost" href="/new/messages">{t('back_to_list')}</a>
-            <a className="btn primary" href={`/new/messages/compose?replyTo=${message.id}`}>{t('reply')}</a>
+            <Link className="btn ghost" to="/new/messages">{t('back_to_list')}</Link>
+            <Link className="btn primary" to={`/new/messages/compose?replyTo=${message.id}`}>{t('reply')}</Link>
           </div>
           <div className="meta">{t('sender')}: {sender?.kadi}</div>
           <div className="meta">{t('recipient')}: {receiver?.kadi}</div>

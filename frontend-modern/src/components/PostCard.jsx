@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from '../router.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from './RichTextEditor.jsx';
@@ -170,9 +171,9 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     <article className="post-card">
       <div className="post-header">
         {authorId ? (
-          <a href={`/new/members/${authorId}`} aria-label={`${post.author?.kadi || 'uye'} profiline git`}>
+          <Link to={`/new/members/${authorId}`} aria-label={`${post.author?.kadi || 'uye'} profiline git`}>
             <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-          </a>
+          </Link>
         ) : (
           <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
         )}
@@ -251,11 +252,11 @@ export default function PostCard({ post, onRefresh, focused = false }) {
           {comments.length === 0 ? <div className="muted">{t('no_comments_yet')}</div> : null}
           {comments.map((c) => (
             <div key={c.id} className="comment-line">
-              <a href={`/new/members/${c.user_id}`} aria-label={`${c.kadi || 'uye'} profiline git`}>
+              <Link to={`/new/members/${c.user_id}`} aria-label={`${c.kadi || 'uye'} profiline git`}>
                 <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-              </a>
+              </Link>
               <div>
-                <a className="name" href={`/new/members/${c.user_id}`}>@{c.kadi}</a>
+                <Link className="name" to={`/new/members/${c.user_id}`}>@{c.kadi}</Link>
                 <TranslatableHtml html={c.comment || ''} />
               </div>
             </div>

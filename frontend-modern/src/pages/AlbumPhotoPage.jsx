@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from '../router.jsx';
+import { Link, useParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
@@ -80,10 +80,10 @@ export default function AlbumPhotoPage() {
               <div>
                 <div className="name">
                   {c.user_id ? (
-                    <a className="verify-user" href={`/new/members/${c.user_id}`}>
+                    <Link className="verify-user" to={`/new/members/${c.user_id}`}>
                       @{c.kadi || c.uyeadi}
                       {c.verified ? <span className="badge">✓</span> : null}
-                    </a>
+                    </Link>
                   ) : (
                     <span>@{c.kadi || c.uyeadi}</span>
                   )}

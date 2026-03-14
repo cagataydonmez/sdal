@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
@@ -88,9 +89,9 @@ export default function ExploreSuggestionsPage() {
       <div className="card-grid">
         {items.map((m) => (
           <div className="member-card" key={m.id}>
-            <a href={`/new/members/${m.id}`}>
+            <Link to={`/new/members/${m.id}`}>
               <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-            </a>
+            </Link>
             <div>
               <div className="name">
                 {m.isim} {m.soyisim}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from '../router.jsx';
+import { Link, useParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -55,9 +55,9 @@ export default function AlbumCategoryPage() {
       </div>
       <div className="photo-grid">
         {photos.map((p) => (
-          <a key={p.id} href={`/new/albums/photo/${p.id}`}>
+          <Link key={p.id} to={`/new/albums/photo/${p.id}`}>
             <img src={`/api/media/kucukresim?width=260&file=${encodeURIComponent(p.dosyaadi)}`} alt="" />
-          </a>
+          </Link>
         ))}
       </div>
       <div ref={sentinelRef} />

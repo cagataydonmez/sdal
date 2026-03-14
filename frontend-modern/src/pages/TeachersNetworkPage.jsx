@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from '../router.jsx';
+import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { readApiPayload } from '../utils/api.js';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
@@ -277,8 +277,8 @@ export default function TeachersNetworkPage() {
           </div>
         </div>
         <div className="network-hero-actions">
-          <a className="btn primary" href="/new/network/hub">Networking merkezine dön</a>
-          <a className="btn ghost" href="/new/explore">Yeni mezun keşfet</a>
+          <Link className="btn primary" to="/new/network/hub">Networking merkezine dön</Link>
+          <Link className="btn ghost" to="/new/explore">Yeni mezun keşfet</Link>
         </div>
       </section>
 

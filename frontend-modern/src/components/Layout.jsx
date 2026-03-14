@@ -8,6 +8,7 @@ import { readApiPayload } from '../utils/api.js';
 import { openNotification } from '../utils/notificationApi.js';
 import { buildNotificationViewModel, shouldToastNotification } from '../utils/notificationRegistry.js';
 import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
+import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
 
 export default function Layout({ children, title, right }) {
   const location = useLocation();
@@ -221,6 +222,7 @@ export default function Layout({ children, title, right }) {
       : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') }));
   const roleValue = String(user?.role || '').toLowerCase();
   const isAdminUser = Number(user?.admin || 0) === 1 || roleValue === 'admin' || roleValue === 'root';
+  const routeMeta = useMemo(() => getRouteTransitionMeta(location.pathname), [location.pathname]);
 
   const navItems = useMemo(() => {
     const allItems = [
@@ -264,8 +266,12 @@ export default function Layout({ children, title, right }) {
     };
   }, [mobileNavOpen]);
 
+  useEffect(() => {
+    syncViewTransitionContext(location.pathname);
+  }, [location.pathname]);
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-route-family={routeMeta.family} data-route-kind={routeMeta.kind}>
       <aside className="side-nav">
         <Link to="/new" className="brand" aria-label="SDAL home">
           <span className="brand-text">SDAL</span>
@@ -281,14 +287,14 @@ export default function Layout({ children, title, right }) {
           <a href="/" className="ghost">{t('layout_classic_view')}</a>
           {user ? <button className="linkish" onClick={handleLogout}>{t('logout')}</button> : (
             <>
-              <a href="/new/login">{t('login_title')}</a>
-              <a href="/new/register">{t('register_submit')}</a>
+              <Link to="/new/login">{t('login_title')}</Link>
+              <Link to="/new/register">{t('register_submit')}</Link>
             </>
           )}
         </div>
       </aside>
 
-	      <main className="main-area">
+	      <main className={`main-area route-family-${routeMeta.family} route-kind-${routeMeta.kind}`}>
         <header className="top-bar">
           <button
             className={`mobile-hamburger mobile-hamburger-left ${mobileNavOpen ? 'open' : ''}`}
@@ -300,7 +306,7 @@ export default function Layout({ children, title, right }) {
             <span></span>
             <span></span>
           </button>
-          <div className="page-title">
+          <div className="page-title route-title-shell" data-route-family={routeMeta.family} data-route-kind={routeMeta.kind}>
             <h1>{title}</h1>
             <p>{t('layout_subtitle')}</p>
           </div>
@@ -331,7 +337,7 @@ export default function Layout({ children, title, right }) {
           </div>
         </header>
 
-        <div className="content">
+        <div className="content route-content-shell" data-route-family={routeMeta.family} data-route-kind={routeMeta.kind}>
           {children}
         </div>
       </main>
