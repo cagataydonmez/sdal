@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useNetworkingHubState } from '../hooks/useNetworkingHubState.js';
 import { useI18n } from '../utils/i18n.jsx';
@@ -95,6 +96,7 @@ function PriorityCard({ label, count, title, description, actionLabel, actionHre
 
 export default function NetworkingHubPage() {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
   const { state, actions } = useNetworkingHubState(t);
   const {
     bootstrapping,
@@ -121,6 +123,9 @@ export default function NetworkingHubPage() {
   const acceptedConnections = Number(metrics.connections?.accepted || 0);
   const mentorshipWins = Number(metrics.mentorship?.accepted || 0);
   const teacherLinksCreated = Number(metrics.teacherLinks?.created || 0);
+  const focusedSection = String(searchParams.get('section') || '').trim();
+  const focusedRequestId = Number(searchParams.get('request') || 0);
+  const focusedNotificationId = Number(searchParams.get('notification') || 0);
 
   useEffect(() => {
     void sendNetworkingTelemetry({
@@ -128,6 +133,15 @@ export default function NetworkingHubPage() {
       sourceSurface: 'network_hub'
     });
   }, []);
+
+  useEffect(() => {
+    if (!focusedSection || typeof document === 'undefined') return;
+    const timer = window.setTimeout(() => {
+      const node = document.getElementById(focusedSection);
+      node?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [focusedSection, bootstrapping]);
 
   const priorityCards = [
     incoming.length > 0
@@ -325,7 +339,10 @@ export default function NetworkingHubPage() {
             {!bootstrapping ? (
               <div className="network-list">
                 {incoming.map((item) => (
-                  <article className="network-action-card" key={item.id}>
+                  <article
+                    className={`network-action-card${focusedSection === 'incoming-connections' && focusedRequestId === Number(item.id || 0) ? ' network-focus-card' : ''}`}
+                    key={item.id}
+                  >
                     <PersonLink
                       href={`/new/members/${item.sender_id}`}
                       photo={readConnectionUserField(item, 'user_resim', 'resim')}
@@ -361,7 +378,10 @@ export default function NetworkingHubPage() {
             {!bootstrapping ? (
               <div className="network-list">
                 {incomingMentorship.map((item) => (
-                  <article className="network-action-card" key={`mi-${item.id}`}>
+                  <article
+                    className={`network-action-card${focusedSection === 'incoming-mentorship' && focusedRequestId === Number(item.id || 0) ? ' network-focus-card' : ''}`}
+                    key={`mi-${item.id}`}
+                  >
                     <PersonLink
                       href={`/new/members/${item.requester_id}`}
                       photo={item.resim}
@@ -405,7 +425,10 @@ export default function NetworkingHubPage() {
             {!bootstrapping ? (
               <div className="network-list">
                 {teacherEvents.map((item) => (
-                  <article className="network-action-card" key={`tl-${item.id}`}>
+                  <article
+                    className={`network-action-card${focusedSection === 'teacher-notifications' && focusedNotificationId === Number(item.id || 0) ? ' network-focus-card' : ''}`}
+                    key={`tl-${item.id}`}
+                  >
                     <PersonLink
                       href={`/new/members/${item.source_user_id}`}
                       photo={item.resim}
@@ -439,7 +462,10 @@ export default function NetworkingHubPage() {
             {!bootstrapping ? (
               <div className="network-list">
                 {outgoing.map((item) => (
-                  <article className="network-action-card" key={item.id}>
+                  <article
+                    className={`network-action-card${focusedSection === 'outgoing-connections' && focusedRequestId === Number(item.id || 0) ? ' network-focus-card' : ''}`}
+                    key={item.id}
+                  >
                     <PersonLink
                       href={`/new/members/${item.receiver_id}`}
                       photo={readConnectionUserField(item, 'user_resim', 'resim')}
@@ -472,7 +498,10 @@ export default function NetworkingHubPage() {
             {!bootstrapping ? (
               <div className="network-list">
                 {outgoingMentorship.map((item) => (
-                  <article className="network-action-card" key={`mo-${item.id}`}>
+                  <article
+                    className={`network-action-card${focusedSection === 'outgoing-mentorship' && focusedRequestId === Number(item.id || 0) ? ' network-focus-card' : ''}`}
+                    key={`mo-${item.id}`}
+                  >
                     <PersonLink
                       href={`/new/members/${item.mentor_id}`}
                       photo={item.resim}

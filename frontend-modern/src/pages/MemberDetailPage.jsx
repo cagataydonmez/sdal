@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import StoryBar from '../components/StoryBar.jsx';
@@ -16,6 +16,7 @@ function canLinkToTeacherNetwork(member) {
 export default function MemberDetailPage() {
   const { t } = useI18n();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [member, setMember] = useState(null);
   const [error, setError] = useState('');
@@ -89,6 +90,14 @@ export default function MemberDetailPage() {
         ? 'Bu bölümden bağlantı isteği, mentorluk talebi ve Teacher Network ilişkisini öncelik sırasıyla yönetebilirsin.'
         : 'Bağlantı isteği doğrulanmış profiller için açılıyor. Diğer aksiyonlar profil tipine göre gösterilir.'
   ;
+  const arrivalContext = String(searchParams.get('context') || '').trim().toLowerCase();
+  const arrivalMessage = arrivalContext === 'connection_accepted'
+    ? 'Bu üye bağlantı isteğini kabul etti. İstersen şimdi mesajlaşmayı başlatabilir veya diğer networking adımlarına geçebilirsin.'
+    : arrivalContext === 'mentorship_accepted'
+      ? 'Bu üye mentorluk isteğini kabul etti. Sonraki en doğru adım net bir mesajla beklentini paylaşmak.'
+      : arrivalContext === 'follow'
+        ? 'Bu üye seni takip etmeye başladı. Profili inceleyip istersen bağlantı veya mesaj akışını başlatabilirsin.'
+        : '';
 
   return (
     <Layout title={`${member.isim} ${member.soyisim}`}>
@@ -111,6 +120,12 @@ export default function MemberDetailPage() {
             </div>
           ) : null}
           <div>{member.imza}</div>
+          {arrivalMessage ? (
+            <div className="notification-focus-inline-panel">
+              <strong>Bildirim bağlamı</strong>
+              <div className="muted">{arrivalMessage}</div>
+            </div>
+          ) : null}
           {status ? <div className="ok">{status}</div> : null}
           {error ? <div className="error">{error}</div> : null}
           <div className="member-detail-actions">

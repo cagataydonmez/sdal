@@ -1,8 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
-import { formatDateTime } from '../utils/date.js';
+import { readApiPayload } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { NETWORKING_EVENTS } from '../utils/networkingRegistry.js';
+import { openNotification, readNotification, runNotificationAction } from '../utils/notificationApi.js';
+import { buildNotificationViewModel } from '../utils/notificationRegistry.js';
+import NotificationCard from './NotificationCard.jsx';
 
 function NotificationSkeleton() {
   return (
@@ -33,9 +36,10 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
         if (!background) setLoading(false);
         return;
       }
-      const payload = await res.json();
-      setItems(payload.items || []);
-      setHasMore(Boolean(payload.hasMore));
+      const { data } = await readApiPayload(res, '');
+      const nextItems = Array.isArray(data?.items) ? data.items.map(buildNotificationViewModel) : [];
+      setItems(nextItems);
+      setHasMore(Boolean(data?.hasMore));
       if (!background) {
         setError('');
         setLoading(false);
@@ -48,62 +52,72 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
     }
   }, [limit]);
 
-  function getTarget(n) {
-    if ((n.type === 'like' || n.type === 'comment') && n.entity_id) return `/new?post=${n.entity_id}`;
-    if (n.type === 'mention_post' && n.entity_id) return `/new?post=${n.entity_id}`;
-    if (n.type === 'mention_event' && n.entity_id) return '/new/events';
-    if (n.type === 'mention_group' && n.entity_id) return `/new/groups/${n.entity_id}`;
-    if ((n.type === 'group_join_request' || n.type === 'group_join_approved' || n.type === 'group_join_rejected' || n.type === 'group_invite') && n.entity_id) return `/new/groups/${n.entity_id}`;
-    if (n.type === 'mention_message' && n.entity_id) return `/new/messages/${n.entity_id}`;
-    if (n.type === 'mention_photo' && n.entity_id) return `/new/albums/photo/${n.entity_id}`;
-    if (n.type === 'photo_comment' && n.entity_id) return `/new/albums/photo/${n.entity_id}`;
-    if ((n.type === 'event_comment' || n.type === 'event_invite') && n.entity_id) return '/new/events';
-    if (n.type === 'follow' && n.source_user_id) return `/new/members/${n.source_user_id}`;
-    return '/new';
-  }
-
   useEffect(() => {
     load({ background: false }).catch(() => {});
   }, [load]);
 
-  useLiveRefresh(load, { intervalMs: 12000, eventTypes: ['notification:new', 'post:liked', 'post:commented', NETWORKING_EVENTS.followChanged] });
+  useLiveRefresh(load, {
+    intervalMs: 12000,
+    eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action', 'post:liked', 'post:commented', NETWORKING_EVENTS.followChanged]
+  });
 
-  function inviteStatusLabel(status) {
-    if (status === 'accepted') return t('group_invite_accepted');
-    if (status === 'rejected') return t('group_invite_rejected');
-    return t('group_invite_pending');
+  function handleNotificationOpen(notification) {
+    setItems((prev) => prev.map((item) => (
+      Number(item.id) === Number(notification.id)
+        ? { ...item, read_at: item.read_at || new Date().toISOString() }
+        : item
+    )));
+    void openNotification(notification.id);
+    onReload?.();
   }
 
-  async function respondGroupInvite(notification, action) {
-    if (!notification?.entity_id) return;
-    if (!['accept', 'reject'].includes(action)) return;
+  async function handleNotificationRead(notification) {
     setBusyId(notification.id);
-    try {
-      const res = await fetch(`/api/new/groups/${notification.entity_id}/invitations/respond`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
-      });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      setItems((prev) => prev.map((x) => (
-        x.id === notification.id
-          ? { ...x, invite_status: action === 'accept' ? 'accepted' : 'rejected' }
-          : x
+    const result = await readNotification(notification.id);
+    if (result.ok) {
+      setItems((prev) => prev.map((item) => (
+        Number(item.id) === Number(notification.id)
+          ? { ...item, read_at: item.read_at || new Date().toISOString() }
+          : item
       )));
-      emitAppChange('group:invite:responded', { id: notification.id, action, groupId: notification.entity_id });
-      setTimeout(() => {
-        load().catch(() => {});
-      }, 200);
       onReload?.();
-    } catch (err) {
-      emitAppChange('toast', { type: 'error', message: err?.message || t('group_invite_respond_failed') });
-    } finally {
-      setBusyId(null);
+    } else if (result.message) {
+      emitAppChange('toast', { type: 'error', message: result.message });
     }
+    setBusyId(null);
   }
+
+  async function handleNotificationAction(notification, action) {
+    setBusyId(notification.id);
+    const result = await runNotificationAction(action);
+    if (!result.ok) {
+      emitAppChange('toast', { type: 'error', message: result.message || t('group_invite_respond_failed') });
+      setBusyId(null);
+      return;
+    }
+    if (action.kind === 'mark_teacher_notifications_read') {
+      setItems((prev) => prev.map((item) => (
+        item.type === 'teacher_network_linked'
+          ? { ...item, read_at: item.read_at || new Date().toISOString() }
+          : item
+      )));
+    }
+    await load({ background: false });
+    emitAppChange('notification:action', { id: notification.id, kind: action.kind });
+    onReload?.();
+    setBusyId(null);
+  }
+
+  const orderedItems = useMemo(() => (
+    [...items].sort((left, right) => {
+      const leftRank = left.read_at ? (left.isActionable ? 2 : 3) : (left.isActionable ? 0 : 1);
+      const rightRank = right.read_at ? (right.isActionable ? 2 : 3) : (right.isActionable ? 0 : 1);
+      if (leftRank !== rightRank) return leftRank - rightRank;
+      return Number(right.id || 0) - Number(left.id || 0);
+    })
+  ), [items]);
+  const actionItems = orderedItems.filter((item) => item.isActionable).slice(0, limit);
+  const recentItems = orderedItems.filter((item) => !item.isActionable).slice(0, Math.max(0, limit - actionItems.length));
 
   return (
     <div className="panel">
@@ -127,51 +141,43 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
           ) : <div className="muted">{t('notifications_empty')}</div>
         ) : null}
 
-        {!loading && !error && items.map((n) => (
-          <div key={n.id} className={`notif notif-link${n.read_at ? '' : ' unread'}`}>
-            <img className="avatar" src={n.resim ? `/api/media/vesikalik/${n.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
-            <div className="notif-content">
-              <a
-                href={getTarget(n)}
-                onClick={() => emitAppChange('notification:opened', { id: n.id })}
-              >
-                <b>@{n.kadi}</b> {n.verified ? <span className="badge">✓</span> : null} {n.message}
-              </a>
-              <div className="meta">{formatDateTime(n.created_at)}</div>
-              {n.type === 'group_invite' ? (
-                <div className="notif-actions">
-                  {(n.invite_status || 'pending') === 'pending' ? (
-                    <>
-                      <button
-                        className="btn"
-                        disabled={busyId === n.id}
-                        onClick={() => respondGroupInvite(n, 'accept')}
-                      >
-                        {t('approve')}
-                      </button>
-                      <button
-                        className="btn ghost"
-                        disabled={busyId === n.id}
-                        onClick={() => respondGroupInvite(n, 'reject')}
-                      >
-                        {t('reject')}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className={`chip invite-state ${n.invite_status === 'accepted' ? 'ok' : 'rejected'}`}>
-                        {inviteStatusLabel(n.invite_status)}
-                      </span>
-                      {n.invite_status === 'accepted' ? (
-                        <a className="btn ghost" href={`/new/groups/${n.entity_id}`}>{t('group_go')}</a>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              ) : null}
+        {!loading && !error && actionItems.length > 0 ? (
+          <div className="notification-panel-section">
+            <div className="notification-panel-heading">Aksiyon Gerekenler</div>
+            <div className="notification-card-stack">
+              {actionItems.map((item) => (
+                <NotificationCard
+                  key={item.id}
+                  compact
+                  notification={item}
+                  busy={busyId === item.id}
+                  onOpen={handleNotificationOpen}
+                  onRead={handleNotificationRead}
+                  onAction={handleNotificationAction}
+                />
+              ))}
             </div>
           </div>
-        ))}
+        ) : null}
+
+        {!loading && !error && recentItems.length > 0 ? (
+          <div className="notification-panel-section">
+            <div className="notification-panel-heading">Son Güncellemeler</div>
+            <div className="notification-card-stack">
+              {recentItems.map((item) => (
+                <NotificationCard
+                  key={item.id}
+                  compact
+                  notification={item}
+                  busy={busyId === item.id}
+                  onOpen={handleNotificationOpen}
+                  onRead={handleNotificationRead}
+                  onAction={handleNotificationAction}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {showAllLink ? (
           <a className="btn ghost" href="/new/notifications">

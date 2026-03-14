@@ -29,7 +29,8 @@
     "test:phase2-jobs-applications": "node tests/contracts/phase2-jobs-applications.mjs",
     "test:phase2-network-inbox": "node tests/contracts/phase2-network-inbox.mjs",
     "test:phase2-network-hub": "node tests/contracts/phase2-network-hub.mjs",
-    "test:phase2-network-metrics-analytics": "node tests/contracts/phase2-network-metrics-analytics.mjs"
+    "test:phase2-network-metrics-analytics": "node tests/contracts/phase2-network-metrics-analytics.mjs",
+    "test:phase2-notifications": "node tests/contracts/phase2-notifications.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",

@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
+import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import { formatDateTime } from '../utils/date.js';
 
@@ -7,12 +9,24 @@ const EMPTY_FORM = { company: '', title: '', description: '', location: '', job_
 
 export default function JobsPage() {
   const { t } = useI18n();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState({ search: '', location: '', job_type: '' });
   const [form, setForm] = useState(EMPTY_FORM);
+  const [applicationsByJob, setApplicationsByJob] = useState({});
+  const [applicationsError, setApplicationsError] = useState('');
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const cardRefs = useRef(new Map());
+  const highlightedJobId = Number(searchParams.get('job') || 0);
+  const highlightedTab = String(searchParams.get('tab') || '').trim().toLowerCase();
+  const highlightedJob = useMemo(
+    () => items.find((item) => Number(item.id || 0) === highlightedJobId) || null,
+    [items, highlightedJobId]
+  );
 
   async function load() {
     setLoading(true);
@@ -37,6 +51,41 @@ export default function JobsPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!highlightedJobId) return;
+    const timer = window.setTimeout(() => {
+      const node = cardRefs.current.get(highlightedJobId);
+      node?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [highlightedJobId, items.length]);
+
+  useEffect(() => {
+    if (!highlightedJob || highlightedTab !== 'applications') return;
+    if (Number(highlightedJob.poster_id || 0) !== Number(user?.id || 0)) return;
+    let cancelled = false;
+    async function loadApplications() {
+      setApplicationsLoading(true);
+      setApplicationsError('');
+      try {
+        const res = await fetch(`/api/new/jobs/${highlightedJob.id}/applications`, { credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        const payload = await res.json();
+        if (cancelled) return;
+        setApplicationsByJob((prev) => ({ ...prev, [highlightedJob.id]: payload.items || [] }));
+      } catch (err) {
+        if (cancelled) return;
+        setApplicationsError(err.message || 'Başvurular yüklenemedi.');
+      } finally {
+        if (!cancelled) setApplicationsLoading(false);
+      }
+    }
+    loadApplications();
+    return () => {
+      cancelled = true;
+    };
+  }, [highlightedJob, highlightedTab, user?.id]);
 
   async function submitJob(e) {
     e.preventDefault();
@@ -102,7 +151,14 @@ export default function JobsPage() {
 
       <div className="stack">
         {items.map((job) => (
-          <div className="panel" key={job.id}>
+          <div
+            className={`panel${highlightedJobId === Number(job.id || 0) ? ' notification-focus-card' : ''}`}
+            key={job.id}
+            ref={(node) => {
+              if (node) cardRefs.current.set(Number(job.id || 0), node);
+              else cardRefs.current.delete(Number(job.id || 0));
+            }}
+          >
             <div className="panel-body">
               <div className="list-item">
                 <div>
@@ -116,6 +172,41 @@ export default function JobsPage() {
                 </div>
               </div>
               <div dangerouslySetInnerHTML={{ __html: job.description || '' }} />
+              {highlightedJobId === Number(job.id || 0) && highlightedTab === 'applications' ? (
+                <div className="panel notification-focus-inline-panel">
+                  <div className="panel-body">
+                    <strong>Başvuru görünümü</strong>
+                    {Number(job.poster_id || 0) !== Number(user?.id || 0) ? (
+                      <div className="muted">Bu ilanın başvuruları sadece ilan sahibi tarafından görüntülenebilir.</div>
+                    ) : applicationsLoading ? (
+                      <div className="muted">{t('loading')}</div>
+                    ) : applicationsError ? (
+                      <div className="muted">{applicationsError}</div>
+                    ) : !(applicationsByJob[job.id] || []).length ? (
+                      <div className="muted">Henüz başvuru yok.</div>
+                    ) : (
+                      <div className="stack">
+                        {(applicationsByJob[job.id] || []).map((application) => (
+                          <div className="request-payload-card" key={application.id}>
+                            <div className="request-payload-row">
+                              <span className="request-payload-key">Aday</span>
+                              <span className="request-payload-value">@{application.kadi || '-'}</span>
+                            </div>
+                            <div className="request-payload-row">
+                              <span className="request-payload-key">Tarih</span>
+                              <span className="request-payload-value">{formatDateTime(application.created_at)}</span>
+                            </div>
+                            <div className="request-payload-row">
+                              <span className="request-payload-key">Not</span>
+                              <div className="request-payload-value" dangerouslySetInnerHTML={{ __html: application.cover_letter || '<span class="muted">Not bırakılmadı.</span>' }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ))}

@@ -106,7 +106,7 @@ sqlRun(
 );
 const jobId = Number(sqlGet('SELECT id FROM jobs WHERE poster_id = ? ORDER BY id DESC LIMIT 1', [posterId]).id);
 
-const server = app.listen(0, '127.0.0.1');
+const server = app.listen(0);
 await new Promise((resolve, reject) => {
   server.once('listening', resolve);
   server.once('error', reject);

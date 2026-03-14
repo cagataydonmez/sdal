@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
@@ -31,6 +32,7 @@ function mergeUniqueById(prev, next) {
 export default function EventsPage() {
   const { t } = useI18n();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [events, setEvents] = useState([]);
   const [comments, setComments] = useState({});
   const [drafts, setDrafts] = useState({});
@@ -45,6 +47,8 @@ export default function EventsPage() {
   const commentsRef = useRef({});
   const eventsRef = useRef([]);
   const loadingMoreRef = useRef(false);
+  const cardRefs = useRef(new Map());
+  const focusedEventId = Number(searchParams.get('event') || 0);
 
   const isAdmin = user?.admin === 1;
 
@@ -90,6 +94,15 @@ export default function EventsPage() {
     io.observe(node);
     return () => io.disconnect();
   }, [loadMore]);
+
+  useEffect(() => {
+    if (!focusedEventId) return;
+    const timer = window.setTimeout(() => {
+      const node = cardRefs.current.get(focusedEventId);
+      node?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [focusedEventId, events.length]);
 
   async function create() {
     setError('');
@@ -189,7 +202,14 @@ export default function EventsPage() {
 
       <div className="list">
         {events.map((e) => (
-          <div key={e.id} className="panel">
+          <div
+            key={e.id}
+            className={`panel${focusedEventId === Number(e.id || 0) ? ' notification-focus-card' : ''}`}
+            ref={(node) => {
+              if (node) cardRefs.current.set(Number(e.id || 0), node);
+              else cardRefs.current.delete(Number(e.id || 0));
+            }}
+          >
             <h3>{e.title}</h3>
             <div className="panel-body">
               <div className="meta">{e.location} · {formatDateTime(e.starts_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>

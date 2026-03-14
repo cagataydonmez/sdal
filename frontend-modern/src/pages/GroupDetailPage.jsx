@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import PostCard from '../components/PostCard.jsx';
 import { useAuth } from '../utils/auth.jsx';
@@ -26,6 +26,7 @@ async function apiJson(url, options = {}) {
 export default function GroupDetailPage() {
   const { t } = useI18n();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
@@ -51,6 +52,9 @@ export default function GroupDetailPage() {
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteResults, setInviteResults] = useState([]);
   const [selectedInviteIds, setSelectedInviteIds] = useState([]);
+  const sectionRefs = useRef(new Map());
+  const focusedTab = String(searchParams.get('tab') || '').trim().toLowerCase();
+  const focusedRequestId = Number(searchParams.get('request') || 0);
 
   async function load() {
     setLoading(true);
@@ -98,6 +102,25 @@ export default function GroupDetailPage() {
   useEffect(() => {
     load();
   }, [id]);
+
+  useEffect(() => {
+    if (!focusedTab) return;
+    const refKey = focusedTab === 'requests'
+      ? 'requests'
+      : focusedTab === 'invite'
+        ? 'invites'
+        : focusedTab === 'events'
+          ? 'events'
+          : focusedTab === 'announcements'
+            ? 'announcements'
+            : '';
+    if (!refKey) return;
+    const timer = window.setTimeout(() => {
+      const node = sectionRefs.current.get(refKey);
+      node?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [focusedTab, loading]);
 
   async function submit(e) {
     e.preventDefault();
@@ -320,7 +343,13 @@ export default function GroupDetailPage() {
     return (
       <Layout title={group?.name || t('group_title')}>
         {group ? (
-          <div className="panel">
+          <div
+            className={`panel${focusedTab === 'events' ? ' notification-focus-card' : ''}`}
+            ref={(node) => {
+              if (node) sectionRefs.current.set('events', node);
+              else sectionRefs.current.delete('events');
+            }}
+          >
             <div className="group-hero">
               {group?.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">{t('group_cover_image')}</div>}
               <div>
@@ -419,7 +448,13 @@ export default function GroupDetailPage() {
       </div>
       <div className="grid">
         <div className="col-main">
-          <div className="panel">
+          <div
+            className={`panel${focusedTab === 'announcements' ? ' notification-focus-card' : ''}`}
+            ref={(node) => {
+              if (node) sectionRefs.current.set('announcements', node);
+              else sectionRefs.current.delete('announcements');
+            }}
+          >
             <h3>{t('group_events_title')}</h3>
             <div className="panel-body">
               {canReviewRequests ? (
@@ -525,12 +560,18 @@ export default function GroupDetailPage() {
           </div>
 
           {canReviewRequests ? (
-            <div className="panel">
+            <div
+              className={`panel${focusedTab === 'requests' ? ' notification-focus-card' : ''}`}
+              ref={(node) => {
+                if (node) sectionRefs.current.set('requests', node);
+                else sectionRefs.current.delete('requests');
+              }}
+            >
               <h3>{t('group_join_requests_title')}</h3>
               <div className="panel-body">
                 {!joinRequests.length ? <div className="muted">{t('group_join_requests_empty')}</div> : null}
                 {joinRequests.map((r) => (
-                  <div key={r.id} className="notif">
+                  <div key={r.id} className={`notif${focusedRequestId === Number(r.id || 0) ? ' notification-focus-inline-panel' : ''}`}>
                     <a href={`/new/members/${r.user_id}`} aria-label={t('go_profile_aria', { username: r.kadi || t('member_fallback') })}>
                       <img className="avatar" src={r.resim ? `/api/media/vesikalik/${r.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
                     </a>
@@ -548,7 +589,13 @@ export default function GroupDetailPage() {
             </div>
           ) : null}
           {canReviewRequests ? (
-            <div className="panel">
+            <div
+              className={`panel${focusedTab === 'invite' ? ' notification-focus-card' : ''}`}
+              ref={(node) => {
+                if (node) sectionRefs.current.set('invites', node);
+                else sectionRefs.current.delete('invites');
+              }}
+            >
               <h3>{t('group_bulk_invite_title')}</h3>
               <div className="panel-body stack">
                 <input className="input" placeholder={t('member_search_placeholder_short')} value={inviteQuery} onChange={(e) => setInviteQuery(e.target.value)} />
@@ -574,7 +621,7 @@ export default function GroupDetailPage() {
             </div>
           ) : null}
           {canReviewRequests ? (
-            <div className="panel">
+            <div className={`panel${focusedTab === 'invite' ? ' notification-focus-card' : ''}`}>
               <h3>{t('group_pending_invites_title')}</h3>
               <div className="panel-body">
                 {!pendingInvites.length ? <div className="muted">{t('group_pending_invites_empty')}</div> : null}

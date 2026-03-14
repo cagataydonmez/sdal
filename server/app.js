@@ -2332,6 +2332,444 @@ function addNotification({ userId, type, sourceUserId, entityId, message }) {
   );
 }
 
+const NOTIFICATION_CATEGORY_MAP = Object.freeze({
+  like: 'social',
+  comment: 'social',
+  mention_post: 'social',
+  mention_photo: 'social',
+  photo_comment: 'social',
+  follow: 'social',
+  mention_message: 'messaging',
+  mention_group: 'groups',
+  group_join_request: 'groups',
+  group_join_approved: 'groups',
+  group_join_rejected: 'groups',
+  group_invite: 'groups',
+  mention_event: 'events',
+  event_comment: 'events',
+  event_invite: 'events',
+  connection_request: 'networking',
+  connection_accepted: 'networking',
+  mentorship_request: 'networking',
+  mentorship_accepted: 'networking',
+  teacher_network_linked: 'networking',
+  job_application: 'jobs'
+});
+
+const NOTIFICATION_PRIORITY_MAP = Object.freeze({
+  like: 'informational',
+  comment: 'important',
+  mention_post: 'important',
+  mention_photo: 'important',
+  photo_comment: 'important',
+  follow: 'informational',
+  mention_message: 'important',
+  mention_group: 'important',
+  group_join_request: 'actionable',
+  group_join_approved: 'important',
+  group_join_rejected: 'important',
+  group_invite: 'actionable',
+  mention_event: 'important',
+  event_comment: 'important',
+  event_invite: 'important',
+  connection_request: 'actionable',
+  connection_accepted: 'important',
+  mentorship_request: 'actionable',
+  mentorship_accepted: 'important',
+  teacher_network_linked: 'important',
+  job_application: 'actionable'
+});
+
+function getNotificationCategory(type) {
+  return NOTIFICATION_CATEGORY_MAP[String(type || '').trim().toLowerCase()] || 'system';
+}
+
+function getNotificationPriority(type) {
+  return NOTIFICATION_PRIORITY_MAP[String(type || '').trim().toLowerCase()] || 'informational';
+}
+
+function isNotificationActionable(type) {
+  const priority = getNotificationPriority(type);
+  return priority === 'critical' || priority === 'actionable';
+}
+
+function buildNotificationTarget(row) {
+  const notificationId = Number(row?.id || 0);
+  const entityId = Number(row?.entity_id || 0);
+  const sourceUserId = Number(row?.source_user_id || 0);
+  const type = String(row?.type || '').trim().toLowerCase();
+  const pushNotificationParam = (value) => `${value}${value.includes('?') ? '&' : '?'}notification=${notificationId}`;
+
+  if ((type === 'like' || type === 'comment' || type === 'mention_post') && entityId) {
+    const href = `/new?post=${entityId}&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new',
+      entity_type: 'post',
+      entity_id: entityId,
+      context: { post: entityId, notification: notificationId }
+    };
+  }
+
+  if (type === 'mention_photo' || type === 'photo_comment') {
+    const href = entityId
+      ? `/new/albums/photo/${entityId}?notification=${notificationId}`
+      : `/new/notifications?notification=${notificationId}`;
+    return {
+      href,
+      route: entityId ? `/new/albums/photo/${entityId}` : '/new/notifications',
+      entity_type: 'photo',
+      entity_id: entityId || null,
+      context: { photo: entityId || null, notification: notificationId }
+    };
+  }
+
+  if (type === 'mention_message') {
+    const href = entityId
+      ? `/new/messages/${entityId}?notification=${notificationId}`
+      : `/new/messages?notification=${notificationId}`;
+    return {
+      href,
+      route: entityId ? `/new/messages/${entityId}` : '/new/messages',
+      entity_type: 'message',
+      entity_id: entityId || null,
+      context: { message: entityId || null, notification: notificationId }
+    };
+  }
+
+  if (type === 'mention_group' && entityId) {
+    const href = `/new/groups/${entityId}?tab=posts&notification=${notificationId}`;
+    return {
+      href,
+      route: `/new/groups/${entityId}`,
+      entity_type: 'group',
+      entity_id: entityId,
+      context: { tab: 'posts', notification: notificationId }
+    };
+  }
+
+  if (type === 'group_join_request' && entityId) {
+    const href = `/new/groups/${entityId}?tab=requests&notification=${notificationId}`;
+    return {
+      href,
+      route: `/new/groups/${entityId}`,
+      entity_type: 'group',
+      entity_id: entityId,
+      context: { tab: 'requests', notification: notificationId }
+    };
+  }
+
+  if ((type === 'group_join_approved' || type === 'group_join_rejected') && entityId) {
+    const href = `/new/groups/${entityId}?tab=members&notification=${notificationId}`;
+    return {
+      href,
+      route: `/new/groups/${entityId}`,
+      entity_type: 'group',
+      entity_id: entityId,
+      context: { tab: 'members', notification: notificationId }
+    };
+  }
+
+  if (type === 'group_invite' && entityId) {
+    const href = `/new/groups/${entityId}?tab=invite&notification=${notificationId}`;
+    return {
+      href,
+      route: `/new/groups/${entityId}`,
+      entity_type: 'group',
+      entity_id: entityId,
+      context: { tab: 'invite', notification: notificationId }
+    };
+  }
+
+  if ((type === 'mention_event' || type === 'event_comment') && entityId) {
+    const href = `/new/events?event=${entityId}&focus=comments&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new/events',
+      entity_type: 'event',
+      entity_id: entityId,
+      context: { event: entityId, focus: 'comments', notification: notificationId }
+    };
+  }
+
+  if (type === 'event_invite' && entityId) {
+    const href = `/new/events?event=${entityId}&focus=response&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new/events',
+      entity_type: 'event',
+      entity_id: entityId,
+      context: { event: entityId, focus: 'response', notification: notificationId }
+    };
+  }
+
+  if (type === 'follow' && sourceUserId) {
+    const href = `/new/members/${sourceUserId}?notification=${notificationId}&context=follow`;
+    return {
+      href,
+      route: `/new/members/${sourceUserId}`,
+      entity_type: 'user',
+      entity_id: sourceUserId,
+      context: { member: sourceUserId, notification: notificationId, context: 'follow' }
+    };
+  }
+
+  if (type === 'connection_request') {
+    const href = `/new/network/hub?section=incoming-connections${entityId ? `&request=${entityId}` : ''}&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new/network/hub',
+      entity_type: 'connection_request',
+      entity_id: entityId || null,
+      context: { section: 'incoming-connections', request: entityId || null, notification: notificationId }
+    };
+  }
+
+  if (type === 'connection_accepted') {
+    const href = sourceUserId
+      ? `/new/members/${sourceUserId}?notification=${notificationId}&context=connection_accepted`
+      : `/new/network/hub?section=outgoing-connections&notification=${notificationId}`;
+    return {
+      href,
+      route: sourceUserId ? `/new/members/${sourceUserId}` : '/new/network/hub',
+      entity_type: sourceUserId ? 'user' : 'connection_request',
+      entity_id: sourceUserId || entityId || null,
+      context: sourceUserId
+        ? { member: sourceUserId, notification: notificationId, context: 'connection_accepted' }
+        : { section: 'outgoing-connections', notification: notificationId }
+    };
+  }
+
+  if (type === 'mentorship_request') {
+    const href = `/new/network/hub?section=incoming-mentorship${entityId ? `&request=${entityId}` : ''}&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new/network/hub',
+      entity_type: 'mentorship_request',
+      entity_id: entityId || null,
+      context: { section: 'incoming-mentorship', request: entityId || null, notification: notificationId }
+    };
+  }
+
+  if (type === 'mentorship_accepted') {
+    const href = sourceUserId
+      ? `/new/members/${sourceUserId}?notification=${notificationId}&context=mentorship_accepted`
+      : `/new/network/hub?section=outgoing-mentorship&notification=${notificationId}`;
+    return {
+      href,
+      route: sourceUserId ? `/new/members/${sourceUserId}` : '/new/network/hub',
+      entity_type: sourceUserId ? 'user' : 'mentorship_request',
+      entity_id: sourceUserId || entityId || null,
+      context: sourceUserId
+        ? { member: sourceUserId, notification: notificationId, context: 'mentorship_accepted' }
+        : { section: 'outgoing-mentorship', notification: notificationId }
+    };
+  }
+
+  if (type === 'teacher_network_linked') {
+    const href = `/new/network/hub?section=teacher-notifications&notification=${notificationId}${entityId ? `&link=${entityId}` : ''}`;
+    return {
+      href,
+      route: '/new/network/hub',
+      entity_type: 'teacher_link',
+      entity_id: entityId || null,
+      context: { section: 'teacher-notifications', notification: notificationId, link: entityId || null }
+    };
+  }
+
+  if (type === 'job_application' && entityId) {
+    const href = `/new/jobs?job=${entityId}&tab=applications&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new/jobs',
+      entity_type: 'job',
+      entity_id: entityId,
+      context: { job: entityId, tab: 'applications', notification: notificationId }
+    };
+  }
+
+  const href = pushNotificationParam('/new');
+  return {
+    href,
+    route: '/new',
+    entity_type: '',
+    entity_id: entityId || null,
+    context: { notification: notificationId }
+  };
+}
+
+function buildNotificationActions(row) {
+  const target = buildNotificationTarget(row);
+  const type = String(row?.type || '').trim().toLowerCase();
+  const actions = [{
+    kind: 'open',
+    label: 'Aç',
+    href: target.href
+  }];
+
+  if (type === 'group_invite' && String(row?.invite_status || 'pending') === 'pending' && Number(row?.entity_id || 0) > 0) {
+    actions.push(
+      {
+        kind: 'accept_group_invite',
+        label: 'Kabul Et',
+        method: 'POST',
+        endpoint: `/api/new/groups/${Number(row.entity_id)}/invitations/respond`,
+        body: { action: 'accept' }
+      },
+      {
+        kind: 'reject_group_invite',
+        label: 'Reddet',
+        method: 'POST',
+        endpoint: `/api/new/groups/${Number(row.entity_id)}/invitations/respond`,
+        body: { action: 'reject' }
+      }
+    );
+  }
+
+  if (type === 'connection_request' && String(row?.request_status || 'pending') === 'pending' && Number(row?.entity_id || 0) > 0) {
+    actions.push(
+      {
+        kind: 'accept_connection_request',
+        label: 'Kabul Et',
+        method: 'POST',
+        endpoint: `/api/new/connections/accept/${Number(row.entity_id)}`,
+        body: { source_surface: 'notifications_page' }
+      },
+      {
+        kind: 'ignore_connection_request',
+        label: 'Yoksay',
+        method: 'POST',
+        endpoint: `/api/new/connections/ignore/${Number(row.entity_id)}`,
+        body: { source_surface: 'notifications_page' }
+      }
+    );
+  }
+
+  if (type === 'mentorship_request' && String(row?.request_status || 'requested') === 'requested' && Number(row?.entity_id || 0) > 0) {
+    actions.push(
+      {
+        kind: 'accept_mentorship_request',
+        label: 'Kabul Et',
+        method: 'POST',
+        endpoint: `/api/new/mentorship/accept/${Number(row.entity_id)}`,
+        body: { source_surface: 'notifications_page' }
+      },
+      {
+        kind: 'decline_mentorship_request',
+        label: 'Reddet',
+        method: 'POST',
+        endpoint: `/api/new/mentorship/decline/${Number(row.entity_id)}`,
+        body: { source_surface: 'notifications_page' }
+      }
+    );
+  }
+
+  if (type === 'teacher_network_linked' && !row?.read_at) {
+    actions.push({
+      kind: 'mark_teacher_notifications_read',
+      label: 'Okundu yap',
+      method: 'POST',
+      endpoint: '/api/new/network/inbox/teacher-links/read',
+      body: { source_surface: 'notifications_page' }
+    });
+  }
+
+  return actions;
+}
+
+async function enrichNotificationRows(rows, userId) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const inviteEntityIds = Array.from(
+    new Set(
+      safeRows
+        .filter((row) => String(row?.type || '') === 'group_invite' && Number(row?.entity_id || 0) > 0)
+        .map((row) => Number(row.entity_id))
+    )
+  );
+  const inviteStatusMap = new Map();
+  const connectionRequestIds = Array.from(
+    new Set(
+      safeRows
+        .filter((row) => String(row?.type || '') === 'connection_request' && Number(row?.entity_id || 0) > 0)
+        .map((row) => Number(row.entity_id))
+    )
+  );
+  const mentorshipRequestIds = Array.from(
+    new Set(
+      safeRows
+        .filter((row) => String(row?.type || '') === 'mentorship_request' && Number(row?.entity_id || 0) > 0)
+        .map((row) => Number(row.entity_id))
+    )
+  );
+  const connectionStatusMap = new Map();
+  const mentorshipStatusMap = new Map();
+  if (inviteEntityIds.length > 0) {
+    const inviteRows = await sqlAllAsync(
+      `SELECT group_id, status, id
+       FROM group_invites
+       WHERE invited_user_id = ?
+         AND group_id IN (${inviteEntityIds.map(() => '?').join(',')})
+       ORDER BY id DESC`,
+      [userId, ...inviteEntityIds]
+    );
+    for (const inviteRow of inviteRows) {
+      const groupId = Number(inviteRow.group_id || 0);
+      if (!groupId || inviteStatusMap.has(groupId)) continue;
+      inviteStatusMap.set(groupId, String(inviteRow.status || 'pending'));
+    }
+  }
+
+  if (connectionRequestIds.length > 0) {
+    const connectionRows = await sqlAllAsync(
+      `SELECT id, status
+       FROM connection_requests
+       WHERE id IN (${connectionRequestIds.map(() => '?').join(',')})`,
+      connectionRequestIds
+    );
+    for (const connectionRow of connectionRows) {
+      connectionStatusMap.set(Number(connectionRow.id || 0), String(connectionRow.status || 'pending'));
+    }
+  }
+
+  if (mentorshipRequestIds.length > 0) {
+    const mentorshipRows = await sqlAllAsync(
+      `SELECT id, status
+       FROM mentorship_requests
+       WHERE id IN (${mentorshipRequestIds.map(() => '?').join(',')})`,
+      mentorshipRequestIds
+    );
+    for (const mentorshipRow of mentorshipRows) {
+      mentorshipStatusMap.set(Number(mentorshipRow.id || 0), String(mentorshipRow.status || 'requested'));
+    }
+  }
+
+  return safeRows.map((row) => {
+    const inviteStatus = String(row?.type || '') === 'group_invite' && row?.entity_id
+      ? (inviteStatusMap.get(Number(row.entity_id || 0)) || 'pending')
+      : undefined;
+    const requestStatus = String(row?.type || '') === 'connection_request'
+      ? (connectionStatusMap.get(Number(row?.entity_id || 0)) || '')
+      : String(row?.type || '') === 'mentorship_request'
+        ? (mentorshipStatusMap.get(Number(row?.entity_id || 0)) || '')
+        : '';
+    const baseRow = {
+      ...row,
+      ...(inviteStatus ? { invite_status: inviteStatus } : {}),
+      ...(requestStatus ? { request_status: requestStatus } : {})
+    };
+    const category = getNotificationCategory(baseRow?.type);
+    const priority = getNotificationPriority(baseRow?.type);
+    return {
+      ...baseRow,
+      category,
+      priority,
+      is_actionable: isNotificationActionable(baseRow?.type),
+      target: buildNotificationTarget(baseRow),
+      actions: buildNotificationActions(baseRow)
+    };
+  });
+}
+
 async function enqueueBackgroundJob(type, payload, options = {}) {
   if (!backgroundJobQueue || !type) return { ok: false, backend: 'none', jobId: null };
   try {
@@ -7943,37 +8381,13 @@ app.get('/api/new/notifications', requireAuth, async (req, res) => {
       [...params, limit + 1, cursor > 0 ? 0 : offset]
     );
     const slice = rows.slice(0, limit);
-    const inviteEntityIds = Array.from(
-      new Set(
-        slice
-          .filter((row) => row.type === 'group_invite' && Number(row.entity_id || 0) > 0)
-          .map((row) => Number(row.entity_id))
-      )
-    );
-    const inviteStatusMap = new Map();
-    if (inviteEntityIds.length > 0) {
-      const inviteRows = await sqlAllAsync(
-        `SELECT group_id, status, id
-         FROM group_invites
-         WHERE invited_user_id = ?
-           AND group_id IN (${inviteEntityIds.map(() => '?').join(',')})
-         ORDER BY id DESC`,
-        [req.session.userId, ...inviteEntityIds]
-      );
-      for (const inviteRow of inviteRows) {
-        const groupId = Number(inviteRow.group_id || 0);
-        if (!groupId || inviteStatusMap.has(groupId)) continue;
-        inviteStatusMap.set(groupId, String(inviteRow.status || 'pending'));
-      }
-    }
-    const items = slice.map((row) => {
-      if (row.type !== 'group_invite' || !row.entity_id) return row;
-      return {
-        ...row,
-        invite_status: inviteStatusMap.get(Number(row.entity_id || 0)) || 'pending'
-      };
-    });
-    res.json({ items, hasMore: rows.length > limit });
+    const items = await enrichNotificationRows(slice, req.session.userId);
+    res.json(apiSuccessEnvelope(
+      'NOTIFICATIONS_LIST_OK',
+      'Bildirimler listelendi.',
+      { items, hasMore: rows.length > limit },
+      { items, hasMore: rows.length > limit }
+    ));
   } catch (err) {
     console.error('notifications.list failed:', err);
     res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -8000,6 +8414,99 @@ app.post('/api/new/notifications/read', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('notifications.read failed:', err);
     res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.post('/api/new/notifications/bulk-read', requireAuth, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids)
+      ? Array.from(new Set(req.body.ids.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
+      : [];
+    const now = new Date().toISOString();
+    let result = null;
+    if (ids.length > 0) {
+      result = await sqlRunAsync(
+        `UPDATE notifications
+         SET read_at = COALESCE(read_at, ?)
+         WHERE user_id = ?
+           AND id IN (${ids.map(() => '?').join(',')})`,
+        [now, req.session.userId, ...ids]
+      );
+    } else {
+      result = await sqlRunAsync(
+        'UPDATE notifications SET read_at = COALESCE(read_at, ?) WHERE user_id = ? AND read_at IS NULL',
+        [now, req.session.userId]
+      );
+    }
+    return res.json(apiSuccessEnvelope(
+      'NOTIFICATIONS_BULK_READ_OK',
+      'Bildirimler okundu olarak işaretlendi.',
+      { updated: Number(result?.changes || 0) },
+      { updated: Number(result?.changes || 0) }
+    ));
+  } catch (err) {
+    console.error('notifications.bulkRead failed:', err);
+    return sendApiError(res, 500, 'NOTIFICATIONS_BULK_READ_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.post('/api/new/notifications/:id/read', requireAuth, async (req, res) => {
+  try {
+    const notificationId = Number(req.params.id || 0);
+    if (!notificationId) return sendApiError(res, 400, 'INVALID_NOTIFICATION_ID', 'Geçersiz bildirim kimliği.');
+    const row = await sqlGetAsync(
+      `SELECT n.id, n.user_id, n.type, n.entity_id, n.source_user_id, n.message, n.read_at, n.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM notifications n
+       LEFT JOIN uyeler u ON u.id = n.source_user_id
+       WHERE n.id = ? AND n.user_id = ?`,
+      [notificationId, req.session.userId]
+    );
+    if (!row) return sendApiError(res, 404, 'NOTIFICATION_NOT_FOUND', 'Bildirim bulunamadı.');
+    const now = new Date().toISOString();
+    if (!row.read_at) {
+      await sqlRunAsync('UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ?', [now, notificationId, req.session.userId]);
+    }
+    const [item] = await enrichNotificationRows([{ ...row, read_at: row.read_at || now }], req.session.userId);
+    return res.json(apiSuccessEnvelope(
+      'NOTIFICATION_MARKED_READ',
+      'Bildirim okundu olarak işaretlendi.',
+      { item },
+      { item }
+    ));
+  } catch (err) {
+    console.error('notifications.readOne failed:', err);
+    return sendApiError(res, 500, 'NOTIFICATION_MARK_READ_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.post('/api/new/notifications/:id/open', requireAuth, async (req, res) => {
+  try {
+    const notificationId = Number(req.params.id || 0);
+    if (!notificationId) return sendApiError(res, 400, 'INVALID_NOTIFICATION_ID', 'Geçersiz bildirim kimliği.');
+    const row = await sqlGetAsync(
+      `SELECT n.id, n.user_id, n.type, n.entity_id, n.source_user_id, n.message, n.read_at, n.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM notifications n
+       LEFT JOIN uyeler u ON u.id = n.source_user_id
+       WHERE n.id = ? AND n.user_id = ?`,
+      [notificationId, req.session.userId]
+    );
+    if (!row) return sendApiError(res, 404, 'NOTIFICATION_NOT_FOUND', 'Bildirim bulunamadı.');
+    const now = new Date().toISOString();
+    if (!row.read_at) {
+      await sqlRunAsync('UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ?', [now, notificationId, req.session.userId]);
+    }
+    const [item] = await enrichNotificationRows([{ ...row, read_at: row.read_at || now }], req.session.userId);
+    return res.json(apiSuccessEnvelope(
+      'NOTIFICATION_OPENED',
+      'Bildirim açıldı.',
+      { item, target: item?.target || null },
+      { item, target: item?.target || null }
+    ));
+  } catch (err) {
+    console.error('notifications.open failed:', err);
+    return sendApiError(res, 500, 'NOTIFICATION_OPEN_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -10047,7 +10554,7 @@ app.post('/api/new/connections/request/:id', requireAuth, connectionRequestRateL
     userId: receiverId,
     type: 'connection_request',
     sourceUserId: senderId,
-    entityId: receiverId,
+    entityId: requestId,
     message: 'Sana bir bağlantı isteği gönderdi.'
   });
   recordNetworkingTelemetryEvent({
@@ -10129,7 +10636,7 @@ app.post('/api/new/connections/accept/:id', requireAuth, (req, res) => {
     userId: senderId,
     type: 'connection_accepted',
     sourceUserId: receiverId,
-    entityId: receiverId,
+    entityId: requestId,
     message: 'Bağlantı isteğini kabul etti.'
   });
   recordNetworkingTelemetryEvent({
@@ -10272,17 +10779,17 @@ app.post('/api/new/mentorship/request/:id', requireAuth, mentorshipRequestRateLi
     );
   }
 
-  addNotification({
-    userId: mentorId,
-    type: 'mentorship_request',
-    sourceUserId: requesterId,
-    entityId: mentorId,
-    message: 'Sana bir mentorluk isteği gönderdi.'
-  });
   const mentorshipRequestId = Number(existing?.id || sqlGet(
     'SELECT id FROM mentorship_requests WHERE requester_id = ? AND mentor_id = ?',
     [requesterId, mentorId]
   )?.id || 0);
+  addNotification({
+    userId: mentorId,
+    type: 'mentorship_request',
+    sourceUserId: requesterId,
+    entityId: mentorshipRequestId,
+    message: 'Sana bir mentorluk isteği gönderdi.'
+  });
   recordNetworkingTelemetryEvent({
     userId: requesterId,
     eventName: 'mentorship_requested',
@@ -10354,7 +10861,7 @@ app.post('/api/new/mentorship/accept/:id', requireAuth, (req, res) => {
     userId: Number(row.requester_id),
     type: 'mentorship_accepted',
     sourceUserId: currentUserId,
-    entityId: currentUserId,
+    entityId: requestId,
     message: 'Mentorluk isteğini kabul etti.'
   });
   recordNetworkingTelemetryEvent({
@@ -11290,7 +11797,7 @@ app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) =>
       userId: teacherUserId,
       type: 'teacher_network_linked',
       sourceUserId: alumniUserId,
-      entityId: teacherUserId,
+      entityId: linkId,
       message: 'Seni öğretmen ağına ekledi.'
     });
     recordNetworkingTelemetryEvent({

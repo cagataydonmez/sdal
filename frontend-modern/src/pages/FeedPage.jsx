@@ -341,7 +341,7 @@ export default function FeedPage() {
 
   useLiveRefresh(refreshFeedSilently, { intervalMs: 9000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created'] });
   useLiveRefresh(loadUnreadMessages, { intervalMs: 12000, eventTypes: ['message:created'] });
-  useLiveRefresh(loadUnreadNotifications, { intervalMs: 12000, eventTypes: ['notification:new'] });
+  useLiveRefresh(loadUnreadNotifications, { intervalMs: 12000, eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action'] });
   useLiveRefresh(loadQuickAccess, { intervalMs: 20000, eventTypes: [] });
   useLiveRefresh(loadOnlineMembers, { intervalMs: 12000, eventTypes: [] });
 

@@ -47,7 +47,11 @@ export default function Layout({ children, title, right }) {
     }
   }, [user]);
 
-  useLiveRefresh(loadUnreadCount, { intervalMs: 12000, eventTypes: ['message:created', 'notification:new'], enabled: !!user });
+  useLiveRefresh(loadUnreadCount, {
+    intervalMs: 12000,
+    eventTypes: ['message:created', 'notification:new', 'notification:read', 'notification:opened', 'notification:action'],
+    enabled: !!user
+  });
   useLiveRefresh(refresh, { intervalMs: 20000, eventTypes: ['profile:updated'], enabled: !!user });
 
   useEffect(() => {
