@@ -1232,7 +1232,18 @@ function hasTable(table) {
     const safeTable = quoteIdentifier(table);
     if (dbDriver === 'postgres') {
       const row = sqlGet(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ?",
+        `SELECT name
+         FROM (
+           SELECT table_name AS name
+           FROM information_schema.tables
+           WHERE table_schema = 'public'
+           UNION ALL
+           SELECT table_name AS name
+           FROM information_schema.views
+           WHERE table_schema = 'public'
+         ) relations
+         WHERE name = ?
+         LIMIT 1`,
         [String(table || '').toLowerCase()]
       );
       return !!row;
@@ -3850,7 +3861,7 @@ function getEngagementAbConfigs() {
 }
 
 function ensureNetworkSuggestionAbConfigRows() {
-  ensureNetworkSuggestionAbTables();
+  if (!ensureNetworkSuggestionAbTables() || !hasTable('network_suggestion_ab_config')) return false;
   const now = new Date().toISOString();
   for (const [variant, cfg] of Object.entries(networkSuggestionDefaultVariants)) {
     const existing = sqlGet('SELECT variant FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
@@ -3870,10 +3881,34 @@ function ensureNetworkSuggestionAbConfigRows() {
       ]
     );
   }
+  return true;
 }
 
 function getNetworkSuggestionAbConfigs() {
-  ensureNetworkSuggestionAbConfigRows();
+  try {
+    if (!ensureNetworkSuggestionAbConfigRows() || !hasTable('network_suggestion_ab_config')) {
+      return Object.entries(networkSuggestionDefaultVariants).map(([variant, cfg]) => ({
+        variant,
+        name: cfg.name,
+        description: cfg.description,
+        trafficPct: cfg.trafficPct,
+        enabled: cfg.enabled,
+        params: normalizeNetworkSuggestionParams(cfg.params, networkSuggestionDefaultParams),
+        updatedAt: null
+      }));
+    }
+  } catch {
+    return Object.entries(networkSuggestionDefaultVariants).map(([variant, cfg]) => ({
+      variant,
+      name: cfg.name,
+      description: cfg.description,
+      trafficPct: cfg.trafficPct,
+      enabled: cfg.enabled,
+      params: normalizeNetworkSuggestionParams(cfg.params, networkSuggestionDefaultParams),
+      updatedAt: null
+    }));
+  }
+
   const rows = sqlAll(
     `SELECT variant, name, description, traffic_pct, enabled, params_json, updated_at
      FROM network_suggestion_ab_config
@@ -3921,27 +3956,37 @@ function getAssignedNetworkSuggestionVariant(userId) {
       .filter((cfg) => Number(cfg.enabled || 0) === 1 && Number(cfg.trafficPct || 0) > 0)
       .map((cfg) => cfg.variant)
   );
-  const existing = safeUserId
-    ? sqlGet('SELECT variant FROM network_suggestion_ab_assignments WHERE user_id = ?', [safeUserId])
-    : null;
+  const canPersistAssignment = hasTable('network_suggestion_ab_assignments');
+  let existing = null;
+  if (safeUserId && canPersistAssignment) {
+    try {
+      existing = sqlGet('SELECT variant FROM network_suggestion_ab_assignments WHERE user_id = ?', [safeUserId]);
+    } catch {
+      existing = null;
+    }
+  }
   let variant = String(existing?.variant || '').trim().toUpperCase();
   if (!variant || !enabledVariants.has(variant)) {
     variant = chooseVariantForUser(safeUserId, configs);
-    if (safeUserId > 0) {
+    if (safeUserId > 0 && canPersistAssignment) {
       const now = new Date().toISOString();
-      if (existing) {
-        sqlRun(
-          `UPDATE network_suggestion_ab_assignments
-           SET variant = ?, updated_at = ?
-           WHERE user_id = ?`,
-          [variant, now, safeUserId]
-        );
-      } else {
-        sqlRun(
-          `INSERT INTO network_suggestion_ab_assignments (user_id, variant, assigned_at, updated_at)
-           VALUES (?, ?, ?, ?)`,
-          [safeUserId, variant, now, now]
-        );
+      try {
+        if (existing) {
+          sqlRun(
+            `UPDATE network_suggestion_ab_assignments
+             SET variant = ?, updated_at = ?
+             WHERE user_id = ?`,
+            [variant, now, safeUserId]
+          );
+        } else {
+          sqlRun(
+            `INSERT INTO network_suggestion_ab_assignments (user_id, variant, assigned_at, updated_at)
+             VALUES (?, ?, ?, ?)`,
+            [safeUserId, variant, now, now]
+          );
+        }
+      } catch {
+        // A/B assignment persistence is optional on runtime paths; continue with in-memory choice.
       }
     }
   }
@@ -3955,6 +4000,14 @@ function getAssignedNetworkSuggestionVariant(userId) {
     updatedAt: null
   };
   return { variant: config.variant, config, configs };
+}
+
+function getSafeAssignedNetworkSuggestionVariant(userId) {
+  try {
+    return getAssignedNetworkSuggestionVariant(userId).variant || 'A';
+  } catch {
+    return 'A';
+  }
 }
 
 function hashUserSlot(userId) {
@@ -10356,44 +10409,50 @@ function ensureNetworkingSummaryMetaTable() {
 }
 
 function ensureNetworkSuggestionAbTables() {
-  sqlRun(`
-    CREATE TABLE IF NOT EXISTS network_suggestion_ab_config (
-      variant TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT,
-      traffic_pct INTEGER NOT NULL DEFAULT 0,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      params_json TEXT,
-      updated_at TEXT NOT NULL
-    )
-  `);
-  sqlRun(`
-    CREATE TABLE IF NOT EXISTS network_suggestion_ab_assignments (
-      user_id INTEGER PRIMARY KEY,
-      variant TEXT NOT NULL,
-      assigned_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )
-  `);
-  sqlRun('CREATE INDEX IF NOT EXISTS idx_network_suggestion_ab_assignments_variant ON network_suggestion_ab_assignments (variant, updated_at DESC)');
-  sqlRun(`
-    CREATE TABLE IF NOT EXISTS network_suggestion_ab_change_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      action_type TEXT NOT NULL DEFAULT 'apply',
-      related_change_id INTEGER,
-      actor_user_id INTEGER,
-      recommendation_index INTEGER,
-      cohort TEXT,
-      window_days INTEGER,
-      payload_json TEXT,
-      before_snapshot_json TEXT,
-      after_snapshot_json TEXT,
-      created_at TEXT NOT NULL,
-      rolled_back_at TEXT,
-      rollback_change_id INTEGER
-    )
-  `);
-  sqlRun('CREATE INDEX IF NOT EXISTS idx_network_suggestion_ab_change_log_created_at ON network_suggestion_ab_change_log (created_at DESC)');
+  try {
+    sqlRun(`
+      CREATE TABLE IF NOT EXISTS network_suggestion_ab_config (
+        variant TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        traffic_pct INTEGER NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        params_json TEXT,
+        updated_at TEXT NOT NULL
+      )
+    `);
+    sqlRun(`
+      CREATE TABLE IF NOT EXISTS network_suggestion_ab_assignments (
+        user_id INTEGER PRIMARY KEY,
+        variant TEXT NOT NULL,
+        assigned_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+    sqlRun('CREATE INDEX IF NOT EXISTS idx_network_suggestion_ab_assignments_variant ON network_suggestion_ab_assignments (variant, updated_at DESC)');
+    sqlRun(`
+      CREATE TABLE IF NOT EXISTS network_suggestion_ab_change_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action_type TEXT NOT NULL DEFAULT 'apply',
+        related_change_id INTEGER,
+        actor_user_id INTEGER,
+        recommendation_index INTEGER,
+        cohort TEXT,
+        window_days INTEGER,
+        payload_json TEXT,
+        before_snapshot_json TEXT,
+        after_snapshot_json TEXT,
+        created_at TEXT NOT NULL,
+        rolled_back_at TEXT,
+        rollback_change_id INTEGER
+      )
+    `);
+    sqlRun('CREATE INDEX IF NOT EXISTS idx_network_suggestion_ab_change_log_created_at ON network_suggestion_ab_change_log (created_at DESC)');
+    return true;
+  } catch (err) {
+    console.error('network_suggestion_ab bootstrap failed:', err);
+    return hasTable('network_suggestion_ab_config') && hasTable('network_suggestion_ab_assignments');
+  }
 }
 
 function toSummaryDateKey(value) {
@@ -12518,7 +12577,7 @@ async function buildNetworkHubPayload(userId, { windowDays = 30, limit = 12, tea
   const [inbox, metricsBundle, discovery, connectionMaps] = await Promise.all([
     safeNetworkSection('inbox', createEmptyNetworkInboxPayload, () => buildNetworkInboxPayload(userId, { limit, teacherLinkLimit })),
     safeNetworkSection('metrics', () => createEmptyNetworkMetricsPayload(windowDays), () => buildNetworkMetricsPayload(userId, windowDays)),
-    safeNetworkSection('discovery', () => createEmptyExploreSuggestionsPayload(getAssignedNetworkSuggestionVariant(userId).variant), () => buildExploreSuggestionsPayload(userId, { limit: suggestionLimit, offset: 0 })),
+    safeNetworkSection('discovery', () => createEmptyExploreSuggestionsPayload(getSafeAssignedNetworkSuggestionVariant(userId)), () => buildExploreSuggestionsPayload(userId, { limit: suggestionLimit, offset: 0 })),
     safeNetworkSection('connection_maps', { incoming: {}, outgoing: {} }, () => buildPendingConnectionMaps(userId, { limit: 100 }))
   ]);
 
