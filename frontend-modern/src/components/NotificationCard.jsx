@@ -10,6 +10,7 @@ export default function NotificationCard({
   notification,
   compact = false,
   busy = false,
+  ctaVariant = 'neutral',
   onOpen,
   onRead,
   onAction
@@ -43,16 +44,20 @@ export default function NotificationCard({
           {extraActions.map((action) => (
             <button
               key={`${view.id}-${action.kind}`}
-              className={`btn ${action.kind.startsWith('accept') ? 'primary' : 'ghost'}`}
+              className={`btn ${
+                action.kind.startsWith('accept') || ctaVariant === 'action'
+                  ? 'primary'
+                  : 'ghost'
+              }`}
               disabled={busy}
               onClick={() => onAction?.(view, action)}
             >
-              {action.label}
+              {ctaVariant === 'action' && action.kind === 'open' ? 'Detayı Aç' : action.label}
             </button>
           ))}
           {!view.read_at ? (
             <button className="btn ghost" disabled={busy} onClick={() => onRead?.(view)}>
-              Okundu yap
+              {ctaVariant === 'action' ? 'Okunduya Al' : 'Okundu yap'}
             </button>
           ) : null}
         </div>

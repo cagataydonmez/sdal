@@ -22,7 +22,7 @@ function getBroadcastChannel() {
 }
 
 export function emitAppChange(type, payload = {}) {
-  const detail = { type, ...payload, at: Date.now(), sourceId: APP_CHANGE_SOURCE_ID };
+  const detail = { ...payload, eventType: type, type, at: Date.now(), sourceId: APP_CHANGE_SOURCE_ID };
   dispatchLocalAppChange(detail);
   try {
     getBroadcastChannel()?.postMessage(detail);

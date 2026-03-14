@@ -1508,6 +1508,39 @@
   margin-bottom: 14px;
 }
 
+.notification-preferences-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--soft-panel);
+}
+
+.notification-preferences-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.notification-preference-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.notification-admin-experiment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 160px minmax(0, 1.25fr) 100px;
+  gap: 10px;
+  align-items: center;
+}
+
 .notification-summary-card {
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -1529,6 +1562,59 @@
   margin-bottom: 12px;
 }
 
+.app-toast-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 24px));
+  z-index: 60;
+}
+
+.app-toast {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(10, 18, 28, 0.92);
+  color: #f3f7fb;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 18px 40px rgba(6, 12, 20, 0.26);
+}
+
+.app-toast-info {
+  background: rgba(12, 23, 38, 0.94);
+}
+
+.app-toast-accent {
+  background: linear-gradient(135deg, rgba(16, 34, 52, 0.96), rgba(7, 78, 92, 0.92));
+}
+
+.app-toast-error {
+  background: linear-gradient(135deg, rgba(68, 12, 18, 0.96), rgba(124, 32, 39, 0.92));
+}
+
+.app-toast-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.app-toast-copy strong {
+  font-size: 14px;
+}
+
+.app-toast-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-toast-actions .btn.ghost {
+  color: #f3f7fb;
+  border-color: rgba(243, 247, 251, 0.28);
+}
+
 @media (max-width: 760px) {
   .notification-card {
     grid-template-columns: 44px 1fr;
@@ -1542,5 +1628,17 @@
 
   .notification-page-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .notification-preferences-grid,
+  .notification-admin-experiment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .app-toast-stack {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    width: auto;
   }
 }

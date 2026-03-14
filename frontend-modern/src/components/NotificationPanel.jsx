@@ -34,7 +34,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
       setError('');
     }
     try {
-      const res = await fetch(`/api/new/notifications?limit=${Math.max(1, Number(limit) || 5)}&offset=0`, { credentials: 'include', cache: 'no-store' });
+      const res = await fetch(`/api/new/notifications?limit=${Math.max(1, Number(limit) || 5)}&sort=priority`, { credentials: 'include', cache: 'no-store' });
       if (!res.ok) {
         if (!background) setError('load_failed');
         if (!background) setLoading(false);
@@ -117,7 +117,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
       )));
       onReload?.();
     } else if (result.message) {
-      emitAppChange('toast', { type: 'error', message: result.message });
+      emitAppChange('toast', { tone: 'error', message: result.message });
     }
     setBusyId(null);
   }
@@ -130,7 +130,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
       notificationType: notification.type || ''
     });
     if (!result.ok) {
-      emitAppChange('toast', { type: 'error', message: result.message || t('group_invite_respond_failed') });
+      emitAppChange('toast', { tone: 'error', message: result.message || t('group_invite_respond_failed') });
       setBusyId(null);
       return;
     }

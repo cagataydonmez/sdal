@@ -1,12 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/auth.jsx';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useTheme } from '../utils/theme.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import { readApiPayload } from '../utils/api.js';
+import { openNotification } from '../utils/notificationApi.js';
+import { buildNotificationViewModel, shouldToastNotification } from '../utils/notificationRegistry.js';
+import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
 
 export default function Layout({ children, title, right }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout, refresh } = useAuth();
   const { mode, theme, cycleMode } = useTheme();
   const { t } = useI18n();
@@ -14,10 +19,47 @@ export default function Layout({ children, title, right }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [toasts, setToasts] = useState([]);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
   const [moduleAccess, setModuleAccess] = useState({});
+  const [notificationPreferences, setNotificationPreferences] = useState(NOTIFICATION_PREFERENCE_DEFAULTS);
   const unreadNotificationsRef = useRef(0);
   const unreadHydratedRef = useRef(false);
+  const toastTimersRef = useRef(new Map());
+  const notificationToastIdsRef = useRef(new Set());
+
+  const dismissToast = useCallback((toastId) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== toastId));
+    const timer = toastTimersRef.current.get(toastId);
+    if (timer) window.clearTimeout(timer);
+    toastTimersRef.current.delete(toastId);
+  }, []);
+
+  const pushToast = useCallback((toast) => {
+    if (!toast?.id) return;
+    setToasts((prev) => {
+      if (prev.some((item) => item.id === toast.id)) return prev;
+      return [...prev, toast].slice(-4);
+    });
+    const timer = window.setTimeout(() => dismissToast(toast.id), toast.durationMs || 6000);
+    toastTimersRef.current.set(toast.id, timer);
+  }, [dismissToast]);
+
+  const handleToastOpen = useCallback(async (toast) => {
+    if (!toast?.href) return;
+    if (Number(toast.notificationId || 0) > 0) {
+      try {
+        await openNotification(toast.notificationId, {
+          surface: 'layout_toast',
+          notificationType: toast.notificationType || ''
+        });
+      } catch {
+        // ignore notification open failures on toast navigation
+      }
+    }
+    dismissToast(toast.id);
+    navigate(toast.href);
+  }, [dismissToast, navigate]);
 
   const profileImage = useMemo(() => {
     if (!user) return '/legacy/vesikalik/nophoto.jpg';
@@ -73,6 +115,79 @@ export default function Layout({ children, title, right }) {
     if (!user) return;
     loadUnreadCount();
   }, [user, loadUnreadCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setNotificationPreferences(NOTIFICATION_PREFERENCE_DEFAULTS);
+      return undefined;
+    }
+    void (async () => {
+      const result = await fetchNotificationPreferences();
+      if (!cancelled && result.ok) {
+        setNotificationPreferences(result.preferences);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    function onAppChange(event) {
+      const detail = event?.detail || {};
+      const eventType = detail.eventType || detail.type;
+      if (eventType === 'toast' && detail.message) {
+        pushToast({
+          id: `toast-${detail.at || Date.now()}`,
+          tone: detail.tone === 'error' ? 'error' : 'info',
+          title: detail.title || '',
+          message: detail.message,
+          durationMs: detail.tone === 'error' ? 7000 : 5000
+        });
+        return;
+      }
+      if (eventType === 'notification:preferences-updated' && detail.preferences) {
+        setNotificationPreferences(detail.preferences);
+        return;
+      }
+      if (eventType !== 'notification:new' || !user || location.pathname === '/new/notifications') return;
+      void (async () => {
+        try {
+          const res = await fetch('/api/new/notifications?limit=5&sort=priority', { credentials: 'include', cache: 'no-store' });
+          if (!res.ok) return;
+          const { data } = await readApiPayload(res, '');
+          const items = Array.isArray(data?.items) ? data.items.map(buildNotificationViewModel) : [];
+          const candidate = items.find((item) => (
+            shouldToastNotification(item, { preferences: notificationPreferences })
+            && !notificationToastIdsRef.current.has(Number(item.id || 0))
+          ));
+          if (!candidate) return;
+          notificationToastIdsRef.current.add(Number(candidate.id || 0));
+          pushToast({
+            id: `notification-${candidate.id}`,
+            tone: candidate.isActionable ? 'accent' : 'info',
+            title: candidate.category === 'events' ? 'Etkinlik bildirimi' : candidate.category === 'jobs' ? 'İlan bildirimi' : candidate.category === 'groups' ? 'Grup bildirimi' : 'Bildirim',
+            message: `@${candidate.kadi || 'uye'} ${candidate.message || ''}`.trim(),
+            href: candidate.href || '/new/notifications',
+            notificationId: Number(candidate.id || 0),
+            notificationType: candidate.type || '',
+            durationMs: candidate.isActionable ? 9000 : 6500
+          });
+        } catch {
+          // ignore toast fetch failures
+        }
+      })();
+    }
+
+    window.addEventListener('sdal:app-change', onAppChange);
+    return () => window.removeEventListener('sdal:app-change', onAppChange);
+  }, [location.pathname, notificationPreferences, pushToast, user]);
+
+  useEffect(() => () => {
+    for (const timer of toastTimersRef.current.values()) window.clearTimeout(timer);
+    toastTimersRef.current.clear();
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -222,6 +337,24 @@ export default function Layout({ children, title, right }) {
       </main>
 
       <div className={`mobile-nav-overlay ${mobileNavOpen ? 'open' : ''}`} onClick={() => setMobileNavOpen(false)} />
+      {toasts.length > 0 ? (
+        <div className="app-toast-stack" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`app-toast app-toast-${toast.tone || 'info'}`}>
+              <div className="app-toast-copy">
+                {toast.title ? <strong>{toast.title}</strong> : null}
+                <span>{toast.message}</span>
+              </div>
+              <div className="app-toast-actions">
+                {toast.href ? (
+                  <button className="btn ghost" onClick={() => handleToastOpen(toast)}>Aç</button>
+                ) : null}
+                <button className="btn ghost" onClick={() => dismissToast(toast.id)}>Kapat</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <aside className={`mobile-nav-drawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
         <div className="mobile-nav-head">
           <Link to="/new" className="brand" aria-label="SDAL home" onClick={() => setMobileNavOpen(false)}>

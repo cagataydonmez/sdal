@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import RequestPayloadCard from '../components/RequestPayloadCard.jsx';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -25,6 +26,17 @@ export default function MemberRequestsPage() {
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [attachments, setAttachments] = useState([]);
+  const requestCardRefs = useRef(new Map());
+  const searchParams = useMemo(() => new URLSearchParams(location.search || ''), [location.search]);
+  const highlightedRequestId = Number(searchParams.get('request') || 0);
+  const notificationId = Number(searchParams.get('notification') || 0);
+  const notificationStatus = String(searchParams.get('status') || '').trim().toLowerCase();
+  const landingResolved = !notificationId || !highlightedRequestId || items.some((item) => Number(item.id || 0) === highlightedRequestId);
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'member_requests_page',
+    resolved: landingResolved
+  });
 
   async function load() {
     const [myReq, cats] = await Promise.all([apiJson('/api/new/requests/my'), apiJson('/api/new/request-categories')]);
@@ -38,6 +50,14 @@ export default function MemberRequestsPage() {
     if (category) setCategoryKey(category);
     load().catch(() => {});
   }, [location.search]);
+
+  useEffect(() => {
+    if (!highlightedRequestId || !items.length) return;
+    const timer = window.setTimeout(() => {
+      requestCardRefs.current.get(highlightedRequestId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [highlightedRequestId, items]);
 
   async function uploadAttachment(file) {
     const form = new FormData();
@@ -124,9 +144,27 @@ export default function MemberRequestsPage() {
       <div className="panel">
         <div className="panel-body">
           <h3>{t('member_requests_my')}</h3>
+          {notificationId && notificationStatus ? (
+            <div className="notification-focus-inline-panel">
+              <strong>Talep sonucu güncellendi</strong>
+              <div className="muted">
+                {notificationStatus === 'approved'
+                  ? 'Talebin onaylandı. İlgili kayıt aşağıda vurgulandı.'
+                  : 'Talebin sonuçlandı. Ayrıntı için ilgili kayıt aşağıda vurgulandı.'}
+              </div>
+            </div>
+          ) : null}
           {!items.length ? <div className="muted">{t('no_results')}</div> : null}
           {items.map((item) => (
-            <div key={item.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+            <div
+              key={item.id}
+              ref={(node) => {
+                if (node) requestCardRefs.current.set(Number(item.id || 0), node);
+                else requestCardRefs.current.delete(Number(item.id || 0));
+              }}
+              className={`list-item${Number(item.id || 0) === highlightedRequestId ? ' notification-focus-card' : ''}`}
+              style={{ alignItems: 'flex-start' }}
+            >
               <div>
                 <strong>{item.category_label || item.category_key}</strong>
                 <div className="muted">#{item.id} • {item.status} • {new Date(item.created_at).toLocaleString()}</div>

@@ -11,9 +11,15 @@ const NOTIFICATION_CATEGORY_MAP = Object.freeze({
   group_join_approved: 'groups',
   group_join_rejected: 'groups',
   group_invite: 'groups',
+  group_invite_accepted: 'groups',
+  group_invite_rejected: 'groups',
+  group_role_changed: 'groups',
   mention_event: 'events',
   event_comment: 'events',
   event_invite: 'events',
+  event_response: 'events',
+  event_reminder: 'events',
+  event_starts_soon: 'events',
   connection_request: 'networking',
   connection_accepted: 'networking',
   mentorship_request: 'networking',
@@ -26,7 +32,13 @@ const NOTIFICATION_CATEGORY_MAP = Object.freeze({
   job_application: 'jobs',
   job_application_reviewed: 'jobs',
   job_application_accepted: 'jobs',
-  job_application_rejected: 'jobs'
+  job_application_rejected: 'jobs',
+  verification_approved: 'system',
+  verification_rejected: 'system',
+  member_request_approved: 'system',
+  member_request_rejected: 'system',
+  announcement_approved: 'system',
+  announcement_rejected: 'system'
 });
 
 const NOTIFICATION_PRIORITY_MAP = Object.freeze({
@@ -42,9 +54,15 @@ const NOTIFICATION_PRIORITY_MAP = Object.freeze({
   group_join_approved: 'important',
   group_join_rejected: 'important',
   group_invite: 'actionable',
+  group_invite_accepted: 'important',
+  group_invite_rejected: 'important',
+  group_role_changed: 'important',
   mention_event: 'important',
   event_comment: 'important',
   event_invite: 'important',
+  event_response: 'important',
+  event_reminder: 'important',
+  event_starts_soon: 'important',
   connection_request: 'actionable',
   connection_accepted: 'important',
   mentorship_request: 'actionable',
@@ -57,7 +75,13 @@ const NOTIFICATION_PRIORITY_MAP = Object.freeze({
   job_application: 'actionable',
   job_application_reviewed: 'important',
   job_application_accepted: 'important',
-  job_application_rejected: 'important'
+  job_application_rejected: 'important',
+  verification_approved: 'important',
+  verification_rejected: 'important',
+  member_request_approved: 'important',
+  member_request_rejected: 'important',
+  announcement_approved: 'important',
+  announcement_rejected: 'important'
 });
 
 const NOTIFICATION_CATEGORY_LABELS = Object.freeze({
@@ -85,6 +109,12 @@ function buildFallbackTarget(notification) {
   if (type === 'event_invite' && entityId) {
     return { href: `/new/events?event=${entityId}&focus=response&notification=${notificationId}` };
   }
+  if (type === 'event_response' && entityId) {
+    return { href: `/new/events?event=${entityId}&focus=response&notification=${notificationId}` };
+  }
+  if ((type === 'event_reminder' || type === 'event_starts_soon') && entityId) {
+    return { href: `/new/events?event=${entityId}&focus=details&notification=${notificationId}` };
+  }
   if (type === 'mention_group' && entityId) {
     return { href: `/new/groups/${entityId}?tab=posts&notification=${notificationId}` };
   }
@@ -96,6 +126,9 @@ function buildFallbackTarget(notification) {
   }
   if (type === 'group_invite' && entityId) {
     return { href: `/new/groups/${entityId}?tab=invite&notification=${notificationId}` };
+  }
+  if ((type === 'group_invite_accepted' || type === 'group_invite_rejected' || type === 'group_role_changed') && entityId) {
+    return { href: `/new/groups/${entityId}?tab=members&notification=${notificationId}` };
   }
   if ((type === 'mention_photo' || type === 'photo_comment') && entityId) {
     return { href: `/new/albums/photo/${entityId}?notification=${notificationId}` };
@@ -148,6 +181,18 @@ function buildFallbackTarget(notification) {
   ) {
     return { href: `/new/jobs?focus=my-application${entityId ? `&application=${entityId}` : ''}&notification=${notificationId}` };
   }
+  if ((type === 'verification_approved' || type === 'verification_rejected')) {
+    const status = type === 'verification_approved' ? 'approved' : 'rejected';
+    return { href: `/new/profile/verification?notification=${notificationId}&status=${status}` };
+  }
+  if ((type === 'member_request_approved' || type === 'member_request_rejected') && entityId) {
+    const status = type === 'member_request_approved' ? 'approved' : 'rejected';
+    return { href: `/new/requests?notification=${notificationId}&request=${entityId}&status=${status}` };
+  }
+  if ((type === 'announcement_approved' || type === 'announcement_rejected') && entityId) {
+    const status = type === 'announcement_approved' ? 'approved' : 'rejected';
+    return { href: `/new/announcements?notification=${notificationId}&announcement=${entityId}&status=${status}` };
+  }
   return { href: notificationId ? `/new?notification=${notificationId}` : '/new' };
 }
 
@@ -168,6 +213,24 @@ export function getNotificationPriority(notification) {
 
 export function getNotificationCategoryLabel(category) {
   return NOTIFICATION_CATEGORY_LABELS[String(category || '').trim().toLowerCase()] || 'Diğer';
+}
+
+export function getNotificationExperimentVariant(assignments, key, fallback) {
+  const variant = String(assignments?.[key] || '').trim();
+  return variant || fallback;
+}
+
+export function shouldToastNotification(notification, options = {}) {
+  const view = buildNotificationViewModel(notification);
+  if (!view?.id || view.read_at) return false;
+  const preferences = options?.preferences || null;
+  const categoryEnabled = preferences?.categories?.[view.category];
+  const quietModeEnabled = Boolean(preferences?.quiet_mode?.enabled);
+  const highPriorityOverride = preferences?.high_priority_override !== false;
+  if (categoryEnabled === false && !(highPriorityOverride && view.isActionable)) return false;
+  if (quietModeEnabled && !view.isActionable) return false;
+  if (view.isActionable) return true;
+  return ['networking', 'jobs', 'events', 'groups'].includes(String(view.category || ''));
 }
 
 export function buildNotificationViewModel(notification) {

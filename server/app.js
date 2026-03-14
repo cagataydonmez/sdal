@@ -2324,6 +2324,241 @@ function logAdminAction(req, action, details = {}) {
   });
 }
 
+const NOTIFICATION_PREFERENCE_CATEGORY_KEYS = Object.freeze([
+  'social',
+  'messaging',
+  'groups',
+  'events',
+  'networking',
+  'jobs',
+  'system'
+]);
+
+const NOTIFICATION_EXPERIMENT_DEFAULTS = Object.freeze({
+  sort_order: {
+    key: 'sort_order',
+    label: 'Sort order',
+    description: 'Priority-first vs recent-first ordering on inbox surfaces.',
+    status: 'active',
+    variants: ['priority', 'recent']
+  },
+  cta_wording: {
+    key: 'cta_wording',
+    label: 'CTA wording',
+    description: 'Action-first vs neutral call-to-action copy on notification cards.',
+    status: 'active',
+    variants: ['action', 'neutral']
+  },
+  inbox_layout: {
+    key: 'inbox_layout',
+    label: 'Inbox layout',
+    description: 'Grouped sections vs flat feed layout for notifications page.',
+    status: 'active',
+    variants: ['grouped', 'flat']
+  }
+});
+
+const NOTIFICATION_GOVERNANCE_CHECKLIST = Object.freeze([
+  { key: 'target_required', label: 'Canonical target zorunlu', description: 'Yeni notification type doğrudan çözülebilir bir target üretmeli.' },
+  { key: 'analytics_required', label: 'Analytics zorunlu', description: 'Impression, open ve gerekiyorsa action eventleri izlenmeli.' },
+  { key: 'dedupe_required', label: 'Dedupe kuralı', description: 'Burst veya tekrar eden eventler için suppress/collapse kuralı tanımlanmalı.' },
+  { key: 'priority_defined', label: 'Priority tanımı', description: 'Type için informational, important veya actionable seviyesi açık olmalı.' },
+  { key: 'category_defined', label: 'Category tanımı', description: 'Type inbox bilgi mimarisindeki bir category altında yer almalı.' }
+]);
+
+const NOTIFICATION_DEDUPE_RULES = Object.freeze({
+  like: { windowSeconds: 900, compareMessage: false },
+  follow: { windowSeconds: 1800, compareMessage: false },
+  comment: { windowSeconds: 300, compareMessage: false },
+  event_reminder: { windowSeconds: 6 * 60 * 60, compareMessage: false },
+  event_starts_soon: { windowSeconds: 6 * 60 * 60, compareMessage: false },
+  event_invite: { windowSeconds: 2 * 60 * 60, compareMessage: false },
+  group_invite: { windowSeconds: 2 * 60 * 60, compareMessage: false },
+  group_invite_accepted: { windowSeconds: 30 * 60, compareMessage: false },
+  group_invite_rejected: { windowSeconds: 30 * 60, compareMessage: false }
+});
+
+function ensureNotificationPreferencesTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS notification_user_preferences (
+      user_id INTEGER PRIMARY KEY,
+      social_enabled INTEGER NOT NULL DEFAULT 1,
+      messaging_enabled INTEGER NOT NULL DEFAULT 1,
+      groups_enabled INTEGER NOT NULL DEFAULT 1,
+      events_enabled INTEGER NOT NULL DEFAULT 1,
+      networking_enabled INTEGER NOT NULL DEFAULT 1,
+      jobs_enabled INTEGER NOT NULL DEFAULT 1,
+      system_enabled INTEGER NOT NULL DEFAULT 1,
+      quiet_mode_enabled INTEGER NOT NULL DEFAULT 0,
+      quiet_mode_start TEXT,
+      quiet_mode_end TEXT,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_notification_preferences_updated ON notification_user_preferences (updated_at DESC)');
+}
+
+function ensureNotificationExperimentConfigsTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS notification_experiment_configs (
+      experiment_key TEXT PRIMARY KEY,
+      label TEXT,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      variants_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_notification_experiments_updated ON notification_experiment_configs (updated_at DESC)');
+  const now = new Date().toISOString();
+  for (const experiment of Object.values(NOTIFICATION_EXPERIMENT_DEFAULTS)) {
+    sqlRun(
+      `INSERT OR IGNORE INTO notification_experiment_configs
+         (experiment_key, label, description, status, variants_json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        experiment.key,
+        experiment.label,
+        experiment.description,
+        experiment.status,
+        JSON.stringify(experiment.variants),
+        now
+      ]
+    );
+  }
+}
+
+function readNotificationExperimentConfigs() {
+  ensureNotificationExperimentConfigsTable();
+  return (sqlAll(
+    `SELECT experiment_key, label, description, status, variants_json, updated_at
+     FROM notification_experiment_configs
+     ORDER BY experiment_key ASC`
+  ) || []).map((row) => {
+    let variants = [];
+    try {
+      const parsed = JSON.parse(String(row.variants_json || '[]'));
+      variants = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      variants = [];
+    }
+    if (!variants.length) {
+      variants = [...(NOTIFICATION_EXPERIMENT_DEFAULTS[row.experiment_key]?.variants || ['control'])];
+    }
+    return {
+      key: String(row.experiment_key || '').trim(),
+      label: String(row.label || '').trim(),
+      description: String(row.description || '').trim(),
+      status: String(row.status || 'active').trim().toLowerCase() === 'paused' ? 'paused' : 'active',
+      variants: variants.map((item) => String(item || '').trim()).filter(Boolean),
+      updated_at: row.updated_at || null
+    };
+  });
+}
+
+function getNotificationExperimentAssignments(userId) {
+  const safeUserId = Number(userId || 0);
+  const configs = readNotificationExperimentConfigs();
+  const assignments = {};
+  for (const config of configs) {
+    const fallback = String(config.variants?.[0] || 'control');
+    if (config.status !== 'active' || !safeUserId || !Array.isArray(config.variants) || config.variants.length < 2) {
+      assignments[config.key] = fallback;
+      continue;
+    }
+    const bucket = Math.abs((safeUserId * 31) + String(config.key || '').length) % config.variants.length;
+    assignments[config.key] = String(config.variants[bucket] || fallback);
+  }
+  return assignments;
+}
+
+function defaultNotificationPreferenceRow(userId = null) {
+  return {
+    user_id: Number(userId || 0) || null,
+    social_enabled: 1,
+    messaging_enabled: 1,
+    groups_enabled: 1,
+    events_enabled: 1,
+    networking_enabled: 1,
+    jobs_enabled: 1,
+    system_enabled: 1,
+    quiet_mode_enabled: 0,
+    quiet_mode_start: null,
+    quiet_mode_end: null,
+    updated_at: null
+  };
+}
+
+function readNotificationPreferenceRow(userId) {
+  const safeUserId = Number(userId || 0);
+  ensureNotificationPreferencesTable();
+  if (!safeUserId) return defaultNotificationPreferenceRow();
+  const row = sqlGet('SELECT * FROM notification_user_preferences WHERE user_id = ?', [safeUserId]) || {};
+  return {
+    ...defaultNotificationPreferenceRow(safeUserId),
+    ...row
+  };
+}
+
+function mapNotificationPreferenceResponse(row) {
+  const safeRow = row || defaultNotificationPreferenceRow();
+  const categories = {};
+  for (const key of NOTIFICATION_PREFERENCE_CATEGORY_KEYS) {
+    categories[key] = Number(safeRow?.[`${key}_enabled`] ?? 1) === 1;
+  }
+  return {
+    categories,
+    quiet_mode: {
+      enabled: Number(safeRow?.quiet_mode_enabled || 0) === 1,
+      start: safeRow?.quiet_mode_start || null,
+      end: safeRow?.quiet_mode_end || null
+    },
+    high_priority_override: true,
+    updated_at: safeRow?.updated_at || null
+  };
+}
+
+function isNotificationHighPriority(type) {
+  const priority = getNotificationPriority(type);
+  return priority === 'actionable' || priority === 'critical' || priority === 'important';
+}
+
+function shouldSuppressNotificationByPreference(userId, type) {
+  const safeUserId = Number(userId || 0);
+  if (!safeUserId) return false;
+  const category = getNotificationCategory(type);
+  if (!NOTIFICATION_PREFERENCE_CATEGORY_KEYS.includes(category)) return false;
+  if (isNotificationHighPriority(type)) return false;
+  const prefs = readNotificationPreferenceRow(safeUserId);
+  return Number(prefs?.[`${category}_enabled`] ?? 1) !== 1;
+}
+
+function getNotificationDedupeRule(type) {
+  return NOTIFICATION_DEDUPE_RULES[String(type || '').trim().toLowerCase()] || null;
+}
+
+function findRecentDuplicateNotification({ userId, type, sourceUserId = null, entityId = null, message = '' } = {}) {
+  const rule = getNotificationDedupeRule(type);
+  const safeUserId = Number(userId || 0);
+  if (!rule || !safeUserId || !hasTable('notifications')) return null;
+  const sinceIso = new Date(Date.now() - (Number(rule.windowSeconds || 0) * 1000)).toISOString();
+  const compareMessage = rule.compareMessage === true;
+  const query = `SELECT id, created_at
+     FROM notifications
+     WHERE user_id = ?
+       AND LOWER(TRIM(COALESCE(type, ''))) = LOWER(?)
+       AND COALESCE(source_user_id, 0) = COALESCE(?, 0)
+       AND COALESCE(entity_id, 0) = COALESCE(?, 0)
+       AND ${compareMessage ? "COALESCE(message, '') = COALESCE(?, '')" : '1 = 1'}
+       AND COALESCE(CASE WHEN CAST(created_at AS TEXT) = '' THEN NULL ELSE created_at END, '1970-01-01T00:00:00.000Z') >= ?
+     ORDER BY id DESC
+     LIMIT 1`;
+  const params = compareMessage
+    ? [safeUserId, type, Number(sourceUserId || 0) || null, Number(entityId || 0) || null, String(message || ''), sinceIso]
+    : [safeUserId, type, Number(sourceUserId || 0) || null, Number(entityId || 0) || null, sinceIso];
+  return sqlGet(query, params) || null;
+}
+
 function addNotification({ userId, type, sourceUserId, entityId, message }) {
   const normalizedType = sanitizePlainUserText(String(type || '').trim().toLowerCase(), 120);
   const safeUserId = Number(userId || 0) || null;
@@ -2341,6 +2576,38 @@ function addNotification({ userId, type, sourceUserId, entityId, message }) {
       createdAt: now
     });
     return null;
+  }
+  if (shouldSuppressNotificationByPreference(safeUserId, normalizedType)) {
+    logNotificationDeliveryAudit({
+      notificationType: normalizedType,
+      userId: safeUserId,
+      sourceUserId: safeSourceUserId,
+      entityId: safeEntityId,
+      deliveryStatus: 'skipped',
+      skipReason: 'category_disabled',
+      createdAt: now
+    });
+    return null;
+  }
+  const duplicateNotification = findRecentDuplicateNotification({
+    userId: safeUserId,
+    type: normalizedType,
+    sourceUserId: safeSourceUserId,
+    entityId: safeEntityId,
+    message
+  });
+  if (duplicateNotification) {
+    logNotificationDeliveryAudit({
+      notificationId: Number(duplicateNotification.id || 0) || null,
+      notificationType: normalizedType,
+      userId: safeUserId,
+      sourceUserId: safeSourceUserId,
+      entityId: safeEntityId,
+      deliveryStatus: 'skipped',
+      skipReason: 'deduped_recent_duplicate',
+      createdAt: now
+    });
+    return Number(duplicateNotification.id || 0) || null;
   }
   try {
     const result = sqlRun(
@@ -2379,7 +2646,13 @@ const NOTIFICATION_DELIVERY_AUDIT_TYPES = new Set([
   'group_join_approved',
   'group_join_rejected',
   'group_invite',
+  'group_invite_accepted',
+  'group_invite_rejected',
+  'group_role_changed',
   'event_invite',
+  'event_response',
+  'event_reminder',
+  'event_starts_soon',
   'connection_request',
   'connection_accepted',
   'mentorship_request',
@@ -2392,7 +2665,13 @@ const NOTIFICATION_DELIVERY_AUDIT_TYPES = new Set([
   'job_application',
   'job_application_reviewed',
   'job_application_accepted',
-  'job_application_rejected'
+  'job_application_rejected',
+  'verification_approved',
+  'verification_rejected',
+  'member_request_approved',
+  'member_request_rejected',
+  'announcement_approved',
+  'announcement_rejected'
 ]);
 
 function shouldAuditNotificationDelivery(type) {
@@ -2522,9 +2801,15 @@ const NOTIFICATION_CATEGORY_MAP = Object.freeze({
   group_join_approved: 'groups',
   group_join_rejected: 'groups',
   group_invite: 'groups',
+  group_invite_accepted: 'groups',
+  group_invite_rejected: 'groups',
+  group_role_changed: 'groups',
   mention_event: 'events',
   event_comment: 'events',
   event_invite: 'events',
+  event_response: 'events',
+  event_reminder: 'events',
+  event_starts_soon: 'events',
   connection_request: 'networking',
   connection_accepted: 'networking',
   mentorship_request: 'networking',
@@ -2537,7 +2822,13 @@ const NOTIFICATION_CATEGORY_MAP = Object.freeze({
   job_application: 'jobs',
   job_application_reviewed: 'jobs',
   job_application_accepted: 'jobs',
-  job_application_rejected: 'jobs'
+  job_application_rejected: 'jobs',
+  verification_approved: 'system',
+  verification_rejected: 'system',
+  member_request_approved: 'system',
+  member_request_rejected: 'system',
+  announcement_approved: 'system',
+  announcement_rejected: 'system'
 });
 
 const NOTIFICATION_PRIORITY_MAP = Object.freeze({
@@ -2553,9 +2844,15 @@ const NOTIFICATION_PRIORITY_MAP = Object.freeze({
   group_join_approved: 'important',
   group_join_rejected: 'important',
   group_invite: 'actionable',
+  group_invite_accepted: 'important',
+  group_invite_rejected: 'important',
+  group_role_changed: 'important',
   mention_event: 'important',
   event_comment: 'important',
   event_invite: 'important',
+  event_response: 'important',
+  event_reminder: 'important',
+  event_starts_soon: 'important',
   connection_request: 'actionable',
   connection_accepted: 'important',
   mentorship_request: 'actionable',
@@ -2568,7 +2865,13 @@ const NOTIFICATION_PRIORITY_MAP = Object.freeze({
   job_application: 'actionable',
   job_application_reviewed: 'important',
   job_application_accepted: 'important',
-  job_application_rejected: 'important'
+  job_application_rejected: 'important',
+  verification_approved: 'important',
+  verification_rejected: 'important',
+  member_request_approved: 'important',
+  member_request_rejected: 'important',
+  announcement_approved: 'important',
+  announcement_rejected: 'important'
 });
 
 function getNotificationCategory(type) {
@@ -2579,9 +2882,84 @@ function getNotificationPriority(type) {
   return NOTIFICATION_PRIORITY_MAP[String(type || '').trim().toLowerCase()] || 'informational';
 }
 
+const NOTIFICATION_ACTIONABLE_TYPES = Object.freeze(
+  Object.entries(NOTIFICATION_PRIORITY_MAP)
+    .filter(([, priority]) => priority === 'actionable' || priority === 'critical')
+    .map(([type]) => type)
+);
+
 function isNotificationActionable(type) {
   const priority = getNotificationPriority(type);
   return priority === 'critical' || priority === 'actionable';
+}
+
+function ensureNotificationIndexes() {
+  if (!hasTable('notifications')) return;
+  try {
+    sqlRun('CREATE INDEX IF NOT EXISTS idx_notifications_user_id_desc ON notifications (user_id, id DESC)');
+  } catch {}
+  try {
+    sqlRun('CREATE INDEX IF NOT EXISTS idx_notifications_user_read_id ON notifications (user_id, read_at, id DESC)');
+  } catch {}
+}
+
+function buildNotificationSortBucketSql(alias = 'n') {
+  const actionableTypeSql = NOTIFICATION_ACTIONABLE_TYPES.map((type) => `'${type}'`).join(', ');
+  return `CASE
+    WHEN ${alias}.read_at IS NULL AND LOWER(TRIM(COALESCE(${alias}.type, ''))) IN (${actionableTypeSql}) THEN 0
+    WHEN ${alias}.read_at IS NULL THEN 1
+    WHEN LOWER(TRIM(COALESCE(${alias}.type, ''))) IN (${actionableTypeSql}) THEN 2
+    ELSE 3
+  END`;
+}
+
+function normalizeNotificationSortMode(sortMode = 'priority') {
+  const mode = String(sortMode || 'priority').trim().toLowerCase();
+  return mode === 'priority' ? 'priority' : 'recent';
+}
+
+function buildNotificationOrderSql(sortMode = 'priority', alias = 'n') {
+  const mode = normalizeNotificationSortMode(sortMode);
+  if (mode !== 'priority' || NOTIFICATION_ACTIONABLE_TYPES.length === 0) {
+    return `ORDER BY ${alias}.id DESC`;
+  }
+  return `ORDER BY
+    ${buildNotificationSortBucketSql(alias)} ASC,
+    ${alias}.id DESC`;
+}
+
+function computeNotificationSortBucket(row) {
+  const type = String(row?.type || '').trim().toLowerCase();
+  const actionable = isNotificationActionable(type);
+  if (!row?.read_at && actionable) return 0;
+  if (!row?.read_at) return 1;
+  if (actionable) return 2;
+  return 3;
+}
+
+function parseNotificationCursor(rawCursor, sortMode = 'priority') {
+  const raw = String(rawCursor || '').trim();
+  if (!raw) return null;
+  const mode = normalizeNotificationSortMode(sortMode);
+  if (mode === 'priority' && raw.includes(':')) {
+    const [bucketPart, idPart] = raw.split(':');
+    const bucket = parseInt(bucketPart || '', 10);
+    const id = parseInt(idPart || '', 10);
+    if (Number.isFinite(bucket) && Number.isFinite(id) && id > 0) {
+      return { bucket, id };
+    }
+  }
+  const id = parseInt(raw, 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return { bucket: null, id };
+}
+
+function buildNotificationCursor(row, sortMode = 'priority') {
+  const id = Number(row?.id || 0);
+  if (!id) return null;
+  const mode = normalizeNotificationSortMode(sortMode);
+  if (mode !== 'priority') return String(id);
+  return `${computeNotificationSortBucket(row)}:${id}`;
 }
 
 function buildNotificationTarget(row) {
@@ -2672,6 +3050,17 @@ function buildNotificationTarget(row) {
     };
   }
 
+  if ((type === 'group_invite_accepted' || type === 'group_invite_rejected' || type === 'group_role_changed') && entityId) {
+    const href = `/new/groups/${entityId}?tab=members&notification=${notificationId}`;
+    return {
+      href,
+      route: `/new/groups/${entityId}`,
+      entity_type: 'group',
+      entity_id: entityId,
+      context: { tab: 'members', notification: notificationId }
+    };
+  }
+
   if ((type === 'mention_event' || type === 'event_comment') && entityId) {
     const href = `/new/events?event=${entityId}&focus=comments&notification=${notificationId}`;
     return {
@@ -2691,6 +3080,28 @@ function buildNotificationTarget(row) {
       entity_type: 'event',
       entity_id: entityId,
       context: { event: entityId, focus: 'response', notification: notificationId }
+    };
+  }
+
+  if (type === 'event_response' && entityId) {
+    const href = `/new/events?event=${entityId}&focus=response&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new/events',
+      entity_type: 'event',
+      entity_id: entityId,
+      context: { event: entityId, focus: 'response', notification: notificationId }
+    };
+  }
+
+  if ((type === 'event_reminder' || type === 'event_starts_soon') && entityId) {
+    const href = `/new/events?event=${entityId}&focus=details&notification=${notificationId}`;
+    return {
+      href,
+      route: '/new/events',
+      entity_type: 'event',
+      entity_id: entityId,
+      context: { event: entityId, focus: 'details', notification: notificationId }
     };
   }
 
@@ -2812,6 +3223,42 @@ function buildNotificationTarget(row) {
       entity_type: 'job_application',
       entity_id: entityId,
       context: { job: jobId || null, application: entityId, focus: 'my-application', notification: notificationId }
+    };
+  }
+
+  if ((type === 'verification_approved' || type === 'verification_rejected')) {
+    const status = type.replace('verification_', '');
+    const href = `/new/profile/verification?notification=${notificationId}&status=${status}`;
+    return {
+      href,
+      route: '/new/profile/verification',
+      entity_type: 'verification_request',
+      entity_id: entityId || null,
+      context: { notification: notificationId, status }
+    };
+  }
+
+  if ((type === 'member_request_approved' || type === 'member_request_rejected') && entityId) {
+    const status = type.replace('member_request_', '');
+    const href = `/new/requests?request=${entityId}&notification=${notificationId}&status=${status}`;
+    return {
+      href,
+      route: '/new/requests',
+      entity_type: 'member_request',
+      entity_id: entityId,
+      context: { request: entityId, notification: notificationId, status }
+    };
+  }
+
+  if ((type === 'announcement_approved' || type === 'announcement_rejected') && entityId) {
+    const status = type.replace('announcement_', '');
+    const href = `/new/announcements?announcement=${entityId}&notification=${notificationId}&status=${status}`;
+    return {
+      href,
+      route: '/new/announcements',
+      entity_type: 'announcement',
+      entity_id: entityId,
+      context: { announcement: entityId, notification: notificationId, status }
     };
   }
 
@@ -8586,15 +9033,20 @@ app.post('/api/new/posts/:id/comments', requireAuth, commentWriteRateLimit, phas
 
 app.get('/api/new/notifications', requireAuth, async (req, res) => {
   try {
+    ensureNotificationIndexes();
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
-    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-    const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+    const sort = normalizeNotificationSortMode(req.query.sort || 'priority');
+    const cursor = parseNotificationCursor(req.query.cursor || '', sort);
 
     const whereParts = ['n.user_id = ?'];
     const params = [req.session.userId];
-    if (cursor > 0) {
+    if (cursor?.id > 0 && sort === 'priority' && Number.isFinite(cursor.bucket)) {
+      const bucketSql = buildNotificationSortBucketSql('n');
+      whereParts.push(`(${bucketSql} > ? OR (${bucketSql} = ? AND n.id < ?))`);
+      params.push(cursor.bucket, cursor.bucket, cursor.id);
+    } else if (cursor?.id > 0) {
       whereParts.push('n.id < ?');
-      params.push(cursor);
+      params.push(cursor.id);
     }
 
     const rows = await sqlAllAsync(
@@ -8603,17 +9055,18 @@ app.get('/api/new/notifications', requireAuth, async (req, res) => {
        FROM notifications n
        LEFT JOIN uyeler u ON u.id = n.source_user_id
        WHERE ${whereParts.join(' AND ')}
-       ORDER BY n.id DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limit + 1, cursor > 0 ? 0 : offset]
+       ${buildNotificationOrderSql(sort)}
+       LIMIT ?`,
+      [...params, limit + 1]
     );
     const slice = rows.slice(0, limit);
     const items = await enrichNotificationRows(slice, req.session.userId);
+    const nextCursor = rows.length > limit ? buildNotificationCursor(slice[slice.length - 1], sort) : null;
     res.json(apiSuccessEnvelope(
       'NOTIFICATIONS_LIST_OK',
       'Bildirimler listelendi.',
-      { items, hasMore: rows.length > limit },
-      { items, hasMore: rows.length > limit }
+      { items, hasMore: rows.length > limit, next_cursor: nextCursor },
+      { items, hasMore: rows.length > limit, next_cursor: nextCursor }
     ));
   } catch (err) {
     console.error('notifications.list failed:', err);
@@ -8623,6 +9076,7 @@ app.get('/api/new/notifications', requireAuth, async (req, res) => {
 
 app.get('/api/new/notifications/unread', requireAuth, async (req, res) => {
   try {
+    ensureNotificationIndexes();
     const row = await sqlGetAsync('SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND read_at IS NULL', [req.session.userId]);
     res.json({ count: Number(row?.cnt || 0) });
   } catch (err) {
@@ -8776,6 +9230,327 @@ app.post('/api/new/notifications/telemetry', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('notifications.telemetry failed:', err);
     return sendApiError(res, 500, 'NOTIFICATION_TELEMETRY_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.get('/api/new/notifications/preferences', requireAuth, (req, res) => {
+  try {
+    const row = readNotificationPreferenceRow(req.session.userId);
+    const preferences = mapNotificationPreferenceResponse(row);
+    return res.json(apiSuccessEnvelope(
+      'NOTIFICATION_PREFERENCES_OK',
+      'Bildirim tercihleri hazır.',
+      {
+        preferences,
+        experiments: {
+          assignments: getNotificationExperimentAssignments(req.session.userId),
+          configs: readNotificationExperimentConfigs()
+        }
+      },
+      {
+        preferences,
+        experiments: {
+          assignments: getNotificationExperimentAssignments(req.session.userId),
+          configs: readNotificationExperimentConfigs()
+        }
+      }
+    ));
+  } catch (err) {
+    console.error('notifications.preferences.get failed:', err);
+    return sendApiError(res, 500, 'NOTIFICATION_PREFERENCES_GET_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.put('/api/new/notifications/preferences', requireAuth, (req, res) => {
+  try {
+    ensureNotificationPreferencesTable();
+    const userId = Number(req.session?.userId || 0);
+    const current = readNotificationPreferenceRow(userId);
+    const patch = req.body?.categories && typeof req.body.categories === 'object' ? req.body.categories : {};
+    const quietMode = req.body?.quiet_mode && typeof req.body.quiet_mode === 'object' ? req.body.quiet_mode : {};
+    const nextRow = {
+      ...current,
+      updated_at: new Date().toISOString()
+    };
+    for (const key of NOTIFICATION_PREFERENCE_CATEGORY_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(patch, key)) {
+        nextRow[`${key}_enabled`] = patch[key] ? 1 : 0;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(quietMode, 'enabled')) {
+      nextRow.quiet_mode_enabled = quietMode.enabled ? 1 : 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(quietMode, 'start')) {
+      nextRow.quiet_mode_start = quietMode.start ? String(quietMode.start).trim() : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(quietMode, 'end')) {
+      nextRow.quiet_mode_end = quietMode.end ? String(quietMode.end).trim() : null;
+    }
+    sqlRun(
+      `INSERT INTO notification_user_preferences
+         (user_id, social_enabled, messaging_enabled, groups_enabled, events_enabled, networking_enabled, jobs_enabled, system_enabled, quiet_mode_enabled, quiet_mode_start, quiet_mode_end, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         social_enabled = excluded.social_enabled,
+         messaging_enabled = excluded.messaging_enabled,
+         groups_enabled = excluded.groups_enabled,
+         events_enabled = excluded.events_enabled,
+         networking_enabled = excluded.networking_enabled,
+         jobs_enabled = excluded.jobs_enabled,
+         system_enabled = excluded.system_enabled,
+         quiet_mode_enabled = excluded.quiet_mode_enabled,
+         quiet_mode_start = excluded.quiet_mode_start,
+         quiet_mode_end = excluded.quiet_mode_end,
+         updated_at = excluded.updated_at`,
+      [
+        userId,
+        Number(nextRow.social_enabled || 0),
+        Number(nextRow.messaging_enabled || 0),
+        Number(nextRow.groups_enabled || 0),
+        Number(nextRow.events_enabled || 0),
+        Number(nextRow.networking_enabled || 0),
+        Number(nextRow.jobs_enabled || 0),
+        Number(nextRow.system_enabled || 0),
+        Number(nextRow.quiet_mode_enabled || 0),
+        nextRow.quiet_mode_start || null,
+        nextRow.quiet_mode_end || null,
+        nextRow.updated_at
+      ]
+    );
+    const preferences = mapNotificationPreferenceResponse(nextRow);
+    return res.json(apiSuccessEnvelope(
+      'NOTIFICATION_PREFERENCES_UPDATED',
+      'Bildirim tercihleri güncellendi.',
+      { preferences },
+      { preferences }
+    ));
+  } catch (err) {
+    console.error('notifications.preferences.update failed:', err);
+    return sendApiError(res, 500, 'NOTIFICATION_PREFERENCES_UPDATE_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.get('/api/new/admin/notifications/governance', requireAdmin, (_req, res) => {
+  try {
+    const inventory = Object.keys(NOTIFICATION_CATEGORY_MAP).sort().map((type) => ({
+      type,
+      category: getNotificationCategory(type),
+      priority: getNotificationPriority(type),
+      has_dedupe_rule: Boolean(getNotificationDedupeRule(type))
+    }));
+    return res.json(apiSuccessEnvelope(
+      'ADMIN_NOTIFICATIONS_GOVERNANCE_OK',
+      'Notification governance policy hazır.',
+      {
+        checklist: NOTIFICATION_GOVERNANCE_CHECKLIST,
+        inventory
+      },
+      {
+        checklist: NOTIFICATION_GOVERNANCE_CHECKLIST,
+        inventory
+      }
+    ));
+  } catch (err) {
+    console.error('admin.notifications.governance failed:', err);
+    return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_GOVERNANCE_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.get('/api/new/admin/notifications/experiments', requireAdmin, (_req, res) => {
+  try {
+    const configs = readNotificationExperimentConfigs();
+    return res.json(apiSuccessEnvelope(
+      'ADMIN_NOTIFICATIONS_EXPERIMENTS_OK',
+      'Notification experiment ayarları hazır.',
+      { items: configs },
+      { items: configs }
+    ));
+  } catch (err) {
+    console.error('admin.notifications.experiments.list failed:', err);
+    return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_EXPERIMENTS_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.put('/api/new/admin/notifications/experiments/:key', requireAdmin, (req, res) => {
+  try {
+    ensureNotificationExperimentConfigsTable();
+    const experimentKey = String(req.params.key || '').trim();
+    const existing = readNotificationExperimentConfigs().find((item) => item.key === experimentKey);
+    if (!existing) {
+      return sendApiError(res, 404, 'ADMIN_NOTIFICATIONS_EXPERIMENT_NOT_FOUND', 'Experiment bulunamadı.');
+    }
+    const status = String(req.body?.status || existing.status).trim().toLowerCase() === 'paused' ? 'paused' : 'active';
+    const rawVariants = Array.isArray(req.body?.variants)
+      ? req.body.variants
+      : String(req.body?.variants || '').split(',');
+    const variants = rawVariants.map((item) => String(item || '').trim()).filter(Boolean);
+    const safeVariants = variants.length ? variants : existing.variants;
+    sqlRun(
+      `UPDATE notification_experiment_configs
+       SET status = ?, variants_json = ?, updated_at = ?
+       WHERE experiment_key = ?`,
+      [status, JSON.stringify(safeVariants), new Date().toISOString(), experimentKey]
+    );
+    const item = readNotificationExperimentConfigs().find((row) => row.key === experimentKey) || existing;
+    return res.json(apiSuccessEnvelope(
+      'ADMIN_NOTIFICATIONS_EXPERIMENT_UPDATED',
+      'Notification experiment ayarı güncellendi.',
+      { item },
+      { item }
+    ));
+  } catch (err) {
+    console.error('admin.notifications.experiments.update failed:', err);
+    return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_EXPERIMENT_UPDATE_FAILED', 'Beklenmeyen bir hata oluştu.');
+  }
+});
+
+app.get('/api/new/admin/notifications/ops', requireAdmin, async (req, res) => {
+  try {
+    ensureNotificationDeliveryAuditTable();
+    ensureNotificationTelemetryEventsTable();
+    ensureNotificationPreferencesTable();
+    const windowDays = parseNetworkWindowDays(req.query.window);
+    const sinceIso = toIsoThreshold(windowDays);
+    const day1Iso = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString();
+    const day7Iso = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)).toISOString();
+
+    const [deliveryRows, telemetryRows, unreadRows, noisyRows, quietModeRow] = await Promise.all([
+      sqlAllAsync(
+        `SELECT notification_type, delivery_status, COUNT(*) AS cnt
+         FROM notification_delivery_audit
+         WHERE created_at >= ?
+         GROUP BY notification_type, delivery_status
+         ORDER BY cnt DESC, notification_type ASC`,
+        [sinceIso]
+      ),
+      sqlAllAsync(
+        `SELECT COALESCE(surface, 'unknown') AS surface, event_name, COUNT(*) AS cnt
+         FROM notification_telemetry_events
+         WHERE created_at >= ?
+         GROUP BY COALESCE(surface, 'unknown'), event_name
+         ORDER BY surface ASC, event_name ASC`,
+        [sinceIso]
+      ),
+      sqlAllAsync(
+        `SELECT type,
+                COUNT(*) AS unread_count,
+                SUM(CASE WHEN created_at < ? THEN 1 ELSE 0 END) AS older_than_1d,
+                SUM(CASE WHEN created_at < ? THEN 1 ELSE 0 END) AS older_than_7d
+         FROM notifications
+         WHERE read_at IS NULL
+         GROUP BY type
+         ORDER BY unread_count DESC, type ASC
+         LIMIT 20`,
+        [day1Iso, day7Iso]
+      ),
+      sqlAllAsync(
+        `SELECT type, COUNT(*) AS cnt
+         FROM notifications
+         WHERE created_at >= ?
+         GROUP BY type
+         ORDER BY cnt DESC, type ASC
+         LIMIT 10`,
+        [sinceIso]
+      ),
+      sqlGetAsync('SELECT COUNT(*) AS cnt FROM notification_user_preferences WHERE quiet_mode_enabled = 1')
+    ]);
+
+    const deliverySummary = { inserted: 0, skipped: 0, failed: 0 };
+    const typeMap = new Map();
+    for (const row of deliveryRows || []) {
+      const type = String(row?.notification_type || 'unknown').trim();
+      const status = String(row?.delivery_status || 'unknown').trim();
+      const count = Number(row?.cnt || 0);
+      if (deliverySummary[status] != null) deliverySummary[status] += count;
+      const current = typeMap.get(type) || { type, inserted: 0, skipped: 0, failed: 0 };
+      if (current[status] != null) current[status] += count;
+      typeMap.set(type, current);
+    }
+
+    const surfaceMap = new Map();
+    for (const row of telemetryRows || []) {
+      const surface = String(row?.surface || 'unknown').trim() || 'unknown';
+      const eventName = String(row?.event_name || 'unknown').trim();
+      const count = Number(row?.cnt || 0);
+      const current = surfaceMap.get(surface) || {
+        surface,
+        impression: 0,
+        open: 0,
+        action: 0,
+        landed: 0,
+        bounce: 0,
+        no_action: 0
+      };
+      if (current[eventName] != null) current[eventName] += count;
+      surfaceMap.set(surface, current);
+    }
+
+    const surfaceConversion = Array.from(surfaceMap.values()).map((item) => ({
+      ...item,
+      open_rate: item.impression > 0 ? Number((item.open / item.impression).toFixed(4)) : 0,
+      action_rate: item.impression > 0 ? Number((item.action / item.impression).toFixed(4)) : 0,
+      bounce_rate: item.landed > 0 ? Number((item.bounce / item.landed).toFixed(4)) : 0,
+      no_action_rate: item.landed > 0 ? Number((item.no_action / item.landed).toFixed(4)) : 0
+    })).sort((a, b) => String(a.surface).localeCompare(String(b.surface)));
+
+    const unreadAging = (unreadRows || []).map((row) => ({
+      type: String(row?.type || '').trim(),
+      category: getNotificationCategory(row?.type),
+      unread_count: Number(row?.unread_count || 0),
+      older_than_1d: Number(row?.older_than_1d || 0),
+      older_than_7d: Number(row?.older_than_7d || 0)
+    }));
+
+    const alerts = [];
+    for (const surface of surfaceConversion) {
+      if (Number(surface.bounce_rate || 0) >= 0.25) {
+        alerts.push({ code: 'bounce_rate_high', severity: 'high', surface: surface.surface, message: `${surface.surface} yüzeyinde bounce rate yükseldi.` });
+      }
+      if (Number(surface.no_action_rate || 0) >= 0.4) {
+        alerts.push({ code: 'no_action_rate_high', severity: 'medium', surface: surface.surface, message: `${surface.surface} yüzeyinde no-action oranı yüksek.` });
+      }
+    }
+    if (Number(deliverySummary.failed || 0) > 0) {
+      alerts.push({ code: 'critical_insert_failures', severity: 'high', message: 'Notification delivery audit içinde failed insert kayıtları var.' });
+    }
+
+    return res.json(apiSuccessEnvelope(
+      'ADMIN_NOTIFICATIONS_OPS_OK',
+      'Notification operations verileri hazır.',
+      {
+        window: `${windowDays}d`,
+        since: sinceIso,
+        delivery_summary: deliverySummary,
+        delivery_by_type: Array.from(typeMap.values()).sort((a, b) => (Number(b.failed || 0) - Number(a.failed || 0)) || String(a.type).localeCompare(String(b.type))),
+        noisy_types: (noisyRows || []).map((row) => ({
+          type: String(row?.type || '').trim(),
+          category: getNotificationCategory(row?.type),
+          count: Number(row?.cnt || 0)
+        })),
+        unread_aging: unreadAging,
+        surface_conversion: surfaceConversion,
+        quiet_mode_enabled_users: Number(quietModeRow?.cnt || 0),
+        alerts
+      },
+      {
+        window: `${windowDays}d`,
+        since: sinceIso,
+        delivery_summary: deliverySummary,
+        delivery_by_type: Array.from(typeMap.values()).sort((a, b) => (Number(b.failed || 0) - Number(a.failed || 0)) || String(a.type).localeCompare(String(b.type))),
+        noisy_types: (noisyRows || []).map((row) => ({
+          type: String(row?.type || '').trim(),
+          category: getNotificationCategory(row?.type),
+          count: Number(row?.cnt || 0)
+        })),
+        unread_aging: unreadAging,
+        surface_conversion: surfaceConversion,
+        quiet_mode_enabled_users: Number(quietModeRow?.cnt || 0),
+        alerts
+      }
+    ));
+  } catch (err) {
+    console.error('admin.notifications.ops failed:', err);
+    return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_OPS_FAILED', 'Beklenmeyen bir hata oluştu.');
   }
 });
 
@@ -11227,10 +12002,79 @@ function toIsoThreshold(days) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function createEmptyNetworkInboxPayload() {
+  return {
+    connections: {
+      incoming: [],
+      outgoing: [],
+      counts: {
+        incoming_pending: 0,
+        outgoing_pending: 0
+      }
+    },
+    mentorship: {
+      incoming: [],
+      outgoing: [],
+      counts: {
+        incoming_requested: 0,
+        outgoing_requested: 0
+      }
+    },
+    teacherLinks: {
+      events: [],
+      count: 0,
+      unread_count: 0
+    }
+  };
+}
+
+function createEmptyNetworkMetricsPayload(windowDays = 30) {
+  return {
+    window: `${windowDays}d`,
+    since: toIsoThreshold(windowDays),
+    metrics: {
+      connections: {
+        requested: 0,
+        accepted: 0,
+        pending_incoming: 0,
+        pending_outgoing: 0
+      },
+      mentorship: {
+        requested: 0,
+        accepted: 0
+      },
+      teacherLinks: {
+        created: 0
+      },
+      time_to_first_network_success_days: null
+    }
+  };
+}
+
+function createEmptyExploreSuggestionsPayload(variant = 'A') {
+  return {
+    items: [],
+    hasMore: false,
+    total: 0,
+    experiment_variant: variant
+  };
+}
+
+async function safeNetworkSection(label, fallbackValue, callback) {
+  try {
+    return await callback();
+  } catch (err) {
+    console.error(`network.section.${label} failed:`, err);
+    return typeof fallbackValue === 'function' ? fallbackValue() : fallbackValue;
+  }
+}
+
 async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit = limit } = {}) {
   ensureConnectionRequestsTable();
   ensureMentorshipRequestsTable();
   ensureTeacherAlumniLinksTable();
+  if (!hasTable('uyeler')) return createEmptyNetworkInboxPayload();
+  const hasNotifications = hasTable('notifications');
 
   const [incomingConnections, outgoingConnections, incomingMentorship, outgoingMentorship, teacherLinkEvents] = await Promise.all([
     sqlAllAsync(
@@ -11273,7 +12117,8 @@ async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit =
        LIMIT ?`,
       [userId, limit]
     ),
-    sqlAllAsync(
+    hasNotifications
+      ? sqlAllAsync(
       `SELECT n.id, n.type, n.source_user_id, n.entity_id, n.message, n.read_at, n.created_at,
               u.kadi, u.isim, u.soyisim, u.resim, u.verified
        FROM notifications n
@@ -11283,6 +12128,7 @@ async function buildNetworkInboxPayload(userId, { limit = 12, teacherLinkLimit =
        LIMIT ?`,
       [userId, teacherLinkLimit]
     )
+      : Promise.resolve([])
   ]);
 
   return {
@@ -11314,6 +12160,7 @@ async function buildNetworkMetricsPayload(userId, windowDays) {
   ensureConnectionRequestsTable();
   ensureMentorshipRequestsTable();
   ensureTeacherAlumniLinksTable();
+  if (!hasTable('uyeler')) return createEmptyNetworkMetricsPayload(windowDays);
 
   const sinceIso = toIsoThreshold(windowDays);
 
@@ -11411,6 +12258,9 @@ async function buildNetworkMetricsPayload(userId, windowDays) {
 
 async function buildPendingConnectionMaps(userId, { limit = 100 } = {}) {
   ensureConnectionRequestsTable();
+  if (!hasTable('connection_requests')) {
+    return { incoming: {}, outgoing: {} };
+  }
   const [incomingRows, outgoingRows] = await Promise.all([
     sqlAllAsync(
       `SELECT id, sender_id
@@ -11457,6 +12307,10 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
   const cached = readExploreSuggestionsCache(cacheKey);
   if (cached) return cached;
 
+  if (!hasTable('uyeler')) return createEmptyExploreSuggestionsPayload(experiment.variant);
+  const hasFollows = hasTable('follows');
+  const hasMentorOptIn = hasColumn('uyeler', 'mentor_opt_in');
+  const hasOnline = hasColumn('uyeler', 'online');
   const me = await sqlGetAsync(
     `SELECT id, mezuniyetyili, sehir, universite, meslek
      FROM uyeler
@@ -11467,31 +12321,33 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
   const hasEngagementScores = hasTable('member_engagement_scores');
 
   const [iFollowFollowers, followsMe, candidates] = await Promise.all([
-    sqlAllAsync(
+    hasFollows
+      ? sqlAllAsync(
       `SELECT f2.following_id AS user_id, COUNT(*) AS cnt
        FROM follows f1
        JOIN follows f2 ON f2.follower_id = f1.following_id
        WHERE f1.follower_id = ?
        GROUP BY f2.following_id`,
       [safeUserId]
-    ),
-    sqlAllAsync('SELECT follower_id FROM follows WHERE following_id = ?', [safeUserId]),
+    )
+      : Promise.resolve([]),
+    hasFollows ? sqlAllAsync('SELECT follower_id FROM follows WHERE following_id = ?', [safeUserId]) : Promise.resolve([]),
     sqlAllAsync(
-      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.mezuniyetyili, u.sehir, u.universite, u.meslek, u.online,
-              u.role, u.mentor_opt_in,
+      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, u.mezuniyetyili, u.sehir, u.universite, u.meslek, ${hasOnline ? 'u.online' : '0'} AS online,
+              u.role, ${hasMentorOptIn ? 'u.mentor_opt_in' : '0'} AS mentor_opt_in,
               ${hasEngagementScores ? 'COALESCE(es.score, 0)' : '0'} AS engagement_score
        FROM uyeler u
        ${hasEngagementScores ? 'LEFT JOIN member_engagement_scores es ON es.user_id = u.id' : ''}
        WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
          AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
          AND u.id != ?
-         AND NOT EXISTS (
+         ${hasFollows ? `AND NOT EXISTS (
            SELECT 1
            FROM follows f
            WHERE f.follower_id = ?
              AND f.following_id = u.id
-         )`,
-      [safeUserId, safeUserId]
+         )` : ''}`,
+      hasFollows ? [safeUserId, safeUserId] : [safeUserId]
     )
   ]);
 
@@ -11582,10 +12438,10 @@ async function buildExploreSuggestionsPayload(userId, { limit = 12, offset = 0 }
 
 async function buildNetworkHubPayload(userId, { windowDays = 30, limit = 12, teacherLinkLimit = limit, suggestionLimit = 8 } = {}) {
   const [inbox, metricsBundle, discovery, connectionMaps] = await Promise.all([
-    buildNetworkInboxPayload(userId, { limit, teacherLinkLimit }),
-    buildNetworkMetricsPayload(userId, windowDays),
-    buildExploreSuggestionsPayload(userId, { limit: suggestionLimit, offset: 0 }),
-    buildPendingConnectionMaps(userId, { limit: 100 })
+    safeNetworkSection('inbox', createEmptyNetworkInboxPayload, () => buildNetworkInboxPayload(userId, { limit, teacherLinkLimit })),
+    safeNetworkSection('metrics', () => createEmptyNetworkMetricsPayload(windowDays), () => buildNetworkMetricsPayload(userId, windowDays)),
+    safeNetworkSection('discovery', () => createEmptyExploreSuggestionsPayload(getAssignedNetworkSuggestionVariant(userId).variant), () => buildExploreSuggestionsPayload(userId, { limit: suggestionLimit, offset: 0 })),
+    safeNetworkSection('connection_maps', { incoming: {}, outgoing: {} }, () => buildPendingConnectionMaps(userId, { limit: 100 }))
   ]);
 
   return {
@@ -12706,12 +13562,13 @@ app.post('/api/new/groups/:id/invitations/respond', requireAuth, (req, res) => {
   const action = String(req.body?.action || '').toLowerCase();
   if (!['accept', 'reject'].includes(action)) return res.status(400).send('Geçersiz işlem.');
   const invite = sqlGet(
-    `SELECT id, invited_user_id, status
+    `SELECT id, invited_user_id, invited_by, status
      FROM group_invites
      WHERE group_id = ? AND invited_user_id = ? AND status = 'pending'`,
     [groupId, req.session.userId]
   );
   if (!invite) return res.status(404).send('Bekleyen davet bulunamadı.');
+  const group = sqlGet('SELECT id, name FROM groups WHERE id = ?', [groupId]);
 
   if (action === 'accept') {
     const alreadyMember = getGroupMember(groupId, req.session.userId);
@@ -12730,6 +13587,18 @@ app.post('/api/new/groups/:id/invitations/respond', requireAuth, (req, res) => {
     new Date().toISOString(),
     invite.id
   ]);
+
+  if (Number(invite.invited_by || 0) > 0 && !sameUserId(invite.invited_by, req.session.userId)) {
+    addNotification({
+      userId: invite.invited_by,
+      type: action === 'accept' ? 'group_invite_accepted' : 'group_invite_rejected',
+      sourceUserId: req.session.userId,
+      entityId: Number(groupId || 0),
+      message: action === 'accept'
+        ? `${group?.name || 'Grup'} davetini kabul etti.`
+        : `${group?.name || 'Grup'} davetini reddetti.`
+    });
+  }
 
   return res.json({ ok: true, status: action === 'accept' ? 'accepted' : 'rejected' });
 });
@@ -12801,6 +13670,15 @@ app.post('/api/new/groups/:id/role', requireAuth, (req, res) => {
   const targetMember = sqlGet('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?', [req.params.id, targetId]);
   if (!targetMember) return res.status(404).send('Üye bulunamadı.');
   sqlRun('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?', [role, req.params.id, targetId]);
+  if (!sameUserId(targetId, req.session.userId)) {
+    addNotification({
+      userId: targetId,
+      type: 'group_role_changed',
+      sourceUserId: req.session.userId,
+      entityId: Number(req.params.id || 0),
+      message: `${group.name || 'Grup'} grubundaki rolün ${role} olarak güncellendi.`
+    });
+  }
   res.json({ ok: true });
 });
 
@@ -13342,7 +14220,7 @@ app.post('/api/new/events/:id/respond', requireAuth, (req, res) => {
   if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
     addNotification({
       userId: event.created_by,
-      type: 'event_comment',
+      type: 'event_response',
       sourceUserId: req.session.userId,
       entityId: req.params.id,
       message: response === 'attend' ? 'Etkinliğine katılacağını belirtti.' : 'Etkinliğine katılamayacağını belirtti.'
@@ -13435,22 +14313,44 @@ app.post('/api/new/events/:id/comments', requireAuth, (req, res) => {
 
 app.post('/api/new/events/:id/notify', requireAuth, (req, res) => {
   const event = sqlGet(
-    "SELECT id, title FROM events WHERE id = ? AND (COALESCE(CAST(approved AS INTEGER), 1) = 1 OR LOWER(CAST(approved AS TEXT)) IN ('true','evet','yes'))",
+    "SELECT id, title, created_by FROM events WHERE id = ? AND (COALESCE(CAST(approved AS INTEGER), 1) = 1 OR LOWER(CAST(approved AS TEXT)) IN ('true','evet','yes'))",
     [req.params.id]
   );
   if (!event) return res.status(404).send('Etkinlik bulunamadı.');
-  const followers = sqlAll('SELECT follower_id FROM follows WHERE following_id = ?', [req.session.userId]);
-  for (const f of followers) {
-    if (sameUserId(f.follower_id, req.session.userId)) continue;
+  const user = getCurrentUser(req);
+  const isAdmin = hasAdminSession(req, user);
+  if (!isAdmin && !sameUserId(event.created_by, req.session.userId)) {
+    return res.status(403).send('Sadece etkinlik sahibi veya admin bildirim gonderebilir.');
+  }
+  const mode = String(req.body?.mode || 'invite').trim().toLowerCase();
+  const normalizedMode = mode === 'reminder' || mode === 'starts_soon' ? mode : 'invite';
+  const targets = normalizedMode === 'invite'
+    ? (sqlAll('SELECT follower_id AS user_id FROM follows WHERE following_id = ?', [req.session.userId]) || [])
+    : (sqlAll(
+        `SELECT DISTINCT user_id
+         FROM event_responses
+         WHERE event_id = ?
+           AND LOWER(TRIM(COALESCE(response, ''))) = 'attend'`,
+        [req.params.id]
+      ) || []);
+  let count = 0;
+  for (const row of targets) {
+    const targetUserId = Number(row?.user_id || row?.follower_id || 0);
+    if (!targetUserId || sameUserId(targetUserId, req.session.userId)) continue;
     addNotification({
-      userId: f.follower_id,
-      type: 'event_invite',
+      userId: targetUserId,
+      type: normalizedMode === 'invite' ? 'event_invite' : normalizedMode === 'reminder' ? 'event_reminder' : 'event_starts_soon',
       sourceUserId: req.session.userId,
       entityId: event.id,
-      message: `Seni "${event.title}" etkinliğine davet etti.`
+      message: normalizedMode === 'invite'
+        ? `Seni "${event.title}" etkinliğine davet etti.`
+        : normalizedMode === 'reminder'
+          ? `"${event.title}" etkinliği için hatırlatma gönderdi.`
+          : `"${event.title}" etkinliği çok yakında başlıyor.`
     });
+    count += 1;
   }
-  res.json({ ok: true, count: followers.length });
+  res.json({ ok: true, count, mode: normalizedMode });
 });
 
 app.get('/api/new/announcements', requireAuth, (req, res) => {
@@ -13532,11 +14432,26 @@ app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUplo
 });
 
 app.post('/api/new/announcements/:id/approve', requireAdmin, async (req, res) => {
-  const approved = String(req.body?.approved || '1') === '1';
+  const approvedInput = Object.prototype.hasOwnProperty.call(req.body || {}, 'approved')
+    ? req.body?.approved
+    : '1';
+  const approved = String(approvedInput) === '1';
+  const announcement = await sqlGetAsync('SELECT id, created_by, title FROM announcements WHERE id = ?', [req.params.id]);
   await sqlRunAsync(
     'UPDATE announcements SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
     [toDbFlagForColumn('announcements', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
   );
+  if (announcement?.created_by && !sameUserId(announcement.created_by, req.session.userId)) {
+    addNotification({
+      userId: announcement.created_by,
+      type: approved ? 'announcement_approved' : 'announcement_rejected',
+      sourceUserId: req.session.userId,
+      entityId: Number(req.params.id || 0),
+      message: approved
+        ? `"${announcement.title || 'Duyuru'}" duyurun yayınlandı.`
+        : `"${announcement.title || 'Duyuru'}" duyurun reddedildi.`
+    });
+  }
   res.json({ ok: true });
 });
 
@@ -14081,6 +14996,16 @@ app.post('/api/new/admin/verification-requests/:id', requireModerationPermission
     assignUserToCohort(row.user_id);
   }
 
+  addNotification({
+    userId: row.user_id,
+    type: status === 'approved' ? 'verification_approved' : 'verification_rejected',
+    sourceUserId: req.session.userId,
+    entityId: requestId,
+    message: status === 'approved'
+      ? 'Profil doğrulama talebin onaylandı.'
+      : 'Profil doğrulama talebin reddedildi.'
+  });
+
   logAdminAction(req, 'verification_request_review', {
     targetType: 'verification_request',
     targetId: requestId,
@@ -14206,6 +15131,15 @@ app.post('/api/new/admin/requests/:id/review', requireModerationPermission('requ
       sqlRun('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [nextYear, row.user_id]);
     }
   }
+  addNotification({
+    userId: row.user_id,
+    type: status === 'approved' ? 'member_request_approved' : 'member_request_rejected',
+    sourceUserId: req.session.userId,
+    entityId: requestId,
+    message: status === 'approved'
+      ? 'Üye talebin sonuçlandırıldı ve onaylandı.'
+      : 'Üye talebin sonuçlandırıldı ve reddedildi.'
+  });
   logAdminAction(req, 'member_request_review', {
     targetType: 'member_request',
     targetId: requestId,

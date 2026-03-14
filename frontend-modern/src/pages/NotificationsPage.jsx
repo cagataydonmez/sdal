@@ -5,11 +5,19 @@ import { readApiPayload } from '../utils/api.js';
 import { bulkReadNotifications, openNotification, readNotification, runNotificationAction } from '../utils/notificationApi.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
-import { buildNotificationViewModel, getNotificationCategoryLabel } from '../utils/notificationRegistry.js';
+import { buildNotificationViewModel, getNotificationCategoryLabel, getNotificationExperimentVariant } from '../utils/notificationRegistry.js';
+import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS, updateNotificationPreferences } from '../utils/notificationPreferences.js';
 import { NOTIFICATION_TELEMETRY_EVENTS, sendNotificationTelemetry } from '../utils/notificationTelemetry.js';
 import NotificationCard from '../components/NotificationCard.jsx';
 
 const PAGE_SIZE = 20;
+
+function mergeUniqueById(prev, next) {
+  const map = new Map();
+  for (const item of prev || []) map.set(Number(item?.id || 0), item);
+  for (const item of next || []) map.set(Number(item?.id || 0), item);
+  return Array.from(map.values()).filter((item) => Number(item?.id || 0) > 0);
+}
 
 export default function NotificationsPage() {
   const { t } = useI18n();
@@ -20,9 +28,14 @@ export default function NotificationsPage() {
   const [busyId, setBusyId] = useState(0);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState('');
+  const [preferences, setPreferences] = useState(NOTIFICATION_PREFERENCE_DEFAULTS);
+  const [experiments, setExperiments] = useState({ assignments: {}, configs: [] });
+  const [preferencesLoading, setPreferencesLoading] = useState(true);
+  const [preferencesBusy, setPreferencesBusy] = useState(false);
+  const [preferencesStatus, setPreferencesStatus] = useState('');
   const sentinelRef = useRef(null);
-  const itemsRef = useRef([]);
   const loadingRef = useRef(false);
+  const nextCursorRef = useRef('');
   const impressionIdsRef = useRef(new Set());
   const knownUnreadIdsRef = useRef(new Set());
   const hydratedRef = useRef(false);
@@ -34,20 +47,38 @@ export default function NotificationsPage() {
     { key: 'groups', label: 'Gruplar' },
     { key: 'events', label: 'Etkinlikler' },
     { key: 'jobs', label: 'İlanlar' },
-    { key: 'social', label: 'Sosyal' }
+    { key: 'social', label: 'Sosyal' },
+    { key: 'system', label: 'Sistem' }
   ]), []);
+  const sortOrderVariant = getNotificationExperimentVariant(experiments.assignments, 'sort_order', 'priority');
+  const inboxLayoutVariant = getNotificationExperimentVariant(experiments.assignments, 'inbox_layout', 'grouped');
+  const ctaWordingVariant = getNotificationExperimentVariant(experiments.assignments, 'cta_wording', 'neutral');
 
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
+  const loadPreferences = useCallback(async () => {
+    setPreferencesLoading(true);
+    const result = await fetchNotificationPreferences();
+    if (result.ok) {
+      setPreferences(result.preferences);
+      setExperiments(result.experiments);
+      setPreferencesStatus('');
+    } else {
+      setError(result.message || 'Bildirim tercihleri yüklenemedi.');
+    }
+    setPreferencesLoading(false);
+  }, []);
 
   const load = useCallback(async (append = false) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     setError('');
-    const offset = append ? itemsRef.current.length : 0;
-    const res = await fetch(`/api/new/notifications?limit=${PAGE_SIZE}&offset=${offset}`, { credentials: 'include', cache: 'no-store' });
+    const cursor = append ? String(nextCursorRef.current || '').trim() : '';
+    const query = new URLSearchParams({
+      limit: String(PAGE_SIZE),
+      sort: sortOrderVariant === 'recent' ? 'recent' : 'priority'
+    });
+    if (cursor) query.set('cursor', cursor);
+    const res = await fetch(`/api/new/notifications?${query.toString()}`, { credentials: 'include', cache: 'no-store' });
     if (!res.ok) {
       setError('Bildirimler yüklenemedi.');
       setLoading(false);
@@ -65,15 +96,20 @@ export default function NotificationsPage() {
     }
     knownUnreadIdsRef.current = nextUnreadIds;
     hydratedRef.current = true;
-    setItems((prev) => (append ? [...prev, ...next] : next));
+    setItems((prev) => (append ? mergeUniqueById(prev, next) : next));
     setHasMore(Boolean(data?.hasMore));
+    nextCursorRef.current = String(data?.next_cursor || '').trim();
     setLoading(false);
     loadingRef.current = false;
-  }, [t]);
+  }, [sortOrderVariant, t]);
 
   useEffect(() => {
     load(false);
   }, [load]);
+
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
 
   useLiveRefresh(() => load(false), { intervalMs: 12000, eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action'] });
 
@@ -117,7 +153,7 @@ export default function NotificationsPage() {
     [items]
   );
   const groupedCounts = useMemo(() => {
-    const counts = { networking: 0, groups: 0, events: 0, jobs: 0, social: 0 };
+    const counts = { networking: 0, groups: 0, events: 0, jobs: 0, social: 0, system: 0 };
     for (const item of items) {
       if (counts[item.category] != null) counts[item.category] += 1;
     }
@@ -201,10 +237,95 @@ export default function NotificationsPage() {
     setBulkBusy(false);
   }
 
+  async function handleSavePreferences() {
+    setPreferencesBusy(true);
+    setPreferencesStatus('');
+    const result = await updateNotificationPreferences(preferences);
+    if (result.ok) {
+      setPreferences(result.preferences);
+      setPreferencesStatus('Bildirim tercihleri güncellendi.');
+      emitAppChange('notification:preferences-updated', { preferences: result.preferences });
+    } else {
+      setError(result.message || 'Bildirim tercihleri güncellenemedi.');
+    }
+    setPreferencesBusy(false);
+  }
+
   return (
     <Layout title={t('nav_notifications')}>
       <div className="panel">
         <div className="panel-body">
+          <div className="notification-preferences-panel">
+            <div className="notification-page-heading">
+              <strong>Bildirim tercihleri</strong>
+              <span className="meta">
+                Sıralama: {sortOrderVariant === 'recent' ? 'En yeni önce' : 'Öncelik önce'} ·
+                Düzen: {inboxLayoutVariant === 'flat' ? 'Düz akış' : 'Gruplu'}
+              </span>
+            </div>
+            <div className="notification-preferences-grid">
+              {Object.entries(preferences.categories || {}).map(([key, enabled]) => (
+                <label key={key} className="notification-preference-toggle">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(enabled)}
+                    onChange={(e) => setPreferences((prev) => ({
+                      ...prev,
+                      categories: { ...prev.categories, [key]: e.target.checked }
+                    }))}
+                  />
+                  <span>{getNotificationCategoryLabel(key)}</span>
+                </label>
+              ))}
+            </div>
+            <div className="notification-preferences-grid">
+              <label className="notification-preference-toggle">
+                <input
+                  type="checkbox"
+                  checked={Boolean(preferences?.quiet_mode?.enabled)}
+                  onChange={(e) => setPreferences((prev) => ({
+                    ...prev,
+                    quiet_mode: { ...prev.quiet_mode, enabled: e.target.checked }
+                  }))}
+                />
+                <span>Sessiz mod</span>
+              </label>
+              <label className="form-row">
+                <span className="meta">Başlangıç</span>
+                <input
+                  className="input"
+                  type="time"
+                  value={preferences?.quiet_mode?.start || ''}
+                  onChange={(e) => setPreferences((prev) => ({
+                    ...prev,
+                    quiet_mode: { ...prev.quiet_mode, start: e.target.value }
+                  }))}
+                />
+              </label>
+              <label className="form-row">
+                <span className="meta">Bitiş</span>
+                <input
+                  className="input"
+                  type="time"
+                  value={preferences?.quiet_mode?.end || ''}
+                  onChange={(e) => setPreferences((prev) => ({
+                    ...prev,
+                    quiet_mode: { ...prev.quiet_mode, end: e.target.value }
+                  }))}
+                />
+              </label>
+            </div>
+            <div className="composer-actions">
+              <button className="btn ghost" onClick={loadPreferences} disabled={preferencesLoading || preferencesBusy}>
+                {preferencesLoading ? t('loading') : 'Tercihleri yenile'}
+              </button>
+              <button className="btn primary" onClick={handleSavePreferences} disabled={preferencesBusy || preferencesLoading}>
+                {preferencesBusy ? t('loading') : 'Tercihleri kaydet'}
+              </button>
+            </div>
+            {preferencesStatus ? <div className="ok">{preferencesStatus}</div> : null}
+          </div>
+
           <div className="notification-page-summary">
             <div className="notification-summary-card">
               <strong>{unreadCount}</strong>
@@ -221,6 +342,10 @@ export default function NotificationsPage() {
             <div className="notification-summary-card">
               <strong>{groupedCounts.groups + groupedCounts.events + groupedCounts.jobs + groupedCounts.social}</strong>
               <span>Diğer akışlar</span>
+            </div>
+            <div className="notification-summary-card">
+              <strong>{groupedCounts.system}</strong>
+              <span>Sistem</span>
             </div>
           </div>
 
@@ -249,47 +374,75 @@ export default function NotificationsPage() {
           {error ? <div className="muted">{error}</div> : null}
           {filteredItems.length === 0 ? <div className="muted">{t('notifications_empty')}</div> : null}
 
-          {actionItems.length > 0 ? (
-            <div className="notification-page-section">
-              <div className="notification-page-heading">
-                <strong>Aksiyon Gerekenler</strong>
-                <span className="meta">{actionItems.length} kayıt</span>
+          {inboxLayoutVariant === 'flat' ? (
+            filteredItems.length > 0 ? (
+              <div className="notification-page-section">
+                <div className="notification-page-heading">
+                  <strong>Bildirim akışı</strong>
+                  <span className="meta">{filteredItems.length} kayıt</span>
+                </div>
+                <div className="notification-card-stack">
+                  {filteredItems.map((item) => (
+                    <NotificationCard
+                      key={item.id}
+                      notification={item}
+                      busy={busyId === Number(item.id || 0)}
+                      ctaVariant={ctaWordingVariant}
+                      onOpen={handleOpen}
+                      onRead={handleRead}
+                      onAction={handleAction}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="notification-card-stack">
-                {actionItems.map((item) => (
-                  <NotificationCard
-                    key={item.id}
-                    notification={item}
-                    busy={busyId === Number(item.id || 0)}
-                    onOpen={handleOpen}
-                    onRead={handleRead}
-                    onAction={handleAction}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
+            ) : null
+          ) : (
+            <>
+              {actionItems.length > 0 ? (
+                <div className="notification-page-section">
+                  <div className="notification-page-heading">
+                    <strong>Aksiyon Gerekenler</strong>
+                    <span className="meta">{actionItems.length} kayıt</span>
+                  </div>
+                  <div className="notification-card-stack">
+                    {actionItems.map((item) => (
+                      <NotificationCard
+                        key={item.id}
+                        notification={item}
+                        busy={busyId === Number(item.id || 0)}
+                        ctaVariant={ctaWordingVariant}
+                        onOpen={handleOpen}
+                        onRead={handleRead}
+                        onAction={handleAction}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
-          {recentItems.length > 0 ? (
-            <div className="notification-page-section">
-              <div className="notification-page-heading">
-                <strong>Son Güncellemeler</strong>
-                <span className="meta">{recentItems.length} kayıt</span>
-              </div>
-              <div className="notification-card-stack">
-                {recentItems.map((item) => (
-                  <NotificationCard
-                    key={item.id}
-                    notification={item}
-                    busy={busyId === Number(item.id || 0)}
-                    onOpen={handleOpen}
-                    onRead={handleRead}
-                    onAction={handleAction}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
+              {recentItems.length > 0 ? (
+                <div className="notification-page-section">
+                  <div className="notification-page-heading">
+                    <strong>Son Güncellemeler</strong>
+                    <span className="meta">{recentItems.length} kayıt</span>
+                  </div>
+                  <div className="notification-card-stack">
+                    {recentItems.map((item) => (
+                      <NotificationCard
+                        key={item.id}
+                        notification={item}
+                        busy={busyId === Number(item.id || 0)}
+                        ctaVariant={ctaWordingVariant}
+                        onOpen={handleOpen}
+                        onRead={handleRead}
+                        onAction={handleAction}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
           <div ref={sentinelRef} />
           {loading ? <div className="muted">{t('loading')}</div> : null}
           {!hasMore && items.length > 0 ? <div className="muted">{t('notifications_all_loaded')}</div> : null}

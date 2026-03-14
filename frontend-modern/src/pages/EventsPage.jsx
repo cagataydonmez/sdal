@@ -30,6 +30,34 @@ function mergeUniqueById(prev, next) {
   return Array.from(map.values());
 }
 
+function notificationFocusCopy(focus, canManageEvent) {
+  const normalizedFocus = String(focus || '').trim().toLowerCase();
+  if (normalizedFocus === 'response') {
+    return canManageEvent
+      ? {
+          title: 'Yanıt akışı',
+          message: 'Bu bildirim seni etkinliğin yanıt akışına getirdi. Katılımcı durumunu, görünürlük ayarlarını ve bildirim araçlarını buradan yönetebilirsin.'
+        }
+      : {
+          title: 'Katılım yanıtı',
+          message: 'Bu bildirim seni etkinlik yanıt alanına getirdi. Katılacağını veya katılamayacağını burada hızlıca güncelleyebilirsin.'
+        };
+  }
+  if (normalizedFocus === 'comments') {
+    return {
+      title: 'Yorum akışı',
+      message: 'Bu bildirim etkinlik yorumlarına bağlı. Yorum geçmişini gözden geçirip gerekirse burada cevap verebilirsin.'
+    };
+  }
+  if (normalizedFocus === 'details') {
+    return {
+      title: 'Etkinlik güncellemesi',
+      message: 'Bu bildirim etkinliğin detaylarına bağlı. Tarih, yer ve son duyuru akışı bu kart içinde odakta.'
+    };
+  }
+  return null;
+}
+
 export default function EventsPage() {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -42,6 +70,7 @@ export default function EventsPage() {
   const [responsePrefs, setResponsePrefs] = useState({});
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [notifyBusyId, setNotifyBusyId] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef(null);
@@ -50,6 +79,7 @@ export default function EventsPage() {
   const loadingMoreRef = useRef(false);
   const cardRefs = useRef(new Map());
   const focusedEventId = Number(searchParams.get('event') || 0);
+  const focusedNotificationFocus = String(searchParams.get('focus') || '').trim().toLowerCase();
   const notificationId = Number(searchParams.get('notification') || 0);
   const notificationLandingResolved = !notificationId || !focusedEventId || events.some((item) => Number(item.id || 0) === focusedEventId);
 
@@ -161,9 +191,28 @@ export default function EventsPage() {
     setComments((prev) => ({ ...prev, [eventId]: c.items || [] }));
   }
 
-  async function notifyFollowers(eventId) {
-    const res = await apiJson(`/api/new/events/${eventId}/notify`, { method: 'POST' });
-    setStatus(t('events_notify_count', { count: res.count || 0 }));
+  async function notifyEventAudience(eventId, mode = 'invite') {
+    setError('');
+    setStatus('');
+    setNotifyBusyId(Number(eventId || 0));
+    try {
+      const res = await apiJson(`/api/new/events/${eventId}/notify`, {
+        method: 'POST',
+        body: JSON.stringify({ mode })
+      });
+      const count = Number(res.count || 0);
+      if (mode === 'reminder') {
+        setStatus(count > 0 ? `${count} katılımcıya hatırlatma gönderildi.` : 'Hatırlatma gönderilecek katılımcı bulunamadı.');
+      } else if (mode === 'starts_soon') {
+        setStatus(count > 0 ? `${count} katılımcıya “başlıyor” bildirimi gönderildi.` : 'Başlıyor bildirimi gönderilecek katılımcı bulunamadı.');
+      } else {
+        setStatus(t('events_notify_count', { count }));
+      }
+    } catch (err) {
+      setError(err.message || 'Etkinlik bildirimi gönderilemedi.');
+    } finally {
+      setNotifyBusyId(0);
+    }
   }
 
   async function respondToEvent(eventId, response) {
@@ -220,6 +269,14 @@ export default function EventsPage() {
           >
             <h3>{e.title}</h3>
             <div className="panel-body">
+              {focusedEventId === Number(e.id || 0) && notificationId && notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0)) ? (
+                <div className="panel notification-focus-inline-panel notification-focus-card">
+                  <div className="panel-body">
+                    <strong>{notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0)).title}</strong>
+                    <p className="muted">{notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0)).message}</p>
+                  </div>
+                </div>
+              ) : null}
               <div className="meta">{e.location} · {formatDateTime(e.starts_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>
               {e.image ? <img className="post-image" src={e.image} alt="" /> : null}
               <TranslatableHtml html={e.description || ''} />
@@ -298,7 +355,19 @@ export default function EventsPage() {
                 </div>
               ) : null}
               <div className="composer-actions">
-                <button className="btn ghost" onClick={() => notifyFollowers(e.id)}>{t('events_notify_followers')}</button>
+                {isAdmin || Number(e.created_by || 0) === Number(user?.id || 0) ? (
+                  <>
+                    <button className="btn ghost" disabled={notifyBusyId === Number(e.id || 0)} onClick={() => notifyEventAudience(e.id, 'invite')}>
+                      {t('events_notify_followers')}
+                    </button>
+                    <button className="btn ghost" disabled={notifyBusyId === Number(e.id || 0)} onClick={() => notifyEventAudience(e.id, 'reminder')}>
+                      Katılımcılara hatırlatma
+                    </button>
+                    <button className="btn ghost" disabled={notifyBusyId === Number(e.id || 0)} onClick={() => notifyEventAudience(e.id, 'starts_soon')}>
+                      Başlıyor bildirimi
+                    </button>
+                  </>
+                ) : null}
                 {isAdmin ? (
                   <>
                     {Number(e.approved || 0) !== 1 ? <button className="btn" onClick={() => approve(e.id, true)}>{t('approve')}</button> : null}

@@ -13,6 +13,10 @@ function safeJsonParse(value) {
   }
 }
 
+function unwrapData(payload) {
+  return payload?.data || payload || {};
+}
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
 }
@@ -39,6 +43,10 @@ export default function NotificationsSection({ canViewRequests = false, canModer
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedRow, setSelectedRow] = useState(null);
+  const [ops, setOps] = useState(null);
+  const [governance, setGovernance] = useState({ checklist: [], inventory: [] });
+  const [experiments, setExperiments] = useState([]);
+  const [experimentBusyKey, setExperimentBusyKey] = useState('');
 
   useEffect(() => {
     if (!availableKinds.includes(kind)) {
@@ -53,6 +61,24 @@ export default function NotificationsSection({ canViewRequests = false, canModer
       setCategories(data.items || []);
     } catch {
       setCategories([]);
+    }
+  }, [isAdmin]);
+
+  const loadAdminOps = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const [opsPayload, governancePayload, experimentsPayload] = await Promise.all([
+        adminClient.get('/api/new/admin/notifications/ops?window=30d'),
+        adminClient.get('/api/new/admin/notifications/governance'),
+        adminClient.get('/api/new/admin/notifications/experiments')
+      ]);
+      setOps(unwrapData(opsPayload));
+      setGovernance(unwrapData(governancePayload));
+      setExperiments(unwrapData(experimentsPayload).items || []);
+    } catch {
+      setOps(null);
+      setGovernance({ checklist: [], inventory: [] });
+      setExperiments([]);
     }
   }, [isAdmin]);
 
@@ -89,6 +115,10 @@ export default function NotificationsSection({ canViewRequests = false, canModer
   useEffect(() => {
     loadCategories();
   }, [loadCategories]);
+
+  useEffect(() => {
+    loadAdminOps();
+  }, [loadAdminOps]);
 
   const reviewRequest = useCallback(async (id, status) => {
     if (!canModerateRequests) return;
@@ -154,6 +184,16 @@ export default function NotificationsSection({ canViewRequests = false, canModer
 
   const selectedPayload = kind === 'requests' ? safeJsonParse(selectedRow?.payload_json) : null;
 
+  async function saveExperiment(experiment) {
+    setExperimentBusyKey(experiment.key);
+    await adminClient.put(`/api/new/admin/notifications/experiments/${experiment.key}`, {
+      status: experiment.status,
+      variants: experiment.variants
+    });
+    await loadAdminOps();
+    setExperimentBusyKey('');
+  }
+
   return (
     <section className="stack">
       <div className="ops-head-row">
@@ -177,6 +217,160 @@ export default function NotificationsSection({ canViewRequests = false, canModer
             </button>
           ))}
         </div>
+      ) : null}
+
+      {isAdmin && ops ? (
+        <>
+          <div className="ops-card-grid">
+            <div className="ops-kpi-card">
+              <span>Inserted</span>
+              <b>{Number(ops.delivery_summary?.inserted || 0)}</b>
+            </div>
+            <div className="ops-kpi-card">
+              <span>Skipped</span>
+              <b>{Number(ops.delivery_summary?.skipped || 0)}</b>
+            </div>
+            <div className="ops-kpi-card">
+              <span>Failed</span>
+              <b>{Number(ops.delivery_summary?.failed || 0)}</b>
+            </div>
+            <div className="ops-kpi-card">
+              <span>Quiet mode users</span>
+              <b>{Number(ops.quiet_mode_enabled_users || 0)}</b>
+            </div>
+          </div>
+
+          <div className="ops-card-grid">
+            <div className="panel">
+              <div className="panel-body">
+                <strong>Alerts</strong>
+                {(ops.alerts || []).length ? (
+                  <div className="stack">
+                    {(ops.alerts || []).map((item) => (
+                      <div key={`${item.code}-${item.surface || 'global'}`} className="chip">
+                        {item.severity || 'info'} · {item.message}
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="muted">Aktif alert yok.</div>}
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-body">
+                <strong>Noisy types</strong>
+                {(ops.noisy_types || []).length ? (
+                  <div className="stack">
+                    {(ops.noisy_types || []).slice(0, 8).map((item) => (
+                      <div key={item.type} className="chip">
+                        {item.type} · {item.count}
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="muted">Veri yok.</div>}
+              </div>
+            </div>
+          </div>
+
+          <div className="ops-card-grid">
+            <div className="panel">
+              <div className="panel-body">
+                <strong>Unread aging</strong>
+                {(ops.unread_aging || []).length ? (
+                  <div className="stack">
+                    {(ops.unread_aging || []).slice(0, 8).map((item) => (
+                      <div key={item.type} className="chip">
+                        {item.type} · unread {item.unread_count} · 1g {item.older_than_1d} · 7g {item.older_than_7d}
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="muted">Bekleyen okunmamış yük yok.</div>}
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-body">
+                <strong>Surface conversion</strong>
+                {(ops.surface_conversion || []).length ? (
+                  <div className="stack">
+                    {(ops.surface_conversion || []).map((item) => (
+                      <div key={item.surface} className="chip">
+                        {item.surface} · open {(Number(item.open_rate || 0) * 100).toFixed(0)}% · action {(Number(item.action_rate || 0) * 100).toFixed(0)}%
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="muted">Conversion verisi yok.</div>}
+              </div>
+            </div>
+          </div>
+
+          <div className="ops-card-grid">
+            <div className="panel">
+              <div className="panel-body">
+                <strong>Governance checklist</strong>
+                <div className="stack">
+                  {(governance.checklist || []).map((item) => (
+                    <div key={item.key}>
+                      <div><b>{item.label}</b></div>
+                      <div className="muted">{item.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-body">
+                <strong>Type inventory</strong>
+                <div className="stack">
+                  {(governance.inventory || []).slice(0, 10).map((item) => (
+                    <div key={item.type} className="chip">
+                      {item.type} · {item.category} · {item.priority} {item.has_dedupe_rule ? '· dedupe' : ''}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-body">
+              <strong>Experiments</strong>
+              <div className="stack">
+                {experiments.map((item) => (
+                  <div key={item.key} className="notification-admin-experiment-row">
+                    <div>
+                      <div><b>{item.label || item.key}</b></div>
+                      <div className="muted">{item.description}</div>
+                    </div>
+                    <select
+                      className="input"
+                      value={item.status}
+                      onChange={(e) => setExperiments((prev) => prev.map((row) => (
+                        row.key === item.key ? { ...row, status: e.target.value } : row
+                      )))}
+                    >
+                      <option value="active">active</option>
+                      <option value="paused">paused</option>
+                    </select>
+                    <input
+                      className="input"
+                      value={Array.isArray(item.variants) ? item.variants.join(', ') : ''}
+                      onChange={(e) => setExperiments((prev) => prev.map((row) => (
+                        row.key === item.key
+                          ? { ...row, variants: e.target.value.split(',').map((entry) => entry.trim()).filter(Boolean) }
+                          : row
+                      )))}
+                    />
+                    <button className="btn ghost" disabled={experimentBusyKey === item.key} onClick={() => saveExperiment(item).catch(() => {})}>
+                      {experimentBusyKey === item.key ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
       ) : null}
 
       <AdminFilterBar

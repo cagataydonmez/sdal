@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { formatDateTime } from '../utils/date.js';
@@ -6,6 +7,7 @@ import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -30,6 +32,7 @@ function mergeUniqueById(prev, next) {
 export default function AnnouncementsPage() {
   const { t } = useI18n();
   const { user } = useAuth();
+  const location = useLocation();
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: '', body: '' });
   const [imageFile, setImageFile] = useState(null);
@@ -39,8 +42,19 @@ export default function AnnouncementsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef(null);
   const itemsRef = useRef([]);
+  const cardRefs = useRef(new Map());
   const loadingMoreRef = useRef(false);
   const isAdmin = user?.admin === 1;
+  const searchParams = useMemo(() => new URLSearchParams(location.search || ''), [location.search]);
+  const highlightedAnnouncementId = Number(searchParams.get('announcement') || 0);
+  const notificationId = Number(searchParams.get('notification') || 0);
+  const notificationStatus = String(searchParams.get('status') || '').trim().toLowerCase();
+  const landingResolved = !notificationId || !highlightedAnnouncementId || items.some((item) => Number(item.id || 0) === highlightedAnnouncementId);
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'announcements_page',
+    resolved: landingResolved
+  });
 
   useEffect(() => {
     itemsRef.current = items;
@@ -75,6 +89,14 @@ export default function AnnouncementsPage() {
     io.observe(node);
     return () => io.disconnect();
   }, [loadMore]);
+
+  useEffect(() => {
+    if (!highlightedAnnouncementId || !items.length) return;
+    const timer = window.setTimeout(() => {
+      cardRefs.current.get(highlightedAnnouncementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [highlightedAnnouncementId, items]);
 
   async function create() {
     setError('');
@@ -129,8 +151,25 @@ export default function AnnouncementsPage() {
       </div>
 
       <div className="stack">
+        {notificationId && notificationStatus ? (
+          <div className="notification-focus-inline-panel">
+            <strong>Duyuru kararı güncellendi</strong>
+            <div className="muted">
+              {notificationStatus === 'approved'
+                ? 'Duyuru önerin onaylandı ve yayına alındı.'
+                : 'Duyuru önerin reddedildi. Gerekirse metni güncelleyip tekrar gönderebilirsin.'}
+            </div>
+          </div>
+        ) : null}
         {items.map((a) => (
-          <div key={a.id} className="panel">
+          <div
+            key={a.id}
+            ref={(node) => {
+              if (node) cardRefs.current.set(Number(a.id || 0), node);
+              else cardRefs.current.delete(Number(a.id || 0));
+            }}
+            className={`panel${Number(a.id || 0) === highlightedAnnouncementId ? ' notification-focus-card' : ''}`}
+          >
             <h3>{a.title}</h3>
             <div className="panel-body">
               {a.image ? <img className="post-image" src={a.image} alt="" /> : null}
