@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useNetworkingHubState } from '../hooks/useNetworkingHubState.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
 
 function daysSince(value) {
@@ -126,6 +127,24 @@ export default function NetworkingHubPage() {
   const focusedSection = String(searchParams.get('section') || '').trim();
   const focusedRequestId = Number(searchParams.get('request') || 0);
   const focusedNotificationId = Number(searchParams.get('notification') || 0);
+  const notificationLandingResolved = !focusedNotificationId || (
+    focusedSection === 'incoming-connections'
+      ? incoming.some((item) => Number(item.id || 0) === focusedRequestId)
+      : focusedSection === 'incoming-mentorship'
+        ? incomingMentorship.some((item) => Number(item.id || 0) === focusedRequestId)
+        : focusedSection === 'outgoing-connections'
+          ? outgoing.some((item) => Number(item.id || 0) === focusedRequestId)
+          : focusedSection === 'outgoing-mentorship'
+            ? outgoingMentorship.some((item) => Number(item.id || 0) === focusedRequestId)
+            : focusedSection === 'teacher-notifications'
+              ? teacherEvents.some((item) => Number(item.id || 0) === focusedNotificationId)
+              : Boolean(focusedSection)
+  );
+
+  useNotificationNavigationTracking(focusedNotificationId, {
+    surface: 'network_hub',
+    resolved: notificationLandingResolved
+  });
 
   useEffect(() => {
     void sendNetworkingTelemetry({

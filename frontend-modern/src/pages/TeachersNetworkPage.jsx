@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { readApiPayload } from '../utils/api.js';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 import { NETWORKING_MESSAGES } from '../utils/networkingRegistry.js';
 import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
 
@@ -61,6 +62,7 @@ export default function TeachersNetworkPage() {
   const [searchParams] = useSearchParams();
   const deepLinkedTeacherId = Math.max(parseInt(searchParams.get('teacherId') || '0', 10), 0);
   const highlightedLinkId = Math.max(parseInt(searchParams.get('link') || '0', 10), 0);
+  const notificationId = Math.max(parseInt(searchParams.get('notification') || '0', 10), 0);
   const reviewParam = String(searchParams.get('review') || '').trim().toLowerCase();
   const [direction, setDirection] = useState('my_teachers');
   const [relationshipType, setRelationshipType] = useState('');
@@ -99,6 +101,16 @@ export default function TeachersNetworkPage() {
     ? 'Bu görünüm mezun olarak ilişkilendirdiğin öğretmenleri ve geçmiş bağlarını gösterir.'
     : 'Bu görünüm öğretmen hesabına bağlanan öğrencileri ve ilişki bağlamını listeler.';
   const relationshipHelper = RELATIONSHIP_HELPERS[form.relationship_type] || RELATIONSHIP_HELPERS.taught_in_class;
+  const notificationLandingResolved = !notificationId || (
+    highlightedLinkId > 0
+      ? Boolean(reviewParam) || items.some((item) => Number(item.id || 0) === highlightedLinkId)
+      : true
+  );
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'teachers_network_page',
+    resolved: notificationLandingResolved
+  });
 
   const loadTeacherOptions = useCallback(async (term = '') => {
     try {

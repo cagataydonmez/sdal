@@ -4,7 +4,7 @@ import Layout from '../components/Layout.jsx';
 import { readApiPayload } from '../utils/api.js';
 import { bulkReadNotifications, openNotification, readNotification, runNotificationAction } from '../utils/notificationApi.js';
 import { useI18n } from '../utils/i18n.jsx';
-import { useLiveRefresh } from '../utils/live.js';
+import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { buildNotificationViewModel, getNotificationCategoryLabel } from '../utils/notificationRegistry.js';
 import { NOTIFICATION_TELEMETRY_EVENTS, sendNotificationTelemetry } from '../utils/notificationTelemetry.js';
 import NotificationCard from '../components/NotificationCard.jsx';
@@ -24,6 +24,8 @@ export default function NotificationsPage() {
   const itemsRef = useRef([]);
   const loadingRef = useRef(false);
   const impressionIdsRef = useRef(new Set());
+  const knownUnreadIdsRef = useRef(new Set());
+  const hydratedRef = useRef(false);
   const selectedTab = String(searchParams.get('tab') || 'all').trim().toLowerCase();
   const tabs = useMemo(() => ([
     { key: 'all', label: 'Tümü' },
@@ -54,6 +56,15 @@ export default function NotificationsPage() {
     }
     const { data } = await readApiPayload(res, '');
     const next = Array.isArray(data?.items) ? data.items.map(buildNotificationViewModel) : [];
+    const nextUnreadIds = new Set(next.filter((item) => !item.read_at).map((item) => Number(item.id || 0)).filter((value) => value > 0));
+    if (append === false && hydratedRef.current) {
+      const newUnreadIds = Array.from(nextUnreadIds).filter((id) => !knownUnreadIdsRef.current.has(id));
+      if (newUnreadIds.length > 0) {
+        emitAppChange('notification:new', { ids: newUnreadIds, source: 'notifications_page_poll' });
+      }
+    }
+    knownUnreadIdsRef.current = nextUnreadIds;
+    hydratedRef.current = true;
     setItems((prev) => (append ? [...prev, ...next] : next));
     setHasMore(Boolean(data?.hasMore));
     setLoading(false);

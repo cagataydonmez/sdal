@@ -319,6 +319,18 @@ export function ensureSqliteRuntimeSchema(db) {
       action_kind TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS notification_delivery_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_id INTEGER,
+      user_id INTEGER,
+      source_user_id INTEGER,
+      entity_id INTEGER,
+      notification_type TEXT,
+      delivery_status TEXT NOT NULL,
+      skip_reason TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS email_change_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,

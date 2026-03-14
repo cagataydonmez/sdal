@@ -45,6 +45,18 @@ bootstrapDb.exec(`
     read_at TEXT,
     created_at TEXT
   );
+  CREATE TABLE IF NOT EXISTS notification_delivery_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    notification_id INTEGER,
+    user_id INTEGER,
+    source_user_id INTEGER,
+    entity_id INTEGER,
+    notification_type TEXT,
+    delivery_status TEXT NOT NULL,
+    skip_reason TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL
+  );
 
   CREATE TABLE IF NOT EXISTS site_controls (
     id INTEGER PRIMARY KEY,
@@ -217,6 +229,8 @@ try {
   assert.match(String(decisionNotification.target?.href || ''), new RegExp(`/new/jobs\\?job=${jobId}`));
   assert.match(String(decisionNotification.target?.href || ''), new RegExp(`application=${applicationId}`));
   assert.match(String(decisionNotification.target?.href || ''), /focus=my-application/);
+  const deliveryAudit = Number(sqlGet('SELECT COUNT(*) AS cnt FROM notification_delivery_audit WHERE notification_type = ? AND delivery_status = ?', ['job_application_accepted', 'inserted']).cnt || 0);
+  assert.ok(deliveryAudit >= 1);
 
   console.log('phase2 jobs applications tests passed');
 } finally {

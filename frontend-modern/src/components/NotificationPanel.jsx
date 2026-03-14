@@ -25,6 +25,8 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
   const [error, setError] = useState('');
   const { t } = useI18n();
   const impressionIdsRef = useRef(new Set());
+  const knownUnreadIdsRef = useRef(new Set());
+  const hydratedRef = useRef(false);
 
   const load = useCallback(async ({ background = true } = {}) => {
     if (!background) {
@@ -40,6 +42,15 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
       }
       const { data } = await readApiPayload(res, '');
       const nextItems = Array.isArray(data?.items) ? data.items.map(buildNotificationViewModel) : [];
+      const nextUnreadIds = new Set(nextItems.filter((item) => !item.read_at).map((item) => Number(item.id || 0)).filter((value) => value > 0));
+      if (background && hydratedRef.current) {
+        const newUnreadIds = Array.from(nextUnreadIds).filter((id) => !knownUnreadIdsRef.current.has(id));
+        if (newUnreadIds.length > 0) {
+          emitAppChange('notification:new', { ids: newUnreadIds, source: 'notification_panel_poll' });
+        }
+      }
+      knownUnreadIdsRef.current = nextUnreadIds;
+      hydratedRef.current = true;
       setItems(nextItems);
       setHasMore(Boolean(data?.hasMore));
       if (!background) {

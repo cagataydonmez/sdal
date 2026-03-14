@@ -64,6 +64,18 @@ bootstrapDb.exec(`
     action_kind TEXT,
     created_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS notification_delivery_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    notification_id INTEGER,
+    user_id INTEGER,
+    source_user_id INTEGER,
+    entity_id INTEGER,
+    notification_type TEXT,
+    delivery_status TEXT NOT NULL,
+    skip_reason TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS site_controls (
     id INTEGER PRIMARY KEY,
     site_open INTEGER DEFAULT 1,
@@ -306,14 +318,23 @@ try {
           notification_type: teacherReviewNotification.type,
           surface: 'notification_panel',
           action_kind: 'open'
+        },
+        {
+          notification_id: teacherReviewNotification.id,
+          event_name: 'landed',
+          notification_type: teacherReviewNotification.type,
+          surface: 'teachers_network_page',
+          action_kind: 'resolved'
         }
       ]
     }
   });
   assert.equal(telemetry.res.status, 200);
-  assert.equal(Number(telemetry.data?.data?.accepted_count || 0), 2);
+  assert.equal(Number(telemetry.data?.data?.accepted_count || 0), 3);
   const telemetryCount = Number(sqlGet('SELECT COUNT(*) AS cnt FROM notification_telemetry_events WHERE user_id = ?', [senderId]).cnt || 0);
-  assert.ok(telemetryCount >= 2);
+  assert.ok(telemetryCount >= 3);
+  const deliveryAuditCount = Number(sqlGet('SELECT COUNT(*) AS cnt FROM notification_delivery_audit WHERE notification_type IN (?, ?, ?)', ['connection_request', 'job_application', 'teacher_link_review_confirmed']).cnt || 0);
+  assert.ok(deliveryAuditCount >= 3);
 
   console.log('phase2 notifications tests passed');
 } finally {

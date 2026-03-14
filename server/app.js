@@ -2325,14 +2325,130 @@ function logAdminAction(req, action, details = {}) {
 }
 
 function addNotification({ userId, type, sourceUserId, entityId, message }) {
-  if (!userId) return;
+  const normalizedType = sanitizePlainUserText(String(type || '').trim().toLowerCase(), 120);
+  const safeUserId = Number(userId || 0) || null;
+  const safeSourceUserId = Number(sourceUserId || 0) || null;
+  const safeEntityId = Number(entityId || 0) || null;
+  const now = new Date().toISOString();
+  if (!safeUserId) {
+    logNotificationDeliveryAudit({
+      notificationType: normalizedType,
+      userId: null,
+      sourceUserId: safeSourceUserId,
+      entityId: safeEntityId,
+      deliveryStatus: 'skipped',
+      skipReason: 'missing_user_id',
+      createdAt: now
+    });
+    return null;
+  }
+  try {
+    const result = sqlRun(
+      'INSERT INTO notifications (user_id, type, source_user_id, entity_id, message, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [safeUserId, normalizedType, safeSourceUserId, safeEntityId, message || '', now]
+    );
+    const notificationId = Number(result?.lastInsertRowid || 0) || null;
+    if (shouldAuditNotificationDelivery(normalizedType)) {
+      logNotificationDeliveryAudit({
+        notificationId,
+        notificationType: normalizedType,
+        userId: safeUserId,
+        sourceUserId: safeSourceUserId,
+        entityId: safeEntityId,
+        deliveryStatus: 'inserted',
+        createdAt: now
+      });
+    }
+    return notificationId;
+  } catch (err) {
+    logNotificationDeliveryAudit({
+      notificationType: normalizedType,
+      userId: safeUserId,
+      sourceUserId: safeSourceUserId,
+      entityId: safeEntityId,
+      deliveryStatus: 'failed',
+      errorMessage: err?.message || 'notification_insert_failed',
+      createdAt: now
+    });
+    throw err;
+  }
+}
+
+const NOTIFICATION_DELIVERY_AUDIT_TYPES = new Set([
+  'group_join_request',
+  'group_join_approved',
+  'group_join_rejected',
+  'group_invite',
+  'event_invite',
+  'connection_request',
+  'connection_accepted',
+  'mentorship_request',
+  'mentorship_accepted',
+  'teacher_network_linked',
+  'teacher_link_review_confirmed',
+  'teacher_link_review_flagged',
+  'teacher_link_review_rejected',
+  'teacher_link_review_merged',
+  'job_application',
+  'job_application_reviewed',
+  'job_application_accepted',
+  'job_application_rejected'
+]);
+
+function shouldAuditNotificationDelivery(type) {
+  return NOTIFICATION_DELIVERY_AUDIT_TYPES.has(String(type || '').trim().toLowerCase());
+}
+
+function ensureNotificationDeliveryAuditTable() {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS notification_delivery_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_id INTEGER,
+      user_id INTEGER,
+      source_user_id INTEGER,
+      entity_id INTEGER,
+      notification_type TEXT,
+      delivery_status TEXT NOT NULL,
+      skip_reason TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_notification_delivery_audit_created ON notification_delivery_audit (created_at DESC)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_notification_delivery_audit_type ON notification_delivery_audit (notification_type, created_at DESC)');
+}
+
+function logNotificationDeliveryAudit({
+  notificationId = null,
+  userId = null,
+  sourceUserId = null,
+  entityId = null,
+  notificationType = '',
+  deliveryStatus = '',
+  skipReason = '',
+  errorMessage = '',
+  createdAt = null
+} = {}) {
+  ensureNotificationDeliveryAuditTable();
   sqlRun(
-    'INSERT INTO notifications (user_id, type, source_user_id, entity_id, message, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    [userId, type, sourceUserId || null, entityId || null, message || '', new Date().toISOString()]
+    `INSERT INTO notification_delivery_audit
+       (notification_id, user_id, source_user_id, entity_id, notification_type, delivery_status, skip_reason, error_message, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      Number(notificationId || 0) || null,
+      Number(userId || 0) || null,
+      Number(sourceUserId || 0) || null,
+      Number(entityId || 0) || null,
+      sanitizePlainUserText(String(notificationType || '').trim().toLowerCase(), 120) || null,
+      sanitizePlainUserText(String(deliveryStatus || '').trim().toLowerCase(), 40) || 'unknown',
+      sanitizePlainUserText(String(skipReason || '').trim().toLowerCase(), 120) || null,
+      sanitizePlainUserText(String(errorMessage || '').trim(), 500) || null,
+      createdAt || new Date().toISOString()
+    ]
   );
 }
 
-const NOTIFICATION_TELEMETRY_EVENT_NAMES = new Set(['impression', 'open', 'action']);
+const NOTIFICATION_TELEMETRY_EVENT_NAMES = new Set(['impression', 'open', 'action', 'landed', 'bounce', 'no_action']);
 
 function normalizeNotificationTelemetryEventName(value) {
   const normalized = String(value || '').trim().toLowerCase();

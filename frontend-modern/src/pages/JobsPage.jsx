@@ -4,6 +4,7 @@ import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import { formatDateTime } from '../utils/date.js';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 const EMPTY_FORM = { company: '', title: '', description: '', location: '', job_type: '', link: '' };
 
@@ -35,11 +36,24 @@ export default function JobsPage() {
   const highlightedTab = String(searchParams.get('tab') || '').trim().toLowerCase();
   const highlightedFocus = String(searchParams.get('focus') || '').trim().toLowerCase();
   const highlightedApplicationId = Number(searchParams.get('application') || 0);
+  const notificationId = Number(searchParams.get('notification') || 0);
   const currentUserId = Number(user?.id || 0);
   const highlightedJob = useMemo(
     () => items.find((item) => Number(item.id || 0) === highlightedJobId) || null,
     [items, highlightedJobId]
   );
+  const notificationLandingResolved = !notificationId || (
+    highlightedFocus === 'my-application'
+      ? Boolean(highlightedJob && Number(highlightedJob.my_application_id || 0) > 0)
+      : highlightedTab === 'applications'
+        ? Boolean(highlightedJob)
+        : Boolean(highlightedJobId ? highlightedJob : true)
+  );
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'jobs_page',
+    resolved: notificationLandingResolved
+  });
 
   async function load() {
     setLoading(true);

@@ -1,7 +1,10 @@
 export const NOTIFICATION_TELEMETRY_EVENTS = Object.freeze({
   impression: 'impression',
   open: 'open',
-  action: 'action'
+  action: 'action',
+  landed: 'landed',
+  bounce: 'bounce',
+  noAction: 'no_action'
 });
 
 export async function sendNotificationTelemetry(events = []) {

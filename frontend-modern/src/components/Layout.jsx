@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../utils/auth.jsx';
-import { useLiveRefresh } from '../utils/live.js';
+import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useTheme } from '../utils/theme.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
@@ -16,6 +16,8 @@ export default function Layout({ children, title, right }) {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
   const [moduleAccess, setModuleAccess] = useState({});
+  const unreadNotificationsRef = useRef(0);
+  const unreadHydratedRef = useRef(false);
 
   const profileImage = useMemo(() => {
     if (!user) return '/legacy/vesikalik/nophoto.jpg';
@@ -27,6 +29,8 @@ export default function Layout({ children, title, right }) {
     if (!user) {
       setUnreadCount(0);
       setUnreadNotifications(0);
+      unreadNotificationsRef.current = 0;
+      unreadHydratedRef.current = false;
       return;
     }
     try {
@@ -40,7 +44,18 @@ export default function Layout({ children, title, right }) {
       }
       if (notificationsRes.ok) {
         const payload = await notificationsRes.json();
-        setUnreadNotifications(payload.count || 0);
+        const nextUnreadNotifications = Number(payload.count || 0);
+        const previousUnreadNotifications = Number(unreadNotificationsRef.current || 0);
+        setUnreadNotifications(nextUnreadNotifications);
+        unreadNotificationsRef.current = nextUnreadNotifications;
+        if (unreadHydratedRef.current && nextUnreadNotifications > previousUnreadNotifications) {
+          emitAppChange('notification:new', {
+            count: nextUnreadNotifications,
+            delta: nextUnreadNotifications - previousUnreadNotifications,
+            source: 'layout_poll'
+          });
+        }
+        unreadHydratedRef.current = true;
       }
     } catch {
       // ignore

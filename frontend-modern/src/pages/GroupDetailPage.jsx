@@ -9,6 +9,7 @@ import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -55,6 +56,13 @@ export default function GroupDetailPage() {
   const sectionRefs = useRef(new Map());
   const focusedTab = String(searchParams.get('tab') || '').trim().toLowerCase();
   const focusedRequestId = Number(searchParams.get('request') || 0);
+  const notificationId = Number(searchParams.get('notification') || 0);
+  const notificationLandingResolved = !notificationId || ['requests', 'invite', 'events', 'announcements', 'members', 'posts'].includes(focusedTab);
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'group_detail_page',
+    resolved: notificationLandingResolved
+  });
 
   async function load() {
     setLoading(true);

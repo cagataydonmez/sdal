@@ -8,6 +8,7 @@ import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -49,6 +50,13 @@ export default function EventsPage() {
   const loadingMoreRef = useRef(false);
   const cardRefs = useRef(new Map());
   const focusedEventId = Number(searchParams.get('event') || 0);
+  const notificationId = Number(searchParams.get('notification') || 0);
+  const notificationLandingResolved = !notificationId || !focusedEventId || events.some((item) => Number(item.id || 0) === focusedEventId);
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'events_page',
+    resolved: notificationLandingResolved
+  });
 
   const isAdmin = user?.admin === 1;
 

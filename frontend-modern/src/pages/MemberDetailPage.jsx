@@ -5,6 +5,7 @@ import { useAuth } from '../utils/auth.jsx';
 import StoryBar from '../components/StoryBar.jsx';
 import { readApiPayload } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 import { NETWORKING_MESSAGES } from '../utils/networkingRegistry.js';
 
 function canLinkToTeacherNetwork(member) {
@@ -24,6 +25,7 @@ export default function MemberDetailPage() {
   const [loadingAction, setLoadingAction] = useState(false);
   const [incomingConnectionId, setIncomingConnectionId] = useState(0);
   const [outgoingRequestId, setOutgoingRequestId] = useState(0);
+  const notificationId = Number(searchParams.get('notification') || 0);
 
   useEffect(() => {
     fetch(`/api/members/${id}`, { credentials: 'include' })
@@ -60,6 +62,11 @@ export default function MemberDetailPage() {
       cancelled = true;
     };
   }, [id, user?.id]);
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'member_detail_page',
+    resolved: Boolean(member)
+  });
 
   if (!member) return <Layout title={t('member_title')}>{error ? <div className="error">{error}</div> : t('loading')}</Layout>;
 
