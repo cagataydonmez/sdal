@@ -598,6 +598,9 @@ function ensureRuntimeDefaults() {
       updated_at TEXT
     )
   `);
+  if (!hasColumn('media_settings', 'album_uploads_require_approval')) {
+    sqlRun('ALTER TABLE media_settings ADD COLUMN album_uploads_require_approval INTEGER DEFAULT 0');
+  }
   sqlRun(
     `INSERT INTO site_controls (id, site_open, maintenance_message, updated_at)
      VALUES (1, 1, ?, ?)

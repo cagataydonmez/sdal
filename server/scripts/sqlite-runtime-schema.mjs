@@ -111,6 +111,7 @@ export function ensureSqliteRuntimeSchema(db) {
       webp_quality INTEGER DEFAULT 80,
       max_upload_bytes INTEGER DEFAULT 10485760,
       avif_enabled INTEGER DEFAULT 0,
+      album_uploads_require_approval INTEGER DEFAULT 0,
       updated_at TEXT
     );
     CREATE TABLE IF NOT EXISTS verification_requests (
@@ -521,8 +522,8 @@ export function seedSqliteRuntimeDefaults(db, uploadsDir = '/var/lib/sdal/upload
 
   db.prepare(
     `INSERT OR IGNORE INTO media_settings
-      (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
-     VALUES (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, ?)`
+      (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, album_uploads_require_approval, updated_at)
+     VALUES (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, 0, ?)`
   ).run(String(uploadsDir || '/var/lib/sdal/uploads'), now);
 
   db.prepare(
