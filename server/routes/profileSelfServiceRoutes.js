@@ -445,7 +445,7 @@ export function registerProfileSelfServiceRoutes(app, {
       SELECT f.id, f.katid, f.dosyaadi, k.kategori
       FROM album_foto f
       LEFT JOIN album_kat k ON k.id = f.katid
-      WHERE f.aktif = 1
+      WHERE (COALESCE(CAST(f.aktif AS INTEGER), 0) = 1 OR LOWER(CAST(f.aktif AS TEXT)) IN ('true','evet','yes'))
       ORDER BY f.id DESC
       LIMIT 10
     `);

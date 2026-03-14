@@ -54,6 +54,10 @@ export function registerAdminOperationsRoutes(app, deps) {
     scheduleEngagementRecalculation
   } = deps;
 
+  const albumActivePredicate = dbDriver === 'postgres' ? 'aktif IS TRUE' : 'aktif = 1';
+  const albumInactivePredicate = dbDriver === 'postgres' ? 'aktif IS FALSE' : 'aktif = 0';
+  const albumActiveParam = (value) => (dbDriver === 'postgres' ? !!value : (value ? 1 : 0));
+
   function queryAdminUsers(rawQuery = {}) {
     const filter = String(rawQuery.filter || 'all').trim();
     const q = String(rawQuery.q || '').trim();
@@ -690,8 +694,8 @@ export function registerAdminOperationsRoutes(app, deps) {
     const cats = sqlAll('SELECT * FROM album_kat ORDER BY aktif DESC');
     const countRows = sqlAll(
       `SELECT katid,
-              SUM(CASE WHEN aktif = 1 THEN 1 ELSE 0 END) AS active_count,
-              SUM(CASE WHEN aktif = 0 THEN 1 ELSE 0 END) AS inactive_count
+              SUM(CASE WHEN ${albumActivePredicate} THEN 1 ELSE 0 END) AS active_count,
+              SUM(CASE WHEN ${albumInactivePredicate} THEN 1 ELSE 0 END) AS inactive_count
        FROM album_foto
        GROUP BY katid`
     );
@@ -709,7 +713,7 @@ export function registerAdminOperationsRoutes(app, deps) {
   app.post('/api/admin/album/categories', requireAlbumAdmin, (req, res) => {
     const kategori = String(req.body?.kategori || '').trim();
     const aciklama = String(req.body?.aciklama || '').trim();
-    const aktif = Number(req.body?.aktif);
+    const aktif = albumActiveParam(req.body?.aktif);
     if (!kategori) return res.status(400).send('Kategori girmedin.');
     if (!aciklama) return res.status(400).send('Açıklama girmedin.');
     const existing = sqlGet('SELECT id FROM album_kat WHERE kategori = ?', [kategori]);
@@ -724,7 +728,7 @@ export function registerAdminOperationsRoutes(app, deps) {
   app.put('/api/admin/album/categories/:id', requireAlbumAdmin, (req, res) => {
     const kategori = String(req.body?.kategori || '').trim();
     const aciklama = String(req.body?.aciklama || '').trim();
-    const aktif = Number(req.body?.aktif);
+    const aktif = albumActiveParam(req.body?.aktif);
     if (!kategori) return res.status(400).send('Bir kategori adı girmedin.');
     if (!aciklama) return res.status(400).send('Bir açıklama girmedin.');
     const dup = sqlGet('SELECT id, kategori FROM album_kat WHERE kategori = ?', [kategori]);
@@ -749,7 +753,7 @@ export function registerAdminOperationsRoutes(app, deps) {
     let where = '';
     let params = [];
     if (krt === 'onaybekleyen') {
-      where = 'WHERE aktif = 0';
+      where = `WHERE ${albumInactivePredicate}`;
     } else if (krt === 'kategori' && kid) {
       where = 'WHERE katid = ?';
       params = [kid];
@@ -818,7 +822,7 @@ export function registerAdminOperationsRoutes(app, deps) {
       }
       return res.json({ ok: true, deleted: ids.length });
     }
-    const activeValue = action === 'deaktiv' ? 0 : 1;
+    const activeValue = albumActiveParam(action !== 'deaktiv');
     for (const id of ids) {
       sqlRun('UPDATE album_foto SET aktif = ? WHERE id = ?', [activeValue, id]);
     }
@@ -828,7 +832,7 @@ export function registerAdminOperationsRoutes(app, deps) {
   app.put('/api/admin/album/photos/:id', requireAlbumAdmin, (req, res) => {
     const baslik = sanitizePlainUserText(String(req.body?.baslik || '').trim(), 255);
     const aciklama = formatUserText(req.body?.aciklama || '');
-    const aktif = Number(req.body?.aktif);
+    const aktif = albumActiveParam(req.body?.aktif);
     const katid = String(req.body?.katid || '').trim();
     sqlRun(
       'UPDATE album_foto SET baslik = ?, aciklama = ?, aktif = ?, katid = ? WHERE id = ?',

@@ -16,6 +16,8 @@ export function registerMiscAppRoutes(app, {
   isRowOnlineNow,
   mapLegacyUrl
 }) {
+  const albumPhotoActiveExpr = "(COALESCE(CAST(f.aktif AS INTEGER), 0) = 1 OR LOWER(CAST(f.aktif AS TEXT)) IN ('true','evet','yes'))";
+
   app.get('/api/album/latest', (req, res) => {
     if (!req.session.userId) return res.status(401).send('Login required');
     const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
@@ -24,7 +26,7 @@ export function registerMiscAppRoutes(app, {
       `SELECT f.id, f.katid, f.dosyaadi, f.tarih, f.hit, k.kategori
        FROM album_foto f
        LEFT JOIN album_kat k ON k.id = f.katid
-       WHERE f.aktif = 1
+       WHERE ${albumPhotoActiveExpr}
        ORDER BY f.id DESC
        LIMIT ? OFFSET ?`,
       [limit, offset]

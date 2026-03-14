@@ -30,6 +30,15 @@ export function registerMemberCommunicationRoutes(app, {
   getCurrentUser,
   addNotification
 }) {
+  const albumActiveExpr = "(COALESCE(CAST(aktif AS INTEGER), 0) = 1 OR LOWER(CAST(aktif AS TEXT)) IN ('true','evet','yes'))";
+  const albumInactiveValue = toDbFlagForColumn('album_foto', 'aktif', false);
+  const isTruthyAlbumFlag = (value) => {
+    if (value === true) return true;
+    if (Number(value) === 1) return true;
+    const raw = String(value || '').trim().toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'evet' || raw === 'yes';
+  };
+
   app.get('/api/members', async (req, res) => {
     try {
       if (!req.session.userId) return res.status(401).send('Login required');
@@ -640,10 +649,10 @@ export function registerMemberCommunicationRoutes(app, {
 
   app.get('/api/albums', (req, res) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    const categories = sqlAll('SELECT id, kategori, aciklama FROM album_kat WHERE aktif = 1 ORDER BY id');
+    const categories = sqlAll(`SELECT id, kategori, aciklama FROM album_kat WHERE ${albumActiveExpr} ORDER BY id`);
     const items = categories.map((cat) => {
-      const countRow = sqlGet('SELECT COUNT(*) AS cnt FROM album_foto WHERE aktif = 1 AND katid = ?', [cat.id]);
-      const previews = sqlAll('SELECT dosyaadi FROM album_foto WHERE aktif = 1 AND katid = ? ORDER BY id DESC LIMIT 5', [cat.id]);
+      const countRow = sqlGet(`SELECT COUNT(*) AS cnt FROM album_foto WHERE ${albumActiveExpr} AND katid = ?`, [cat.id]);
+      const previews = sqlAll(`SELECT dosyaadi FROM album_foto WHERE ${albumActiveExpr} AND katid = ? ORDER BY id DESC LIMIT 5`, [cat.id]);
       return { ...cat, count: countRow?.cnt || 0, previews: previews.map((p) => p.dosyaadi) };
     });
     res.json({ items });
@@ -651,7 +660,7 @@ export function registerMemberCommunicationRoutes(app, {
 
   app.get('/api/album/categories/active', (req, res) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    const categories = sqlAll('SELECT id, kategori FROM album_kat WHERE aktif = 1 ORDER BY kategori');
+    const categories = sqlAll(`SELECT id, kategori FROM album_kat WHERE ${albumActiveExpr} ORDER BY kategori`);
     res.json({ categories });
   });
 
@@ -668,7 +677,7 @@ export function registerMemberCommunicationRoutes(app, {
 
     if (!baslik) return res.status(400).send('Yüklemek üzere olduğun fotoğraf için bir başlık girmen gerekiyor.');
     if (!kat) return res.status(400).send('Kategori seçmelisin.');
-    const category = sqlGet('SELECT * FROM album_kat WHERE id = ? AND aktif = 1', [kat]);
+    const category = sqlGet(`SELECT * FROM album_kat WHERE id = ? AND ${albumActiveExpr}`, [kat]);
     if (!category) return res.status(400).send('Seçtiğin kategori bulunamadı.');
     if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
 
@@ -686,8 +695,8 @@ export function registerMemberCommunicationRoutes(app, {
     sqlRun('UPDATE album_kat SET sonekleme = ?, sonekleyen = ? WHERE id = ?', [new Date().toISOString(), req.session.userId, category.id]);
     sqlRun(
       `INSERT INTO album_foto (dosyaadi, katid, baslik, aciklama, aktif, ekleyenid, tarih, hit)
-       VALUES (?, ?, ?, ?, 0, ?, ?, 0)`,
-      [storedFilename, String(category.id), baslik, aciklama, req.session.userId, new Date().toISOString()]
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+      [storedFilename, String(category.id), baslik, aciklama, albumInactiveValue, req.session.userId, new Date().toISOString()]
     );
 
     res.json({ ok: true, file: storedFilename, categoryId: category.id });
@@ -697,20 +706,20 @@ export function registerMemberCommunicationRoutes(app, {
     if (!req.session.userId) return res.status(401).send('Login required');
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || '20', 10), 1), 50);
-    const category = sqlGet('SELECT id, kategori, aciklama FROM album_kat WHERE id = ? AND aktif = 1', [req.params.id]);
+    const category = sqlGet(`SELECT id, kategori, aciklama FROM album_kat WHERE id = ? AND ${albumActiveExpr}`, [req.params.id]);
     if (!category) return res.status(404).send('Kategori bulunamadı');
-    const totalRow = sqlGet('SELECT COUNT(*) AS cnt FROM album_foto WHERE aktif = 1 AND katid = ?', [req.params.id]);
+    const totalRow = sqlGet(`SELECT COUNT(*) AS cnt FROM album_foto WHERE ${albumActiveExpr} AND katid = ?`, [req.params.id]);
     const total = totalRow?.cnt || 0;
     const pages = Math.max(Math.ceil(total / pageSize), 1);
     const safePage = Math.min(page, pages);
     const offset = (safePage - 1) * pageSize;
-    const photos = sqlAll('SELECT id, dosyaadi, baslik, tarih FROM album_foto WHERE aktif = 1 AND katid = ? ORDER BY tarih LIMIT ? OFFSET ?', [req.params.id, pageSize, offset]);
+    const photos = sqlAll(`SELECT id, dosyaadi, baslik, tarih FROM album_foto WHERE ${albumActiveExpr} AND katid = ? ORDER BY tarih LIMIT ? OFFSET ?`, [req.params.id, pageSize, offset]);
     res.json({ category, photos, page: safePage, pages, total, pageSize });
   });
 
   app.get('/api/photos/:id', (req, res) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    const row = sqlGet('SELECT id, katid, dosyaadi, baslik, aciklama, tarih FROM album_foto WHERE id = ? AND aktif = 1', [req.params.id]);
+    const row = sqlGet(`SELECT id, katid, dosyaadi, baslik, aciklama, tarih FROM album_foto WHERE id = ? AND ${albumActiveExpr}`, [req.params.id]);
     if (!row) return res.status(404).send('Fotoğraf bulunamadı');
     const category = sqlGet('SELECT id, kategori FROM album_kat WHERE id = ?', [row.katid]);
     const comments = sqlAll(
@@ -743,7 +752,7 @@ export function registerMemberCommunicationRoutes(app, {
     if (!req.session.userId) return res.status(401).send('Login required');
     const photo = sqlGet('SELECT id, ekleyenid, aktif FROM album_foto WHERE id = ?', [req.params.id]);
     if (!photo) return res.status(404).send('Fotoğraf bulunamadı');
-    if (Number(photo.aktif || 0) !== 1) return res.status(400).send('Fotoğraf yoruma açık değil');
+    if (!isTruthyAlbumFlag(photo.aktif)) return res.status(400).send('Fotoğraf yoruma açık değil');
     const yorumRaw = String(req.body?.yorum || '');
     const yorum = formatUserText(yorumRaw);
     if (!yorum) return res.status(400).send('Yorum girmedin');
