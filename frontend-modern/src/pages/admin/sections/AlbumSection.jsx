@@ -58,8 +58,10 @@ export default function AlbumSection({ canManageAlbums = false }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectedPhotoId, setSelectedPhotoId] = useState(null);
   const [photoForm, setPhotoForm] = useState(DEFAULT_PHOTO_FORM);
+  const [photoComments, setPhotoComments] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
@@ -108,6 +110,22 @@ export default function AlbumSection({ canManageAlbums = false }) {
     await Promise.all([loadCategories(), loadPhotos()]);
   }, [loadCategories, loadPhotos]);
 
+  const loadComments = useCallback(async (photoId) => {
+    if (!photoId) {
+      setPhotoComments([]);
+      return;
+    }
+    setLoadingComments(true);
+    try {
+      const data = await adminClient.get(`/api/admin/album/photos/${photoId}/comments`);
+      setPhotoComments(data.comments || []);
+    } catch (err) {
+      setStatus(err.message || 'Photo comments could not be loaded.');
+    } finally {
+      setLoadingComments(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!canManageAlbums) return;
     loadCategories().catch((err) => {
@@ -125,6 +143,7 @@ export default function AlbumSection({ canManageAlbums = false }) {
   useEffect(() => {
     if (!selectedPhoto) {
       setPhotoForm(DEFAULT_PHOTO_FORM);
+      setPhotoComments([]);
       return;
     }
     setPhotoForm({
@@ -134,6 +153,16 @@ export default function AlbumSection({ canManageAlbums = false }) {
       katid: String(selectedPhoto.katid || '')
     });
   }, [selectedPhoto]);
+
+  useEffect(() => {
+    if (!selectedPhotoId) {
+      setPhotoComments([]);
+      return;
+    }
+    loadComments(selectedPhotoId).catch((err) => {
+      setStatus(err.message || 'Photo comments could not be loaded.');
+    });
+  }, [loadComments, selectedPhotoId]);
 
   const startCategoryEdit = useCallback((row) => {
     setEditingCategoryId(Number(row.id));
@@ -250,6 +279,16 @@ export default function AlbumSection({ canManageAlbums = false }) {
       setStatus(err.message || 'Photo delete failed.');
     }
   }, [loadCategories, loadPhotos, selectedPhotoId]);
+
+  const deleteComment = useCallback(async (photoId, commentId) => {
+    try {
+      await adminClient.del(`/api/admin/album/photos/${photoId}/comments/${commentId}`);
+      setStatus('Comment deleted.');
+      await Promise.all([loadComments(photoId), loadPhotos()]);
+    } catch (err) {
+      setStatus(err.message || 'Comment delete failed.');
+    }
+  }, [loadComments, loadPhotos]);
 
   const categoryColumns = useMemo(() => ([
     { key: 'kategori', label: 'Category' },
@@ -487,6 +526,44 @@ export default function AlbumSection({ canManageAlbums = false }) {
                 <div className="ops-inline-actions">
                   <button className="btn" onClick={() => savePhoto().catch(() => {})}>Save photo</button>
                   <button className="btn ghost" onClick={() => setSelectedPhotoId(null)}>Close</button>
+                </div>
+
+                <div className="panel">
+                  <div className="panel-body stack">
+                    <div className="ops-head-row">
+                      <h3>Comments</h3>
+                      <button className="btn ghost" onClick={() => loadComments(selectedPhoto.id).catch(() => {})} disabled={loadingComments}>
+                        Reload comments
+                      </button>
+                    </div>
+
+                    {loadingComments ? <div className="muted">Loading comments...</div> : null}
+
+                    {!loadingComments && !photoComments.length ? (
+                      <div className="muted">No comments for this photo.</div>
+                    ) : null}
+
+                    {!loadingComments && photoComments.length ? (
+                      <div className="stack">
+                        {photoComments.map((comment) => (
+                          <div key={comment.id} className="panel">
+                            <div className="panel-body stack">
+                              <div className="ops-head-row">
+                                <strong>{comment.uyeadi || 'Member'}</strong>
+                                <div className="ops-inline-actions">
+                                  <span className="muted">{formatDate(comment.tarih)}</span>
+                                  <button className="btn ghost" onClick={() => deleteComment(selectedPhoto.id, comment.id).catch(() => {})}>
+                                    Delete comment
+                                  </button>
+                                </div>
+                              </div>
+                              <div>{comment.yorum || '-'}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>
