@@ -77,27 +77,8 @@ bootstrapDb.exec(`
     message TEXT,
     created_at TEXT
   );
-  CREATE TABLE IF NOT EXISTS site_controls (
-    id INTEGER PRIMARY KEY,
-    site_open INTEGER DEFAULT 1,
-    maintenance_message TEXT,
-    updated_at TEXT
-  );
-  CREATE TABLE IF NOT EXISTS module_controls (
-    module_key TEXT PRIMARY KEY,
-    is_open INTEGER DEFAULT 1,
-    updated_at TEXT
-  );
 `);
 const nowTs = new Date().toISOString();
-bootstrapDb
-  .prepare('INSERT OR IGNORE INTO site_controls (id, site_open, maintenance_message, updated_at) VALUES (1, 1, ?, ?)')
-  .run('Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.', nowTs);
-for (const moduleKey of ['feed', 'main_feed', 'year_feed', 'explore', 'following', 'groups', 'messages', 'messenger', 'notifications', 'albums', 'games', 'events', 'announcements', 'jobs', 'profile', 'help', 'requests']) {
-  bootstrapDb
-    .prepare('INSERT OR IGNORE INTO module_controls (module_key, is_open, updated_at) VALUES (?, 1, ?)')
-    .run(moduleKey, nowTs);
-}
 bootstrapDb.close();
 
 process.env.SDAL_DB_PATH = runtimeDbPath;
@@ -166,6 +147,9 @@ async function login(kadi, sifre) {
 try {
   const cookieMe = await login('phase2_hub_me', 'phase2-pass-me');
   const now = new Date().toISOString();
+
+  assert.equal(Number(sqlGet("SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name = 'site_controls'")?.cnt || 0), 1);
+  assert.equal(Number(sqlGet("SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'table' AND name = 'module_controls'")?.cnt || 0), 1);
 
   sqlRun('UPDATE uyeler SET ilktarih = ? WHERE id = ?', ['2026-01-01T00:00:00.000Z', meId]);
 

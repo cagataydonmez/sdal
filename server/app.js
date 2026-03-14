@@ -1351,6 +1351,58 @@ function ensureRuntimeDefaults() {
     return;
   }
 
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS site_controls (
+      id INTEGER PRIMARY KEY,
+      site_open INTEGER DEFAULT 1,
+      maintenance_message TEXT,
+      updated_at TEXT
+    )
+  `);
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS module_controls (
+      module_key TEXT PRIMARY KEY,
+      is_open INTEGER DEFAULT 1,
+      updated_at TEXT
+    )
+  `);
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS media_settings (
+      id INTEGER PRIMARY KEY,
+      storage_provider TEXT DEFAULT 'local',
+      local_base_path TEXT,
+      thumb_width INTEGER DEFAULT 200,
+      feed_width INTEGER DEFAULT 800,
+      full_width INTEGER DEFAULT 1600,
+      webp_quality INTEGER DEFAULT 80,
+      max_upload_bytes INTEGER DEFAULT 10485760,
+      avif_enabled INTEGER DEFAULT 0,
+      updated_at TEXT
+    )
+  `);
+  sqlRun(
+    `INSERT INTO site_controls (id, site_open, maintenance_message, updated_at)
+     VALUES (1, 1, ?, ?)
+     ON CONFLICT(id) DO NOTHING`,
+    ['Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.', now]
+  );
+  for (const def of MODULE_DEFINITIONS) {
+    sqlRun(
+      `INSERT INTO module_controls (module_key, is_open, updated_at)
+       VALUES (?, 1, ?)
+       ON CONFLICT(module_key) DO UPDATE SET updated_at = excluded.updated_at`,
+      [def.key, now]
+    );
+  }
+  sqlRun(
+    `INSERT INTO media_settings
+      (id, storage_provider, local_base_path, thumb_width, feed_width, full_width, webp_quality, max_upload_bytes, avif_enabled, updated_at)
+     VALUES
+      (1, 'local', ?, 200, 800, 1600, 80, 10485760, 0, ?)
+     ON CONFLICT(id) DO NOTHING`,
+    [uploadsDir, now]
+  );
+
   if (hasTable('request_categories')) {
     for (const [categoryKey, label, description] of DEFAULT_SUPPORT_REQUEST_CATEGORIES) {
       sqlRun(
@@ -1875,6 +1927,13 @@ function invalidateControlSnapshots() {
 }
 
 function readSiteControlFromDb() {
+  if (dbDriver !== 'postgres' && !hasTable('site_controls')) {
+    return {
+      siteOpen: true,
+      maintenanceMessage: 'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.',
+      updatedAt: null
+    };
+  }
   const row = dbDriver === 'postgres'
     ? (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_settings WHERE id = 1') || {})
     : (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_controls WHERE id = 1') || {});
@@ -1895,6 +1954,9 @@ function getSiteControl() {
 }
 
 function readModuleControlMapFromDb() {
+  if (dbDriver !== 'postgres' && !hasTable('module_controls')) {
+    return Object.fromEntries(MODULE_DEFINITIONS.map((def) => [def.key, true]));
+  }
   const rows = dbDriver === 'postgres'
     ? (sqlAll('SELECT module_key, is_open FROM module_settings') || [])
     : (sqlAll('SELECT module_key, is_open FROM module_controls') || []);
