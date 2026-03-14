@@ -6,6 +6,7 @@ import { bulkReadNotifications, openNotification, readNotification, runNotificat
 import { useI18n } from '../utils/i18n.jsx';
 import { useLiveRefresh } from '../utils/live.js';
 import { buildNotificationViewModel, getNotificationCategoryLabel } from '../utils/notificationRegistry.js';
+import { NOTIFICATION_TELEMETRY_EVENTS, sendNotificationTelemetry } from '../utils/notificationTelemetry.js';
 import NotificationCard from '../components/NotificationCard.jsx';
 
 const PAGE_SIZE = 20;
@@ -22,6 +23,7 @@ export default function NotificationsPage() {
   const sentinelRef = useRef(null);
   const itemsRef = useRef([]);
   const loadingRef = useRef(false);
+  const impressionIdsRef = useRef(new Set());
   const selectedTab = String(searchParams.get('tab') || 'all').trim().toLowerCase();
   const tabs = useMemo(() => ([
     { key: 'all', label: 'Tümü' },
@@ -63,6 +65,25 @@ export default function NotificationsPage() {
   }, [load]);
 
   useLiveRefresh(() => load(false), { intervalMs: 12000, eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action'] });
+
+  useEffect(() => {
+    const nextEvents = items
+      .filter((item) => {
+        const key = `page:${Number(item.id || 0)}`;
+        if (!Number(item.id || 0) || impressionIdsRef.current.has(key)) return false;
+        impressionIdsRef.current.add(key);
+        return true;
+      })
+      .map((item) => ({
+        notification_id: Number(item.id || 0),
+        event_name: NOTIFICATION_TELEMETRY_EVENTS.impression,
+        notification_type: item.type || '',
+        surface: 'notifications_page'
+      }));
+    if (nextEvents.length) {
+      void sendNotificationTelemetry(nextEvents);
+    }
+  }, [items]);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -128,12 +149,19 @@ export default function NotificationsPage() {
         ? { ...item, read_at: item.read_at || new Date().toISOString() }
         : item
     )));
-    void openNotification(notification.id);
+    void openNotification(notification.id, {
+      surface: 'notifications_page',
+      notificationType: notification.type || ''
+    });
   }
 
   async function handleAction(notification, action) {
     setBusyId(Number(notification.id || 0));
-    const result = await runNotificationAction(action);
+    const result = await runNotificationAction(action, {
+      surface: 'notifications_page',
+      notificationId: notification.id,
+      notificationType: notification.type || ''
+    });
     if (result.ok) {
       if (action.kind === 'mark_teacher_notifications_read') {
         setItems((prev) => prev.map((item) => (

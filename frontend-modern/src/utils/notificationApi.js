@@ -1,5 +1,6 @@
 import { readApiPayload } from './api.js';
 import { emitAppChange } from './live.js';
+import { NOTIFICATION_TELEMETRY_EVENTS, sendNotificationTelemetry } from './notificationTelemetry.js';
 
 async function postNotificationAction(pathname, body = null, { keepalive = false } = {}) {
   const res = await fetch(pathname, {
@@ -13,9 +14,15 @@ async function postNotificationAction(pathname, body = null, { keepalive = false
   return { ok: res.ok, data, message, code };
 }
 
-export async function openNotification(notificationId) {
+export async function openNotification(notificationId, { surface = 'unknown', notificationType = '' } = {}) {
   const result = await postNotificationAction(`/api/new/notifications/${notificationId}/open`, null, { keepalive: true });
   if (result.ok) {
+    void sendNotificationTelemetry({
+      notification_id: Number(notificationId || 0),
+      event_name: NOTIFICATION_TELEMETRY_EVENTS.open,
+      notification_type: notificationType,
+      surface
+    });
     emitAppChange('notification:opened', { id: Number(notificationId || 0) });
     emitAppChange('notification:read', { id: Number(notificationId || 0) });
   }
@@ -38,12 +45,19 @@ export async function bulkReadNotifications(ids = []) {
   return result;
 }
 
-export async function runNotificationAction(action) {
+export async function runNotificationAction(action, { surface = 'unknown', notificationId = null, notificationType = '' } = {}) {
   if (!action?.endpoint || !action?.method) {
     return { ok: false, data: null, message: 'Geçersiz bildirim aksiyonu.', code: 'INVALID_NOTIFICATION_ACTION' };
   }
   const result = await postNotificationAction(action.endpoint, action.body || null);
   if (result.ok) {
+    void sendNotificationTelemetry({
+      notification_id: Number(notificationId || 0) || null,
+      event_name: NOTIFICATION_TELEMETRY_EVENTS.action,
+      notification_type: notificationType,
+      surface,
+      action_kind: action.kind || ''
+    });
     emitAppChange('notification:action', { kind: action.kind || '', endpoint: action.endpoint });
     emitAppChange('notification:read', {});
   }

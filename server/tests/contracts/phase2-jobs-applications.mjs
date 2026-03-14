@@ -28,8 +28,22 @@ bootstrapDb.exec(`
     job_id INTEGER NOT NULL,
     applicant_id INTEGER NOT NULL,
     cover_letter TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    reviewed_at TEXT,
+    reviewed_by INTEGER,
+    decision_note TEXT,
     created_at TEXT,
     UNIQUE(job_id, applicant_id)
+  );
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    type TEXT,
+    source_user_id INTEGER,
+    entity_id INTEGER,
+    message TEXT,
+    read_at TEXT,
+    created_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS site_controls (
@@ -168,9 +182,41 @@ try {
   assert.equal(Array.isArray(listAsPoster.data?.items), true);
   assert.equal(listAsPoster.data.items.length, 1);
   assert.equal(Number(listAsPoster.data.items[0].applicant_id), applicantId);
+  const applicationId = Number(listAsPoster.data.items[0].id || 0);
+  assert.ok(applicationId > 0);
+
+  const review = await request(`/api/new/jobs/${jobId}/applications/${applicationId}/review`, {
+    method: 'POST',
+    cookie: posterCookie,
+    body: { status: 'accepted', decision_note: 'Ikinci gorusmeye davetlisin.' }
+  });
+  assert.equal(review.res.status, 200);
+  assert.equal(review.data?.ok, true);
+  assert.equal(review.data?.data?.status, 'accepted');
 
   const listAsApplicant = await request(`/api/new/jobs/${jobId}/applications`, { cookie: applicantCookie });
   assert.equal(listAsApplicant.res.status, 403);
+
+  const posterListAfterReview = await request(`/api/new/jobs/${jobId}/applications`, { cookie: posterCookie });
+  assert.equal(posterListAfterReview.res.status, 200);
+  assert.equal(String(posterListAfterReview.data?.items?.[0]?.status || ''), 'accepted');
+  assert.equal(String(posterListAfterReview.data?.items?.[0]?.decision_note || ''), 'Ikinci gorusmeye davetlisin.');
+
+  const applicantJobs = await request('/api/new/jobs', { cookie: applicantCookie });
+  assert.equal(applicantJobs.res.status, 200);
+  const applicantJobRow = (applicantJobs.data?.items || []).find((item) => Number(item.id || 0) === jobId);
+  assert.ok(applicantJobRow);
+  assert.equal(Number(applicantJobRow.my_application_id || 0), applicationId);
+  assert.equal(String(applicantJobRow.my_application_status || ''), 'accepted');
+  assert.equal(String(applicantJobRow.my_application_decision_note || ''), 'Ikinci gorusmeye davetlisin.');
+
+  const applicantNotifications = await request('/api/new/notifications?limit=20&offset=0', { cookie: applicantCookie });
+  assert.equal(applicantNotifications.res.status, 200);
+  const decisionNotification = (applicantNotifications.data?.data?.items || []).find((item) => item.type === 'job_application_accepted');
+  assert.ok(decisionNotification);
+  assert.match(String(decisionNotification.target?.href || ''), new RegExp(`/new/jobs\\?job=${jobId}`));
+  assert.match(String(decisionNotification.target?.href || ''), new RegExp(`application=${applicationId}`));
+  assert.match(String(decisionNotification.target?.href || ''), /focus=my-application/);
 
   console.log('phase2 jobs applications tests passed');
 } finally {

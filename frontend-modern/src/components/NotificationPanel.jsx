@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { readApiPayload } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { NETWORKING_EVENTS } from '../utils/networkingRegistry.js';
 import { openNotification, readNotification, runNotificationAction } from '../utils/notificationApi.js';
 import { buildNotificationViewModel } from '../utils/notificationRegistry.js';
+import { NOTIFICATION_TELEMETRY_EVENTS, sendNotificationTelemetry } from '../utils/notificationTelemetry.js';
 import NotificationCard from './NotificationCard.jsx';
 
 function NotificationSkeleton() {
@@ -23,6 +24,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { t } = useI18n();
+  const impressionIdsRef = useRef(new Set());
 
   const load = useCallback(async ({ background = true } = {}) => {
     if (!background) {
@@ -61,13 +63,35 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
     eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action', 'post:liked', 'post:commented', NETWORKING_EVENTS.followChanged]
   });
 
+  useEffect(() => {
+    const nextEvents = items
+      .filter((item) => {
+        const key = `panel:${Number(item.id || 0)}`;
+        if (!Number(item.id || 0) || impressionIdsRef.current.has(key)) return false;
+        impressionIdsRef.current.add(key);
+        return true;
+      })
+      .map((item) => ({
+        notification_id: Number(item.id || 0),
+        event_name: NOTIFICATION_TELEMETRY_EVENTS.impression,
+        notification_type: item.type || '',
+        surface: 'notification_panel'
+      }));
+    if (nextEvents.length) {
+      void sendNotificationTelemetry(nextEvents);
+    }
+  }, [items]);
+
   function handleNotificationOpen(notification) {
     setItems((prev) => prev.map((item) => (
       Number(item.id) === Number(notification.id)
         ? { ...item, read_at: item.read_at || new Date().toISOString() }
         : item
     )));
-    void openNotification(notification.id);
+    void openNotification(notification.id, {
+      surface: 'notification_panel',
+      notificationType: notification.type || ''
+    });
     onReload?.();
   }
 
@@ -89,7 +113,11 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
 
   async function handleNotificationAction(notification, action) {
     setBusyId(notification.id);
-    const result = await runNotificationAction(action);
+    const result = await runNotificationAction(action, {
+      surface: 'notification_panel',
+      notificationId: notification.id,
+      notificationType: notification.type || ''
+    });
     if (!result.ok) {
       emitAppChange('toast', { type: 'error', message: result.message || t('group_invite_respond_failed') });
       setBusyId(null);

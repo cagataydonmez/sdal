@@ -302,8 +302,22 @@ export function ensureSqliteRuntimeSchema(db) {
       job_id INTEGER NOT NULL,
       applicant_id INTEGER NOT NULL,
       cover_letter TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_at TEXT,
+      reviewed_by INTEGER,
+      decision_note TEXT,
       created_at TEXT,
       UNIQUE(job_id, applicant_id)
+    );
+    CREATE TABLE IF NOT EXISTS notification_telemetry_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      notification_id INTEGER,
+      event_name TEXT NOT NULL,
+      notification_type TEXT,
+      surface TEXT,
+      action_kind TEXT,
+      created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS email_change_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

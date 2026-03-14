@@ -7,6 +7,14 @@ import { formatDateTime } from '../utils/date.js';
 
 const EMPTY_FORM = { company: '', title: '', description: '', location: '', job_type: '', link: '' };
 
+function applicationStatusLabel(value) {
+  const status = String(value || '').trim().toLowerCase();
+  if (status === 'accepted') return 'Kabul edildi';
+  if (status === 'rejected') return 'Reddedildi';
+  if (status === 'reviewed') return 'İncelemede';
+  return 'Beklemede';
+}
+
 export default function JobsPage() {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -20,9 +28,14 @@ export default function JobsPage() {
   const [applicationsByJob, setApplicationsByJob] = useState({});
   const [applicationsError, setApplicationsError] = useState('');
   const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [reviewBusyId, setReviewBusyId] = useState(0);
+  const [decisionNotes, setDecisionNotes] = useState({});
   const cardRefs = useRef(new Map());
   const highlightedJobId = Number(searchParams.get('job') || 0);
   const highlightedTab = String(searchParams.get('tab') || '').trim().toLowerCase();
+  const highlightedFocus = String(searchParams.get('focus') || '').trim().toLowerCase();
+  const highlightedApplicationId = Number(searchParams.get('application') || 0);
+  const currentUserId = Number(user?.id || 0);
   const highlightedJob = useMemo(
     () => items.find((item) => Number(item.id || 0) === highlightedJobId) || null,
     [items, highlightedJobId]
@@ -63,17 +76,17 @@ export default function JobsPage() {
 
   useEffect(() => {
     if (!highlightedJob || highlightedTab !== 'applications') return;
-    if (Number(highlightedJob.poster_id || 0) !== Number(user?.id || 0)) return;
+    if (Number(highlightedJob.poster_id || 0) !== currentUserId) return;
     let cancelled = false;
     async function loadApplications() {
       setApplicationsLoading(true);
       setApplicationsError('');
       try {
         const res = await fetch(`/api/new/jobs/${highlightedJob.id}/applications`, { credentials: 'include' });
-        if (!res.ok) throw new Error(await res.text());
-        const payload = await res.json();
+        const { data, message } = await readApiPayload(res, 'Başvurular yüklenemedi.');
+        if (!res.ok) throw new Error(message);
         if (cancelled) return;
-        setApplicationsByJob((prev) => ({ ...prev, [highlightedJob.id]: payload.items || [] }));
+        setApplicationsByJob((prev) => ({ ...prev, [highlightedJob.id]: data?.items || [] }));
       } catch (err) {
         if (cancelled) return;
         setApplicationsError(err.message || 'Başvurular yüklenemedi.');
@@ -85,7 +98,45 @@ export default function JobsPage() {
     return () => {
       cancelled = true;
     };
-  }, [highlightedJob, highlightedTab, user?.id]);
+  }, [currentUserId, highlightedJob, highlightedTab]);
+
+  async function reviewApplication(jobId, applicationId, status) {
+    setReviewBusyId(Number(applicationId || 0));
+    setApplicationsError('');
+    try {
+      const existingApplication = (applicationsByJob[jobId] || []).find((item) => Number(item.id || 0) === Number(applicationId || 0));
+      const res = await fetch(`/api/new/jobs/${jobId}/applications/${applicationId}/review`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status,
+          decision_note: String(decisionNotes[applicationId] ?? existingApplication?.decision_note ?? '').trim()
+        })
+      });
+      const { data, message } = await readApiPayload(res, 'Başvuru güncellenemedi.');
+      if (!res.ok) throw new Error(message);
+      setApplicationsByJob((prev) => ({
+        ...prev,
+        [jobId]: (prev[jobId] || []).map((application) => (
+          Number(application.id || 0) === Number(applicationId || 0)
+            ? {
+                ...application,
+                status: data?.status || status,
+                reviewed_at: data?.reviewed_at || new Date().toISOString(),
+                reviewed_by: data?.reviewed_by || currentUserId,
+                decision_note: data?.decision_note ?? String(decisionNotes[applicationId] || '').trim()
+              }
+            : application
+        ))
+      }));
+      await load();
+    } catch (err) {
+      setApplicationsError(err.message || 'Başvuru güncellenemedi.');
+    } finally {
+      setReviewBusyId(0);
+    }
+  }
 
   async function submitJob(e) {
     e.preventDefault();
@@ -168,15 +219,34 @@ export default function JobsPage() {
                 </div>
                 <div className="composer-actions">
                   {job.link ? <a className="btn ghost" href={job.link} target="_blank" rel="noreferrer">{t('jobs_apply')}</a> : null}
-                  <button className="btn ghost" onClick={() => deleteJob(job.id)}>{t('delete')}</button>
+                  {Number(job.poster_id || 0) === currentUserId ? (
+                    <button className="btn ghost" onClick={() => deleteJob(job.id)}>{t('delete')}</button>
+                  ) : null}
                 </div>
               </div>
               <div dangerouslySetInnerHTML={{ __html: job.description || '' }} />
+              {Number(job.my_application_id || 0) > 0 ? (
+                <div className={`panel notification-focus-inline-panel${highlightedFocus === 'my-application' && highlightedJobId === Number(job.id || 0) ? ' notification-focus-card' : ''}`}>
+                  <div className="panel-body">
+                    <strong>Başvuru durumun</strong>
+                    <div className="network-history-meta">
+                      <span className="chip">{applicationStatusLabel(job.my_application_status)}</span>
+                      {job.my_application_created_at ? <span className="chip">Başvuru {formatDateTime(job.my_application_created_at)}</span> : null}
+                      {job.my_application_reviewed_at ? <span className="chip">Güncellendi {formatDateTime(job.my_application_reviewed_at)}</span> : null}
+                    </div>
+                    {job.my_application_decision_note ? (
+                      <p className="muted">{job.my_application_decision_note}</p>
+                    ) : (
+                      <p className="muted">İlan sahibi henüz bir karar notu paylaşmadı.</p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
               {highlightedJobId === Number(job.id || 0) && highlightedTab === 'applications' ? (
                 <div className="panel notification-focus-inline-panel">
                   <div className="panel-body">
                     <strong>Başvuru görünümü</strong>
-                    {Number(job.poster_id || 0) !== Number(user?.id || 0) ? (
+                    {Number(job.poster_id || 0) !== currentUserId ? (
                       <div className="muted">Bu ilanın başvuruları sadece ilan sahibi tarafından görüntülenebilir.</div>
                     ) : applicationsLoading ? (
                       <div className="muted">{t('loading')}</div>
@@ -187,18 +257,66 @@ export default function JobsPage() {
                     ) : (
                       <div className="stack">
                         {(applicationsByJob[job.id] || []).map((application) => (
-                          <div className="request-payload-card" key={application.id}>
+                          <div
+                            className={`request-payload-card${highlightedApplicationId === Number(application.id || 0) ? ' notification-focus-card' : ''}`}
+                            key={application.id}
+                          >
                             <div className="request-payload-row">
                               <span className="request-payload-key">Aday</span>
                               <span className="request-payload-value">@{application.kadi || '-'}</span>
                             </div>
                             <div className="request-payload-row">
+                              <span className="request-payload-key">Durum</span>
+                              <span className="request-payload-value">{applicationStatusLabel(application.status)}</span>
+                            </div>
+                            <div className="request-payload-row">
                               <span className="request-payload-key">Tarih</span>
                               <span className="request-payload-value">{formatDateTime(application.created_at)}</span>
                             </div>
+                            {application.reviewed_at ? (
+                              <div className="request-payload-row">
+                                <span className="request-payload-key">İnceleme</span>
+                                <span className="request-payload-value">{formatDateTime(application.reviewed_at)}</span>
+                              </div>
+                            ) : null}
                             <div className="request-payload-row">
                               <span className="request-payload-key">Not</span>
                               <div className="request-payload-value" dangerouslySetInnerHTML={{ __html: application.cover_letter || '<span class="muted">Not bırakılmadı.</span>' }} />
+                            </div>
+                            <div className="request-payload-row">
+                              <span className="request-payload-key">Karar notu</span>
+                              <div className="request-payload-value">
+                                <textarea
+                                  className="input"
+                                  rows={2}
+                                  value={decisionNotes[application.id] ?? application.decision_note ?? ''}
+                                  onChange={(e) => setDecisionNotes((prev) => ({ ...prev, [application.id]: e.target.value }))}
+                                  placeholder="Adaya kısa bir karar notu ekle"
+                                />
+                              </div>
+                            </div>
+                            <div className="composer-actions">
+                              <button
+                                className="btn ghost"
+                                disabled={reviewBusyId === Number(application.id || 0)}
+                                onClick={() => reviewApplication(job.id, application.id, 'reviewed')}
+                              >
+                                İncelemede
+                              </button>
+                              <button
+                                className="btn primary"
+                                disabled={reviewBusyId === Number(application.id || 0)}
+                                onClick={() => reviewApplication(job.id, application.id, 'accepted')}
+                              >
+                                Kabul Et
+                              </button>
+                              <button
+                                className="btn ghost"
+                                disabled={reviewBusyId === Number(application.id || 0)}
+                                onClick={() => reviewApplication(job.id, application.id, 'rejected')}
+                              >
+                                Reddet
+                              </button>
                             </div>
                           </div>
                         ))}

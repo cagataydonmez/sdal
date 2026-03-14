@@ -19,7 +19,14 @@ const NOTIFICATION_CATEGORY_MAP = Object.freeze({
   mentorship_request: 'networking',
   mentorship_accepted: 'networking',
   teacher_network_linked: 'networking',
-  job_application: 'jobs'
+  teacher_link_review_confirmed: 'networking',
+  teacher_link_review_flagged: 'networking',
+  teacher_link_review_rejected: 'networking',
+  teacher_link_review_merged: 'networking',
+  job_application: 'jobs',
+  job_application_reviewed: 'jobs',
+  job_application_accepted: 'jobs',
+  job_application_rejected: 'jobs'
 });
 
 const NOTIFICATION_PRIORITY_MAP = Object.freeze({
@@ -43,7 +50,14 @@ const NOTIFICATION_PRIORITY_MAP = Object.freeze({
   mentorship_request: 'actionable',
   mentorship_accepted: 'important',
   teacher_network_linked: 'important',
-  job_application: 'actionable'
+  teacher_link_review_confirmed: 'important',
+  teacher_link_review_flagged: 'important',
+  teacher_link_review_rejected: 'important',
+  teacher_link_review_merged: 'important',
+  job_application: 'actionable',
+  job_application_reviewed: 'important',
+  job_application_accepted: 'important',
+  job_application_rejected: 'important'
 });
 
 const NOTIFICATION_CATEGORY_LABELS = Object.freeze({
@@ -115,8 +129,24 @@ function buildFallbackTarget(notification) {
   if (type === 'teacher_network_linked') {
     return { href: `/new/network/hub?section=teacher-notifications&notification=${notificationId}${entityId ? `&link=${entityId}` : ''}` };
   }
+  if (
+    type === 'teacher_link_review_confirmed'
+    || type === 'teacher_link_review_flagged'
+    || type === 'teacher_link_review_rejected'
+    || type === 'teacher_link_review_merged'
+  ) {
+    const reviewStatus = type.replace('teacher_link_review_', '');
+    return { href: `/new/network/teachers?notification=${notificationId}${entityId ? `&link=${entityId}` : ''}&review=${reviewStatus}` };
+  }
   if (type === 'job_application' && entityId) {
     return { href: `/new/jobs?job=${entityId}&tab=applications&notification=${notificationId}` };
+  }
+  if (
+    type === 'job_application_reviewed'
+    || type === 'job_application_accepted'
+    || type === 'job_application_rejected'
+  ) {
+    return { href: `/new/jobs?focus=my-application${entityId ? `&application=${entityId}` : ''}&notification=${notificationId}` };
   }
   return { href: notificationId ? `/new?notification=${notificationId}` : '/new' };
 }

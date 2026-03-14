@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { readApiPayload } from '../utils/api.js';
@@ -30,7 +30,18 @@ function reviewStatusLabel(value) {
   const status = String(value || '').trim().toLowerCase();
   if (status === 'confirmed') return 'İnceleme: Onaylandı';
   if (status === 'flagged') return 'İnceleme: İşaretlendi';
+  if (status === 'rejected') return 'İnceleme: Reddedildi';
+  if (status === 'merged') return 'İnceleme: Birleştirildi';
   return 'İnceleme: Beklemede';
+}
+
+function reviewOutcomeMessage(value) {
+  const status = String(value || '').trim().toLowerCase();
+  if (status === 'confirmed') return 'Bu teacher network kaydı moderasyon tarafından onaylandı.';
+  if (status === 'flagged') return 'Bu teacher network kaydı ek inceleme için işaretlendi.';
+  if (status === 'rejected') return 'Bu teacher network kaydı reddedildi.';
+  if (status === 'merged') return 'Bu teacher network kaydı benzer bir kayıtla birleştirildi.';
+  return 'Bu teacher network kaydı için yeni bir moderasyon güncellemesi var.';
 }
 
 function confidenceLabel(value) {
@@ -49,6 +60,8 @@ function parseOptionList(value) {
 export default function TeachersNetworkPage() {
   const [searchParams] = useSearchParams();
   const deepLinkedTeacherId = Math.max(parseInt(searchParams.get('teacherId') || '0', 10), 0);
+  const highlightedLinkId = Math.max(parseInt(searchParams.get('link') || '0', 10), 0);
+  const reviewParam = String(searchParams.get('review') || '').trim().toLowerCase();
   const [direction, setDirection] = useState('my_teachers');
   const [relationshipType, setRelationshipType] = useState('');
   const [classYear, setClassYear] = useState('');
@@ -62,6 +75,7 @@ export default function TeachersNetworkPage() {
   const [teacherSearch, setTeacherSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [similarWarning, setSimilarWarning] = useState(null);
+  const historyCardRefs = useRef(new Map());
 
   const [form, setForm] = useState({
     teacherId: deepLinkedTeacherId > 0 ? String(deepLinkedTeacherId) : '',
@@ -156,6 +170,15 @@ export default function TeachersNetworkPage() {
   useEffect(() => {
     load(0, false);
   }, [load]);
+
+  useEffect(() => {
+    if (!highlightedLinkId || !items.length) return;
+    const timer = window.setTimeout(() => {
+      const node = historyCardRefs.current.get(highlightedLinkId);
+      node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [highlightedLinkId, items]);
 
   useEffect(() => {
     setSimilarWarning(null);
@@ -258,6 +281,12 @@ export default function TeachersNetworkPage() {
             {deepLinkedTeacherId > 0 ? <span className="chip">Profil üzerinden ön seçim geldi</span> : null}
           </div>
           <div className="panel-body">
+            {highlightedLinkId > 0 && reviewParam ? (
+              <div className="network-soft-alert">
+                <strong>{reviewStatusLabel(reviewParam)}</strong>
+                <div>{reviewOutcomeMessage(reviewParam)}</div>
+              </div>
+            ) : null}
             <form className="network-form-grid" onSubmit={submitLink}>
               <div className="form-row">
                 <label>Öğretmen ara</label>
@@ -489,7 +518,14 @@ export default function TeachersNetworkPage() {
 
           <div className="network-history-list">
             {items.map((item) => (
-              <article key={item.id} className="network-history-card">
+              <article
+                key={item.id}
+                className={`network-history-card${highlightedLinkId === Number(item.id || 0) ? ' notification-focus-card' : ''}`}
+                ref={(node) => {
+                  if (node) historyCardRefs.current.set(Number(item.id || 0), node);
+                  else historyCardRefs.current.delete(Number(item.id || 0));
+                }}
+              >
                 <div className="network-history-main">
                   <div className="network-history-title">
                     <strong>@{item.kadi || 'uye'}</strong>

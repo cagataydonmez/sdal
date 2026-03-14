@@ -47,8 +47,22 @@ bootstrapDb.exec(`
     job_id INTEGER NOT NULL,
     applicant_id INTEGER NOT NULL,
     cover_letter TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    reviewed_at TEXT,
+    reviewed_by INTEGER,
+    decision_note TEXT,
     created_at TEXT,
     UNIQUE(job_id, applicant_id)
+  );
+  CREATE TABLE IF NOT EXISTS notification_telemetry_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    notification_id INTEGER,
+    event_name TEXT NOT NULL,
+    notification_type TEXT,
+    surface TEXT,
+    action_kind TEXT,
+    created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS site_controls (
     id INTEGER PRIMARY KEY,
@@ -111,10 +125,22 @@ function seedUser(username, password, role = 'user') {
   return Number(sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [username]).id);
 }
 
+function seedAdmin(username, password) {
+  const now = new Date().toISOString();
+  sqlRun(
+    `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, mezuniyetyili, ilkbd, admin, role, verified, verification_status)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, 1, 1, 'admin', 1, 'approved')`,
+    [username, password, `${username}@example.com`, username, 'Admin', `${username}-act`, now, '2012']
+  );
+  return Number(sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [username]).id);
+}
+
 const senderId = seedUser('phase2_notify_sender', 'phase2-pass-a');
 const receiverId = seedUser('phase2_notify_receiver', 'phase2-pass-b');
 const posterId = seedUser('phase2_notify_poster', 'phase2-pass-c');
 const applicantId = seedUser('phase2_notify_applicant', 'phase2-pass-d');
+const teacherId = seedUser('phase2_notify_teacher', 'phase2-pass-e', 'teacher');
+seedAdmin('phase2_notify_admin', 'phase2-pass-admin');
 
 sqlRun(
   `INSERT INTO jobs (poster_id, company, title, description, location, job_type, link, created_at)
@@ -159,6 +185,7 @@ try {
   const receiverCookie = await login('phase2_notify_receiver', 'phase2-pass-b');
   const posterCookie = await login('phase2_notify_poster', 'phase2-pass-c');
   const applicantCookie = await login('phase2_notify_applicant', 'phase2-pass-d');
+  const adminCookie = await login('phase2_notify_admin', 'phase2-pass-admin');
 
   const connectionRequest = await request(`/api/new/connections/request/${receiverId}`, {
     method: 'POST',
@@ -232,6 +259,61 @@ try {
   });
   assert.equal(readSingle.res.status, 200);
   assert.ok(readSingle.data?.data?.item?.read_at);
+
+  const teacherLink = await request(`/api/new/teachers/network/link/${teacherId}`, {
+    method: 'POST',
+    cookie: senderCookie,
+    body: {
+      relationship_type: 'mentor',
+      created_via: 'manual_alumni_link',
+      source_surface: 'teachers_network_page'
+    }
+  });
+  assert.equal(teacherLink.res.status, 200);
+  const teacherLinkId = Number(sqlGet('SELECT id FROM teacher_alumni_links WHERE alumni_user_id = ? AND teacher_user_id = ? ORDER BY id DESC LIMIT 1', [senderId, teacherId]).id);
+  assert.ok(teacherLinkId > 0);
+
+  const reviewTeacherLink = await request(`/api/new/admin/teacher-network/links/${teacherLinkId}/review`, {
+    method: 'POST',
+    cookie: adminCookie,
+    body: { status: 'confirmed', review_note: 'Kayit dogrulandi.' }
+  });
+  assert.equal(reviewTeacherLink.res.status, 200);
+
+  const senderNotifications = await request('/api/new/notifications?limit=20&offset=0', { cookie: senderCookie });
+  assert.equal(senderNotifications.res.status, 200);
+  const teacherReviewNotification = (senderNotifications.data?.data?.items || []).find((item) => item.type === 'teacher_link_review_confirmed');
+  assert.ok(teacherReviewNotification);
+  assert.equal(teacherReviewNotification.category, 'networking');
+  assert.match(String(teacherReviewNotification.target?.href || ''), new RegExp(`/new/network/teachers\\?notification=${teacherReviewNotification.id}`));
+  assert.match(String(teacherReviewNotification.target?.href || ''), new RegExp(`link=${teacherLinkId}`));
+  assert.match(String(teacherReviewNotification.target?.href || ''), /review=confirmed/);
+
+  const telemetry = await request('/api/new/notifications/telemetry', {
+    method: 'POST',
+    cookie: senderCookie,
+    body: {
+      events: [
+        {
+          notification_id: teacherReviewNotification.id,
+          event_name: 'impression',
+          notification_type: teacherReviewNotification.type,
+          surface: 'notifications_page'
+        },
+        {
+          notification_id: teacherReviewNotification.id,
+          event_name: 'action',
+          notification_type: teacherReviewNotification.type,
+          surface: 'notification_panel',
+          action_kind: 'open'
+        }
+      ]
+    }
+  });
+  assert.equal(telemetry.res.status, 200);
+  assert.equal(Number(telemetry.data?.data?.accepted_count || 0), 2);
+  const telemetryCount = Number(sqlGet('SELECT COUNT(*) AS cnt FROM notification_telemetry_events WHERE user_id = ?', [senderId]).cnt || 0);
+  assert.ok(telemetryCount >= 2);
 
   console.log('phase2 notifications tests passed');
 } finally {
