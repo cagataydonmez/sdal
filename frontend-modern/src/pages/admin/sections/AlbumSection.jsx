@@ -44,7 +44,7 @@ function buildPhotoQuery(filters) {
 
 function previewUrl(fileName) {
   if (!fileName) return '';
-  return `/api/media/kucukresim?iwidth=120&r=${encodeURIComponent(fileName)}`;
+  return `/api/media/kucukresim?width=120&file=${encodeURIComponent(fileName)}`;
 }
 
 export default function AlbumSection({ canManageAlbums = false }) {
@@ -500,6 +500,20 @@ export default function AlbumSection({ canManageAlbums = false }) {
             <div className="panel">
               <div className="panel-body stack">
                 <h3>Photo #{selectedPhoto.id}</h3>
+                {selectedPhoto.dosyaadi ? (
+                  <div className="panel">
+                    <div className="panel-body stack">
+                      <img
+                        src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(selectedPhoto.dosyaadi)}`}
+                        alt={selectedPhoto.baslik || ''}
+                        style={{ width: '100%', maxHeight: 560, objectFit: 'contain', borderRadius: 16 }}
+                      />
+                      <div className="ops-inline-actions">
+                        <a className="btn ghost" href={`/new/albums/photo/${selectedPhoto.id}`}>Open public photo page</a>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="ops-form-grid">
                   <label>
                     <span>Title</span>

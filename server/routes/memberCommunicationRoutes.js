@@ -31,7 +31,7 @@ export function registerMemberCommunicationRoutes(app, {
   addNotification
 }) {
   const albumActiveExpr = "(COALESCE(CAST(aktif AS INTEGER), 0) = 1 OR LOWER(CAST(aktif AS TEXT)) IN ('true','evet','yes'))";
-  const albumInactiveValue = toDbFlagForColumn('album_foto', 'aktif', false);
+  const albumActiveValue = toDbFlagForColumn('album_foto', 'aktif', true);
   const isTruthyAlbumFlag = (value) => {
     if (value === true) return true;
     if (Number(value) === 1) return true;
@@ -696,7 +696,7 @@ export function registerMemberCommunicationRoutes(app, {
     sqlRun(
       `INSERT INTO album_foto (dosyaadi, katid, baslik, aciklama, aktif, ekleyenid, tarih, hit)
        VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-      [storedFilename, String(category.id), baslik, aciklama, albumInactiveValue, req.session.userId, new Date().toISOString()]
+      [storedFilename, String(category.id), baslik, aciklama, albumActiveValue, req.session.userId, new Date().toISOString()]
     );
 
     res.json({ ok: true, file: storedFilename, categoryId: category.id });

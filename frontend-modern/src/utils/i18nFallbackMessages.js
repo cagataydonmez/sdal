@@ -192,7 +192,7 @@ export const trFallbackMessages = {
   album_title: 'Albüm',
   album_all_loaded: 'Tüm fotoğraflar yüklendi.',
   album_upload_select_category: 'Kategori seçin',
-  album_upload_status_success: 'Fotoğraf yüklendi. Onay bekliyor (Kategori {categoryId}).',
+  album_upload_status_success: 'Fotoğraf yüklendi ve yayına alındı (Kategori {categoryId}).',
   notifications_empty: 'Bildirim yok.',
   notifications_all_loaded: 'Tüm bildirimler yüklendi.',
   following_all_loaded: 'Tüm takiplerin yüklendi.',
