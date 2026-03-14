@@ -566,8 +566,18 @@ export function registerMemberCommunicationRoutes(app, {
     const result = sqlRun(
       `INSERT INTO sdal_messenger_messages
         (thread_id, sender_id, receiver_id, body, client_written_at, server_received_at, delivered_at, created_at, read_at, deleted_by_sender, deleted_by_receiver)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, 0, 0)`,
-      [thread.id, req.session.userId, receiverId, text, clientWrittenAt, now, now]
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?)`,
+      [
+        thread.id,
+        req.session.userId,
+        receiverId,
+        text,
+        clientWrittenAt,
+        now,
+        now,
+        toDbFlagForColumn('sdal_messenger_messages', 'deleted_by_sender', false),
+        toDbFlagForColumn('sdal_messenger_messages', 'deleted_by_receiver', false)
+      ]
     );
     sqlRun(
       'UPDATE sdal_messenger_threads SET updated_at = ?, last_message_at = ? WHERE id = ?',
