@@ -2,93 +2,58 @@
 import fs from 'fs';
 import path from 'path';
 import { performance } from 'perf_hooks';
+import {
+  ApiClient,
+  buildBenchContext,
+  buildUsername,
+  containsAny,
+  discoverApiRoutes,
+  inferJson,
+  isAbortError,
+  must,
+  percentile,
+  pdfForm,
+  pdfFormSized,
+  pngForm,
+  pngFormSized,
+  sleep,
+  withParams,
+  writeBenchReports
+} from './lib/e2eBenchBootstrap.mjs';
 
 const argv = process.argv.slice(2);
-
-function argValue(name, fallback = '') {
-  const idx = argv.findIndex((item) => item === `--${name}`);
-  if (idx >= 0 && idx + 1 < argv.length) return argv[idx + 1];
-  return fallback;
-}
-
-function argFlag(name) {
-  return argv.includes(`--${name}`);
-}
-
-const BASE_URL = String(argValue('base', process.env.BASE_URL || 'http://127.0.0.1:8787')).replace(/\/+$/, '');
-const E2E_TOKEN = String(argValue('e2e-token', process.env.E2E_TOKEN || ''));
-const RUN_TAG = String(argValue('tag', `e2e${Date.now()}`)).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || `e2e${Date.now()}`;
-const DEFAULT_PASSWORD = String(argValue('password', process.env.E2E_PASSWORD || 'Passw0rd123'));
-const ADMIN_PANEL_PASSWORD = String(argValue('admin-password', process.env.SDAL_ADMIN_PASSWORD || ''));
-const PERF_LOOPS = Math.max(1, Number.parseInt(argValue('loops', process.env.E2E_PERF_LOOPS || '5'), 10) || 5);
-const TIMEOUT_MS = Math.max(1000, Number.parseInt(argValue('timeout-ms', process.env.E2E_TIMEOUT_MS || '20000'), 10) || 20000);
-const REGISTER_TIMEOUT_MS = Math.max(
+const {
+  BASE_URL,
+  E2E_TOKEN,
+  RUN_TAG,
+  DEFAULT_PASSWORD,
+  ADMIN_PANEL_PASSWORD,
+  PERF_LOOPS,
   TIMEOUT_MS,
-  Number.parseInt(argValue('register-timeout-ms', process.env.E2E_REGISTER_TIMEOUT_MS || '60000'), 10) || 60000
-);
-const REGISTER_RETRIES = Math.max(1, Number.parseInt(argValue('register-retries', process.env.E2E_REGISTER_RETRIES || '3'), 10) || 3);
-const LOGIN_RETRIES = Math.max(1, Number.parseInt(argValue('login-retries', process.env.E2E_LOGIN_RETRIES || '3'), 10) || 3);
-const ARTIFACT_DIR = path.resolve(argValue('out', process.env.E2E_OUT_DIR || '/tmp'));
-const APP_FILE = path.resolve(argValue('app-file', path.join(process.cwd(), 'server/app.js')));
-const DRY_RUN = argFlag('dry-run');
-const ALLOW_DESTRUCTIVE = argFlag('allow-destructive');
-const PROBE_ONLY = argFlag('probe-only') || String(process.env.E2E_PROBE_ONLY || '').trim().toLowerCase() === 'true';
-const ADVANCED_MODE = argFlag('advanced') || String(process.env.E2E_ADVANCED || '').trim().toLowerCase() === 'true';
-const ADVANCED_CONCURRENCY = Math.max(2, Number.parseInt(argValue('concurrency', process.env.E2E_CONCURRENCY || '6'), 10) || 6);
-const ADVANCED_RETRY_ATTEMPTS = Math.max(2, Number.parseInt(argValue('retry-attempts', process.env.E2E_RETRY_ATTEMPTS || '3'), 10) || 3);
-const ADVANCED_SOAK_SECONDS = Math.max(
-  0,
-  Number.parseInt(
-    argValue('soak-seconds', process.env.E2E_SOAK_SECONDS || (ADVANCED_MODE ? '120' : '0')),
-    10
-  ) || 0
-);
-const ADVANCED_NEAR_LIMIT_MB = Math.max(1, Number.parseInt(argValue('near-limit-mb', process.env.E2E_NEAR_LIMIT_MB || '8'), 10) || 8);
-const ADVANCED_OVER_LIMIT_MB = Math.max(2, Number.parseInt(argValue('over-limit-mb', process.env.E2E_OVER_LIMIT_MB || '22'), 10) || 22);
-
-const TINY_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgB7R6YQAAAAASUVORK5CYII=',
-  'base64'
-);
-const TINY_PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n', 'utf8');
-
-const ROLE_USERS = [
-  { key: 'admin', role: 'admin', mezuniyetyili: 2010 },
-  { key: 'mod', role: 'mod', mezuniyetyili: 2011 },
-  { key: 'user1', role: 'user', mezuniyetyili: 2012 },
-  { key: 'user2', role: 'user', mezuniyetyili: 2013 },
-  { key: 'user3', role: 'user', mezuniyetyili: 2014 }
-];
-
-const MOD_PERMISSIONS_ALL = [
-  'requests.view',
-  'requests.moderate',
-  'posts.view',
-  'posts.delete',
-  'stories.view',
-  'stories.delete',
-  'chat.view',
-  'chat.delete',
-  'messages.view',
-  'messages.delete',
-  'groups.view',
-  'groups.delete'
-];
+  REGISTER_TIMEOUT_MS,
+  REGISTER_RETRIES,
+  LOGIN_RETRIES,
+  ARTIFACT_DIR,
+  APP_FILE,
+  DRY_RUN,
+  ALLOW_DESTRUCTIVE,
+  PROBE_ONLY,
+  ADVANCED_MODE,
+  ADVANCED_CONCURRENCY,
+  ADVANCED_RETRY_ATTEMPTS,
+  ADVANCED_SOAK_SECONDS,
+  ADVANCED_NEAR_LIMIT_MB,
+  ADVANCED_OVER_LIMIT_MB,
+  TINY_PNG,
+  TINY_PDF,
+  ROLE_USERS,
+  MOD_PERMISSIONS_ALL,
+  destructiveRoutes
+} = buildBenchContext({ argv, env: process.env, cwd: process.cwd() });
 
 const records = [];
 const routeCoverage = new Set();
 const issuedUsernames = new Set();
-const destructiveRoutes = new Set([
-  '/api/new/admin/db/driver/switch',
-  '/api/new/admin/db/restore',
-  '/api/new/admin/db/backups',
-  '/api/new/admin/db/backups/:name/download',
-  '/api/new/admin/members/:id',
-  '/api/new/admin/posts/:id',
-  '/api/new/admin/messages/:id',
-  '/api/new/admin/stories/:id',
-  '/api/new/admin/groups/:id'
-]);
 const state = {
   users: {},
   ids: {
@@ -112,84 +77,6 @@ const state = {
     anyTableName: null
   }
 };
-
-class CookieJar {
-  constructor() {
-    this.store = new Map();
-  }
-
-  setFromHeaders(headers) {
-    const setCookies = typeof headers.getSetCookie === 'function'
-      ? headers.getSetCookie()
-      : splitSetCookieHeader(headers.get('set-cookie'));
-    for (const row of setCookies) {
-      const first = String(row || '').split(';')[0];
-      const eq = first.indexOf('=');
-      if (eq <= 0) continue;
-      const key = first.slice(0, eq).trim();
-      const val = first.slice(eq + 1).trim();
-      if (!key) continue;
-      this.store.set(key, val);
-    }
-  }
-
-  header() {
-    return Array.from(this.store.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
-  }
-}
-
-function splitSetCookieHeader(value) {
-  if (!value) return [];
-  return String(value).split(/,(?=\s*[A-Za-z0-9_.-]+=)/g);
-}
-
-class ApiClient {
-  constructor(name) {
-    this.name = name;
-    this.jar = new CookieJar();
-  }
-}
-
-function buildUsername(key, index) {
-  const keyPart = String(key || 'user').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'user';
-  const tagPart = String(RUN_TAG || 'run').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'run';
-  let candidate = `${keyPart}${tagPart}${String(index + 1)}`.slice(0, 15);
-  if (!candidate) candidate = `user${String(index + 1)}`;
-  let guard = 2;
-  while (issuedUsernames.has(candidate)) {
-    candidate = `${keyPart}${tagPart}${String(guard)}`.slice(0, 15);
-    guard += 1;
-  }
-  issuedUsernames.add(candidate);
-  return candidate;
-}
-
-function withParams(template, params = {}) {
-  let out = template;
-  for (const [key, val] of Object.entries(params)) {
-    out = out.replace(new RegExp(`:${key}(?=\\/|$)`, 'g'), encodeURIComponent(String(val)));
-  }
-  return out;
-}
-
-function inferJson(text) {
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function percentile(sorted, p) {
-  if (!sorted.length) return 0;
-  const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1));
-  return sorted[idx];
-}
-
-function ensureDir(dirPath) {
-  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-}
 
 async function request(client, method, routeTemplate, {
   params = {},
@@ -282,25 +169,6 @@ async function request(client, method, routeTemplate, {
   return { ok, status, text: bodyText, json: parsed, elapsedMs: elapsed, error };
 }
 
-function must(result, message) {
-  if (!result.ok) {
-    throw new Error(message);
-  }
-}
-
-function containsAny(haystack, needles) {
-  const src = String(haystack || '').toLowerCase();
-  return needles.some((item) => src.includes(String(item || '').toLowerCase()));
-}
-
-function isAbortError(result) {
-  return result?.status === 0 && containsAny(result?.error || '', ['aborted', 'abort']);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
-}
-
 async function assertE2EHarnessActive() {
   if (DRY_RUN) return;
   const probe = new ApiClient('probe');
@@ -335,7 +203,7 @@ async function assertE2EHarnessActive() {
 async function registerAndLoginUsers() {
   for (let idx = 0; idx < ROLE_USERS.length; idx += 1) {
     const spec = ROLE_USERS[idx];
-    const username = buildUsername(spec.key, idx);
+    const username = buildUsername(spec.key, idx, RUN_TAG, issuedUsernames);
     const email = `${RUN_TAG}.${spec.key}@example.test`;
     const registerClient = new ApiClient(`${spec.key}-reg`);
     const payload = {
@@ -428,36 +296,6 @@ async function registerAndLoginUsers() {
   }
 }
 
-function pngForm(fieldName = 'file', fileName = 'tiny.png') {
-  const form = new FormData();
-  form.append(fieldName, new Blob([TINY_PNG], { type: 'image/png' }), fileName);
-  return form;
-}
-
-function pdfForm(fieldName = 'file', fileName = 'tiny.pdf') {
-  const form = new FormData();
-  form.append(fieldName, new Blob([TINY_PDF], { type: 'application/pdf' }), fileName);
-  return form;
-}
-
-function pngFormSized(fieldName = 'file', fileName = 'sized.png', sizeBytes = 1024 * 1024) {
-  const targetSize = Math.max(128, Number(sizeBytes) || 1024);
-  const pad = Math.max(0, targetSize - TINY_PNG.length);
-  const body = Buffer.concat([TINY_PNG, Buffer.alloc(pad, 0)]);
-  const form = new FormData();
-  form.append(fieldName, new Blob([body], { type: 'image/png' }), fileName);
-  return form;
-}
-
-function pdfFormSized(fieldName = 'file', fileName = 'sized.pdf', sizeBytes = 1024 * 1024) {
-  const targetSize = Math.max(256, Number(sizeBytes) || 1024);
-  const pad = Math.max(0, targetSize - TINY_PDF.length);
-  const body = Buffer.concat([TINY_PDF, Buffer.alloc(pad, 0)]);
-  const form = new FormData();
-  form.append(fieldName, new Blob([body], { type: 'application/pdf' }), fileName);
-  return form;
-}
-
 async function runCoreScenario() {
   const admin = state.users.admin.client;
   const mod = state.users.mod.client;
@@ -486,14 +324,14 @@ async function runCoreScenario() {
       note: `profile-update:${u.key}`
     });
 
-    const photo = pngForm('file', `${u.key}.png`);
+    const photo = pngForm(TINY_PNG, 'file', `${u.key}.png`);
     await request(u.client, 'POST', '/api/profile/photo', {
       form: photo,
       note: `profile-photo:${u.key}`
     });
   }
 
-  const genericUploadForm = pngForm('image', 'generic.png');
+  const genericUploadForm = pngForm(TINY_PNG, 'image', 'generic.png');
   genericUploadForm.append('entityType', 'e2e_misc');
   genericUploadForm.append('entityId', String(state.users.user1.id || 0));
   await request(user1, 'POST', '/api/upload-image', {
@@ -505,7 +343,7 @@ async function runCoreScenario() {
   const firstAlbumCategoryId = Number(albumCategories.json?.categories?.[0]?.id || 0) || null;
   if (firstAlbumCategoryId) {
     state.ids.albumCategoryId = firstAlbumCategoryId;
-    const albumUploadForm = pngForm('file', 'album.png');
+    const albumUploadForm = pngForm(TINY_PNG, 'file', 'album.png');
     albumUploadForm.append('kat', String(firstAlbumCategoryId));
     albumUploadForm.append('baslik', `E2E album ${RUN_TAG}`);
     albumUploadForm.append('aciklama', 'E2E album upload');
@@ -541,7 +379,7 @@ async function runCoreScenario() {
   }
 
   await request(user1, 'POST', '/api/new/posts', { json: { content: `E2E post ${RUN_TAG}` } });
-  const postUploadForm = pngForm('image', 'post.png');
+  const postUploadForm = pngForm(TINY_PNG, 'image', 'post.png');
   postUploadForm.append('content', `E2E uploaded post ${RUN_TAG}`);
   await request(user1, 'POST', '/api/new/posts/upload', { form: postUploadForm });
 
@@ -562,7 +400,7 @@ async function runCoreScenario() {
     });
   }
 
-  const storyForm = pngForm('image', 'story.png');
+  const storyForm = pngForm(TINY_PNG, 'image', 'story.png');
   storyForm.append('caption', `E2E story ${RUN_TAG}`);
   await request(user1, 'POST', '/api/new/stories/upload', { form: storyForm });
   const storiesMine = await request(user1, 'GET', '/api/new/stories/mine');
@@ -622,7 +460,7 @@ async function runCoreScenario() {
       params: { id: state.ids.groupId },
       json: { action: 'accept' }
     });
-    const coverForm = pngForm('image', 'cover.png');
+    const coverForm = pngForm(TINY_PNG, 'image', 'cover.png');
     await request(user1, 'POST', '/api/new/groups/:id/cover', {
       params: { id: state.ids.groupId },
       form: coverForm
@@ -631,7 +469,7 @@ async function runCoreScenario() {
       params: { id: state.ids.groupId },
       json: { content: `E2E group post ${RUN_TAG}` }
     });
-    const groupPostUploadForm = pngForm('image', 'group-post.png');
+    const groupPostUploadForm = pngForm(TINY_PNG, 'image', 'group-post.png');
     groupPostUploadForm.append('content', `E2E group uploaded post ${RUN_TAG}`);
     await request(user1, 'POST', '/api/new/groups/:id/posts/upload', {
       params: { id: state.ids.groupId },
@@ -663,7 +501,7 @@ async function runCoreScenario() {
       json: { comment: `E2E event comment ${RUN_TAG}` }
     });
   }
-  const eventUploadForm = pngForm('image', 'event.png');
+  const eventUploadForm = pngForm(TINY_PNG, 'image', 'event.png');
   eventUploadForm.append('title', `E2E Event Upload ${RUN_TAG}`);
   eventUploadForm.append('description', 'E2E event upload description');
   eventUploadForm.append('starts_at', new Date(Date.now() + 7200_000).toISOString());
@@ -687,7 +525,7 @@ async function runCoreScenario() {
       json: { approved: 1 }
     });
   }
-  const annUploadForm = pngForm('image', 'announcement.png');
+  const annUploadForm = pngForm(TINY_PNG, 'image', 'announcement.png');
   annUploadForm.append('title', `E2E Announcement Upload ${RUN_TAG}`);
   annUploadForm.append('body', 'E2E announcement upload body');
   await request(user1, 'POST', '/api/new/announcements/upload', { form: annUploadForm });
@@ -704,7 +542,7 @@ async function runCoreScenario() {
   await request(user1, 'GET', '/api/new/jobs', { query: { limit: 20, offset: 0 } });
 
   await request(user2, 'GET', '/api/new/request-categories');
-  const uploadRequestAttachment = pdfForm('file', 'request.pdf');
+  const uploadRequestAttachment = pdfForm(TINY_PDF, 'file', 'request.pdf');
   await request(user2, 'POST', '/api/new/requests/upload', { form: uploadRequestAttachment });
   const categories = await request(user2, 'GET', '/api/new/request-categories');
   const categoryKey = categories.json?.items?.[0]?.category_key;
@@ -718,7 +556,7 @@ async function runCoreScenario() {
   }
 
   await request(user3, 'POST', '/api/new/verified/request', { json: { proof_path: '/uploads/mock-proof.png' }, allow: [400, 403] });
-  const proofForm = pngForm('proof', 'proof.png');
+  const proofForm = pngForm(TINY_PNG, 'proof', 'proof.png');
   await request(user3, 'POST', '/api/new/verified/proof', { form: proofForm, allow: [400, 403] });
   const verList = await request(mod, 'GET', '/api/new/admin/verification-requests', { query: { page: 1, limit: 20 } });
   state.ids.verificationRequestId = Number(verList.json?.items?.[0]?.id || 0) || null;
@@ -742,27 +580,6 @@ async function runCoreScenario() {
     });
   }
   await request(admin, 'GET', '/api/new/admin/db/driver/status');
-}
-
-function discoverApiRoutes() {
-  const source = fs.readFileSync(APP_FILE, 'utf-8');
-  const regex = /app\.(get|post|put|patch|delete)\(\s*(['"`])([^'"`]+)\2/g;
-  const rows = [];
-  let m;
-  while ((m = regex.exec(source)) !== null) {
-    const method = String(m[1] || '').toUpperCase();
-    const route = String(m[3] || '').trim();
-    if (!route.startsWith('/api/')) continue;
-    rows.push({ method, route });
-  }
-  const unique = new Map();
-  for (const row of rows) {
-    unique.set(`${row.method} ${row.route}`, row);
-  }
-  return Array.from(unique.values()).sort((a, b) => {
-    if (a.route === b.route) return a.method.localeCompare(b.method);
-    return a.route.localeCompare(b.route);
-  });
 }
 
 function resolveParam(route, name) {
@@ -880,83 +697,6 @@ async function runBestEffortRouteSweep(routes) {
   }
 }
 
-function writeReports(routes) {
-  ensureDir(ARTIFACT_DIR);
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const rawPath = path.join(ARTIFACT_DIR, `sdal_e2e_raw_${RUN_TAG}_${stamp}.ndjson`);
-  const summaryPath = path.join(ARTIFACT_DIR, `sdal_e2e_summary_${RUN_TAG}_${stamp}.tsv`);
-  const slowPath = path.join(ARTIFACT_DIR, `sdal_e2e_slowest_${RUN_TAG}_${stamp}.tsv`);
-  const coveragePath = path.join(ARTIFACT_DIR, `sdal_e2e_coverage_${RUN_TAG}_${stamp}.tsv`);
-
-  fs.writeFileSync(rawPath, records.map((row) => JSON.stringify(row)).join('\n') + '\n', 'utf8');
-
-  const groups = new Map();
-  for (const row of records) {
-    const key = `${row.method} ${row.routeTemplate}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(row);
-  }
-
-  const summaryRows = [];
-  for (const [key, rows] of groups.entries()) {
-    const timings = rows.map((r) => Number(r.elapsedMs || 0)).sort((a, b) => a - b);
-    const okCount = rows.filter((r) => r.ok).length;
-    const avg = timings.length ? timings.reduce((s, v) => s + v, 0) / timings.length : 0;
-    const statuses = {};
-    for (const r of rows) statuses[r.status] = (statuses[r.status] || 0) + 1;
-    summaryRows.push({
-      endpoint: key,
-      calls: rows.length,
-      ok: okCount,
-      avgMs: Number(avg.toFixed(3)),
-      p95Ms: Number(percentile(timings, 95).toFixed(3)),
-      maxMs: Number((timings[timings.length - 1] || 0).toFixed(3)),
-      statuses: Object.entries(statuses).map(([s, c]) => `${s}:${c}`).join(',')
-    });
-  }
-  summaryRows.sort((a, b) => b.avgMs - a.avgMs);
-
-  const summaryHeader = 'endpoint\tcalls\tok\tavg_ms\tp95_ms\tmax_ms\tstatus_mix\n';
-  fs.writeFileSync(
-    summaryPath,
-    summaryHeader + summaryRows.map((r) => `${r.endpoint}\t${r.calls}\t${r.ok}\t${r.avgMs}\t${r.p95Ms}\t${r.maxMs}\t${r.statuses}`).join('\n') + '\n',
-    'utf8'
-  );
-
-  const slowRows = summaryRows.slice(0, 60);
-  fs.writeFileSync(
-    slowPath,
-    summaryHeader + slowRows.map((r) => `${r.endpoint}\t${r.calls}\t${r.ok}\t${r.avgMs}\t${r.p95Ms}\t${r.maxMs}\t${r.statuses}`).join('\n') + '\n',
-    'utf8'
-  );
-
-  const discovered = new Set(routes.map((r) => `${r.method} ${r.route}`));
-  const tested = new Set(Array.from(groups.keys()));
-  const missing = Array.from(discovered).filter((item) => !tested.has(item)).sort((a, b) => a.localeCompare(b));
-  const coverageLines = [
-    `discovered_routes\t${discovered.size}`,
-    `tested_routes\t${tested.size}`,
-    `untested_routes\t${missing.length}`,
-    ''
-  ];
-  for (const item of missing) coverageLines.push(item);
-  fs.writeFileSync(coveragePath, coverageLines.join('\n') + '\n', 'utf8');
-
-  const totalCalls = records.length;
-  const failedCalls = records.filter((r) => !r.ok).length;
-  const avgMsAll = totalCalls ? records.reduce((s, r) => s + Number(r.elapsedMs || 0), 0) / totalCalls : 0;
-
-  console.log('\n=== E2E API RESULT ===');
-  console.log(`base=${BASE_URL}`);
-  console.log(`run_tag=${RUN_TAG}`);
-  console.log(`calls=${totalCalls} failed=${failedCalls} avg_ms=${avgMsAll.toFixed(3)}`);
-  console.log(`routes_discovered=${discovered.size} routes_tested=${tested.size} routes_untested=${missing.length}`);
-  console.log(`raw=${rawPath}`);
-  console.log(`summary=${summaryPath}`);
-  console.log(`slow=${slowPath}`);
-  console.log(`coverage=${coveragePath}`);
-}
-
 async function runPerfLoops() {
   const user = state.users.user1?.client;
   if (!user) return;
@@ -1003,7 +743,7 @@ async function runAdvancedLargeFileTests() {
   const nearLimitBytes = ADVANCED_NEAR_LIMIT_MB * 1024 * 1024;
   const overLimitBytes = ADVANCED_OVER_LIMIT_MB * 1024 * 1024;
 
-  const okReqForm = pdfFormSized('file', `near-limit-${ADVANCED_NEAR_LIMIT_MB}mb.pdf`, nearLimitBytes);
+  const okReqForm = pdfFormSized(TINY_PDF, 'file', `near-limit-${ADVANCED_NEAR_LIMIT_MB}mb.pdf`, nearLimitBytes);
   const nearReq = await request(user, 'POST', '/api/new/requests/upload', {
     form: okReqForm,
     note: `advanced-large-near-limit:${ADVANCED_NEAR_LIMIT_MB}mb`,
@@ -1011,7 +751,7 @@ async function runAdvancedLargeFileTests() {
   });
   must(nearReq, 'near-limit upload should succeed');
 
-  const overProfile = pngFormSized('file', `over-limit-profile-${ADVANCED_OVER_LIMIT_MB}mb.png`, overLimitBytes);
+  const overProfile = pngFormSized(TINY_PNG, 'file', `over-limit-profile-${ADVANCED_OVER_LIMIT_MB}mb.png`, overLimitBytes);
   const overProfileRes = await request(user, 'POST', '/api/profile/photo', {
     form: overProfile,
     note: `advanced-large-over-limit-profile:${ADVANCED_OVER_LIMIT_MB}mb`,
@@ -1021,7 +761,7 @@ async function runAdvancedLargeFileTests() {
     throw new Error('oversized profile photo unexpectedly accepted');
   }
 
-  const overPost = pngFormSized('image', `over-limit-post-${ADVANCED_OVER_LIMIT_MB}mb.png`, overLimitBytes);
+  const overPost = pngFormSized(TINY_PNG, 'image', `over-limit-post-${ADVANCED_OVER_LIMIT_MB}mb.png`, overLimitBytes);
   overPost.append('content', `oversize post check ${RUN_TAG}`);
   const overPostRes = await request(user, 'POST', '/api/new/posts/upload', {
     form: overPost,
@@ -1038,7 +778,7 @@ async function runAdvancedConcurrencyUploadTests() {
   if (!user) return;
   const tasks = [];
   for (let i = 0; i < ADVANCED_CONCURRENCY; i += 1) {
-    const form = pngForm('image', `concurrent-${i + 1}.png`);
+    const form = pngForm(TINY_PNG, 'image', `concurrent-${i + 1}.png`);
     form.append('entityType', 'e2e_concurrent_upload');
     form.append('entityId', String(state.users.user1?.id || 0));
     tasks.push(request(user, 'POST', '/api/upload-image', {
@@ -1170,7 +910,22 @@ async function main() {
 
   const routes = discoverApiRoutes();
   await runBestEffortRouteSweep(routes);
-  writeReports(routes);
+  const report = writeBenchReports({
+    artifactDir: ARTIFACT_DIR,
+    runTag: RUN_TAG,
+    baseUrl: BASE_URL,
+    records,
+    routes
+  });
+  console.log('\n=== E2E API RESULT ===');
+  console.log(`base=${report.baseUrl}`);
+  console.log(`run_tag=${report.runTag}`);
+  console.log(`calls=${report.totalCalls} failed=${report.failedCalls} avg_ms=${report.avgMsAll.toFixed(3)}`);
+  console.log(`routes_discovered=${report.discoveredCount} routes_tested=${report.testedCount} routes_untested=${report.missingCount}`);
+  console.log(`raw=${report.rawPath}`);
+  console.log(`summary=${report.summaryPath}`);
+  console.log(`slow=${report.slowPath}`);
+  console.log(`coverage=${report.coveragePath}`);
 }
 
 main().catch((err) => {

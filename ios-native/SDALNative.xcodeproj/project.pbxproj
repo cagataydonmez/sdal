@@ -34,6 +34,20 @@
 		000000000000000000000225 /* ScreenErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000125 /* ScreenErrorView.swift */; };
 		000000000000000000000226 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000126 /* AdminView.swift */; };
 		000000000000000000000227 /* AdminModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000127 /* AdminModels.swift */; };
+		000000000000000000000228 /* APIClientUserFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000128 /* APIClientUserFeatures.swift */; };
+		000000000000000000000229 /* APIClientAdmin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000129 /* APIClientAdmin.swift */; };
+		000000000000000000000230 /* AppRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000130 /* AppRouting.swift */; };
+		000000000000000000000231 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000131 /* AppTheme.swift */; };
+		000000000000000000000232 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000132 /* AppLanguage.swift */; };
+		000000000000000000000233 /* LocalizationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000133 /* LocalizationManager.swift */; };
+		000000000000000000000234 /* FeedSharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000134 /* FeedSharedViews.swift */; };
+		000000000000000000000235 /* FeedCommunityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000135 /* FeedCommunityViews.swift */; };
+		000000000000000000000236 /* FeedGroupsGamesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000136 /* FeedGroupsGamesViews.swift */; };
+		000000000000000000000237 /* ProfileSupplementaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000137 /* ProfileSupplementaryViews.swift */; };
+		000000000000000000000238 /* AdminView+OverviewPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000138 /* AdminView+OverviewPanels.swift */; };
+		000000000000000000000239 /* AdminView+OperationsPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000139 /* AdminView+OperationsPanels.swift */; };
+		000000000000000000000240 /* AdminView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000140 /* AdminView+Actions.swift */; };
+		000000000000000000000241 /* AdminUserManagementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000141 /* AdminUserManagementViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -67,6 +81,20 @@
 		000000000000000000000125 /* ScreenErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenErrorView.swift; sourceTree = "<group>"; };
 		000000000000000000000126 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		000000000000000000000127 /* AdminModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminModels.swift; sourceTree = "<group>"; };
+		000000000000000000000128 /* APIClientUserFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientUserFeatures.swift; sourceTree = "<group>"; };
+		000000000000000000000129 /* APIClientAdmin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientAdmin.swift; sourceTree = "<group>"; };
+		000000000000000000000130 /* AppRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouting.swift; sourceTree = "<group>"; };
+		000000000000000000000131 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		000000000000000000000132 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		000000000000000000000133 /* LocalizationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationManager.swift; sourceTree = "<group>"; };
+		000000000000000000000134 /* FeedSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedSharedViews.swift; sourceTree = "<group>"; };
+		000000000000000000000135 /* FeedCommunityViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCommunityViews.swift; sourceTree = "<group>"; };
+		000000000000000000000136 /* FeedGroupsGamesViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedGroupsGamesViews.swift; sourceTree = "<group>"; };
+		000000000000000000000137 /* ProfileSupplementaryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSupplementaryViews.swift; sourceTree = "<group>"; };
+		000000000000000000000138 /* AdminView+OverviewPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AdminView+OverviewPanels.swift"; sourceTree = "<group>"; };
+		000000000000000000000139 /* AdminView+OperationsPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AdminView+OperationsPanels.swift"; sourceTree = "<group>"; };
+		000000000000000000000140 /* AdminView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AdminView+Actions.swift"; sourceTree = "<group>"; };
+		000000000000000000000141 /* AdminUserManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminUserManagementViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,8 +143,14 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000104 /* APIClient.swift */,
+				000000000000000000000128 /* APIClientUserFeatures.swift */,
+				000000000000000000000129 /* APIClientAdmin.swift */,
 				000000000000000000000105 /* AppConfig.swift */,
 				000000000000000000000106 /* AppState.swift */,
+				000000000000000000000130 /* AppRouting.swift */,
+				000000000000000000000131 /* AppTheme.swift */,
+				000000000000000000000132 /* AppLanguage.swift */,
+				000000000000000000000133 /* LocalizationManager.swift */,
 				000000000000000000000107 /* MultipartFormData.swift */,
 				000000000000000000000108 /* PushNotificationService.swift */,
 			);
@@ -149,6 +183,9 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000111 /* FeedView.swift */,
+				000000000000000000000134 /* FeedSharedViews.swift */,
+				000000000000000000000135 /* FeedCommunityViews.swift */,
+				000000000000000000000136 /* FeedGroupsGamesViews.swift */,
 				000000000000000000000112 /* PostComposerView.swift */,
 			);
 			path = Feed;
@@ -174,6 +211,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000114 /* ProfileView.swift */,
+				000000000000000000000137 /* ProfileSupplementaryViews.swift */,
 			);
 			path = Profile;
 			sourceTree = "<group>";
@@ -224,6 +262,10 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000126 /* AdminView.swift */,
+				000000000000000000000138 /* AdminView+OverviewPanels.swift */,
+				000000000000000000000139 /* AdminView+OperationsPanels.swift */,
+				000000000000000000000140 /* AdminView+Actions.swift */,
+				000000000000000000000141 /* AdminUserManagementViews.swift */,
 			);
 			path = Admin;
 			sourceTree = "<group>";
@@ -302,14 +344,24 @@
 				000000000000000000000204 /* APIClient.swift in Sources */,
 				000000000000000000000205 /* AppConfig.swift in Sources */,
 				000000000000000000000206 /* AppState.swift in Sources */,
+				000000000000000000000230 /* AppRouting.swift in Sources */,
+				000000000000000000000231 /* AppTheme.swift in Sources */,
+				000000000000000000000232 /* AppLanguage.swift in Sources */,
+				000000000000000000000233 /* LocalizationManager.swift in Sources */,
 				000000000000000000000207 /* MultipartFormData.swift in Sources */,
 				000000000000000000000208 /* PushNotificationService.swift in Sources */,
+				000000000000000000000228 /* APIClientUserFeatures.swift in Sources */,
+				000000000000000000000229 /* APIClientAdmin.swift in Sources */,
 				000000000000000000000209 /* LoginView.swift in Sources */,
 				000000000000000000000210 /* ExploreView.swift in Sources */,
 				000000000000000000000211 /* FeedView.swift in Sources */,
+				000000000000000000000234 /* FeedSharedViews.swift in Sources */,
+				000000000000000000000235 /* FeedCommunityViews.swift in Sources */,
+				000000000000000000000236 /* FeedGroupsGamesViews.swift in Sources */,
 				000000000000000000000212 /* PostComposerView.swift in Sources */,
 				000000000000000000000213 /* MessagesView.swift in Sources */,
 				000000000000000000000214 /* ProfileView.swift in Sources */,
+				000000000000000000000237 /* ProfileSupplementaryViews.swift in Sources */,
 				000000000000000000000215 /* StoryBarView.swift in Sources */,
 				000000000000000000000216 /* AuthModels.swift in Sources */,
 				000000000000000000000217 /* FeedModels.swift in Sources */,
@@ -322,6 +374,10 @@
 				000000000000000000000224 /* SDALTheme.swift in Sources */,
 				000000000000000000000225 /* ScreenErrorView.swift in Sources */,
 				000000000000000000000226 /* AdminView.swift in Sources */,
+				000000000000000000000238 /* AdminView+OverviewPanels.swift in Sources */,
+				000000000000000000000239 /* AdminView+OperationsPanels.swift in Sources */,
+				000000000000000000000240 /* AdminView+Actions.swift in Sources */,
+				000000000000000000000241 /* AdminUserManagementViews.swift in Sources */,
 				000000000000000000000227 /* AdminModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
