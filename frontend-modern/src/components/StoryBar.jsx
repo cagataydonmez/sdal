@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
@@ -332,7 +333,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
         {!groups.length ? <div className="muted">{t('stories_empty')}</div> : null}
       </div>
 
-      {active ? (
+      {active ? createPortal(
         <div className="story-modal" onClick={() => setActiveGroupIndex(null)}>
           <div className="story-frame" onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <div className="story-progress">
@@ -389,7 +390,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
             </div>
           </div>
         </div>
-      ) : null}
+        , document.body) : null}
     </div>
   );
 }
