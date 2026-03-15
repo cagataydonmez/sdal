@@ -1272,6 +1272,7 @@ function logAdminAction(req, action, details = {}) {
 const notificationPresentationRuntime = createNotificationPresentationRuntime({
   sqlRun,
   sqlGet,
+  sqlGetAsync,
   sqlAllAsync,
   hasTable,
   ensureJobApplicationsTable
@@ -3345,6 +3346,7 @@ const {
   sqlGetAsync,
   sqlAllAsync,
   sqlRun,
+  sqlRunAsync,
   hasTable,
   hasColumn,
   joinUserOnPhotoOwnerExpr,
