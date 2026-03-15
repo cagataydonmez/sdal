@@ -1,5 +1,6 @@
 export function createEventChatRuntime({
   sqlAll,
+  sqlAllAsync,
   sqlRunAsync,
   sanitizePlainUserText,
   sameUserId,
@@ -19,7 +20,7 @@ export function createEventChatRuntime({
     return null;
   }
 
-  function getEventResponseBundle(eventRow, viewerUserId, canSeePrivate = false) {
+  async function getEventResponseBundle(eventRow, viewerUserId, canSeePrivate = false) {
     const eventId = Number(eventRow?.id || 0);
     if (!eventId) {
       return {
@@ -29,7 +30,8 @@ export function createEventChatRuntime({
         decliners: []
       };
     }
-    const rows = sqlAll(
+    const queryAll = sqlAllAsync || ((...a) => Promise.resolve(sqlAll(...a)));
+    const rows = await queryAll(
       `SELECT er.response, er.updated_at, er.user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
        FROM event_responses er
        LEFT JOIN uyeler u ON u.id = er.user_id

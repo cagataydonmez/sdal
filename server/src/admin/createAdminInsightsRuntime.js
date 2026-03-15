@@ -4,6 +4,7 @@ export function createAdminInsightsRuntime({
   sqlGetAsync,
   sqlAllAsync,
   sqlRun,
+  sqlRunAsync,
   hasTable,
   hasColumn,
   joinUserOnPhotoOwnerExpr,
@@ -37,8 +38,9 @@ export function createAdminInsightsRuntime({
     return Number(n.toFixed(2));
   }
 
-  function buildEngagementAbPerformanceRows() {
-    const rows = sqlAll(
+  async function buildEngagementAbPerformanceRows() {
+    const execAll = sqlAllAsync || ((...a) => Promise.resolve(sqlAll(...a)));
+    const rows = await execAll(
       `SELECT COALESCE(NULLIF(ab_variant, ''), 'A') AS variant,
               COUNT(*) AS users,
               ROUND(AVG(COALESCE(score, 0)), 2) AS avg_score,
@@ -182,22 +184,29 @@ export function createAdminInsightsRuntime({
       params: cfg.params,
       updatedAt: cfg.updatedAt
     }));
-    const performance = buildEngagementAbPerformanceRows();
+    const execAll = sqlAllAsync || ((...a) => Promise.resolve(sqlAll(...a)));
+    const execGet = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+    const performance = await buildEngagementAbPerformanceRows();
     const recommendations = buildEngagementAbRecommendations(configs, performance);
-    const assignmentCounts = sqlAll(
-      `SELECT variant, COUNT(*) AS cnt
-       FROM engagement_ab_assignments
-       GROUP BY variant
-       ORDER BY variant ASC`
-    );
-    const lastCalculatedAt = sqlGet('SELECT MAX(updated_at) AS ts FROM member_engagement_scores')?.ts || null;
+    const [assignmentCounts, lastCalculatedRow] = await Promise.all([
+      execAll(
+        `SELECT variant, COUNT(*) AS cnt
+         FROM engagement_ab_assignments
+         GROUP BY variant
+         ORDER BY variant ASC`
+      ),
+      execGet('SELECT MAX(updated_at) AS ts FROM member_engagement_scores')
+    ]);
+    const lastCalculatedAt = lastCalculatedRow?.ts || null;
     res.json({ configs, performance, assignmentCounts, recommendations, lastCalculatedAt });
   }
 
-  function handleEngagementAbUpdate(req, res) {
+  async function handleEngagementAbUpdate(req, res) {
+    const execGet = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+    const execRun = sqlRunAsync || ((...a) => Promise.resolve(sqlRun(...a)));
     const variant = String(req.params.variant || '').trim().toUpperCase();
     if (!variant) return res.status(400).send('Variant gerekli.');
-    const existing = sqlGet('SELECT variant, params_json FROM engagement_ab_config WHERE variant = ?', [variant]);
+    const existing = await execGet('SELECT variant, params_json FROM engagement_ab_config WHERE variant = ?', [variant]);
     if (!existing) return res.status(404).send('Variant bulunamadi.');
     let currentParams = engagementDefaultVariants[variant]?.params || engagementDefaultParams;
     try {
@@ -217,7 +226,7 @@ export function createAdminInsightsRuntime({
     const enabledDbValue = toDbBooleanParam(enabled);
     const name = String(payload.name || '').trim() || (engagementDefaultVariants[variant]?.name || variant);
     const description = String(payload.description || '').trim() || (engagementDefaultVariants[variant]?.description || '');
-    sqlRun(
+    await execRun(
       `UPDATE engagement_ab_config
        SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
        WHERE variant = ?`,
@@ -228,10 +237,11 @@ export function createAdminInsightsRuntime({
     res.json({ ok: true });
   }
 
-  function handleEngagementAbRebalance(req, res) {
+  async function handleEngagementAbRebalance(req, res) {
+    const execRun = sqlRunAsync || ((...a) => Promise.resolve(sqlRun(...a)));
     const keepAssignments = String(req.body?.keepAssignments || '0') === '1';
     if (!keepAssignments) {
-      sqlRun('DELETE FROM engagement_ab_assignments');
+      await execRun('DELETE FROM engagement_ab_assignments');
     }
     recalculateMemberEngagementScores('admin_rebalance_ab');
     logAdminAction(req, 'engagement_ab_rebalance', { keepAssignments });

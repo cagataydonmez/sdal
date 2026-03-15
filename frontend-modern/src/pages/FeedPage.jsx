@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import PostComposer from '../components/PostComposer.jsx';
@@ -10,6 +11,7 @@ import { useLiveRefresh } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { FEED_FILTER_CONTRACT, FEED_SCOPE_CONTRACT, FEED_TAB_CONTRACT } from '../contracts/feedUiContract.js';
+import { getCached, setCache } from '../utils/swrCache.js';
 
 function FeedIcon({ name }) {
   const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -148,11 +150,20 @@ export default function FeedPage() {
   }, [mobileTabsExpanded]);
 
   useEffect(() => {
+    const key = 'site-access:/new';
+    const cached = getCached(key);
+    if (cached) {
+      const isOpen = cached.data?.main_feed !== false;
+      setMainFeedOpen(isOpen);
+      if (!isOpen && feedType === 'main') setFeedType('community');
+      if (!cached.stale) return;
+    }
     let mounted = true;
     fetch('/api/site-access?path=/new', { credentials: 'include' })
       .then((r) => r.ok ? r.json() : null)
       .then((payload) => {
         if (!mounted) return;
+        if (payload?.modules) setCache(key, payload.modules, 120_000);
         const isOpen = payload?.modules?.main_feed !== false;
         setMainFeedOpen(isOpen);
         if (!isOpen && feedType === 'main') setFeedType('community');
@@ -241,7 +252,7 @@ export default function FeedPage() {
       setUnreadMessagesError('');
     }
     try {
-      const res = await fetch('/api/new/messages/unread', { credentials: 'include', cache: 'no-store' });
+      const res = await fetch('/api/new/messages/unread', { credentials: 'include' });
       if (!res.ok) throw new Error('messages');
       const payload = await res.json();
       setUnreadMessages(payload.count || 0);
@@ -255,7 +266,7 @@ export default function FeedPage() {
 
   const loadUnreadNotifications = useCallback(async () => {
     try {
-      const res = await fetch('/api/new/notifications/unread', { credentials: 'include', cache: 'no-store' });
+      const res = await fetch('/api/new/notifications/unread', { credentials: 'include' });
       if (!res.ok) return;
       const payload = await res.json();
       setUnreadNotifications(payload.count || 0);
@@ -270,7 +281,7 @@ export default function FeedPage() {
       setQuickAccessError('');
     }
     try {
-      const res = await fetch('/api/quick-access', { credentials: 'include', cache: 'no-store' });
+      const res = await fetch('/api/quick-access', { credentials: 'include' });
       if (!res.ok) throw new Error('quick');
       const payload = await res.json();
       setQuickUsers(payload.users || []);
@@ -288,7 +299,7 @@ export default function FeedPage() {
       setOnlineMembersError('');
     }
     try {
-      const res = await fetch('/api/new/online-members?limit=10&excludeSelf=1', { credentials: 'include', cache: 'no-store' });
+      const res = await fetch('/api/new/online-members?limit=10&excludeSelf=1', { credentials: 'include' });
       if (!res.ok) throw new Error('online');
       const payload = await res.json();
       setOnlineMembers(payload.items || []);
@@ -313,15 +324,12 @@ export default function FeedPage() {
   useEffect(() => {
     if (sideDataInitializedRef.current) return;
     sideDataInitializedRef.current = true;
-    const timer = setTimeout(() => {
-      Promise.allSettled([
-        loadUnreadMessages({ background: false }),
-        loadUnreadNotifications(),
-        loadQuickAccess({ background: false }),
-        loadOnlineMembers({ background: false })
-      ]).catch(() => {});
-    }, 180);
-    return () => clearTimeout(timer);
+    Promise.allSettled([
+      loadUnreadMessages({ background: false }),
+      loadUnreadNotifications(),
+      loadQuickAccess({ background: false }),
+      loadOnlineMembers({ background: false })
+    ]).catch(() => {});
   }, [loadUnreadMessages, loadUnreadNotifications, loadQuickAccess, loadOnlineMembers]);
 
   useEffect(() => {
@@ -351,7 +359,9 @@ export default function FeedPage() {
         <div className="panel feed-mobile-stories-wrap">
           <StoryBar title={t('stories_title')} />
         </div>
+      </div>
 
+      {createPortal(
         <div ref={mobileTabsWrapRef} className={`panel feed-mobile-tabs-wrap ${mobileTabsExpanded ? 'is-expanded' : ''}`}>
           <div
             id="feed-mobile-tabs-menu"
@@ -393,8 +403,9 @@ export default function FeedPage() {
             </span>
           </button>
           <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
 
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>

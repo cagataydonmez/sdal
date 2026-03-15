@@ -9,6 +9,7 @@ export function createNetworkingRuntime({
   sqlRun,
   sqlGetAsync,
   sqlAllAsync,
+  sqlRunAsync,
   hasColumn,
   hasTable,
   normalizeCohortValue,
@@ -554,8 +555,10 @@ export function createNetworkingRuntime({
 
   const adminAnalyticsRuntime = createNetworkingAdminAnalyticsRuntime({
     sqlGet,
+    sqlGetAsync,
     sqlAll,
     sqlRun,
+    sqlRunAsync,
     sqlAllAsync,
     hasTable,
     normalizeCohortValue,

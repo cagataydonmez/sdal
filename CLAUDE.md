@@ -1,133 +1,246 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# CLAUDE.md — AI Assistant Guide for SDAL
 
 ## Project Overview
 
-SDAL (Social Directory Application Layer) is a social networking platform for professional communities (teachers, mentors, job seekers). It is a monorepo with a Node.js/Express backend serving two React frontends (modern and classic) plus iOS/Android native apps via Capacitor.
+SDAL (Social Directory Application Layer) is a Node.js/React monorepo for a social networking platform. It includes an Express backend, two React frontends (classic and modern), and native mobile stubs for iOS/Android.
 
-## Common Commands
+**Stack**: Node.js 20+, Express 4, PostgreSQL 16, Redis 7, React 18 + Vite 5
 
-All commands assume you are in the repo root unless otherwise noted.
+---
 
-### Development
+## Repository Structure
+
+```
+sdal/
+├── server/                  # Express API server (primary codebase)
+├── frontend-modern/         # React + Vite + Capacitor (active frontend)
+├── frontend-classic/        # React + Vite (legacy frontend)
+├── ios-native/              # iOS native stub
+├── android-native/          # Android native stub
+├── design/tokens/           # Canonical design token source (JSON)
+├── docs/                    # Architecture and deployment documentation (37 files)
+├── ops/                     # Deployment and migration shell scripts
+├── db/                      # SQLite database files (local dev)
+├── uploads/                 # Local media file storage
+├── docker-compose.yml       # PostgreSQL + Redis for local dev
+├── ecosystem.config.cjs     # PM2 production config
+└── railway.json             # Railway deployment config
+```
+
+### Server internals (`server/src/`)
+
+```
+server/src/
+├── admin/            # Admin user management and moderation
+├── auth/             # Authentication runtime and helpers
+├── bootstrap/        # Domain layer initialization
+├── domain/           # Domain entities
+├── events/           # WebSocket event chat runtime
+├── http/
+│   ├── controllers/  # feedController, postController, chatController, authController, adminController
+│   ├── dto/          # Legacy API mappers
+│   └── middleware/   # idempotency.js, rateLimit.js
+├── infra/            # Infrastructure: jobQueue, mailSender, cache, DB pools, realtime bus
+├── networking/       # Network discovery and suggestions
+├── notifications/    # Notification governance and delivery
+├── opportunities/    # Opportunity inbox feature
+├── realtime/         # WebSocket runtime
+├── repositories/     # DB repository interfaces and legacy SQLite implementations
+├── services/         # Business logic: authService, chatService, feedService, postService, etc.
+├── shared/           # Shared utilities (httpError.js)
+└── uploads/          # Upload security and media processing runtime
+```
+
+Key entry points:
+- `server/index.js` — Main server entry
+- `server/appRuntime.js` — Monolithic app bootstrap (large file, ~170KB)
+- `server/worker.js` — Background job worker process
+- `server/db.js` — Database abstraction layer (~19KB)
+
+Route files live in `server/routes/` (22 files): auth, account, feed, groups, events, networking, notifications, admin moderation, stories, OAuth, etc.
+
+---
+
+## Development Workflows
+
+### Local Setup
 
 ```bash
-# Start backend dev server (port 8787)
-npm --prefix server run dev
+# Start infrastructure
+docker compose up -d postgres redis
 
-# Start modern frontend dev server (port 5174, proxies /api → localhost:8787)
-npm --prefix frontend-modern run dev
+# Install and run server
+npm --prefix server ci
+npm --prefix server run migrate:up
+npm --prefix server run start
 
-# Start classic frontend dev server
+# Run frontends (separate terminals)
+npm --prefix frontend-modern run dev   # port 5174, proxies to :8787
 npm --prefix frontend-classic run dev
 ```
-
-### Build
-
-```bash
-# Build both frontends
-npm run build
-
-# Build individual frontend
-npm --prefix frontend-modern run build
-npm --prefix frontend-classic run build
-```
-
-### Database Migrations
-
-```bash
-npm --prefix server run migrate:up       # Apply pending migrations
-npm --prefix server run migrate:down     # Rollback last migration
-npm --prefix server run migrate:status   # Show migration state
-npm --prefix server run migrate:verify   # Sanity check
-```
-
-### Running Tests
-
-Tests are contract-driven Node.js scripts (not Jest/Mocha). The server must be running before executing tests.
-
-```bash
-npm --prefix server run test:phase1-contracts
-npm --prefix server run test:phase2-health
-npm --prefix server run test:phase2-opportunity-inbox
-npm --prefix server run test:phase2-connections
-npm --prefix server run test:phase2-notifications
-npm --prefix server run test:phase5-performance
-npm --prefix server run test:phase6-realtime-jobs
-npm --prefix server run test:phase7-media-hardening
-npm --prefix server run test:phase9-email
-```
-
-### Infrastructure (Docker)
-
-```bash
-docker-compose up -d     # Start PostgreSQL 16 and Redis 7
-docker-compose down
-```
-
-### Design Tokens
-
-```bash
-npm run tokens:sync      # Sync shared design tokens across web/iOS/Android
-```
-
-## Architecture
-
-### Backend (`server/`)
-
-- **Entry point**: `server/index.js` → imports from `server/appRuntime.js`
-- **App setup**: `server/appRuntime.js` (~2000 lines) — registers all middleware and 22+ route modules
-- **Database abstraction**: `server/db.js` — unified API for both PostgreSQL and SQLite
-
-**Startup sequence**: load env → create Express app → start HTTP server → `onServerStarted()` (migrations, cache warm-up) → attach WebSocket servers.
-
-**Dual-database driver**: Set via `SDAL_DB_DRIVER=sqlite|postgres` or auto-detected from `DATABASE_URL`. SQLite uses synchronous API (`sqlGet`, `sqlAll`, `sqlRun`); PostgreSQL uses async API (`sqlGetAsync`, `sqlAllAsync`, `sqlRunAsync`, `pgQuery`). New routes should use the async API.
-
-**Route organization** (`server/routes/`): 22 domain-scoped modules registered in `appRuntime.js`. Route files for admin are prefixed `admin*`, user-facing routes are named by domain (profileSelfService, teacherNetwork, storyRoutes, etc.).
-
-**Middleware** (`server/middleware/`): presence tracking, request logging, session (Redis-backed, in-memory fallback), static uploads.
-
-**Infrastructure services** initialized in `appRuntime.js`:
-- Redis: sessions, rate-limit state, versioned cache namespaces, pub/sub
-- Image pipeline: Sharp, WebP conversion, three variants (thumb/feed/full)
-- WebSocket runtime: chat and realtime notifications
-- Background job queue (namespaced)
-- Mail sender: SMTP or Resend API (mock in dev)
-- Idempotency middleware: deduplicates POST requests by key
-
-### Frontend (`frontend-modern/`, `frontend-classic/`)
-
-- React 18 + React Router 6 + Vite
-- Modern frontend base path: `/new/`
-- Dev proxy: `/api` and `/uploads` → `http://localhost:8787`
-- iOS/Android: Capacitor 8 wraps `frontend-modern`
-
-### Database Migrations (`server/migrations/`)
-
-SQL files only. Seven sequential migrations (001–007) covering schema creation, seed data, indexes, and a PostgreSQL-to-legacy compatibility layer (`004_phase6_legacy_sql_compat.up.sql`).
-
-Migration scripts for data transfer live in `server/scripts/` (e.g., `migrate-legacy-sqlite-to-modern-postgres.mjs`).
 
 ### Environment Configuration
 
 Copy `server/.env.example` to `server/.env`. Key variables:
 
-| Variable | Purpose |
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | 8787 | Server port |
+| `SDAL_DB_DRIVER` | `postgres` | `postgres` or `sqlite` |
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `REDIS_URL` | — | Redis connection string |
+| `SESSION_SECRET` | — | Express session secret |
+| `SPACES_KEY/SECRET` | — | S3/DO Spaces credentials |
+| `SMTP_*/RESEND_*` | — | Email provider config |
+
+### Database Migrations
+
+```bash
+cd server
+npm run migrate:up        # Apply all pending migrations
+npm run migrate:down      # Roll back last migration
+npm run migrate:status    # Show migration state
+npm run migrate:verify    # Sanity check migration artifacts
+```
+
+Migrations live in `server/migrations/` as numbered SQL pairs (`001-up.sql` / `001-down.sql`). Currently 7 migration files. **Always add up/down pairs when creating new migrations.**
+
+### Design Tokens
+
+The canonical source is `design/tokens/sdal.tokens.json`. Run this after editing tokens:
+
+```bash
+npm run tokens:sync
+```
+
+Outputs to:
+- `frontend-modern/src/generated/design-tokens.css`
+- `ios-native/SDALNative/UI/Generated/SDALDesignTokens.generated.swift`
+- `android-native/theme/SDALDesignTokens.kt`
+
+---
+
+## Testing
+
+Tests are integration-style **contract tests** that run against a live server. Run them from `server/`:
+
+```bash
+npm run test:phase2-health          # Health check (used in CI)
+npm run test:phase1-contracts       # Core API contract
+npm run test:phase2-connections     # Social connections
+npm run test:phase2-mentorship      # Mentorship flows
+npm run test:phase2-notifications   # Notification delivery
+npm run test:phase2-opportunity-inbox
+npm run test:phase5-performance     # Performance benchmarks
+npm run test:phase6-realtime-jobs   # WebSocket + job queue
+npm run test:phase7-media-hardening # Upload security
+npm run test:phase9-email           # Email providers
+# ... plus 6 more phase2-* test scripts
+```
+
+**CI only runs** `test:phase2-health` and `migrate:verify`. Run the narrowest relevant contract test to verify changes. There is no unit test framework — the contract tests are the source of truth.
+
+---
+
+## CI/CD
+
+**File**: `.github/workflows/deploy.yml`
+**Trigger**: Push to `main`, or manual dispatch
+
+Pipeline stages:
+1. **Validate**: Install server deps, run `test:phase2-health`, run `migrate:verify`
+2. **Deploy**: SSH into DigitalOcean droplet, run `ops/deploy-systemd.sh`
+3. **Health check**: Poll `GET /api/health` with 30 retries at 2s intervals
+
+Required secrets: `DO_HOST`, `DO_USER`, `DO_SSH_KEY`, `DO_PORT`, `DO_APP_DIR`, `DO_ENV_FILE`
+
+Production process manager: **PM2** via `ecosystem.config.cjs` (1 instance, 700MB max memory restart).
+
+---
+
+## Key Conventions
+
+### Server
+
+- ES Modules throughout (`"type": "module"` in `server/package.json`) — use `import`/`export`, not `require`.
+- Route handlers are in `server/routes/`; business logic belongs in `server/src/services/`.
+- HTTP errors should use `server/src/shared/httpError.js`.
+- Rate limiting is configured per-endpoint via `server/src/http/middleware/rateLimit.js`.
+- Idempotency keys are handled in `server/src/http/middleware/idempotency.js` — do not bypass this for mutating endpoints.
+- Upload limits: **10MB per file**, **140 files/day per user**.
+- Image uploads produce 3 WebP variants: `thumb` (200px), `feed` (800px), `full` (1600px). EXIF is stripped automatically.
+
+### Database
+
+- Primary driver: PostgreSQL 16. SQLite is legacy/fallback only (`SDAL_DB_DRIVER=sqlite`).
+- All queries go through `server/db.js` or repository classes in `server/src/repositories/`.
+- Use parameterized queries always — never string-interpolate user input into SQL.
+- PostgreSQL pool: min 1, max 8 connections. Redis client is shared for sessions, cache, and pub/sub.
+
+### Frontend
+
+- **frontend-modern** is the active frontend. `frontend-classic` is legacy — avoid adding features there.
+- `frontend-modern` base path is `/new/` and proxies API calls to `:8787`.
+- Capacitor is configured for iOS deployment — keep Capacitor config (`capacitor.config.json`) in sync when changing `appId` or server URL.
+- Use design tokens from `frontend-modern/src/generated/design-tokens.css` for all colors/spacing — do not hardcode values.
+
+### No linting enforcement
+
+There are no ESLint, Prettier, or pre-commit hook configs. Follow the style of the surrounding code. Use 2-space indentation and single quotes in JS files.
+
+---
+
+## Discovery Order (for AI assistants)
+
+When exploring an unfamiliar area of the codebase:
+
+1. `server/package.json` — available scripts and dependencies
+2. `server/routes/` — find the relevant route file
+3. `server/src/http/controllers/` — find the controller
+4. `server/src/services/` — find the business logic
+5. `server/db.js` or `server/src/repositories/` — understand the data layer
+6. `server/migrations/` — understand the schema
+7. `server/tests/contracts/` — find the relevant contract test
+
+Do not load `appRuntime.js` in full — it is very large. Search for specific function names or patterns within it instead.
+
+---
+
+## Editing Rules
+
+- Never load the whole repo without a strong reason.
+- Read and summarize relevant files before editing.
+- Prefer symbol-level reads and small targeted snippets.
+- Reuse prior findings instead of re-reading the same file.
+- Run the narrowest test or check that can verify the change.
+- Mention commands run and any unverified risks in your response.
+
+---
+
+## Infrastructure Services
+
+| Service | Role |
 |---|---|
-| `SDAL_DB_DRIVER` | `sqlite` or `postgres` |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `SDAL_SESSION_SECRET` | Session signing key |
-| `STORAGE_PROVIDER` | `local` or `s3` |
-| `MAIL_PROVIDER` | `mock`, `smtp`, or `resend` |
+| PostgreSQL 16 | Primary database |
+| Redis 7 | Sessions, cache, pub/sub, job queue |
+| sharp | Server-side image processing (WebP conversion, resizing) |
+| nodemailer | SMTP email delivery |
+| Resend | Alternative email provider (set `RESEND_API_KEY`) |
+| ws | WebSocket server for real-time chat and events |
+| multer | Multipart upload handling |
+| DigitalOcean Spaces | S3-compatible object storage (optional, configurable in admin panel) |
 
-Cache TTLs, rate limits, upload quotas, and OAuth credentials are all configured via env vars — see `.env.example` for full schema.
+---
 
-## Key Patterns
+## Important Files
 
-- **Async/await**: All new route handlers should use async/await with `sqlGetAsync`/`sqlAllAsync`/`sqlRunAsync`. Older routes may still use synchronous SQLite calls.
-- **Rate limiting**: Applied per endpoint type in `appRuntime.js` (login, chat, posts, comments, uploads, connection/mentorship requests).
-- **Idempotency**: POST-heavy endpoints (post creation, chat send) use idempotency middleware to prevent duplicate submissions.
-- **Versioned cache namespaces**: Feed, profile, stories, and admin settings each have their own cache namespace for targeted invalidation.
-- **Image uploads**: Always go through the media pipeline (multer → validation → Sharp → WebP → variant storage → DB record).
+| File | Purpose |
+|---|---|
+| `server/appRuntime.js` | Monolithic app setup — very large, search rather than read whole |
+| `server/db.js` | Database abstraction layer |
+| `server/src/infra/` | Infrastructure singletons (pool, redis, cache, mail, jobs) |
+| `docs/ARCHITECTURE.md` | System design overview |
+| `docs/DEPLOY_UBUNTU.md` | Full Ubuntu production deployment guide |
+| `server/.env.example` | All 129 environment variables with documentation |
+| `PLAN.md` | Admin panel redesign plan |
+| `RESTART_MODERN_PHASED_PLAN.md` | Feature implementation roadmap |

@@ -395,6 +395,9 @@ export function createNetworkDiscoveryPayloadRuntime({
     const hasMentorshipRequests = hasTable('mentorship_requests');
     const hasTeacherLinks = hasTable('teacher_alumni_links');
 
+    const relevantIds = [safeUserId, ...candidateIds];
+    const relevantPlaceholders = relevantIds.map(() => '?').join(',');
+
     const [sharedGroupsRows, mentorshipRows, teacherLinkRows] = await Promise.all([
       hasGroupMembers && candidateIds.length
         ? sqlAllAsync(
@@ -407,29 +410,23 @@ export function createNetworkDiscoveryPayloadRuntime({
           [safeUserId, ...candidateIds]
         )
         : Promise.resolve([]),
-      hasMentorshipRequests
+      hasMentorshipRequests && relevantIds.length
         ? sqlAllAsync(
           `SELECT requester_id, mentor_id
            FROM mentorship_requests
            WHERE status = 'accepted'
-             AND (
-               requester_id = ?
-               OR mentor_id = ?
-               OR requester_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})
-               OR mentor_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})
-             )`,
-          [safeUserId, safeUserId, safeUserId, ...candidateIds, safeUserId, ...candidateIds]
+             AND (requester_id IN (${relevantPlaceholders})
+               OR mentor_id IN (${relevantPlaceholders}))`,
+          [...relevantIds, ...relevantIds]
         )
         : Promise.resolve([]),
-      hasTeacherLinks
+      hasTeacherLinks && relevantIds.length
         ? sqlAllAsync(
           `SELECT teacher_user_id, alumni_user_id
            FROM teacher_alumni_links
-           WHERE teacher_user_id = ?
-              OR alumni_user_id = ?
-              OR teacher_user_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})
-              OR alumni_user_id IN (${[safeUserId, ...candidateIds].map(() => '?').join(',')})`,
-          [safeUserId, safeUserId, safeUserId, ...candidateIds, safeUserId, ...candidateIds]
+           WHERE teacher_user_id IN (${relevantPlaceholders})
+              OR alumni_user_id IN (${relevantPlaceholders})`,
+          [...relevantIds, ...relevantIds]
         )
         : Promise.resolve([])
     ]);

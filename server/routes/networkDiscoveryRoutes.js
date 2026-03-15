@@ -1,3 +1,13 @@
+import { getCacheJson, setCacheJson } from '../src/infra/performanceCache.js';
+import { createRateLimitMiddleware } from '../src/http/middleware/rateLimit.js';
+
+const heavyEndpointRateLimit = createRateLimitMiddleware({
+  bucket: 'heavy_network',
+  limit: 15,
+  windowSeconds: 60,
+  keyGenerator: (req) => String(req.session?.userId || req.ip || 'unknown')
+});
+
 export function registerNetworkDiscoveryRoutes(app, {
   requireAuth,
   requireAdmin,
@@ -30,13 +40,26 @@ export function registerNetworkDiscoveryRoutes(app, {
   buildNetworkMetricsPayload,
   buildExploreSuggestionsPayload
 }) {
-  app.get('/api/new/opportunities', requireAuth, async (req, res) => {
+  app.get('/api/new/opportunities', requireAuth, heavyEndpointRateLimit, async (req, res) => {
     try {
       const userId = Number(req.session?.userId || 0);
       const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 40);
       const cursor = String(req.query.cursor || '').trim();
       const tab = String(req.query.tab || 'all').trim().toLowerCase();
+
+      const cacheKey = `opp-inbox:${userId}:${tab}:${cursor}:${limit}`;
+      const cached = await getCacheJson(cacheKey);
+      if (cached) {
+        return res.json(apiSuccessEnvelope(
+          'OPPORTUNITY_INBOX_OK',
+          'Fırsat merkezi hazır.',
+          { opportunities: cached },
+          { opportunities: cached }
+        ));
+      }
+
       const opportunities = await buildOpportunityInboxPayload(userId, { limit, cursor, tab });
+      await setCacheJson(cacheKey, opportunities, 15);
       return res.json(apiSuccessEnvelope(
         'OPPORTUNITY_INBOX_OK',
         'Fırsat merkezi hazır.',
@@ -49,14 +72,27 @@ export function registerNetworkDiscoveryRoutes(app, {
     }
   });
 
-  app.get('/api/new/network/hub', requireAuth, async (req, res) => {
+  app.get('/api/new/network/hub', requireAuth, heavyEndpointRateLimit, async (req, res) => {
     try {
       const userId = Number(req.session?.userId || 0);
       const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
       const teacherLinkLimit = Math.min(Math.max(parseInt(req.query.teacher_limit || String(limit), 10), 1), 50);
       const suggestionLimit = Math.min(Math.max(parseInt(req.query.suggestion_limit || '8', 10), 1), 20);
       const windowDays = parseNetworkWindowDays(req.query.window);
+
+      const hubCacheKey = `net-hub:${userId}:${windowDays}:${limit}:${teacherLinkLimit}:${suggestionLimit}`;
+      const cachedHub = await getCacheJson(hubCacheKey);
+      if (cachedHub) {
+        return res.json({
+          ok: true,
+          code: 'NETWORK_HUB_BOOTSTRAP_OK',
+          message: 'Networking hub bootstrap hazir.',
+          data: { hub: cachedHub }
+        });
+      }
+
       const hub = await buildNetworkHubPayload(userId, { windowDays, limit, teacherLinkLimit, suggestionLimit });
+      await setCacheJson(hubCacheKey, hub, 20);
       return res.json({
         ok: true,
         code: 'NETWORK_HUB_BOOTSTRAP_OK',
@@ -74,11 +110,19 @@ export function registerNetworkDiscoveryRoutes(app, {
     }
   });
 
-  app.get('/api/new/network/metrics', requireAuth, async (req, res) => {
+  app.get('/api/new/network/metrics', requireAuth, heavyEndpointRateLimit, async (req, res) => {
     try {
       const userId = Number(req.session?.userId || 0);
       const windowDays = parseNetworkWindowDays(req.query.window);
+
+      const metricsCacheKey = `net-metrics:${userId}:${windowDays}`;
+      const cachedMetrics = await getCacheJson(metricsCacheKey);
+      if (cachedMetrics) {
+        return res.json(apiSuccessEnvelope('NETWORK_METRICS_OK', 'Networking metrikleri hazır.', cachedMetrics, cachedMetrics));
+      }
+
       const payload = await buildNetworkMetricsPayload(userId, windowDays);
+      await setCacheJson(metricsCacheKey, payload, 30);
       return res.json(apiSuccessEnvelope('NETWORK_METRICS_OK', 'Networking metrikleri hazır.', payload, payload));
     } catch (err) {
       console.error('network.metrics failed:', err);
@@ -332,7 +376,7 @@ export function registerNetworkDiscoveryRoutes(app, {
     }
   });
 
-  app.get('/api/new/explore/suggestions', requireAuth, async (req, res) => {
+  app.get('/api/new/explore/suggestions', requireAuth, heavyEndpointRateLimit, async (req, res) => {
     try {
       const payload = await buildExploreSuggestionsPayload(req.session.userId, {
         limit: req.query.limit || '12',
