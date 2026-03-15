@@ -1,5 +1,6 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { readApiPayload } from '../utils/api.js';
+import { getCached, setCache } from '../utils/swrCache.js';
 
 function initialState() {
   return {
@@ -14,19 +15,61 @@ function initialState() {
   };
 }
 
+function cacheKey(tab) {
+  return `opportunities:${tab || 'all'}`;
+}
+
 export function useOpportunityInboxState(tab = 'all') {
-  const [state, setState] = useState(initialState);
+  const [state, setState] = useState(() => {
+    const cached = getCached(cacheKey(tab));
+    if (cached) {
+      return {
+        ...initialState(),
+        loading: cached.stale,
+        items: cached.data.items || [],
+        summary: cached.data.summary || initialState().summary,
+        hasMore: Boolean(cached.data.hasMore),
+        nextCursor: String(cached.data.next_cursor || ''),
+        tab: String(cached.data.tab || tab || 'all')
+      };
+    }
+    return initialState();
+  });
   const requestIdRef = useRef(0);
 
   const load = useCallback(async ({ append = false, cursor = '' } = {}) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    setState((prev) => ({
-      ...prev,
-      loading: append ? prev.loading : true,
-      loadingMore: append,
-      error: append ? prev.error : ''
-    }));
+
+    if (!append) {
+      const cached = getCached(cacheKey(tab));
+      if (cached) {
+        startTransition(() => {
+          setState((prev) => ({
+            ...prev,
+            loading: cached.stale,
+            error: '',
+            items: cached.data.items || [],
+            summary: cached.data.summary || prev.summary,
+            hasMore: Boolean(cached.data.hasMore),
+            nextCursor: String(cached.data.next_cursor || ''),
+            tab: String(cached.data.tab || tab || 'all')
+          }));
+        });
+        if (!cached.stale) return;
+      } else {
+        setState((prev) => ({
+          ...prev,
+          loading: true,
+          error: ''
+        }));
+      }
+    } else {
+      setState((prev) => ({
+        ...prev,
+        loadingMore: true
+      }));
+    }
 
     try {
       const params = new URLSearchParams({
@@ -35,13 +78,17 @@ export function useOpportunityInboxState(tab = 'all') {
       });
       if (cursor) params.set('cursor', String(cursor));
       const res = await fetch(`/api/new/opportunities?${params.toString()}`, {
-        credentials: 'include',
-        cache: 'no-store'
+        credentials: 'include'
       });
       const { data, message } = await readApiPayload(res, 'Fırsat merkezi yüklenemedi.');
       if (!res.ok) throw new Error(message);
       const payload = data?.opportunities || {};
       if (requestId !== requestIdRef.current) return;
+
+      if (!append) {
+        setCache(cacheKey(tab), payload, 30_000);
+      }
+
       startTransition(() => {
         setState((prev) => ({
           ...prev,
@@ -67,16 +114,32 @@ export function useOpportunityInboxState(tab = 'all') {
   }, [tab]);
 
   useEffect(() => {
-    setState((prev) => ({
-      ...prev,
-      loading: true,
-      loadingMore: false,
-      error: '',
-      items: [],
-      hasMore: false,
-      nextCursor: '',
-      tab: String(tab || 'all')
-    }));
+    const cached = getCached(cacheKey(tab));
+    if (cached) {
+      setState((prev) => ({
+        ...prev,
+        loading: cached.stale,
+        loadingMore: false,
+        error: '',
+        items: cached.data.items || [],
+        summary: cached.data.summary || prev.summary,
+        hasMore: Boolean(cached.data.hasMore),
+        nextCursor: String(cached.data.next_cursor || ''),
+        tab: String(tab || 'all')
+      }));
+      if (!cached.stale) return;
+    } else {
+      setState((prev) => ({
+        ...prev,
+        loading: true,
+        loadingMore: false,
+        error: '',
+        items: [],
+        hasMore: false,
+        nextCursor: '',
+        tab: String(tab || 'all')
+      }));
+    }
     void load({ append: false, cursor: '' });
   }, [load, tab]);
 

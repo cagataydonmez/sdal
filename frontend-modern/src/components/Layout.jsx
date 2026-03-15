@@ -9,6 +9,7 @@ import { openNotification } from '../utils/notificationApi.js';
 import { buildNotificationViewModel, shouldToastNotification } from '../utils/notificationRegistry.js';
 import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
 import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
+import { getCached, setCache } from '../utils/swrCache.js';
 
 export default function Layout({ children, title, right }) {
   const location = useLocation();
@@ -155,7 +156,7 @@ export default function Layout({ children, title, right }) {
       if (eventType !== 'notification:new' || !user || location.pathname === '/new/notifications') return;
       void (async () => {
         try {
-          const res = await fetch('/api/new/notifications?limit=5&sort=priority', { credentials: 'include', cache: 'no-store' });
+          const res = await fetch('/api/new/notifications?limit=5&sort=priority', { credentials: 'include' });
           if (!res.ok) return;
           const { data } = await readApiPayload(res, '');
           const items = Array.isArray(data?.items) ? data.items.map(buildNotificationViewModel) : [];
@@ -204,12 +205,19 @@ export default function Layout({ children, title, right }) {
   }, []);
 
   useEffect(() => {
+    const key = `site-access:${location.pathname}`;
+    const cached = getCached(key);
+    if (cached) {
+      setModuleAccess(cached.data);
+      if (!cached.stale) return;
+    }
     let mounted = true;
     fetch(`/api/site-access?path=${encodeURIComponent(location.pathname)}`, { credentials: 'include' })
       .then((r) => r.ok ? r.json() : null)
       .then((payload) => {
         if (!mounted || !payload?.modules) return;
-        setModuleAccess(payload.modules || {});
+        setCache(key, payload.modules, 120_000);
+        setModuleAccess(payload.modules);
       })
       .catch(() => {});
     return () => { mounted = false; };
