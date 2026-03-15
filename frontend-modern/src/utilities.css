@@ -405,8 +405,19 @@ body.story-view-open .global-feedback {
     border-radius: 10px;
   }
   .story-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: space-between;
+    gap: 4px;
+    overflow: hidden;
+  }
+  .story-actions .btn {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    flex-shrink: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .feed-mobile-sticky-stack {
     display: grid;
