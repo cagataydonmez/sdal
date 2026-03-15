@@ -1,3 +1,5 @@
+import { getCacheJson, setCacheJson } from '../src/infra/performanceCache.js';
+
 export function registerNetworkDiscoveryRoutes(app, {
   requireAuth,
   requireAdmin,
@@ -36,7 +38,20 @@ export function registerNetworkDiscoveryRoutes(app, {
       const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 40);
       const cursor = String(req.query.cursor || '').trim();
       const tab = String(req.query.tab || 'all').trim().toLowerCase();
+
+      const cacheKey = `opp-inbox:${userId}:${tab}:${cursor}:${limit}`;
+      const cached = await getCacheJson(cacheKey);
+      if (cached) {
+        return res.json(apiSuccessEnvelope(
+          'OPPORTUNITY_INBOX_OK',
+          'Fırsat merkezi hazır.',
+          { opportunities: cached },
+          { opportunities: cached }
+        ));
+      }
+
       const opportunities = await buildOpportunityInboxPayload(userId, { limit, cursor, tab });
+      await setCacheJson(cacheKey, opportunities, 15);
       return res.json(apiSuccessEnvelope(
         'OPPORTUNITY_INBOX_OK',
         'Fırsat merkezi hazır.',

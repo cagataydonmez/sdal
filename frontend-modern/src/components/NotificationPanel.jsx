@@ -35,7 +35,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
       setError('');
     }
     try {
-      const res = await fetch(`/api/new/notifications?limit=${Math.max(1, Number(limit) || 5)}&sort=priority`, { credentials: 'include', cache: 'no-store' });
+      const res = await fetch(`/api/new/notifications?limit=${Math.max(1, Number(limit) || 5)}&sort=priority`, { credentials: 'include' });
       if (!res.ok) {
         if (!background) setError('load_failed');
         if (!background) setLoading(false);

@@ -78,7 +78,7 @@ export default function NotificationsPage() {
       sort: sortOrderVariant === 'recent' ? 'recent' : 'priority'
     });
     if (cursor) query.set('cursor', cursor);
-    const res = await fetch(`/api/new/notifications?${query.toString()}`, { credentials: 'include', cache: 'no-store' });
+    const res = await fetch(`/api/new/notifications?${query.toString()}`, { credentials: 'include' });
     if (!res.ok) {
       setError('Bildirimler yüklenemedi.');
       setLoading(false);
