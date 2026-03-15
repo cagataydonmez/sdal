@@ -8,10 +8,12 @@ const LEGACY_SCOPE_MAP = {
 };
 
 export class FeedService {
-  constructor({ userRepository, groupRepository, feedRepository }) {
+  constructor({ userRepository, groupRepository, feedRepository, getCacheJson, setCacheJson }) {
     this.userRepository = userRepository;
     this.groupRepository = groupRepository;
     this.feedRepository = feedRepository;
+    this.getCacheJson = getCacheJson || null;
+    this.setCacheJson = setCacheJson || null;
   }
 
   async findFeedPage({ viewerId, query, moduleMap }) {
@@ -53,10 +55,30 @@ export class FeedService {
     const whereParams = [];
 
     if (feedType === 'community') {
-      const year = await this.userRepository.findGraduationYearById(viewerId);
+      let year;
+      const yearCacheKey = `feed:grad_year:${viewerId}`;
+      if (this.getCacheJson) {
+        year = await this.getCacheJson(yearCacheKey);
+      }
+      if (year === null || year === undefined) {
+        year = await this.userRepository.findGraduationYearById(viewerId);
+        if (this.setCacheJson && year !== null && year !== undefined) {
+          await this.setCacheJson(yearCacheKey, year, 300);
+        }
+      }
       if (!Number.isNaN(year) && Number(year) > 1900) {
         const cohortName = `${year} Mezunları`;
-        const group = await this.groupRepository.findByName(cohortName);
+        let group;
+        const groupCacheKey = `feed:cohort_group:${cohortName}`;
+        if (this.getCacheJson) {
+          group = await this.getCacheJson(groupCacheKey);
+        }
+        if (group === null || group === undefined) {
+          group = await this.groupRepository.findByName(cohortName);
+          if (this.setCacheJson && group) {
+            await this.setCacheJson(groupCacheKey, group, 600);
+          }
+        }
         if (group) {
           whereSql = 'WHERE p.group_id = ?';
           whereParams.push(group.id);

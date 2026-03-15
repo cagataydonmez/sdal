@@ -35,6 +35,10 @@ export class LegacyFeedRepository extends FeedRepository {
       ? [...whereParams, cursorId, viewerId, limit, offset]
       : [...whereParams, viewerId, limit, offset];
 
+    const esJoin = filter === 'popular'
+      ? `LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id`
+      : '';
+
     const rows = this.isPostgresDb && typeof this.sqlAllAsync === 'function'
       ? await this.sqlAllAsync(
         `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.group_id,
@@ -44,7 +48,7 @@ export class LegacyFeedRepository extends FeedRepository {
                 CASE WHEN vl.post_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
          FROM posts p
          LEFT JOIN uyeler u ON ${this.joinUserOnPostAuthorExpr}
-         LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id
+         ${esJoin}
          LEFT JOIN (
            SELECT post_id, COUNT(*) AS like_count
            FROM post_likes
@@ -73,7 +77,7 @@ export class LegacyFeedRepository extends FeedRepository {
               CASE WHEN vl.post_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
        FROM posts p
        LEFT JOIN uyeler u ON ${this.joinUserOnPostAuthorExpr}
-       LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id
+       ${esJoin}
        LEFT JOIN (
          SELECT post_id, COUNT(*) AS like_count
          FROM post_likes
