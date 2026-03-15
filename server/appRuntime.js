@@ -3315,6 +3315,7 @@ const {
   canManageChatMessage
 } = createEventChatRuntime({
   sqlAll,
+  sqlAllAsync,
   sqlRunAsync,
   sanitizePlainUserText,
   sameUserId,
@@ -4108,6 +4109,7 @@ const {
   sqlRun,
   sqlGetAsync,
   sqlAllAsync,
+  sqlRunAsync,
   hasColumn,
   hasTable,
   normalizeCohortValue,
@@ -4752,9 +4754,11 @@ const { attachWebSocketServers } = createWebSocketRuntime({
   allowLegacyWsQueryAuth,
   writeAppLog,
   sqlGet,
+  sqlGetAsync,
   formatUserText,
   isFormattedContentEmpty,
   sqlRun,
+  sqlRunAsync,
   scheduleEngagementRecalculation,
   broadcastChatMessage,
   setChatWss: (value) => { chatWss = value; },

@@ -49,9 +49,9 @@ export function registerEventJobRoutes(app, {
         [limit, offset]
       );
 
-      const items = rows.map((row) => {
+      const items = await Promise.all(rows.map(async (row) => {
         const canSeePrivate = isAdmin || sameUserId(row.created_by, req.session.userId);
-        const bundle = getEventResponseBundle(row, req.session.userId, canSeePrivate);
+        const bundle = await getEventResponseBundle(row, req.session.userId, canSeePrivate);
         return {
           ...row,
           response_counts: bundle.counts,
@@ -61,7 +61,7 @@ export function registerEventJobRoutes(app, {
           response_visibility: bundle.visibility,
           can_manage_responses: canSeePrivate
         };
-      });
+      }));
 
       res.json({ items, hasMore: rows.length === limit });
     } catch (err) {
@@ -164,7 +164,7 @@ export function registerEventJobRoutes(app, {
         });
       }
       const canSeePrivate = sameUserId(event.created_by, req.session.userId);
-      const bundle = getEventResponseBundle(event, req.session.userId, canSeePrivate);
+      const bundle = await getEventResponseBundle(event, req.session.userId, canSeePrivate);
       res.json({ ok: true, myResponse: bundle.myResponse, counts: bundle.counts });
     } catch (err) {
       console.error(err);
