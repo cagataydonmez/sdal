@@ -10,7 +10,7 @@ CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_alumni_user_id
 -- Follows relationship: used in feed following filter subquery
 -- and explore suggestions NOT EXISTS check
 CREATE INDEX IF NOT EXISTS idx_follows_follower_following
-  ON follows (follower_id, following_id);
+  ON user_follows (follower_id, following_id);
 
 -- Post likes aggregation: feed queries count likes per post via subquery
 CREATE INDEX IF NOT EXISTS idx_post_likes_post_id
