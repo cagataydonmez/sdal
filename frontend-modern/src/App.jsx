@@ -56,7 +56,7 @@ function RequireAuth({ children }) {
     return location.pathname === '/new/profile' || location.pathname === '/new/profile/photo' || location.pathname === '/new/profile/verification' || location.pathname === '/new/profile/email-change' || location.pathname === '/new/requests';
   }
 
-  if (loading) return children;
+  if (loading) return null;
   if (!user) return <Navigate to="/new/login" replace />;
   if (location.pathname === '/new/profile/verification' && Number(user?.verified || 0) === 1) {
     return <Navigate to="/new/profile" replace />;

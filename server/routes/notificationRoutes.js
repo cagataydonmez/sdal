@@ -265,7 +265,7 @@ export function registerNotificationRoutes(app, {
     }
   });
 
-  app.put('/api/new/notifications/preferences', requireAuth, (req, res) => {
+  app.put('/api/new/notifications/preferences', requireAuth, async (req, res) => {
     try {
       ensureNotificationPreferencesTable();
       const userId = Number(req.session?.userId || 0);
@@ -290,7 +290,7 @@ export function registerNotificationRoutes(app, {
       if (Object.prototype.hasOwnProperty.call(quietMode, 'end')) {
         nextRow.quiet_mode_end = quietMode.end ? String(quietMode.end).trim() : null;
       }
-      sqlRun(
+      await sqlRunAsync(
         `INSERT INTO notification_user_preferences
            (user_id, social_enabled, messaging_enabled, groups_enabled, events_enabled, networking_enabled, jobs_enabled, system_enabled, quiet_mode_enabled, quiet_mode_start, quiet_mode_end, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -369,7 +369,7 @@ export function registerNotificationRoutes(app, {
     }
   });
 
-  app.put('/api/new/admin/notifications/experiments/:key', requireAdmin, (req, res) => {
+  app.put('/api/new/admin/notifications/experiments/:key', requireAdmin, async (req, res) => {
     try {
       ensureNotificationExperimentConfigsTable();
       const experimentKey = String(req.params.key || '').trim();
@@ -383,7 +383,7 @@ export function registerNotificationRoutes(app, {
         : String(req.body?.variants || '').split(',');
       const variants = rawVariants.map((item) => String(item || '').trim()).filter(Boolean);
       const safeVariants = variants.length ? variants : existing.variants;
-      sqlRun(
+      await sqlRunAsync(
         `UPDATE notification_experiment_configs
          SET status = ?, variants_json = ?, updated_at = ?
          WHERE experiment_key = ?`,

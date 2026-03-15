@@ -305,58 +305,73 @@ export function registerAccountRoutes(app, deps) {
     }
   });
 
-  app.get('/api/activate', (req, res) => {
-    const id = req.query.id;
-    const akt = req.query.akt;
-    if (!id || !akt) return res.status(400).send('Aktivasyon kodu eksik');
-    const user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [id]);
-    if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
-    if (user.aktiv === 1) return res.status(400).send('Aktivasyon zaten tamamlanmış');
-    if (user.aktivasyon !== akt) return res.status(400).send('Aktivasyon kodu yanlış');
-    const newAkt = createActivation();
-    sqlRun('UPDATE uyeler SET aktiv = 1, aktivasyon = ? WHERE id = ?', [newAkt, id]);
-    res.json({ ok: true, kadi: user.kadi });
+  app.get('/api/activate', async (req, res) => {
+    try {
+      const id = req.query.id;
+      const akt = req.query.akt;
+      if (!id || !akt) return res.status(400).send('Aktivasyon kodu eksik');
+      const user = await sqlGetAsync('SELECT * FROM uyeler WHERE id = ?', [id]);
+      if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
+      if (user.aktiv === 1) return res.status(400).send('Aktivasyon zaten tamamlanmış');
+      if (user.aktivasyon !== akt) return res.status(400).send('Aktivasyon kodu yanlış');
+      const newAkt = createActivation();
+      await sqlRunAsync('UPDATE uyeler SET aktiv = 1, aktivasyon = ? WHERE id = ?', [newAkt, id]);
+      res.json({ ok: true, kadi: user.kadi });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.post('/api/activation/resend', async (req, res) => {
-    const email = normalizeEmail(req.body?.email);
-    if (!email) return res.status(400).send('E-mail adresini girmedin.');
-    if (!validateEmail(email)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
-    const user = sqlGet('SELECT * FROM uyeler WHERE lower(email) = lower(?)', [email]);
-    if (!user) return res.status(404).send('Bu e-mail adresiyle kayıtlı bir kullanıcı bulunamadı.');
-    if (Number(user.aktiv || 0) === 1) return res.status(400).send('Bu hesap zaten aktif edildi.');
-    const publicBaseUrl = resolvePublicBaseUrl(req);
-    const activationLink = `${publicBaseUrl}/aktivet?id=${user.id}&akt=${user.aktivasyon}`;
-    const html = buildActivationEmailHtml({
-      siteBase: publicBaseUrl,
-      activationLink,
-      user
-    });
-    await queueEmailDelivery({ to: user.email, subject: 'SDAL - Aktivasyon', html }, { maxAttempts: 4, backoffMs: 1200 });
-    res.json({ ok: true });
+    try {
+      const email = normalizeEmail(req.body?.email);
+      if (!email) return res.status(400).send('E-mail adresini girmedin.');
+      if (!validateEmail(email)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
+      const user = await sqlGetAsync('SELECT * FROM uyeler WHERE lower(email) = lower(?)', [email]);
+      if (!user) return res.status(404).send('Bu e-mail adresiyle kayıtlı bir kullanıcı bulunamadı.');
+      if (Number(user.aktiv || 0) === 1) return res.status(400).send('Bu hesap zaten aktif edildi.');
+      const publicBaseUrl = resolvePublicBaseUrl(req);
+      const activationLink = `${publicBaseUrl}/aktivet?id=${user.id}&akt=${user.aktivasyon}`;
+      const html = buildActivationEmailHtml({
+        siteBase: publicBaseUrl,
+        activationLink,
+        user
+      });
+      await queueEmailDelivery({ to: user.email, subject: 'SDAL - Aktivasyon', html }, { maxAttempts: 4, backoffMs: 1200 });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.post('/api/password-reset', async (req, res) => {
-    const { kadi, email } = req.body || {};
-    let user = null;
-    if (kadi) user = sqlGet('SELECT * FROM uyeler WHERE kadi = ?', [kadi]);
-    if (!user && email) user = sqlGet('SELECT * FROM uyeler WHERE email = ?', [email]);
-    if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
+    try {
+      const { kadi, email } = req.body || {};
+      let user = null;
+      if (kadi) user = await sqlGetAsync('SELECT * FROM uyeler WHERE kadi = ?', [kadi]);
+      if (!user && email) user = await sqlGetAsync('SELECT * FROM uyeler WHERE email = ?', [email]);
+      if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
 
-    const publicBaseUrl = resolvePublicBaseUrl(req);
-    const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f4efe8;padding:24px;color:#1f2937;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;">
-        <tr><td style="padding:20px 24px;">
-          <h2 style="margin:0 0 12px;font-size:18px;">SDAL Hesap Bilgilendirmesi</h2>
-          <p style="margin:0 0 12px;">Merhaba <b>${escapeHtml(user.isim)} ${escapeHtml(user.soyisim)}</b>,</p>
-          <p style="margin:0 0 12px;">Güvenlik nedeniyle e-posta ile şifre paylaşmıyoruz.</p>
-          <p style="margin:0 0 16px;">Kullanıcı adın: <b>@${escapeHtml(user.kadi)}</b></p>
-          <a href="${escapeHtml(publicBaseUrl)}/new/password-reset" style="display:inline-block;padding:10px 14px;border-radius:999px;background:#ff6b4a;color:#111827;text-decoration:none;font-weight:700;">Şifremi Sıfırla</a>
-        </td></tr>
-      </table>
-    </body></html>`;
-    await queueEmailDelivery({ to: user.email, subject: 'SDAL.ORG - ŞİFRE HATIRLAMA', html }, { maxAttempts: 4, backoffMs: 1200 });
-    res.json({ ok: true });
+      const publicBaseUrl = resolvePublicBaseUrl(req);
+      const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f4efe8;padding:24px;color:#1f2937;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;">
+          <tr><td style="padding:20px 24px;">
+            <h2 style="margin:0 0 12px;font-size:18px;">SDAL Hesap Bilgilendirmesi</h2>
+            <p style="margin:0 0 12px;">Merhaba <b>${escapeHtml(user.isim)} ${escapeHtml(user.soyisim)}</b>,</p>
+            <p style="margin:0 0 12px;">Güvenlik nedeniyle e-posta ile şifre paylaşmıyoruz.</p>
+            <p style="margin:0 0 16px;">Kullanıcı adın: <b>@${escapeHtml(user.kadi)}</b></p>
+            <a href="${escapeHtml(publicBaseUrl)}/new/password-reset" style="display:inline-block;padding:10px 14px;border-radius:999px;background:#ff6b4a;color:#111827;text-decoration:none;font-weight:700;">Şifremi Sıfırla</a>
+          </td></tr>
+        </table>
+      </body></html>`;
+      await queueEmailDelivery({ to: user.email, subject: 'SDAL.ORG - ŞİFRE HATIRLAMA', html }, { maxAttempts: 4, backoffMs: 1200 });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.post('/api/mail/test', async (req, res) => {

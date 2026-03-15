@@ -9,6 +9,7 @@ export function registerMiscAppRoutes(app, {
   sqlRun,
   sqlGetAsync,
   sqlAllAsync,
+  sqlRunAsync,
   requireAdmin,
   hasAdminSession,
   formatUserText,
@@ -18,80 +19,95 @@ export function registerMiscAppRoutes(app, {
 }) {
   const albumPhotoActiveExpr = "(COALESCE(CAST(f.aktif AS INTEGER), 0) = 1 OR LOWER(CAST(f.aktif AS TEXT)) IN ('true','evet','yes'))";
 
-  app.get('/api/album/latest', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
-    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-    const rows = sqlAll(
-      `SELECT f.id, f.katid, f.dosyaadi, f.tarih, f.hit, k.kategori
-       FROM album_foto f
-       LEFT JOIN album_kat k ON k.id = f.katid
-       WHERE ${albumPhotoActiveExpr}
-       ORDER BY f.id DESC
-       LIMIT ? OFFSET ?`,
-      [limit, offset]
-    );
-    res.json({ items: rows, hasMore: rows.length === limit });
+  app.get('/api/album/latest', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
+      const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+      const rows = await sqlAllAsync(
+        `SELECT f.id, f.katid, f.dosyaadi, f.tarih, f.hit, k.kategori
+         FROM album_foto f
+         LEFT JOIN album_kat k ON k.id = f.katid
+         WHERE ${albumPhotoActiveExpr}
+         ORDER BY f.id DESC
+         LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
+      res.json({ items: rows, hasMore: rows.length === limit });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
-  app.get('/api/members/latest', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
-    const rows = sqlAll(
-      `SELECT id, kadi, isim, soyisim, resim, mezuniyetyili, ilktarih
-       FROM uyeler
-       WHERE aktiv = 1 AND yasak = 0
-       ORDER BY id DESC
-       LIMIT ?`,
-      [limit]
-    );
-    res.json({ items: rows });
+  app.get('/api/members/latest', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
+      const rows = await sqlAllAsync(
+        `SELECT id, kadi, isim, soyisim, resim, mezuniyetyili, ilktarih
+         FROM uyeler
+         WHERE aktiv = 1 AND yasak = 0
+         ORDER BY id DESC
+         LIMIT ?`,
+        [limit]
+      );
+      res.json({ items: rows });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
-  app.post('/api/tournament/register', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const {
-      tisim,
-      tktelefon,
-      boyismi,
-      boymezuniyet,
-      ioyismi,
-      ioymezuniyet,
-      uoyismi,
-      uoymezuniyet,
-      doyismi,
-      doymezuniyet
-    } = req.body || {};
+  app.post('/api/tournament/register', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const {
+        tisim,
+        tktelefon,
+        boyismi,
+        boymezuniyet,
+        ioyismi,
+        ioymezuniyet,
+        uoyismi,
+        uoymezuniyet,
+        doyismi,
+        doymezuniyet
+      } = req.body || {};
 
-    if (!tisim) return res.status(400).send('Takım ismini girmen gerekiyor.');
-    if (!tktelefon) return res.status(400).send('Takım kaptanının telefonunu yazman gerekiyor.');
-    if (!boyismi || !ioyismi || !uoyismi || !doyismi) return res.status(400).send('Oyuncu isimlerini girmen gerekiyor.');
-    if (!boymezuniyet || !ioymezuniyet || !uoymezuniyet || !doymezuniyet) return res.status(400).send('Oyuncu mezuniyetlerini girmen gerekiyor.');
+      if (!tisim) return res.status(400).send('Takım ismini girmen gerekiyor.');
+      if (!tktelefon) return res.status(400).send('Takım kaptanının telefonunu yazman gerekiyor.');
+      if (!boyismi || !ioyismi || !uoyismi || !doyismi) return res.status(400).send('Oyuncu isimlerini girmen gerekiyor.');
+      if (!boymezuniyet || !ioymezuniyet || !uoymezuniyet || !doymezuniyet) return res.status(400).send('Oyuncu mezuniyetlerini girmen gerekiyor.');
 
-    const cleanTeam = String(tisim).trim().replace(/\s+/g, '-').replace(/'/g, '');
-    const cleanPhone = String(tktelefon).trim().replace(/\s+/g, '-').replace(/'/g, '');
-    const now = new Date().toISOString();
+      const cleanTeam = String(tisim).trim().replace(/\s+/g, '-').replace(/'/g, '');
+      const cleanPhone = String(tktelefon).trim().replace(/\s+/g, '-').replace(/'/g, '');
+      const now = new Date().toISOString();
 
-    sqlRun(
-      `INSERT INTO takimlar (tisim, tkid, tktelefon, boyismi, boymezuniyet, ioyismi, ioymezuniyet, uoyismi, uoymezuniyet, doyismi, doymezuniyet, tarih)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        cleanTeam,
-        req.session.userId,
-        cleanPhone,
-        String(boyismi).trim().replace(/'/g, ''),
-        String(boymezuniyet),
-        String(ioyismi).trim().replace(/'/g, ''),
-        String(ioymezuniyet),
-        String(uoyismi).trim().replace(/'/g, ''),
-        String(uoymezuniyet),
-        String(doyismi).trim().replace(/'/g, ''),
-        String(doymezuniyet),
-        now
-      ]
-    );
+      await sqlRunAsync(
+        `INSERT INTO takimlar (tisim, tkid, tktelefon, boyismi, boymezuniyet, ioyismi, ioymezuniyet, uoyismi, uoymezuniyet, doyismi, doymezuniyet, tarih)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          cleanTeam,
+          req.session.userId,
+          cleanPhone,
+          String(boyismi).trim().replace(/'/g, ''),
+          String(boymezuniyet),
+          String(ioyismi).trim().replace(/'/g, ''),
+          String(ioymezuniyet),
+          String(uoyismi).trim().replace(/'/g, ''),
+          String(uoymezuniyet),
+          String(doyismi).trim().replace(/'/g, ''),
+          String(doymezuniyet),
+          now
+        ]
+      );
 
-    res.json({ ok: true });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.get('/api/panolar', async (req, res) => {
@@ -184,27 +200,37 @@ export function registerMiscAppRoutes(app, {
     }
   });
 
-  app.post('/api/panolar', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const mesaj = String(req.body?.mesaj || '').trim();
-    let katid = String(req.body?.katid || '0');
-    if (!/^\d+$/.test(katid)) katid = '0';
-    if (katid !== '0') {
-      const cat = sqlGet('SELECT id FROM mesaj_kategori WHERE id = ?', [katid]);
-      if (!cat) katid = '0';
+  app.post('/api/panolar', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const mesaj = String(req.body?.mesaj || '').trim();
+      let katid = String(req.body?.katid || '0');
+      if (!/^\d+$/.test(katid)) katid = '0';
+      if (katid !== '0') {
+        const cat = await sqlGetAsync('SELECT id FROM mesaj_kategori WHERE id = ?', [katid]);
+        if (!cat) katid = '0';
+      }
+      if (!mesaj) return res.status(400).send('Mesaj yazmadın.');
+      const formatted = formatUserText(mesaj);
+      await sqlRunAsync(
+        'INSERT INTO mesaj (gonderenid, mesaj, tarih, kategori) VALUES (?, ?, ?, ?)',
+        [req.session.userId, formatted, new Date().toISOString(), Number(katid)]
+      );
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    if (!mesaj) return res.status(400).send('Mesaj yazmadın.');
-    const formatted = formatUserText(mesaj);
-    sqlRun(
-      'INSERT INTO mesaj (gonderenid, mesaj, tarih, kategori) VALUES (?, ?, ?, ?)',
-      [req.session.userId, formatted, new Date().toISOString(), Number(katid)]
-    );
-    res.json({ ok: true });
   });
 
-  app.delete('/api/panolar/:id', requireAdmin, (req, res) => {
-    sqlRun('DELETE FROM mesaj WHERE id = ?', [req.params.id]);
-    res.json({ ok: true });
+  app.delete('/api/panolar/:id', requireAdmin, async (req, res) => {
+    try {
+      await sqlRunAsync('DELETE FROM mesaj WHERE id = ?', [req.params.id]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.get('/api/quick-access', async (req, res) => {
@@ -242,105 +268,145 @@ export function registerMiscAppRoutes(app, {
     res.json({ users });
   });
 
-  app.post('/api/quick-access/add', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const id = String(req.body?.id || '').trim();
-    if (!/^\d+$/.test(id)) return res.status(400).send('Üye bulunamadı.');
-    const target = sqlGet('SELECT id, role FROM uyeler WHERE id = ?', [id]);
-    if (!target || normalizeRole(target.role) === 'root') return res.status(404).send('Üye bulunamadı.');
-    const row = sqlGet('SELECT hizliliste FROM uyeler WHERE id = ?', [req.session.userId]);
-    const list = String(row?.hizliliste || '0')
-      .split(',')
-      .map((v) => v.trim())
-      .filter((v) => v && v !== '0');
-    if (list.includes(id)) return res.status(400).send('Bu üye zaten hızlı erişim listenizde!');
-    list.push(id);
-    const updated = list.length ? `0,${list.join(',')}` : '0';
-    sqlRun('UPDATE uyeler SET hizliliste = ? WHERE id = ?', [updated, req.session.userId]);
-    res.json({ ok: true });
-  });
-
-  app.post('/api/quick-access/remove', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const id = String(req.body?.id || '').trim();
-    const row = sqlGet('SELECT hizliliste FROM uyeler WHERE id = ?', [req.session.userId]);
-    const list = String(row?.hizliliste || '0')
-      .split(',')
-      .map((v) => v.trim())
-      .filter((v) => v && v !== '0' && v !== id);
-    const updated = list.length ? `0,${list.join(',')}` : '0';
-    sqlRun('UPDATE uyeler SET hizliliste = ? WHERE id = ?', [updated, req.session.userId]);
-    res.json({ ok: true });
-  });
-
-  app.get('/api/games/snake/leaderboard', (_req, res) => {
-    const rows = sqlAll('SELECT isim, skor, tarih FROM oyun_yilan ORDER BY skor DESC LIMIT 25');
-    res.json({ rows });
-  });
-
-  app.post('/api/games/snake/score', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const score = Number(req.body?.score || 0);
-    const user = sqlGet('SELECT kadi FROM uyeler WHERE id = ?', [req.session.userId]);
-    const name = user?.kadi || 'Misafir';
-    const existing = sqlGet('SELECT * FROM oyun_yilan WHERE isim = ?', [name]);
-    if (!existing) {
-      sqlRun('INSERT INTO oyun_yilan (isim, skor, tarih) VALUES (?, ?, ?)', [name, score, new Date().toISOString()]);
-    } else if (score > Number(existing.skor || 0)) {
-      sqlRun('UPDATE oyun_yilan SET skor = ?, tarih = ? WHERE isim = ?', [score, new Date().toISOString(), name]);
+  app.post('/api/quick-access/add', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const id = String(req.body?.id || '').trim();
+      if (!/^\d+$/.test(id)) return res.status(400).send('Üye bulunamadı.');
+      const target = await sqlGetAsync('SELECT id, role FROM uyeler WHERE id = ?', [id]);
+      if (!target || normalizeRole(target.role) === 'root') return res.status(404).send('Üye bulunamadı.');
+      const row = await sqlGetAsync('SELECT hizliliste FROM uyeler WHERE id = ?', [req.session.userId]);
+      const list = String(row?.hizliliste || '0')
+        .split(',')
+        .map((v) => v.trim())
+        .filter((v) => v && v !== '0');
+      if (list.includes(id)) return res.status(400).send('Bu üye zaten hızlı erişim listenizde!');
+      list.push(id);
+      const updated = list.length ? `0,${list.join(',')}` : '0';
+      await sqlRunAsync('UPDATE uyeler SET hizliliste = ? WHERE id = ?', [updated, req.session.userId]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    res.json({ ok: true });
   });
 
-  app.get('/api/games/tetris/leaderboard', (_req, res) => {
-    const rows = sqlAll('SELECT isim, puan, tarih FROM oyun_tetris ORDER BY puan DESC LIMIT 25');
-    res.json({ rows });
-  });
-
-  app.post('/api/games/tetris/score', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const score = Number(req.body?.score || 0);
-    const user = sqlGet('SELECT kadi FROM uyeler WHERE id = ?', [req.session.userId]);
-    const name = user?.kadi || 'Misafir';
-    const existing = sqlGet('SELECT * FROM oyun_tetris WHERE isim = ?', [name]);
-    if (!existing) {
-      sqlRun('INSERT INTO oyun_tetris (isim, puan, tarih) VALUES (?, ?, ?)', [name, score, new Date().toISOString()]);
-    } else if (score > Number(existing.puan || 0)) {
-      sqlRun('UPDATE oyun_tetris SET puan = ?, tarih = ? WHERE isim = ?', [score, new Date().toISOString(), name]);
+  app.post('/api/quick-access/remove', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const id = String(req.body?.id || '').trim();
+      const row = await sqlGetAsync('SELECT hizliliste FROM uyeler WHERE id = ?', [req.session.userId]);
+      const list = String(row?.hizliliste || '0')
+        .split(',')
+        .map((v) => v.trim())
+        .filter((v) => v && v !== '0' && v !== id);
+      const updated = list.length ? `0,${list.join(',')}` : '0';
+      await sqlRunAsync('UPDATE uyeler SET hizliliste = ? WHERE id = ?', [updated, req.session.userId]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    res.json({ ok: true });
   });
 
-  app.get('/api/games/arcade/:game/leaderboard', (req, res) => {
-    const game = String(req.params.game || '').trim().toLowerCase();
-    const allowed = new Set(['tap-rush', 'memory-pairs', 'puzzle-2048']);
-    if (!allowed.has(game)) return res.status(404).send('Game not found');
-    const rows = sqlAll(
-      `SELECT name AS isim, score AS skor, created_at AS tarih
-       FROM game_scores
-       WHERE game_key = ?
-       ORDER BY score DESC, created_at ASC
-       LIMIT 25`,
-      [game]
-    );
-    res.json({ rows });
-  });
-
-  app.post('/api/games/arcade/:game/score', (req, res) => {
-    if (!req.session.userId) return res.status(401).send('Login required');
-    const game = String(req.params.game || '').trim().toLowerCase();
-    const allowed = new Set(['tap-rush', 'memory-pairs', 'puzzle-2048']);
-    if (!allowed.has(game)) return res.status(404).send('Game not found');
-    const score = Math.max(0, Math.floor(Number(req.body?.score || 0)));
-    const user = sqlGet('SELECT kadi FROM uyeler WHERE id = ?', [req.session.userId]);
-    const name = user?.kadi || 'Misafir';
-    const existing = sqlGet('SELECT id, score FROM game_scores WHERE game_key = ? AND name = ?', [game, name]);
-    if (!existing) {
-      sqlRun('INSERT INTO game_scores (game_key, name, score, created_at) VALUES (?, ?, ?, ?)', [game, name, score, new Date().toISOString()]);
-    } else if (score > Number(existing.score || 0)) {
-      sqlRun('UPDATE game_scores SET score = ?, created_at = ? WHERE id = ?', [score, new Date().toISOString(), existing.id]);
+  app.get('/api/games/snake/leaderboard', async (_req, res) => {
+    try {
+      const rows = await sqlAllAsync('SELECT isim, skor, tarih FROM oyun_yilan ORDER BY skor DESC LIMIT 25');
+      res.json({ rows });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    res.json({ ok: true });
+  });
+
+  app.post('/api/games/snake/score', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const score = Number(req.body?.score || 0);
+      const user = await sqlGetAsync('SELECT kadi FROM uyeler WHERE id = ?', [req.session.userId]);
+      const name = user?.kadi || 'Misafir';
+      const existing = await sqlGetAsync('SELECT * FROM oyun_yilan WHERE isim = ?', [name]);
+      if (!existing) {
+        await sqlRunAsync('INSERT INTO oyun_yilan (isim, skor, tarih) VALUES (?, ?, ?)', [name, score, new Date().toISOString()]);
+      } else if (score > Number(existing.skor || 0)) {
+        await sqlRunAsync('UPDATE oyun_yilan SET skor = ?, tarih = ? WHERE isim = ?', [score, new Date().toISOString(), name]);
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/games/tetris/leaderboard', async (_req, res) => {
+    try {
+      const rows = await sqlAllAsync('SELECT isim, puan, tarih FROM oyun_tetris ORDER BY puan DESC LIMIT 25');
+      res.json({ rows });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/games/tetris/score', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const score = Number(req.body?.score || 0);
+      const user = await sqlGetAsync('SELECT kadi FROM uyeler WHERE id = ?', [req.session.userId]);
+      const name = user?.kadi || 'Misafir';
+      const existing = await sqlGetAsync('SELECT * FROM oyun_tetris WHERE isim = ?', [name]);
+      if (!existing) {
+        await sqlRunAsync('INSERT INTO oyun_tetris (isim, puan, tarih) VALUES (?, ?, ?)', [name, score, new Date().toISOString()]);
+      } else if (score > Number(existing.puan || 0)) {
+        await sqlRunAsync('UPDATE oyun_tetris SET puan = ?, tarih = ? WHERE isim = ?', [score, new Date().toISOString(), name]);
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/games/arcade/:game/leaderboard', async (req, res) => {
+    try {
+      const game = String(req.params.game || '').trim().toLowerCase();
+      const allowed = new Set(['tap-rush', 'memory-pairs', 'puzzle-2048']);
+      if (!allowed.has(game)) return res.status(404).send('Game not found');
+      const rows = await sqlAllAsync(
+        `SELECT name AS isim, score AS skor, created_at AS tarih
+         FROM game_scores
+         WHERE game_key = ?
+         ORDER BY score DESC, created_at ASC
+         LIMIT 25`,
+        [game]
+      );
+      res.json({ rows });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/games/arcade/:game/score', async (req, res) => {
+    try {
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const game = String(req.params.game || '').trim().toLowerCase();
+      const allowed = new Set(['tap-rush', 'memory-pairs', 'puzzle-2048']);
+      if (!allowed.has(game)) return res.status(404).send('Game not found');
+      const score = Math.max(0, Math.floor(Number(req.body?.score || 0)));
+      const user = await sqlGetAsync('SELECT kadi FROM uyeler WHERE id = ?', [req.session.userId]);
+      const name = user?.kadi || 'Misafir';
+      const existing = await sqlGetAsync('SELECT id, score FROM game_scores WHERE game_key = ? AND name = ?', [game, name]);
+      if (!existing) {
+        await sqlRunAsync('INSERT INTO game_scores (game_key, name, score, created_at) VALUES (?, ?, ?, ?)', [game, name, score, new Date().toISOString()]);
+      } else if (score > Number(existing.score || 0)) {
+        await sqlRunAsync('UPDATE game_scores SET score = ?, created_at = ? WHERE id = ?', [score, new Date().toISOString(), existing.id]);
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   const modernDist = path.resolve(appRootDir, '../frontend-modern/dist');

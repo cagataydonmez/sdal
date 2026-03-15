@@ -3,6 +3,7 @@ export function registerSystemRoutes(app, deps) {
     dbDriver,
     dbPath,
     sqlGet,
+    sqlGetAsync,
     checkPostgresHealth,
     checkRedisHealth,
     isPostgresConfigured,
@@ -37,7 +38,7 @@ export function registerSystemRoutes(app, deps) {
     } else {
       try {
         const dbStartedAt = Date.now();
-        const row = sqlGet('SELECT 1 AS ok');
+        const row = await sqlGetAsync('SELECT 1 AS ok');
         dbCheck = {
           configured: true,
           ready: Number(row?.ok || 0) === 1,

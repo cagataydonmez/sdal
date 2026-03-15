@@ -147,7 +147,7 @@ export function registerTeacherNetworkRoutes(app, {
     }
   });
 
-  app.post('/api/new/teachers/network/link/:teacherId', requireAuth, (req, res) => {
+  app.post('/api/new/teachers/network/link/:teacherId', requireAuth, async (req, res) => {
     try {
       if (!ensureVerifiedSocialHubMember(req, res)) return;
       ensureTeacherAlumniLinksTable();
@@ -156,7 +156,7 @@ export function registerTeacherNetworkRoutes(app, {
       if (!alumniUserId || !teacherUserId) return sendApiError(res, 400, 'INVALID_USER_ID', 'Geçersiz kullanıcı kimliği.');
       if (alumniUserId === teacherUserId) return sendApiError(res, 400, 'SELF_TEACHER_LINK_NOT_ALLOWED', 'Kendiniz için öğretmen bağlantısı ekleyemezsiniz.');
 
-      const teacher = sqlGet('SELECT id, role, mezuniyetyili FROM uyeler WHERE id = ?', [teacherUserId]);
+      const teacher = await sqlGetAsync('SELECT id, role, mezuniyetyili FROM uyeler WHERE id = ?', [teacherUserId]);
       if (!teacher) return sendApiError(res, 404, 'TEACHER_NOT_FOUND', 'Öğretmen bulunamadı.');
       const teacherRole = String(teacher.role || '').trim().toLowerCase();
       const teacherCohort = normalizeCohortValue(teacher.mezuniyetyili);
@@ -216,7 +216,7 @@ export function registerTeacherNetworkRoutes(app, {
         );
       }
 
-      const result = sqlRun(
+      const result = await sqlRunAsync(
         `INSERT INTO teacher_alumni_links
           (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, confidence_score, created_via, source_surface, review_status, created_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -278,15 +278,42 @@ export function registerTeacherNetworkRoutes(app, {
     }
   });
 
-  app.post('/api/new/follow/:id', requireAuth, (req, res) => {
-    const targetId = req.params.id;
-    if (String(targetId) === String(req.session.userId)) return res.status(400).send('Kendini takip edemezsin.');
-    const existing = sqlGet('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [req.session.userId, targetId]);
-    if (existing) {
-      sqlRun('DELETE FROM follows WHERE id = ?', [existing.id]);
+  app.post('/api/new/follow/:id', requireAuth, async (req, res) => {
+    try {
+      const targetId = req.params.id;
+      if (String(targetId) === String(req.session.userId)) return res.status(400).send('Kendini takip edemezsin.');
+      const existing = await sqlGetAsync('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [req.session.userId, targetId]);
+      if (existing) {
+        await sqlRunAsync('DELETE FROM follows WHERE id = ?', [existing.id]);
+        recordNetworkingTelemetryEvent({
+          userId: req.session.userId,
+          eventName: 'follow_removed',
+          sourceSurface: req.body?.source_surface,
+          targetUserId: targetId,
+          entityType: 'user',
+          entityId: targetId
+        });
+        clearExploreSuggestionsCache();
+        scheduleEngagementRecalculation('follow_changed');
+        invalidateFeedCache();
+        return res.json({ ok: true, following: false });
+      }
+
+      await sqlRunAsync('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [
+        req.session.userId,
+        targetId,
+        new Date().toISOString()
+      ]);
+      addNotification({
+        userId: Number(targetId),
+        type: 'follow',
+        sourceUserId: req.session.userId,
+        entityId: targetId,
+        message: 'Seni takip etmeye başladı.'
+      });
       recordNetworkingTelemetryEvent({
         userId: req.session.userId,
-        eventName: 'follow_removed',
+        eventName: 'follow_created',
         sourceSurface: req.body?.source_surface,
         targetUserId: targetId,
         entityType: 'user',
@@ -295,33 +322,11 @@ export function registerTeacherNetworkRoutes(app, {
       clearExploreSuggestionsCache();
       scheduleEngagementRecalculation('follow_changed');
       invalidateFeedCache();
-      return res.json({ ok: true, following: false });
+      return res.json({ ok: true, following: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-
-    sqlRun('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [
-      req.session.userId,
-      targetId,
-      new Date().toISOString()
-    ]);
-    addNotification({
-      userId: Number(targetId),
-      type: 'follow',
-      sourceUserId: req.session.userId,
-      entityId: targetId,
-      message: 'Seni takip etmeye başladı.'
-    });
-    recordNetworkingTelemetryEvent({
-      userId: req.session.userId,
-      eventName: 'follow_created',
-      sourceSurface: req.body?.source_surface,
-      targetUserId: targetId,
-      entityType: 'user',
-      entityId: targetId
-    });
-    clearExploreSuggestionsCache();
-    scheduleEngagementRecalculation('follow_changed');
-    invalidateFeedCache();
-    return res.json({ ok: true, following: true });
   });
 
   app.get('/api/new/follows', requireAuth, async (req, res) => {

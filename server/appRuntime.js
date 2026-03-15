@@ -1962,6 +1962,9 @@ function recalculateMemberEngagementScores(reason = 'scheduled') {
 
     sqlRun('DELETE FROM member_engagement_scores WHERE user_id NOT IN (SELECT id FROM uyeler)');
     sqlRun('DELETE FROM engagement_ab_assignments WHERE user_id NOT IN (SELECT id FROM uyeler)');
+
+    // Wrap all per-user writes in a single transaction to avoid per-statement commit overhead
+    sqlRun('BEGIN');
     for (const user of users) {
       const uid = Number(user?.id || 0);
       if (!uid) continue;
@@ -2124,6 +2127,7 @@ function recalculateMemberEngagementScores(reason = 'scheduled') {
         ]
       );
     }
+    sqlRun('COMMIT');
 
     writeAppLog('info', 'engagement_scores_recalculated', {
       reason,
@@ -2132,6 +2136,7 @@ function recalculateMemberEngagementScores(reason = 'scheduled') {
       durationMs: Date.now() - startedAt
     });
   } catch (err) {
+    try { sqlRun('ROLLBACK'); } catch { /* best effort */ }
     writeAppLog('error', 'engagement_scores_recalculate_failed', {
       reason,
       message: err?.message || 'unknown_error'
@@ -3291,6 +3296,9 @@ registerLegacyUtilityRoutes(app, {
   sqlAll,
   sqlGet,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   toLocalDateParts,
   getCurrentUser,
   formatUserText
@@ -3428,6 +3436,7 @@ registerSystemRoutes(app, {
   dbDriver,
   dbPath,
   sqlGet,
+  sqlGetAsync,
   checkPostgresHealth,
   checkRedisHealth,
   isPostgresConfigured,
@@ -3450,6 +3459,8 @@ registerSystemRoutes(app, {
 registerOAuthRoutes(app, {
   sqlGet,
   sqlRun,
+  sqlGetAsync,
+  sqlRunAsync,
   getEnabledOAuthProviders,
   getOAuthProviderConfig,
   randomState,
@@ -3473,6 +3484,9 @@ registerAdminModerationRoutes(app, {
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   requireAdmin,
   requireAuth,
   requireRole,
@@ -3503,6 +3517,9 @@ registerAdminOperationsRoutes(app, {
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   uploadsDir,
   appLogsDir,
   appLogFile,
@@ -3565,11 +3582,15 @@ function enrichWithVariants(row) {
   return row;
 }
 registerAdminManagementRoutes(app, {
+  dbDriver,
   requireAdmin,
   requireAlbumAdmin,
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   getUserRole,
   normalizeRole,
   hardDeleteUser,
@@ -3602,6 +3623,8 @@ registerAdminManagementRoutes(app, {
 registerAccountRoutes(app, {
   sqlGet,
   sqlGetAsync,
+  sqlAll,
+  sqlAllAsync,
   sqlRun,
   sqlRunAsync,
   writeAppLog,
@@ -4001,8 +4024,10 @@ app.post('/api/new/translate', async (req, res) => {
 registerStoryRoutes(app, {
   requireAuth,
   sqlGet,
+  sqlGetAsync,
   sqlAllAsync,
   sqlRun,
+  sqlRunAsync,
   buildVersionedCacheKey,
   cacheNamespaces,
   getCacheJson,
@@ -4152,7 +4177,9 @@ registerNetworkRequestRoutes(app, {
   ensureConnectionRequestsTable,
   ensureMentorshipRequestsTable,
   sqlGet,
+  sqlGetAsync,
   sqlRun,
+  sqlRunAsync,
   sqlAllAsync,
   sendApiError,
   calculateCooldownRemainingSeconds,
@@ -4209,6 +4236,7 @@ registerTeacherNetworkRoutes(app, {
   sqlGetAsync,
   sqlAllAsync,
   sqlRun,
+  sqlRunAsync,
   addNotification,
   recordNetworkingTelemetryEvent,
   apiSuccessEnvelope,
@@ -4235,6 +4263,8 @@ registerTeacherNetworkRoutes(app, {
 registerGroupRoutes(app, {
   requireAuth,
   sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   sqlGet,
   sqlAll,
   sqlRun,
@@ -4299,6 +4329,9 @@ registerAdminRequestModerationRoutes(app, {
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   getCurrentUser,
   getModerationScopeContext,
   parseAdminListPagination,
@@ -4325,6 +4358,9 @@ registerAdminExperimentRoutes(app, {
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   handleEngagementAbOverview,
   handleEngagementAbUpdate,
   handleEngagementAbRebalance,
@@ -4358,6 +4394,9 @@ registerAdminContentModerationRoutes(app, {
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   getCurrentUser,
   getModerationScopeContext,
   parseAdminListPagination,
@@ -4668,6 +4707,7 @@ registerMiscAppRoutes(app, {
   sqlRun,
   sqlGetAsync,
   sqlAllAsync,
+  sqlRunAsync,
   requireAdmin,
   hasAdminSession,
   formatUserText,
@@ -4677,8 +4717,10 @@ registerMiscAppRoutes(app, {
 });
 
 app.use((err, req, res, next) => {
-  if (err) return res.status(400).send(err.message || 'Hata');
-  return next();
+  if (err && (err.type === 'entity.parse.failed' || err.type === 'entity.too.large' || err.code === 'LIMIT_FILE_SIZE' || err.code === 'LIMIT_UNEXPECTED_FILE')) {
+    return res.status(400).send(err.message || 'Hata');
+  }
+  return next(err);
 });
 
 app.use((err, req, res, _next) => {

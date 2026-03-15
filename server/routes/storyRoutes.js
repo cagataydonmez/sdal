@@ -28,8 +28,10 @@ function parseStoryId(value) {
 export function registerStoryRoutes(app, {
   requireAuth,
   sqlGet,
+  sqlGetAsync,
   sqlAllAsync,
   sqlRun,
+  sqlRunAsync,
   buildVersionedCacheKey,
   cacheNamespaces,
   getCacheJson,
@@ -280,8 +282,8 @@ export function registerStoryRoutes(app, {
           userId: req.session.userId,
           entityType: 'story',
           entityId: '0',
-          sqlGet,
-          sqlRun,
+          sqlGet: sqlGetAsync,
+          sqlRun: sqlRunAsync,
           uploadsDir,
           writeAppLog
         });
@@ -291,7 +293,7 @@ export function registerStoryRoutes(app, {
         writeAppLog('error', 'story_variant_generation_failed', { message: err?.message });
       }
 
-      const result = sqlRun('INSERT INTO stories (user_id, image, image_record_id, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [
+      const result = await sqlRunAsync('INSERT INTO stories (user_id, image, image_record_id, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [
         req.session.userId,
         image,
         imageRecordId,
@@ -303,7 +305,7 @@ export function registerStoryRoutes(app, {
       const storyId = result?.lastInsertRowid;
       if (imageRecordId && storyId) {
         try {
-          sqlRun('UPDATE image_records SET entity_id = ? WHERE id = ?', [storyId, imageRecordId]);
+          await sqlRunAsync('UPDATE image_records SET entity_id = ? WHERE id = ?', [storyId, imageRecordId]);
         } catch {}
       }
 
@@ -319,29 +321,39 @@ export function registerStoryRoutes(app, {
     }
   });
 
-  function updateStoryCaption(req, res) {
-    const storyId = parseStoryId(req.params.id);
-    if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
-    const story = sqlGet('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
-    if (!story) return res.status(404).send('Hikaye bulunamadı.');
-    const caption = formatUserText(req.body?.caption || '');
-    sqlRun('UPDATE stories SET caption = ? WHERE id = ?', [caption, storyId]);
-    invalidateCacheNamespace(cacheNamespaces.stories);
-    res.json({ ok: true });
+  async function updateStoryCaption(req, res) {
+    try {
+      const storyId = parseStoryId(req.params.id);
+      if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+      const story = await sqlGetAsync('SELECT id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
+      if (!story) return res.status(404).send('Hikaye bulunamadı.');
+      const caption = formatUserText(req.body?.caption || '');
+      await sqlRunAsync('UPDATE stories SET caption = ? WHERE id = ?', [caption, storyId]);
+      invalidateCacheNamespace(cacheNamespaces.stories);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   }
 
-  function deleteStory(req, res) {
-    const storyId = parseStoryId(req.params.id);
-    if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
-    const story = sqlGet('SELECT id, image_record_id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
-    if (!story) return res.status(404).send('Hikaye bulunamadı.');
-    if (story.image_record_id) {
-      deleteImageRecord(story.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+  async function deleteStory(req, res) {
+    try {
+      const storyId = parseStoryId(req.params.id);
+      if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+      const story = await sqlGetAsync('SELECT id, image_record_id FROM stories WHERE id = ? AND user_id = ?', [storyId, req.session.userId]);
+      if (!story) return res.status(404).send('Hikaye bulunamadı.');
+      if (story.image_record_id) {
+        deleteImageRecord(story.image_record_id, sqlGetAsync, sqlRunAsync, uploadsDir, writeAppLog).catch(() => {});
+      }
+      await sqlRunAsync('DELETE FROM story_views WHERE story_id = ?', [storyId]);
+      await sqlRunAsync('DELETE FROM stories WHERE id = ?', [storyId]);
+      invalidateCacheNamespace(cacheNamespaces.stories);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    sqlRun('DELETE FROM story_views WHERE story_id = ?', [storyId]);
-    sqlRun('DELETE FROM stories WHERE id = ?', [storyId]);
-    invalidateCacheNamespace(cacheNamespaces.stories);
-    res.json({ ok: true });
   }
 
   app.patch('/api/new/stories/:id', requireAuth, updateStoryCaption);
@@ -351,45 +363,55 @@ export function registerStoryRoutes(app, {
   app.post('/api/new/stories/:id', requireAuth, updateStoryCaption);
   app.post('/api/new/stories/:id/remove', requireAuth, deleteStory);
 
-  app.post('/api/new/stories/:id/repost', requireAuth, (req, res) => {
-    const storyId = parseStoryId(req.params.id);
-    if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
-    const story = sqlGet('SELECT id, user_id, image, caption, created_at, expires_at FROM stories WHERE id = ?', [storyId]);
-    if (!story || Number(story.user_id) !== Number(req.session.userId)) {
-      return res.status(404).send('Hikaye bulunamadı.');
+  app.post('/api/new/stories/:id/repost', requireAuth, async (req, res) => {
+    try {
+      const storyId = parseStoryId(req.params.id);
+      if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+      const story = await sqlGetAsync('SELECT id, user_id, image, caption, created_at, expires_at FROM stories WHERE id = ?', [storyId]);
+      if (!story || Number(story.user_id) !== Number(req.session.userId)) {
+        return res.status(404).send('Hikaye bulunamadı.');
+      }
+      const timing = storyTiming(story);
+      if (!timing.isExpired) {
+        return res.status(400).send('Sadece süresi dolan hikayeler yeniden paylaşılabilir.');
+      }
+      const now = new Date();
+      const expires = new Date(now.getTime() + STORY_TTL_MS);
+      const result = await sqlRunAsync(
+        'INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+        [req.session.userId, story.image, story.caption || '', now.toISOString(), expires.toISOString()]
+      );
+      scheduleEngagementRecalculation('story_created');
+      invalidateCacheNamespace(cacheNamespaces.stories);
+      res.json({ ok: true, id: result?.lastInsertRowid, image: story.image });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    const timing = storyTiming(story);
-    if (!timing.isExpired) {
-      return res.status(400).send('Sadece süresi dolan hikayeler yeniden paylaşılabilir.');
-    }
-    const now = new Date();
-    const expires = new Date(now.getTime() + STORY_TTL_MS);
-    const result = sqlRun(
-      'INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
-      [req.session.userId, story.image, story.caption || '', now.toISOString(), expires.toISOString()]
-    );
-    scheduleEngagementRecalculation('story_created');
-    invalidateCacheNamespace(cacheNamespaces.stories);
-    res.json({ ok: true, id: result?.lastInsertRowid, image: story.image });
   });
 
-  app.post('/api/new/stories/:id/view', requireAuth, (req, res) => {
-    const storyId = parseStoryId(req.params.id);
-    if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
-    const story = sqlGet('SELECT id, created_at, expires_at FROM stories WHERE id = ?', [storyId]);
-    if (!story) return res.status(404).send('Hikaye bulunamadı.');
-    const timing = storyTiming(story);
-    if (timing.isExpired) return res.status(400).send('Hikaye süresi dolmuş.');
-    const existing = sqlGet('SELECT id FROM story_views WHERE story_id = ? AND user_id = ?', [storyId, req.session.userId]);
-    if (!existing) {
-      sqlRun('INSERT INTO story_views (story_id, user_id, created_at) VALUES (?, ?, ?)', [
-        storyId,
-        req.session.userId,
-        new Date().toISOString()
-      ]);
-      scheduleEngagementRecalculation('story_viewed');
-      invalidateCacheNamespace(cacheNamespaces.stories);
+  app.post('/api/new/stories/:id/view', requireAuth, async (req, res) => {
+    try {
+      const storyId = parseStoryId(req.params.id);
+      if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
+      const story = await sqlGetAsync('SELECT id, created_at, expires_at FROM stories WHERE id = ?', [storyId]);
+      if (!story) return res.status(404).send('Hikaye bulunamadı.');
+      const timing = storyTiming(story);
+      if (timing.isExpired) return res.status(400).send('Hikaye süresi dolmuş.');
+      const existing = await sqlGetAsync('SELECT id FROM story_views WHERE story_id = ? AND user_id = ?', [storyId, req.session.userId]);
+      if (!existing) {
+        await sqlRunAsync('INSERT INTO story_views (story_id, user_id, created_at) VALUES (?, ?, ?)', [
+          storyId,
+          req.session.userId,
+          new Date().toISOString()
+        ]);
+        scheduleEngagementRecalculation('story_viewed');
+        invalidateCacheNamespace(cacheNamespaces.stories);
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    res.json({ ok: true });
   });
 }

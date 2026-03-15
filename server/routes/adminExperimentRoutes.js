@@ -3,6 +3,9 @@ export function registerAdminExperimentRoutes(app, {
   sqlGet,
   sqlAll,
   sqlRun,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
   handleEngagementAbOverview,
   handleEngagementAbUpdate,
   handleEngagementAbRebalance,
@@ -143,7 +146,7 @@ export function registerAdminExperimentRoutes(app, {
       const beforeSnapshot = [];
       if (recommendation.patch && typeof recommendation.patch === 'object') {
         const variant = resolveNetworkSuggestionVariant(recommendation.variant);
-        const existing = sqlGet('SELECT variant, params_json FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
+        const existing = await sqlGetAsync('SELECT variant, params_json FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
         if (!existing) {
           return res.status(404).json({
             ok: false,
@@ -163,7 +166,7 @@ export function registerAdminExperimentRoutes(app, {
           { ...currentParams, ...recommendation.patch },
           networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
         );
-        sqlRun(
+        await sqlRunAsync(
           `UPDATE network_suggestion_ab_config
            SET params_json = ?, updated_at = ?
            WHERE variant = ?`,
@@ -180,7 +183,7 @@ export function registerAdminExperimentRoutes(app, {
         }
         for (const [variantKey, nextTraffic] of Object.entries(recommendation.trafficPatch)) {
           const variant = resolveNetworkSuggestionVariant(variantKey);
-          sqlRun(
+          await sqlRunAsync(
             `UPDATE network_suggestion_ab_config
              SET traffic_pct = ?, updated_at = ?
              WHERE variant = ?`,
@@ -191,7 +194,7 @@ export function registerAdminExperimentRoutes(app, {
       }
 
       const afterSnapshot = snapshotNetworkSuggestionConfigs(getNetworkSuggestionAbConfigs(), Array.from(touchedVariants));
-      const historyResult = sqlRun(
+      const historyResult = await sqlRunAsync(
         `INSERT INTO network_suggestion_ab_change_log
          (action_type, related_change_id, actor_user_id, recommendation_index, cohort, window_days, payload_json,
           before_snapshot_json, after_snapshot_json, created_at, rolled_back_at, rollback_change_id)
@@ -255,7 +258,7 @@ export function registerAdminExperimentRoutes(app, {
           data: null
         });
       }
-      const row = sqlGet(
+      const row = await sqlGetAsync(
         `SELECT id, action_type, payload_json, before_snapshot_json, after_snapshot_json, rolled_back_at, rollback_change_id
          FROM network_suggestion_ab_change_log
          WHERE id = ?`,
@@ -304,7 +307,7 @@ export function registerAdminExperimentRoutes(app, {
           snapshot?.params && typeof snapshot.params === 'object' ? snapshot.params : {},
           networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
         );
-        sqlRun(
+        await sqlRunAsync(
           `UPDATE network_suggestion_ab_config
            SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
            WHERE variant = ?`,
@@ -321,7 +324,7 @@ export function registerAdminExperimentRoutes(app, {
       }
 
       const restoredSnapshot = snapshotNetworkSuggestionConfigs(getNetworkSuggestionAbConfigs(), beforeSnapshot.map((item) => item.variant));
-      const rollbackResult = sqlRun(
+      const rollbackResult = await sqlRunAsync(
         `INSERT INTO network_suggestion_ab_change_log
          (action_type, related_change_id, actor_user_id, recommendation_index, cohort, window_days, payload_json,
           before_snapshot_json, after_snapshot_json, created_at, rolled_back_at, rollback_change_id)
@@ -338,7 +341,7 @@ export function registerAdminExperimentRoutes(app, {
         ]
       );
       const rollbackHistoryId = Number(rollbackResult?.lastInsertRowid || 0) || null;
-      sqlRun(
+      await sqlRunAsync(
         `UPDATE network_suggestion_ab_change_log
          SET rolled_back_at = ?, rollback_change_id = ?
          WHERE id = ?`,
@@ -372,156 +375,176 @@ export function registerAdminExperimentRoutes(app, {
     }
   });
 
-  app.put('/api/new/admin/network-suggestion-ab/:variant', requireAdmin, (req, res) => {
-    const variant = String(req.params.variant || '').trim().toUpperCase();
-    if (!variant) return res.status(400).send('Variant gerekli.');
-    const existing = sqlGet('SELECT variant, params_json FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
-    if (!existing) return res.status(404).send('Variant bulunamadı.');
-    let currentParams = networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams;
+  app.put('/api/new/admin/network-suggestion-ab/:variant', requireAdmin, async (req, res) => {
     try {
-      currentParams = existing.params_json ? JSON.parse(existing.params_json) : currentParams;
-    } catch {
-      // ignore parse error and keep fallback
+      const variant = String(req.params.variant || '').trim().toUpperCase();
+      if (!variant) return res.status(400).send('Variant gerekli.');
+      const existing = await sqlGetAsync('SELECT variant, params_json FROM network_suggestion_ab_config WHERE variant = ?', [variant]);
+      if (!existing) return res.status(404).send('Variant bulunamadı.');
+      let currentParams = networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams;
+      try {
+        currentParams = existing.params_json ? JSON.parse(existing.params_json) : currentParams;
+      } catch {
+        // ignore parse error and keep fallback
+      }
+      const payload = req.body || {};
+      const mergedParams = normalizeNetworkSuggestionParams(
+        payload.params && typeof payload.params === 'object'
+          ? { ...currentParams, ...payload.params }
+          : currentParams,
+        networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
+      );
+      const trafficPct = clamp(Math.round(Number(payload.trafficPct ?? payload.traffic_pct ?? 50) || 0), 0, 100);
+      const enabled = String(payload.enabled ?? '1') === '1' ? 1 : 0;
+      const enabledDbValue = toDbBooleanParam(enabled);
+      const name = String(payload.name || '').trim() || (networkSuggestionDefaultVariants[variant]?.name || variant);
+      const description = String(payload.description || '').trim() || (networkSuggestionDefaultVariants[variant]?.description || '');
+      await sqlRunAsync(
+        `UPDATE network_suggestion_ab_config
+         SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
+         WHERE variant = ?`,
+        [name, description, trafficPct, enabledDbValue, JSON.stringify(mergedParams), new Date().toISOString(), variant]
+      );
+      logAdminAction(req, 'network_suggestion_ab_config_update', { variant, trafficPct, enabled });
+      res.json({ ok: true });
+    } catch(err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    const payload = req.body || {};
-    const mergedParams = normalizeNetworkSuggestionParams(
-      payload.params && typeof payload.params === 'object'
-        ? { ...currentParams, ...payload.params }
-        : currentParams,
-      networkSuggestionDefaultVariants[variant]?.params || networkSuggestionDefaultParams
-    );
-    const trafficPct = clamp(Math.round(Number(payload.trafficPct ?? payload.traffic_pct ?? 50) || 0), 0, 100);
-    const enabled = String(payload.enabled ?? '1') === '1' ? 1 : 0;
-    const enabledDbValue = toDbBooleanParam(enabled);
-    const name = String(payload.name || '').trim() || (networkSuggestionDefaultVariants[variant]?.name || variant);
-    const description = String(payload.description || '').trim() || (networkSuggestionDefaultVariants[variant]?.description || '');
-    sqlRun(
-      `UPDATE network_suggestion_ab_config
-       SET name = ?, description = ?, traffic_pct = ?, enabled = ?, params_json = ?, updated_at = ?
-       WHERE variant = ?`,
-      [name, description, trafficPct, enabledDbValue, JSON.stringify(mergedParams), new Date().toISOString(), variant]
-    );
-    logAdminAction(req, 'network_suggestion_ab_config_update', { variant, trafficPct, enabled });
-    res.json({ ok: true });
   });
 
-  app.post('/api/new/admin/network-suggestion-ab/rebalance', requireAdmin, (req, res) => {
-    const keepAssignments = String(req.body?.keepAssignments || '0') === '1';
-    if (!keepAssignments) {
-      sqlRun('DELETE FROM network_suggestion_ab_assignments');
+  app.post('/api/new/admin/network-suggestion-ab/rebalance', requireAdmin, async (req, res) => {
+    try {
+      const keepAssignments = String(req.body?.keepAssignments || '0') === '1';
+      if (!keepAssignments) {
+        await sqlRunAsync('DELETE FROM network_suggestion_ab_assignments');
+      }
+      logAdminAction(req, 'network_suggestion_ab_rebalance', { keepAssignments });
+      res.json({ ok: true, keepAssignments });
+    } catch(err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    logAdminAction(req, 'network_suggestion_ab_rebalance', { keepAssignments });
-    res.json({ ok: true, keepAssignments });
   });
 
   app.get('/api/new/admin/stats', requireAdmin, handleAdminDashboardSummary);
   app.get('/api/admin/dashboard/summary', requireAdmin, handleAdminDashboardSummary);
 
-  app.get('/api/new/admin/engagement-scores', requireAdmin, (req, res) => {
-    const q = String(req.query.q || '').trim();
-    const minScoreRaw = String(req.query.minScore ?? req.query.min_score ?? '').trim();
-    const maxScoreRaw = String(req.query.maxScore ?? req.query.max_score ?? '').trim();
-    const minScore = minScoreRaw === '' ? NaN : Number(minScoreRaw);
-    const maxScore = maxScoreRaw === '' ? NaN : Number(maxScoreRaw);
-    const status = String(req.query.status || 'all').trim();
-    const sort = String(req.query.sort || 'score_desc').trim();
-    const variant = String(req.query.variant || '').trim().toUpperCase();
-    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
-    const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR LOWER(CAST(u.aktiv AS TEXT)) IN ('true','evet','yes'))";
-    const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR LOWER(CAST(u.yasak AS TEXT)) IN ('true','evet','yes'))";
+  app.get('/api/new/admin/engagement-scores', requireAdmin, async (req, res) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      const minScoreRaw = String(req.query.minScore ?? req.query.min_score ?? '').trim();
+      const maxScoreRaw = String(req.query.maxScore ?? req.query.max_score ?? '').trim();
+      const minScore = minScoreRaw === '' ? NaN : Number(minScoreRaw);
+      const maxScore = maxScoreRaw === '' ? NaN : Number(maxScoreRaw);
+      const status = String(req.query.status || 'all').trim();
+      const sort = String(req.query.sort || 'score_desc').trim();
+      const variant = String(req.query.variant || '').trim().toUpperCase();
+      const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
+      const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR LOWER(CAST(u.aktiv AS TEXT)) IN ('true','evet','yes'))";
+      const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR LOWER(CAST(u.yasak AS TEXT)) IN ('true','evet','yes'))";
 
-    const whereParts = [];
-    const params = [];
-    if (q) {
-      whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))');
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-    }
-    if (status === 'active') whereParts.push(`${activeExpr} AND NOT ${bannedExpr}`);
-    if (status === 'pending') whereParts.push(`NOT ${activeExpr} AND NOT ${bannedExpr}`);
-    if (status === 'banned') whereParts.push(`${bannedExpr}`);
-    if (Number.isFinite(minScore)) {
-      whereParts.push('COALESCE(es.score, 0) >= ?');
-      params.push(minScore);
-    }
-    if (Number.isFinite(maxScore)) {
-      whereParts.push('COALESCE(es.score, 0) <= ?');
-      params.push(maxScore);
-    }
-    if (variant) {
-      whereParts.push("COALESCE(NULLIF(es.ab_variant, ''), 'A') = ?");
-      params.push(variant);
-    }
-    const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
-    const sortMap = {
-      score_desc: 'COALESCE(es.score, 0) DESC, u.id DESC',
-      score_asc: 'COALESCE(es.score, 0) ASC, u.id DESC',
-      recent_update: 'COALESCE(es.updated_at, "") DESC, u.id DESC',
-      name: 'u.kadi COLLATE NOCASE ASC'
-    };
-    const orderBy = sortMap[sort] || sortMap.score_desc;
-    const total = sqlGet(
-      `SELECT COUNT(*) AS cnt
-       FROM uyeler u
-       LEFT JOIN member_engagement_scores es ON es.user_id = u.id
-       ${where}`,
-      params
-    )?.cnt || 0;
-    const pages = Math.max(Math.ceil(total / limit), 1);
-    const safePage = Math.min(page, pages);
-    const offset = (safePage - 1) * limit;
+      const whereParts = [];
+      const params = [];
+      if (q) {
+        whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))');
+        params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      }
+      if (status === 'active') whereParts.push(`${activeExpr} AND NOT ${bannedExpr}`);
+      if (status === 'pending') whereParts.push(`NOT ${activeExpr} AND NOT ${bannedExpr}`);
+      if (status === 'banned') whereParts.push(`${bannedExpr}`);
+      if (Number.isFinite(minScore)) {
+        whereParts.push('COALESCE(es.score, 0) >= ?');
+        params.push(minScore);
+      }
+      if (Number.isFinite(maxScore)) {
+        whereParts.push('COALESCE(es.score, 0) <= ?');
+        params.push(maxScore);
+      }
+      if (variant) {
+        whereParts.push("COALESCE(NULLIF(es.ab_variant, ''), 'A') = ?");
+        params.push(variant);
+      }
+      const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+      const sortMap = {
+        score_desc: 'COALESCE(es.score, 0) DESC, u.id DESC',
+        score_asc: 'COALESCE(es.score, 0) ASC, u.id DESC',
+        recent_update: 'COALESCE(es.updated_at, "") DESC, u.id DESC',
+        name: 'u.kadi COLLATE NOCASE ASC'
+      };
+      const orderBy = sortMap[sort] || sortMap.score_desc;
+      const total = (await sqlGetAsync(
+        `SELECT COUNT(*) AS cnt
+         FROM uyeler u
+         LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+         ${where}`,
+        params
+      ))?.cnt || 0;
+      const pages = Math.max(Math.ceil(total / limit), 1);
+      const safePage = Math.min(page, pages);
+      const offset = (safePage - 1) * limit;
 
-    const items = sqlAll(
-      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.aktiv, u.yasak, u.online, u.verified,
-              COALESCE(NULLIF(es.ab_variant, ''), 'A') AS ab_variant,
-              COALESCE(es.score, 0) AS score,
-              COALESCE(es.raw_score, 0) AS raw_score,
-              COALESCE(es.creator_score, 0) AS creator_score,
-              COALESCE(es.engagement_received_score, 0) AS engagement_received_score,
-              COALESCE(es.community_score, 0) AS community_score,
-              COALESCE(es.network_score, 0) AS network_score,
-              COALESCE(es.quality_score, 0) AS quality_score,
-              COALESCE(es.penalty_score, 0) AS penalty_score,
-              COALESCE(es.posts_30d, 0) AS posts_30d,
-              COALESCE(es.likes_received_30d, 0) AS likes_received_30d,
-              COALESCE(es.comments_received_30d, 0) AS comments_received_30d,
-              COALESCE(es.followers_count, 0) AS followers_count,
-              COALESCE(es.following_count, 0) AS following_count,
-              es.last_activity_at,
-              es.updated_at
-       FROM uyeler u
-       LEFT JOIN member_engagement_scores es ON es.user_id = u.id
-       ${where}
-       ORDER BY ${orderBy}
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
+      const items = await sqlAllAsync(
+        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.aktiv, u.yasak, u.online, u.verified,
+                COALESCE(NULLIF(es.ab_variant, ''), 'A') AS ab_variant,
+                COALESCE(es.score, 0) AS score,
+                COALESCE(es.raw_score, 0) AS raw_score,
+                COALESCE(es.creator_score, 0) AS creator_score,
+                COALESCE(es.engagement_received_score, 0) AS engagement_received_score,
+                COALESCE(es.community_score, 0) AS community_score,
+                COALESCE(es.network_score, 0) AS network_score,
+                COALESCE(es.quality_score, 0) AS quality_score,
+                COALESCE(es.penalty_score, 0) AS penalty_score,
+                COALESCE(es.posts_30d, 0) AS posts_30d,
+                COALESCE(es.likes_received_30d, 0) AS likes_received_30d,
+                COALESCE(es.comments_received_30d, 0) AS comments_received_30d,
+                COALESCE(es.followers_count, 0) AS followers_count,
+                COALESCE(es.following_count, 0) AS following_count,
+                es.last_activity_at,
+                es.updated_at
+         FROM uyeler u
+         LEFT JOIN member_engagement_scores es ON es.user_id = u.id
+         ${where}
+         ORDER BY ${orderBy}
+         LIMIT ? OFFSET ?`,
+        [...params, limit, offset]
+      );
 
-    const summary = sqlGet(
-      `SELECT ROUND(AVG(COALESCE(es.score, 0)), 2) AS avgScore,
-              MAX(COALESCE(es.score, 0)) AS maxScore,
-              MIN(COALESCE(es.score, 0)) AS minScore
-       FROM uyeler u
-       LEFT JOIN member_engagement_scores es ON es.user_id = u.id`
-    ) || { avgScore: 0, maxScore: 0, minScore: 0 };
-    const lastCalculatedAt = sqlGet('SELECT MAX(updated_at) AS ts FROM member_engagement_scores')?.ts || null;
-    res.json({
-      items,
-      page: safePage,
-      pages,
-      total,
-      limit,
-      sort,
-      status,
-      summary,
-      lastCalculatedAt
-    });
+      const summary = (await sqlGetAsync(
+        `SELECT ROUND(AVG(COALESCE(es.score, 0)), 2) AS avgScore,
+                MAX(COALESCE(es.score, 0)) AS maxScore,
+                MIN(COALESCE(es.score, 0)) AS minScore
+         FROM uyeler u
+         LEFT JOIN member_engagement_scores es ON es.user_id = u.id`
+      )) || { avgScore: 0, maxScore: 0, minScore: 0 };
+      const lastCalculatedAt = (await sqlGetAsync('SELECT MAX(updated_at) AS ts FROM member_engagement_scores'))?.ts || null;
+      res.json({
+        items,
+        page: safePage,
+        pages,
+        total,
+        limit,
+        sort,
+        status,
+        summary,
+        lastCalculatedAt
+      });
+    } catch(err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
-  app.post('/api/new/admin/engagement-scores/recalculate', requireAdmin, (_req, res) => {
-    recalculateMemberEngagementScores('admin_manual');
-    const lastCalculatedAt = sqlGet('SELECT MAX(updated_at) AS ts FROM member_engagement_scores')?.ts || null;
-    res.json({ ok: true, lastCalculatedAt });
+  app.post('/api/new/admin/engagement-scores/recalculate', requireAdmin, async (_req, res) => {
+    try {
+      recalculateMemberEngagementScores('admin_manual');
+      const lastCalculatedAt = (await sqlGetAsync('SELECT MAX(updated_at) AS ts FROM member_engagement_scores'))?.ts || null;
+      res.json({ ok: true, lastCalculatedAt });
+    } catch(err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.get('/api/new/admin/live', requireAdmin, handleAdminDashboardActivity);

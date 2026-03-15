@@ -2,7 +2,9 @@ import crypto from 'crypto';
 
 export function registerOAuthRoutes(app, {
   sqlGet,
+  sqlGetAsync,
   sqlRun,
+  sqlRunAsync,
   getEnabledOAuthProviders,
   getOAuthProviderConfig,
   randomState,
@@ -79,7 +81,7 @@ export function registerOAuthRoutes(app, {
         return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=blocked' : withOAuthError(loginRedirectPath, 'blocked'));
       }
       if (user.aktiv === 0) {
-        sqlRun('UPDATE uyeler SET aktiv = 1 WHERE id = ?', [user.id]);
+        await sqlRunAsync('UPDATE uyeler SET aktiv = 1 WHERE id = ?', [user.id]);
         user.aktiv = 1;
       }
       if (isNative) {
@@ -104,16 +106,21 @@ export function registerOAuthRoutes(app, {
     }
   });
 
-  app.post('/api/auth/oauth/mobile/exchange', (req, res) => {
-    const token = String(req.body?.token || '').trim();
-    const userId = consumeMobileOAuthToken(token);
-    if (!userId) return res.status(400).send('OAuth token gecersiz veya suresi dolmus.');
-    const user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [userId]);
-    if (!user || user.yasak === 1) return res.status(400).send('Kullanici gecersiz.');
-    applyUserSession(req, user);
-    res.cookie('uyegiris', 'evet');
-    res.cookie('uyeid', String(user.id));
-    res.cookie('kadi', user.kadi);
-    res.json({ ok: true, user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim } });
+  app.post('/api/auth/oauth/mobile/exchange', async (req, res) => {
+    try {
+      const token = String(req.body?.token || '').trim();
+      const userId = consumeMobileOAuthToken(token);
+      if (!userId) return res.status(400).send('OAuth token gecersiz veya suresi dolmus.');
+      const user = await sqlGetAsync('SELECT * FROM uyeler WHERE id = ?', [userId]);
+      if (!user || user.yasak === 1) return res.status(400).send('Kullanici gecersiz.');
+      applyUserSession(req, user);
+      res.cookie('uyegiris', 'evet');
+      res.cookie('uyeid', String(user.id));
+      res.cookie('kadi', user.kadi);
+      res.json({ ok: true, user: { id: user.id, kadi: user.kadi, isim: user.isim, soyisim: user.soyisim } });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 }

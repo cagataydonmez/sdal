@@ -30,39 +30,44 @@ export function registerEventJobRoutes(app, {
   apiSuccessEnvelope,
   sendApiError
 }) {
-  app.get('/api/new/events', requireAuth, (req, res) => {
-    const user = getCurrentUser(req);
-    const isAdmin = hasAdminSession(req, user);
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
-    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-    const orderExpr = dbDriver === 'postgres'
-      ? 'COALESCE(e.starts_at, e.created_at)'
-      : "COALESCE(NULLIF(e.starts_at, ''), e.created_at)";
-    const rows = sqlAll(
-      `SELECT e.*, u.kadi AS creator_kadi
-       FROM events e
-       LEFT JOIN uyeler u ON u.id = e.created_by
-       ${isAdmin ? '' : "WHERE (COALESCE(CAST(e.approved AS INTEGER), 1) = 1 OR LOWER(CAST(e.approved AS TEXT)) IN ('true','evet','yes'))"}
-       ORDER BY ${orderExpr} ASC, e.id DESC
-       LIMIT ? OFFSET ?`,
-      [limit, offset]
-    );
+  app.get('/api/new/events', requireAuth, async (req, res) => {
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+      const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+      const orderExpr = dbDriver === 'postgres'
+        ? 'COALESCE(e.starts_at, e.created_at)'
+        : "COALESCE(NULLIF(e.starts_at, ''), e.created_at)";
+      const rows = await sqlAllAsync(
+        `SELECT e.*, u.kadi AS creator_kadi
+         FROM events e
+         LEFT JOIN uyeler u ON u.id = e.created_by
+         ${isAdmin ? '' : "WHERE (COALESCE(CAST(e.approved AS INTEGER), 1) = 1 OR LOWER(CAST(e.approved AS TEXT)) IN ('true','evet','yes'))"}
+         ORDER BY ${orderExpr} ASC, e.id DESC
+         LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
 
-    const items = rows.map((row) => {
-      const canSeePrivate = isAdmin || sameUserId(row.created_by, req.session.userId);
-      const bundle = getEventResponseBundle(row, req.session.userId, canSeePrivate);
-      return {
-        ...row,
-        response_counts: bundle.counts,
-        my_response: bundle.myResponse,
-        attendees: bundle.attendees,
-        decliners: bundle.decliners,
-        response_visibility: bundle.visibility,
-        can_manage_responses: canSeePrivate
-      };
-    });
+      const items = rows.map((row) => {
+        const canSeePrivate = isAdmin || sameUserId(row.created_by, req.session.userId);
+        const bundle = getEventResponseBundle(row, req.session.userId, canSeePrivate);
+        return {
+          ...row,
+          response_counts: bundle.counts,
+          my_response: bundle.myResponse,
+          attendees: bundle.attendees,
+          decliners: bundle.decliners,
+          response_visibility: bundle.visibility,
+          can_manage_responses: canSeePrivate
+        };
+      });
 
-    res.json({ items, hasMore: rows.length === limit });
+      res.json({ items, hasMore: rows.length === limit });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.post('/api/new/events', requireAuth, async (req, res) => {
@@ -107,278 +112,338 @@ export function registerEventJobRoutes(app, {
   });
 
   app.post('/api/new/events/:id/approve', requireAdmin, async (req, res) => {
-    const approved = String(req.body?.approved || '1') === '1';
-    await sqlRunAsync(
-      'UPDATE events SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-      [toDbFlagForColumn('events', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
-    );
-    res.json({ ok: true });
-  });
-
-  app.delete('/api/new/events/:id', requireAdmin, (req, res) => {
-    sqlRun('DELETE FROM event_comments WHERE event_id = ?', [req.params.id]);
-    sqlRun('DELETE FROM event_responses WHERE event_id = ?', [req.params.id]);
-    sqlRun('DELETE FROM events WHERE id = ?', [req.params.id]);
-    res.json({ ok: true });
-  });
-
-  app.post('/api/new/events/:id/respond', requireAuth, (req, res) => {
-    const event = sqlGet('SELECT * FROM events WHERE id = ?', [req.params.id]);
-    if (!event) return res.status(404).send('Etkinlik bulunamadı.');
-    if (Number(event.approved || 1) !== 1) return res.status(400).send('Etkinlik henüz yayında değil.');
-    const response = normalizeEventResponse(req.body?.response);
-    if (!response) return res.status(400).send('Geçersiz yanıt.');
-    const now = new Date().toISOString();
-    const existing = sqlGet('SELECT id FROM event_responses WHERE event_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
-    if (existing) {
-      sqlRun('UPDATE event_responses SET response = ?, updated_at = ? WHERE id = ?', [response, now, existing.id]);
-    } else {
-      sqlRun(
-        'INSERT INTO event_responses (event_id, user_id, response, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [req.params.id, req.session.userId, response, now, now]
+    try {
+      const approved = String(req.body?.approved || '1') === '1';
+      await sqlRunAsync(
+        'UPDATE events SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
+        [toDbFlagForColumn('events', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
       );
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
-      addNotification({
-        userId: event.created_by,
-        type: 'event_response',
-        sourceUserId: req.session.userId,
-        entityId: req.params.id,
-        message: response === 'attend' ? 'Etkinliğine katılacağını belirtti.' : 'Etkinliğine katılamayacağını belirtti.'
-      });
+  });
+
+  app.delete('/api/new/events/:id', requireAdmin, async (req, res) => {
+    try {
+      await sqlRunAsync('DELETE FROM event_comments WHERE event_id = ?', [req.params.id]);
+      await sqlRunAsync('DELETE FROM event_responses WHERE event_id = ?', [req.params.id]);
+      await sqlRunAsync('DELETE FROM events WHERE id = ?', [req.params.id]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    const canSeePrivate = sameUserId(event.created_by, req.session.userId);
-    const bundle = getEventResponseBundle(event, req.session.userId, canSeePrivate);
-    res.json({ ok: true, myResponse: bundle.myResponse, counts: bundle.counts });
+  });
+
+  app.post('/api/new/events/:id/respond', requireAuth, async (req, res) => {
+    try {
+      const event = await sqlGetAsync('SELECT * FROM events WHERE id = ?', [req.params.id]);
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+      if (Number(event.approved || 1) !== 1) return res.status(400).send('Etkinlik henüz yayında değil.');
+      const response = normalizeEventResponse(req.body?.response);
+      if (!response) return res.status(400).send('Geçersiz yanıt.');
+      const now = new Date().toISOString();
+      const existing = await sqlGetAsync('SELECT id FROM event_responses WHERE event_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
+      if (existing) {
+        await sqlRunAsync('UPDATE event_responses SET response = ?, updated_at = ? WHERE id = ?', [response, now, existing.id]);
+      } else {
+        await sqlRunAsync(
+          'INSERT INTO event_responses (event_id, user_id, response, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+          [req.params.id, req.session.userId, response, now, now]
+        );
+      }
+      if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
+        addNotification({
+          userId: event.created_by,
+          type: 'event_response',
+          sourceUserId: req.session.userId,
+          entityId: req.params.id,
+          message: response === 'attend' ? 'Etkinliğine katılacağını belirtti.' : 'Etkinliğine katılamayacağını belirtti.'
+        });
+      }
+      const canSeePrivate = sameUserId(event.created_by, req.session.userId);
+      const bundle = getEventResponseBundle(event, req.session.userId, canSeePrivate);
+      res.json({ ok: true, myResponse: bundle.myResponse, counts: bundle.counts });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.post('/api/new/events/:id/response-visibility', requireAuth, async (req, res) => {
-    const event = await sqlGetAsync('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
-    if (!event) return res.status(404).send('Etkinlik bulunamadı.');
-    const user = getCurrentUser(req);
-    const isAdmin = hasAdminSession(req, user);
-    if (!sameUserId(event.created_by, req.session.userId) && !isAdmin) {
-      return res.status(403).send('Sadece etkinlik sahibi ayarları değiştirebilir.');
-    }
-    const showCounts = Boolean(req.body?.showCounts);
-    const showAttendeeNames = Boolean(req.body?.showAttendeeNames);
-    const showDeclinerNames = Boolean(req.body?.showDeclinerNames);
-    await sqlRunAsync(
-      `UPDATE events
-       SET show_response_counts = ?, show_attendee_names = ?, show_decliner_names = ?
-       WHERE id = ?`,
-      [
-        toDbFlagForColumn('events', 'show_response_counts', showCounts),
-        toDbFlagForColumn('events', 'show_attendee_names', showAttendeeNames),
-        toDbFlagForColumn('events', 'show_decliner_names', showDeclinerNames),
-        req.params.id
-      ]
-    );
-    const updated = await sqlGetAsync(
-      'SELECT show_response_counts, show_attendee_names, show_decliner_names FROM events WHERE id = ?',
-      [req.params.id]
-    );
-    res.json({
-      ok: true,
-      visibility: {
-        showCounts: Number(updated?.show_response_counts || 0) === 1,
-        showAttendeeNames: Number(updated?.show_attendee_names || 0) === 1,
-        showDeclinerNames: Number(updated?.show_decliner_names || 0) === 1
+    try {
+      const event = await sqlGetAsync('SELECT id, created_by FROM events WHERE id = ?', [req.params.id]);
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      if (!sameUserId(event.created_by, req.session.userId) && !isAdmin) {
+        return res.status(403).send('Sadece etkinlik sahibi ayarları değiştirebilir.');
       }
-    });
+      const showCounts = Boolean(req.body?.showCounts);
+      const showAttendeeNames = Boolean(req.body?.showAttendeeNames);
+      const showDeclinerNames = Boolean(req.body?.showDeclinerNames);
+      await sqlRunAsync(
+        `UPDATE events
+         SET show_response_counts = ?, show_attendee_names = ?, show_decliner_names = ?
+         WHERE id = ?`,
+        [
+          toDbFlagForColumn('events', 'show_response_counts', showCounts),
+          toDbFlagForColumn('events', 'show_attendee_names', showAttendeeNames),
+          toDbFlagForColumn('events', 'show_decliner_names', showDeclinerNames),
+          req.params.id
+        ]
+      );
+      const updated = await sqlGetAsync(
+        'SELECT show_response_counts, show_attendee_names, show_decliner_names FROM events WHERE id = ?',
+        [req.params.id]
+      );
+      res.json({
+        ok: true,
+        visibility: {
+          showCounts: Number(updated?.show_response_counts || 0) === 1,
+          showAttendeeNames: Number(updated?.show_attendee_names || 0) === 1,
+          showDeclinerNames: Number(updated?.show_decliner_names || 0) === 1
+        }
+      });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
-  app.get('/api/new/events/:id/comments', requireAuth, (req, res) => {
-    const rows = sqlAll(
-      `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
-       FROM event_comments c
-       LEFT JOIN uyeler u ON u.id = c.user_id
-       WHERE c.event_id = ?
-       ORDER BY c.id DESC`,
-      [req.params.id]
-    );
-    res.json({ items: rows });
+  app.get('/api/new/events/:id/comments', requireAuth, async (req, res) => {
+    try {
+      const rows = await sqlAllAsync(
+        `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM event_comments c
+         LEFT JOIN uyeler u ON u.id = c.user_id
+         WHERE c.event_id = ?
+         ORDER BY c.id DESC`,
+        [req.params.id]
+      );
+      res.json({ items: rows });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
-  app.post('/api/new/events/:id/comments', requireAuth, (req, res) => {
-    const event = sqlGet('SELECT * FROM events WHERE id = ?', [req.params.id]);
-    if (!event) return res.status(404).send('Etkinlik bulunamadı.');
-    const commentRaw = req.body?.comment || '';
-    const comment = formatUserText(commentRaw);
-    if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
-    const now = new Date().toISOString();
-    sqlRun('INSERT INTO event_comments (event_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
-      req.params.id,
-      req.session.userId,
-      comment,
-      now
-    ]);
-    if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
-      addNotification({
-        userId: event.created_by,
-        type: 'event_comment',
+  app.post('/api/new/events/:id/comments', requireAuth, async (req, res) => {
+    try {
+      const event = await sqlGetAsync('SELECT * FROM events WHERE id = ?', [req.params.id]);
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+      const commentRaw = req.body?.comment || '';
+      const comment = formatUserText(commentRaw);
+      if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
+      const now = new Date().toISOString();
+      await sqlRunAsync('INSERT INTO event_comments (event_id, user_id, comment, created_at) VALUES (?, ?, ?, ?)', [
+        req.params.id,
+        req.session.userId,
+        comment,
+        now
+      ]);
+      if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
+        addNotification({
+          userId: event.created_by,
+          type: 'event_comment',
+          sourceUserId: req.session.userId,
+          entityId: req.params.id,
+          message: 'Etkinliğine yorum yaptı.'
+        });
+      }
+      notifyMentions({
+        text: commentRaw,
         sourceUserId: req.session.userId,
         entityId: req.params.id,
-        message: 'Etkinliğine yorum yaptı.'
+        type: 'mention_event',
+        message: 'Etkinlik yorumunda senden bahsetti.'
       });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    notifyMentions({
-      text: commentRaw,
-      sourceUserId: req.session.userId,
-      entityId: req.params.id,
-      type: 'mention_event',
-      message: 'Etkinlik yorumunda senden bahsetti.'
-    });
-    res.json({ ok: true });
   });
 
-  app.post('/api/new/events/:id/notify', requireAuth, (req, res) => {
-    const event = sqlGet(
-      "SELECT id, title, created_by FROM events WHERE id = ? AND (COALESCE(CAST(approved AS INTEGER), 1) = 1 OR LOWER(CAST(approved AS TEXT)) IN ('true','evet','yes'))",
-      [req.params.id]
-    );
-    if (!event) return res.status(404).send('Etkinlik bulunamadı.');
-    const user = getCurrentUser(req);
-    const isAdmin = hasAdminSession(req, user);
-    if (!isAdmin && !sameUserId(event.created_by, req.session.userId)) {
-      return res.status(403).send('Sadece etkinlik sahibi veya admin bildirim gonderebilir.');
+  app.post('/api/new/events/:id/notify', requireAuth, async (req, res) => {
+    try {
+      const event = await sqlGetAsync(
+        "SELECT id, title, created_by FROM events WHERE id = ? AND (COALESCE(CAST(approved AS INTEGER), 1) = 1 OR LOWER(CAST(approved AS TEXT)) IN ('true','evet','yes'))",
+        [req.params.id]
+      );
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      if (!isAdmin && !sameUserId(event.created_by, req.session.userId)) {
+        return res.status(403).send('Sadece etkinlik sahibi veya admin bildirim gonderebilir.');
+      }
+      const mode = String(req.body?.mode || 'invite').trim().toLowerCase();
+      const normalizedMode = mode === 'reminder' || mode === 'starts_soon' ? mode : 'invite';
+      const targets = normalizedMode === 'invite'
+        ? (await sqlAllAsync('SELECT follower_id AS user_id FROM follows WHERE following_id = ?', [req.session.userId]) || [])
+        : (await sqlAllAsync(
+            `SELECT DISTINCT user_id
+             FROM event_responses
+             WHERE event_id = ?
+               AND LOWER(TRIM(COALESCE(response, ''))) = 'attend'`,
+            [req.params.id]
+          ) || []);
+      let count = 0;
+      for (const row of targets) {
+        const targetUserId = Number(row?.user_id || row?.follower_id || 0);
+        if (!targetUserId || sameUserId(targetUserId, req.session.userId)) continue;
+        addNotification({
+          userId: targetUserId,
+          type: normalizedMode === 'invite' ? 'event_invite' : normalizedMode === 'reminder' ? 'event_reminder' : 'event_starts_soon',
+          sourceUserId: req.session.userId,
+          entityId: event.id,
+          message: normalizedMode === 'invite'
+            ? `Seni "${event.title}" etkinliğine davet etti.`
+            : normalizedMode === 'reminder'
+              ? `"${event.title}" etkinliği için hatırlatma gönderdi.`
+              : `"${event.title}" etkinliği çok yakında başlıyor.`
+        });
+        count += 1;
+      }
+      res.json({ ok: true, count, mode: normalizedMode });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    const mode = String(req.body?.mode || 'invite').trim().toLowerCase();
-    const normalizedMode = mode === 'reminder' || mode === 'starts_soon' ? mode : 'invite';
-    const targets = normalizedMode === 'invite'
-      ? (sqlAll('SELECT follower_id AS user_id FROM follows WHERE following_id = ?', [req.session.userId]) || [])
-      : (sqlAll(
-          `SELECT DISTINCT user_id
-           FROM event_responses
-           WHERE event_id = ?
-             AND LOWER(TRIM(COALESCE(response, ''))) = 'attend'`,
-          [req.params.id]
-        ) || []);
-    let count = 0;
-    for (const row of targets) {
-      const targetUserId = Number(row?.user_id || row?.follower_id || 0);
-      if (!targetUserId || sameUserId(targetUserId, req.session.userId)) continue;
-      addNotification({
-        userId: targetUserId,
-        type: normalizedMode === 'invite' ? 'event_invite' : normalizedMode === 'reminder' ? 'event_reminder' : 'event_starts_soon',
-        sourceUserId: req.session.userId,
-        entityId: event.id,
-        message: normalizedMode === 'invite'
-          ? `Seni "${event.title}" etkinliğine davet etti.`
-          : normalizedMode === 'reminder'
-            ? `"${event.title}" etkinliği için hatırlatma gönderdi.`
-            : `"${event.title}" etkinliği çok yakında başlıyor.`
-      });
-      count += 1;
-    }
-    res.json({ ok: true, count, mode: normalizedMode });
   });
 
-  app.get('/api/new/announcements', requireAuth, (req, res) => {
-    const user = getCurrentUser(req);
-    const isAdmin = hasAdminSession(req, user);
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
-    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-    const rows = sqlAll(
-      `SELECT a.*, u.kadi AS creator_kadi
-       FROM announcements a
-       LEFT JOIN uyeler u ON u.id = a.created_by
-       ${isAdmin ? '' : "WHERE (COALESCE(CAST(a.approved AS INTEGER), 1) = 1 OR LOWER(CAST(a.approved AS TEXT)) IN ('true','evet','yes'))"}
-       ORDER BY a.id DESC`
-       + ' LIMIT ? OFFSET ?',
-      [limit, offset]
-    );
-    res.json({ items: rows, hasMore: rows.length === limit });
+  app.get('/api/new/announcements', requireAuth, async (req, res) => {
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+      const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+      const rows = await sqlAllAsync(
+        `SELECT a.*, u.kadi AS creator_kadi
+         FROM announcements a
+         LEFT JOIN uyeler u ON u.id = a.created_by
+         ${isAdmin ? '' : "WHERE (COALESCE(CAST(a.approved AS INTEGER), 1) = 1 OR LOWER(CAST(a.approved AS TEXT)) IN ('true','evet','yes'))"}
+         ORDER BY a.id DESC`
+         + ' LIMIT ? OFFSET ?',
+        [limit, offset]
+      );
+      res.json({ items: rows, hasMore: rows.length === limit });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.post('/api/new/announcements', requireAuth, async (req, res) => {
-    const { body, image } = req.body || {};
-    const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
-    const formattedBody = formatUserText(body || '');
-    if (!title || isFormattedContentEmpty(formattedBody)) return res.status(400).send('Başlık ve içerik gerekli.');
-    const user = getCurrentUser(req);
-    const isAdmin = hasAdminSession(req, user);
-    const now = new Date().toISOString();
-    await sqlRunAsync(
-      `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        title,
-        formattedBody,
-        image || null,
-        now,
-        req.session.userId,
-        toDbFlagForColumn('announcements', 'approved', isAdmin),
-        isAdmin ? req.session.userId : null,
-        isAdmin ? now : null
-      ]
-    );
-    res.json({ ok: true, pending: !isAdmin });
+    try {
+      const { body, image } = req.body || {};
+      const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+      const formattedBody = formatUserText(body || '');
+      if (!title || isFormattedContentEmpty(formattedBody)) return res.status(400).send('Başlık ve içerik gerekli.');
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const now = new Date().toISOString();
+      await sqlRunAsync(
+        `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          title,
+          formattedBody,
+          image || null,
+          now,
+          req.session.userId,
+          toDbFlagForColumn('announcements', 'approved', isAdmin),
+          isAdmin ? req.session.userId : null,
+          isAdmin ? now : null
+        ]
+      );
+      res.json({ ok: true, pending: !isAdmin });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.post('/api/new/announcements/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
-    const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
-    const bodyRaw = String(req.body?.body || '');
-    const body = formatUserText(bodyRaw);
-    if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
-    const user = getCurrentUser(req);
-    const isAdmin = hasAdminSession(req, user);
-    let processedUpload = null;
-    if (req.file?.path) {
-      processedUpload = await processDiskImageUpload({
-        req,
-        res,
-        file: req.file,
-        bucket: 'announcement_image',
-        preset: uploadImagePresets.announcementImage
-      });
-      if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+    try {
+      const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+      const bodyRaw = String(req.body?.body || '');
+      const body = formatUserText(bodyRaw);
+      if (!title || isFormattedContentEmpty(body)) return res.status(400).send('Başlık ve içerik gerekli.');
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      let processedUpload = null;
+      if (req.file?.path) {
+        processedUpload = await processDiskImageUpload({
+          req,
+          res,
+          file: req.file,
+          bucket: 'announcement_image',
+          preset: uploadImagePresets.announcementImage
+        });
+        if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+      }
+      const now = new Date().toISOString();
+      await sqlRunAsync(
+        `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          title,
+          body,
+          processedUpload?.url || null,
+          now,
+          req.session.userId,
+          toDbFlagForColumn('announcements', 'approved', isAdmin),
+          isAdmin ? req.session.userId : null,
+          isAdmin ? now : null
+        ]
+      );
+      res.json({ ok: true, pending: !isAdmin });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    const now = new Date().toISOString();
-    await sqlRunAsync(
-      `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        title,
-        body,
-        processedUpload?.url || null,
-        now,
-        req.session.userId,
-        toDbFlagForColumn('announcements', 'approved', isAdmin),
-        isAdmin ? req.session.userId : null,
-        isAdmin ? now : null
-      ]
-    );
-    res.json({ ok: true, pending: !isAdmin });
   });
 
   app.post('/api/new/announcements/:id/approve', requireAdmin, async (req, res) => {
-    const approvedInput = Object.prototype.hasOwnProperty.call(req.body || {}, 'approved')
-      ? req.body?.approved
-      : '1';
-    const approved = String(approvedInput) === '1';
-    const announcement = await sqlGetAsync('SELECT id, created_by, title FROM announcements WHERE id = ?', [req.params.id]);
-    await sqlRunAsync(
-      'UPDATE announcements SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-      [toDbFlagForColumn('announcements', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
-    );
-    if (announcement?.created_by && !sameUserId(announcement.created_by, req.session.userId)) {
-      addNotification({
-        userId: announcement.created_by,
-        type: approved ? 'announcement_approved' : 'announcement_rejected',
-        sourceUserId: req.session.userId,
-        entityId: Number(req.params.id || 0),
-        message: approved
-          ? `"${announcement.title || 'Duyuru'}" duyurun yayınlandı.`
-          : `"${announcement.title || 'Duyuru'}" duyurun reddedildi.`
-      });
+    try {
+      const approvedInput = Object.prototype.hasOwnProperty.call(req.body || {}, 'approved')
+        ? req.body?.approved
+        : '1';
+      const approved = String(approvedInput) === '1';
+      const announcement = await sqlGetAsync('SELECT id, created_by, title FROM announcements WHERE id = ?', [req.params.id]);
+      await sqlRunAsync(
+        'UPDATE announcements SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
+        [toDbFlagForColumn('announcements', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
+      );
+      if (announcement?.created_by && !sameUserId(announcement.created_by, req.session.userId)) {
+        addNotification({
+          userId: announcement.created_by,
+          type: approved ? 'announcement_approved' : 'announcement_rejected',
+          sourceUserId: req.session.userId,
+          entityId: Number(req.params.id || 0),
+          message: approved
+            ? `"${announcement.title || 'Duyuru'}" duyurun yayınlandı.`
+            : `"${announcement.title || 'Duyuru'}" duyurun reddedildi.`
+        });
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
-    res.json({ ok: true });
   });
 
-  app.delete('/api/new/announcements/:id', requireAdmin, (req, res) => {
-    sqlRun('DELETE FROM announcements WHERE id = ?', [req.params.id]);
-    res.json({ ok: true });
+  app.delete('/api/new/announcements/:id', requireAdmin, async (req, res) => {
+    try {
+      await sqlRunAsync('DELETE FROM announcements WHERE id = ?', [req.params.id]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   app.get('/api/new/jobs', requireAuth, async (req, res) => {
@@ -585,13 +650,18 @@ export function registerEventJobRoutes(app, {
     res.json({ ok: true, id: result?.lastInsertRowid });
   });
 
-  app.delete('/api/new/jobs/:id', requireAuth, (req, res) => {
-    const user = getCurrentUser(req);
-    const isAdmin = hasAdminSession(req, user);
-    const row = sqlGet('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
-    if (!row) return res.status(404).send('İş ilanı bulunamadı.');
-    if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı silme yetkin yok.');
-    sqlRun('DELETE FROM jobs WHERE id = ?', [req.params.id]);
-    res.json({ ok: true });
+  app.delete('/api/new/jobs/:id', requireAuth, async (req, res) => {
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const row = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
+      if (!row) return res.status(404).send('İş ilanı bulunamadı.');
+      if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı silme yetkin yok.');
+      await sqlRunAsync('DELETE FROM jobs WHERE id = ?', [req.params.id]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
   });
 }

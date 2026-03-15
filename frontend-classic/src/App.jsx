@@ -91,7 +91,7 @@ export default function App() {
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return children;
+  if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }
