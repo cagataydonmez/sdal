@@ -111,7 +111,9 @@ export function createPhase1DomainLayer(deps) {
     feed: new FeedService({
       userRepository: repositories.users,
       groupRepository: repositories.groups,
-      feedRepository: repositories.feeds
+      feedRepository: repositories.feeds,
+      getCacheJson: deps.getCacheJson,
+      setCacheJson: deps.setCacheJson
     }),
     posts: new PostService({
       postRepository: repositories.posts,
