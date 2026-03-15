@@ -18,6 +18,7 @@
     "reset:sqlite:fresh": "node scripts/reset-sqlite-fresh.mjs",
     "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs",
     "test:phase2-health": "node tests/contracts/phase2-health.mjs",
+    "test:phase2-opportunity-inbox": "node tests/contracts/phase2-opportunity-inbox.mjs",
     "test:phase2-connections": "node tests/contracts/phase2-connections.mjs",
     "test:phase2-mentorship": "node tests/contracts/phase2-mentorship.mjs",
     "test:phase2-network-hardening": "node tests/contracts/phase2-network-hardening.mjs",

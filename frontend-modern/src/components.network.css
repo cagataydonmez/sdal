@@ -553,3 +553,100 @@
 .bottom-nav {
   display: none;
 }
+
+.opportunity-hero {
+  margin-bottom: 18px;
+}
+
+.opportunity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.opportunity-card {
+  overflow: hidden;
+}
+
+.opportunity-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 0;
+}
+
+.opportunity-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.opportunity-score {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.opportunity-card-body {
+  display: grid;
+  gap: 14px;
+}
+
+.opportunity-card-body h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.3;
+}
+
+.opportunity-summary {
+  margin: 0;
+  color: var(--text);
+}
+
+.opportunity-why {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--soft-panel) 80%, transparent);
+}
+
+.opportunity-why strong {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.opportunity-reasons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.opportunity-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.opportunity-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.opportunity-error-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .opportunity-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

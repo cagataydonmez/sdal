@@ -4072,6 +4072,7 @@ const {
   listTeacherLinkPairDuplicates,
   parseNetworkWindowDays,
   toIsoThreshold,
+  buildOpportunityInboxPayload,
   buildNetworkInboxPayload,
   buildNetworkMetricsPayload,
   buildExploreSuggestionsPayload,
@@ -4195,6 +4196,7 @@ registerNetworkDiscoveryRoutes(app, {
   listNetworkSuggestionAbRecentChangesWithEvaluation,
   buildNetworkSuggestionExperimentAnalytics,
   buildNetworkSuggestionAbRecommendations,
+  buildOpportunityInboxPayload,
   buildNetworkHubPayload,
   buildNetworkMetricsPayload,
   buildExploreSuggestionsPayload

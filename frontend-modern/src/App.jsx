@@ -40,6 +40,7 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage.jsx
 const JobsPage = React.lazy(() => import('./pages/JobsPage.jsx'));
 const TeachersNetworkPage = React.lazy(() => import('./pages/TeachersNetworkPage.jsx'));
 const NetworkingHubPage = React.lazy(() => import('./pages/NetworkingHubPage.jsx'));
+const OpportunityInboxPage = React.lazy(() => import('./pages/OpportunityInboxPage.jsx'));
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -113,6 +114,7 @@ export const appRoutes = createRoutesFromElements(
     <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
     <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
     <Route path="/new/jobs" element={<RequireAuth><JobsPage /></RequireAuth>} />
+    <Route path="/new/opportunities" element={<RequireAuth><OpportunityInboxPage /></RequireAuth>} />
     <Route path="/new/network/hub" element={<RequireAuth><NetworkingHubPage /></RequireAuth>} />
     <Route path="/new/network/inbox" element={<RequireAuth><NetworkingHubPage /></RequireAuth>} />
     <Route path="/new/network/teachers" element={<RequireAuth><TeachersNetworkPage /></RequireAuth>} />

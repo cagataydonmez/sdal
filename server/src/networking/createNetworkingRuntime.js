@@ -1,6 +1,7 @@
 import { createNetworkingAdminAnalyticsRuntime } from './createNetworkingAdminAnalyticsRuntime.js';
 import { createTeacherLinkModerationRuntime } from './createTeacherLinkModerationRuntime.js';
 import { createNetworkDiscoveryPayloadRuntime } from './createNetworkDiscoveryPayloadRuntime.js';
+import { createOpportunityInboxRuntime } from '../opportunities/createOpportunityInboxRuntime.js';
 
 export function createNetworkingRuntime({
   sqlGet,
@@ -613,6 +614,14 @@ export function createNetworkingRuntime({
     mapNetworkSuggestionForApi,
     sortNetworkSuggestions
   });
+  const opportunityInboxRuntime = createOpportunityInboxRuntime({
+    sqlGetAsync,
+    sqlAllAsync,
+    hasTable,
+    hasColumn,
+    buildNetworkInboxPayload: discoveryPayloadRuntime.buildNetworkInboxPayload,
+    buildExploreSuggestionsPayload: discoveryPayloadRuntime.buildExploreSuggestionsPayload
+  });
 
   return {
     NETWORK_SUGGESTION_APPLY_CONFIRMATION_TOKEN,
@@ -641,6 +650,7 @@ export function createNetworkingRuntime({
     recordNetworkingTelemetryEvent,
     ...adminAnalyticsRuntime,
     ...teacherLinkModerationRuntime,
-    ...discoveryPayloadRuntime
+    ...discoveryPayloadRuntime,
+    ...opportunityInboxRuntime
   };
 }

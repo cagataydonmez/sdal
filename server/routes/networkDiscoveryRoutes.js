@@ -25,10 +25,30 @@ export function registerNetworkDiscoveryRoutes(app, {
   listNetworkSuggestionAbRecentChangesWithEvaluation,
   buildNetworkSuggestionExperimentAnalytics,
   buildNetworkSuggestionAbRecommendations,
+  buildOpportunityInboxPayload,
   buildNetworkHubPayload,
   buildNetworkMetricsPayload,
   buildExploreSuggestionsPayload
 }) {
+  app.get('/api/new/opportunities', requireAuth, async (req, res) => {
+    try {
+      const userId = Number(req.session?.userId || 0);
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 40);
+      const cursor = String(req.query.cursor || '').trim();
+      const tab = String(req.query.tab || 'all').trim().toLowerCase();
+      const opportunities = await buildOpportunityInboxPayload(userId, { limit, cursor, tab });
+      return res.json(apiSuccessEnvelope(
+        'OPPORTUNITY_INBOX_OK',
+        'Fırsat merkezi hazır.',
+        { opportunities },
+        { opportunities }
+      ));
+    } catch (err) {
+      console.error('opportunity.inbox failed:', err);
+      return sendApiError(res, 500, 'OPPORTUNITY_INBOX_FAILED', 'Fırsat merkezi verileri hazırlanamadı.');
+    }
+  });
+
   app.get('/api/new/network/hub', requireAuth, async (req, res) => {
     try {
       const userId = Number(req.session?.userId || 0);
