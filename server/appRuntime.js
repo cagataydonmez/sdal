@@ -743,6 +743,8 @@ const {
   sqlAll,
   sqlRun,
   sqlRunAsync,
+  sqlGetAsync,
+  sqlAllAsync,
   moderationActionDefinitions: MODERATION_ACTION_DEFINITIONS,
   moderationResourceDefinitions: MODERATION_RESOURCE_DEFINITIONS,
   moderationPermissionKeySet: MODERATION_PERMISSION_KEY_SET
@@ -1270,6 +1272,7 @@ function logAdminAction(req, action, details = {}) {
 const notificationPresentationRuntime = createNotificationPresentationRuntime({
   sqlRun,
   sqlGet,
+  sqlGetAsync,
   sqlAllAsync,
   hasTable,
   ensureJobApplicationsTable
@@ -1292,6 +1295,8 @@ const notificationGovernanceRuntime = createNotificationGovernanceRuntime({
   sqlRun,
   sqlGet,
   sqlAll,
+  sqlRunAsync,
+  sqlGetAsync,
   hasTable,
   sanitizePlainUserText,
   getNotificationCategory,
@@ -3315,6 +3320,7 @@ const {
   canManageChatMessage
 } = createEventChatRuntime({
   sqlAll,
+  sqlAllAsync,
   sqlRunAsync,
   sanitizePlainUserText,
   sameUserId,
@@ -3340,6 +3346,7 @@ const {
   sqlGetAsync,
   sqlAllAsync,
   sqlRun,
+  sqlRunAsync,
   hasTable,
   hasColumn,
   joinUserOnPhotoOwnerExpr,
@@ -4108,6 +4115,7 @@ const {
   sqlRun,
   sqlGetAsync,
   sqlAllAsync,
+  sqlRunAsync,
   hasColumn,
   hasTable,
   normalizeCohortValue,
@@ -4752,9 +4760,11 @@ const { attachWebSocketServers } = createWebSocketRuntime({
   allowLegacyWsQueryAuth,
   writeAppLog,
   sqlGet,
+  sqlGetAsync,
   formatUserText,
   isFormattedContentEmpty,
   sqlRun,
+  sqlRunAsync,
   scheduleEngagementRecalculation,
   broadcastChatMessage,
   setChatWss: (value) => { chatWss = value; },

@@ -1,6 +1,7 @@
 export function createNotificationPresentationRuntime({
   sqlRun,
   sqlGet,
+  sqlGetAsync,
   sqlAllAsync,
   hasTable,
   ensureJobApplicationsTable
@@ -179,7 +180,7 @@ export function createNotificationPresentationRuntime({
     return `${computeNotificationSortBucket(row)}:${id}`;
   }
 
-  function buildNotificationTarget(row) {
+  async function buildNotificationTarget(row) {
     const notificationId = Number(row?.id || 0);
     const entityId = Number(row?.entity_id || 0);
     const sourceUserId = Number(row?.source_user_id || 0);
@@ -386,7 +387,8 @@ export function createNotificationPresentationRuntime({
     }
     if ((type === 'job_application_reviewed' || type === 'job_application_accepted' || type === 'job_application_rejected') && entityId) {
       ensureJobApplicationsTable();
-      const applicationRow = sqlGet('SELECT id, job_id FROM job_applications WHERE id = ?', [entityId]);
+      const execGet = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+      const applicationRow = await execGet('SELECT id, job_id FROM job_applications WHERE id = ?', [entityId]);
       const jobId = Number(applicationRow?.job_id || 0);
       const href = jobId
         ? `/new/jobs?job=${jobId}&focus=my-application&application=${entityId}&notification=${notificationId}`
@@ -438,8 +440,8 @@ export function createNotificationPresentationRuntime({
     };
   }
 
-  function buildNotificationActions(row) {
-    const target = buildNotificationTarget(row);
+  async function buildNotificationActions(row, prebuiltTarget) {
+    const target = prebuiltTarget || await buildNotificationTarget(row);
     const type = String(row?.type || '').trim().toLowerCase();
     const actions = [{ kind: 'open', label: 'Aç', href: target.href }];
 
@@ -534,7 +536,7 @@ export function createNotificationPresentationRuntime({
       }
     }
 
-    return safeRows.map((row) => {
+    return Promise.all(safeRows.map(async (row) => {
       const inviteStatus = String(row?.type || '') === 'group_invite' && row?.entity_id
         ? (inviteStatusMap.get(Number(row.entity_id || 0)) || 'pending')
         : undefined;
@@ -548,15 +550,17 @@ export function createNotificationPresentationRuntime({
         ...(inviteStatus ? { invite_status: inviteStatus } : {}),
         ...(requestStatus ? { request_status: requestStatus } : {})
       };
+      const target = await buildNotificationTarget(baseRow);
+      const actions = await buildNotificationActions(baseRow, target);
       return {
         ...baseRow,
         category: getNotificationCategory(baseRow?.type),
         priority: getNotificationPriority(baseRow?.type),
         is_actionable: isNotificationActionable(baseRow?.type),
-        target: buildNotificationTarget(baseRow),
-        actions: buildNotificationActions(baseRow)
+        target,
+        actions
       };
-    });
+    }));
   }
 
   return {

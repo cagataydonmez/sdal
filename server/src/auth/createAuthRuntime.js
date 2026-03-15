@@ -48,6 +48,8 @@ export function createAuthRuntime({
   sqlAll,
   sqlRun,
   sqlRunAsync,
+  sqlGetAsync,
+  sqlAllAsync,
   moderationActionDefinitions,
   moderationResourceDefinitions,
   moderationPermissionKeySet
@@ -255,6 +257,48 @@ export function createAuthRuntime({
     );
   }
 
+  async function selectCompatUserByIdAsync(userId) {
+    if (!userId) return null;
+    const execGet = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+    if (dbDriver !== 'postgres') {
+      return execGet('SELECT * FROM uyeler WHERE id = ?', [userId]);
+    }
+    return execGet(
+      `SELECT
+         id,
+         username AS kadi,
+         password_hash AS sifre,
+         email,
+         first_name AS isim,
+         last_name AS soyisim,
+         COALESCE(avatar_path, 'yok') AS resim,
+         CASE WHEN COALESCE(is_active, true) THEN 1 ELSE 0 END AS aktiv,
+         CASE WHEN COALESCE(is_banned, false) THEN 1 ELSE 0 END AS yasak,
+         CASE WHEN COALESCE(is_profile_initialized, true) THEN 1 ELSE 0 END AS ilkbd,
+         CASE WHEN COALESCE(legacy_admin_flag, false) THEN 1 ELSE 0 END AS admin,
+         CASE WHEN COALESCE(is_verified, false) THEN 1 ELSE 0 END AS verified,
+         role,
+         oauth_provider,
+         oauth_subject,
+         CASE WHEN COALESCE(oauth_email_verified, false) THEN 1 ELSE 0 END AS oauth_email_verified,
+         graduation_year AS mezuniyetyili,
+         privacy_consent_at AS kvkk_consent_at,
+         directory_consent_at,
+         CASE WHEN COALESCE(is_online, false) THEN 1 ELSE 0 END AS online,
+         profile_view_count AS hit,
+         last_activity_date AS sonislemtarih,
+         last_activity_time AS sonislemsaat,
+         last_seen_at AS sontarih,
+         previous_last_seen_at AS oncekisontarih,
+         last_ip AS sonip,
+         CASE WHEN COALESCE(is_album_admin, false) THEN 1 ELSE 0 END AS albumadmin,
+         quick_access_ids_json AS hizliliste
+       FROM users
+       WHERE id = ?`,
+      [userId]
+    );
+  }
+
   function getCurrentUser(req) {
     if (!req.session.userId) return null;
     const cacheKey = String(req.session.userId);
@@ -299,7 +343,17 @@ export function createAuthRuntime({
 
   async function requireAuth(req, res, next) {
     if (!req.session.userId) return res.status(401).send('Login required');
-    const user = getCurrentUser(req);
+    // Use async user lookup on cache miss to avoid spawning a psql subprocess.
+    // This populates req._currentUserCache so that subsequent sync getCurrentUser
+    // calls within the same request return from cache without hitting the DB.
+    let user;
+    const cacheKey = String(req.session.userId);
+    if (req._currentUserCache?.key === cacheKey) {
+      user = req._currentUserCache.value;
+    } else {
+      user = await selectCompatUserByIdAsync(req.session.userId);
+      req._currentUserCache = { key: cacheKey, value: user || null };
+    }
     if (!user) return res.status(401).send('Login required');
     req.authUser = user;
     const writeMethod = new Set(['POST', 'PUT', 'PATCH', 'DELETE']).has(String(req.method || '').toUpperCase());
@@ -335,7 +389,7 @@ export function createAuthRuntime({
   }
 
   function requireScopedModeration(graduationYearSelector = (req) => req.body?.graduationYear ?? req.params?.graduationYear ?? req.query?.graduationYear) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
       const user = req.authUser || getCurrentUser(req);
       if (!user) return res.status(401).send('Login required');
       const role = getUserRole(user);
@@ -343,7 +397,8 @@ export function createAuthRuntime({
       if (role !== 'mod') return res.status(403).send('Moderasyon yetkisi gerekli.');
       const graduationYear = parseGraduationYear(typeof graduationYearSelector === 'function' ? graduationYearSelector(req) : graduationYearSelector);
       if (!Number.isFinite(graduationYear)) return res.status(400).send('Geçerli mezuniyet yılı gerekli.');
-      const scope = sqlGet('SELECT id FROM moderator_scopes WHERE user_id = ? AND scope_type = ? AND scope_value = ?', [user.id, 'graduation_year', String(graduationYear)]);
+      const execGet = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+      const scope = await execGet('SELECT id FROM moderator_scopes WHERE user_id = ? AND scope_type = ? AND scope_value = ?', [user.id, 'graduation_year', String(graduationYear)]);
       if (!scope) return res.status(403).send('Bu mezuniyet yılı için moderasyon yetkin yok.');
       req.authUser = user;
       return next();

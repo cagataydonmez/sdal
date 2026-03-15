@@ -6,9 +6,11 @@ export function createWebSocketRuntime({
   allowLegacyWsQueryAuth,
   writeAppLog,
   sqlGet,
+  sqlGetAsync,
   formatUserText,
   isFormattedContentEmpty,
   sqlRun,
+  sqlRunAsync,
   scheduleEngagementRecalculation,
   broadcastChatMessage,
   setChatWss,
@@ -71,18 +73,20 @@ export function createWebSocketRuntime({
       }
       ws.sdalUserId = auth.userId;
 
-      ws.on('message', (data) => {
+      ws.on('message', async (data) => {
         try {
           const payload = JSON.parse(String(data || '{}'));
           const userId = Number(ws.sdalUserId || 0);
           const rawMessage = String(payload?.message || '').slice(0, 5000);
           if (!userId || !rawMessage) return;
-          const user = sqlGet('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [userId]) || null;
+          const getUser = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+          const runInsert = sqlRunAsync || ((...a) => Promise.resolve(sqlRun(...a)));
+          const user = await getUser('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [userId]) || null;
           if (!user?.id) return;
           const message = formatUserText(rawMessage || '');
           if (isFormattedContentEmpty(message)) return;
           const now = new Date().toISOString();
-          const result = sqlRun('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
+          const result = await runInsert('INSERT INTO chat_messages (user_id, message, created_at) VALUES (?, ?, ?)', [
             userId,
             message,
             now

@@ -1,7 +1,9 @@
 export function createNetworkingAdminAnalyticsRuntime({
   sqlGet,
+  sqlGetAsync,
   sqlAll,
   sqlRun,
+  sqlRunAsync,
   sqlAllAsync,
   hasTable,
   normalizeCohortValue,
@@ -129,10 +131,11 @@ export function createNetworkingAdminAnalyticsRuntime({
       else if (eventName === 'teacher_network_viewed') incrementNetworkingDailySummaryMetric(bucket, 'teacher_network_views', 1);
     }
 
-    sqlRun('DELETE FROM member_networking_daily_summary');
+    const execRun = sqlRunAsync || ((...a) => Promise.resolve(sqlRun(...a)));
+    await execRun('DELETE FROM member_networking_daily_summary');
     const now = new Date().toISOString();
     for (const row of summaryMap.values()) {
-      sqlRun(
+      await execRun(
         `INSERT INTO member_networking_daily_summary (
            user_id, date, cohort, connections_requested, connections_accepted, connections_pending,
            connections_ignored, connections_declined, connections_cancelled, mentorship_requested,
@@ -167,7 +170,7 @@ export function createNetworkingAdminAnalyticsRuntime({
       );
     }
 
-    sqlRun(
+    await execRun(
       `INSERT INTO networking_summary_meta (key, value, updated_at)
        VALUES ('member_networking_daily_summary:last_rebuilt_at', ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
@@ -180,14 +183,15 @@ export function createNetworkingAdminAnalyticsRuntime({
   async function refreshMemberNetworkingDailySummaryIfStale() {
     ensureNetworkingSummaryMetaTable();
     ensureMemberNetworkingDailySummaryTable();
-    const lastRebuiltAt = sqlGet(
+    const execGet = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+    const lastRebuiltAt = (await execGet(
       "SELECT value FROM networking_summary_meta WHERE key = 'member_networking_daily_summary:last_rebuilt_at'"
-    )?.value || '';
+    ))?.value || '';
     const lastRebuiltMs = toDateMs(lastRebuiltAt);
-    const hasRows = Number(sqlGet('SELECT COUNT(*) AS cnt FROM member_networking_daily_summary')?.cnt || 0) > 0;
+    const hasRows = Number((await execGet('SELECT COUNT(*) AS cnt FROM member_networking_daily_summary'))?.cnt || 0) > 0;
     const isFresh = hasRows && lastRebuiltMs !== null && (Date.now() - lastRebuiltMs) < NETWORKING_DAILY_SUMMARY_REBUILD_INTERVAL_MS;
     if (isFresh) {
-      return { lastRebuiltAt, rows: Number(sqlGet('SELECT COUNT(*) AS cnt FROM member_networking_daily_summary')?.cnt || 0), skipped: true };
+      return { lastRebuiltAt, rows: Number((await execGet('SELECT COUNT(*) AS cnt FROM member_networking_daily_summary'))?.cnt || 0), skipped: true };
     }
     if (!networkingDailySummaryRefreshPromise) {
       networkingDailySummaryRefreshPromise = rebuildMemberNetworkingDailySummary()
