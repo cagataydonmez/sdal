@@ -12,10 +12,6 @@ CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_alumni_user_id
 CREATE INDEX IF NOT EXISTS idx_follows_follower_following
   ON user_follows (follower_id, following_id);
 
--- Post likes aggregation: feed queries count likes per post via subquery
-CREATE INDEX IF NOT EXISTS idx_post_likes_post_id
-  ON post_likes (post_id);
-
 -- Job applications: opportunity inbox queries pending/reviewed applications
 CREATE INDEX IF NOT EXISTS idx_job_applications_job_poster_status
   ON job_applications (job_id, applicant_id, status);
