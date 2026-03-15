@@ -743,6 +743,8 @@ const {
   sqlAll,
   sqlRun,
   sqlRunAsync,
+  sqlGetAsync,
+  sqlAllAsync,
   moderationActionDefinitions: MODERATION_ACTION_DEFINITIONS,
   moderationResourceDefinitions: MODERATION_RESOURCE_DEFINITIONS,
   moderationPermissionKeySet: MODERATION_PERMISSION_KEY_SET
@@ -1292,6 +1294,8 @@ const notificationGovernanceRuntime = createNotificationGovernanceRuntime({
   sqlRun,
   sqlGet,
   sqlAll,
+  sqlRunAsync,
+  sqlGetAsync,
   hasTable,
   sanitizePlainUserText,
   getNotificationCategory,

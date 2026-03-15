@@ -2,6 +2,8 @@ export function createNotificationGovernanceRuntime({
   sqlRun,
   sqlGet,
   sqlAll,
+  sqlRunAsync,
+  sqlGetAsync,
   hasTable,
   sanitizePlainUserText,
   getNotificationCategory,
@@ -330,86 +332,95 @@ export function createNotificationGovernanceRuntime({
     );
   }
 
-  function addNotification({ userId, type, sourceUserId, entityId, message }) {
+  async function _addNotificationAsync({ userId, type, sourceUserId, entityId, message }) {
+    const execGet = sqlGetAsync || ((...a) => Promise.resolve(sqlGet(...a)));
+    const execRun = sqlRunAsync || ((...a) => Promise.resolve(sqlRun(...a)));
     const normalizedType = sanitizePlainUserText(String(type || '').trim().toLowerCase(), 120);
     const safeUserId = Number(userId || 0) || null;
     const safeSourceUserId = Number(sourceUserId || 0) || null;
     const safeEntityId = Number(entityId || 0) || null;
     const now = new Date().toISOString();
-    if (!safeUserId) {
-      logNotificationDeliveryAudit({
-        notificationType: normalizedType,
-        userId: null,
-        sourceUserId: safeSourceUserId,
-        entityId: safeEntityId,
-        deliveryStatus: 'skipped',
-        skipReason: 'missing_user_id',
-        createdAt: now
-      });
-      return null;
+
+    async function logAuditAsync(opts) {
+      if (!shouldAuditNotificationDelivery(opts.notificationType || '') && opts.deliveryStatus !== 'failed') return;
+      try {
+        await execRun(
+          `INSERT INTO notification_delivery_audit
+             (notification_id, user_id, source_user_id, entity_id, notification_type, delivery_status, skip_reason, error_message, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            Number(opts.notificationId || 0) || null,
+            Number(opts.userId || 0) || null,
+            Number(opts.sourceUserId || 0) || null,
+            Number(opts.entityId || 0) || null,
+            sanitizePlainUserText(String(opts.notificationType || '').trim().toLowerCase(), 120) || null,
+            sanitizePlainUserText(String(opts.deliveryStatus || '').trim().toLowerCase(), 40) || 'unknown',
+            sanitizePlainUserText(String(opts.skipReason || '').trim().toLowerCase(), 120) || null,
+            sanitizePlainUserText(String(opts.errorMessage || '').trim(), 500) || null,
+            opts.createdAt || now
+          ]
+        );
+      } catch {
+        // audit logging must never break notification flow
+      }
     }
-    if (shouldSuppressNotificationByPreference(safeUserId, normalizedType)) {
-      logNotificationDeliveryAudit({
-        notificationType: normalizedType,
-        userId: safeUserId,
-        sourceUserId: safeSourceUserId,
-        entityId: safeEntityId,
-        deliveryStatus: 'skipped',
-        skipReason: 'category_disabled',
-        createdAt: now
-      });
-      return null;
+
+    if (!safeUserId) return null;
+
+    // Check user preferences (async)
+    let shouldSuppress = false;
+    const category = getNotificationCategory(normalizedType);
+    if (notificationPreferenceCategoryKeys.includes(category) && !isNotificationHighPriority(normalizedType)) {
+      ensureNotificationPreferencesTable();
+      const prefRow = await execGet(
+        'SELECT * FROM notification_user_preferences WHERE user_id = ?',
+        [safeUserId]
+      );
+      shouldSuppress = Number((prefRow || {})[`${category}_enabled`] ?? 1) !== 1;
     }
-    const duplicateNotification = findRecentDuplicateNotification({
-      userId: safeUserId,
-      type: normalizedType,
-      sourceUserId: safeSourceUserId,
-      entityId: safeEntityId,
-      message
-    });
-    if (duplicateNotification) {
-      logNotificationDeliveryAudit({
-        notificationId: Number(duplicateNotification.id || 0) || null,
-        notificationType: normalizedType,
-        userId: safeUserId,
-        sourceUserId: safeSourceUserId,
-        entityId: safeEntityId,
-        deliveryStatus: 'skipped',
-        skipReason: 'deduped_recent_duplicate',
-        createdAt: now
-      });
-      return Number(duplicateNotification.id || 0) || null;
+    if (shouldSuppress) return null;
+
+    // Deduplicate (async)
+    const rule = getNotificationDedupeRule(normalizedType);
+    if (rule && hasTable('notifications')) {
+      const sinceIso = new Date(Date.now() - (Number(rule.windowSeconds || 0) * 1000)).toISOString();
+      const compareMessage = rule.compareMessage === true;
+      const query = `SELECT id, created_at FROM notifications
+         WHERE user_id = ?
+           AND LOWER(TRIM(COALESCE(type, ''))) = LOWER(?)
+           AND COALESCE(source_user_id, 0) = COALESCE(?, 0)
+           AND COALESCE(entity_id, 0) = COALESCE(?, 0)
+           AND ${compareMessage ? "COALESCE(message, '') = COALESCE(?, '')" : '1 = 1'}
+           AND COALESCE(CASE WHEN CAST(created_at AS TEXT) = '' THEN NULL ELSE created_at END, '1970-01-01T00:00:00.000Z') >= ?
+         ORDER BY id DESC LIMIT 1`;
+      const params = compareMessage
+        ? [safeUserId, normalizedType, safeSourceUserId, safeEntityId, String(message || ''), sinceIso]
+        : [safeUserId, normalizedType, safeSourceUserId, safeEntityId, sinceIso];
+      const dup = await execGet(query, params);
+      if (dup) return Number(dup.id || 0) || null;
     }
+
+    // Insert (async)
     try {
-      const result = sqlRun(
+      const result = await execRun(
         'INSERT INTO notifications (user_id, type, source_user_id, entity_id, message, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         [safeUserId, normalizedType, safeSourceUserId, safeEntityId, message || '', now]
       );
       const notificationId = Number(result?.lastInsertRowid || 0) || null;
       if (shouldAuditNotificationDelivery(normalizedType)) {
-        logNotificationDeliveryAudit({
-          notificationId,
-          notificationType: normalizedType,
-          userId: safeUserId,
-          sourceUserId: safeSourceUserId,
-          entityId: safeEntityId,
-          deliveryStatus: 'inserted',
-          createdAt: now
-        });
+        await logAuditAsync({ notificationId, notificationType: normalizedType, userId: safeUserId, sourceUserId: safeSourceUserId, entityId: safeEntityId, deliveryStatus: 'inserted' });
       }
       return notificationId;
     } catch (err) {
-      logNotificationDeliveryAudit({
-        notificationType: normalizedType,
-        userId: safeUserId,
-        sourceUserId: safeSourceUserId,
-        entityId: safeEntityId,
-        deliveryStatus: 'failed',
-        errorMessage: err?.message || 'notification_insert_failed',
-        createdAt: now
-      });
-      throw err;
+      await logAuditAsync({ notificationType: normalizedType, userId: safeUserId, sourceUserId: safeSourceUserId, entityId: safeEntityId, deliveryStatus: 'failed', errorMessage: err?.message || 'notification_insert_failed' });
+      return null;
     }
+  }
+
+  function addNotification(opts) {
+    // Fire-and-forget: runs async via pg pool, does not block the event loop.
+    // Errors are caught internally; callers do not need to await.
+    _addNotificationAsync(opts).catch(() => {});
   }
 
   function normalizeNotificationTelemetryEventName(value) {
@@ -454,7 +465,8 @@ export function createNotificationGovernanceRuntime({
     const normalizedEventName = normalizeNotificationTelemetryEventName(eventName);
     if (!normalizedEventName) return false;
     ensureNotificationTelemetryEventsTable();
-    sqlRun(
+    const execRun = sqlRunAsync || ((...a) => Promise.resolve(sqlRun(...a)));
+    execRun(
       `INSERT INTO notification_telemetry_events
          (user_id, notification_id, event_name, notification_type, surface, action_kind, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -467,7 +479,7 @@ export function createNotificationGovernanceRuntime({
         normalizeNotificationTelemetryActionKind(actionKind) || null,
         createdAt || new Date().toISOString()
       ]
-    );
+    ).catch(() => {});
     return true;
   }
 
