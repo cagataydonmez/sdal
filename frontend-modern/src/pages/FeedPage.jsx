@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import PostComposer from '../components/PostComposer.jsx';
@@ -358,7 +359,9 @@ export default function FeedPage() {
         <div className="panel feed-mobile-stories-wrap">
           <StoryBar title={t('stories_title')} />
         </div>
+      </div>
 
+      {createPortal(
         <div ref={mobileTabsWrapRef} className={`panel feed-mobile-tabs-wrap ${mobileTabsExpanded ? 'is-expanded' : ''}`}>
           <div
             id="feed-mobile-tabs-menu"
@@ -400,8 +403,9 @@ export default function FeedPage() {
             </span>
           </button>
           <div className="feed-mobile-selected-title">{activeFeedTabLabel}</div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
 
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
