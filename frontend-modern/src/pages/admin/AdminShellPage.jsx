@@ -49,14 +49,25 @@ export default function AdminShellPage() {
       {
         key: 'content',
         label: 'Content Moderation',
-        hint: 'Posts and stories moderation queues',
-        visible: hasPermission('posts.view') || hasPermission('stories.view'),
+        hint: 'All content: posts, stories, users, photos, chat, messages, groups',
+        visible: hasPermission('posts.view') || hasPermission('stories.view') || hasPermission('chat.view') || hasPermission('messages.view') || hasPermission('groups.view') || isAdmin || isAlbumAdmin,
         render: () => (
           <ContentModerationSection
             canViewPosts={hasPermission('posts.view')}
             canViewStories={hasPermission('stories.view')}
             canDeletePosts={hasPermission('posts.delete')}
             canDeleteStories={hasPermission('stories.delete')}
+            canViewChat={hasPermission('chat.view')}
+            canDeleteChat={hasPermission('chat.delete')}
+            canViewMessages={hasPermission('messages.view')}
+            canDeleteMessages={hasPermission('messages.delete')}
+            canViewGroups={hasPermission('groups.view')}
+            canDeleteGroups={hasPermission('groups.delete')}
+            canViewUsers={isAdmin}
+            canDeleteUsers={isAdmin}
+            canViewPhotos={isAlbumAdmin}
+            canDeletePhotos={isAlbumAdmin}
+            isAdmin={isAdmin}
           />
         )
       },

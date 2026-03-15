@@ -247,7 +247,8 @@ export function registerAdminContentModerationRoutes(app, {
       const safeOffset = (safePage - 1) * limit;
 
       const items = await sqlAllAsync(
-        `SELECT s.id, s.user_id, s.image, s.caption, s.created_at, s.expires_at, u.kadi, u.mezuniyetyili
+        `SELECT s.id, s.user_id, s.image, s.caption, s.created_at, s.expires_at,
+                u.kadi, u.mezuniyetyili, u.isim, u.soyisim, u.resim
          FROM stories s
          LEFT JOIN uyeler u ON u.id = s.user_id
          ${whereSql}
@@ -298,7 +299,8 @@ export function registerAdminContentModerationRoutes(app, {
       const safeOffset = (safePage - 1) * limit;
 
       const items = await sqlAllAsync(
-        `SELECT p.id, p.user_id, p.content, p.image, p.created_at, u.kadi, u.mezuniyetyili
+        `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
+                u.kadi, u.mezuniyetyili, u.isim, u.soyisim, u.resim, u.verified
          FROM posts p
          LEFT JOIN uyeler u ON u.id = p.user_id
          ${whereSql}
@@ -316,6 +318,70 @@ export function registerAdminContentModerationRoutes(app, {
           q
         }
       });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/admin/comments', requireModerationPermission('posts.view'), async (req, res) => {
+    try {
+      const actor = req.authUser || getCurrentUser(req);
+      const scope = getModerationScopeContext(actor);
+      const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 80, maxLimit: 300 });
+      const q = String(req.query.q || '').trim();
+      const params = [];
+      const whereParts = ["(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"];
+      if (q) {
+        whereParts.push('(LOWER(CAST(COALESCE(c.body, c.comment) AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?))');
+        params.push(`%${q}%`, `%${q}%`);
+      }
+      const scopeFilter = applyModerationScopeFilter(scope, params, 'u.mezuniyetyili');
+      const whereSql = `WHERE ${whereParts.join(' AND ')}${scopeFilter}`;
+
+      const total = Number((await sqlGetAsync(
+        `SELECT COUNT(*) AS cnt
+         FROM post_comments c
+         LEFT JOIN uyeler u ON u.id = COALESCE(c.author_id, c.user_id)
+         ${whereSql}`,
+        params
+      ))?.cnt || 0);
+      const pages = Math.max(Math.ceil(total / limit), 1);
+      const safePage = Math.min(page, pages);
+      const safeOffset = (safePage - 1) * limit;
+
+      const items = await sqlAllAsync(
+        `SELECT c.id, c.post_id, COALESCE(c.author_id, c.user_id) AS user_id,
+                COALESCE(c.body, c.comment) AS body, c.created_at,
+                u.kadi, u.mezuniyetyili, u.isim, u.soyisim, u.resim
+         FROM post_comments c
+         LEFT JOIN uyeler u ON u.id = COALESCE(c.author_id, c.user_id)
+         ${whereSql}
+         ORDER BY c.id DESC
+         LIMIT ? OFFSET ?`,
+        [...params, limit, safeOffset]
+      );
+      res.json({
+        items,
+        meta: { page: safePage, pages, limit, total, q }
+      });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.delete('/api/new/admin/comments/:id', requireModerationPermission('posts.delete'), async (req, res) => {
+    try {
+      const commentId = Number(req.params.id || 0);
+      if (!commentId) return res.status(400).send('Geçersiz yorum ID.');
+      const comment = await sqlGetAsync('SELECT id, COALESCE(author_id, user_id) AS user_id FROM post_comments WHERE id = ?', [commentId]);
+      if (!comment) return res.status(404).send('Yorum bulunamadı.');
+      const target = ensureCanModerateTargetUser(req, res, comment.user_id, { notFoundMessage: 'Yorum sahibi bulunamadı.' });
+      if (!target) return;
+      await sqlRunAsync('DELETE FROM post_comments WHERE id = ?', [commentId]);
+      logAdminAction(req, 'comment_delete', { targetType: 'comment', targetId: commentId, commentId, userId: comment.user_id });
+      res.json({ ok: true });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
