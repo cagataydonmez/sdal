@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 export default function RootLoginPage() {
+  const { t } = useI18n();
   const { refresh } = useAuth();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
@@ -23,24 +25,24 @@ export default function RootLoginPage() {
         body: JSON.stringify({ kadi: 'root', sifre: password })
       });
       if (!res.ok) {
-        setStatus((await res.text()) || 'Root giriş başarısız.');
+        setStatus((await res.text()) || t('root_login_failed'));
         return;
       }
       await refresh();
       navigate('/new/admin');
     } catch {
-      setStatus('Root giriş başarısız.');
+      setStatus(t('root_login_failed'));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Layout title="Root Giriş">
+    <Layout title={t('root_login_page_title')}>
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Root Giriş</h3>
-          <div className="muted">Bu sayfa sadece sistemin root hesabı içindir. Kullanıcı adı sabit: <b>root</b>.</div>
+          <h3>{t('root_login_heading')}</h3>
+          <div className="muted">{t('root_login_description')}</div>
           <form className="stack" onSubmit={submit}>
             <input
               className="input"
@@ -49,10 +51,10 @@ export default function RootLoginPage() {
               placeholder="ROOT_BOOTSTRAP_PASSWORD"
               onChange={(e) => setPassword(e.target.value)}
             />
-            <button className="btn primary" type="submit" disabled={busy}>{busy ? 'Giriş yapılıyor...' : 'Root olarak giriş yap'}</button>
+            <button className="btn primary" type="submit" disabled={busy}>{busy ? t('root_login_submitting') : t('root_login_submit')}</button>
             {status ? <div className="error">{status}</div> : null}
           </form>
-          <Link className="btn ghost" to="/new/login">Normal giriş sayfasına dön</Link>
+          <Link className="btn ghost" to="/new/login">{t('root_login_back_link')}</Link>
         </div>
       </div>
     </Layout>

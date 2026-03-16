@@ -41,15 +41,15 @@ export default function NotificationsPage() {
   const hydratedRef = useRef(false);
   const selectedTab = String(searchParams.get('tab') || 'all').trim().toLowerCase();
   const tabs = useMemo(() => ([
-    { key: 'all', label: 'Tümü' },
-    { key: 'action', label: 'Aksiyon Gerekenler' },
-    { key: 'networking', label: 'Networking' },
-    { key: 'groups', label: 'Gruplar' },
-    { key: 'events', label: 'Etkinlikler' },
-    { key: 'jobs', label: 'İlanlar' },
-    { key: 'social', label: 'Sosyal' },
-    { key: 'system', label: 'Sistem' }
-  ]), []);
+    { key: 'all', label: t('notifications_tab_all') },
+    { key: 'action', label: t('notifications_tab_action') },
+    { key: 'networking', label: t('notifications_tab_networking') },
+    { key: 'groups', label: t('notifications_tab_groups') },
+    { key: 'events', label: t('notifications_tab_events') },
+    { key: 'jobs', label: t('notifications_tab_jobs') },
+    { key: 'social', label: t('notifications_tab_social') },
+    { key: 'system', label: t('notifications_tab_system') }
+  ]), [t]);
   const sortOrderVariant = getNotificationExperimentVariant(experiments.assignments, 'sort_order', 'priority');
   const inboxLayoutVariant = getNotificationExperimentVariant(experiments.assignments, 'inbox_layout', 'grouped');
   const ctaWordingVariant = getNotificationExperimentVariant(experiments.assignments, 'cta_wording', 'neutral');
@@ -62,7 +62,7 @@ export default function NotificationsPage() {
       setExperiments(result.experiments);
       setPreferencesStatus('');
     } else {
-      setError(result.message || 'Bildirim tercihleri yüklenemedi.');
+      setError(result.message || t('notifications_error_preferences'));
     }
     setPreferencesLoading(false);
   }, []);
@@ -80,7 +80,7 @@ export default function NotificationsPage() {
     if (cursor) query.set('cursor', cursor);
     const res = await fetch(`/api/new/notifications?${query.toString()}`, { credentials: 'include' });
     if (!res.ok) {
-      setError('Bildirimler yüklenemedi.');
+      setError(t('notifications_error_load'));
       setLoading(false);
       loadingRef.current = false;
       return;
@@ -243,10 +243,10 @@ export default function NotificationsPage() {
     const result = await updateNotificationPreferences(preferences);
     if (result.ok) {
       setPreferences(result.preferences);
-      setPreferencesStatus('Bildirim tercihleri güncellendi.');
+      setPreferencesStatus(t('notifications_status_preferences_saved'));
       emitAppChange('notification:preferences-updated', { preferences: result.preferences });
     } else {
-      setError(result.message || 'Bildirim tercihleri güncellenemedi.');
+      setError(result.message || t('notifications_error_preferences_update'));
     }
     setPreferencesBusy(false);
   }
@@ -257,10 +257,10 @@ export default function NotificationsPage() {
         <div className="panel-body">
           <div className="notification-preferences-panel">
             <div className="notification-page-heading">
-              <strong>Bildirim tercihleri</strong>
+              <strong>{t('notifications_preferences_heading')}</strong>
               <span className="meta">
-                Sıralama: {sortOrderVariant === 'recent' ? 'En yeni önce' : 'Öncelik önce'} ·
-                Düzen: {inboxLayoutVariant === 'flat' ? 'Düz akış' : 'Gruplu'}
+                Sıralama: {sortOrderVariant === 'recent' ? t('notifications_sort_recent') : t('notifications_sort_priority')} ·
+                Düzen: {inboxLayoutVariant === 'flat' ? t('notifications_layout_flat') : t('notifications_layout_grouped')}
               </span>
             </div>
             <div className="notification-preferences-grid">

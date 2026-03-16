@@ -62,11 +62,11 @@ function SectionCard({ sectionId, title, kicker, description, count, actions, ch
   );
 }
 
-function LoadingState({ label = 'Yükleniyor...' }) {
+function LoadingState({ label, description }) {
   return (
     <div className="network-empty-state network-loading-state">
       <strong>{label}</strong>
-      <span>Veriler arka planda hazırlanıyor.</span>
+      <span>{description}</span>
     </div>
   );
 }
@@ -167,63 +167,63 @@ export default function NetworkingHubPage() {
       ? {
           key: 'incoming',
           tone: 'hot',
-          label: 'Bağlantı kuyruğu',
+          label: t('hub_priority_connections_label'),
           count: incoming.length,
-          title: `${incoming.length} bağlantı isteği seni bekliyor`,
-          description: 'Önce bu kuyruğu temizlersen yeni ilişki kararların ve mesaj akışın daha net kalır.',
-          actionLabel: 'Şimdi incele',
+          title: t('hub_priority_connections_title', { count: incoming.length }),
+          description: t('hub_priority_connections_desc'),
+          actionLabel: t('hub_priority_action_review'),
           actionHref: '#incoming-connections'
         }
       : {
           key: 'incoming',
           tone: 'calm',
-          label: 'Bağlantı kuyruğu',
+          label: t('hub_priority_connections_label'),
           count: 0,
-          title: 'Bağlantı isteği kuyruğun temiz',
-          description: 'Yeni kişiler keşfetmek için aşağıdaki öneri kartlarına veya Explore ekranına geçebilirsin.',
-          actionLabel: 'Önerilere git',
+          title: t('hub_priority_clean_title'),
+          description: t('hub_priority_clean_desc'),
+          actionLabel: t('hub_priority_action_suggestions'),
           actionHref: '#network-suggestions'
         },
     incomingMentorship.length > 0
       ? {
           key: 'mentorship',
           tone: 'warm',
-          label: 'Mentorluk kuyruğu',
+          label: t('hub_priority_mentorship_label'),
           count: incomingMentorship.length,
-          title: `${incomingMentorship.length} mentorluk talebi cevap bekliyor`,
-          description: 'Mentor olarak görünürlüğün bu bölümde somut ilişkiye dönüşür; gecikmeden değerlendirmen faydalı olur.',
-          actionLabel: 'Mentorlukları aç',
+          title: t('hub_priority_mentorship_title', { count: incomingMentorship.length }),
+          description: t('hub_priority_mentorship_desc'),
+          actionLabel: t('hub_priority_action_mentorship'),
           actionHref: '#incoming-mentorship'
         }
       : {
           key: 'mentorship',
           tone: 'calm',
-          label: 'Mentorluk kuyruğu',
+          label: t('hub_priority_mentorship_label'),
           count: 0,
-          title: 'Aktif mentorluk talebi yok',
-          description: 'Profilindeki uzmanlık, başlık ve mentorluk alanları güncel kaldıkça yeni talepler burada görünür.',
-          actionLabel: 'Profili gözden geçir',
+          title: t('hub_priority_no_mentorship_title'),
+          description: t('hub_priority_no_mentorship_desc'),
+          actionLabel: t('hub_priority_action_profile'),
           actionHref: '/new/profile'
         },
     teacherUnreadCount > 0
       ? {
           key: 'teacher',
           tone: 'accent',
-          label: 'Öğretmen graph bildirimleri',
+          label: t('hub_priority_teacher_label'),
           count: teacherUnreadCount,
-          title: `${teacherUnreadCount} öğretmen ağı bildirimi yeni`,
-          description: 'Mezunların seni graph’a eklediği kayıtları buradan görür, güven sinyalinin nasıl büyüdüğünü izlersin.',
-          actionLabel: 'Bildirimleri gör',
+          title: t('hub_priority_teacher_title', { count: teacherUnreadCount }),
+          description: t('hub_priority_teacher_desc'),
+          actionLabel: t('hub_priority_action_notifications'),
           actionHref: '#teacher-notifications'
         }
       : {
           key: 'teacher',
           tone: 'calm',
-          label: 'Öğretmen graph bildirimleri',
+          label: t('hub_priority_teacher_label'),
           count: 0,
-          title: 'Yeni teacher network bildirimi yok',
-          description: 'Yeni bağlar geldikçe burada görünür; sen de Teacher Network ekranından mevcut öğretmen ilişkilerini güçlendirebilirsin.',
-          actionLabel: 'Teacher Network aç',
+          title: t('hub_priority_no_teacher_title'),
+          description: t('hub_priority_no_teacher_desc'),
+          actionLabel: t('hub_priority_action_teacher_network'),
           actionHref: '/new/network/teachers'
         }
   ];
@@ -238,35 +238,35 @@ export default function NetworkingHubPage() {
           <div className="network-inline-stats">
             <div className="network-inline-stat">
               <strong>{actionableCount}</strong>
-              <span>Aksiyon bekleyen konu</span>
+              <span>{t('hub_stat_actionable')}</span>
             </div>
             <div className="network-inline-stat">
               <strong>{acceptedConnections}</strong>
-              <span>Kabul edilen bağlantı</span>
+              <span>{t('hub_stat_accepted_connections')}</span>
             </div>
             <div className="network-inline-stat">
               <strong>{mentorshipWins + teacherLinksCreated}</strong>
-              <span>Mentorluk ve öğretmen bağı</span>
+              <span>{t('hub_stat_mentorship_teacher')}</span>
             </div>
           </div>
         </div>
         <div className="network-hero-actions">
-          <Link className="btn primary" to="/new/explore">Yeni kişi keşfet</Link>
-          <Link className="btn ghost" to="/new/network/teachers">Öğretmen ağına git</Link>
-          <Link className="btn ghost" to="/new/messages">Mesaj kutusuna git</Link>
-          {hubRefreshing ? <span className="chip">Arka planda güncelleniyor</span> : null}
+          <Link className="btn primary" to="/new/explore">{t('hub_action_discover')}</Link>
+          <Link className="btn ghost" to="/new/network/teachers">{t('hub_action_teacher_network')}</Link>
+          <Link className="btn ghost" to="/new/messages">{t('hub_action_messages')}</Link>
+          {hubRefreshing ? <span className="chip">{t('hub_status_updating')}</span> : null}
         </div>
       </section>
 
       <section className="panel network-priority-strip">
         <div className="network-section-head">
           <div>
-            <span className="network-section-kicker">Şimdi ilgilenmen gerekenler</span>
-            <h3>Öncelik şeridi</h3>
-            <p>İlk bakışta hangi networking işinin senden aksiyon beklediğini gösterir.</p>
+            <span className="network-section-kicker">{t('hub_section_priority_kicker')}</span>
+            <h3>{t('hub_section_priority_title')}</h3>
+            <p>{t('hub_section_priority_desc')}</p>
           </div>
           <div className="network-section-tools">
-            <span className="chip">{actionableCount} açık konu</span>
+            <span className="chip">{t('hub_tools_open_count', { count: actionableCount })}</span>
           </div>
         </div>
         <div className="panel-body network-section-body">
@@ -289,7 +289,7 @@ export default function NetworkingHubPage() {
           <div>
             <span className="network-section-kicker">Health snapshot</span>
             <h3>{t('network_hub_metrics_title')}</h3>
-            <p>Bağlantı, mentorluk ve teacher graph akışının bu periyottaki genel sağlığını gösterir.</p>
+            <p>{t('hub_metrics_description')}</p>
           </div>
           <div className="network-section-tools">
             <div className="network-window-tabs">
@@ -306,7 +306,7 @@ export default function NetworkingHubPage() {
           </div>
         </div>
         <div className="panel-body network-section-body">
-          {bootstrapping ? <LoadingState label={t('loading')} /> : (
+          {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : (
             <div className="network-metric-grid">
               <div className="network-metric-card">
                 <span className="network-metric-label">{t('network_hub_metric_connections')}</span>
@@ -343,15 +343,15 @@ export default function NetworkingHubPage() {
             sectionId="incoming-connections"
             title={t('network_hub_incoming_title')}
             kicker="Priority queue"
-            description="Sana gelen yeni bağlantı isteklerini burada kabul eder, yok sayar ve temiz bir çalışma kuyruğu tutarsın."
+            description={t('hub_section_incoming_desc')}
             count={incoming.length}
           >
-            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : null}
             {!bootstrapping && incoming.length === 0 ? (
               <EmptyState
-                title="Şu an bekleyen bağlantı isteğin yok."
-                description="Yeni kişiler keşfetmek için öneri kartlarına göz atabilir veya Explore ekranından ağını genişletebilirsin."
-                actionLabel="Önerilere git"
+                title={t('hub_empty_incoming_title')}
+                description={t('hub_empty_incoming_desc')}
+                actionLabel={t('hub_empty_incoming_action')}
                 actionHref="#network-suggestions"
               />
             ) : null}
@@ -382,15 +382,15 @@ export default function NetworkingHubPage() {
             sectionId="incoming-mentorship"
             title={t('network_hub_mentorship_incoming_title')}
             kicker="Mentor queue"
-            description="Mentor görünürlüğün üzerinden gelen talepler burada toplanır; hızlı cevap güveni ve dönüşümü artırır."
+            description={t('hub_section_mentorship_incoming_desc')}
             count={incomingMentorship.length}
           >
-            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : null}
             {!bootstrapping && incomingMentorship.length === 0 ? (
               <EmptyState
-                title="Aktif mentorluk talebi yok."
-                description="Mentor görünürlüğünü artırmak için profilindeki uzmanlık alanlarını ve mentorluk başlıklarını güncel tutabilirsin."
-                actionLabel="Profili aç"
+                title={t('hub_empty_mentorship_incoming_title')}
+                description={t('hub_empty_mentorship_incoming_desc')}
+                actionLabel={t('hub_empty_mentorship_incoming_action')}
                 actionHref="/new/profile"
               />
             ) : null}
@@ -424,7 +424,7 @@ export default function NetworkingHubPage() {
             sectionId="teacher-notifications"
             title={t('network_hub_teacher_links_title')}
             kicker="Verified graph"
-            description="Mezunların seni öğretmen graph’ına eklediği kayıtlar burada görünür; bu panel güven ve ağ derinliği sinyallerini takip etmeni sağlar."
+            description={t('hub_section_teacher_desc')}
             count={teacherUnreadCount}
             actions={teacherUnreadCount > 0 ? (
               <button className="btn ghost" onClick={() => actions.markTeacherLinksRead()} disabled={Boolean(pendingAction['teacher-links-read'])}>
@@ -432,12 +432,12 @@ export default function NetworkingHubPage() {
               </button>
             ) : null}
           >
-            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : null}
             {!bootstrapping && teacherEvents.length === 0 ? (
               <EmptyState
-                title="Henüz öğretmen ağı bildirimi yok."
-                description="Mezunlar seni öğretmen graph’ına ekledikçe burada görünür. Mevcut bağlarını güçlendirmek için Teacher Network ekranına geçebilirsin."
-                actionLabel="Teacher Network aç"
+                title={t('hub_empty_teacher_title')}
+                description={t('hub_empty_teacher_desc')}
+                actionLabel={t('hub_empty_teacher_action')}
                 actionHref="/new/network/teachers"
               />
             ) : null}
@@ -455,7 +455,7 @@ export default function NetworkingHubPage() {
                       handle={item.kadi}
                       meta={item.message || t('network_hub_teacher_links_default_message')}
                     />
-                    {!item.read_at ? <span className="chip">Yeni</span> : null}
+                    {!item.read_at ? <span className="chip">{t('hub_chip_new')}</span> : null}
                   </article>
                 ))}
               </div>
@@ -466,15 +466,15 @@ export default function NetworkingHubPage() {
             sectionId="outgoing-connections"
             title={t('network_hub_outgoing_title')}
             kicker="Pipeline"
-            description="Gönderdiğin bağlantı isteklerinin cevap durumunu burada izlersin; bu bölüm aktif ilişki başlatma yükünü gösterir."
+            description={t('hub_section_outgoing_desc')}
             count={outgoing.length}
           >
-            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : null}
             {!bootstrapping && outgoing.length === 0 ? (
               <EmptyState
-                title="Şu an cevap bekleyen giden bağlantı isteğin yok."
-                description="Yeni bir ilişki başlatmak için aşağıdaki önerilen bağlantılar bölümüne veya Explore ekranına gidebilirsin."
-                actionLabel="Yeni kişi keşfet"
+                title={t('hub_empty_outgoing_title')}
+                description={t('hub_empty_outgoing_desc')}
+                actionLabel={t('hub_empty_outgoing_action')}
                 actionHref="/new/explore"
               />
             ) : null}
@@ -502,15 +502,15 @@ export default function NetworkingHubPage() {
             sectionId="outgoing-mentorship"
             title={t('network_hub_mentorship_outgoing_title')}
             kicker="Outbound mentor asks"
-            description="Gönderdiğin mentorluk talepleri burada görünür; doğru kişiye ulaşıp ulaşmadığını bu kuyrukla izlersin."
+            description={t('hub_section_mentorship_outgoing_desc')}
             count={outgoingMentorship.length}
           >
-            {bootstrapping ? <LoadingState label={t('loading')} /> : null}
+            {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : null}
             {!bootstrapping && outgoingMentorship.length === 0 ? (
               <EmptyState
-                title="Bekleyen mentorluk talebin yok."
-                description="Mentor ararken önce öneri kartlarını inceleyebilir, ardından uygun kişiyle mesaj veya bağlantı akışını başlatabilirsin."
-                actionLabel="Önerilere git"
+                title={t('hub_empty_mentorship_outgoing_title')}
+                description={t('hub_empty_mentorship_outgoing_desc')}
+                actionLabel={t('hub_empty_mentorship_outgoing_action')}
                 actionHref="#network-suggestions"
               />
             ) : null}
@@ -541,15 +541,15 @@ export default function NetworkingHubPage() {
         sectionId="network-suggestions"
         title={t('network_hub_suggestions_title')}
         kicker="Discovery engine"
-        description="Teacher graph, ortak bağlar ve güven sinyallerine göre önerilen kişileri burada görürsün."
+        description={t('hub_section_suggestions_desc')}
         count={suggestions.length}
       >
-        {discoveryLoading ? <LoadingState label="Öneriler hazırlanıyor..." /> : null}
+        {discoveryLoading ? <LoadingState label={t('hub_loading_suggestions')} description={t('hub_loading_description')} /> : null}
         {!discoveryLoading && suggestions.length === 0 ? (
           <EmptyState
-            title="Şimdilik yeni öneri yok."
-            description="Teacher Network ve bağlantı geçmişin büyüdükçe burada daha isabetli adaylar görünür. Biraz sonra yeniden dene veya Explore ekranına geç."
-            actionLabel="Explore aç"
+            title={t('hub_empty_suggestions_title')}
+            description={t('hub_empty_suggestions_desc')}
+            actionLabel={t('hub_empty_suggestions_action')}
             actionHref="/new/explore"
           />
         ) : null}

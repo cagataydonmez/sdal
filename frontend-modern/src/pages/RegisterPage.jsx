@@ -33,20 +33,20 @@ export default function RegisterPage() {
 
   const passwordHint = useMemo(() => {
     const pass = String(form.sifre || '');
-    if (!pass) return 'Şifre gücü: -';
+    if (!pass) return t('register_password_strength_none');
     let score = 0;
     if (pass.length >= 8) score += 1;
     if (/[A-ZÇĞİÖŞÜ]/.test(pass) && /[a-zçğıöşü]/.test(pass)) score += 1;
     if (/\d/.test(pass)) score += 1;
     if (/[^A-Za-z0-9çğıöşüÇĞİÖŞÜ]/.test(pass)) score += 1;
-    if (score >= 4) return 'Şifre gücü: Güçlü';
-    if (score >= 2) return 'Şifre gücü: Orta';
-    return 'Şifre gücü: Zayıf';
+    if (score >= 4) return t('register_password_strength_strong');
+    if (score >= 2) return t('register_password_strength_medium');
+    return t('register_password_strength_weak');
   }, [form.sifre]);
 
   const passwordMatchError = useMemo(() => {
     if (!form.sifre2) return '';
-    return form.sifre === form.sifre2 ? '' : 'Şifre tekrar alanı şifreyle aynı olmalıdır.';
+    return form.sifre === form.sifre2 ? '' : t('register_password_mismatch');
   }, [form.sifre, form.sifre2]);
 
   async function checkUnique(fieldName, rawValue) {
@@ -73,9 +73,9 @@ export default function RegisterPage() {
       const data = await res.json();
       if (latestCheckId.current[fieldName] !== checkId) return;
       if (fieldName === 'kadi' && data.kadiExists) {
-        setUniqueErrors((prev) => ({ ...prev, kadi: 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.' }));
+        setUniqueErrors((prev) => ({ ...prev, kadi: t('register_error_username_exists') }));
       } else if (fieldName === 'email' && data.emailExists) {
-        setUniqueErrors((prev) => ({ ...prev, email: 'Girdiğiniz e-mail adresi zaten kayıtlıdır.' }));
+        setUniqueErrors((prev) => ({ ...prev, email: t('register_error_email_exists') }));
       } else {
         setUniqueErrors((prev) => ({ ...prev, [fieldName]: '' }));
       }
@@ -105,11 +105,11 @@ export default function RegisterPage() {
     setError('');
     setStatus('');
     if (form.mezuniyetyili === '0') {
-      setError('Bir mezuniyet yılı veya Öğretmen seçmeniz gerekmektedir.');
+      setError(t('register_error_graduation_required'));
       return;
     }
     if (checking.kadi || checking.email) {
-      setError('Kullanıcı adı ve e-mail kontrollerinin tamamlanmasını bekleyiniz.');
+      setError(t('register_error_checks_pending'));
       return;
     }
     if (uniqueErrors.kadi || uniqueErrors.email) {
@@ -121,11 +121,11 @@ export default function RegisterPage() {
       return;
     }
     if (!form.kvkk_consent) {
-      setError('KVKK Aydınlatma Metni\'ni okumanız ve onaylamanız gerekmektedir.');
+      setError(t('register_error_kvkk_required'));
       return;
     }
     if (!form.directory_consent) {
-      setError('Mezun Rehberi açık rıza onayı gerekmektedir.');
+      setError(t('register_error_directory_required'));
       return;
     }
     const res = await fetch('/api/register', {
@@ -159,20 +159,20 @@ export default function RegisterPage() {
         <div className="panel-body">
           <form className="stack" onSubmit={submit}>
             <input className="input" required placeholder={t('auth_username')} value={form.kadi} onChange={(e) => setForm({ ...form, kadi: e.target.value })} />
-            {checking.kadi ? <div className="muted">Kontrol ediliyor...</div> : null}
+            {checking.kadi ? <div className="muted">{t('register_checking')}</div> : null}
             {uniqueErrors.kadi ? <div className="error" role="alert">{uniqueErrors.kadi}</div> : null}
             <input className="input" type="password" required placeholder={t('auth_password')} value={form.sifre} onChange={(e) => setForm({ ...form, sifre: e.target.value })} />
             <div className="muted">{passwordHint}</div>
             <input className="input" type="password" required placeholder={t('register_password_repeat')} value={form.sifre2} onChange={(e) => setForm({ ...form, sifre2: e.target.value })} />
             {passwordMatchError ? <div className="error" role="alert">{passwordMatchError}</div> : null}
             <input className="input" type="email" required placeholder={t('auth_email')} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            {checking.email ? <div className="muted">Kontrol ediliyor...</div> : null}
+            {checking.email ? <div className="muted">{t('register_checking')}</div> : null}
             {uniqueErrors.email ? <div className="error" role="alert">{uniqueErrors.email}</div> : null}
             <div className="form-row">
               <label>{t('register_graduation_year')}</label>
               <select className="input" value={form.mezuniyetyili} onChange={(e) => setForm({ ...form, mezuniyetyili: e.target.value })} required>
-                <option value="0">Mezuniyet yılı / grup seçiniz (Zorunlu)</option>
-                <option value="teacher">Öğretmen (SDAL)</option>
+                <option value="0">{t('register_graduation_placeholder')}</option>
+                <option value="teacher">{t('register_option_teacher')}</option>
                 {years.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>

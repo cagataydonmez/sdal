@@ -63,11 +63,11 @@ export default function ProfilePage() {
     }
     if (String(user?.oauth_provider || '').trim()) {
       if (!profile.kvkk_consent) {
-        setError('Sosyal üyelik için KVKK Aydınlatma Metni onayı zorunludur.');
+        setError(t('profile_error_kvkk_required'));
         return;
       }
       if (!profile.directory_consent) {
-        setError('Sosyal üyelik için Mezun Rehberi açık rıza onayı zorunludur.');
+        setError(t('profile_error_directory_required'));
         return;
       }
     }
@@ -246,13 +246,13 @@ export default function ProfilePage() {
               <label className="chip" style={{ marginBottom: 12, display: 'block' }}>
                 <input type="checkbox" checked={Boolean(profile.kvkk_consent)} onChange={(e) => setProfile({ ...profile, kvkk_consent: e.target.checked })} />
                 <span>
-                  KVKK Aydınlatma Metni'ni okudum ve onaylıyorum (<a href="/kvkk" target="_blank" rel="noreferrer">metni görüntüle</a>).
+                  {t('profile_kvkk_consent_label')} (<a href="/kvkk" target="_blank" rel="noreferrer">metni görüntüle</a>).
                 </span>
               </label>
               <label className="chip" style={{ marginBottom: 12, display: 'block' }}>
                 <input type="checkbox" checked={Boolean(profile.directory_consent)} onChange={(e) => setProfile({ ...profile, directory_consent: e.target.checked })} />
                 <span>
-                  Mezun Rehberi açık rıza metnini okudum ve onaylıyorum (<a href="/kvkk/acik-riza" target="_blank" rel="noreferrer">metni görüntüle</a>).
+                  {t('profile_directory_consent_label')} (<a href="/kvkk/acik-riza" target="_blank" rel="noreferrer">metni görüntüle</a>).
                 </span>
               </label>
             </>
