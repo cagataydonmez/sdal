@@ -527,7 +527,7 @@ const MODERATION_PERMISSION_DEFINITIONS = MODERATION_RESOURCE_DEFINITIONS.flatMa
 );
 const MODERATION_PERMISSION_KEY_SET = new Set(MODERATION_PERMISSION_DEFINITIONS.map((item) => item.key));
 
-function ensureRuntimeDefaults() {
+async function ensureRuntimeDefaults() {
   const now = new Date().toISOString();
   if (dbDriver === 'postgres') {
     sqlRun(
@@ -638,6 +638,82 @@ function ensureRuntimeDefaults() {
         [categoryKey, label, description, now, now]
       );
     }
+  }
+
+  // --- Language tables (SQLite) ---
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS languages (
+      code TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      native_name TEXT NOT NULL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS language_strings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lang_code TEXT NOT NULL REFERENCES languages(code) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (lang_code, key)
+    )
+  `);
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_language_strings_lang_code ON language_strings (lang_code)');
+  sqlRun('CREATE INDEX IF NOT EXISTS idx_language_strings_key ON language_strings (key)');
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS language_config (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      lang_selection_enabled INTEGER NOT NULL DEFAULT 1,
+      default_lang_open TEXT NOT NULL DEFAULT 'tr',
+      default_lang_closed TEXT NOT NULL DEFAULT 'tr',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      CHECK (id = 1)
+    )
+  `);
+
+  // Seed built-in languages
+  const defaultLangs = [
+    ['tr', 'Turkish', 'Türkçe', 1, 1],
+    ['en', 'English', 'English', 0, 1],
+    ['de', 'German', 'Deutsch', 0, 1],
+    ['fr', 'French', 'Français', 0, 1]
+  ];
+  for (const [code, name, nativeName, isDefault, isActive] of defaultLangs) {
+    sqlRun(
+      `INSERT INTO languages (code, name, native_name, is_default, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(code) DO NOTHING`,
+      [code, name, nativeName, isDefault, isActive, now]
+    );
+  }
+
+  // Seed language config
+  sqlRun(
+    `INSERT INTO language_config (id, lang_selection_enabled, default_lang_open, default_lang_closed, updated_at)
+     VALUES (1, 1, 'tr', 'tr', ?)
+     ON CONFLICT(id) DO NOTHING`,
+    [now]
+  );
+
+  // Seed translation strings from bundled data
+  try {
+    const { LANGUAGE_SEED_STRINGS } = await import('./src/shared/languageSeedData.js');
+    for (const [langCode, strings] of Object.entries(LANGUAGE_SEED_STRINGS)) {
+      for (const [key, value] of Object.entries(strings)) {
+        sqlRun(
+          `INSERT INTO language_strings (lang_code, key, value, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(lang_code, key) DO NOTHING`,
+          [langCode, key, value, now, now]
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[runtime] language seed import skipped:', err?.message || err);
   }
 }
 
@@ -4825,7 +4901,7 @@ const { attachWebSocketServers } = createWebSocketRuntime({
 });
 
 async function onServerStarted() {
-  ensureRuntimeDefaults();
+  await ensureRuntimeDefaults();
   await ensureRootBootstrapAccount();
   const usersTableName = dbDriver === 'postgres' ? 'users' : 'uyeler';
   const usersExists = dbDriver === 'postgres'
