@@ -34,8 +34,8 @@ export function registerAdminLanguageRoutes(app, { requireAdmin, sqlGetAsync, sq
     }
   });
 
-  // PATCH /api/admin/languages/:code — update language metadata or toggle active
-  app.patch('/api/admin/languages/:code', requireAdmin, async (req, res) => {
+  // PUT /api/admin/languages/:code — update language metadata or toggle active
+  app.put('/api/admin/languages/:code', requireAdmin, async (req, res) => {
     try {
       const code = String(req.params.code || '').trim().toLowerCase();
       const lang = await sqlGetAsync('SELECT code, is_default FROM languages WHERE code = $1', [code]);
@@ -245,6 +245,57 @@ export function registerAdminLanguageRoutes(app, { requireAdmin, sqlGetAsync, sq
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err.message || 'Failed to delete key.' });
+    }
+  });
+
+  // GET /api/admin/language-config — fetch language display/selection config
+  app.get('/api/admin/language-config', requireAdmin, async (_req, res) => {
+    try {
+      const row = await sqlGetAsync('SELECT lang_selection_enabled, default_lang_open, default_lang_closed FROM language_config WHERE id = 1', []);
+      if (!row) return res.json({ lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' });
+      res.json({
+        lang_selection_enabled: !!row.lang_selection_enabled,
+        default_lang_open: row.default_lang_open || 'tr',
+        default_lang_closed: row.default_lang_closed || 'tr'
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message || 'Failed to load language config.' });
+    }
+  });
+
+  // PUT /api/admin/language-config — save language display/selection config
+  app.put('/api/admin/language-config', requireAdmin, async (req, res) => {
+    try {
+      const selectionEnabled = req.body.lang_selection_enabled !== undefined ? !!req.body.lang_selection_enabled : undefined;
+      const defaultOpen = req.body.default_lang_open ? String(req.body.default_lang_open).trim().toLowerCase() : undefined;
+      const defaultClosed = req.body.default_lang_closed ? String(req.body.default_lang_closed).trim().toLowerCase() : undefined;
+
+      if (defaultOpen) {
+        const langRow = await sqlGetAsync('SELECT code FROM languages WHERE code = $1', [defaultOpen]);
+        if (!langRow) return res.status(400).json({ error: `Language "${defaultOpen}" not found.` });
+      }
+      if (defaultClosed) {
+        const langRow = await sqlGetAsync('SELECT code FROM languages WHERE code = $1', [defaultClosed]);
+        if (!langRow) return res.status(400).json({ error: `Language "${defaultClosed}" not found.` });
+      }
+
+      const current = await sqlGetAsync('SELECT lang_selection_enabled, default_lang_open, default_lang_closed FROM language_config WHERE id = 1', []);
+      const nextEnabled = selectionEnabled !== undefined ? selectionEnabled : (current ? !!current.lang_selection_enabled : true);
+      const nextOpen = defaultOpen || (current ? current.default_lang_open : 'tr');
+      const nextClosed = defaultClosed || (current ? current.default_lang_closed : 'tr');
+
+      await sqlRunAsync(
+        `INSERT INTO language_config (id, lang_selection_enabled, default_lang_open, default_lang_closed, updated_at)
+         VALUES (1, $1, $2, $3, NOW())
+         ON CONFLICT (id) DO UPDATE SET lang_selection_enabled = EXCLUDED.lang_selection_enabled,
+           default_lang_open = EXCLUDED.default_lang_open,
+           default_lang_closed = EXCLUDED.default_lang_closed,
+           updated_at = NOW()`,
+        [nextEnabled, nextOpen, nextClosed]
+      );
+      res.json({ ok: true, lang_selection_enabled: nextEnabled, default_lang_open: nextOpen, default_lang_closed: nextClosed });
+    } catch (err) {
+      res.status(500).json({ error: err.message || 'Failed to save language config.' });
     }
   });
 }

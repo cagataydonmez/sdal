@@ -8,6 +8,16 @@ const TABS = [
 
 export default function LanguagesSection({ isAdmin = false }) {
   const [tab, setTab] = useState('languages');
+  const [languages, setLanguages] = useState([]);
+
+  const loadLangsGlobal = useCallback(async () => {
+    try {
+      const data = await adminClient.get('/api/admin/languages');
+      setLanguages(data.languages || []);
+    } catch {}
+  }, []);
+
+  useEffect(() => { if (isAdmin) loadLangsGlobal(); }, [isAdmin, loadLangsGlobal]);
 
   return (
     <div className="stack">
@@ -27,15 +37,101 @@ export default function LanguagesSection({ isAdmin = false }) {
         </div>
       </div>
 
-      {tab === 'languages' && <LanguagesTab isAdmin={isAdmin} />}
-      {tab === 'strings' && <StringsTab isAdmin={isAdmin} />}
+      <LangConfigPanel languages={languages} />
+      {tab === 'languages' && <LanguagesTab isAdmin={isAdmin} onChanged={loadLangsGlobal} />}
+      {tab === 'strings' && <StringsTab isAdmin={isAdmin} languages={languages} />}
+    </div>
+  );
+}
+
+// ─── Language Config Panel ─────────────────────────────────────────────────────
+
+function LangConfigPanel({ languages }) {
+  const [config, setConfig] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const data = await adminClient.get('/api/admin/language-config');
+      setConfig(data);
+    } catch (err) {
+      setStatus(err.message || 'Failed to load language config.');
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setStatus('');
+    try {
+      await adminClient.put('/api/admin/language-config', config);
+      setStatus('Language settings saved.');
+    } catch (err) {
+      setStatus(err.message || 'Failed to save.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!config) return null;
+
+  return (
+    <div className="panel">
+      <div className="panel-header"><strong>Language Selection Settings</strong></div>
+      <div className="panel-body">
+        <form onSubmit={save} className="stack">
+          <label className="ops-check-row">
+            <input
+              type="checkbox"
+              checked={!!config.lang_selection_enabled}
+              onChange={(e) => setConfig((c) => ({ ...c, lang_selection_enabled: e.target.checked }))}
+            />
+            <span>Allow users to change their language</span>
+          </label>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
+              <span className="label-text">Default language — site open (logged in)</span>
+              <select
+                className="input"
+                value={config.default_lang_open || 'tr'}
+                onChange={(e) => setConfig((c) => ({ ...c, default_lang_open: e.target.value }))}
+              >
+                {languages.map((l) => (
+                  <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
+              <span className="label-text">Default language — site closed (visitors)</span>
+              <select
+                className="input"
+                value={config.default_lang_closed || 'tr'}
+                onChange={(e) => setConfig((c) => ({ ...c, default_lang_closed: e.target.value }))}
+              >
+                {languages.map((l) => (
+                  <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Saving...' : 'Save Language Settings'}
+            </button>
+          </div>
+          {status && <div className="muted" style={{ color: status.includes('saved') ? 'var(--color-success, green)' : 'var(--color-danger, red)' }}>{status}</div>}
+        </form>
+      </div>
     </div>
   );
 }
 
 // ─── Languages Tab ────────────────────────────────────────────────────────────
 
-function LanguagesTab({ isAdmin }) {
+function LanguagesTab({ isAdmin, onChanged }) {
   const [languages, setLanguages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -65,6 +161,7 @@ function LanguagesTab({ isAdmin }) {
       await adminClient.post('/api/admin/languages', addForm);
       setAddForm({ code: '', name: '', native_name: '' });
       await load();
+      if (onChanged) onChanged();
     } catch (err) {
       setStatus(err.message || 'Failed to add language.');
     } finally {
@@ -77,6 +174,7 @@ function LanguagesTab({ isAdmin }) {
     try {
       await adminClient.put(`/api/admin/languages/${code}`, { is_active: !currentActive });
       await load();
+      if (onChanged) onChanged();
     } catch (err) {
       setStatus(err.message || 'Failed to update language.');
     }
@@ -88,6 +186,7 @@ function LanguagesTab({ isAdmin }) {
     try {
       await adminClient.del(`/api/admin/languages/${code}`);
       await load();
+      if (onChanged) onChanged();
     } catch (err) {
       setStatus(err.message || 'Failed to delete language.');
     }
@@ -202,8 +301,7 @@ function LanguagesTab({ isAdmin }) {
 
 // ─── Strings Tab ──────────────────────────────────────────────────────────────
 
-function StringsTab({ isAdmin }) {
-  const [languages, setLanguages] = useState([]);
+function StringsTab({ isAdmin, languages }) {
   const [filterLang, setFilterLang] = useState('');
   const [filterQ, setFilterQ] = useState('');
   const [strings, setStrings] = useState([]);
@@ -219,15 +317,6 @@ function StringsTab({ isAdmin }) {
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
   const LIMIT = 50;
-
-  const loadLangs = useCallback(async () => {
-    try {
-      const data = await adminClient.get('/api/admin/languages');
-      setLanguages(data.languages || []);
-    } catch {}
-  }, []);
-
-  useEffect(() => { loadLangs(); }, [loadLangs]);
 
   const loadStrings = useCallback(async (pg = 1) => {
     setLoading(true);

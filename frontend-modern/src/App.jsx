@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Outlet, Route, createRoutesFromElements, useLocation } from './router.jsx';
 import { AuthProvider, useAuth } from './utils/auth.jsx';
 import FeedPage from './pages/FeedPage.jsx';
@@ -10,7 +10,7 @@ import ActivationResendPage from './pages/ActivationResendPage.jsx';
 import PasswordResetPage from './pages/PasswordResetPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 import { ThemeProvider } from './utils/theme.jsx';
-import { I18nProvider } from './utils/i18n.jsx';
+import { I18nProvider, useI18n } from './utils/i18n.jsx';
 
 const ExplorePage = React.lazy(() => import('./pages/ExplorePage.jsx'));
 const ExploreSuggestionsPage = React.lazy(() => import('./pages/ExploreSuggestionsPage.jsx'));
@@ -71,11 +71,23 @@ function RouteFallback() {
   return <div className="muted" style={{ padding: 16 }}>Yukleniyor...</div>;
 }
 
+// Syncs auth state with language defaults configured by admin
+function LangAuthSync() {
+  const { user, loading } = useAuth();
+  const { applyLangDefault } = useI18n();
+  useEffect(() => {
+    if (loading) return;
+    applyLangDefault(!!user);
+  }, [user, loading]);
+  return null;
+}
+
 function AppProviders() {
   return (
     <ThemeProvider>
       <I18nProvider>
         <AuthProvider>
+          <LangAuthSync />
           <GlobalActionFeedback />
           <React.Suspense fallback={<RouteFallback />}>
             <Outlet />

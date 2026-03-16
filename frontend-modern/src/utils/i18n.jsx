@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { trFallbackMessages } from './i18nFallbackMessages.js';
 
 const I18N_KEY = 'sdal_new_lang';
@@ -317,10 +317,15 @@ const messages = {
   }
 };
 
+const DEFAULT_LANG_CONFIG = { lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' };
+
 const I18nContext = createContext({
   lang: 'tr',
   availableLangs: [{ code: 'tr', name: 'Turkish', native_name: 'Türkçe' }],
+  langConfig: DEFAULT_LANG_CONFIG,
+  langSelectionEnabled: true,
   setLang: () => {},
+  applyLangDefault: () => {},
   t: (key, params) => {
     const text = trFallbackMessages[key] || key;
     if (!params) return text;
@@ -355,9 +360,11 @@ export function I18nProvider({ children }) {
   // dbMessages holds strings loaded from the backend DB per language code
   const [dbMessages, setDbMessages] = useState({});
   const [availableLangs, setAvailableLangs] = useState([]);
+  const [langConfig, setLangConfig] = useState(DEFAULT_LANG_CONFIG);
   const [runtimeMessages, setRuntimeMessages] = useState(() => ({ en: {}, de: {}, fr: {} }));
   const runtimeRef = useRef(runtimeMessages);
   const dbRef = useRef(dbMessages);
+  const langConfigRef = useRef(langConfig);
   const pendingRef = useRef(new Set());
   const failedRef = useRef(new Set());
 
@@ -369,16 +376,21 @@ export function I18nProvider({ children }) {
     dbRef.current = dbMessages;
   }, [dbMessages]);
 
-  // Fetch available languages from backend
+  useEffect(() => {
+    langConfigRef.current = langConfig;
+  }, [langConfig]);
+
+  // Fetch lang config and available languages from backend on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    fetch('/api/new/languages', { credentials: 'include' })
-      .then((r) => r.ok ? r.json() : { languages: [] })
-      .then((data) => {
-        const langs = data.languages || [];
-        if (langs.length) setAvailableLangs(langs);
-      })
-      .catch(() => {});
+    Promise.all([
+      fetch('/api/new/lang-config', { credentials: 'include' }).then((r) => r.ok ? r.json() : DEFAULT_LANG_CONFIG).catch(() => DEFAULT_LANG_CONFIG),
+      fetch('/api/new/languages', { credentials: 'include' }).then((r) => r.ok ? r.json() : { languages: [] }).catch(() => ({ languages: [] }))
+    ]).then(([config, langsData]) => {
+      setLangConfig(config);
+      const langs = langsData.languages || [];
+      if (langs.length) setAvailableLangs(langs);
+    });
   }, []);
 
   // Fetch DB strings for current language whenever it changes
@@ -396,8 +408,29 @@ export function I18nProvider({ children }) {
       .catch(() => {});
   }, [lang]);
 
+  // Apply the site-configured default language based on auth state.
+  // Call this from a component that has access to auth (e.g. LangAuthSync in App.jsx).
+  const applyLangDefault = useCallback((isAuthenticated) => {
+    const config = langConfigRef.current;
+    const defaultLang = isAuthenticated ? (config.default_lang_open || 'tr') : (config.default_lang_closed || 'tr');
+    if (!config.lang_selection_enabled) {
+      // Selection disabled: always force the configured default
+      setLangState(defaultLang);
+      if (typeof window !== 'undefined') window.localStorage.setItem(I18N_KEY, defaultLang);
+    } else {
+      // Selection enabled: only apply default if user has no stored preference
+      const stored = typeof window !== 'undefined' ? window.localStorage.getItem(I18N_KEY) : null;
+      if (!stored) {
+        setLangState(defaultLang);
+        if (typeof window !== 'undefined') window.localStorage.setItem(I18N_KEY, defaultLang);
+      }
+    }
+  }, []);
+
   const setLang = (code) => {
     if (!code) return;
+    // Respect lang_selection_enabled: if disabled, ignore user attempts to change
+    if (!langConfigRef.current.lang_selection_enabled) return;
     setLangState(code);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(I18N_KEY, code);
@@ -464,7 +497,11 @@ export function I18nProvider({ children }) {
     return interpolate(sourceText, params);
   };
 
-  const value = useMemo(() => ({ lang, availableLangs, setLang, t }), [lang, availableLangs, dbMessages, runtimeMessages]);
+  const langSelectionEnabled = langConfig.lang_selection_enabled;
+  const value = useMemo(
+    () => ({ lang, availableLangs, langConfig, langSelectionEnabled, setLang, applyLangDefault, t }),
+    [lang, availableLangs, langConfig, dbMessages, runtimeMessages]
+  );
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

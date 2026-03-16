@@ -4006,6 +4006,21 @@ app.get('/api/new/lang-strings/:lang', async (req, res) => {
   }
 });
 
+// Public endpoint: language selection config (enabled, defaults)
+app.get('/api/new/lang-config', async (_req, res) => {
+  try {
+    const row = await sqlGetAsync('SELECT lang_selection_enabled, default_lang_open, default_lang_closed FROM language_config WHERE id = 1', []);
+    if (!row) return res.json({ lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' });
+    res.json({
+      lang_selection_enabled: !!row.lang_selection_enabled,
+      default_lang_open: row.default_lang_open || 'tr',
+      default_lang_closed: row.default_lang_closed || 'tr'
+    });
+  } catch {
+    res.json({ lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' });
+  }
+});
+
 // Public endpoint: list active languages
 app.get('/api/new/languages', async (req, res) => {
   try {
