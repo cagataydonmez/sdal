@@ -196,13 +196,11 @@
   .route-title-shell {
     view-transition-name: page-title;
     transform-origin: top left;
-    will-change: transform, opacity, filter;
   }
 
   .route-content-shell {
     view-transition-name: page-content;
     transform-origin: top center;
-    will-change: transform, opacity, filter;
   }
 }
 

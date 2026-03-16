@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import useAdminQueryState from '../../../admin/hooks/useAdminQueryState.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
@@ -52,7 +53,7 @@ function ContentPreviewModal({ item, kind, onClose }) {
   };
   const PreviewComponent = previewMap[kind];
 
-  return (
+  return createPortal(
     <div className="content-preview-backdrop" onClick={onClose}>
       <div className="content-preview-modal" onClick={(e) => e.stopPropagation()}>
         <div className="content-preview-header">
@@ -64,7 +65,7 @@ function ContentPreviewModal({ item, kind, onClose }) {
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
 
 function PostPreview({ item }) {

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
@@ -344,7 +345,7 @@ export default function MessengerPage() {
           </div>
         </section>
       </div>
-      {selectedMessageMeta ? (
+      {selectedMessageMeta ? createPortal(
         <div className="messenger-meta-overlay" onClick={() => setSelectedMessageMeta(null)}>
           <div className="messenger-meta-card" onClick={(e) => e.stopPropagation()}>
             <h4>Mesaj detayı</h4>
@@ -355,7 +356,7 @@ export default function MessengerPage() {
             <button className="btn" onClick={() => setSelectedMessageMeta(null)}>Kapat</button>
           </div>
         </div>
-      ) : null}
+      , document.body) : null}
     </Layout>
   );
 }
