@@ -433,22 +433,7 @@ export function createDbAdminRuntime({
     return 'TEXT';
   }
 
-  function mapPgDefaultForSqlite(pgDefault) {
-    if (pgDefault == null) return null;
-    const d = String(pgDefault).trim();
-    // Drop sequence defaults (identity columns)
-    if (/nextval\(/i.test(d)) return null;
-    // Map boolean literals
-    if (d.toLowerCase() === 'true') return '1';
-    if (d.toLowerCase() === 'false') return '0';
-    // Map now() / CURRENT_TIMESTAMP variants
-    if (/\bnow\(\)/i.test(d) || /current_timestamp/i.test(d)) return 'CURRENT_TIMESTAMP';
-    // Simple quoted strings and numbers pass through
-    if (/^'.*'$/.test(d) || /^-?\d+(\.\d+)?$/.test(d)) return d;
-    return null;
-  }
-
-  function pgValueForSqlite(val) {
+function pgValueForSqlite(val) {
     if (val === null || val === undefined) return null;
     if (typeof val === 'boolean') return val ? 1 : 0;
     if (val instanceof Date) return val.toISOString();
@@ -544,7 +529,7 @@ export function createDbAdminRuntime({
 
       // Fetch all column definitions from PostgreSQL upfront
       const colDefsResult = await pgQuery(
-        `SELECT table_name, column_name, data_type, is_nullable, column_default
+        `SELECT table_name, column_name, data_type
          FROM information_schema.columns
          WHERE table_schema = 'public' AND table_name = ANY($1)
          ORDER BY table_name, ordinal_position`,
@@ -556,6 +541,8 @@ export function createDbAdminRuntime({
         pgColsByTable[row.table_name].push(row);
       }
 
+      stats.skipped = [];
+
       const sqliteDb = new Database(dbPath, { fileMustExist: true });
       try {
         sqliteDb.pragma('foreign_keys = OFF');
@@ -563,36 +550,33 @@ export function createDbAdminRuntime({
 
         for (const table of tables) {
           try {
-            // Sync SQLite schema before inserting: create table or add missing columns
+            // Check if this table exists in SQLite. Many PostgreSQL tables have no SQLite
+            // equivalent (e.g. legacy tables use different names like uyeler vs users).
+            // Skip them silently rather than treating the absence as an error.
+            const sqliteTableRow = sqliteDb.prepare(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+            ).get(table);
+
+            if (!sqliteTableRow) {
+              stats.skipped.push(table);
+              continue;
+            }
+
+            // Add any columns that exist in PostgreSQL but are missing from SQLite.
+            // This handles schema drift where PG migrations added columns that were
+            // never applied to the SQLite schema.
             const pgCols = pgColsByTable[table] || [];
             if (pgCols.length > 0) {
-              const sqliteTableRow = sqliteDb.prepare(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
-              ).get(table);
-
-              if (!sqliteTableRow) {
-                // Create the table in SQLite with mapped column types
-                const colDefs = pgCols.map(col => {
+              const existingCols = sqliteDb.prepare(`PRAGMA table_info("${table}")`).all();
+              const existingColNames = new Set(existingCols.map(c => c.name));
+              for (const col of pgCols) {
+                if (!existingColNames.has(col.column_name)) {
                   const sqliteType = pgTypeToSqlite(col.data_type);
-                  const nullable = col.is_nullable === 'YES' ? '' : ' NOT NULL';
-                  const mappedDefault = col.column_default != null ? mapPgDefaultForSqlite(col.column_default) : null;
-                  const def = mappedDefault != null ? ` DEFAULT ${mappedDefault}` : '';
-                  return `"${col.column_name}" ${sqliteType}${nullable}${def}`;
-                });
-                sqliteDb.exec(`CREATE TABLE IF NOT EXISTS "${table}" (${colDefs.join(', ')})`);
-              } else {
-                // Add any columns that are in PostgreSQL but missing from SQLite
-                const existingCols = sqliteDb.prepare(`PRAGMA table_info("${table}")`).all();
-                const existingColNames = new Set(existingCols.map(c => c.name));
-                for (const col of pgCols) {
-                  if (!existingColNames.has(col.column_name)) {
-                    const sqliteType = pgTypeToSqlite(col.data_type);
-                    // ALTER TABLE ADD COLUMN in SQLite cannot be NOT NULL without a default,
-                    // so we always add new columns as nullable here (data will be filled by copy).
-                    try {
-                      sqliteDb.exec(`ALTER TABLE "${table}" ADD COLUMN "${col.column_name}" ${sqliteType}`);
-                    } catch { /* column may already exist via race, ignore */ }
-                  }
+                  // ALTER TABLE ADD COLUMN cannot be NOT NULL without a default in SQLite,
+                  // so always add as nullable; values will be filled by the copy below.
+                  try {
+                    sqliteDb.exec(`ALTER TABLE "${table}" ADD COLUMN "${col.column_name}" ${sqliteType}`);
+                  } catch { /* ignore if column was added concurrently */ }
                 }
               }
             }
