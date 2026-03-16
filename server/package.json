@@ -14,6 +14,8 @@
     "migrate:data": "node scripts/migrate-legacy-sqlite-to-modern-postgres.mjs",
     "perf:audit:pg": "node scripts/postgres-performance-audit.mjs",
     "migrate:pg": "node scripts/migrate-sqlite-to-postgres.mjs",
+    "db:sync:to-pg": "node scripts/db-sync.mjs --direction sqlite-to-pg",
+    "db:sync:to-sqlite": "node scripts/db-sync.mjs --direction pg-to-sqlite",
     "sqlite:ensure-schema": "node scripts/sqlite-runtime-schema.mjs",
     "reset:sqlite:fresh": "node scripts/reset-sqlite-fresh.mjs",
     "test:phase1-contracts": "node tests/contracts/phase1-contracts.mjs",
