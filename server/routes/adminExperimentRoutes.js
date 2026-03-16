@@ -442,8 +442,8 @@ export function registerAdminExperimentRoutes(app, {
       const variant = String(req.query.variant || '').trim().toUpperCase();
       const page = Math.max(parseInt(req.query.page || '1', 10), 1);
       const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 200);
-      const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR LOWER(CAST(u.aktiv AS TEXT)) IN ('true','evet','yes'))";
-      const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR LOWER(CAST(u.yasak AS TEXT)) IN ('true','evet','yes'))";
+      const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR COALESCE(LOWER(CAST(u.aktiv AS TEXT)), '') IN ('true','evet','yes'))";
+      const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR COALESCE(LOWER(CAST(u.yasak AS TEXT)), '') IN ('true','evet','yes'))";
 
       const whereParts = [];
       const params = [];

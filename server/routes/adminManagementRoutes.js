@@ -56,9 +56,9 @@ export function registerAdminManagementRoutes(app, {
     const limit = Math.min(Math.max(parseInt(rawQuery.limit || '20', 10), 1), 100);
     const page = Math.max(parseInt(rawQuery.page || '1', 10), 1);
     const offset = (page - 1) * limit;
-    const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR LOWER(CAST(u.aktiv AS TEXT)) IN ('true','evet','yes'))";
-    const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR LOWER(CAST(u.yasak AS TEXT)) IN ('true','evet','yes'))";
-    const onlineExpr = "(COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR LOWER(CAST(u.online AS TEXT)) IN ('true','evet','yes'))";
+    const activeExpr = "(COALESCE(CAST(u.aktiv AS INTEGER), 0) = 1 OR COALESCE(LOWER(CAST(u.aktiv AS TEXT)), '') IN ('true','evet','yes'))";
+    const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR COALESCE(LOWER(CAST(u.yasak AS TEXT)), '') IN ('true','evet','yes'))";
+    const onlineExpr = "(COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR COALESCE(LOWER(CAST(u.online AS TEXT)), '') IN ('true','evet','yes'))";
 
     const whereParts = [];
     whereParts.push("(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')");
