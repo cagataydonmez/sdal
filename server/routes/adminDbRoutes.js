@@ -28,7 +28,7 @@ export function registerAdminDbRoutes(app, {
       const requiresSqliteDriftAck = readiness.currentDriver === 'postgres' && readiness.targetDriver === 'sqlite';
       const warnings = [];
       if (requiresSqliteDriftAck) {
-        warnings.push('PostgreSQL -> SQLite geçişinde otomatik veri kopyalama yapılmaz; mevcut SQLite dosyası kullanılacaktır.');
+        warnings.push('PostgreSQL -> SQLite geçişinde veri kopyalama seçeneği etkinleştirilebilir; aksi hâlde mevcut SQLite dosyası kullanılacaktır.');
       }
       warnings.push('Geçiş sırasında API işlemi yeniden başlatılır. Worker servisi için ayrıca restart önerilir.');
 
@@ -43,6 +43,7 @@ export function registerAdminDbRoutes(app, {
         blockers: readiness.blockers,
         warnings,
         requiresSqliteDriftAck,
+        dataCopySupported: true,
         envFile: readiness.envFile,
         sqlite: readiness.sqlite,
         postgres: readiness.postgres,
@@ -82,6 +83,7 @@ export function registerAdminDbRoutes(app, {
       const confirmText = String(req.body?.confirmText || '').trim();
       const challengeToken = String(req.body?.challengeToken || '').trim();
       const acknowledgeSqliteDrift = req.body?.acknowledgeSqliteDrift === true;
+      const copyData = req.body?.copyData === true;
 
       if (requestedTarget && requestedTarget !== targetDriver) {
         return res.status(400).send(`Bu oturumda geçerli hedef driver ${targetDriver}.`);
@@ -92,8 +94,8 @@ export function registerAdminDbRoutes(app, {
       if (!runtime.consumeDbDriverSwitchChallenge(req, targetDriver, challengeToken)) {
         return res.status(400).send('Geçiş onayı geçersiz veya süresi dolmuş. Yenileyip tekrar deneyin.');
       }
-      if (readiness.currentDriver === 'postgres' && targetDriver === 'sqlite' && !acknowledgeSqliteDrift) {
-        return res.status(400).send('PostgreSQL -> SQLite geçişi için veri farklılığı onay kutusu zorunludur.');
+      if (readiness.currentDriver === 'postgres' && targetDriver === 'sqlite' && !acknowledgeSqliteDrift && !copyData) {
+        return res.status(400).send('PostgreSQL -> SQLite geçişi için veri farklılığı onay kutusu zorunludur ya da copyData=true ile veri kopyalama seçilmelidir.');
       }
       if (readiness.blockers.length > 0) {
         return res.status(400).json({
@@ -109,6 +111,14 @@ export function registerAdminDbRoutes(app, {
 
       const backup = await runtime.createDbBackup(`pre-switch-${readiness.currentDriver}-to-${targetDriver}`);
 
+      let dataCopyStats = null;
+      if (copyData) {
+        dataCopyStats = await runtime.copyDbDataAcrossDrivers(readiness.currentDriver, targetDriver);
+        if (dataCopyStats.errors.length > 0) {
+          writeAppLog('warn', 'db_driver_copy_partial_errors', { errors: dataCopyStats.errors });
+        }
+      }
+
       const envUpdates = { SDAL_DB_DRIVER: targetDriver };
       if (targetDriver === 'sqlite') {
         envUpdates.SDAL_DB_PATH = dbPath;
@@ -122,6 +132,7 @@ export function registerAdminDbRoutes(app, {
         envFile: runtime.dbDriverSwitchEnvFile,
         envBackup: envBackupName,
         preSwitchBackup: backup?.name || null,
+        dataCopy: dataCopyStats,
         requestedBy: req.session?.userId || null,
         at: new Date().toISOString()
       };
@@ -162,6 +173,34 @@ export function registerAdminDbRoutes(app, {
       res.status(500).send(err?.message || 'DB driver geçişi başarısız.');
     } finally {
       runtime.dbDriverSwitchState.inProgress = false;
+    }
+  });
+
+  app.post('/api/new/admin/db/driver/copy-data', requireAdmin, async (req, res) => {
+    if (runtime.dbDriverSwitchState.inProgress) {
+      return res.status(409).send('DB driver geçişi devam ediyor; veri kopyalama şu an yapılamaz.');
+    }
+
+    try {
+      const readiness = await runtime.buildDbDriverSwitchReadiness();
+      const { sourceDriver, targetDriver } = req.body || {};
+      const src = String(sourceDriver || readiness.currentDriver || '').trim().toLowerCase();
+      const tgt = String(targetDriver || readiness.targetDriver || '').trim().toLowerCase();
+
+      if (src === tgt) {
+        return res.status(400).send('Kaynak ve hedef driver aynı olamaz.');
+      }
+      if (!['sqlite', 'postgres'].includes(src) || !['sqlite', 'postgres'].includes(tgt)) {
+        return res.status(400).send('Geçersiz driver değeri. "sqlite" veya "postgres" kullanın.');
+      }
+
+      writeAppLog('info', 'db_data_copy_started', { src, tgt, userId: req.session?.userId || null });
+      const stats = await runtime.copyDbDataAcrossDrivers(src, tgt);
+      logAdminAction(req, 'db_data_copy', { src, tgt, stats });
+      res.json({ ok: true, src, tgt, stats });
+    } catch (err) {
+      writeAppLog('error', 'db_data_copy_failed', { message: err?.message || 'unknown_error' });
+      res.status(500).send(err?.message || 'Veri kopyalama başarısız.');
     }
   });
 
