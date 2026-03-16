@@ -31,6 +31,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 import pkg from 'pg';
+import { buildCrossDriverTableMappings } from './lib/crossDriverTableMappings.mjs';
 
 const { Client } = pkg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -395,12 +396,45 @@ try {
   const sqliteSet = new Set(sqliteTables);
   const pgSet = new Set(pgTables);
 
-  // Only sync tables present in both databases
-  let toSync = sqliteTables.filter(t => pgSet.has(t) && !SKIP.has(t));
+  // Build cross-driver mapping lookups
+  const crossMappings = buildCrossDriverTableMappings();
+  const pgToSqliteMap = new Map();  // pgTable → { sqliteTable, columns }
+  const sqliteToPgMap = new Map();  // sqliteTable → { pgTable, columns }
+  for (const m of crossMappings) {
+    pgToSqliteMap.set(m.pgTable, m);
+    sqliteToPgMap.set(m.sqliteTable, m);
+  }
 
+  // Build sync plan: list of { pgTable, sqliteTable, colMapping? }
+  // Includes same-name tables AND cross-name tables via mappings
+  const syncPlan = [];
+  const visited = new Set();
+
+  // Phase 1: Same-name tables (present in both with identical names)
+  for (const t of sqliteTables) {
+    if (pgSet.has(t) && !SKIP.has(t)) {
+      const mapping = pgToSqliteMap.get(t) || sqliteToPgMap.get(t);
+      syncPlan.push({ pgTable: t, sqliteTable: t, mapping: mapping || null });
+      visited.add(t);
+    }
+  }
+
+  // Phase 2: Cross-name tables via mappings
+  for (const m of crossMappings) {
+    if (SKIP.has(m.pgTable) || SKIP.has(m.sqliteTable)) continue;
+    if (visited.has(m.pgTable) || visited.has(m.sqliteTable)) continue;
+    if (pgSet.has(m.pgTable) && sqliteSet.has(m.sqliteTable)) {
+      syncPlan.push({ pgTable: m.pgTable, sqliteTable: m.sqliteTable, mapping: m });
+      visited.add(m.pgTable);
+      visited.add(m.sqliteTable);
+    }
+  }
+
+  // Apply --tables filter (matches on either PG or SQLite name)
+  let toSync = syncPlan;
   if (args.tables) {
     const requested = new Set(args.tables);
-    toSync = toSync.filter(t => requested.has(t));
+    toSync = syncPlan.filter(s => requested.has(s.pgTable) || requested.has(s.sqliteTable));
   }
 
   if (!toSync.length) {
@@ -408,11 +442,15 @@ try {
     process.exit(0);
   }
 
-  const sorted = topoSort(toSync, fkEdges);
+  // Sort by PG FK dependencies
+  const pgTableOrder = topoSort(toSync.map(s => s.pgTable), fkEdges);
+  const orderMap = new Map(pgTableOrder.map((t, i) => [t, i]));
+  toSync.sort((a, b) => (orderMap.get(a.pgTable) ?? 999) - (orderMap.get(b.pgTable) ?? 999));
+
   const mode = args.replace ? 'replace' : 'upsert';
   const label = args.dryRun ? 'dry-run' : mode;
 
-  console.log(`[db-sync] ${args.direction}  •  ${sorted.length} tables  •  ${label}  •  batch=${args.batch}`);
+  console.log(`[db-sync] ${args.direction}  •  ${toSync.length} tables  •  ${label}  •  batch=${args.batch}`);
   console.log('');
 
   if (args.direction === 'pg-to-sqlite') {
@@ -422,32 +460,146 @@ try {
   const errors = [];
   let totalRows = 0;
 
-  for (const table of sorted) {
-    const pgCols = pgColsAll.get(table) || [];
-    const { cols: sqliteCols } = getSqliteColumnsAndPks(sqlite, table);
+  for (const entry of toSync) {
+    const { pgTable, sqliteTable, mapping } = entry;
+    const pgCols = pgColsAll.get(pgTable) || [];
+    const { cols: sqliteCols, pks: sqlitePks } = getSqliteColumnsAndPks(sqlite, sqliteTable);
 
     const sqliteColSet = new Set(sqliteCols.map(c => c.name));
     const pgColMap = new Map(pgCols.map(c => [c.name, c]));
+    const pgPks = pgPksAll.get(pgTable) || [];
 
-    // Intersection of columns present in both databases
-    const sharedCols = pgCols.filter(c => sqliteColSet.has(c.name)).map(c => c.name);
+    let sharedCols;      // column names used in SQL queries (source DB column names)
+    let sourceColNames;   // columns to SELECT from source
+    let targetColNames;   // columns to INSERT into target
+    let colTypeMap;       // for type conversion: targetCol → pgType
 
-    if (!sharedCols.length) continue; // nothing to sync for this table
+    if (mapping && mapping.columns.length > 0) {
+      // Use explicit column mappings (handles renamed columns)
+      const validPairs = mapping.columns.filter(
+        c => pgColMap.has(c.pg) && sqliteColSet.has(c.sqlite)
+      );
+      if (!validPairs.length) continue;
 
-    const pgPks = pgPksAll.get(table) || [];
+      if (args.direction === 'sqlite-to-pg') {
+        sourceColNames = validPairs.map(c => c.sqlite);
+        targetColNames = validPairs.map(c => c.pg);
+        colTypeMap = new Map(validPairs.map(c => [c.pg, pgColMap.get(c.pg)?.type || '']));
+        // For copySqliteToPg: read from SQLite using sqlite names, write to PG using pg names
+        sharedCols = sourceColNames;  // placeholder — handled via custom copy below
+      } else {
+        sourceColNames = validPairs.map(c => c.pg);
+        targetColNames = validPairs.map(c => c.sqlite);
+        colTypeMap = new Map(validPairs.map(c => [c.pg, pgColMap.get(c.pg)?.type || '']));
+        sharedCols = sourceColNames;
+      }
+    } else {
+      // Same-name columns: use intersection of names present in both
+      sharedCols = pgCols.filter(c => sqliteColSet.has(c.name)).map(c => c.name);
+      if (!sharedCols.length) continue;
+      sourceColNames = sharedCols;
+      targetColNames = sharedCols;
+      colTypeMap = new Map(pgCols.map(c => [c.name, c]));
+    }
+
+    const displayName = pgTable === sqliteTable
+      ? pgTable
+      : `${pgTable} → ${sqliteTable}`;
 
     try {
       let rowCount;
       if (args.direction === 'sqlite-to-pg') {
-        rowCount = await copySqliteToPg(sqlite, client, table, sharedCols, pgColMap, pgPks, args.batch, args.replace, args.dryRun);
+        if (mapping && mapping.columns.length > 0 && pgTable !== sqliteTable) {
+          // Cross-name copy: read from SQLite with sqlite col names, write to PG with pg col names
+          const validPairs = mapping.columns.filter(
+            c => pgColMap.has(c.pg) && sqliteColSet.has(c.sqlite)
+          );
+          const rows = sqlite
+            .prepare(`SELECT ${validPairs.map(c => qident(c.sqlite)).join(', ')} FROM ${qident(sqliteTable)}`)
+            .all();
+
+          if (args.dryRun) {
+            rowCount = rows.length;
+          } else if (!rows.length) {
+            rowCount = 0;
+          } else {
+            if (args.replace) {
+              await client.query(`TRUNCATE TABLE ${qident(pgTable)} RESTART IDENTITY CASCADE`);
+            }
+            const pgTargetCols = validPairs.map(c => c.pg);
+            const buildSql = args.replace
+              ? (values) => `INSERT INTO ${qident(pgTable)} (${pgTargetCols.map(qident).join(', ')}) VALUES ${values}`
+              : buildPgUpsertSql(pgTable, pgTargetCols, pgPks.filter(pk => pgTargetCols.includes(pk)));
+
+            rowCount = 0;
+            for (let start = 0; start < rows.length; start += args.batch) {
+              const batch = rows.slice(start, start + args.batch);
+              const values = [];
+              const placeholderGroups = [];
+              for (const row of batch) {
+                const offset = values.length;
+                const rowVals = validPairs.map(c =>
+                  sqliteValueToPg(row[c.sqlite], pgColMap.get(c.pg)?.type || '')
+                );
+                placeholderGroups.push(`(${rowVals.map((_, i) => `$${offset + i + 1}`).join(', ')})`);
+                values.push(...rowVals);
+              }
+              await client.query(buildSql(placeholderGroups.join(', ')), values);
+              rowCount += batch.length;
+            }
+          }
+        } else {
+          rowCount = await copySqliteToPg(sqlite, client, sqliteTable, sharedCols, pgColMap, pgPks, args.batch, args.replace, args.dryRun);
+        }
       } else {
-        rowCount = await copyPgToSqlite(sqlite, client, table, sharedCols, pgColMap, args.batch, args.replace, args.dryRun);
+        if (mapping && mapping.columns.length > 0 && pgTable !== sqliteTable) {
+          // Cross-name copy: read from PG with pg col names, write to SQLite with sqlite col names
+          const validPairs = mapping.columns.filter(
+            c => pgColMap.has(c.pg) && sqliteColSet.has(c.sqlite)
+          );
+          const { rows } = await client.query(
+            `SELECT ${validPairs.map(c => qident(c.pg)).join(', ')} FROM ${qident(pgTable)}`
+          );
+
+          if (args.dryRun) {
+            rowCount = rows.length;
+          } else if (!rows.length) {
+            rowCount = 0;
+          } else {
+            if (args.replace) {
+              sqlite.prepare(`DELETE FROM ${qident(sqliteTable)}`).run();
+            }
+            const sqliteTargetCols = validPairs.map(c => c.sqlite);
+            const colSql = sqliteTargetCols.map(qident).join(', ');
+            const ph = sqliteTargetCols.map(() => '?').join(', ');
+            const insertSql = args.replace
+              ? `INSERT INTO ${qident(sqliteTable)} (${colSql}) VALUES (${ph})`
+              : `INSERT OR REPLACE INTO ${qident(sqliteTable)} (${colSql}) VALUES (${ph})`;
+            const stmt = sqlite.prepare(insertSql);
+
+            rowCount = 0;
+            const insertBatch = sqlite.transaction(batch => {
+              for (const row of batch) {
+                stmt.run(validPairs.map(c =>
+                  pgValueToSqlite(row[c.pg], pgColMap.get(c.pg)?.type || '')
+                ));
+                rowCount++;
+              }
+            });
+
+            for (let start = 0; start < rows.length; start += args.batch) {
+              insertBatch(rows.slice(start, start + args.batch));
+            }
+          }
+        } else {
+          rowCount = await copyPgToSqlite(sqlite, client, sqliteTable, sharedCols, pgColMap, args.batch, args.replace, args.dryRun);
+        }
       }
       totalRows += rowCount;
-      console.log(`  ${table.padEnd(42)} ${String(rowCount).padStart(7)} rows`);
+      console.log(`  ${displayName.padEnd(42)} ${String(rowCount).padStart(7)} rows`);
     } catch (err) {
-      errors.push({ table, error: err.message });
-      console.error(`  ${table.padEnd(42)} ERROR: ${err.message}`);
+      errors.push({ table: displayName, error: err.message });
+      console.error(`  ${displayName.padEnd(42)} ERROR: ${err.message}`);
     }
   }
 
@@ -456,11 +608,11 @@ try {
   }
 
   if (args.direction === 'sqlite-to-pg' && !args.dryRun) {
-    await resetPgSequences(client, sorted);
+    await resetPgSequences(client, toSync.map(s => s.pgTable));
   }
 
   console.log('');
-  console.log(`[db-sync] done — ${sorted.length} tables, ${totalRows} rows${args.dryRun ? ' (dry run)' : ''}`);
+  console.log(`[db-sync] done — ${toSync.length} tables, ${totalRows} rows${args.dryRun ? ' (dry run)' : ''}`);
 
   if (errors.length) process.exitCode = 1;
 
