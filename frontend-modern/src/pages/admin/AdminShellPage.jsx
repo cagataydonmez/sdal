@@ -13,6 +13,7 @@ import NotificationsSection from './sections/NotificationsSection.jsx';
 import SettingsSection from './sections/SettingsSection.jsx';
 import SystemSection from './sections/SystemSection.jsx';
 import TeacherNetworkSection from './sections/TeacherNetworkSection.jsx';
+import LanguagesSection from './sections/LanguagesSection.jsx';
 
 function normalizeRole(value) {
   return String(value || '').trim().toLowerCase();
@@ -125,6 +126,13 @@ export default function AdminShellPage() {
         hint: 'Teacher/alumni relationship moderation and review',
         visible: hasPermission('requests.view'),
         render: () => <TeacherNetworkSection />
+      },
+      {
+        key: 'languages',
+        label: 'Languages',
+        hint: 'Language variables, translations, and locale management',
+        visible: isAdmin,
+        render: () => <LanguagesSection isAdmin={isAdmin} />
       },
       {
         key: 'settings',

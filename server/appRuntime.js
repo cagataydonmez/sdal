@@ -26,6 +26,7 @@ import { registerAdminDbRoutes } from './routes/adminDbRoutes.js';
 import { registerAdminExperimentRoutes } from './routes/adminExperimentRoutes.js';
 import { registerAdminManagementRoutes } from './routes/adminManagementRoutes.js';
 import { registerAdminRequestModerationRoutes } from './routes/adminRequestModerationRoutes.js';
+import { registerAdminLanguageRoutes } from './routes/adminLanguageRoutes.js';
 import { registerAccountRoutes } from './routes/accountRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
 import { registerGroupRoutes } from './routes/groupRoutes.js';
@@ -3989,6 +3990,50 @@ registerNotificationRoutes(app, {
   notificationTypeInventory
 });
 
+// Public endpoint: fetch language strings for a given locale
+app.get('/api/new/lang-strings/:lang', async (req, res) => {
+  const lang = String(req.params.lang || '').trim().toLowerCase();
+  if (!lang) return res.status(400).json({ error: 'lang is required.' });
+  try {
+    const langRow = await sqlGetAsync('SELECT code FROM languages WHERE code = $1 AND is_active IS TRUE', [lang]);
+    if (!langRow) return res.json({ strings: {} });
+    const rows = await sqlAllAsync('SELECT key, value FROM language_strings WHERE lang_code = $1', [lang]);
+    const strings = {};
+    for (const row of rows) strings[row.key] = row.value;
+    res.json({ strings });
+  } catch (err) {
+    res.json({ strings: {} });
+  }
+});
+
+// Public endpoint: language selection config (enabled, defaults)
+app.get('/api/new/lang-config', async (_req, res) => {
+  try {
+    const row = await sqlGetAsync('SELECT lang_selection_enabled, default_lang_open, default_lang_closed FROM language_config WHERE id = 1', []);
+    if (!row) return res.json({ lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' });
+    res.json({
+      lang_selection_enabled: !!row.lang_selection_enabled,
+      default_lang_open: row.default_lang_open || 'tr',
+      default_lang_closed: row.default_lang_closed || 'tr'
+    });
+  } catch {
+    res.json({ lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' });
+  }
+});
+
+// Public endpoint: list active languages
+app.get('/api/new/languages', async (req, res) => {
+  try {
+    const rows = await sqlAllAsync(
+      'SELECT code, name, native_name, is_default FROM languages WHERE is_active IS TRUE ORDER BY is_default DESC, code ASC',
+      []
+    );
+    res.json({ languages: rows });
+  } catch (err) {
+    res.json({ languages: [] });
+  }
+});
+
 app.post('/api/new/translate', async (req, res) => {
   const text = String(req.body?.text || '').trim();
   const target = String(req.body?.target || 'tr').trim().toLowerCase();
@@ -4707,6 +4752,13 @@ registerAdminDbRoutes(app, {
   logAdminAction,
   writeAppLog,
   runtime: dbAdminRuntime
+});
+
+registerAdminLanguageRoutes(app, {
+  requireAdmin,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync
 });
 
 registerMiscAppRoutes(app, {
