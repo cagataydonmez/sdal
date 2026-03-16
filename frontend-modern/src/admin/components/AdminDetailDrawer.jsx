@@ -1,8 +1,9 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 export default function AdminDetailDrawer({ title, open, onClose, children, width = 440 }) {
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="ops-drawer-overlay" onClick={onClose}>
       <aside className="ops-drawer" style={{ width }} onClick={(e) => e.stopPropagation()}>
         <div className="ops-drawer-head">
@@ -12,5 +13,5 @@ export default function AdminDetailDrawer({ title, open, onClose, children, widt
         <div className="ops-drawer-body">{children}</div>
       </aside>
     </div>
-  );
+  , document.body);
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
@@ -7,7 +8,7 @@ function formatDate(value) {
 export default function AdminPreviewModal({ previewModal, setPreviewModal }) {
   if (!previewModal) return null;
 
-  return (
+  return createPortal(
     <div className="story-modal" onClick={() => setPreviewModal(null)}>
       <div className="story-frame admin-preview" onClick={(e) => e.stopPropagation()}>
         <div className="composer-actions">
@@ -111,5 +112,5 @@ export default function AdminPreviewModal({ previewModal, setPreviewModal }) {
         ) : null}
       </div>
     </div>
-  );
+  , document.body);
 }
