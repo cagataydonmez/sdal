@@ -285,10 +285,10 @@ const messages = {
     send: 'Envoyer',
     no_comments_yet: 'Aucun commentaire pour le moment.',
     post_confirm_delete: 'Voulez-vous vraiment supprimer cette publication ?',
-    post_delete_failed: 'La publication n’a pas pu être supprimée.',
-    post_update_failed: 'La publication n’a pas pu être mise à jour.',
-    live_chat_edit_failed: 'Le message n’a pas pu être mis à jour.',
-    live_chat_delete_failed: 'Le message n’a pas pu être supprimé.',
+    post_delete_failed: 'La publication n\u2019a pas pu être supprimée.',
+    post_update_failed: 'La publication n\u2019a pas pu être mise à jour.',
+    live_chat_edit_failed: 'Le message n\u2019a pas pu être mis à jour.',
+    live_chat_delete_failed: 'Le message n\u2019a pas pu être supprimé.',
     filter_none: 'Sans filtre',
     filter_grayscale: 'Niveaux de gris',
     filter_sepia: 'Sépia',
@@ -319,6 +319,7 @@ const messages = {
 
 const I18nContext = createContext({
   lang: 'tr',
+  availableLangs: [{ code: 'tr', name: 'Turkish', native_name: 'Türkçe' }],
   setLang: () => {},
   t: (key, params) => {
     const text = trFallbackMessages[key] || key;
@@ -328,6 +329,9 @@ const I18nContext = createContext({
 });
 
 function readInitialLang() {
+  if (typeof window === 'undefined') return 'tr';
+  const stored = window.localStorage.getItem(I18N_KEY);
+  if (stored && messages[stored]) return stored;
   return 'tr';
 }
 
@@ -348,8 +352,12 @@ function normalizeSourceText(key) {
 
 export function I18nProvider({ children }) {
   const [lang, setLangState] = useState(() => readInitialLang());
+  // dbMessages holds strings loaded from the backend DB per language code
+  const [dbMessages, setDbMessages] = useState({});
+  const [availableLangs, setAvailableLangs] = useState([]);
   const [runtimeMessages, setRuntimeMessages] = useState(() => ({ en: {}, de: {}, fr: {} }));
   const runtimeRef = useRef(runtimeMessages);
+  const dbRef = useRef(dbMessages);
   const pendingRef = useRef(new Set());
   const failedRef = useRef(new Set());
 
@@ -358,64 +366,105 @@ export function I18nProvider({ children }) {
   }, [runtimeMessages]);
 
   useEffect(() => {
-    setLangState('tr');
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(I18N_KEY, 'tr');
-    }
+    dbRef.current = dbMessages;
+  }, [dbMessages]);
+
+  // Fetch available languages from backend
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    fetch('/api/new/languages', { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : { languages: [] })
+      .then((data) => {
+        const langs = data.languages || [];
+        if (langs.length) setAvailableLangs(langs);
+      })
+      .catch(() => {});
   }, []);
 
-  const setLang = () => {
-    setLangState('tr');
+  // Fetch DB strings for current language whenever it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (dbRef.current[lang]) return; // already loaded
+    fetch(`/api/new/lang-strings/${lang}`, { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : { strings: {} })
+      .then((data) => {
+        const strings = data.strings || {};
+        if (Object.keys(strings).length > 0) {
+          setDbMessages((prev) => ({ ...prev, [lang]: strings }));
+        }
+      })
+      .catch(() => {});
+  }, [lang]);
+
+  const setLang = (code) => {
+    if (!code) return;
+    setLangState(code);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(I18N_KEY, 'tr');
+      window.localStorage.setItem(I18N_KEY, code);
     }
   };
 
   const t = (key, params) => {
     const sourceText = normalizeSourceText(key);
-    let output = messages[lang]?.[key] || sourceText;
-    if (lang !== 'tr' && !messages[lang]?.[key]) {
-      const runtimeHit = runtimeRef.current[lang]?.[sourceText];
-      if (runtimeHit) {
-        output = runtimeHit;
-      } else if (sourceText && sourceText !== key) {
-        const cacheKey = `${lang}:${sourceText}`;
-        if (!pendingRef.current.has(cacheKey) && !failedRef.current.has(cacheKey) && typeof window !== 'undefined') {
-          pendingRef.current.add(cacheKey);
-          fetch('/api/new/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ text: sourceText, target: lang })
+
+    // DB strings take highest priority (admin-managed overrides)
+    const dbHit = dbRef.current[lang]?.[key];
+    if (dbHit) return interpolate(dbHit, params);
+
+    // Static bundled messages
+    const staticHit = messages[lang]?.[key];
+    if (staticHit) return interpolate(staticHit, params);
+
+    // For Turkish, fall back to trFallbackMessages
+    if (lang === 'tr') {
+      const fallback = trFallbackMessages[key];
+      if (fallback) return interpolate(fallback, params);
+      return interpolate(sourceText, params);
+    }
+
+    // For other languages, check runtime-translated cache then trigger translation
+    const runtimeHit = runtimeRef.current[lang]?.[sourceText];
+    if (runtimeHit) return interpolate(runtimeHit, params);
+
+    if (sourceText && sourceText !== key && typeof window !== 'undefined') {
+      const cacheKey = `${lang}:${sourceText}`;
+      if (!pendingRef.current.has(cacheKey) && !failedRef.current.has(cacheKey)) {
+        pendingRef.current.add(cacheKey);
+        fetch('/api/new/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ text: sourceText, target: lang })
+        })
+          .then(async (res) => {
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
           })
-            .then(async (res) => {
-              if (!res.ok) throw new Error(await res.text());
-              return res.json();
-            })
-            .then((payload) => {
-              const translated = String(payload?.translatedText || '').trim();
-              if (!translated) return;
-              setRuntimeMessages((prev) => ({
-                ...prev,
-                [lang]: {
-                  ...(prev[lang] || {}),
-                  [sourceText]: translated
-                }
-              }));
-            })
-            .catch(() => {
-              failedRef.current.add(cacheKey);
-            })
-            .finally(() => {
-              pendingRef.current.delete(cacheKey);
-            });
-        }
+          .then((payload) => {
+            const translated = String(payload?.translatedText || '').trim();
+            if (!translated) return;
+            setRuntimeMessages((prev) => ({
+              ...prev,
+              [lang]: {
+                ...(prev[lang] || {}),
+                [sourceText]: translated
+              }
+            }));
+          })
+          .catch(() => {
+            failedRef.current.add(cacheKey);
+          })
+          .finally(() => {
+            pendingRef.current.delete(cacheKey);
+          });
       }
     }
-    return interpolate(output, params);
+
+    // Fall back to Turkish source text while translation is pending
+    return interpolate(sourceText, params);
   };
 
-  const value = useMemo(() => ({ lang, setLang, t }), [lang, runtimeMessages]);
+  const value = useMemo(() => ({ lang, availableLangs, setLang, t }), [lang, availableLangs, dbMessages, runtimeMessages]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
