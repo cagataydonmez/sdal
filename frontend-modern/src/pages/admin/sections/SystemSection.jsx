@@ -2,6 +2,29 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 
+function ConfirmModal({ modal, onConfirm, onCancel }) {
+  if (!modal) return null;
+  return (
+    <div className="story-modal" onClick={onCancel}>
+      <div className="story-frame admin-preview" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+        <div className="composer-actions">
+          <h3>{modal.title}</h3>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+        </div>
+        <div className="stack" style={{ padding: '0 0 8px' }}>
+          {(modal.lines || []).map((line, i) => (
+            <div key={i} className={line.muted ? 'muted' : ''}>{line.text}</div>
+          ))}
+        </div>
+        <div className="ops-inline-actions">
+          <button className="btn" onClick={onConfirm}>{modal.confirmLabel || 'Confirm'}</button>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
 }
@@ -30,6 +53,14 @@ export default function SystemSection({ isAdmin = false }) {
   const [driverSwitchBusy, setDriverSwitchBusy] = useState(false);
   const [driverSwitchConfirm, setDriverSwitchConfirm] = useState('');
   const [driverSwitchAckDrift, setDriverSwitchAckDrift] = useState(false);
+  const [driverSwitchCopyData, setDriverSwitchCopyData] = useState(false);
+
+  const [copyOnlySrc, setCopyOnlySrc] = useState('sqlite');
+  const [copyOnlyTgt, setCopyOnlyTgt] = useState('postgres');
+  const [copyOnlyBusy, setCopyOnlyBusy] = useState(false);
+  const [copyOnlyResult, setCopyOnlyResult] = useState(null);
+
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const loadLogFiles = useCallback(async () => {
     try {
@@ -120,6 +151,7 @@ export default function SystemSection({ isAdmin = false }) {
       setDriverSwitch(data || null);
       setDriverSwitchConfirm('');
       setDriverSwitchAckDrift(false);
+      setDriverSwitchCopyData(false);
     } catch (err) {
       setDriverSwitch(null);
       setStatus(err.message || 'DB switch status could not be loaded.');
@@ -161,7 +193,21 @@ export default function SystemSection({ isAdmin = false }) {
     }
   }, [backupLabel, loadBackups]);
 
-  const switchDbDriver = useCallback(async () => {
+  const requestSwitchDbDriver = useCallback(() => {
+    if (!driverSwitch?.targetDriver) return;
+    const lines = [
+      { text: `Switch database driver from ${driverSwitch.currentDriver} → ${driverSwitch.targetDriver}.` },
+      { text: driverSwitchCopyData ? 'Data will be copied to the target driver before switching.' : 'No data copy — only the driver setting will change.', muted: true },
+      { text: 'The server will restart automatically after the switch.', muted: true },
+    ];
+    if ((driverSwitch.warnings || []).length) {
+      lines.push({ text: driverSwitch.warnings.join(' '), muted: true });
+    }
+    setConfirmModal({ type: 'switch', title: 'Confirm DB Driver Switch', lines, confirmLabel: `Switch to ${driverSwitch.targetDriver}` });
+  }, [driverSwitch, driverSwitchCopyData]);
+
+  const executeSwitchDbDriver = useCallback(async () => {
+    setConfirmModal(null);
     if (!driverSwitch?.targetDriver) return;
     try {
       setDriverSwitchBusy(true);
@@ -169,7 +215,8 @@ export default function SystemSection({ isAdmin = false }) {
         targetDriver: driverSwitch.targetDriver,
         confirmText: driverSwitchConfirm,
         challengeToken: driverSwitch.challengeToken,
-        acknowledgeSqliteDrift: driverSwitchAckDrift
+        acknowledgeSqliteDrift: driverSwitchAckDrift,
+        copyData: driverSwitchCopyData
       };
       const data = await adminClient.post('/api/new/admin/db/driver/switch', payload);
       setStatus(data?.message || 'DB driver switch accepted. Server is restarting.');
@@ -185,7 +232,48 @@ export default function SystemSection({ isAdmin = false }) {
     } finally {
       setDriverSwitchBusy(false);
     }
-  }, [driverSwitch, driverSwitchAckDrift, driverSwitchConfirm, loadDbDriverSwitchStatus]);
+  }, [driverSwitch, driverSwitchAckDrift, driverSwitchConfirm, driverSwitchCopyData, loadDbDriverSwitchStatus]);
+
+  const requestCopyOnlyData = useCallback(() => {
+    if (copyOnlySrc === copyOnlyTgt) {
+      setStatus('Source and target driver must be different.');
+      return;
+    }
+    setConfirmModal({
+      type: 'copy',
+      title: 'Confirm Data Copy',
+      lines: [
+        { text: `Copy all data from ${copyOnlySrc} → ${copyOnlyTgt}.` },
+        { text: 'This will overwrite existing data in the target driver.', muted: true },
+        { text: 'The active driver will NOT change — only the data is copied.', muted: true },
+      ],
+      confirmLabel: `Copy ${copyOnlySrc} → ${copyOnlyTgt}`
+    });
+  }, [copyOnlySrc, copyOnlyTgt]);
+
+  const executeCopyOnlyData = useCallback(async () => {
+    setConfirmModal(null);
+    try {
+      setCopyOnlyBusy(true);
+      setCopyOnlyResult(null);
+      const data = await adminClient.post('/api/new/admin/db/driver/copy-data', {
+        sourceDriver: copyOnlySrc,
+        targetDriver: copyOnlyTgt
+      });
+      setCopyOnlyResult(data?.stats || {});
+      setStatus(`Data copy complete: ${copyOnlySrc} → ${copyOnlyTgt}.`);
+    } catch (err) {
+      setStatus(err?.message || 'Data copy failed.');
+    } finally {
+      setCopyOnlyBusy(false);
+    }
+  }, [copyOnlySrc, copyOnlyTgt]);
+
+  const handleConfirmModalConfirm = useCallback(() => {
+    if (confirmModal?.type === 'switch') executeSwitchDbDriver();
+    else if (confirmModal?.type === 'copy') executeCopyOnlyData();
+    else setConfirmModal(null);
+  }, [confirmModal, executeSwitchDbDriver, executeCopyOnlyData]);
 
   const tableColumnsConfig = useMemo(() => {
     return (tableColumns || []).map((column) => ({
@@ -205,6 +293,12 @@ export default function SystemSection({ isAdmin = false }) {
 
   return (
     <section className="stack">
+      <ConfirmModal
+        modal={confirmModal}
+        onConfirm={handleConfirmModalConfirm}
+        onCancel={() => setConfirmModal(null)}
+      />
+
       <div className="ops-head-row">
         <h3>System</h3>
         <button className="btn ghost" onClick={loadAll}>Refresh</button>
@@ -274,56 +368,105 @@ export default function SystemSection({ isAdmin = false }) {
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>DB Driver Toggle</h3>
+          <h3>DB Driver Switch</h3>
           <div className="meta">
-            Current: {driverSwitch?.currentDriver || dbDriver || '-'} | Target: {driverSwitch?.targetDriver || '-'}
+            Current: <strong>{driverSwitch?.currentDriver || dbDriver || '-'}</strong>
+            {' → '}
+            Target: <strong>{driverSwitch?.targetDriver || '-'}</strong>
           </div>
-          <label className="ops-check-row">
-            <input type="checkbox" checked={driverSwitch?.targetDriver === 'postgres'} readOnly />
-            <span>Target PostgreSQL (unchecked means SQLite)</span>
-          </label>
+
           <input
             className="input"
             value={driverSwitchConfirm}
             onChange={(e) => setDriverSwitchConfirm(e.target.value)}
-            placeholder={driverSwitch?.expectedConfirmText || 'Type confirm text'}
+            placeholder={`Type "${driverSwitch?.expectedConfirmText || ''}" to confirm`}
           />
-          {driverSwitch?.requiresSqliteDriftAck ? (
+
+          {driverSwitch?.dataCopySupported ? (
+            <label className="ops-check-row">
+              <input
+                type="checkbox"
+                checked={driverSwitchCopyData}
+                onChange={(e) => setDriverSwitchCopyData(e.target.checked)}
+              />
+              <span>Copy data from current driver to target before switching</span>
+            </label>
+          ) : null}
+
+          {driverSwitch?.requiresSqliteDriftAck && !driverSwitchCopyData ? (
             <label className="ops-check-row">
               <input
                 type="checkbox"
                 checked={driverSwitchAckDrift}
                 onChange={(e) => setDriverSwitchAckDrift(e.target.checked)}
               />
-              <span>I accept PostgreSQL to SQLite may use older SQLite data snapshot.</span>
+              <span>I understand that switching PostgreSQL → SQLite without copying data may use an older SQLite snapshot.</span>
             </label>
           ) : null}
+
           {(driverSwitch?.blockers || []).length ? (
-            <div className="muted">
-              Blockers: {(driverSwitch.blockers || []).join(' | ')}
-            </div>
+            <div className="muted">Blockers: {(driverSwitch.blockers || []).join(' | ')}</div>
           ) : null}
           {(driverSwitch?.warnings || []).length ? (
-            <div className="muted">
-              Warnings: {(driverSwitch.warnings || []).join(' | ')}
-            </div>
+            <div className="muted">Warnings: {(driverSwitch.warnings || []).join(' | ')}</div>
           ) : null}
+
           <div className="ops-inline-actions">
             <button
               className="btn"
-              onClick={switchDbDriver}
+              onClick={requestSwitchDbDriver}
               disabled={
                 driverSwitchBusy
                 || !driverSwitch?.switchEnabled
                 || !driverSwitch?.targetDriver
                 || driverSwitchConfirm !== driverSwitch?.expectedConfirmText
-                || (driverSwitch?.requiresSqliteDriftAck && !driverSwitchAckDrift)
+                || (driverSwitch?.requiresSqliteDriftAck && !driverSwitchCopyData && !driverSwitchAckDrift)
               }
             >
               {driverSwitchBusy ? 'Switching...' : `Switch to ${driverSwitch?.targetDriver || 'target'}`}
             </button>
-            <button className="btn ghost" onClick={() => loadDbDriverSwitchStatus().catch(() => {})}>Refresh switch status</button>
+            <button className="btn ghost" onClick={() => loadDbDriverSwitchStatus().catch(() => {})}>Refresh</button>
           </div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-body stack">
+          <h3>Copy DB Data</h3>
+          <div className="muted">Copy data between drivers without changing the active driver.</div>
+          <div className="ops-inline-actions">
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span className="meta">Source</span>
+              <select className="input" value={copyOnlySrc} onChange={(e) => { setCopyOnlySrc(e.target.value); setCopyOnlyResult(null); }}>
+                <option value="sqlite">SQLite</option>
+                <option value="postgres">PostgreSQL</option>
+              </select>
+            </label>
+            <span style={{ alignSelf: 'flex-end', paddingBottom: 4 }}>→</span>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span className="meta">Target</span>
+              <select className="input" value={copyOnlyTgt} onChange={(e) => { setCopyOnlyTgt(e.target.value); setCopyOnlyResult(null); }}>
+                <option value="postgres">PostgreSQL</option>
+                <option value="sqlite">SQLite</option>
+              </select>
+            </label>
+            <button
+              className="btn"
+              style={{ alignSelf: 'flex-end' }}
+              onClick={requestCopyOnlyData}
+              disabled={copyOnlyBusy || copyOnlySrc === copyOnlyTgt}
+            >
+              {copyOnlyBusy ? 'Copying...' : 'Copy data'}
+            </button>
+          </div>
+          {copyOnlyResult ? (
+            <div className="muted">
+              Copy complete.
+              {copyOnlyResult.tables !== undefined ? ` Tables: ${copyOnlyResult.tables}.` : ''}
+              {copyOnlyResult.rows !== undefined ? ` Rows: ${copyOnlyResult.rows}.` : ''}
+              {(copyOnlyResult.errors || []).length ? ` Errors: ${copyOnlyResult.errors.join(', ')}.` : ''}
+            </div>
+          ) : null}
         </div>
       </div>
 
