@@ -90,6 +90,7 @@ export function buildCrossDriverTableMappings() {
     {
       pgTable: 'site_settings',
       sqliteTable: 'site_controls',
+      conflictTarget: 'id',
       columns: [
         { pg: 'id', sqlite: 'id' },
         { pg: 'site_open', sqlite: 'site_open' },
@@ -100,6 +101,7 @@ export function buildCrossDriverTableMappings() {
     {
       pgTable: 'module_settings',
       sqliteTable: 'module_controls',
+      conflictTarget: 'module_key',
       columns: [
         { pg: 'module_key', sqlite: 'module_key' },
         { pg: 'is_open', sqlite: 'is_open' },
@@ -109,6 +111,7 @@ export function buildCrossDriverTableMappings() {
     {
       pgTable: 'media_settings',
       sqliteTable: 'media_settings',
+      conflictTarget: 'id',
       columns: [
         { pg: 'id', sqlite: 'id' },
         { pg: 'storage_provider', sqlite: 'storage_provider' },
@@ -123,14 +126,15 @@ export function buildCrossDriverTableMappings() {
       ]
     },
     {
+      // SQLite uses 'label'/'is_enabled' where PG uses 'name'/'enabled'
       pgTable: 'engagement_variants',
       sqliteTable: 'engagement_ab_config',
+      conflictTarget: 'variant',
       columns: [
         { pg: 'variant', sqlite: 'variant' },
-        { pg: 'name', sqlite: 'name' },
+        { pg: 'name', sqlite: 'label' },
         { pg: 'description', sqlite: 'description' },
-        { pg: 'traffic_pct', sqlite: 'traffic_pct' },
-        { pg: 'enabled', sqlite: 'enabled' },
+        { pg: 'enabled', sqlite: 'is_enabled' },
         { pg: 'params_json', sqlite: 'params_json' },
         { pg: 'updated_at', sqlite: 'updated_at' },
       ]
@@ -424,15 +428,16 @@ export function buildCrossDriverTableMappings() {
       ]
     },
     {
+      // SQLite uses 'image'/'privacy' where PG uses 'cover_image_url'/'visibility'
       pgTable: 'groups',
       sqliteTable: 'groups',
       columns: [
         { pg: 'id', sqlite: 'id' },
         { pg: 'name', sqlite: 'name' },
         { pg: 'description', sqlite: 'description' },
-        { pg: 'cover_image_url', sqlite: 'cover_image' },
+        { pg: 'cover_image_url', sqlite: 'image' },
         { pg: 'owner_id', sqlite: 'owner_id' },
-        { pg: 'visibility', sqlite: 'visibility' },
+        { pg: 'visibility', sqlite: 'privacy' },
         { pg: 'show_contact_hint', sqlite: 'show_contact_hint' },
         { pg: 'created_at', sqlite: 'created_at' },
       ]
@@ -772,11 +777,10 @@ export function buildCrossDriverTableMappings() {
       columns: [
         { pg: 'id', sqlite: 'id' },
         { pg: 'job_id', sqlite: 'job_id' },
-        { pg: 'user_id', sqlite: 'user_id' },
+        { pg: 'applicant_id', sqlite: 'applicant_id' },
         { pg: 'cover_letter', sqlite: 'cover_letter' },
         { pg: 'status', sqlite: 'status' },
         { pg: 'created_at', sqlite: 'created_at' },
-        { pg: 'updated_at', sqlite: 'updated_at' },
       ]
     },
     {
@@ -784,9 +788,9 @@ export function buildCrossDriverTableMappings() {
       sqliteTable: 'mentorship_requests',
       columns: [
         { pg: 'id', sqlite: 'id' },
-        { pg: 'mentee_id', sqlite: 'mentee_id' },
+        { pg: 'requester_id', sqlite: 'requester_id' },
         { pg: 'mentor_id', sqlite: 'mentor_id' },
-        { pg: 'topic', sqlite: 'topic' },
+        { pg: 'focus_area', sqlite: 'focus_area' },
         { pg: 'message', sqlite: 'message' },
         { pg: 'status', sqlite: 'status' },
         { pg: 'created_at', sqlite: 'created_at' },
@@ -794,14 +798,109 @@ export function buildCrossDriverTableMappings() {
       ]
     },
     {
+      // Runtime-created table (createNotificationGovernanceRuntime) — same schema in both drivers
       pgTable: 'notification_user_preferences',
       sqliteTable: 'notification_user_preferences',
       columns: [
         { pg: 'user_id', sqlite: 'user_id' },
-        { pg: 'channel', sqlite: 'channel' },
-        { pg: 'category', sqlite: 'category' },
-        { pg: 'enabled', sqlite: 'enabled' },
+        { pg: 'social_enabled', sqlite: 'social_enabled' },
+        { pg: 'messaging_enabled', sqlite: 'messaging_enabled' },
+        { pg: 'groups_enabled', sqlite: 'groups_enabled' },
+        { pg: 'events_enabled', sqlite: 'events_enabled' },
+        { pg: 'networking_enabled', sqlite: 'networking_enabled' },
+        { pg: 'jobs_enabled', sqlite: 'jobs_enabled' },
+        { pg: 'system_enabled', sqlite: 'system_enabled' },
+        { pg: 'quiet_mode_enabled', sqlite: 'quiet_mode_enabled' },
+        { pg: 'quiet_mode_start', sqlite: 'quiet_mode_start' },
+        { pg: 'quiet_mode_end', sqlite: 'quiet_mode_end' },
         { pg: 'updated_at', sqlite: 'updated_at' },
+      ]
+    },
+    // Runtime-created tables with same name and schema in both drivers
+    {
+      pgTable: 'notification_experiment_configs',
+      sqliteTable: 'notification_experiment_configs',
+      conflictTarget: 'experiment_key',
+      columns: [
+        { pg: 'experiment_key', sqlite: 'experiment_key' },
+        { pg: 'label', sqlite: 'label' },
+        { pg: 'description', sqlite: 'description' },
+        { pg: 'status', sqlite: 'status' },
+        { pg: 'variants_json', sqlite: 'variants_json' },
+        { pg: 'updated_at', sqlite: 'updated_at' },
+      ]
+    },
+    {
+      pgTable: 'notification_delivery_audit',
+      sqliteTable: 'notification_delivery_audit',
+      columns: [
+        { pg: 'id', sqlite: 'id' },
+        { pg: 'notification_id', sqlite: 'notification_id' },
+        { pg: 'user_id', sqlite: 'user_id' },
+        { pg: 'source_user_id', sqlite: 'source_user_id' },
+        { pg: 'entity_id', sqlite: 'entity_id' },
+        { pg: 'notification_type', sqlite: 'notification_type' },
+        { pg: 'delivery_status', sqlite: 'delivery_status' },
+        { pg: 'skip_reason', sqlite: 'skip_reason' },
+        { pg: 'error_message', sqlite: 'error_message' },
+        { pg: 'created_at', sqlite: 'created_at' },
+      ]
+    },
+    {
+      pgTable: 'notification_telemetry_events',
+      sqliteTable: 'notification_telemetry_events',
+      columns: [
+        { pg: 'id', sqlite: 'id' },
+        { pg: 'user_id', sqlite: 'user_id' },
+        { pg: 'notification_id', sqlite: 'notification_id' },
+        { pg: 'event_name', sqlite: 'event_name' },
+        { pg: 'notification_type', sqlite: 'notification_type' },
+        { pg: 'surface', sqlite: 'surface' },
+        { pg: 'action_kind', sqlite: 'action_kind' },
+        { pg: 'created_at', sqlite: 'created_at' },
+      ]
+    },
+    {
+      pgTable: 'network_suggestion_ab_config',
+      sqliteTable: 'network_suggestion_ab_config',
+      conflictTarget: 'variant',
+      columns: [
+        { pg: 'variant', sqlite: 'variant' },
+        { pg: 'name', sqlite: 'name' },
+        { pg: 'description', sqlite: 'description' },
+        { pg: 'traffic_pct', sqlite: 'traffic_pct' },
+        { pg: 'enabled', sqlite: 'enabled' },
+        { pg: 'params_json', sqlite: 'params_json' },
+        { pg: 'updated_at', sqlite: 'updated_at' },
+      ]
+    },
+    {
+      pgTable: 'network_suggestion_ab_assignments',
+      sqliteTable: 'network_suggestion_ab_assignments',
+      columns: [
+        { pg: 'user_id', sqlite: 'user_id' },
+        { pg: 'variant', sqlite: 'variant' },
+        { pg: 'assigned_at', sqlite: 'assigned_at' },
+        { pg: 'updated_at', sqlite: 'updated_at' },
+      ]
+    },
+    {
+      pgTable: 'network_suggestion_ab_change_log',
+      sqliteTable: 'network_suggestion_ab_change_log',
+      columns: [
+        { pg: 'id', sqlite: 'id' },
+        { pg: 'action_type', sqlite: 'action_type' },
+        { pg: 'related_change_id', sqlite: 'related_change_id' },
+        { pg: 'actor_user_id', sqlite: 'actor_user_id' },
+        { pg: 'recommendation_index', sqlite: 'recommendation_index' },
+        { pg: 'cohort', sqlite: 'cohort' },
+        { pg: 'window_days', sqlite: 'window_days' },
+        { pg: 'payload_json', sqlite: 'payload_json' },
+        { pg: 'before_snapshot_json', sqlite: 'before_snapshot_json' },
+        { pg: 'after_snapshot_json', sqlite: 'after_snapshot_json' },
+        { pg: 'created_at', sqlite: 'created_at' },
+        { pg: 'rolled_back_at', sqlite: 'rolled_back_at' },
+        { pg: 'rollback_change_id', sqlite: 'rollback_change_id' },
       ]
     },
   ];

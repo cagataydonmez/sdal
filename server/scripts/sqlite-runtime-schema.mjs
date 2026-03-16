@@ -424,6 +424,27 @@ export function ensureSqliteRuntimeSchema(db) {
       payload_json TEXT,
       created_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS moderator_scopes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      scope_type TEXT NOT NULL,
+      scope_value TEXT NOT NULL,
+      graduation_year INTEGER,
+      created_by INTEGER,
+      created_at TEXT,
+      UNIQUE(user_id, scope_type, scope_value)
+    );
+    CREATE TABLE IF NOT EXISTS moderator_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      permission_key TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_by INTEGER,
+      updated_by INTEGER,
+      created_at TEXT,
+      updated_at TEXT,
+      UNIQUE(user_id, permission_key)
+    );
   `);
 
   ensureTableColumns(db, 'posts', [

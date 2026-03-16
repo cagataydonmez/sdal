@@ -1351,6 +1351,23 @@ function pgValueForSqlite(val) {
             const pgColList = colPairs.map(p => `"${p.pg}"`).join(', ');
             const pgTypes = pgColTypes[pgTable] || {};
 
+            // Build upsert SQL if this mapping has a conflictTarget
+            const conflictTarget = mapping && mapping.conflictTarget;
+            let buildInsertSql;
+            if (conflictTarget) {
+              const updateCols = colPairs
+                .filter(p => p.pg !== conflictTarget)
+                .map(p => `"${p.pg}"=EXCLUDED."${p.pg}"`);
+              buildInsertSql = (placeholders) =>
+                `INSERT INTO "${pgTable}" (${pgColList}) VALUES (${placeholders})` +
+                (updateCols.length > 0
+                  ? ` ON CONFLICT ("${conflictTarget}") DO UPDATE SET ${updateCols.join(', ')}`
+                  : ` ON CONFLICT DO NOTHING`);
+            } else {
+              buildInsertSql = (placeholders) =>
+                `INSERT INTO "${pgTable}" (${pgColList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`;
+            }
+
             for (let i = 0; i < rows.length; i += BATCH_SIZE) {
               const batch = rows.slice(i, i + BATCH_SIZE);
               const client = await pool.connect();
@@ -1360,10 +1377,7 @@ function pgValueForSqlite(val) {
                 for (const row of batch) {
                   const vals = colPairs.map(p => pgValueFromSqlite(row[p.sqlite], pgTypes[p.pg] || ''));
                   const placeholders = vals.map((_, idx) => `$${idx + 1}`).join(', ');
-                  await client.query(
-                    `INSERT INTO "${pgTable}" (${pgColList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
-                    vals
-                  );
+                  await client.query(buildInsertSql(placeholders), vals);
                 }
                 await client.query('COMMIT');
                 stats.rows += batch.length;
@@ -1510,10 +1524,12 @@ function pgValueForSqlite(val) {
             if (rows.length === 0) { stats.tables++; continue; }
 
             // Write to SQLite using SQLite column names
+            // Use INSERT OR REPLACE for tables with a conflictTarget to ensure source data wins
             const sqliteColList = colPairs.map(p => `"${p.sqlite}"`).join(', ');
             const placeholders = colPairs.map(() => '?').join(', ');
+            const insertVerb = (mapping && mapping.conflictTarget) ? 'INSERT OR REPLACE' : 'INSERT OR IGNORE';
 
-            const stmt = sqliteDb.prepare(`INSERT OR IGNORE INTO "${sqliteTable}" (${sqliteColList}) VALUES (${placeholders})`);
+            const stmt = sqliteDb.prepare(`${insertVerb} INTO "${sqliteTable}" (${sqliteColList}) VALUES (${placeholders})`);
             const insertBatch = sqliteDb.transaction((batch) => {
               for (const row of batch) {
                 stmt.run(colPairs.map(p => sqliteValueFromPg(row[p.pg], p.pgType)));
