@@ -153,11 +153,11 @@ export default function AnnouncementsPage() {
       <div className="stack">
         {notificationId && notificationStatus ? (
           <div className="notification-focus-inline-panel">
-            <strong>Duyuru kararı güncellendi</strong>
+            <strong>{t('announcements_notification_decision_title')}</strong>
             <div className="muted">
               {notificationStatus === 'approved'
-                ? 'Duyuru önerin onaylandı ve yayına alındı.'
-                : 'Duyuru önerin reddedildi. Gerekirse metni güncelleyip tekrar gönderebilirsin.'}
+                ? t('announcements_notification_approved')
+                : t('announcements_notification_rejected')}
             </div>
           </div>
         ) : null}

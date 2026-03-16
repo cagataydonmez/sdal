@@ -198,6 +198,18 @@ function injectParams(sql, params = []) {
   return String(sql || '').replace(/\?/g, () => pgEscape(params[idx++]));
 }
 
+function normalizePgForSqlite(sql) {
+  return String(sql || '')
+    .replace(/\bNOW\(\)/gi, "datetime('now')")
+    .replace(/\bCURRENT_TIMESTAMP\b/gi, "datetime('now')")
+    .replace(/\bILIKE\b/gi, 'LIKE')
+    .replace(/\bIS\s+TRUE\b/gi, '= 1')
+    .replace(/\bIS\s+FALSE\b/gi, '= 0')
+    .replace(/\bTRUE\b/g, '1')
+    .replace(/\bFALSE\b/g, '0')
+    .replace(/\$(\d+)/g, '?');
+}
+
 function normalizePgSql(sql) {
   const text = String(sql || '');
   const legacyBoolColumns = [
@@ -521,7 +533,7 @@ export async function sqlGetAsync(query, params = []) {
   return withQueryTimingAsync('sqlGetAsync', query, params, async () => {
     const conn = safeGetDb();
     if (!conn) return null;
-    if (dbDriver !== 'postgres') return conn.prepare(query).get(params);
+    if (dbDriver !== 'postgres') return conn.prepare(normalizePgForSqlite(query)).get(params);
     const rows = await runPgQueryAsync(query, params);
     return rows[0] || null;
   });
@@ -531,7 +543,7 @@ export async function sqlAllAsync(query, params = []) {
   return withQueryTimingAsync('sqlAllAsync', query, params, async () => {
     const conn = safeGetDb();
     if (!conn) return [];
-    if (dbDriver !== 'postgres') return conn.prepare(query).all(params);
+    if (dbDriver !== 'postgres') return conn.prepare(normalizePgForSqlite(query)).all(params);
     return runPgQueryAsync(query, params);
   });
 }
@@ -540,7 +552,7 @@ export async function sqlRunAsync(query, params = []) {
   return withQueryTimingAsync('sqlRunAsync', query, params, async () => {
     const conn = safeGetDb();
     if (!conn) return null;
-    if (dbDriver !== 'postgres') return conn.prepare(query).run(params);
+    if (dbDriver !== 'postgres') return conn.prepare(normalizePgForSqlite(query)).run(params);
     return runPgExecAsync(query, params);
   });
 }

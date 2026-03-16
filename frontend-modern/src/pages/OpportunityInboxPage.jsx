@@ -2,60 +2,43 @@ import React, { useMemo } from 'react';
 import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useOpportunityInboxState } from '../hooks/useOpportunityInboxState.js';
+import { useI18n } from '../utils/i18n.jsx';
 
-const TAB_OPTIONS = [
-  { key: 'all', label: 'Tümü' },
-  { key: 'now', label: 'Şimdi' },
-  { key: 'networking', label: 'Networking' },
-  { key: 'jobs', label: 'İşler' },
-  { key: 'updates', label: 'Güncellemeler' }
-];
-
-function normalizeTab(value) {
+function normalizeTab(value, tabOptions) {
   const raw = String(value || '').trim().toLowerCase();
-  return TAB_OPTIONS.some((item) => item.key === raw) ? raw : 'all';
+  return tabOptions.some((item) => item.key === raw) ? raw : 'all';
 }
 
-function priorityLabel(value) {
-  if (value === 'now') return 'Şimdi';
-  if (value === 'soon') return 'Sıradaki';
-  return 'Takipte tut';
-}
-
-function categoryLabel(value) {
-  if (value === 'jobs') return 'İş';
-  if (value === 'updates') return 'Güncelleme';
-  return 'Networking';
-}
-
-function EmptyState({ tab }) {
+function EmptyState({ tab, t }) {
   const actionHref = tab === 'jobs' ? '/new/jobs' : tab === 'updates' ? '/new/notifications' : '/new/explore';
-  const actionLabel = tab === 'jobs' ? 'İş ilanlarına git' : tab === 'updates' ? 'Bildirimleri aç' : 'Yeni kişileri keşfet';
+  const actionLabel = tab === 'jobs' ? t('opportunity_action_jobs') : tab === 'updates' ? t('opportunity_action_notifications') : t('opportunity_action_discover');
   return (
     <div className="network-empty-state">
-      <strong>Şu anda bu sekmede bir fırsat görünmüyor.</strong>
-      <span>Yeni hareketler geldikçe bu alan tek bir aksiyon kuyruğu gibi güncellenecek.</span>
+      <strong>{t('opportunity_empty_title')}</strong>
+      <span>{t('opportunity_empty_description')}</span>
       <Link className="btn ghost" to={actionHref}>{actionLabel}</Link>
     </div>
   );
 }
 
-function OpportunityCard({ item }) {
+function OpportunityCard({ item, t }) {
+  const priorityLabel = item.priority_bucket === 'now' ? t('opportunity_priority_now') : item.priority_bucket === 'soon' ? t('opportunity_priority_soon') : t('opportunity_priority_follow');
+  const categoryLabel = item.category === 'jobs' ? t('opportunity_category_job') : item.category === 'updates' ? t('opportunity_category_update') : t('opportunity_category_networking');
   return (
     <article className="opportunity-card panel">
       <div className="opportunity-card-head">
         <div className="opportunity-chip-row">
-          <span className="chip">{priorityLabel(item.priority_bucket)}</span>
-          <span className="chip">{categoryLabel(item.category)}</span>
+          <span className="chip">{priorityLabel}</span>
+          <span className="chip">{categoryLabel}</span>
         </div>
-        <div className="opportunity-score">Skor {Math.round(Number(item.score || 0))}</div>
+        <div className="opportunity-score">{t('opportunity_score_label')}{Math.round(Number(item.score || 0))}</div>
       </div>
       <div className="opportunity-card-body panel-body">
         <h3>{item.title}</h3>
         {item.summary ? <p className="opportunity-summary">{item.summary}</p> : null}
         {item.why_now ? (
           <div className="opportunity-why">
-            <strong>Neden şimdi?</strong>
+            <strong>{t('opportunity_why_now_label')}</strong>
             <span>{item.why_now}</span>
           </div>
         ) : null}
@@ -65,7 +48,7 @@ function OpportunityCard({ item }) {
           </div>
         ) : null}
         <div className="opportunity-actions">
-          {item.target?.href ? <Link className="btn primary" to={item.target.href}>{item.primary_action?.label || item.target.label || 'Aç'}</Link> : null}
+          {item.target?.href ? <Link className="btn primary" to={item.target.href}>{item.primary_action?.label || item.target.label || t('opportunity_action_open')}</Link> : null}
         </div>
       </div>
     </article>
@@ -73,20 +56,30 @@ function OpportunityCard({ item }) {
 }
 
 export default function OpportunityInboxPage() {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = normalizeTab(searchParams.get('tab'));
+
+  const TAB_OPTIONS = useMemo(() => [
+    { key: 'all', label: t('opportunity_tab_all') },
+    { key: 'now', label: t('opportunity_tab_now') },
+    { key: 'networking', label: t('opportunity_tab_networking') },
+    { key: 'jobs', label: t('opportunity_tab_jobs') },
+    { key: 'updates', label: t('opportunity_tab_updates') }
+  ], [t]);
+
+  const activeTab = normalizeTab(searchParams.get('tab'), TAB_OPTIONS);
   const { state, actions } = useOpportunityInboxState(activeTab);
   const counts = state.summary || {};
 
   const heroStats = useMemo(() => ([
-    { label: 'Toplam fırsat', value: Number(counts.all || 0) },
-    { label: 'Şimdi aksiyon', value: Number(counts.now || 0) },
-    { label: 'Networking', value: Number(counts.networking || 0) },
-    { label: 'İşler', value: Number(counts.jobs || 0) }
-  ]), [counts]);
+    { label: t('opportunity_stat_total'), value: Number(counts.all || 0) },
+    { label: t('opportunity_stat_action_now'), value: Number(counts.now || 0) },
+    { label: t('opportunity_stat_networking'), value: Number(counts.networking || 0) },
+    { label: t('opportunity_stat_jobs'), value: Number(counts.jobs || 0) }
+  ]), [counts, t]);
 
   function selectTab(nextTab) {
-    const next = normalizeTab(nextTab);
+    const next = normalizeTab(nextTab, TAB_OPTIONS);
     const params = new URLSearchParams(searchParams);
     if (next === 'all') params.delete('tab');
     else params.set('tab', next);
@@ -94,12 +87,12 @@ export default function OpportunityInboxPage() {
   }
 
   return (
-    <Layout title="Fırsat Merkezi">
+    <Layout title={t('opportunity_page_title')}>
       <section className="network-hero opportunity-hero">
         <div className="network-hero-copy">
-          <span className="network-eyebrow">Opportunity inbox</span>
-          <h2>En yüksek değerli bir sonraki hamleni tek yerde gör</h2>
-          <p>Networking, mentorluk, iş fırsatları ve kritik güncellemeler tek bir sıralı aksiyon akışı olarak burada birleşir.</p>
+          <span className="network-eyebrow">{t('opportunity_hero_eyebrow')}</span>
+          <h2>{t('opportunity_hero_title')}</h2>
+          <p>{t('opportunity_hero_description')}</p>
           <div className="network-inline-stats">
             {heroStats.map((stat) => (
               <div className="network-inline-stat" key={stat.label}>
@@ -110,17 +103,17 @@ export default function OpportunityInboxPage() {
           </div>
         </div>
         <div className="network-hero-actions">
-          <Link className="btn ghost" to="/new/network/hub">Eski ağ merkezini aç</Link>
-          <Link className="btn ghost" to="/new/jobs">İş ilanlarına git</Link>
+          <Link className="btn ghost" to="/new/network/hub">{t('opportunity_action_old_hub')}</Link>
+          <Link className="btn ghost" to="/new/jobs">{t('opportunity_action_jobs')}</Link>
         </div>
       </section>
 
       <section className="panel network-section-card">
         <div className="network-section-head">
           <div>
-            <span className="network-section-kicker">Öncelik filtresi</span>
-            <h3>Bugün neye odaklanacağını seç</h3>
-            <p>Bu sekmeler aynı veriyi farklı operasyon lensleriyle gösterir.</p>
+            <span className="network-section-kicker">{t('opportunity_section_filter_kicker')}</span>
+            <h3>{t('opportunity_section_filter_title')}</h3>
+            <p>{t('opportunity_section_filter_description')}</p>
           </div>
           <div className="network-window-tabs">
             {TAB_OPTIONS.map((tab) => (
@@ -141,23 +134,23 @@ export default function OpportunityInboxPage() {
         <div className="panel error">
           <div className="panel-body opportunity-error-row">
             <span>{state.error}</span>
-            <button className="btn ghost" onClick={() => actions.reload()} type="button">Tekrar dene</button>
+            <button className="btn ghost" onClick={() => actions.reload()} type="button">{t('opportunity_action_retry')}</button>
           </div>
         </div>
       ) : null}
 
-      {state.loading ? <div className="network-empty-state network-loading-state"><strong>Fırsatlar hazırlanıyor...</strong><span>Veriler networking, işler ve güncellemeler arasından toplanıyor.</span></div> : null}
+      {state.loading ? <div className="network-empty-state network-loading-state"><strong>{t('opportunity_loading_preparing')}</strong><span>{t('opportunity_loading_description')}</span></div> : null}
 
-      {!state.loading && state.items.length === 0 ? <EmptyState tab={activeTab} /> : null}
+      {!state.loading && state.items.length === 0 ? <EmptyState tab={activeTab} t={t} /> : null}
 
       <div className="opportunity-grid">
-        {state.items.map((item) => <OpportunityCard item={item} key={item.id} />)}
+        {state.items.map((item) => <OpportunityCard item={item} key={item.id} t={t} />)}
       </div>
 
       {!state.loading && state.hasMore ? (
         <div className="opportunity-load-more">
           <button className="btn ghost" disabled={state.loadingMore} onClick={() => actions.loadMore()} type="button">
-            {state.loadingMore ? 'Yükleniyor...' : 'Daha fazla fırsat göster'}
+            {state.loadingMore ? t('loading') : t('opportunity_action_load_more')}
           </button>
         </div>
       ) : null}

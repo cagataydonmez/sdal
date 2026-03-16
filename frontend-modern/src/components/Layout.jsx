@@ -169,7 +169,7 @@ export default function Layout({ children, title, right }) {
           pushToast({
             id: `notification-${candidate.id}`,
             tone: candidate.isActionable ? 'accent' : 'info',
-            title: candidate.category === 'events' ? 'Etkinlik bildirimi' : candidate.category === 'jobs' ? 'İlan bildirimi' : candidate.category === 'groups' ? 'Grup bildirimi' : 'Bildirim',
+            title: candidate.category === 'events' ? t('notification_toast_events') : candidate.category === 'jobs' ? t('notification_toast_jobs') : candidate.category === 'groups' ? t('notification_toast_groups') : t('notification_toast_default'),
             message: `@${candidate.kadi || 'uye'} ${candidate.message || ''}`.trim(),
             href: candidate.href || '/new/notifications',
             notificationId: Number(candidate.id || 0),

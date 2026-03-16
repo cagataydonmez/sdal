@@ -82,28 +82,28 @@ export default function MemberDetailPage() {
       ? t('connection_withdraw')
       : t('connection_request');
   const networkingHeading = incomingConnectionId
-    ? 'Bu profil senden bağlantı cevabı bekliyor'
+    ? t('member_networking_waiting_title')
     : outgoingRequestId
-      ? 'Bağlantı isteği gönderildi'
+      ? t('member_networking_sent_title')
       : canConnect
-        ? 'Önce bağlantıyı kur, sonra ağı genişlet'
-        : 'Networking aksiyonları sınırlı'
+        ? t('member_networking_connect_title')
+        : t('member_networking_limited_title')
   ;
   const networkingHint = incomingConnectionId
-    ? 'Bağlantıyı kabul edersen mesajlaşma ve diğer networking akışları daha net hale gelir.'
+    ? t('member_networking_waiting_hint')
     : outgoingRequestId
-      ? 'İstek beklemede. Bu sırada mentorluk veya Teacher Network ilişkisini ayrıca yönetebilirsin.'
+      ? t('member_networking_sent_hint')
       : canConnect
-        ? 'Bu bölümden bağlantı isteği, mentorluk talebi ve Teacher Network ilişkisini öncelik sırasıyla yönetebilirsin.'
-        : 'Bağlantı isteği doğrulanmış profiller için açılıyor. Diğer aksiyonlar profil tipine göre gösterilir.'
+        ? t('member_networking_connect_hint')
+        : t('member_networking_limited_hint')
   ;
   const arrivalContext = String(searchParams.get('context') || '').trim().toLowerCase();
   const arrivalMessage = arrivalContext === 'connection_accepted'
-    ? 'Bu üye bağlantı isteğini kabul etti. İstersen şimdi mesajlaşmayı başlatabilir veya diğer networking adımlarına geçebilirsin.'
+    ? t('member_arrival_connection_accepted')
     : arrivalContext === 'mentorship_accepted'
-      ? 'Bu üye mentorluk isteğini kabul etti. Sonraki en doğru adım net bir mesajla beklentini paylaşmak.'
+      ? t('member_arrival_mentorship_accepted')
       : arrivalContext === 'follow'
-        ? 'Bu üye seni takip etmeye başladı. Profili inceleyip istersen bağlantı veya mesaj akışını başlatabilirsin.'
+        ? t('member_arrival_follow')
         : '';
 
   return (
@@ -129,7 +129,7 @@ export default function MemberDetailPage() {
           <div>{member.imza}</div>
           {arrivalMessage ? (
             <div className="notification-focus-inline-panel">
-              <strong>Bildirim bağlamı</strong>
+              <strong>{t('member_arrival_context_label')}</strong>
               <div className="muted">{arrivalMessage}</div>
             </div>
           ) : null}
@@ -137,9 +137,9 @@ export default function MemberDetailPage() {
           {error ? <div className="error">{error}</div> : null}
           <div className="member-detail-actions">
             <div className="member-detail-action-group">
-              <div className="member-detail-action-heading">İletişim</div>
+              <div className="member-detail-action-heading">{t('member_section_communication')}</div>
               <div className="member-detail-action-copy">
-                Bu bölüm doğrudan erişim ve mesajlaşma aksiyonlarını içerir.
+                {t('member_section_communication_desc')}
               </div>
               <div className="composer-actions">
                 {canMessage ? <Link className="btn primary" to={`/new/messages/compose?to=${member.id}`}>{t('member_send_message')}</Link> : null}

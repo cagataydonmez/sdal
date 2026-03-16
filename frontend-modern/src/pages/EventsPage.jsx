@@ -30,29 +30,29 @@ function mergeUniqueById(prev, next) {
   return Array.from(map.values());
 }
 
-function notificationFocusCopy(focus, canManageEvent) {
+function notificationFocusCopy(focus, canManageEvent, t) {
   const normalizedFocus = String(focus || '').trim().toLowerCase();
   if (normalizedFocus === 'response') {
     return canManageEvent
       ? {
-          title: 'Yanıt akışı',
-          message: 'Bu bildirim seni etkinliğin yanıt akışına getirdi. Katılımcı durumunu, görünürlük ayarlarını ve bildirim araçlarını buradan yönetebilirsin.'
+          title: t('event_notification_response_title'),
+          message: t('event_notification_response_message')
         }
       : {
-          title: 'Katılım yanıtı',
-          message: 'Bu bildirim seni etkinlik yanıt alanına getirdi. Katılacağını veya katılamayacağını burada hızlıca güncelleyebilirsin.'
+          title: t('event_notification_attendance_title'),
+          message: t('event_notification_attendance_message')
         };
   }
   if (normalizedFocus === 'comments') {
     return {
-      title: 'Yorum akışı',
-      message: 'Bu bildirim etkinlik yorumlarına bağlı. Yorum geçmişini gözden geçirip gerekirse burada cevap verebilirsin.'
+      title: t('event_notification_comments_title'),
+      message: t('event_notification_comments_message')
     };
   }
   if (normalizedFocus === 'details') {
     return {
-      title: 'Etkinlik güncellemesi',
-      message: 'Bu bildirim etkinliğin detaylarına bağlı. Tarih, yer ve son duyuru akışı bu kart içinde odakta.'
+      title: t('event_notification_update_title'),
+      message: t('event_notification_update_message')
     };
   }
   return null;
@@ -202,14 +202,14 @@ export default function EventsPage() {
       });
       const count = Number(res.count || 0);
       if (mode === 'reminder') {
-        setStatus(count > 0 ? `${count} katılımcıya hatırlatma gönderildi.` : 'Hatırlatma gönderilecek katılımcı bulunamadı.');
+        setStatus(count > 0 ? t('event_notify_reminder_sent', { count }) : t('event_notify_reminder_not_found'));
       } else if (mode === 'starts_soon') {
-        setStatus(count > 0 ? `${count} katılımcıya “başlıyor” bildirimi gönderildi.` : 'Başlıyor bildirimi gönderilecek katılımcı bulunamadı.');
+        setStatus(count > 0 ? t('event_notify_starts_soon_sent', { count }) : t('event_notify_starts_soon_not_found'));
       } else {
         setStatus(t('events_notify_count', { count }));
       }
     } catch (err) {
-      setError(err.message || 'Etkinlik bildirimi gönderilemedi.');
+      setError(err.message || t('event_notify_failed'));
     } finally {
       setNotifyBusyId(0);
     }
@@ -269,11 +269,11 @@ export default function EventsPage() {
           >
             <h3>{e.title}</h3>
             <div className="panel-body">
-              {focusedEventId === Number(e.id || 0) && notificationId && notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0)) ? (
+              {focusedEventId === Number(e.id || 0) && notificationId && notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0), t) ? (
                 <div className="panel notification-focus-inline-panel notification-focus-card">
                   <div className="panel-body">
-                    <strong>{notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0)).title}</strong>
-                    <p className="muted">{notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0)).message}</p>
+                    <strong>{notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0), t).title}</strong>
+                    <p className="muted">{notificationFocusCopy(focusedNotificationFocus, isAdmin || Number(e.created_by || 0) === Number(user?.id || 0), t).message}</p>
                   </div>
                 </div>
               ) : null}

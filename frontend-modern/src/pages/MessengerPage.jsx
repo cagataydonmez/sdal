@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { useI18n } from '../utils/i18n.jsx';
 
 function stripHtml(value) {
   return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -21,6 +22,7 @@ function deliveryState(message, mine) {
 
 export default function MessengerPage() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const currentUserId = asInt(user?.id);
   const [threads, setThreads] = useState([]);
   const [selectedThreadId, setSelectedThreadId] = useState(null);
@@ -64,7 +66,7 @@ export default function MessengerPage() {
         setSelectedThreadId(next[0]?.id || null);
       }
     } catch (err) {
-      if (!silent) setError(String(err?.message || 'Sohbet listesi yüklenemedi.'));
+      if (!silent) setError(String(err?.message || t('messenger_error_threads_load')));
     } finally {
       if (!silent) setLoadingThreads(false);
     }
@@ -91,7 +93,7 @@ export default function MessengerPage() {
       });
       await loadThreads(true);
     } catch (err) {
-      setError(String(err?.message || 'Mesajlar yüklenemedi.'));
+      setError(String(err?.message || t('messenger_error_messages_load')));
     } finally {
       setLoadingMessages(false);
     }
@@ -196,7 +198,7 @@ export default function MessengerPage() {
         await loadMessages(payload.threadId);
       }
     } catch (err) {
-      setError(String(err?.message || 'Sohbet başlatılamadı.'));
+      setError(String(err?.message || t('messenger_error_thread_create')));
     }
   }
 
@@ -227,26 +229,26 @@ export default function MessengerPage() {
       await loadThreads(true);
       await loadMessages(selectedThreadId);
     } catch (err) {
-      setError(String(err?.message || 'Mesaj gönderilemedi.'));
+      setError(String(err?.message || t('messenger_error_send')));
     } finally {
       setSending(false);
     }
   }
 
   return (
-    <Layout title="SDAL Messenger">
+    <Layout title={t('messenger_page_title')}>
       <div className="messenger-shell">
         <aside className="messenger-sidebar panel">
           <div className="panel-body">
             <input
               className="input"
-              placeholder="Sohbet ara"
+              placeholder={t('messenger_search_threads_placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <input
               className="input"
-              placeholder="Yeni sohbet için üye ara"
+              placeholder={t('messenger_search_contacts_placeholder')}
               value={contactSearch}
               onChange={(e) => setContactSearch(e.target.value)}
             />
@@ -262,8 +264,8 @@ export default function MessengerPage() {
             ) : null}
 
             <div className="list messenger-thread-list">
-              {loadingThreads ? <div className="muted">Yükleniyor...</div> : null}
-              {!loadingThreads && !threads.length ? <div className="muted">Sohbet bulunamadı.</div> : null}
+              {loadingThreads ? <div className="muted">{t('loading')}</div> : null}
+              {!loadingThreads && !threads.length ? <div className="muted">{t('messenger_empty_threads')}</div> : null}
               {threads.map((thread) => {
                 const active = String(thread.id) === String(selectedThreadId);
                 return (
@@ -277,7 +279,7 @@ export default function MessengerPage() {
                       <span className="meta">{thread?.lastMessage?.createdAt || ''}</span>
                     </div>
                     <div className="row">
-                      <span className="message-snippet">{stripHtml(thread?.lastMessage?.body || 'Mesajlaşma başlat')}</span>
+                      <span className="message-snippet">{stripHtml(thread?.lastMessage?.body || t('messenger_no_message_snippet'))}</span>
                       {(thread?.unreadCount || 0) > 0 ? <span className="messenger-badge">{thread.unreadCount}</span> : null}
                     </div>
                   </button>
@@ -290,10 +292,10 @@ export default function MessengerPage() {
         <section className="messenger-main panel">
           <div className="panel-body messenger-main-body">
             <div className="messenger-main-head">
-              <h3>{selectedThread ? `@${selectedThread?.peer?.kadi || 'uye'}` : 'Sohbet seçin'}</h3>
+              <h3>{selectedThread ? `@${selectedThread?.peer?.kadi || 'uye'}` : t('messenger_select_thread_title')}</h3>
             </div>
             <div className="messenger-messages">
-              {!loadingMessages && !messages.length ? <div className="muted">Henüz mesaj yok.</div> : null}
+              {!loadingMessages && !messages.length ? <div className="muted">{t('messenger_empty_messages')}</div> : null}
               {messages.map((m) => {
                 const senderId = asInt(m?.senderId ?? m?.sender_id);
                 const peerId = asInt(selectedThread?.peer?.id);
@@ -302,7 +304,7 @@ export default function MessengerPage() {
                 const mineByApi = asInt(m?.isMine ?? m?.is_mine ?? m?.ismine) === 1;
                 const mine = mineByApi || mineBySession || mineByPeer;
                 const state = deliveryState(m, mine);
-                const stateLabel = state === 'read' ? 'okundu' : state === 'delivered' ? 'iletildi' : 'gonderildi';
+                const stateLabel = state === 'read' ? t('messenger_state_read') : state === 'delivered' ? t('messenger_state_delivered') : t('messenger_state_sent');
                 const createdAt = m?.createdAt || m?.created_at || '';
                 return (
                   <div key={m.id} className={`messenger-bubble-row ${mine ? 'mine' : 'theirs'}`}>
@@ -326,7 +328,7 @@ export default function MessengerPage() {
               <textarea
                 className="input"
                 rows={2}
-                placeholder="Mesaj yaz"
+                placeholder={t('messenger_composer_placeholder')}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -338,7 +340,7 @@ export default function MessengerPage() {
                 disabled={!selectedThreadId}
               />
               <button className="btn primary" onClick={sendMessage} disabled={!selectedThreadId || !draft.trim() || sending}>
-                {sending ? 'Gönderiliyor...' : 'Gönder'}
+                {sending ? t('sending') : t('messenger_send')}
               </button>
             </div>
             {error ? <div className="error">{error}</div> : null}
@@ -348,12 +350,12 @@ export default function MessengerPage() {
       {selectedMessageMeta ? createPortal(
         <div className="messenger-meta-overlay" onClick={() => setSelectedMessageMeta(null)}>
           <div className="messenger-meta-card" onClick={(e) => e.stopPropagation()}>
-            <h4>Mesaj detayı</h4>
-            <div className="messenger-meta-row"><span>Yazıldı (cihaz)</span><strong>{selectedMessageMeta.clientWrittenAt || selectedMessageMeta.client_written_at || selectedMessageMeta.createdAt || selectedMessageMeta.created_at || 'bilgi yok'}</strong></div>
-            <div className="messenger-meta-row"><span>Sunucuya ulaştı</span><strong>{selectedMessageMeta.serverReceivedAt || selectedMessageMeta.server_received_at || selectedMessageMeta.createdAt || selectedMessageMeta.created_at || 'bilgi yok'}</strong></div>
-            <div className="messenger-meta-row"><span>Karşıya iletildi</span><strong>{selectedMessageMeta.deliveredAt || selectedMessageMeta.delivered_at || 'henüz iletilmedi'}</strong></div>
-            <div className="messenger-meta-row"><span>Okundu</span><strong>{selectedMessageMeta.readAt || selectedMessageMeta.read_at || 'henüz okunmadı'}</strong></div>
-            <button className="btn" onClick={() => setSelectedMessageMeta(null)}>Kapat</button>
+            <h4>{t('messenger_meta_title')}</h4>
+            <div className="messenger-meta-row"><span>{t('messenger_meta_written')}</span><strong>{selectedMessageMeta.clientWrittenAt || selectedMessageMeta.client_written_at || selectedMessageMeta.createdAt || selectedMessageMeta.created_at || t('messenger_meta_no_info')}</strong></div>
+            <div className="messenger-meta-row"><span>{t('messenger_meta_received')}</span><strong>{selectedMessageMeta.serverReceivedAt || selectedMessageMeta.server_received_at || selectedMessageMeta.createdAt || selectedMessageMeta.created_at || t('messenger_meta_no_info')}</strong></div>
+            <div className="messenger-meta-row"><span>{t('messenger_meta_delivered')}</span><strong>{selectedMessageMeta.deliveredAt || selectedMessageMeta.delivered_at || t('messenger_meta_not_delivered')}</strong></div>
+            <div className="messenger-meta-row"><span>{t('messenger_meta_read')}</span><strong>{selectedMessageMeta.readAt || selectedMessageMeta.read_at || t('messenger_meta_not_read')}</strong></div>
+            <button className="btn" onClick={() => setSelectedMessageMeta(null)}>{t('close')}</button>
           </div>
         </div>
       , document.body) : null}
