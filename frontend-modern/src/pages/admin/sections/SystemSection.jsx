@@ -464,7 +464,7 @@ export default function SystemSection({ isAdmin = false }) {
               Copy complete.
               {copyOnlyResult.tables !== undefined ? ` Tables: ${copyOnlyResult.tables}.` : ''}
               {copyOnlyResult.rows !== undefined ? ` Rows: ${copyOnlyResult.rows}.` : ''}
-              {(copyOnlyResult.errors || []).length ? ` Errors: ${copyOnlyResult.errors.join(', ')}.` : ''}
+              {(copyOnlyResult.errors || []).length ? ` Errors: ${copyOnlyResult.errors.map(e => e.table ? `${e.table}: ${e.message}` : JSON.stringify(e)).join(', ')}.` : ''}
             </div>
           ) : null}
         </div>
