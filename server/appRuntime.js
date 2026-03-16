@@ -60,7 +60,7 @@ import { createMediaRuntime } from './src/uploads/createMediaRuntime.js';
 import { consumeUploadQuota } from './src/infra/uploadQuota.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
-import { pgQuery } from './src/infra/postgresPool.js';
+import { pgQuery, getPostgresPool } from './src/infra/postgresPool.js';
 import {
   buildMemberTrustBadges,
   buildScoredNetworkSuggestion,
@@ -155,6 +155,7 @@ const dbAdminRuntime = createDbAdminRuntime({
   resetDbConnection,
   checkPostgresHealth,
   pgQuery,
+  getPgPool: getPostgresPool,
   writeAppLog
 });
 const { dbBackupIncomingDir } = dbAdminRuntime;

@@ -13,6 +13,7 @@ export function createDbAdminRuntime({
   resetDbConnection,
   checkPostgresHealth,
   pgQuery,
+  getPgPool,
   writeAppLog
 }) {
   const isPostgresDb = dbDriver === 'postgres';
@@ -423,6 +424,140 @@ export function createDbAdminRuntime({
     fs.renameSync(tmpPath, filePath);
   }
 
+  function pgValueForSqlite(val) {
+    if (val === null || val === undefined) return null;
+    if (typeof val === 'boolean') return val ? 1 : 0;
+    if (val instanceof Date) return val.toISOString();
+    if (typeof val === 'object') return JSON.stringify(val);
+    return val;
+  }
+
+  async function copyDbDataAcrossDrivers(sourceDriver, targetDriver) {
+    if (sourceDriver === targetDriver) throw new Error('Source and target drivers must be different.');
+    if (sourceDriver !== 'sqlite' && sourceDriver !== 'postgres') throw new Error(`Unknown source driver: ${sourceDriver}`);
+    if (targetDriver !== 'sqlite' && targetDriver !== 'postgres') throw new Error(`Unknown target driver: ${targetDriver}`);
+
+    const BATCH_SIZE = 500;
+    const stats = { tables: 0, rows: 0, errors: [] };
+
+    if (sourceDriver === 'sqlite' && targetDriver === 'postgres') {
+      const pool = getPgPool ? getPgPool() : null;
+      if (!pool) throw new Error('PostgreSQL pool not available. Set DATABASE_URL.');
+
+      const sqliteDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+      try {
+        const tables = sqliteDb.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY rowid"
+        ).all().map(r => r.name);
+
+        for (const table of tables) {
+          try {
+            const rows = sqliteDb.prepare(`SELECT * FROM "${table}"`).all();
+            if (rows.length === 0) { stats.tables++; continue; }
+
+            const columns = Object.keys(rows[0]);
+            const colList = columns.map(c => `"${c}"`).join(', ');
+
+            for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+              const batch = rows.slice(i, i + BATCH_SIZE);
+              const client = await pool.connect();
+              try {
+                await client.query('BEGIN');
+                try { await client.query('SET LOCAL session_replication_role = replica'); } catch { /* best effort */ }
+                for (const row of batch) {
+                  const vals = columns.map(c => row[c]);
+                  const placeholders = vals.map((_, idx) => `$${idx + 1}`).join(', ');
+                  await client.query(
+                    `INSERT INTO "${table}" (${colList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
+                    vals
+                  );
+                }
+                await client.query('COMMIT');
+                stats.rows += batch.length;
+              } catch (batchErr) {
+                await client.query('ROLLBACK').catch(() => {});
+                throw batchErr;
+              } finally {
+                client.release();
+              }
+            }
+            stats.tables++;
+          } catch (tableErr) {
+            stats.errors.push({ table, message: tableErr?.message || 'unknown' });
+          }
+        }
+
+        // Reset PG sequences to avoid ID collisions after copy
+        try {
+          const seqResult = await pgQuery(`
+            SELECT s.relname AS sequence_name, t.relname AS table_name, a.attname AS column_name
+            FROM pg_class s
+            JOIN pg_depend d ON d.objid = s.oid
+            JOIN pg_class t ON t.oid = d.refobjid
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = d.refobjsubid
+            WHERE s.relkind = 'S' AND d.deptype = 'a'
+              AND t.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+          `);
+          for (const seq of (seqResult.rows || [])) {
+            try {
+              await pgQuery(
+                `SELECT setval($1, COALESCE((SELECT MAX("${seq.column_name}") FROM "${seq.table_name}"), 1))`,
+                [seq.sequence_name]
+              );
+            } catch { /* best effort */ }
+          }
+        } catch { /* best effort */ }
+
+      } finally {
+        sqliteDb.close();
+      }
+
+    } else if (sourceDriver === 'postgres' && targetDriver === 'sqlite') {
+      const tablesResult = await pgQuery(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
+      );
+      const tables = tablesResult.rows.map(r => r.table_name);
+
+      const sqliteDb = new Database(dbPath, { fileMustExist: true });
+      try {
+        sqliteDb.pragma('foreign_keys = OFF');
+        sqliteDb.pragma('journal_mode = WAL');
+
+        for (const table of tables) {
+          try {
+            const rowsResult = await pgQuery(`SELECT * FROM "${table}"`);
+            const rows = rowsResult.rows;
+            if (rows.length === 0) { stats.tables++; continue; }
+
+            const columns = Object.keys(rows[0]);
+            const colList = columns.map(c => `"${c}"`).join(', ');
+            const placeholders = columns.map(() => '?').join(', ');
+
+            const stmt = sqliteDb.prepare(`INSERT OR IGNORE INTO "${table}" (${colList}) VALUES (${placeholders})`);
+            const insertBatch = sqliteDb.transaction((batch) => {
+              for (const row of batch) {
+                stmt.run(columns.map(c => pgValueForSqlite(row[c])));
+              }
+            });
+
+            for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+              insertBatch(rows.slice(i, i + BATCH_SIZE));
+              stats.rows += Math.min(BATCH_SIZE, rows.length - i);
+            }
+            stats.tables++;
+          } catch (tableErr) {
+            stats.errors.push({ table, message: tableErr?.message || 'unknown' });
+          }
+        }
+      } finally {
+        try { sqliteDb.pragma('foreign_keys = ON'); } catch { /* no-op */ }
+        sqliteDb.close();
+      }
+    }
+
+    return stats;
+  }
+
   function scheduleDbDriverSwitchRestart(meta = {}) {
     if (String(process.env.NODE_ENV || '').toLowerCase() === 'test') return;
     const timer = setTimeout(() => {
@@ -468,6 +603,7 @@ export function createDbAdminRuntime({
     issueDbDriverSwitchChallenge,
     consumeDbDriverSwitchChallenge,
     writeEnvUpdates,
-    scheduleDbDriverSwitchRestart
+    scheduleDbDriverSwitchRestart,
+    copyDbDataAcrossDrivers
   };
 }
