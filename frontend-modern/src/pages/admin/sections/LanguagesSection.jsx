@@ -26,13 +26,13 @@ export default function LanguagesSection({ isAdmin = false }) {
       <div className="panel">
         <div className="panel-body">
           <div className="tabs-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {TABS.map((t) => (
+            {TABS.map((tabItem) => (
               <button
-                key={t.key}
-                className={`btn btn-sm ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setTab(t.key)}
+                key={tabItem.key}
+                className={`btn btn-sm ${tab === tabItem.key ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setTab(tabItem.key)}
               >
-                {t(t.label)}
+                {t(tabItem.label)}
               </button>
             ))}
           </div>
