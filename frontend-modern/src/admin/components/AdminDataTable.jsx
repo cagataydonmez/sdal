@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '../../utils/i18n.jsx';
 
 function getRowId(row, rowKey) {
   if (typeof rowKey === 'function') return rowKey(row);
@@ -19,6 +20,7 @@ export default function AdminDataTable({
   onPageChange,
   onRowClick
 }) {
+  const { t } = useI18n();
   const hasRows = Array.isArray(rows) && rows.length > 0;
   const allSelected = hasRows && rows.every((row) => selectedIds.has(getRowId(row, rowKey)));
 
@@ -38,7 +40,7 @@ export default function AdminDataTable({
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={columns.length + (selectable ? 1 : 0)} className="muted">Loading...</td>
+              <td colSpan={columns.length + (selectable ? 1 : 0)} className="muted">{t('loading')}</td>
             </tr>
           ) : null}
           {!loading && !hasRows ? (
@@ -69,10 +71,10 @@ export default function AdminDataTable({
       </table>
       {pagination ? (
         <div className="ops-table-pagination">
-          <button className="btn ghost" disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)}>Previous</button>
-          <span className="chip">Page {pagination.page} / {pagination.pages || 1}</span>
-          <span className="chip">Total {pagination.total || 0}</span>
-          <button className="btn ghost" disabled={(pagination.page || 1) >= (pagination.pages || 1)} onClick={() => onPageChange?.(pagination.page + 1)}>Next</button>
+          <button className="btn ghost" disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)}>{t('Önceki')}</button>
+          <span className="chip">{t('Sayfa')} {pagination.page} / {pagination.pages || 1}</span>
+          <span className="chip">{t('Toplam')} {pagination.total || 0}</span>
+          <button className="btn ghost" disabled={(pagination.page || 1) >= (pagination.pages || 1)} onClick={() => onPageChange?.(pagination.page + 1)}>{t('Sonraki')}</button>
         </div>
       ) : null}
     </div>

@@ -5,6 +5,7 @@ import useAdminQueryState from '../../../admin/hooks/useAdminQueryState.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 import AdminFilterBar from '../../../admin/components/AdminFilterBar.jsx';
 import AdminBulkActionsBar from '../../../admin/components/AdminBulkActionsBar.jsx';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
@@ -29,14 +30,15 @@ function photoPreviewUrl(fileName, width = 400) {
   return `/api/media/kucukresim?width=${width}&file=${encodeURIComponent(fileName)}`;
 }
 
-function toUserStatus(row) {
-  if (Number(row?.yasak || 0) === 1) return 'banned';
-  if (Number(row?.aktiv || 0) === 1) return 'active';
-  return 'pending';
+function toUserStatus(row, t) {
+  if (Number(row?.yasak || 0) === 1) return t('yasaklı');
+  if (Number(row?.aktiv || 0) === 1) return t('aktif');
+  return t('beklemede');
 }
 
 /* ─── Content Preview Modal ─── */
 function ContentPreviewModal({ item, kind, onClose }) {
+  const { t } = useI18n();
   if (!item) return null;
 
   const previewMap = {
@@ -57,18 +59,18 @@ function ContentPreviewModal({ item, kind, onClose }) {
     <div className="content-preview-backdrop" onClick={onClose}>
       <div className="content-preview-modal" onClick={(e) => e.stopPropagation()}>
         <div className="content-preview-header">
-          <h4>Preview — {KIND_CONFIG[kind]?.label || kind}</h4>
-          <button className="btn ghost" onClick={onClose}>Close</button>
+          <h4>{t('Önizleme')} - {t(KIND_CONFIG[kind]?.labelKey || kind)}</h4>
+          <button className="btn ghost" onClick={onClose}>{t('Kapat')}</button>
         </div>
         <div className="content-preview-body">
-          {PreviewComponent ? <PreviewComponent item={item} /> : <pre>{JSON.stringify(item, null, 2)}</pre>}
+          {PreviewComponent ? <PreviewComponent item={item} t={t} /> : <pre>{JSON.stringify(item, null, 2)}</pre>}
         </div>
       </div>
     </div>
   , document.body);
 }
 
-function PostPreview({ item }) {
+function PostPreview({ item, t }) {
   return (
     <article className="post-card">
       <div className="post-header">
@@ -88,7 +90,7 @@ function PostPreview({ item }) {
         {item.content ? (
           <div className="post-rich-body" dangerouslySetInnerHTML={{ __html: item.content }} />
         ) : (
-          <div className="muted">(empty)</div>
+          <div className="muted">{t('(boş)')}</div>
         )}
         {item.image && <img className="post-image" src={imageUrl(item.image)} alt="" loading="lazy" />}
       </div>
@@ -96,7 +98,7 @@ function PostPreview({ item }) {
   );
 }
 
-function StoryPreview({ item }) {
+function StoryPreview({ item, t }) {
   return (
     <div className="content-preview-story">
       <div className="content-preview-story-frame">
@@ -115,14 +117,14 @@ function StoryPreview({ item }) {
         )}
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>
           {formatDate(item.created_at)}
-          {item.expires_at && <span> — Expires {formatDate(item.expires_at)}</span>}
+          {item.expires_at && <span> - {t('Bitiş')} {formatDate(item.expires_at)}</span>}
         </div>
       </div>
     </div>
   );
 }
 
-function CommentPreview({ item }) {
+function CommentPreview({ item, t }) {
   return (
     <div className="content-preview-comment">
       <div className="comment-line" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -131,7 +133,7 @@ function CommentPreview({ item }) {
           <div className="name" style={{ fontWeight: 700 }}>@{item.kadi}</div>
           <div dangerouslySetInnerHTML={{ __html: item.body || '' }} />
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            Post #{item.post_id} — {formatDate(item.created_at)}
+            {t('Gönderi')} #{item.post_id} - {formatDate(item.created_at)}
           </div>
         </div>
       </div>
@@ -153,15 +155,15 @@ function ChatPreview({ item }) {
   );
 }
 
-function MessagePreview({ item }) {
+function MessagePreview({ item, t }) {
   return (
     <div className="content-preview-message">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
-          <span style={{ fontWeight: 700 }}>From:</span> @{item.kimden_kadi}
+          <span style={{ fontWeight: 700 }}>{t('Kimden')}:</span> @{item.kimden_kadi}
         </div>
         <div>
-          <span style={{ fontWeight: 700 }}>To:</span> @{item.kime_kadi}
+          <span style={{ fontWeight: 700 }}>{t('Kime')}:</span> @{item.kime_kadi}
         </div>
       </div>
       {item.konu && (
@@ -180,7 +182,7 @@ function MessagePreview({ item }) {
   );
 }
 
-function GroupPreview({ item }) {
+function GroupPreview({ item, t }) {
   return (
     <div className="content-preview-group">
       {item.cover_image && (
@@ -189,41 +191,41 @@ function GroupPreview({ item }) {
       <h3>{item.name}</h3>
       {item.description && <p>{item.description}</p>}
       <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-        Owner: @{item.owner_kadi || '-'} — Created {formatDate(item.created_at)}
+        {t('Sahibi')}: @{item.owner_kadi || '-'} - {t('Oluşturulma')} {formatDate(item.created_at)}
       </div>
     </div>
   );
 }
 
-function EventPreview({ item }) {
+function EventPreview({ item, t }) {
   return (
     <div className="content-preview-event">
       <h3>{item.title}</h3>
       {item.description && <p>{item.description}</p>}
-      {item.location && <div><span style={{ fontWeight: 700 }}>Location:</span> {item.location}</div>}
+      {item.location && <div><span style={{ fontWeight: 700 }}>{t('Konum')}:</span> {item.location}</div>}
       <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-        Starts: {formatDate(item.starts_at)} — By @{item.creator_kadi || '-'}
-        <br />Status: {Number(item.approved || 0) === 1 ? 'Approved' : 'Pending'}
+        {t('Başlangıç')}: {formatDate(item.starts_at)} - {t('Oluşturan')} @{item.creator_kadi || '-'}
+        <br />{t('Durum')}: {Number(item.approved || 0) === 1 ? t('Onaylandı') : t('Beklemede')}
       </div>
     </div>
   );
 }
 
-function AnnouncementPreview({ item }) {
+function AnnouncementPreview({ item, t }) {
   return (
     <div className="content-preview-announcement">
       <h3>{item.title}</h3>
       {item.body && <div dangerouslySetInnerHTML={{ __html: item.body }} />}
       <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-        By @{item.creator_kadi || '-'} — {formatDate(item.created_at)}
-        <br />Status: {Number(item.approved || 0) === 1 ? 'Approved' : 'Pending'}
+        {t('Oluşturan')} @{item.creator_kadi || '-'} - {formatDate(item.created_at)}
+        <br />{t('Durum')}: {Number(item.approved || 0) === 1 ? t('Onaylandı') : t('Beklemede')}
       </div>
     </div>
   );
 }
 
-function UserPreview({ item }) {
-  const status = toUserStatus(item);
+function UserPreview({ item, t }) {
+  const status = toUserStatus(item, t);
   return (
     <div className="content-preview-user">
       <div className="panel">
@@ -241,8 +243,8 @@ function UserPreview({ item }) {
           <div className="handle" style={{ marginBottom: 8 }}>@{item.kadi}</div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
             <span className="chip">{status}</span>
-            <span className="chip">{item.role || 'user'}</span>
-            {item.mezuniyetyili && <span className="chip">Cohort: {item.mezuniyetyili}</span>}
+            <span className="chip">{item.role || t('kullanıcı')}</span>
+            {item.mezuniyetyili && <span className="chip">{t('Mezuniyet Yılı')}: {item.mezuniyetyili}</span>}
           </div>
         </div>
       </div>
@@ -250,43 +252,43 @@ function UserPreview({ item }) {
         <div className="list">
           {item.email && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>Email</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('E-posta')}</span>
               <span>{item.email}</span>
             </div>
           )}
           {item.sehir && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>City</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Şehir')}</span>
               <span>{item.sehir}</span>
             </div>
           )}
           {item.meslek && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>Profession</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Meslek')}</span>
               <span>{item.meslek}</span>
             </div>
           )}
           {item.universite && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>University</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Üniversite')}</span>
               <span>{item.universite}</span>
             </div>
           )}
           {item.websitesi && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>Website</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Web sitesi')}</span>
               <span>{item.websitesi}</span>
             </div>
           )}
           {item.engagement_score != null && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>Engagement</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Etkileşim')}</span>
               <span>{Number(item.engagement_score || 0).toFixed(2)}</span>
             </div>
           )}
           {item.sontarih && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>Last seen</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Son görülme')}</span>
               <span>{formatDate(item.sontarih)}</span>
             </div>
           )}
@@ -296,7 +298,7 @@ function UserPreview({ item }) {
   );
 }
 
-function PhotoPreview({ item }) {
+function PhotoPreview({ item, t }) {
   const src = photoPreviewUrl(item.dosyaadi, 1200);
   return (
     <div className="content-preview-photo">
@@ -307,19 +309,19 @@ function PhotoPreview({ item }) {
           style={{ width: '100%', maxHeight: 500, objectFit: 'contain', borderRadius: 12, marginBottom: 12 }}
         />
       ) : (
-        <div className="muted" style={{ marginBottom: 12 }}>(no image file)</div>
+        <div className="muted" style={{ marginBottom: 12 }}>{t('(görsel dosyası yok)')}</div>
       )}
-      <h3>{item.baslik || '(untitled)'}</h3>
+      <h3>{item.baslik || t('(başlıksız)')}</h3>
       {item.aciklama && <p>{item.aciklama}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
         <span className="chip">
-          {Number(item.aktif || 0) === 1 ? 'Active' : 'Pending'}
+          {Number(item.aktif || 0) === 1 ? t('Aktif') : t('Beklemede')}
         </span>
         {item.categoryName && <span className="chip">{item.categoryName}</span>}
-        {item.uploaderName && <span className="chip">By @{item.uploaderName}</span>}
+        {item.uploaderName && <span className="chip">{t('Yükleyen')} @{item.uploaderName}</span>}
       </div>
       <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-        Views: {item.hit || 0} — Comments: {item.commentCount || 0} — Uploaded {formatDate(item.tarih)}
+        {t('Görüntülenme')}: {item.hit || 0} - {t('Yorumlar')}: {item.commentCount || 0} - {t('Yüklendi')} {formatDate(item.tarih)}
       </div>
     </div>
   );
@@ -328,7 +330,7 @@ function PhotoPreview({ item }) {
 /* ─── Kind configuration ─── */
 const KIND_CONFIG = {
   posts: {
-    label: 'Posts',
+    labelKey: 'Gönderiler',
     endpoint: '/api/new/admin/posts',
     deleteEndpoint: (id) => `/api/new/admin/posts/${id}`,
     permView: 'posts',
@@ -336,7 +338,7 @@ const KIND_CONFIG = {
     defaultLimit: 50
   },
   stories: {
-    label: 'Stories',
+    labelKey: 'Hikayeler',
     endpoint: '/api/new/admin/stories',
     deleteEndpoint: (id) => `/api/new/admin/stories/${id}`,
     permView: 'stories',
@@ -344,7 +346,7 @@ const KIND_CONFIG = {
     defaultLimit: 50
   },
   comments: {
-    label: 'Comments',
+    labelKey: 'Yorumlar',
     endpoint: '/api/new/admin/comments',
     deleteEndpoint: (id) => `/api/new/admin/comments/${id}`,
     permView: 'posts',
@@ -352,7 +354,7 @@ const KIND_CONFIG = {
     defaultLimit: 50
   },
   users: {
-    label: 'Users',
+    labelKey: 'Kullanıcılar',
     endpoint: '/api/admin/users/lists',
     deleteEndpoint: (id) => `/api/admin/users/${id}`,
     permView: 'users',
@@ -361,7 +363,7 @@ const KIND_CONFIG = {
     customLoader: true
   },
   photos: {
-    label: 'Photos',
+    labelKey: 'Fotoğraflar',
     endpoint: '/api/admin/album/photos',
     deleteEndpoint: (id) => `/api/admin/album/photos/${id}`,
     permView: 'photos',
@@ -370,7 +372,7 @@ const KIND_CONFIG = {
     customLoader: true
   },
   chat: {
-    label: 'Chat Messages',
+    labelKey: 'Sohbet Mesajları',
     endpoint: '/api/new/admin/chat/messages',
     deleteEndpoint: (id) => `/api/new/admin/chat/messages/${id}`,
     permView: 'chat',
@@ -378,7 +380,7 @@ const KIND_CONFIG = {
     defaultLimit: 80
   },
   messages: {
-    label: 'Direct Messages',
+    labelKey: 'Direkt Mesajlar',
     endpoint: '/api/new/admin/messages',
     deleteEndpoint: (id) => `/api/new/admin/messages/${id}`,
     permView: 'messages',
@@ -386,7 +388,7 @@ const KIND_CONFIG = {
     defaultLimit: 80
   },
   groups: {
-    label: 'Groups',
+    labelKey: 'Gruplar',
     endpoint: '/api/new/admin/groups',
     deleteEndpoint: (id) => `/api/new/admin/groups/${id}`,
     permView: 'groups',
@@ -394,14 +396,14 @@ const KIND_CONFIG = {
     defaultLimit: 40
   },
   events: {
-    label: 'Events',
+    labelKey: 'Etkinlikler',
     endpoint: '/api/new/events',
     permView: 'events',
     defaultLimit: 40,
     clientFilter: true
   },
   announcements: {
-    label: 'Announcements',
+    labelKey: 'Duyurular',
     endpoint: '/api/new/announcements',
     permView: 'announcements',
     defaultLimit: 40,
@@ -427,6 +429,7 @@ export default function ContentModerationSection({
   canDeletePhotos = false,
   isAdmin = false
 }) {
+  const { t } = useI18n();
   const permissions = useMemo(() => ({
     posts: { view: canViewPosts, delete: canDeletePosts },
     stories: { view: canViewStories, delete: canDeleteStories },
@@ -541,11 +544,11 @@ export default function ContentModerationSection({
       }
       setSelectedIds(new Set());
     } catch (err) {
-      setError(err.message || 'Content could not be loaded.');
+      setError(err.message || t('İçerik yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [availableKinds.length, kind, query, userFilter, userSort, photoScope]);
+  }, [availableKinds.length, kind, query, t, userFilter, userSort, photoScope]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setSelectedIds(new Set()); }, [kind]);
@@ -617,8 +620,8 @@ export default function ContentModerationSection({
   }, [load]);
 
   const previewBtn = useCallback((row) => (
-    <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setPreviewItem(row); }}>Preview</button>
-  ), []);
+    <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setPreviewItem(row); }}>{t('Önizleme')}</button>
+  ), [t]);
 
   const columns = useMemo(() => {
     const actionsCol = (row) => {
@@ -626,9 +629,9 @@ export default function ContentModerationSection({
         return (
           <div className="ops-inline-actions">
             {previewBtn(row)}
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, true).catch(() => {}); }}>Approve</button>
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, false).catch(() => {}); }}>Reject</button>
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeEvent(row.id).catch(() => {}); }}>Delete</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, true).catch(() => {}); }}>{t('Onayla')}</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, false).catch(() => {}); }}>{t('Reddet')}</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeEvent(row.id).catch(() => {}); }}>{t('Sil')}</button>
           </div>
         );
       }
@@ -636,9 +639,9 @@ export default function ContentModerationSection({
         return (
           <div className="ops-inline-actions">
             {previewBtn(row)}
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, true).catch(() => {}); }}>Approve</button>
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, false).catch(() => {}); }}>Reject</button>
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeAnnouncement(row.id).catch(() => {}); }}>Delete</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, true).catch(() => {}); }}>{t('Onayla')}</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, false).catch(() => {}); }}>{t('Reddet')}</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeAnnouncement(row.id).catch(() => {}); }}>{t('Sil')}</button>
           </div>
         );
       }
@@ -646,8 +649,8 @@ export default function ContentModerationSection({
         <div className="ops-inline-actions">
           {previewBtn(row)}
           {canDelete
-            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>Delete</button>
-            : <span className="muted">Read only</span>}
+            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>{t('Sil')}</button>
+            : <span className="muted">{t('Salt okunur')}</span>}
         </div>
       );
     };
@@ -656,29 +659,29 @@ export default function ContentModerationSection({
       case 'posts':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'kadi', label: 'Author', render: (r) => `@${r.kadi || '-'}` },
-          { key: 'content', label: 'Content', render: (r) => stripHtml(r.content).slice(0, 140) || '(empty)' },
-          { key: 'image', label: 'Image', render: (r) => r.image ? <img src={imageUrl(r.image)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
-          { key: 'created_at', label: 'Created', render: (r) => formatDate(r.created_at) },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'kadi', label: t('Yazar'), render: (r) => `@${r.kadi || '-'}` },
+          { key: 'content', label: t('İçerik'), render: (r) => stripHtml(r.content).slice(0, 140) || t('(boş)') },
+          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
+          { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'stories':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'kadi', label: 'Author', render: (r) => `@${r.kadi || '-'}` },
-          { key: 'caption', label: 'Caption', render: (r) => (r.caption || '').slice(0, 100) || '(no caption)' },
-          { key: 'image', label: 'Image', render: (r) => r.image ? <img src={imageUrl(r.image)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
-          { key: 'created_at', label: 'Created', render: (r) => formatDate(r.created_at) },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'kadi', label: t('Yazar'), render: (r) => `@${r.kadi || '-'}` },
+          { key: 'caption', label: t('Açıklama'), render: (r) => (r.caption || '').slice(0, 100) || t('(açıklama yok)') },
+          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
+          { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'comments':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'kadi', label: 'Author', render: (r) => `@${r.kadi || '-'}` },
-          { key: 'body', label: 'Comment', render: (r) => stripHtml(r.body).slice(0, 140) || '(empty)' },
-          { key: 'post_id', label: 'Post ID' },
-          { key: 'created_at', label: 'Created', render: (r) => formatDate(r.created_at) },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'kadi', label: t('Yazar'), render: (r) => `@${r.kadi || '-'}` },
+          { key: 'body', label: t('Yorum'), render: (r) => stripHtml(r.body).slice(0, 140) || t('(boş)') },
+          { key: 'post_id', label: t('Gönderi ID') },
+          { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'users':
         return [
@@ -687,100 +690,100 @@ export default function ContentModerationSection({
             label: '',
             render: (r) => <img src={avatarUrl(r.resim)} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
           },
-          { key: 'kadi', label: 'Username', render: (r) => `@${r.kadi || '-'}` },
+          { key: 'kadi', label: t('Kullanıcı Adı'), render: (r) => `@${r.kadi || '-'}` },
           {
             key: 'name',
-            label: 'Name',
+            label: t('Ad Soyad'),
             render: (r) => `${r.isim || ''} ${r.soyisim || ''}`.trim() || '-'
           },
-          { key: 'mezuniyetyili', label: 'Cohort' },
+          { key: 'mezuniyetyili', label: t('Mezuniyet Yılı') },
           {
             key: 'status',
-            label: 'Status',
-            render: (r) => toUserStatus(r)
+            label: t('Durum'),
+            render: (r) => toUserStatus(r, t)
           },
-          { key: 'role', label: 'Role', render: (r) => r.role || 'user' },
+          { key: 'role', label: t('Rol'), render: (r) => r.role || t('kullanıcı') },
           {
             key: 'engagement_score',
-            label: 'Score',
+            label: t('Skor'),
             render: (r) => Number(r.engagement_score || 0).toFixed(2)
           },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'photos':
         return [
           {
             key: 'preview_thumb',
-            label: 'Thumb',
+            label: t('Önizleme'),
             render: (r) => r.dosyaadi
               ? <img src={photoPreviewUrl(r.dosyaadi, 120)} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
               : <span className="muted">-</span>
           },
           { key: 'id', label: 'ID' },
-          { key: 'baslik', label: 'Title', render: (r) => r.baslik || '(untitled)' },
-          { key: 'categoryName', label: 'Category', render: (r) => r.categoryName || '-' },
-          { key: 'uploaderName', label: 'Uploader', render: (r) => r.uploaderName ? `@${r.uploaderName}` : '-' },
+          { key: 'baslik', label: t('Başlık'), render: (r) => r.baslik || t('(başlıksız)') },
+          { key: 'categoryName', label: t('Kategori'), render: (r) => r.categoryName || '-' },
+          { key: 'uploaderName', label: t('Yükleyen'), render: (r) => r.uploaderName ? `@${r.uploaderName}` : '-' },
           {
             key: 'aktif',
-            label: 'Status',
-            render: (r) => Number(r.aktif || 0) === 1 ? 'Active' : 'Pending'
+            label: t('Durum'),
+            render: (r) => Number(r.aktif || 0) === 1 ? t('Aktif') : t('Beklemede')
           },
-          { key: 'hit', label: 'Views', render: (r) => r.hit || 0 },
-          { key: 'tarih', label: 'Created', render: (r) => formatDate(r.tarih) },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'hit', label: t('Görüntülenme'), render: (r) => r.hit || 0 },
+          { key: 'tarih', label: t('Oluşturulma'), render: (r) => formatDate(r.tarih) },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'chat':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'kadi', label: 'User', render: (r) => `@${r.kadi || '-'}` },
-          { key: 'message', label: 'Message', render: (r) => stripHtml(r.message).slice(0, 140) || '(empty)' },
-          { key: 'created_at', label: 'Created', render: (r) => formatDate(r.created_at) },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'kadi', label: t('Kullanıcı'), render: (r) => `@${r.kadi || '-'}` },
+          { key: 'message', label: t('Mesaj'), render: (r) => stripHtml(r.message).slice(0, 140) || t('(boş)') },
+          { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'messages':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'kimden_kadi', label: 'From', render: (r) => `@${r.kimden_kadi || '-'}` },
-          { key: 'kime_kadi', label: 'To', render: (r) => `@${r.kime_kadi || '-'}` },
-          { key: 'konu', label: 'Subject', render: (r) => (r.konu || '').slice(0, 80) || '(no subject)' },
-          { key: 'tarih', label: 'Date', render: (r) => formatDate(r.tarih) },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'kimden_kadi', label: t('Kimden'), render: (r) => `@${r.kimden_kadi || '-'}` },
+          { key: 'kime_kadi', label: t('Kime'), render: (r) => `@${r.kime_kadi || '-'}` },
+          { key: 'konu', label: t('Konu'), render: (r) => (r.konu || '').slice(0, 80) || t('(konu yok)') },
+          { key: 'tarih', label: t('Tarih'), render: (r) => formatDate(r.tarih) },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'groups':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'name', label: 'Group' },
-          { key: 'owner_kadi', label: 'Owner', render: (r) => `@${r.owner_kadi || '-'}` },
-          { key: 'created_at', label: 'Created', render: (r) => formatDate(r.created_at) },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'name', label: t('Grup') },
+          { key: 'owner_kadi', label: t('Sahibi'), render: (r) => `@${r.owner_kadi || '-'}` },
+          { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'events':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'title', label: 'Title' },
-          { key: 'creator_kadi', label: 'Created by', render: (r) => `@${r.creator_kadi || '-'}` },
-          { key: 'starts_at', label: 'Starts', render: (r) => formatDate(r.starts_at) },
-          { key: 'approved', label: 'Status', render: (r) => Number(r.approved || 0) === 1 ? 'approved' : 'pending' },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'title', label: t('Başlık') },
+          { key: 'creator_kadi', label: t('Oluşturan'), render: (r) => `@${r.creator_kadi || '-'}` },
+          { key: 'starts_at', label: t('Başlangıç'), render: (r) => formatDate(r.starts_at) },
+          { key: 'approved', label: t('Durum'), render: (r) => Number(r.approved || 0) === 1 ? t('onaylandı') : t('beklemede') },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       case 'announcements':
         return [
           { key: 'id', label: 'ID' },
-          { key: 'title', label: 'Title' },
-          { key: 'creator_kadi', label: 'Created by', render: (r) => `@${r.creator_kadi || '-'}` },
-          { key: 'created_at', label: 'Created', render: (r) => formatDate(r.created_at) },
-          { key: 'approved', label: 'Status', render: (r) => Number(r.approved || 0) === 1 ? 'approved' : 'pending' },
-          { key: 'actions', label: 'Actions', render: actionsCol }
+          { key: 'title', label: t('Başlık') },
+          { key: 'creator_kadi', label: t('Oluşturan'), render: (r) => `@${r.creator_kadi || '-'}` },
+          { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
+          { key: 'approved', label: t('Durum'), render: (r) => Number(r.approved || 0) === 1 ? t('onaylandı') : t('beklemede') },
+          { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
       default:
         return [];
     }
-  }, [canDelete, kind, moderateAnnouncement, moderateEvent, previewBtn, removeAnnouncement, removeEvent, removeOne]);
+  }, [canDelete, kind, moderateAnnouncement, moderateEvent, previewBtn, removeAnnouncement, removeEvent, removeOne, t]);
 
   if (!availableKinds.length) {
     return (
       <section className="stack">
-        <div className="panel"><div className="panel-body muted">No content moderation permissions.</div></div>
+        <div className="panel"><div className="panel-body muted">{t('İçerik moderasyonu yetkiniz yok.')}</div></div>
       </section>
     );
   }
@@ -788,41 +791,41 @@ export default function ContentModerationSection({
   return (
     <section className="stack">
       <div className="ops-head-row">
-        <h3>Content Moderation</h3>
-        <button className="btn ghost" onClick={load} disabled={loading}>Refresh</button>
+        <h3>{t('İçerik Moderasyonu')}</h3>
+        <button className="btn ghost" onClick={load} disabled={loading}>{t('Yenile')}</button>
       </div>
 
       <AdminFilterBar
         searchValue={query.q}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by author or text"
+        searchPlaceholder={t('Yazar veya metin ara')}
       >
         <select className="input" value={kind} onChange={(e) => { setKind(e.target.value); setPage(1); }}>
           {availableKinds.map((k) => (
-            <option key={k} value={k}>{KIND_CONFIG[k].label}</option>
+            <option key={k} value={k}>{t(KIND_CONFIG[k].labelKey)}</option>
           ))}
         </select>
         {kind === 'users' && (
           <>
             <select className="input" value={userFilter} onChange={(e) => { setUserFilter(e.target.value); setPage(1); }}>
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="pending">Pending</option>
-              <option value="banned">Banned</option>
-              <option value="online">Online</option>
+              <option value="all">{t('Tümü')}</option>
+              <option value="active">{t('Aktif')}</option>
+              <option value="pending">{t('Beklemede')}</option>
+              <option value="banned">{t('Yasaklı')}</option>
+              <option value="online">{t('Çevrimiçi')}</option>
             </select>
             <select className="input" value={userSort} onChange={(e) => { setUserSort(e.target.value); setPage(1); }}>
-              <option value="engagement_desc">Score desc</option>
-              <option value="engagement_asc">Score asc</option>
-              <option value="recent">Recent</option>
-              <option value="name">Name</option>
+              <option value="engagement_desc">{t('Skor azalan')}</option>
+              <option value="engagement_asc">{t('Skor artan')}</option>
+              <option value="recent">{t('En yeni')}</option>
+              <option value="name">{t('Ada göre')}</option>
             </select>
           </>
         )}
         {kind === 'photos' && (
           <select className="input" value={photoScope} onChange={(e) => setPhotoScope(e.target.value)}>
-            <option value="pending">Pending only</option>
-            <option value="all">All photos</option>
+            <option value="pending">{t('Sadece bekleyenler')}</option>
+            <option value="all">{t('Tüm fotoğraflar')}</option>
           </select>
         )}
       </AdminFilterBar>
@@ -831,13 +834,13 @@ export default function ContentModerationSection({
 
       {kind === 'photos' && canDelete ? (
         <AdminBulkActionsBar selectedCount={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
-          <button className="btn" onClick={() => photoBulkAction('aktiv').catch(() => {})}>Activate</button>
-          <button className="btn" onClick={() => photoBulkAction('deaktiv').catch(() => {})}>Deactivate</button>
-          <button className="btn" onClick={() => photoBulkAction('sil').catch(() => {})}>Delete</button>
+          <button className="btn" onClick={() => photoBulkAction('aktiv').catch(() => {})}>{t('Aktifleştir')}</button>
+          <button className="btn" onClick={() => photoBulkAction('deaktiv').catch(() => {})}>{t('Pasifleştir')}</button>
+          <button className="btn" onClick={() => photoBulkAction('sil').catch(() => {})}>{t('Sil')}</button>
         </AdminBulkActionsBar>
       ) : canDelete && config.deleteEndpoint ? (
         <AdminBulkActionsBar selectedCount={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
-          <button className="btn" onClick={() => removeSelected().catch(() => {})}>Delete selected</button>
+          <button className="btn" onClick={() => removeSelected().catch(() => {})}>{t('Seçilileri sil')}</button>
         </AdminBulkActionsBar>
       ) : null}
 
@@ -851,7 +854,7 @@ export default function ContentModerationSection({
         onToggleAll={toggleAll}
         pagination={meta}
         onPageChange={setPage}
-        emptyText="No moderation items."
+        emptyText={t('Moderasyon öğesi yok.')}
       />
 
       {previewItem ? (

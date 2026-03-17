@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 import AdminBulkActionsBar from '../../../admin/components/AdminBulkActionsBar.jsx';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 const DEFAULT_CATEGORY_FORM = {
   kategori: '',
@@ -15,15 +16,6 @@ const DEFAULT_PHOTO_FORM = {
   aktif: true,
   katid: ''
 };
-
-const PHOTO_SORT_OPTIONS = [
-  { value: 'aktifazalan', label: 'Status' },
-  { value: 'tarihazalan', label: 'Newest' },
-  { value: 'tarihartan', label: 'Oldest' },
-  { value: 'baslikartan', label: 'Title A-Z' },
-  { value: 'baslikazalan', label: 'Title Z-A' },
-  { value: 'hitazalan', label: 'Most viewed' }
-];
 
 function formatDate(value) {
   if (!value) return '-';
@@ -48,6 +40,15 @@ function previewUrl(fileName) {
 }
 
 export default function AlbumSection({ canManageAlbums = false }) {
+  const { t } = useI18n();
+  const photoSortOptions = useMemo(() => ([
+    { value: 'aktifazalan', label: t('Durum') },
+    { value: 'tarihazalan', label: t('En yeni') },
+    { value: 'tarihartan', label: t('En eski') },
+    { value: 'baslikartan', label: t('Başlık A-Z') },
+    { value: 'baslikazalan', label: t('Başlık Z-A') },
+    { value: 'hitazalan', label: t('En çok görüntülenen') }
+  ]), [t]);
   const [categories, setCategories] = useState([]);
   const [counts, setCounts] = useState({});
   const [categoryForm, setCategoryForm] = useState(DEFAULT_CATEGORY_FORM);
@@ -99,11 +100,11 @@ export default function AlbumSection({ canManageAlbums = false }) {
         setCategories(data.categories);
       }
     } catch (err) {
-      setError(err.message || 'Album photos could not be loaded.');
+      setError(err.message || t('Albüm fotoğrafları yüklenemedi.'));
     } finally {
       setLoadingPhotos(false);
     }
-  }, [categories.length, photoFilters]);
+  }, [categories.length, photoFilters, t]);
 
   const refreshAll = useCallback(async () => {
     setStatus('');
@@ -120,25 +121,25 @@ export default function AlbumSection({ canManageAlbums = false }) {
       const data = await adminClient.get(`/api/admin/album/photos/${photoId}/comments`);
       setPhotoComments(data.comments || []);
     } catch (err) {
-      setStatus(err.message || 'Photo comments could not be loaded.');
+      setStatus(err.message || t('Fotoğraf yorumları yüklenemedi.'));
     } finally {
       setLoadingComments(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!canManageAlbums) return;
     loadCategories().catch((err) => {
-      setError(err.message || 'Album administration could not be loaded.');
+      setError(err.message || t('Albüm yönetimi yüklenemedi.'));
     });
-  }, [canManageAlbums, loadCategories]);
+  }, [canManageAlbums, loadCategories, t]);
 
   useEffect(() => {
     if (!canManageAlbums) return;
     loadPhotos().catch((err) => {
-      setError(err.message || 'Album photos could not be loaded.');
+      setError(err.message || t('Albüm fotoğrafları yüklenemedi.'));
     });
-  }, [canManageAlbums, loadPhotos]);
+  }, [canManageAlbums, loadPhotos, t]);
 
   useEffect(() => {
     if (!selectedPhoto) {
@@ -160,9 +161,9 @@ export default function AlbumSection({ canManageAlbums = false }) {
       return;
     }
     loadComments(selectedPhotoId).catch((err) => {
-      setStatus(err.message || 'Photo comments could not be loaded.');
+      setStatus(err.message || t('Fotoğraf yorumları yüklenemedi.'));
     });
-  }, [loadComments, selectedPhotoId]);
+  }, [loadComments, selectedPhotoId, t]);
 
   const startCategoryEdit = useCallback((row) => {
     setEditingCategoryId(Number(row.id));
@@ -181,12 +182,12 @@ export default function AlbumSection({ canManageAlbums = false }) {
         aktif: categoryForm.aktif ? 1 : 0
       });
       setCategoryForm(DEFAULT_CATEGORY_FORM);
-      setStatus('Album category added.');
+      setStatus(t('Albüm kategorisi eklendi.'));
       await loadCategories();
     } catch (err) {
-      setStatus(err.message || 'Album category create failed.');
+      setStatus(err.message || t('Albüm kategorisi oluşturulamadı.'));
     }
-  }, [categoryForm, loadCategories]);
+  }, [categoryForm, loadCategories, t]);
 
   const saveCategory = useCallback(async () => {
     if (!editingCategoryId) return;
@@ -198,12 +199,12 @@ export default function AlbumSection({ canManageAlbums = false }) {
       });
       setEditingCategoryId(null);
       setEditingCategoryForm(DEFAULT_CATEGORY_FORM);
-      setStatus('Album category updated.');
+      setStatus(t('Albüm kategorisi güncellendi.'));
       await Promise.all([loadCategories(), loadPhotos()]);
     } catch (err) {
-      setStatus(err.message || 'Album category update failed.');
+      setStatus(err.message || t('Albüm kategorisi güncellenemedi.'));
     }
-  }, [editingCategoryForm, editingCategoryId, loadCategories, loadPhotos]);
+  }, [editingCategoryForm, editingCategoryId, loadCategories, loadPhotos, t]);
 
   const deleteCategory = useCallback(async (id) => {
     try {
@@ -211,12 +212,12 @@ export default function AlbumSection({ canManageAlbums = false }) {
       if (String(photoFilters.kid || '') === String(id)) {
         setPhotoFilters((prev) => ({ ...prev, scope: 'all', kid: '' }));
       }
-      setStatus('Album category deleted.');
+      setStatus(t('Albüm kategorisi silindi.'));
       await Promise.all([loadCategories(), loadPhotos()]);
     } catch (err) {
-      setStatus(err.message || 'Album category delete failed.');
+      setStatus(err.message || t('Albüm kategorisi silinemedi.'));
     }
-  }, [loadCategories, loadPhotos, photoFilters.kid]);
+  }, [loadCategories, loadPhotos, photoFilters.kid, t]);
 
   const toggleRow = useCallback((row, checked) => {
     const id = Number(row.id);
@@ -243,13 +244,13 @@ export default function AlbumSection({ canManageAlbums = false }) {
         ids: Array.from(selectedIds),
         action
       });
-      setStatus(action === 'sil' ? 'Selected photos deleted.' : 'Selected photos updated.');
+      setStatus(action === 'sil' ? t('Seçili fotoğraflar silindi.') : t('Seçili fotoğraflar güncellendi.'));
       await Promise.all([loadCategories(), loadPhotos()]);
       setSelectedPhotoId(null);
     } catch (err) {
-      setStatus(err.message || 'Photo bulk action failed.');
+      setStatus(err.message || t('Fotoğraf toplu işlemi başarısız.'));
     }
-  }, [loadCategories, loadPhotos, selectedIds]);
+  }, [loadCategories, loadPhotos, selectedIds, t]);
 
   const savePhoto = useCallback(async () => {
     if (!selectedPhotoId) return;
@@ -260,12 +261,12 @@ export default function AlbumSection({ canManageAlbums = false }) {
         aktif: photoForm.aktif ? 1 : 0,
         katid: photoForm.katid
       });
-      setStatus('Photo updated.');
+      setStatus(t('Fotoğraf güncellendi.'));
       await Promise.all([loadCategories(), loadPhotos()]);
     } catch (err) {
-      setStatus(err.message || 'Photo update failed.');
+      setStatus(err.message || t('Fotoğraf güncellenemedi.'));
     }
-  }, [loadCategories, loadPhotos, photoForm, selectedPhotoId]);
+  }, [loadCategories, loadPhotos, photoForm, selectedPhotoId, t]);
 
   const deletePhoto = useCallback(async (id) => {
     try {
@@ -273,110 +274,110 @@ export default function AlbumSection({ canManageAlbums = false }) {
       if (Number(selectedPhotoId) === Number(id)) {
         setSelectedPhotoId(null);
       }
-      setStatus('Photo deleted.');
+      setStatus(t('Fotoğraf silindi.'));
       await Promise.all([loadCategories(), loadPhotos()]);
     } catch (err) {
-      setStatus(err.message || 'Photo delete failed.');
+      setStatus(err.message || t('Fotoğraf silinemedi.'));
     }
-  }, [loadCategories, loadPhotos, selectedPhotoId]);
+  }, [loadCategories, loadPhotos, selectedPhotoId, t]);
 
   const deleteComment = useCallback(async (photoId, commentId) => {
     try {
       await adminClient.del(`/api/admin/album/photos/${photoId}/comments/${commentId}`);
-      setStatus('Comment deleted.');
+      setStatus(t('Yorum silindi.'));
       await Promise.all([loadComments(photoId), loadPhotos()]);
     } catch (err) {
-      setStatus(err.message || 'Comment delete failed.');
+      setStatus(err.message || t('Yorum silinemedi.'));
     }
-  }, [loadComments, loadPhotos]);
+  }, [loadComments, loadPhotos, t]);
 
   const categoryColumns = useMemo(() => ([
-    { key: 'kategori', label: 'Category' },
-    { key: 'aciklama', label: 'Description' },
+    { key: 'kategori', label: t('Kategori') },
+    { key: 'aciklama', label: t('Açıklama') },
     {
       key: 'aktif',
-      label: 'Status',
-      render: (row) => Number(row.aktif || 0) === 1 ? 'Active' : 'Inactive'
+      label: t('Durum'),
+      render: (row) => Number(row.aktif || 0) === 1 ? t('Aktif') : t('Pasif')
     },
     {
       key: 'counts',
-      label: 'Photos',
+      label: t('Fotoğraflar'),
       render: (row) => {
         const summary = counts[row.id] || { activeCount: 0, inactiveCount: 0 };
-        return `${summary.activeCount} active / ${summary.inactiveCount} pending`;
+        return `${summary.activeCount} ${t('aktif')} / ${summary.inactiveCount} ${t('beklemede')}`;
       }
     },
     {
       key: 'actions',
-      label: 'Actions',
+      label: t('Aksiyonlar'),
       render: (row) => (
         <div className="ops-inline-actions">
-          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); startCategoryEdit(row); }}>Edit</button>
-          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); deleteCategory(row.id).catch(() => {}); }}>Delete</button>
+          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); startCategoryEdit(row); }}>{t('Düzenle')}</button>
+          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); deleteCategory(row.id).catch(() => {}); }}>{t('Sil')}</button>
         </div>
       )
     }
-  ]), [counts, deleteCategory, startCategoryEdit]);
+  ]), [counts, deleteCategory, startCategoryEdit, t]);
 
   const photoColumns = useMemo(() => ([
     {
       key: 'preview',
-      label: 'Preview',
+      label: t('Önizleme'),
       render: (row) => (
         row.dosyaadi
           ? <img src={previewUrl(row.dosyaadi)} alt={row.baslik || ''} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 12 }} />
-          : <span className="muted">No file</span>
+          : <span className="muted">{t('Dosya yok')}</span>
       )
     },
     { key: 'id', label: 'ID' },
     {
       key: 'baslik',
-      label: 'Title',
-      render: (row) => row.baslik || '(untitled)'
+      label: t('Başlık'),
+      render: (row) => row.baslik || t('(başlıksız)')
     },
     {
       key: 'category',
-      label: 'Category',
+      label: t('Kategori'),
       render: (row) => categories.find((item) => String(item.id) === String(row.katid))?.kategori || '-'
     },
     {
       key: 'uploader',
-      label: 'Uploader',
+      label: t('Yükleyen'),
       render: (row) => row.uploaderName || row.ekleyenid || '-'
     },
     {
       key: 'aktif',
-      label: 'Status',
-      render: (row) => Number(row.aktif || 0) === 1 ? 'Active' : 'Pending'
+      label: t('Durum'),
+      render: (row) => Number(row.aktif || 0) === 1 ? t('Aktif') : t('Beklemede')
     },
     {
       key: 'yorum',
-      label: 'Comments',
+      label: t('Yorumlar'),
       render: (row) => Number(row.commentCount || 0)
     },
     {
       key: 'tarih',
-      label: 'Created',
+      label: t('Oluşturulma'),
       render: (row) => formatDate(row.tarih)
     },
     {
       key: 'actions',
-      label: 'Actions',
+      label: t('Aksiyonlar'),
       render: (row) => (
         <div className="ops-inline-actions">
-          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setSelectedPhotoId(Number(row.id)); }}>Edit</button>
-          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); deletePhoto(row.id).catch(() => {}); }}>Delete</button>
+          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); setSelectedPhotoId(Number(row.id)); }}>{t('Düzenle')}</button>
+          <button className="btn ghost" onClick={(e) => { e.stopPropagation(); deletePhoto(row.id).catch(() => {}); }}>{t('Sil')}</button>
         </div>
       )
     }
-  ]), [categories, deletePhoto]);
+  ]), [categories, deletePhoto, t]);
 
   const photoRows = useMemo(() => photos, [photos]);
 
   if (!canManageAlbums) {
     return (
       <section className="stack">
-        <div className="panel"><div className="panel-body muted">No album administration permissions.</div></div>
+        <div className="panel"><div className="panel-body muted">{t('Albüm yönetimi yetkiniz yok.')}</div></div>
       </section>
     );
   }
@@ -384,8 +385,8 @@ export default function AlbumSection({ canManageAlbums = false }) {
   return (
     <section className="stack">
       <div className="ops-head-row">
-        <h3>Photo Albums</h3>
-        <button className="btn ghost" onClick={() => refreshAll().catch(() => {})} disabled={loadingCategories || loadingPhotos}>Refresh</button>
+        <h3>{t('Fotoğraf Albümleri')}</h3>
+        <button className="btn ghost" onClick={() => refreshAll().catch(() => {})} disabled={loadingCategories || loadingPhotos}>{t('Yenile')}</button>
       </div>
 
       {status ? <div className="muted">{status}</div> : null}
@@ -393,46 +394,46 @@ export default function AlbumSection({ canManageAlbums = false }) {
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Album Categories</h3>
+          <h3>{t('Albüm Kategorileri')}</h3>
           <div className="ops-form-grid">
             <label>
-              <span>Name</span>
+              <span>{t('Ad')}</span>
               <input className="input" value={categoryForm.kategori} onChange={(e) => setCategoryForm((prev) => ({ ...prev, kategori: e.target.value }))} />
             </label>
             <label>
-              <span>Description</span>
+              <span>{t('Açıklama')}</span>
               <input className="input" value={categoryForm.aciklama} onChange={(e) => setCategoryForm((prev) => ({ ...prev, aciklama: e.target.value }))} />
             </label>
             <label className="ops-check-row">
               <input type="checkbox" checked={categoryForm.aktif} onChange={(e) => setCategoryForm((prev) => ({ ...prev, aktif: e.target.checked }))} />
-              <span>Active for uploads</span>
+              <span>{t('Yüklemelere açık')}</span>
             </label>
           </div>
           <div className="ops-inline-actions">
-            <button className="btn" onClick={() => createCategory().catch(() => {})}>Add category</button>
+            <button className="btn" onClick={() => createCategory().catch(() => {})}>{t('Kategori ekle')}</button>
           </div>
 
           {editingCategoryId ? (
             <div className="panel">
               <div className="panel-body stack">
-                <h3>Edit Category #{editingCategoryId}</h3>
+                <h3>{t('Kategori Düzenle #{id}', { id: editingCategoryId })}</h3>
                 <div className="ops-form-grid">
                   <label>
-                    <span>Name</span>
+                    <span>{t('Ad')}</span>
                     <input className="input" value={editingCategoryForm.kategori} onChange={(e) => setEditingCategoryForm((prev) => ({ ...prev, kategori: e.target.value }))} />
                   </label>
                   <label>
-                    <span>Description</span>
+                    <span>{t('Açıklama')}</span>
                     <input className="input" value={editingCategoryForm.aciklama} onChange={(e) => setEditingCategoryForm((prev) => ({ ...prev, aciklama: e.target.value }))} />
                   </label>
                   <label className="ops-check-row">
                     <input type="checkbox" checked={editingCategoryForm.aktif} onChange={(e) => setEditingCategoryForm((prev) => ({ ...prev, aktif: e.target.checked }))} />
-                    <span>Active</span>
+                    <span>{t('Aktif')}</span>
                   </label>
                 </div>
                 <div className="ops-inline-actions">
-                  <button className="btn" onClick={() => saveCategory().catch(() => {})}>Save category</button>
-                  <button className="btn ghost" onClick={() => { setEditingCategoryId(null); setEditingCategoryForm(DEFAULT_CATEGORY_FORM); }}>Cancel</button>
+                  <button className="btn" onClick={() => saveCategory().catch(() => {})}>{t('Kategoriyi kaydet')}</button>
+                  <button className="btn ghost" onClick={() => { setEditingCategoryId(null); setEditingCategoryForm(DEFAULT_CATEGORY_FORM); }}>{t('İptal')}</button>
                 </div>
               </div>
             </div>
@@ -442,14 +443,14 @@ export default function AlbumSection({ canManageAlbums = false }) {
             columns={categoryColumns}
             rows={categories}
             loading={loadingCategories}
-            emptyText="No album categories."
+            emptyText={t('Albüm kategorisi yok.')}
           />
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Photo Moderation</h3>
+          <h3>{t('Fotoğraf Moderasyonu')}</h3>
           <div className="ops-filter-bar">
             <div className="ops-filter-extra">
               <select className="input" value={photoFilters.scope} onChange={(e) => setPhotoFilters((prev) => ({
@@ -457,31 +458,31 @@ export default function AlbumSection({ canManageAlbums = false }) {
                 scope: e.target.value,
                 kid: e.target.value === 'category' ? prev.kid : ''
               }))}>
-                <option value="pending">Pending only</option>
-                <option value="all">All photos</option>
-                <option value="category">By category</option>
+                <option value="pending">{t('Sadece bekleyenler')}</option>
+                <option value="all">{t('Tüm fotoğraflar')}</option>
+                <option value="category">{t('Kategoriye göre')}</option>
               </select>
               {photoFilters.scope === 'category' ? (
                 <select className="input" value={photoFilters.kid} onChange={(e) => setPhotoFilters((prev) => ({ ...prev, kid: e.target.value }))}>
-                  <option value="">Choose category</option>
+                  <option value="">{t('Kategori seç')}</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>{category.kategori}</option>
                   ))}
                 </select>
               ) : null}
               <select className="input" value={photoFilters.sort} onChange={(e) => setPhotoFilters((prev) => ({ ...prev, sort: e.target.value }))}>
-                {PHOTO_SORT_OPTIONS.map((option) => (
+                {photoSortOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <button className="btn ghost" onClick={() => loadPhotos().catch(() => {})} disabled={loadingPhotos}>Reload photos</button>
+              <button className="btn ghost" onClick={() => loadPhotos().catch(() => {})} disabled={loadingPhotos}>{t('Fotoğrafları yeniden yükle')}</button>
             </div>
           </div>
 
           <AdminBulkActionsBar selectedCount={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
-            <button className="btn" onClick={() => runBulkAction('aktiv').catch(() => {})}>Activate</button>
-            <button className="btn" onClick={() => runBulkAction('deaktiv').catch(() => {})}>Deactivate</button>
-            <button className="btn" onClick={() => runBulkAction('sil').catch(() => {})}>Delete</button>
+            <button className="btn" onClick={() => runBulkAction('aktiv').catch(() => {})}>{t('Aktifleştir')}</button>
+            <button className="btn" onClick={() => runBulkAction('deaktiv').catch(() => {})}>{t('Pasifleştir')}</button>
+            <button className="btn" onClick={() => runBulkAction('sil').catch(() => {})}>{t('Sil')}</button>
           </AdminBulkActionsBar>
 
           <AdminDataTable
@@ -493,13 +494,13 @@ export default function AlbumSection({ canManageAlbums = false }) {
             onToggleRow={toggleRow}
             onToggleAll={toggleAll}
             onRowClick={(row) => setSelectedPhotoId(Number(row.id))}
-            emptyText="No album photos."
+            emptyText={t('Albüm fotoğrafı yok.')}
           />
 
           {selectedPhoto ? (
             <div className="panel">
               <div className="panel-body stack">
-                <h3>Photo #{selectedPhoto.id}</h3>
+                <h3>{t('Fotoğraf #{id}', { id: selectedPhoto.id })}</h3>
                 {selectedPhoto.dosyaadi ? (
                   <div className="panel">
                     <div className="panel-body stack">
@@ -509,20 +510,20 @@ export default function AlbumSection({ canManageAlbums = false }) {
                         style={{ width: '100%', maxHeight: 560, objectFit: 'contain', borderRadius: 16 }}
                       />
                       <div className="ops-inline-actions">
-                        <a className="btn ghost" href={`/new/albums/photo/${selectedPhoto.id}`}>Open public photo page</a>
+                        <a className="btn ghost" href={`/new/albums/photo/${selectedPhoto.id}`}>{t('Herkese açık fotoğraf sayfasını aç')}</a>
                       </div>
                     </div>
                   </div>
                 ) : null}
                 <div className="ops-form-grid">
                   <label>
-                    <span>Title</span>
+                    <span>{t('Başlık')}</span>
                     <input className="input" value={photoForm.baslik} onChange={(e) => setPhotoForm((prev) => ({ ...prev, baslik: e.target.value }))} />
                   </label>
                   <label>
-                    <span>Category</span>
+                    <span>{t('Kategori')}</span>
                     <select className="input" value={photoForm.katid} onChange={(e) => setPhotoForm((prev) => ({ ...prev, katid: e.target.value }))}>
-                      <option value="">Choose category</option>
+                      <option value="">{t('Kategori seç')}</option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>{category.kategori}</option>
                       ))}
@@ -530,31 +531,31 @@ export default function AlbumSection({ canManageAlbums = false }) {
                   </label>
                   <label className="ops-check-row">
                     <input type="checkbox" checked={photoForm.aktif} onChange={(e) => setPhotoForm((prev) => ({ ...prev, aktif: e.target.checked }))} />
-                    <span>Visible to members</span>
+                    <span>{t('Üyelere görünür')}</span>
                   </label>
                 </div>
                 <label>
-                  <span>Description</span>
+                  <span>{t('Açıklama')}</span>
                   <textarea className="input" rows={5} value={photoForm.aciklama} onChange={(e) => setPhotoForm((prev) => ({ ...prev, aciklama: e.target.value }))} />
                 </label>
                 <div className="ops-inline-actions">
-                  <button className="btn" onClick={() => savePhoto().catch(() => {})}>Save photo</button>
-                  <button className="btn ghost" onClick={() => setSelectedPhotoId(null)}>Close</button>
+                  <button className="btn" onClick={() => savePhoto().catch(() => {})}>{t('Fotoğrafı kaydet')}</button>
+                  <button className="btn ghost" onClick={() => setSelectedPhotoId(null)}>{t('Kapat')}</button>
                 </div>
 
                 <div className="panel">
                   <div className="panel-body stack">
                     <div className="ops-head-row">
-                      <h3>Comments</h3>
+                      <h3>{t('Yorumlar')}</h3>
                       <button className="btn ghost" onClick={() => loadComments(selectedPhoto.id).catch(() => {})} disabled={loadingComments}>
-                        Reload comments
+                        {t('Yorumları yeniden yükle')}
                       </button>
                     </div>
 
-                    {loadingComments ? <div className="muted">Loading comments...</div> : null}
+                    {loadingComments ? <div className="muted">{t('Yorumlar yükleniyor...')}</div> : null}
 
                     {!loadingComments && !photoComments.length ? (
-                      <div className="muted">No comments for this photo.</div>
+                      <div className="muted">{t('Bu fotoğraf için yorum yok.')}</div>
                     ) : null}
 
                     {!loadingComments && photoComments.length ? (
@@ -563,11 +564,11 @@ export default function AlbumSection({ canManageAlbums = false }) {
                           <div key={comment.id} className="panel">
                             <div className="panel-body stack">
                               <div className="ops-head-row">
-                                <strong>{comment.uyeadi || 'Member'}</strong>
+                                <strong>{comment.uyeadi || t('Üye')}</strong>
                                 <div className="ops-inline-actions">
                                   <span className="muted">{formatDate(comment.tarih)}</span>
                                   <button className="btn ghost" onClick={() => deleteComment(selectedPhoto.id, comment.id).catch(() => {})}>
-                                    Delete comment
+                                    {t('Yorumu sil')}
                                   </button>
                                 </div>
                               </div>

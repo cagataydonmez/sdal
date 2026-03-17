@@ -3,12 +3,14 @@ import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import useAdminQueryState from '../../../admin/hooks/useAdminQueryState.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 import AdminFilterBar from '../../../admin/components/AdminFilterBar.jsx';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
 }
 
 export default function GroupsEventsSection({ canViewGroups = false, canDeleteGroups = false, isAdmin = false }) {
+  const { t } = useI18n();
   const availableKinds = useMemo(() => {
     const kinds = [];
     if (canViewGroups) kinds.push('groups');
@@ -81,11 +83,11 @@ export default function GroupsEventsSection({ canViewGroups = false, canDeleteGr
         limit
       });
     } catch (err) {
-      setError(err.message || 'Groups and events data could not be loaded.');
+      setError(err.message || t('Grup ve etkinlik verileri yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [availableKinds.length, kind, query]);
+  }, [availableKinds.length, kind, query, t]);
 
   useEffect(() => {
     load();
@@ -121,24 +123,24 @@ export default function GroupsEventsSection({ canViewGroups = false, canDeleteGr
     if (kind === 'groups') {
       return [
         { key: 'id', label: 'ID' },
-        { key: 'name', label: 'Group' },
+        { key: 'name', label: t('Grup') },
         {
           key: 'owner_kadi',
-          label: 'Owner',
+          label: t('Sahip'),
           render: (row) => `@${row.owner_kadi || '-'}`
         },
-        { key: 'owner_mezuniyetyili', label: 'Owner Cohort' },
+        { key: 'owner_mezuniyetyili', label: t('Sahip Dönemi') },
         {
           key: 'created_at',
-          label: 'Created',
+          label: t('Oluşturuldu'),
           render: (row) => formatDate(row.created_at)
         },
         {
           key: 'actions',
-          label: canDeleteGroups ? 'Actions' : 'Access',
+          label: canDeleteGroups ? t('İşlemler') : t('Erişim'),
           render: (row) => (canDeleteGroups
-            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeGroup(row.id).catch(() => {}); }}>Delete</button>
-            : <span className="muted">Read only</span>)
+            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeGroup(row.id).catch(() => {}); }}>{t('delete')}</button>
+            : <span className="muted">{t('Salt okunur')}</span>)
         }
       ];
     }
@@ -146,26 +148,26 @@ export default function GroupsEventsSection({ canViewGroups = false, canDeleteGr
     if (kind === 'events') {
       return [
         { key: 'id', label: 'ID' },
-        { key: 'title', label: 'Title' },
-        { key: 'creator_kadi', label: 'Created by' },
+        { key: 'title', label: t('Başlık') },
+        { key: 'creator_kadi', label: t('Oluşturan') },
         {
           key: 'starts_at',
-          label: 'Starts',
+          label: t('Başlangıç'),
           render: (row) => formatDate(row.starts_at)
         },
         {
           key: 'approved',
-          label: 'Status',
-          render: (row) => Number(row.approved || 0) === 1 ? 'approved' : 'pending'
+          label: t('Durum'),
+          render: (row) => Number(row.approved || 0) === 1 ? t('approved') : t('pending')
         },
         {
           key: 'actions',
-          label: 'Actions',
+          label: t('İşlemler'),
           render: (row) => (
             <div className="ops-inline-actions">
-              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, true).catch(() => {}); }}>Approve</button>
-              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, false).catch(() => {}); }}>Reject</button>
-              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeEvent(row.id).catch(() => {}); }}>Delete</button>
+              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, true).catch(() => {}); }}>{t('Onayla')}</button>
+              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateEvent(row.id, false).catch(() => {}); }}>{t('Reddet')}</button>
+              <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeEvent(row.id).catch(() => {}); }}>{t('delete')}</button>
             </div>
           )
         }
@@ -174,36 +176,36 @@ export default function GroupsEventsSection({ canViewGroups = false, canDeleteGr
 
     return [
       { key: 'id', label: 'ID' },
-      { key: 'title', label: 'Title' },
-      { key: 'creator_kadi', label: 'Created by' },
+      { key: 'title', label: t('Başlık') },
+      { key: 'creator_kadi', label: t('Oluşturan') },
       {
         key: 'created_at',
-        label: 'Created',
+        label: t('Oluşturuldu'),
         render: (row) => formatDate(row.created_at)
       },
       {
         key: 'approved',
-        label: 'Status',
-        render: (row) => Number(row.approved || 0) === 1 ? 'approved' : 'pending'
+        label: t('Durum'),
+        render: (row) => Number(row.approved || 0) === 1 ? t('approved') : t('pending')
       },
       {
         key: 'actions',
-        label: 'Actions',
+        label: t('İşlemler'),
         render: (row) => (
           <div className="ops-inline-actions">
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, true).catch(() => {}); }}>Approve</button>
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, false).catch(() => {}); }}>Reject</button>
-            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeAnnouncement(row.id).catch(() => {}); }}>Delete</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, true).catch(() => {}); }}>{t('Onayla')}</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); moderateAnnouncement(row.id, false).catch(() => {}); }}>{t('Reddet')}</button>
+            <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeAnnouncement(row.id).catch(() => {}); }}>{t('delete')}</button>
           </div>
         )
       }
     ];
-  }, [canDeleteGroups, kind, moderateAnnouncement, moderateEvent, removeAnnouncement, removeEvent, removeGroup]);
+  }, [canDeleteGroups, kind, moderateAnnouncement, moderateEvent, removeAnnouncement, removeEvent, removeGroup, t]);
 
   if (!availableKinds.length) {
     return (
       <section className="stack">
-        <div className="panel"><div className="panel-body muted">No permissions for groups/events operations.</div></div>
+        <div className="panel"><div className="panel-body muted">{t('Grup/etkinlik işlemleri için yetki yok.')}</div></div>
       </section>
     );
   }
@@ -211,14 +213,14 @@ export default function GroupsEventsSection({ canViewGroups = false, canDeleteGr
   return (
     <section className="stack">
       <div className="ops-head-row">
-        <h3>Groups / Events</h3>
-        <button className="btn ghost" onClick={load} disabled={loading}>Refresh</button>
+        <h3>{t('Gruplar / Etkinlikler')}</h3>
+        <button className="btn ghost" onClick={load} disabled={loading}>{t('Yenile')}</button>
       </div>
 
       <AdminFilterBar
         searchValue={query.q}
         onSearchChange={setSearch}
-        searchPlaceholder="Search title, owner, description"
+        searchPlaceholder={t('Başlık, sahip veya açıklama ara')}
       >
         {availableKinds.length > 1 ? (
           <select
@@ -229,9 +231,9 @@ export default function GroupsEventsSection({ canViewGroups = false, canDeleteGr
               patchQuery({ page: 1 });
             }}
           >
-            {availableKinds.includes('groups') ? <option value="groups">Groups</option> : null}
-            {availableKinds.includes('events') ? <option value="events">Events</option> : null}
-            {availableKinds.includes('announcements') ? <option value="announcements">Announcements</option> : null}
+            {availableKinds.includes('groups') ? <option value="groups">{t('Gruplar')}</option> : null}
+            {availableKinds.includes('events') ? <option value="events">{t('Etkinlikler')}</option> : null}
+            {availableKinds.includes('announcements') ? <option value="announcements">{t('Duyurular')}</option> : null}
           </select>
         ) : null}
       </AdminFilterBar>
@@ -244,7 +246,7 @@ export default function GroupsEventsSection({ canViewGroups = false, canDeleteGr
         loading={loading}
         pagination={meta}
         onPageChange={setPage}
-        emptyText="No records."
+        emptyText={t('Kayıt yok.')}
       />
     </section>
   );

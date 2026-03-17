@@ -3,34 +3,19 @@ import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import useAdminQueryState from '../../../admin/hooks/useAdminQueryState.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 import AdminFilterBar from '../../../admin/components/AdminFilterBar.jsx';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
 }
 
-const RELATIONSHIP_TYPES = [
-  { value: '', label: 'All relationship types' },
-  { value: 'taught_in_class', label: 'Aynı sınıfta ders aldım' },
-  { value: 'mentor', label: 'Mentor' },
-  { value: 'advisor', label: 'Danışman' }
-];
-
-const REVIEW_STATUSES = [
-  { value: '', label: 'All review states' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'flagged', label: 'Flagged' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'merged', label: 'Merged' }
-];
-
-function reviewStatusLabel(value) {
+function reviewStatusLabel(value, t) {
   const status = String(value || '').trim().toLowerCase();
-  if (status === 'confirmed') return 'Confirmed';
-  if (status === 'flagged') return 'Flagged';
-  if (status === 'rejected') return 'Rejected';
-  if (status === 'merged') return 'Merged';
-  return 'Pending';
+  if (status === 'confirmed') return t('Onaylandı');
+  if (status === 'flagged') return t('İşaretlendi');
+  if (status === 'rejected') return t('Reddedildi');
+  if (status === 'merged') return t('Birleştirildi');
+  return t('Beklemede');
 }
 
 function confidenceLabel(value) {
@@ -39,11 +24,11 @@ function confidenceLabel(value) {
   return `${(score * 100).toFixed(0)}%`;
 }
 
-function riskLevelLabel(value) {
+function riskLevelLabel(value, t) {
   const level = String(value || '').trim().toLowerCase();
-  if (level === 'high') return 'High risk';
-  if (level === 'medium') return 'Medium risk';
-  return 'Low risk';
+  if (level === 'high') return t('Yüksek risk');
+  if (level === 'medium') return t('Orta risk');
+  return t('Düşük risk');
 }
 
 function formatAssessmentSignals(items) {
@@ -52,6 +37,21 @@ function formatAssessmentSignals(items) {
 }
 
 export default function TeacherNetworkSection() {
+  const { t } = useI18n();
+  const relationshipTypes = useMemo(() => ([
+    { value: '', label: t('Tüm ilişki tipleri') },
+    { value: 'taught_in_class', label: t('Aynı sınıfta ders aldım') },
+    { value: 'mentor', label: t('Mentor') },
+    { value: 'advisor', label: t('Danışman') }
+  ]), [t]);
+  const reviewStatuses = useMemo(() => ([
+    { value: '', label: t('Tüm inceleme durumları') },
+    { value: 'pending', label: t('Beklemede') },
+    { value: 'confirmed', label: t('Onaylandı') },
+    { value: 'flagged', label: t('İşaretlendi') },
+    { value: 'rejected', label: t('Reddedildi') },
+    { value: 'merged', label: t('Birleştirildi') }
+  ]), [t]);
   const { query, patchQuery, setSearch, setPage } = useAdminQueryState({
     q: '',
     page: 1,
@@ -74,11 +74,11 @@ export default function TeacherNetworkSection() {
       setRows(data.items || []);
       setMeta(data.meta || { page: 1, pages: 1, total: 0, limit: Number(query.limit) || 40 });
     } catch (err) {
-      setError(err.message || 'Teacher network moderation data could not be loaded.');
+      setError(err.message || t('Öğretmen ağı moderasyon verisi yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [query, t]);
 
   useEffect(() => {
     load();
@@ -114,63 +114,63 @@ export default function TeacherNetworkSection() {
       });
       load();
     } catch (err) {
-      setError(err.message || 'Teacher network review could not be updated.');
+      setError(err.message || t('Öğretmen ağı incelemesi güncellenemedi.'));
     } finally {
       setBusyId(null);
     }
-  }, [load, reviewDrafts]);
+  }, [load, reviewDrafts, t]);
 
   const columns = useMemo(() => ([
     { key: 'id', label: 'ID' },
     {
       key: 'teacher',
-      label: 'Teacher',
+      label: t('Öğretmen'),
       render: (row) => `@${row.teacher_kadi || '-'} (${row.teacher_isim || ''} ${row.teacher_soyisim || ''})`
     },
     {
       key: 'alumni',
-      label: 'Alumni',
+      label: t('Mezun'),
       render: (row) => `@${row.alumni_kadi || '-'} (${row.alumni_isim || ''} ${row.alumni_soyisim || ''})`
     },
-    { key: 'alumni_mezuniyetyili', label: 'Alumni Cohort' },
-    { key: 'relationship_type', label: 'Relationship' },
-    { key: 'class_year', label: 'Class Year' },
+    { key: 'alumni_mezuniyetyili', label: t('Mezuniyet Yılı') },
+    { key: 'relationship_type', label: t('İlişki') },
+    { key: 'class_year', label: t('Sınıf Yılı') },
     {
       key: 'audit',
-      label: 'Audit Trail',
+      label: t('Denetim Kaydı'),
       render: (row) => (
         <div className="stack">
-          <span>{reviewStatusLabel(row.review_status)}</span>
-          <span className="muted">confidence {confidenceLabel(row.confidence_score)}</span>
+          <span>{reviewStatusLabel(row.review_status, t)}</span>
+          <span className="muted">{t('güven')} {confidenceLabel(row.confidence_score)}</span>
           <span className="muted">{row.created_via || '-'}</span>
           <span className="muted">{row.source_surface || '-'}</span>
-          <span className="muted">{row.reviewer_kadi ? `reviewed by @${row.reviewer_kadi}` : 'not reviewed yet'}</span>
-          <span className="muted">{row.reviewed_at ? `reviewed ${formatDate(row.reviewed_at)}` : 'review time missing'}</span>
-          <span className="muted">{row.review_note ? `note: ${row.review_note}` : 'no review note'}</span>
-          <span className="muted">{row.merged_into_link_id ? `merged into #${row.merged_into_link_id}` : 'not merged'}</span>
-          <span className="muted">{Number(row.moderation_event_count || 0)} moderation events</span>
-          <span className="muted">{row.last_event_type ? `${row.last_event_type} at ${formatDate(row.last_event_at)}` : 'no moderation log yet'}</span>
-          <span className="muted">{riskLevelLabel(row.moderation_assessment?.risk_level)} • suggested {row.moderation_assessment?.recommended_action_label || 'Keep pending'}</span>
-          <span className="muted">{row.moderation_assessment?.decision_hint || 'No decision hint available.'}</span>
-          <span className="muted">Risks: {formatAssessmentSignals(row.moderation_assessment?.risk_signals)}</span>
-          <span className="muted">Positives: {formatAssessmentSignals(row.moderation_assessment?.positive_signals)}</span>
+          <span className="muted">{row.reviewer_kadi ? t('@{kadi} tarafından incelendi', { kadi: row.reviewer_kadi }) : t('Henüz incelenmedi')}</span>
+          <span className="muted">{row.reviewed_at ? t('İncelenme: {date}', { date: formatDate(row.reviewed_at) }) : t('İnceleme zamanı eksik')}</span>
+          <span className="muted">{row.review_note ? t('Not: {note}', { note: row.review_note }) : t('İnceleme notu yok')}</span>
+          <span className="muted">{row.merged_into_link_id ? t('#{id} içine birleştirildi', { id: row.merged_into_link_id }) : t('Birleştirilmedi')}</span>
+          <span className="muted">{t('{count} moderasyon olayı', { count: Number(row.moderation_event_count || 0) })}</span>
+          <span className="muted">{row.last_event_type ? t('{event} @ {date}', { event: row.last_event_type, date: formatDate(row.last_event_at) }) : t('Henüz moderasyon kaydı yok')}</span>
+          <span className="muted">{riskLevelLabel(row.moderation_assessment?.risk_level, t)} • {t('öneri')} {row.moderation_assessment?.recommended_action_label || t('Beklemede tut')}</span>
+          <span className="muted">{row.moderation_assessment?.decision_hint || t('Karar önerisi yok.')}</span>
+          <span className="muted">{t('Riskler')}: {formatAssessmentSignals(row.moderation_assessment?.risk_signals)}</span>
+          <span className="muted">{t('Pozitifler')}: {formatAssessmentSignals(row.moderation_assessment?.positive_signals)}</span>
         </div>
       )
     },
     {
       key: 'created_at',
-      label: 'Created',
+      label: t('Oluşturulma'),
       render: (row) => formatDate(row.created_at)
     },
     {
       key: 'actions',
-      label: 'Actions',
+      label: t('Aksiyonlar'),
       render: (row) => (
         <div className="stack">
           <input
             className="input"
             value={reviewDrafts[row.id] || ''}
-            placeholder="Optional review note"
+            placeholder={t('İsteğe bağlı inceleme notu')}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
               const value = e.target.value;
@@ -179,43 +179,43 @@ export default function TeacherNetworkSection() {
           />
           <div className="composer-actions">
             <button className="btn ghost" disabled={busyId === row.id || row.review_status === 'confirmed'} onClick={(e) => { e.stopPropagation(); updateReviewStatus(row.id, 'confirmed'); }}>
-              Confirm
+              {t('Onayla')}
             </button>
             <button className="btn ghost" disabled={busyId === row.id || row.review_status === 'flagged'} onClick={(e) => { e.stopPropagation(); updateReviewStatus(row.id, 'flagged'); }}>
-              Flag
+              {t('İşaretle')}
             </button>
             <button className="btn ghost" disabled={busyId === row.id || row.review_status === 'rejected'} onClick={(e) => { e.stopPropagation(); updateReviewStatus(row.id, 'rejected'); }}>
-              Reject
+              {t('Reddet')}
             </button>
             <button className="btn ghost" disabled={busyId === row.id || row.review_status === 'merged'} onClick={(e) => { e.stopPropagation(); updateReviewStatus(row.id, 'merged'); }}>
-              Merge
+              {t('Birleştir')}
             </button>
             <button className="btn ghost" disabled={busyId === row.id || row.review_status === 'pending'} onClick={(e) => { e.stopPropagation(); updateReviewStatus(row.id, 'pending'); }}>
-              Reset
+              {t('Sıfırla')}
             </button>
           </div>
         </div>
       )
     }
-  ]), [busyId, reviewDrafts, updateReviewStatus]);
+  ]), [busyId, reviewDrafts, t, updateReviewStatus]);
 
   return (
     <section className="stack">
       <div className="ops-head-row">
-        <h3>Teacher Network Moderation</h3>
-        <button className="btn ghost" onClick={load} disabled={loading}>Refresh</button>
+        <h3>{t('Öğretmen Ağı Moderasyonu')}</h3>
+        <button className="btn ghost" onClick={load} disabled={loading}>{t('Yenile')}</button>
       </div>
 
       <AdminFilterBar
         searchValue={query.q}
         onSearchChange={setSearch}
-        searchPlaceholder="Search teacher or alumni"
+        searchPlaceholder={t('Öğretmen veya mezun ara')}
       >
         <select className="input" value={query.relationship_type || ''} onChange={(e) => patchQuery({ relationship_type: e.target.value, page: 1 })}>
-          {RELATIONSHIP_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          {relationshipTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
         </select>
         <select className="input" value={query.review_status || ''} onChange={(e) => patchQuery({ review_status: e.target.value, page: 1 })}>
-          {REVIEW_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          {reviewStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
         </select>
       </AdminFilterBar>
 
@@ -227,7 +227,7 @@ export default function TeacherNetworkSection() {
         loading={loading}
         pagination={meta}
         onPageChange={setPage}
-        emptyText="No teacher network links found."
+        emptyText={t('Öğretmen ağı bağlantısı bulunamadı.')}
       />
     </section>
   );

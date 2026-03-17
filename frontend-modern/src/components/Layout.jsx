@@ -224,7 +224,7 @@ export default function Layout({ children, title, right }) {
   }, [location.pathname]);
 
   const themeLabel = mobileThemeLabel
-    ? (mode === 'auto' ? 'Otomatik' : (mode === 'dark' ? t('theme_dark') : t('theme_light')))
+    ? (mode === 'auto' ? t('Otomatik') : (mode === 'dark' ? t('theme_dark') : t('theme_light')))
     : (mode === 'auto'
       ? t('theme_auto_with_current', { current: theme === 'dark' ? t('theme_dark') : t('theme_light') })
       : t('theme_current', { mode: mode === 'dark' ? t('theme_dark') : t('theme_light') }));
@@ -281,9 +281,9 @@ export default function Layout({ children, title, right }) {
   return (
     <div className="app-shell" data-route-family={routeMeta.family} data-route-kind={routeMeta.kind}>
       <aside className="side-nav">
-        <Link to="/new" className="brand" aria-label="SDAL home">
+        <Link to="/new" className="brand" aria-label={t('SDAL ana sayfa')}>
           <span className="brand-text">SDAL</span>
-          <span className="brand-sub">Yeni</span>
+          <span className="brand-sub">{t('Yeni')}</span>
         </Link>
         <nav>
           {navItems.map((item) => (
@@ -361,9 +361,9 @@ export default function Layout({ children, title, right }) {
               </div>
               <div className="app-toast-actions">
                 {toast.href ? (
-                  <button className="btn ghost" onClick={() => handleToastOpen(toast)}>Aç</button>
+                  <button className="btn ghost" onClick={() => handleToastOpen(toast)}>{t('open')}</button>
                 ) : null}
-                <button className="btn ghost" onClick={() => dismissToast(toast.id)}>Kapat</button>
+                <button className="btn ghost" onClick={() => dismissToast(toast.id)}>{t('close')}</button>
               </div>
             </div>
           ))}
@@ -371,9 +371,9 @@ export default function Layout({ children, title, right }) {
       ) : null}
       <aside className={`mobile-nav-drawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
         <div className="mobile-nav-head">
-          <Link to="/new" className="brand" aria-label="SDAL home" onClick={() => setMobileNavOpen(false)}>
+          <Link to="/new" className="brand" aria-label={t('SDAL ana sayfa')} onClick={() => setMobileNavOpen(false)}>
             <span className="brand-text">SDAL</span>
-            <span className="brand-sub">Yeni</span>
+            <span className="brand-sub">{t('Yeni')}</span>
           </Link>
           <button className="btn ghost" onClick={() => setMobileNavOpen(false)}>{t('close')}</button>
         </div>

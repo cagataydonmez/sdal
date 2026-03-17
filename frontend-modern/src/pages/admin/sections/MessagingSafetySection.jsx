@@ -3,6 +3,7 @@ import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import useAdminQueryState from '../../../admin/hooks/useAdminQueryState.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 import AdminFilterBar from '../../../admin/components/AdminFilterBar.jsx';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 export default function MessagingSafetySection({
   canViewChat = false,
@@ -11,6 +12,7 @@ export default function MessagingSafetySection({
   canDeleteDirectMessages = false,
   canManageTerms = false
 }) {
+  const { t } = useI18n();
   const availableKinds = useMemo(() => {
     const next = [];
     if (canViewChat) next.push('chat');
@@ -48,11 +50,11 @@ export default function MessagingSafetySection({
       setRows(data.items || []);
       setMeta(data.meta || { page: 1, pages: 1, total: (data.items || []).length, limit: query.limit });
     } catch (err) {
-      setError(err.message || 'Messaging & safety data could not be loaded.');
+      setError(err.message || t('Mesajlaşma ve güvenlik verisi yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [availableKinds.length, kind, query]);
+  }, [availableKinds.length, kind, query, t]);
 
   useEffect(() => {
     load();
@@ -84,67 +86,67 @@ export default function MessagingSafetySection({
       if (kind !== 'terms') setKind('terms');
       await load();
     } catch (err) {
-      setError(err.message || 'Blocked term could not be added.');
+      setError(err.message || t('Engellenen terim eklenemedi.'));
     }
-  }, [canManageTerms, kind, load, termInput]);
+  }, [canManageTerms, kind, load, termInput, t]);
 
   const columns = useMemo(() => {
     if (kind === 'chat') {
       return [
         { key: 'id', label: 'ID' },
-        { key: 'kadi', label: 'User' },
-        { key: 'message', label: 'Message' },
+        { key: 'kadi', label: t('Kullanıcı') },
+        { key: 'message', label: t('Mesaj') },
         {
           key: 'created_at',
-          label: 'Created',
+          label: t('Oluşturuldu'),
           render: (row) => row.created_at ? new Date(row.created_at).toLocaleString('tr-TR') : '-'
         },
         {
           key: 'actions',
-          label: canDeleteChat ? 'Actions' : 'Access',
+          label: canDeleteChat ? t('İşlemler') : t('Erişim'),
           render: (row) => (canDeleteChat
-            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>Delete</button>
-            : <span className="muted">Read only</span>)
+            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>{t('delete')}</button>
+            : <span className="muted">{t('Salt okunur')}</span>)
         }
       ];
     }
     if (kind === 'messages') {
       return [
         { key: 'id', label: 'ID' },
-        { key: 'kimden_kadi', label: 'From' },
-        { key: 'kime_kadi', label: 'To' },
-        { key: 'konu', label: 'Subject' },
+        { key: 'kimden_kadi', label: t('Kimden') },
+        { key: 'kime_kadi', label: t('Kime') },
+        { key: 'konu', label: t('Konu') },
         {
           key: 'tarih',
-          label: 'Date',
+          label: t('Tarih'),
           render: (row) => row.tarih ? new Date(row.tarih).toLocaleString('tr-TR') : '-'
         },
         {
           key: 'actions',
-          label: canDeleteDirectMessages ? 'Actions' : 'Access',
+          label: canDeleteDirectMessages ? t('İşlemler') : t('Erişim'),
           render: (row) => (canDeleteDirectMessages
-            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>Delete</button>
-            : <span className="muted">Read only</span>)
+            ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>{t('delete')}</button>
+            : <span className="muted">{t('Salt okunur')}</span>)
         }
       ];
     }
     return [
       { key: 'id', label: 'ID' },
-      { key: 'kufur', label: 'Blocked Term' },
+      { key: 'kufur', label: t('Engellenen Terim') },
       {
         key: 'actions',
-        label: canManageTerms ? 'Actions' : 'Access',
+        label: canManageTerms ? t('İşlemler') : t('Erişim'),
         render: (row) => (canManageTerms
-          ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>Delete</button>
-          : <span className="muted">Read only</span>)
+          ? <button className="btn ghost" onClick={(e) => { e.stopPropagation(); removeOne(row.id).catch(() => {}); }}>{t('delete')}</button>
+          : <span className="muted">{t('Salt okunur')}</span>)
       }
     ];
-  }, [canDeleteChat, canDeleteDirectMessages, canManageTerms, kind, removeOne]);
+  }, [canDeleteChat, canDeleteDirectMessages, canManageTerms, kind, removeOne, t]);
 
   if (!availableKinds.length) {
     return (
       <section className="stack">
-        <div className="panel"><div className="panel-body muted">No messaging moderation permissions.</div></div>
+        <div className="panel"><div className="panel-body muted">{t('Mesajlaşma moderasyonu için yetki yok.')}</div></div>
       </section>
     );
   }
@@ -152,28 +154,28 @@ export default function MessagingSafetySection({
   return (
     <section className="stack">
       <div className="ops-head-row">
-        <h3>Messaging & Safety</h3>
-        <button className="btn ghost" onClick={load} disabled={loading}>Refresh</button>
+        <h3>{t('Mesajlaşma ve Güvenlik')}</h3>
+        <button className="btn ghost" onClick={load} disabled={loading}>{t('Yenile')}</button>
       </div>
 
       <AdminFilterBar
         searchValue={query.q}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by text or username"
+        searchPlaceholder={t('Metin veya kullanıcı adına göre ara')}
         actions={(
           kind === 'terms' && canManageTerms ? (
             <div className="ops-inline-actions">
-              <input className="input" value={termInput} onChange={(e) => setTermInput(e.target.value)} placeholder="Add blocked term" />
-              <button className="btn" onClick={addTerm}>Add</button>
+              <input className="input" value={termInput} onChange={(e) => setTermInput(e.target.value)} placeholder={t('Engellenen terim ekle')} />
+              <button className="btn" onClick={addTerm}>{t('Ekle')}</button>
             </div>
           ) : null
         )}
       >
         {availableKinds.length > 1 ? (
           <select className="input" value={kind} onChange={(e) => setKind(e.target.value)}>
-            {availableKinds.includes('chat') ? <option value="chat">Chat Messages</option> : null}
-            {availableKinds.includes('messages') ? <option value="messages">Direct Messages</option> : null}
-            {availableKinds.includes('terms') ? <option value="terms">Blocked Terms</option> : null}
+            {availableKinds.includes('chat') ? <option value="chat">{t('Sohbet Mesajları')}</option> : null}
+            {availableKinds.includes('messages') ? <option value="messages">{t('Direkt Mesajlar')}</option> : null}
+            {availableKinds.includes('terms') ? <option value="terms">{t('Engellenen Terimler')}</option> : null}
           </select>
         ) : null}
       </AdminFilterBar>
@@ -186,7 +188,7 @@ export default function MessagingSafetySection({
         loading={loading}
         pagination={meta}
         onPageChange={setPage}
-        emptyText="No records."
+        emptyText={t('Kayıt yok.')}
       />
     </section>
   );

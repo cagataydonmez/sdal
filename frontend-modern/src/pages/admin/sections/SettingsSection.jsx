@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminClient } from '../../../admin/api/adminClient.js';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 const DEFAULT_MEDIA_FORM = {
   storage_provider: 'local',
@@ -13,6 +14,7 @@ const DEFAULT_MEDIA_FORM = {
 };
 
 export default function SettingsSection({ isAdmin = false }) {
+  const { t } = useI18n();
   const [siteForm, setSiteForm] = useState(null);
   const [moduleKeys, setModuleKeys] = useState([]);
   const [mediaForm, setMediaForm] = useState(DEFAULT_MEDIA_FORM);
@@ -71,11 +73,11 @@ export default function SettingsSection({ isAdmin = false }) {
     try {
       await Promise.all([loadSite(), loadMedia(), loadEmail()]);
     } catch (err) {
-      setStatus(err.message || 'Settings could not be loaded.');
+      setStatus(err.message || t('Ayarlar yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [loadEmail, loadMedia, loadSite]);
+  }, [loadEmail, loadMedia, loadSite, t]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -86,74 +88,74 @@ export default function SettingsSection({ isAdmin = false }) {
     if (!siteForm) return;
     try {
       await adminClient.put('/api/admin/site-controls', siteForm);
-      setStatus('Site and module settings saved.');
+      setStatus(t('Site ve modül ayarları kaydedildi.'));
       await loadSite();
     } catch (err) {
-      setStatus(err.message || 'Site settings save failed.');
+      setStatus(err.message || t('Site ayarları kaydedilemedi.'));
     }
-  }, [loadSite, siteForm]);
+  }, [loadSite, siteForm, t]);
 
   const saveMedia = useCallback(async () => {
     try {
       await adminClient.put('/api/admin/media-settings', mediaForm);
-      setStatus('Media settings saved.');
+      setStatus(t('Medya ayarları kaydedildi.'));
       await loadMedia();
     } catch (err) {
-      setStatus(err.message || 'Media settings save failed.');
+      setStatus(err.message || t('Medya ayarları kaydedilemedi.'));
     }
-  }, [loadMedia, mediaForm]);
+  }, [loadMedia, mediaForm, t]);
 
   const testMediaConnection = useCallback(async () => {
     try {
       const data = await adminClient.post('/api/admin/media-settings/test', {});
-      if (data?.ok) setStatus(data.message || 'Media storage connection test passed.');
-      else setStatus(data?.error || 'Media storage connection test failed.');
+      if (data?.ok) setStatus(data.message || t('Medya depolama bağlantı testi başarılı.'));
+      else setStatus(data?.error || t('Medya depolama bağlantı testi başarısız.'));
     } catch (err) {
-      setStatus(err.message || 'Media storage connection test failed.');
+      setStatus(err.message || t('Medya depolama bağlantı testi başarısız.'));
     }
-  }, []);
+  }, [t]);
 
   const createCategory = useCallback(async () => {
     try {
       await adminClient.post('/api/admin/email/categories', categoryForm);
       setCategoryForm({ ad: '', tur: 'all', deger: '', aciklama: '' });
       await loadEmail();
-      setStatus('Email category added.');
+      setStatus(t('E-posta kategorisi eklendi.'));
     } catch (err) {
-      setStatus(err.message || 'Category create failed.');
+      setStatus(err.message || t('Kategori oluşturulamadı.'));
     }
-  }, [categoryForm, loadEmail]);
+  }, [categoryForm, loadEmail, t]);
 
   const deleteCategory = useCallback(async (id) => {
     try {
       await adminClient.del(`/api/admin/email/categories/${id}`);
       await loadEmail();
-      setStatus('Email category deleted.');
+      setStatus(t('E-posta kategorisi silindi.'));
     } catch (err) {
-      setStatus(err.message || 'Category delete failed.');
+      setStatus(err.message || t('Kategori silinemedi.'));
     }
-  }, [loadEmail]);
+  }, [loadEmail, t]);
 
   const createTemplate = useCallback(async () => {
     try {
       await adminClient.post('/api/admin/email/templates', templateForm);
       setTemplateForm({ ad: '', konu: '', icerik: '' });
       await loadEmail();
-      setStatus('Email template added.');
+      setStatus(t('E-posta şablonu eklendi.'));
     } catch (err) {
-      setStatus(err.message || 'Template create failed.');
+      setStatus(err.message || t('Şablon oluşturulamadı.'));
     }
-  }, [loadEmail, templateForm]);
+  }, [loadEmail, t, templateForm]);
 
   const deleteTemplate = useCallback(async (id) => {
     try {
       await adminClient.del(`/api/admin/email/templates/${id}`);
       await loadEmail();
-      setStatus('Email template deleted.');
+      setStatus(t('E-posta şablonu silindi.'));
     } catch (err) {
-      setStatus(err.message || 'Template delete failed.');
+      setStatus(err.message || t('Şablon silinemedi.'));
     }
-  }, [loadEmail]);
+  }, [loadEmail, t]);
 
   const moduleSwitches = useMemo(() => {
     if (!siteForm?.modules) return [];
@@ -163,7 +165,7 @@ export default function SettingsSection({ isAdmin = false }) {
   if (!isAdmin) {
     return (
       <section className="stack">
-        <div className="panel"><div className="panel-body muted">Only admins can change settings.</div></div>
+        <div className="panel"><div className="panel-body muted">{t('Ayarları sadece yöneticiler değiştirebilir.')}</div></div>
       </section>
     );
   }
@@ -171,29 +173,29 @@ export default function SettingsSection({ isAdmin = false }) {
   return (
     <section className="stack">
       <div className="ops-head-row">
-        <h3>Settings</h3>
-        <button className="btn ghost" onClick={loadAll} disabled={loading}>Refresh</button>
+        <h3>{t('Ayarlar')}</h3>
+        <button className="btn ghost" onClick={loadAll} disabled={loading}>{t('Yenile')}</button>
       </div>
 
       {status ? <div className="muted">{status}</div> : null}
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Site & Modules</h3>
+          <h3>{t('Site ve Modüller')}</h3>
           <label className="ops-check-row">
             <input
               type="checkbox"
               checked={!!siteForm?.siteOpen}
               onChange={(e) => setSiteForm((prev) => ({ ...(prev || {}), siteOpen: e.target.checked }))}
             />
-            <span>Site open for users</span>
+            <span>{t('Site kullanıcılara açık')}</span>
           </label>
           <textarea
             className="input"
             rows={3}
             value={siteForm?.maintenanceMessage || ''}
             onChange={(e) => setSiteForm((prev) => ({ ...(prev || {}), maintenanceMessage: e.target.value }))}
-            placeholder="Maintenance message"
+            placeholder={t('Bakım mesajı')}
           />
           <div className="ops-toggle-grid">
             {moduleSwitches.map((row) => (
@@ -214,40 +216,40 @@ export default function SettingsSection({ isAdmin = false }) {
             ))}
           </div>
           <div className="ops-inline-actions">
-            <button className="btn" onClick={saveSite}>Save site settings</button>
+            <button className="btn" onClick={saveSite}>{t('Site ayarlarını kaydet')}</button>
           </div>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Media Settings</h3>
+          <h3>{t('Medya Ayarları')}</h3>
           <div className="ops-form-grid">
             <label>
-              <span>Provider</span>
+              <span>{t('Sağlayıcı')}</span>
               <select className="input" value={mediaForm.storage_provider} onChange={(e) => setMediaForm((prev) => ({ ...prev, storage_provider: e.target.value }))}>
-                <option value="local">local</option>
-                <option value="spaces">spaces</option>
+                <option value="local">{t('lokal')}</option>
+                <option value="spaces">{t('spaces')}</option>
               </select>
             </label>
             <label>
-              <span>Thumb width</span>
+              <span>{t('Küçük görsel genişliği')}</span>
               <input className="input" type="number" value={mediaForm.thumb_width} onChange={(e) => setMediaForm((prev) => ({ ...prev, thumb_width: Number(e.target.value || 0) }))} />
             </label>
             <label>
-              <span>Feed width</span>
+              <span>{t('Akış genişliği')}</span>
               <input className="input" type="number" value={mediaForm.feed_width} onChange={(e) => setMediaForm((prev) => ({ ...prev, feed_width: Number(e.target.value || 0) }))} />
             </label>
             <label>
-              <span>Full width</span>
+              <span>{t('Tam genişlik')}</span>
               <input className="input" type="number" value={mediaForm.full_width} onChange={(e) => setMediaForm((prev) => ({ ...prev, full_width: Number(e.target.value || 0) }))} />
             </label>
             <label>
-              <span>WebP quality</span>
+              <span>{t('WebP kalitesi')}</span>
               <input className="input" type="number" value={mediaForm.webp_quality} onChange={(e) => setMediaForm((prev) => ({ ...prev, webp_quality: Number(e.target.value || 0) }))} />
             </label>
             <label>
-              <span>Max upload bytes</span>
+              <span>{t('Maksimum yükleme byte')}</span>
               <input className="input" type="number" value={mediaForm.max_upload_bytes} onChange={(e) => setMediaForm((prev) => ({ ...prev, max_upload_bytes: Number(e.target.value || 0) }))} />
             </label>
           </div>
@@ -257,7 +259,7 @@ export default function SettingsSection({ isAdmin = false }) {
               checked={!!mediaForm.avif_enabled}
               onChange={(e) => setMediaForm((prev) => ({ ...prev, avif_enabled: e.target.checked }))}
             />
-            <span>Enable AVIF generation</span>
+            <span>{t('AVIF üretimini etkinleştir')}</span>
           </label>
           <label className="ops-check-row">
             <input
@@ -265,30 +267,30 @@ export default function SettingsSection({ isAdmin = false }) {
               checked={!!mediaForm.album_uploads_require_approval}
               onChange={(e) => setMediaForm((prev) => ({ ...prev, album_uploads_require_approval: e.target.checked }))}
             />
-            <span>Require album photo approval before publishing</span>
+            <span>{t('Albüm fotoğrafı yayınlanmadan önce onay gerektir')}</span>
           </label>
           <div className="meta">
-            Spaces configured: {mediaConnectionInfo.spacesConfigured ? 'yes' : 'no'}
-            {mediaConnectionInfo.spacesBucket ? ` | Bucket: ${mediaConnectionInfo.spacesBucket}` : ''}
+            {t('Spaces yapılandırıldı')}: {mediaConnectionInfo.spacesConfigured ? t('evet') : t('hayır')}
+            {mediaConnectionInfo.spacesBucket ? ` | ${t('Bucket')}: ${mediaConnectionInfo.spacesBucket}` : ''}
           </div>
           <div className="ops-inline-actions">
-            <button className="btn" onClick={saveMedia}>Save media settings</button>
-            <button className="btn ghost" onClick={testMediaConnection}>Test connection</button>
+            <button className="btn" onClick={saveMedia}>{t('Medya ayarlarını kaydet')}</button>
+            <button className="btn ghost" onClick={testMediaConnection}>{t('Bağlantıyı test et')}</button>
           </div>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Email Categories</h3>
+          <h3>{t('E-posta Kategorileri')}</h3>
           <div className="ops-form-grid">
-            <input className="input" placeholder="Name" value={categoryForm.ad} onChange={(e) => setCategoryForm((prev) => ({ ...prev, ad: e.target.value }))} />
-            <input className="input" placeholder="Type" value={categoryForm.tur} onChange={(e) => setCategoryForm((prev) => ({ ...prev, tur: e.target.value }))} />
-            <input className="input" placeholder="Value" value={categoryForm.deger} onChange={(e) => setCategoryForm((prev) => ({ ...prev, deger: e.target.value }))} />
-            <input className="input" placeholder="Description" value={categoryForm.aciklama} onChange={(e) => setCategoryForm((prev) => ({ ...prev, aciklama: e.target.value }))} />
+            <input className="input" placeholder={t('Ad')} value={categoryForm.ad} onChange={(e) => setCategoryForm((prev) => ({ ...prev, ad: e.target.value }))} />
+            <input className="input" placeholder={t('Tür')} value={categoryForm.tur} onChange={(e) => setCategoryForm((prev) => ({ ...prev, tur: e.target.value }))} />
+            <input className="input" placeholder={t('Değer')} value={categoryForm.deger} onChange={(e) => setCategoryForm((prev) => ({ ...prev, deger: e.target.value }))} />
+            <input className="input" placeholder={t('Açıklama')} value={categoryForm.aciklama} onChange={(e) => setCategoryForm((prev) => ({ ...prev, aciklama: e.target.value }))} />
           </div>
           <div className="ops-inline-actions">
-            <button className="btn" onClick={createCategory}>Add category</button>
+            <button className="btn" onClick={createCategory}>{t('Kategori ekle')}</button>
           </div>
 
           <div className="ops-list-grid">
@@ -298,24 +300,24 @@ export default function SettingsSection({ isAdmin = false }) {
                   <strong>{row.ad}</strong>
                   <div className="meta">{row.tur} | {row.deger}</div>
                 </div>
-                <button className="btn ghost" onClick={() => deleteCategory(row.id).catch(() => {})}>Delete</button>
+                <button className="btn ghost" onClick={() => deleteCategory(row.id).catch(() => {})}>{t('Sil')}</button>
               </div>
             ))}
-            {!emailCategories.length ? <div className="muted">No email categories.</div> : null}
+            {!emailCategories.length ? <div className="muted">{t('E-posta kategorisi yok.')}</div> : null}
           </div>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Email Templates</h3>
+          <h3>{t('E-posta Şablonları')}</h3>
           <div className="stack">
-            <input className="input" placeholder="Template name" value={templateForm.ad} onChange={(e) => setTemplateForm((prev) => ({ ...prev, ad: e.target.value }))} />
-            <input className="input" placeholder="Subject" value={templateForm.konu} onChange={(e) => setTemplateForm((prev) => ({ ...prev, konu: e.target.value }))} />
-            <textarea className="input" rows={5} placeholder="HTML body" value={templateForm.icerik} onChange={(e) => setTemplateForm((prev) => ({ ...prev, icerik: e.target.value }))} />
+            <input className="input" placeholder={t('Şablon adı')} value={templateForm.ad} onChange={(e) => setTemplateForm((prev) => ({ ...prev, ad: e.target.value }))} />
+            <input className="input" placeholder={t('Konu')} value={templateForm.konu} onChange={(e) => setTemplateForm((prev) => ({ ...prev, konu: e.target.value }))} />
+            <textarea className="input" rows={5} placeholder={t('HTML gövdesi')} value={templateForm.icerik} onChange={(e) => setTemplateForm((prev) => ({ ...prev, icerik: e.target.value }))} />
           </div>
           <div className="ops-inline-actions">
-            <button className="btn" onClick={createTemplate}>Add template</button>
+            <button className="btn" onClick={createTemplate}>{t('Şablon ekle')}</button>
           </div>
 
           <div className="ops-list-grid">
@@ -325,10 +327,10 @@ export default function SettingsSection({ isAdmin = false }) {
                   <strong>{row.ad}</strong>
                   <div className="meta">{row.konu}</div>
                 </div>
-                <button className="btn ghost" onClick={() => deleteTemplate(row.id).catch(() => {})}>Delete</button>
+                <button className="btn ghost" onClick={() => deleteTemplate(row.id).catch(() => {})}>{t('Sil')}</button>
               </div>
             ))}
-            {!emailTemplates.length ? <div className="muted">No email templates.</div> : null}
+            {!emailTemplates.length ? <div className="muted">{t('E-posta şablonu yok.')}</div> : null}
           </div>
         </div>
       </div>

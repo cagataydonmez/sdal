@@ -1,9 +1,19 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { trFallbackMessages } from './i18nFallbackMessages.js';
+import { trFallbackMessages } from '../../../frontend-modern/src/utils/i18nFallbackMessages.js';
 
-const I18N_KEY = 'sdal_new_lang';
+export const BUILT_IN_LANGUAGES = [
+  { code: 'tr', name: 'Turkish', native_name: 'Türkçe', is_default: true, is_active: true },
+  { code: 'en', name: 'English', native_name: 'English', is_default: false, is_active: true },
+  { code: 'de', name: 'German', native_name: 'Deutsch', is_default: false, is_active: true },
+  { code: 'fr', name: 'French', native_name: 'Français', is_default: false, is_active: true }
+];
 
-const messages = {
+export const LANGUAGE_CONFIG_DEFAULTS = {
+  lang_selection_enabled: true,
+  default_lang_open: 'tr',
+  default_lang_closed: 'tr'
+};
+
+const BUNDLED_MESSAGES = {
   tr: {
     lang_tr: 'Türkçe',
     lang_en: 'İngilizce',
@@ -285,10 +295,10 @@ const messages = {
     send: 'Envoyer',
     no_comments_yet: 'Aucun commentaire pour le moment.',
     post_confirm_delete: 'Voulez-vous vraiment supprimer cette publication ?',
-    post_delete_failed: 'La publication n\u2019a pas pu être supprimée.',
-    post_update_failed: 'La publication n\u2019a pas pu être mise à jour.',
-    live_chat_edit_failed: 'Le message n\u2019a pas pu être mis à jour.',
-    live_chat_delete_failed: 'Le message n\u2019a pas pu être supprimé.',
+    post_delete_failed: 'La publication n’a pas pu être supprimée.',
+    post_update_failed: 'La publication n’a pas pu être mise à jour.',
+    live_chat_edit_failed: 'Le message n’a pas pu être mis à jour.',
+    live_chat_delete_failed: 'Le message n’a pas pu être supprimé.',
     filter_none: 'Sans filtre',
     filter_grayscale: 'Niveaux de gris',
     filter_sepia: 'Sépia',
@@ -317,203 +327,13 @@ const messages = {
   }
 };
 
-const DEFAULT_LANG_CONFIG = { lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' };
+export const LANGUAGE_SEED_STRINGS = {
+  tr: { ...trFallbackMessages, ...BUNDLED_MESSAGES.tr },
+  en: { ...BUNDLED_MESSAGES.en },
+  de: { ...BUNDLED_MESSAGES.de },
+  fr: { ...BUNDLED_MESSAGES.fr }
+};
 
-const I18nContext = createContext({
-  lang: 'tr',
-  availableLangs: [{ code: 'tr', name: 'Turkish', native_name: 'Türkçe' }],
-  langConfig: DEFAULT_LANG_CONFIG,
-  langSelectionEnabled: true,
-  setLang: () => {},
-  applyLangDefault: () => {},
-  t: (key, params) => {
-    const text = trFallbackMessages[key] || key;
-    if (!params) return text;
-    return Object.entries(params).reduce((acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value ?? '')), text);
-  }
-});
-
-function readInitialLang() {
-  if (typeof window === 'undefined') return 'tr';
-  const stored = window.localStorage.getItem(I18N_KEY);
-  if (stored) return stored;
-  return 'tr';
-}
-
-function interpolate(text, params) {
-  if (!params || typeof params !== 'object') return text;
-  return Object.entries(params).reduce((acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value ?? '')), text);
-}
-
-function normalizeSourceText(key) {
-  if (messages.tr?.[key]) return messages.tr[key];
-  if (trFallbackMessages[key]) return trFallbackMessages[key];
-  if (!key.includes('_')) return key;
-  return key
-    .split('_')
-    .filter(Boolean)
-    .join(' ');
-}
-
-export function I18nProvider({ children }) {
-  const [lang, setLangState] = useState(() => readInitialLang());
-  // dbMessages holds strings loaded from the backend DB per language code
-  const [dbMessages, setDbMessages] = useState({});
-  const [availableLangs, setAvailableLangs] = useState([]);
-  const [langConfig, setLangConfig] = useState(DEFAULT_LANG_CONFIG);
-  const [runtimeMessages, setRuntimeMessages] = useState(() => ({ en: {}, de: {}, fr: {} }));
-  const runtimeRef = useRef(runtimeMessages);
-  const dbRef = useRef(dbMessages);
-  const langConfigRef = useRef(langConfig);
-  const pendingRef = useRef(new Set());
-  const failedRef = useRef(new Set());
-
-  useEffect(() => {
-    runtimeRef.current = runtimeMessages;
-  }, [runtimeMessages]);
-
-  useEffect(() => {
-    dbRef.current = dbMessages;
-  }, [dbMessages]);
-
-  useEffect(() => {
-    langConfigRef.current = langConfig;
-  }, [langConfig]);
-
-  // Fetch lang config and available languages from backend on mount
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    Promise.all([
-      fetch('/api/new/lang-config', { credentials: 'include' }).then((r) => r.ok ? r.json() : DEFAULT_LANG_CONFIG).catch(() => DEFAULT_LANG_CONFIG),
-      fetch('/api/new/languages', { credentials: 'include' }).then((r) => r.ok ? r.json() : { languages: [] }).catch(() => ({ languages: [] }))
-    ]).then(([config, langsData]) => {
-      setLangConfig(config);
-      const langs = langsData.languages || [];
-      if (langs.length) {
-        setAvailableLangs(langs);
-        const activeCodes = new Set(langs.map((item) => String(item.code || '').trim().toLowerCase()).filter(Boolean));
-        const currentLang = String(window.localStorage.getItem(I18N_KEY) || lang || '').trim().toLowerCase();
-        if (currentLang && !activeCodes.has(currentLang)) {
-          const fallbackLang = config.default_lang_open || config.default_lang_closed || 'tr';
-          setLangState(fallbackLang);
-          window.localStorage.setItem(I18N_KEY, fallbackLang);
-        }
-      }
-    });
-  }, [lang]);
-
-  // Fetch DB strings for current language whenever it changes
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (dbRef.current[lang]) return; // already loaded
-    fetch(`/api/new/lang-strings/${lang}`, { credentials: 'include' })
-      .then((r) => r.ok ? r.json() : { strings: {} })
-      .then((data) => {
-        const strings = data.strings || {};
-        if (Object.keys(strings).length > 0) {
-          setDbMessages((prev) => ({ ...prev, [lang]: strings }));
-        }
-      })
-      .catch(() => {});
-  }, [lang]);
-
-  // Apply the site-configured default language based on auth state.
-  // Call this from a component that has access to auth (e.g. LangAuthSync in App.jsx).
-  const applyLangDefault = useCallback((isAuthenticated) => {
-    const config = langConfigRef.current;
-    const defaultLang = isAuthenticated ? (config.default_lang_open || 'tr') : (config.default_lang_closed || 'tr');
-    if (!config.lang_selection_enabled) {
-      // Selection disabled: always force the configured default
-      setLangState(defaultLang);
-      if (typeof window !== 'undefined') window.localStorage.setItem(I18N_KEY, defaultLang);
-    } else {
-      // Selection enabled: only apply default if user has no stored preference
-      const stored = typeof window !== 'undefined' ? window.localStorage.getItem(I18N_KEY) : null;
-      if (!stored) {
-        setLangState(defaultLang);
-        if (typeof window !== 'undefined') window.localStorage.setItem(I18N_KEY, defaultLang);
-      }
-    }
-  }, []);
-
-  const setLang = (code) => {
-    if (!code) return;
-    // Respect lang_selection_enabled: if disabled, ignore user attempts to change
-    if (!langConfigRef.current.lang_selection_enabled) return;
-    setLangState(code);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(I18N_KEY, code);
-    }
-  };
-
-  const t = (key, params) => {
-    const sourceText = normalizeSourceText(key);
-
-    // DB strings take highest priority (admin-managed overrides)
-    const dbHit = dbRef.current[lang]?.[key];
-    if (dbHit) return interpolate(dbHit, params);
-
-    // Static bundled messages
-    const staticHit = messages[lang]?.[key];
-    if (staticHit) return interpolate(staticHit, params);
-
-    // For Turkish, fall back to trFallbackMessages
-    if (lang === 'tr') {
-      const fallback = trFallbackMessages[key];
-      if (fallback) return interpolate(fallback, params);
-      return interpolate(sourceText, params);
-    }
-
-    // For other languages, check runtime-translated cache then trigger translation
-    const runtimeHit = runtimeRef.current[lang]?.[sourceText];
-    if (runtimeHit) return interpolate(runtimeHit, params);
-
-    if (sourceText && sourceText !== key && typeof window !== 'undefined') {
-      const cacheKey = `${lang}:${sourceText}`;
-      if (!pendingRef.current.has(cacheKey) && !failedRef.current.has(cacheKey)) {
-        pendingRef.current.add(cacheKey);
-        fetch('/api/new/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ text: sourceText, target: lang })
-        })
-          .then(async (res) => {
-            if (!res.ok) throw new Error(await res.text());
-            return res.json();
-          })
-          .then((payload) => {
-            const translated = String(payload?.translatedText || '').trim();
-            if (!translated) return;
-            setRuntimeMessages((prev) => ({
-              ...prev,
-              [lang]: {
-                ...(prev[lang] || {}),
-                [sourceText]: translated
-              }
-            }));
-          })
-          .catch(() => {
-            failedRef.current.add(cacheKey);
-          })
-          .finally(() => {
-            pendingRef.current.delete(cacheKey);
-          });
-      }
-    }
-
-    // Fall back to Turkish source text while translation is pending
-    return interpolate(sourceText, params);
-  };
-
-  const langSelectionEnabled = langConfig.lang_selection_enabled;
-  const value = useMemo(
-    () => ({ lang, availableLangs, langConfig, langSelectionEnabled, setLang, applyLangDefault, t }),
-    [lang, availableLangs, langConfig, dbMessages, runtimeMessages]
-  );
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
-}
-
-export function useI18n() {
-  return useContext(I18nContext);
+export function getSeedStringsForLang(lang) {
+  return LANGUAGE_SEED_STRINGS[String(lang || '').trim().toLowerCase()] || {};
 }

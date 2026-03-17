@@ -14,6 +14,7 @@ import SettingsSection from './sections/SettingsSection.jsx';
 import SystemSection from './sections/SystemSection.jsx';
 import TeacherNetworkSection from './sections/TeacherNetworkSection.jsx';
 import LanguagesSection from './sections/LanguagesSection.jsx';
+import { useI18n } from '../../utils/i18n.jsx';
 
 function normalizeRole(value) {
   return String(value || '').trim().toLowerCase();
@@ -21,6 +22,7 @@ function normalizeRole(value) {
 
 export default function AdminShellPage() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const role = normalizeRole(user?.role);
   const isRoot = role === 'root';
   const isAdmin = isRoot || role === 'admin' || Number(user?.admin || 0) === 1;
@@ -35,22 +37,22 @@ export default function AdminShellPage() {
     const definition = [
       {
         key: 'dashboard',
-        label: 'Dashboard',
-        hint: 'Operations health and queue pulse',
+        label: t('Kontrol Paneli'),
+        hint: t('Operasyon sağlığı ve kuyruk durumu'),
         visible: isAdmin,
         render: (navigate) => <DashboardSection onNavigate={navigate} />
       },
       {
         key: 'users',
-        label: 'Users',
-        hint: 'Profiles, roles, and lifecycle controls',
+        label: t('Kullanıcılar'),
+        hint: t('Profiller, roller ve yaşam döngüsü kontrolleri'),
         visible: isAdmin,
         render: () => <UsersSection canManageRoles={isAdmin} />
       },
       {
         key: 'content',
-        label: 'Content Moderation',
-        hint: 'All content: posts, stories, users, photos, chat, messages, groups',
+        label: t('İçerik Moderasyonu'),
+        hint: t('Tüm içerik: gönderiler, hikayeler, kullanıcılar, fotoğraflar, sohbet, mesajlar, gruplar'),
         visible: hasPermission('posts.view') || hasPermission('stories.view') || hasPermission('chat.view') || hasPermission('messages.view') || hasPermission('groups.view') || isAdmin || isAlbumAdmin,
         render: () => (
           <ContentModerationSection
@@ -74,15 +76,15 @@ export default function AdminShellPage() {
       },
       {
         key: 'albums',
-        label: 'Photo Albums',
-        hint: 'Album categories and photo moderation',
+        label: t('Fotoğraf Albümleri'),
+        hint: t('Albüm kategorileri ve fotoğraf moderasyonu'),
         visible: isAlbumAdmin,
         render: () => <AlbumSection canManageAlbums={isAlbumAdmin} />
       },
       {
         key: 'messaging',
-        label: 'Messaging & Safety',
-        hint: 'Chat, direct message, and term moderation',
+        label: t('Mesajlaşma ve Güvenlik'),
+        hint: t('Sohbet, direkt mesaj ve terim moderasyonu'),
         visible: hasPermission('chat.view') || hasPermission('messages.view') || isAdmin,
         render: () => (
           <MessagingSafetySection
@@ -96,8 +98,8 @@ export default function AdminShellPage() {
       },
       {
         key: 'groups',
-        label: 'Groups / Events',
-        hint: 'Community-level governance controls',
+        label: t('Gruplar / Etkinlikler'),
+        hint: t('Topluluk seviyesinde yönetişim kontrolleri'),
         visible: hasPermission('groups.view') || isAdmin,
         render: () => (
           <GroupsEventsSection
@@ -109,8 +111,8 @@ export default function AdminShellPage() {
       },
       {
         key: 'notifications',
-        label: 'Notifications',
-        hint: 'Verification and support request queues',
+        label: t('Bildirimler'),
+        hint: t('Doğrulama ve destek talep kuyrukları'),
         visible: hasPermission('requests.view'),
         render: () => (
           <NotificationsSection
@@ -122,36 +124,36 @@ export default function AdminShellPage() {
       },
       {
         key: 'teacher-network',
-        label: 'Teacher Network',
-        hint: 'Teacher/alumni relationship moderation and review',
+        label: t('Öğretmen Ağı'),
+        hint: t('Öğretmen/mezun ilişki moderasyonu ve incelemesi'),
         visible: hasPermission('requests.view'),
         render: () => <TeacherNetworkSection />
       },
       {
         key: 'languages',
-        label: 'Languages',
-        hint: 'Language variables, translations, and locale management',
+        label: t('Diller'),
+        hint: t('Dil değişkenleri, çeviriler ve yerel ayar yönetimi'),
         visible: isAdmin,
         render: () => <LanguagesSection isAdmin={isAdmin} />
       },
       {
         key: 'settings',
-        label: 'Settings',
-        hint: 'Site, modules, media, and email config',
+        label: t('Ayarlar'),
+        hint: t('Site, modüller, medya ve e-posta yapılandırması'),
         visible: isAdmin,
         render: () => <SettingsSection isAdmin={isAdmin} />
       },
       {
         key: 'system',
-        label: 'System',
-        hint: 'Logs, database tools, and backups',
+        label: t('Sistem'),
+        hint: t('Loglar, veritabanı araçları ve yedekler'),
         visible: isAdmin,
         render: () => <SystemSection isAdmin={isAdmin} />
       }
     ];
 
     return definition.filter((item) => item.visible);
-  }, [hasPermission, isAdmin, isAlbumAdmin]);
+  }, [hasPermission, isAdmin, isAlbumAdmin, t]);
 
   const [activeKey, setActiveKey] = useState('dashboard');
 
@@ -166,7 +168,7 @@ export default function AdminShellPage() {
 
   if (!canUseAdminConsole) {
     return (
-      <Layout title="Admin">
+      <Layout title={t('Yönetim')}>
         <AccessDeniedView />
       </Layout>
     );
@@ -174,10 +176,10 @@ export default function AdminShellPage() {
 
   if (!sections.length) {
     return (
-      <Layout title="Admin Console">
+      <Layout title={t('Yönetim Konsolu')}>
         <div className="panel">
           <div className="panel-body">
-            <div className="muted">Your account has no assigned admin/moderation permissions yet.</div>
+            <div className="muted">{t('Hesabına henüz atanmış bir yönetim veya moderasyon izni yok.')}</div>
           </div>
         </div>
       </Layout>
@@ -185,7 +187,7 @@ export default function AdminShellPage() {
   }
 
   return (
-    <Layout title="Admin Console">
+    <Layout title={t('Yönetim Konsolu')}>
       <div className="ops-shell">
         <AdminSidebar sections={sections} activeKey={activeKey} onChange={setActiveKey} />
 
@@ -194,12 +196,12 @@ export default function AdminShellPage() {
             <div className="panel-body ops-shell-header">
               <div>
                 <h3>{activeSection?.label}</h3>
-                <div className="muted">Role: {role || 'user'} {isRoot ? '(root)' : ''}</div>
+                <div className="muted">{t('Rol')}: {role || 'user'} {isRoot ? '(root)' : ''}</div>
               </div>
               <div className="ops-inline-actions">
-                {isAdmin ? <span className="chip">Global admin</span> : null}
-                {!isAdmin && isAlbumAdmin ? <span className="chip">Album admin</span> : null}
-                {isModerator ? <span className="chip">Scoped moderator</span> : null}
+                {isAdmin ? <span className="chip">{t('Global yönetici')}</span> : null}
+                {!isAdmin && isAlbumAdmin ? <span className="chip">{t('Albüm yöneticisi')}</span> : null}
+                {isModerator ? <span className="chip">{t('Kapsamlı moderatör')}</span> : null}
               </div>
             </div>
           </div>

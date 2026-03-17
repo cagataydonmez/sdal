@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 function ConfirmModal({ modal, onConfirm, onCancel }) {
+  const { t } = useI18n();
   if (!modal) return null;
   return (
     <div className="story-modal" onClick={onCancel}>
       <div className="story-frame admin-preview" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
         <div className="composer-actions">
           <h3>{modal.title}</h3>
-          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn ghost" onClick={onCancel}>{t('İptal')}</button>
         </div>
         <div className="stack" style={{ padding: '0 0 8px' }}>
           {(modal.lines || []).map((line, i) => (
@@ -17,8 +19,8 @@ function ConfirmModal({ modal, onConfirm, onCancel }) {
           ))}
         </div>
         <div className="ops-inline-actions">
-          <button className="btn" onClick={onConfirm}>{modal.confirmLabel || 'Confirm'}</button>
-          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn" onClick={onConfirm}>{modal.confirmLabel || t('Onayla')}</button>
+          <button className="btn ghost" onClick={onCancel}>{t('İptal')}</button>
         </div>
       </div>
     </div>
@@ -30,6 +32,7 @@ function formatDate(value) {
 }
 
 export default function SystemSection({ isAdmin = false }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState('');
 
   const [logType, setLogType] = useState('app');
@@ -71,9 +74,9 @@ export default function SystemSection({ isAdmin = false }) {
         setSelectedLogFile(files[0]?.name || '');
       }
     } catch (err) {
-      setStatus(err.message || 'Log files could not be loaded.');
+      setStatus(err.message || t('Log dosyaları yüklenemedi.'));
     }
-  }, [logType, selectedLogFile]);
+  }, [logType, selectedLogFile, t]);
 
   const loadLogContent = useCallback(async (name) => {
     if (!name) {
@@ -92,9 +95,9 @@ export default function SystemSection({ isAdmin = false }) {
       setLogContent(data.content || '');
       setLogMeta({ total: data.total || 0, matched: data.matched || 0, returned: data.returned || 0 });
     } catch (err) {
-      setStatus(err.message || 'Log content could not be loaded.');
+      setStatus(err.message || t('Log içeriği yüklenemedi.'));
     }
-  }, [logQuery, logType]);
+  }, [logQuery, logType, t]);
 
   const loadTables = useCallback(async () => {
     try {
@@ -105,9 +108,9 @@ export default function SystemSection({ isAdmin = false }) {
         setSelectedTable(list[0]?.name || '');
       }
     } catch (err) {
-      setStatus(err.message || 'Database tables could not be loaded.');
+      setStatus(err.message || t('Veritabanı tabloları yüklenemedi.'));
     }
-  }, [selectedTable]);
+  }, [selectedTable, t]);
 
   const loadTableData = useCallback(async (tableName, page = 1) => {
     if (!tableName) {
@@ -130,9 +133,9 @@ export default function SystemSection({ isAdmin = false }) {
         total: data.total || 0
       });
     } catch (err) {
-      setStatus(err.message || 'Table rows could not be loaded.');
+      setStatus(err.message || t('Tablo satırları yüklenemedi.'));
     }
-  }, [tableMeta.limit]);
+  }, [tableMeta.limit, t]);
 
   const loadBackups = useCallback(async () => {
     try {
@@ -141,9 +144,9 @@ export default function SystemSection({ isAdmin = false }) {
       setDbPath(data.dbPath || '');
       setDbDriver(data.dbDriver || '');
     } catch (err) {
-      setStatus(err.message || 'Backups could not be loaded.');
+      setStatus(err.message || t('Yedekler yüklenemedi.'));
     }
-  }, []);
+  }, [t]);
 
   const loadDbDriverSwitchStatus = useCallback(async () => {
     try {
@@ -154,9 +157,9 @@ export default function SystemSection({ isAdmin = false }) {
       setDriverSwitchCopyData(false);
     } catch (err) {
       setDriverSwitch(null);
-      setStatus(err.message || 'DB switch status could not be loaded.');
+      setStatus(err.message || t('Veritabanı geçiş durumu yüklenemedi.'));
     }
-  }, []);
+  }, [t]);
 
   const loadAll = useCallback(async () => {
     setStatus('');
@@ -186,25 +189,25 @@ export default function SystemSection({ isAdmin = false }) {
   const createBackup = useCallback(async () => {
     try {
       await adminClient.post('/api/new/admin/db/backups', { label: backupLabel || 'manual' });
-      setStatus('Backup created.');
+      setStatus(t('Yedek oluşturuldu.'));
       await loadBackups();
     } catch (err) {
-      setStatus(err.message || 'Backup create failed.');
+      setStatus(err.message || t('Yedek oluşturma başarısız.'));
     }
-  }, [backupLabel, loadBackups]);
+  }, [backupLabel, loadBackups, t]);
 
   const requestSwitchDbDriver = useCallback(() => {
     if (!driverSwitch?.targetDriver) return;
     const lines = [
-      { text: `Switch database driver from ${driverSwitch.currentDriver} → ${driverSwitch.targetDriver}.` },
-      { text: driverSwitchCopyData ? 'Data will be copied to the target driver before switching.' : 'No data copy — only the driver setting will change.', muted: true },
-      { text: 'The server will restart automatically after the switch.', muted: true },
+      { text: t('{current} → {target} veritabanı sürücüsüne geç.', { current: driverSwitch.currentDriver, target: driverSwitch.targetDriver }) },
+      { text: driverSwitchCopyData ? t('Geçişten önce veri hedef sürücüye kopyalanacak.') : t('Veri kopyalanmayacak, sadece sürücü ayarı değişecek.'), muted: true },
+      { text: t('Geçişten sonra sunucu otomatik olarak yeniden başlayacak.'), muted: true },
     ];
     if ((driverSwitch.warnings || []).length) {
       lines.push({ text: driverSwitch.warnings.join(' '), muted: true });
     }
-    setConfirmModal({ type: 'switch', title: 'Confirm DB Driver Switch', lines, confirmLabel: `Switch to ${driverSwitch.targetDriver}` });
-  }, [driverSwitch, driverSwitchCopyData]);
+    setConfirmModal({ type: 'switch', title: t('Veritabanı Sürücüsü Geçişini Onayla'), lines, confirmLabel: t('{target} sürücüsüne geç', { target: driverSwitch.targetDriver }) });
+  }, [driverSwitch, driverSwitchCopyData, t]);
 
   const executeSwitchDbDriver = useCallback(async () => {
     setConfirmModal(null);
@@ -219,12 +222,12 @@ export default function SystemSection({ isAdmin = false }) {
         copyData: driverSwitchCopyData
       };
       const data = await adminClient.post('/api/new/admin/db/driver/switch', payload);
-      setStatus(data?.message || 'DB driver switch accepted. Server is restarting.');
+      setStatus(data?.message || t('Veritabanı sürücüsü geçişi kabul edildi. Sunucu yeniden başlıyor.'));
       await loadDbDriverSwitchStatus();
     } catch (err) {
-      const message = String(err?.message || 'DB switch failed.');
+      const message = String(err?.message || t('Veritabanı geçişi başarısız.'));
       if (/failed to fetch/i.test(message)) {
-        setStatus('DB driver switch sent. Connection dropped because server restarted.');
+        setStatus(t('Veritabanı sürücü geçişi gönderildi. Sunucu yeniden başladığı için bağlantı koptu.'));
       } else {
         setStatus(message);
       }
@@ -236,20 +239,20 @@ export default function SystemSection({ isAdmin = false }) {
 
   const requestCopyOnlyData = useCallback(() => {
     if (copyOnlySrc === copyOnlyTgt) {
-      setStatus('Source and target driver must be different.');
+      setStatus(t('Kaynak ve hedef sürücü farklı olmalı.'));
       return;
     }
     setConfirmModal({
       type: 'copy',
-      title: 'Confirm Data Copy',
+      title: t('Veri Kopyalamayı Onayla'),
       lines: [
-        { text: `Copy all data from ${copyOnlySrc} → ${copyOnlyTgt}.` },
-        { text: 'This will overwrite existing data in the target driver.', muted: true },
-        { text: 'The active driver will NOT change — only the data is copied.', muted: true },
+        { text: t('Tüm veriyi {src} → {tgt} yönünde kopyala.', { src: copyOnlySrc, tgt: copyOnlyTgt }) },
+        { text: t('Bu işlem hedef sürücüdeki mevcut verilerin üzerine yazacak.'), muted: true },
+        { text: t('Aktif sürücü değişmeyecek; sadece veri kopyalanacak.'), muted: true },
       ],
-      confirmLabel: `Copy ${copyOnlySrc} → ${copyOnlyTgt}`
+      confirmLabel: t('{src} → {tgt} kopyala', { src: copyOnlySrc, tgt: copyOnlyTgt })
     });
-  }, [copyOnlySrc, copyOnlyTgt]);
+  }, [copyOnlySrc, copyOnlyTgt, t]);
 
   const executeCopyOnlyData = useCallback(async () => {
     setConfirmModal(null);
@@ -261,13 +264,13 @@ export default function SystemSection({ isAdmin = false }) {
         targetDriver: copyOnlyTgt
       });
       setCopyOnlyResult(data?.stats || {});
-      setStatus(`Data copy complete: ${copyOnlySrc} → ${copyOnlyTgt}.`);
+      setStatus(t('Veri kopyalama tamamlandı: {src} → {tgt}.', { src: copyOnlySrc, tgt: copyOnlyTgt }));
     } catch (err) {
-      setStatus(err?.message || 'Data copy failed.');
+      setStatus(err?.message || t('Veri kopyalama başarısız.'));
     } finally {
       setCopyOnlyBusy(false);
     }
-  }, [copyOnlySrc, copyOnlyTgt]);
+  }, [copyOnlySrc, copyOnlyTgt, t]);
 
   const handleConfirmModalConfirm = useCallback(() => {
     if (confirmModal?.type === 'switch') executeSwitchDbDriver();
@@ -286,7 +289,7 @@ export default function SystemSection({ isAdmin = false }) {
   if (!isAdmin) {
     return (
       <section className="stack">
-        <div className="panel"><div className="panel-body muted">Only admins can access system operations.</div></div>
+        <div className="panel"><div className="panel-body muted">{t('Sistem işlemlerine sadece yöneticiler erişebilir.')}</div></div>
       </section>
     );
   }
@@ -300,24 +303,24 @@ export default function SystemSection({ isAdmin = false }) {
       />
 
       <div className="ops-head-row">
-        <h3>System</h3>
-        <button className="btn ghost" onClick={loadAll}>Refresh</button>
+        <h3>{t('Sistem')}</h3>
+        <button className="btn ghost" onClick={loadAll}>{t('Yenile')}</button>
       </div>
 
       {status ? <div className="muted">{status}</div> : null}
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Logs</h3>
+          <h3>{t('Loglar')}</h3>
           <div className="ops-inline-actions">
             <select className="input" value={logType} onChange={(e) => setLogType(e.target.value)}>
-              <option value="app">App</option>
-              <option value="member">Member</option>
-              <option value="error">Error</option>
-              <option value="page">Page</option>
+              <option value="app">{t('Uygulama')}</option>
+              <option value="member">{t('Üye')}</option>
+              <option value="error">{t('Hata')}</option>
+              <option value="page">{t('Sayfa')}</option>
             </select>
-            <input className="input" value={logQuery} onChange={(e) => setLogQuery(e.target.value)} placeholder="Search in selected log file" />
-            <button className="btn ghost" onClick={() => loadLogContent(selectedLogFile).catch(() => {})}>Apply</button>
+            <input className="input" value={logQuery} onChange={(e) => setLogQuery(e.target.value)} placeholder={t('Seçili log dosyasında ara')} />
+            <button className="btn ghost" onClick={() => loadLogContent(selectedLogFile).catch(() => {})}>{t('Uygula')}</button>
           </div>
 
           <div className="ops-log-layout">
@@ -329,14 +332,14 @@ export default function SystemSection({ isAdmin = false }) {
                   onClick={() => setSelectedLogFile(file.name)}
                 >
                   <div>{file.name}</div>
-                  <div className="meta">{formatDate(file.mtime)} • {Number(file.size || 0)} B</div>
+              <div className="meta">{formatDate(file.mtime)} • {Number(file.size || 0)} B</div>
                 </button>
               ))}
-              {!logFiles.length ? <div className="muted">No log files.</div> : null}
+              {!logFiles.length ? <div className="muted">{t('Log dosyası yok.')}</div> : null}
             </div>
             <div className="ops-log-content">
-              <div className="meta">Matched {logMeta.matched} / Total {logMeta.total}</div>
-              <pre>{logContent || 'Select a log file to inspect.'}</pre>
+              <div className="meta">{t('Eşleşen')} {logMeta.matched} / {t('Toplam')} {logMeta.total}</div>
+              <pre>{logContent || t('İncelemek için bir log dosyası seç.')}</pre>
             </div>
           </div>
         </div>
@@ -344,15 +347,15 @@ export default function SystemSection({ isAdmin = false }) {
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Database Inspector</h3>
-          <div className="meta">Driver: {dbDriver || '-'} | Path: {dbPath || '-'}</div>
+          <h3>{t('Veritabanı İnceleyici')}</h3>
+          <div className="meta">{t('Sürücü')}: {dbDriver || '-'} | {t('Yol')}: {dbPath || '-'}</div>
           <div className="ops-inline-actions">
             <select className="input" value={selectedTable} onChange={(e) => setSelectedTable(e.target.value)}>
               {tables.map((table) => (
                 <option key={table.name} value={table.name}>{table.name} ({table.rowCount || 0})</option>
               ))}
             </select>
-            <button className="btn ghost" onClick={() => loadTableData(selectedTable, 1).catch(() => {})}>Load table</button>
+            <button className="btn ghost" onClick={() => loadTableData(selectedTable, 1).catch(() => {})}>{t('Tabloyu yükle')}</button>
           </div>
 
           <AdminDataTable
@@ -361,25 +364,25 @@ export default function SystemSection({ isAdmin = false }) {
             loading={false}
             pagination={tableMeta}
             onPageChange={(page) => loadTableData(selectedTable, page).catch(() => {})}
-            emptyText="No rows."
+            emptyText={t('Satır yok.')}
           />
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>DB Driver Switch</h3>
+          <h3>{t('Veritabanı Sürücü Geçişi')}</h3>
           <div className="meta">
-            Current: <strong>{driverSwitch?.currentDriver || dbDriver || '-'}</strong>
+            {t('Mevcut')}: <strong>{driverSwitch?.currentDriver || dbDriver || '-'}</strong>
             {' → '}
-            Target: <strong>{driverSwitch?.targetDriver || '-'}</strong>
+            {t('Hedef')}: <strong>{driverSwitch?.targetDriver || '-'}</strong>
           </div>
 
           <input
             className="input"
             value={driverSwitchConfirm}
             onChange={(e) => setDriverSwitchConfirm(e.target.value)}
-            placeholder={`Type "${driverSwitch?.expectedConfirmText || ''}" to confirm`}
+            placeholder={t('Onaylamak için "{text}" yaz', { text: driverSwitch?.expectedConfirmText || '' })}
           />
 
           {driverSwitch?.dataCopySupported ? (
@@ -389,7 +392,7 @@ export default function SystemSection({ isAdmin = false }) {
                 checked={driverSwitchCopyData}
                 onChange={(e) => setDriverSwitchCopyData(e.target.checked)}
               />
-              <span>Copy data from current driver to target before switching</span>
+              <span>{t('Geçmeden önce mevcut sürücüden hedefe veri kopyala')}</span>
             </label>
           ) : null}
 
@@ -400,15 +403,15 @@ export default function SystemSection({ isAdmin = false }) {
                 checked={driverSwitchAckDrift}
                 onChange={(e) => setDriverSwitchAckDrift(e.target.checked)}
               />
-              <span>I understand that switching PostgreSQL → SQLite without copying data may use an older SQLite snapshot.</span>
+              <span>{t('PostgreSQL → SQLite geçişinin veri kopyalanmadan yapılması durumunda eski bir SQLite anlık görüntüsü kullanılabileceğini anlıyorum.')}</span>
             </label>
           ) : null}
 
           {(driverSwitch?.blockers || []).length ? (
-            <div className="muted">Blockers: {(driverSwitch.blockers || []).join(' | ')}</div>
+            <div className="muted">{t('Engeller')}: {(driverSwitch.blockers || []).join(' | ')}</div>
           ) : null}
           {(driverSwitch?.warnings || []).length ? (
-            <div className="muted">Warnings: {(driverSwitch.warnings || []).join(' | ')}</div>
+            <div className="muted">{t('Uyarılar')}: {(driverSwitch.warnings || []).join(' | ')}</div>
           ) : null}
 
           <div className="ops-inline-actions">
@@ -423,20 +426,20 @@ export default function SystemSection({ isAdmin = false }) {
                 || (driverSwitch?.requiresSqliteDriftAck && !driverSwitchCopyData && !driverSwitchAckDrift)
               }
             >
-              {driverSwitchBusy ? 'Switching...' : `Switch to ${driverSwitch?.targetDriver || 'target'}`}
+              {driverSwitchBusy ? t('Geçiliyor...') : t('{target} sürücüsüne geç', { target: driverSwitch?.targetDriver || t('hedef') })}
             </button>
-            <button className="btn ghost" onClick={() => loadDbDriverSwitchStatus().catch(() => {})}>Refresh</button>
+            <button className="btn ghost" onClick={() => loadDbDriverSwitchStatus().catch(() => {})}>{t('Yenile')}</button>
           </div>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Copy DB Data</h3>
-          <div className="muted">Copy data between drivers without changing the active driver.</div>
+          <h3>{t('Veritabanı Verisi Kopyala')}</h3>
+          <div className="muted">{t('Aktif sürücüyü değiştirmeden sürücüler arasında veri kopyala.')}</div>
           <div className="ops-inline-actions">
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span className="meta">Source</span>
+              <span className="meta">{t('Kaynak')}</span>
               <select className="input" value={copyOnlySrc} onChange={(e) => { setCopyOnlySrc(e.target.value); setCopyOnlyResult(null); }}>
                 <option value="sqlite">SQLite</option>
                 <option value="postgres">PostgreSQL</option>
@@ -444,7 +447,7 @@ export default function SystemSection({ isAdmin = false }) {
             </label>
             <span style={{ alignSelf: 'flex-end', paddingBottom: 4 }}>→</span>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span className="meta">Target</span>
+              <span className="meta">{t('Hedef')}</span>
               <select className="input" value={copyOnlyTgt} onChange={(e) => { setCopyOnlyTgt(e.target.value); setCopyOnlyResult(null); }}>
                 <option value="postgres">PostgreSQL</option>
                 <option value="sqlite">SQLite</option>
@@ -456,15 +459,15 @@ export default function SystemSection({ isAdmin = false }) {
               onClick={requestCopyOnlyData}
               disabled={copyOnlyBusy || copyOnlySrc === copyOnlyTgt}
             >
-              {copyOnlyBusy ? 'Copying...' : 'Copy data'}
+              {copyOnlyBusy ? t('Kopyalanıyor...') : t('Veriyi kopyala')}
             </button>
           </div>
           {copyOnlyResult ? (
             <div className="muted">
-              Copy complete.
-              {copyOnlyResult.tables !== undefined ? ` Tables: ${copyOnlyResult.tables}.` : ''}
-              {copyOnlyResult.rows !== undefined ? ` Rows: ${copyOnlyResult.rows}.` : ''}
-              {(copyOnlyResult.errors || []).length ? ` Errors: ${copyOnlyResult.errors.map(e => e.table ? `${e.table}: ${e.message}` : JSON.stringify(e)).join(', ')}.` : ''}
+              {t('Kopyalama tamamlandı.')}
+              {copyOnlyResult.tables !== undefined ? ` ${t('Tablolar')}: ${copyOnlyResult.tables}.` : ''}
+              {copyOnlyResult.rows !== undefined ? ` ${t('Satırlar')}: ${copyOnlyResult.rows}.` : ''}
+              {(copyOnlyResult.errors || []).length ? ` ${t('Hatalar')}: ${copyOnlyResult.errors.map(e => e.table ? `${e.table}: ${e.message}` : JSON.stringify(e)).join(', ')}.` : ''}
             </div>
           ) : null}
         </div>
@@ -472,10 +475,10 @@ export default function SystemSection({ isAdmin = false }) {
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>Backups</h3>
+          <h3>{t('Yedekler')}</h3>
           <div className="ops-inline-actions">
-            <input className="input" value={backupLabel} onChange={(e) => setBackupLabel(e.target.value)} placeholder="Backup label" />
-            <button className="btn" onClick={createBackup}>Create backup</button>
+            <input className="input" value={backupLabel} onChange={(e) => setBackupLabel(e.target.value)} placeholder={t('Yedek etiketi')} />
+            <button className="btn" onClick={createBackup}>{t('Yedek oluştur')}</button>
           </div>
           <div className="ops-list-grid">
             {backups.map((item) => (
@@ -484,10 +487,10 @@ export default function SystemSection({ isAdmin = false }) {
                   <strong>{item.name}</strong>
                   <div className="meta">{formatDate(item.mtime)} • {Number(item.size || 0)} B</div>
                 </div>
-                <a className="btn ghost" href={`/api/new/admin/db/backups/${encodeURIComponent(item.name)}/download`}>Download</a>
+                <a className="btn ghost" href={`/api/new/admin/db/backups/${encodeURIComponent(item.name)}/download`}>{t('İndir')}</a>
               </div>
             ))}
-            {!backups.length ? <div className="muted">No backups available.</div> : null}
+            {!backups.length ? <div className="muted">{t('Kullanılabilir yedek yok.')}</div> : null}
           </div>
         </div>
       </div>

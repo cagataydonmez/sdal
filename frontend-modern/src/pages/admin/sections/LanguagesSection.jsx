@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
+import { useI18n } from '../../../utils/i18n.jsx';
 
 const TABS = [
-  { key: 'languages', label: 'Languages' },
-  { key: 'strings', label: 'Translation Strings' }
+  { key: 'languages', label: 'Diller' },
+  { key: 'strings', label: 'Çeviri Dizeleri' }
 ];
 
 export default function LanguagesSection({ isAdmin = false }) {
+  const { t } = useI18n();
   const [tab, setTab] = useState('languages');
   const [languages, setLanguages] = useState([]);
 
@@ -30,7 +32,7 @@ export default function LanguagesSection({ isAdmin = false }) {
                 className={`btn btn-sm ${tab === t.key ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setTab(t.key)}
               >
-                {t.label}
+                {t(t.label)}
               </button>
             ))}
           </div>
@@ -47,6 +49,7 @@ export default function LanguagesSection({ isAdmin = false }) {
 // ─── Language Config Panel ─────────────────────────────────────────────────────
 
 function LangConfigPanel({ languages }) {
+  const { t } = useI18n();
   const [config, setConfig] = useState(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
@@ -56,9 +59,9 @@ function LangConfigPanel({ languages }) {
       const data = await adminClient.get('/api/admin/language-config');
       setConfig(data);
     } catch (err) {
-      setStatus(err.message || 'Failed to load language config.');
+      setStatus(err.message || t('Dil yapılandırması yüklenemedi.'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -68,9 +71,9 @@ function LangConfigPanel({ languages }) {
     setStatus('');
     try {
       await adminClient.put('/api/admin/language-config', config);
-      setStatus('Language settings saved.');
+      setStatus(t('Dil ayarları kaydedildi.'));
     } catch (err) {
-      setStatus(err.message || 'Failed to save.');
+      setStatus(err.message || t('Kaydetme başarısız.'));
     } finally {
       setSaving(false);
     }
@@ -80,7 +83,7 @@ function LangConfigPanel({ languages }) {
 
   return (
     <div className="panel">
-      <div className="panel-header"><strong>Language Selection Settings</strong></div>
+      <div className="panel-header"><strong>{t('Dil Seçimi Ayarları')}</strong></div>
       <div className="panel-body">
         <form onSubmit={save} className="stack">
           <label className="ops-check-row">
@@ -89,11 +92,11 @@ function LangConfigPanel({ languages }) {
               checked={!!config.lang_selection_enabled}
               onChange={(e) => setConfig((c) => ({ ...c, lang_selection_enabled: e.target.checked }))}
             />
-            <span>Allow users to change their language</span>
+            <span>{t('Kullanıcıların dilini değiştirmesine izin ver')}</span>
           </label>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
-              <span className="label-text">Default language — site open (logged in)</span>
+              <span className="label-text">{t('Varsayılan dil — site açık (giriş yapanlar)')}</span>
               <select
                 className="input"
                 value={config.default_lang_open || 'tr'}
@@ -105,7 +108,7 @@ function LangConfigPanel({ languages }) {
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
-              <span className="label-text">Default language — site closed (visitors)</span>
+              <span className="label-text">{t('Varsayılan dil — site kapalı (ziyaretçiler)')}</span>
               <select
                 className="input"
                 value={config.default_lang_closed || 'tr'}
@@ -119,10 +122,10 @@ function LangConfigPanel({ languages }) {
           </div>
           <div>
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Language Settings'}
+              {saving ? t('saving') : t('Dil Ayarlarını Kaydet')}
             </button>
           </div>
-          {status && <div className="muted" style={{ color: status.includes('saved') ? 'var(--color-success, green)' : 'var(--color-danger, red)' }}>{status}</div>}
+          {status && <div className="muted" style={{ color: status.includes(t('kaydedildi')) || status.includes('saved') ? 'var(--color-success, green)' : 'var(--color-danger, red)' }}>{status}</div>}
         </form>
       </div>
     </div>
@@ -132,6 +135,7 @@ function LangConfigPanel({ languages }) {
 // ─── Languages Tab ────────────────────────────────────────────────────────────
 
 function LanguagesTab({ isAdmin, onChanged }) {
+  const { t } = useI18n();
   const [languages, setLanguages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -145,11 +149,11 @@ function LanguagesTab({ isAdmin, onChanged }) {
       const data = await adminClient.get('/api/admin/languages');
       setLanguages(data.languages || []);
     } catch (err) {
-      setStatus(err.message || 'Failed to load languages.');
+      setStatus(err.message || t('Diller yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -163,7 +167,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
       await load();
       if (onChanged) onChanged();
     } catch (err) {
-      setStatus(err.message || 'Failed to add language.');
+      setStatus(err.message || t('Dil eklenemedi.'));
     } finally {
       setAdding(false);
     }
@@ -176,30 +180,30 @@ function LanguagesTab({ isAdmin, onChanged }) {
       await load();
       if (onChanged) onChanged();
     } catch (err) {
-      setStatus(err.message || 'Failed to update language.');
+      setStatus(err.message || t('Dil güncellenemedi.'));
     }
   };
 
   const handleDelete = async (code) => {
-    if (!window.confirm(`Delete language "${code}" and all its translations?`)) return;
+    if (!window.confirm(t('"{code}" dili ve tüm çevirileri silinsin mi?', { code }))) return;
     setStatus('');
     try {
       await adminClient.del(`/api/admin/languages/${code}`);
       await load();
       if (onChanged) onChanged();
     } catch (err) {
-      setStatus(err.message || 'Failed to delete language.');
+      setStatus(err.message || t('Dil silinemedi.'));
     }
   };
 
   return (
     <div className="stack">
       <div className="panel">
-        <div className="panel-header"><strong>Add Language</strong></div>
+        <div className="panel-header"><strong>{t('Dil Ekle')}</strong></div>
         <div className="panel-body">
           <form onSubmit={handleAdd} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '0 0 auto' }}>
-              <span className="label-text">Code (e.g. es)</span>
+              <span className="label-text">{t('Kod (ör. es)')}</span>
               <input
                 className="input"
                 style={{ width: '80px' }}
@@ -211,7 +215,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 160px' }}>
-              <span className="label-text">Name (English)</span>
+              <span className="label-text">{t('Ad (İngilizce)')}</span>
               <input
                 className="input"
                 value={addForm.name}
@@ -222,7 +226,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 160px' }}>
-              <span className="label-text">Native Name</span>
+              <span className="label-text">{t('Yerel Ad')}</span>
               <input
                 className="input"
                 value={addForm.native_name}
@@ -233,7 +237,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={adding}>
-              {adding ? 'Adding...' : 'Add Language'}
+              {adding ? t('Ekleniyor...') : t('Dil Ekle')}
             </button>
           </form>
           {status && <div className="muted" style={{ marginTop: '8px', color: 'var(--color-danger, red)' }}>{status}</div>}
@@ -242,23 +246,23 @@ function LanguagesTab({ isAdmin, onChanged }) {
 
       <div className="panel">
         <div className="panel-header">
-          <strong>Languages</strong>
+          <strong>{t('Diller')}</strong>
           <button className="btn btn-sm btn-secondary" onClick={load} disabled={loading} style={{ marginLeft: 'auto' }}>
-            {loading ? 'Loading...' : 'Refresh'}
+            {loading ? t('loading') : t('Yenile')}
           </button>
         </div>
         <div className="panel-body">
-          {languages.length === 0 && !loading && <div className="muted">No languages found.</div>}
+          {languages.length === 0 && !loading && <div className="muted">{t('Dil bulunamadı.')}</div>}
           {languages.length > 0 && (
             <table className="data-table" style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th>Native Name</th>
-                  <th>Default</th>
-                  <th>Active</th>
-                  <th>Actions</th>
+                  <th>{t('Kod')}</th>
+                  <th>{t('Ad')}</th>
+                  <th>{t('Yerel Ad')}</th>
+                  <th>{t('Varsayılan')}</th>
+                  <th>{t('Aktif')}</th>
+                  <th>{t('İşlemler')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -267,15 +271,15 @@ function LanguagesTab({ isAdmin, onChanged }) {
                     <td><code>{lang.code}</code></td>
                     <td>{lang.name}</td>
                     <td>{lang.native_name}</td>
-                    <td>{lang.is_default ? <span className="chip">Default</span> : '—'}</td>
+                    <td>{lang.is_default ? <span className="chip">{t('Varsayılan')}</span> : '—'}</td>
                     <td>
                       <button
                         className={`btn btn-sm ${lang.is_active ? 'btn-success' : 'btn-secondary'}`}
                         onClick={() => handleToggle(lang.code, lang.is_active)}
                         disabled={!!lang.is_default}
-                        title={lang.is_default ? 'Cannot deactivate default language' : ''}
+                        title={lang.is_default ? t('Varsayılan dil devre dışı bırakılamaz') : ''}
                       >
-                        {lang.is_active ? 'Active' : 'Inactive'}
+                        {lang.is_active ? t('Aktif') : t('Pasif')}
                       </button>
                     </td>
                     <td>
@@ -284,7 +288,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
                           className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(lang.code)}
                         >
-                          Delete
+                          {t('delete')}
                         </button>
                       )}
                     </td>
@@ -302,6 +306,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
 // ─── Strings Tab ──────────────────────────────────────────────────────────────
 
 function StringsTab({ isAdmin, languages }) {
+  const { t } = useI18n();
   const [filterLang, setFilterLang] = useState('');
   const [filterQ, setFilterQ] = useState('');
   const [strings, setStrings] = useState([]);
@@ -327,11 +332,11 @@ function StringsTab({ isAdmin, languages }) {
       setTotal(data.total || 0);
       setPage(pg);
     } catch (err) {
-      setStatus(err.message || 'Failed to load strings.');
+      setStatus(err.message || t('Çeviri dizeleri yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [filterLang, filterQ]);
+  }, [filterLang, filterQ, t]);
 
   useEffect(() => { loadStrings(1); }, [loadStrings]);
 
@@ -342,18 +347,18 @@ function StringsTab({ isAdmin, languages }) {
       setEditingId(null);
       await loadStrings(page);
     } catch (err) {
-      setStatus(err.message || 'Failed to save.');
+      setStatus(err.message || t('Kaydetme başarısız.'));
     }
   };
 
   const handleDelete = async (lang, key) => {
-    if (!window.confirm(`Delete string "${key}" for language "${lang}"?`)) return;
+    if (!window.confirm(t('"{lang}" dili için "{key}" dizesi silinsin mi?', { lang, key }))) return;
     setStatus('');
     try {
       await adminClient.del(`/api/admin/language-strings/${lang}/${encodeURIComponent(key)}`);
       await loadStrings(page);
     } catch (err) {
-      setStatus(err.message || 'Failed to delete.');
+      setStatus(err.message || t('Silme başarısız.'));
     }
   };
 
@@ -366,7 +371,7 @@ function StringsTab({ isAdmin, languages }) {
       setNewKey({ key: '', lang: newKey.lang, value: '' });
       await loadStrings(1);
     } catch (err) {
-      setStatus(err.message || 'Failed to add string.');
+      setStatus(err.message || t('Dize eklenemedi.'));
     } finally {
       setAddingKey(false);
     }
@@ -381,19 +386,19 @@ function StringsTab({ isAdmin, languages }) {
       try {
         parsed = JSON.parse(importText);
       } catch {
-        setStatus('Invalid JSON. Please provide a valid JSON object.');
+        setStatus(t('Geçersiz JSON. Lütfen geçerli bir JSON nesnesi gir.'));
         return;
       }
       if (typeof parsed !== 'object' || Array.isArray(parsed)) {
-        setStatus('JSON must be a flat key/value object.');
+        setStatus(t('JSON düz bir anahtar/değer nesnesi olmalı.'));
         return;
       }
       const result = await adminClient.post('/api/admin/language-strings/bulk', { lang: importLang, strings: parsed });
-      setStatus(`Imported ${result.count} strings for "${importLang}".`);
+      setStatus(t('"{lang}" dili için {count} dize içe aktarıldı.', { lang: importLang, count: result.count }));
       setImportText('');
       await loadStrings(1);
     } catch (err) {
-      setStatus(err.message || 'Import failed.');
+      setStatus(err.message || t('İçe aktarma başarısız.'));
     } finally {
       setImporting(false);
     }
@@ -401,7 +406,7 @@ function StringsTab({ isAdmin, languages }) {
 
   const handleExport = async () => {
     if (!filterLang) {
-      setStatus('Select a language to export.');
+      setStatus(t('Dışa aktarmak için bir dil seç.'));
       return;
     }
     setStatus('');
@@ -417,7 +422,7 @@ function StringsTab({ isAdmin, languages }) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setStatus(err.message || 'Export failed.');
+      setStatus(err.message || t('Dışa aktarma başarısız.'));
     }
   };
 
@@ -427,25 +432,25 @@ function StringsTab({ isAdmin, languages }) {
     <div className="stack">
       {/* Add new string */}
       <div className="panel">
-        <div className="panel-header"><strong>Add Translation String</strong></div>
+        <div className="panel-header"><strong>{t('Çeviri Dizesi Ekle')}</strong></div>
         <div className="panel-body">
           <form onSubmit={handleAddKey} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '0 0 auto' }}>
-              <span className="label-text">Language</span>
+              <span className="label-text">{t('Dil')}</span>
               <select
                 className="input"
                 value={newKey.lang}
                 onChange={(e) => setNewKey((f) => ({ ...f, lang: e.target.value }))}
                 required
               >
-                <option value="">Select...</option>
+                <option value="">{t('Seç...')}</option>
                 {languages.map((l) => (
                   <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
                 ))}
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
-              <span className="label-text">Key (e.g. nav_home)</span>
+              <span className="label-text">{t('Anahtar (ör. nav_home)')}</span>
               <input
                 className="input"
                 value={newKey.key}
@@ -455,7 +460,7 @@ function StringsTab({ isAdmin, languages }) {
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '2 1 220px' }}>
-              <span className="label-text">Value</span>
+              <span className="label-text">{t('Değer')}</span>
               <input
                 className="input"
                 value={newKey.value}
@@ -465,7 +470,7 @@ function StringsTab({ isAdmin, languages }) {
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={addingKey}>
-              {addingKey ? 'Adding...' : 'Add String'}
+              {addingKey ? t('Ekleniyor...') : t('Dize Ekle')}
             </button>
           </form>
         </div>
@@ -473,7 +478,7 @@ function StringsTab({ isAdmin, languages }) {
 
       {/* Import / Export */}
       <div className="panel">
-        <div className="panel-header"><strong>Import / Export JSON</strong></div>
+        <div className="panel-header"><strong>{t('JSON İçe / Dışa Aktar')}</strong></div>
         <div className="panel-body stack">
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <select
@@ -482,18 +487,18 @@ function StringsTab({ isAdmin, languages }) {
               value={filterLang}
               onChange={(e) => setFilterLang(e.target.value)}
             >
-              <option value="">All languages</option>
+              <option value="">{t('Tüm diller')}</option>
               {languages.map((l) => (
                 <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
               ))}
             </select>
             <button className="btn btn-secondary" onClick={handleExport} disabled={!filterLang}>
-              Export {filterLang ? `"${filterLang}"` : ''} as JSON
+              {t('JSON olarak dışa aktar')} {filterLang ? `"${filterLang}"` : ''}
             </button>
           </div>
           <form onSubmit={handleImport} className="stack">
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <label className="label-text">Import into language:</label>
+              <label className="label-text">{t('Şu dile içe aktar:')}</label>
               <select
                 className="input"
                 style={{ flex: '0 0 auto', width: '180px' }}
@@ -501,7 +506,7 @@ function StringsTab({ isAdmin, languages }) {
                 onChange={(e) => setImportLang(e.target.value)}
                 required
               >
-                <option value="">Select...</option>
+                <option value="">{t('Seç...')}</option>
                 {languages.map((l) => (
                   <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
                 ))}
@@ -517,21 +522,21 @@ function StringsTab({ isAdmin, languages }) {
             />
             <div>
               <button type="submit" className="btn btn-primary" disabled={importing || !importLang}>
-                {importing ? 'Importing...' : 'Import JSON'}
+                {importing ? t('İçe aktarılıyor...') : t('JSON İçe Aktar')}
               </button>
             </div>
           </form>
-          {status && <div className="muted" style={{ color: status.startsWith('Imported') ? 'var(--color-success, green)' : 'var(--color-danger, red)' }}>{status}</div>}
+          {status && <div className="muted" style={{ color: status.includes(t('içe aktarıldı')) || status.startsWith('Imported') ? 'var(--color-success, green)' : 'var(--color-danger, red)' }}>{status}</div>}
         </div>
       </div>
 
       {/* String list */}
       <div className="panel">
         <div className="panel-header">
-          <strong>Strings</strong>
-          <span className="muted" style={{ marginLeft: '8px' }}>({total} total)</span>
+          <strong>{t('Dizeler')}</strong>
+          <span className="muted" style={{ marginLeft: '8px' }}>({total} {t('toplam')})</span>
           <button className="btn btn-sm btn-secondary" onClick={() => loadStrings(page)} disabled={loading} style={{ marginLeft: 'auto' }}>
-            {loading ? 'Loading...' : 'Refresh'}
+            {loading ? t('loading') : t('Yenile')}
           </button>
         </div>
         <div className="panel-body stack">
@@ -543,7 +548,7 @@ function StringsTab({ isAdmin, languages }) {
               value={filterLang}
               onChange={(e) => { setFilterLang(e.target.value); setPage(1); }}
             >
-              <option value="">All languages</option>
+              <option value="">{t('Tüm diller')}</option>
               {languages.map((l) => (
                 <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
               ))}
@@ -551,22 +556,22 @@ function StringsTab({ isAdmin, languages }) {
             <input
               className="input"
               style={{ flex: '1 1 200px' }}
-              placeholder="Search key or value..."
+              placeholder={t('Anahtar veya değer ara...')}
               value={filterQ}
               onChange={(e) => { setFilterQ(e.target.value); setPage(1); }}
             />
           </div>
 
-          {strings.length === 0 && !loading && <div className="muted">No strings found.</div>}
+          {strings.length === 0 && !loading && <div className="muted">{t('Dize bulunamadı.')}</div>}
 
           {strings.length > 0 && (
             <table className="data-table" style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '80px' }}>Lang</th>
-                  <th style={{ width: '220px' }}>Key</th>
-                  <th>Value</th>
-                  <th style={{ width: '120px' }}>Actions</th>
+                  <th style={{ width: '80px' }}>{t('Dil')}</th>
+                  <th style={{ width: '220px' }}>{t('Anahtar')}</th>
+                  <th>{t('Değer')}</th>
+                  <th style={{ width: '120px' }}>{t('İşlemler')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -594,8 +599,8 @@ function StringsTab({ isAdmin, languages }) {
                       <td>
                         {isEditing ? (
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <button className="btn btn-sm btn-primary" onClick={() => handleSave(s.lang_code, s.key)}>Save</button>
-                            <button className="btn btn-sm btn-secondary" onClick={() => setEditingId(null)}>Cancel</button>
+                            <button className="btn btn-sm btn-primary" onClick={() => handleSave(s.lang_code, s.key)}>{t('save')}</button>
+                            <button className="btn btn-sm btn-secondary" onClick={() => setEditingId(null)}>{t('İptal')}</button>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -603,13 +608,13 @@ function StringsTab({ isAdmin, languages }) {
                               className="btn btn-sm btn-secondary"
                               onClick={() => { setEditingId(rowId); setEditValue(s.value); }}
                             >
-                              Edit
+                              {t('edit')}
                             </button>
                             <button
                               className="btn btn-sm btn-danger"
                               onClick={() => handleDelete(s.lang_code, s.key)}
                             >
-                              Del
+                              {t('delete')}
                             </button>
                           </div>
                         )}
@@ -624,9 +629,9 @@ function StringsTab({ isAdmin, languages }) {
           {/* Pagination */}
           {totalPages > 1 && (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => loadStrings(page - 1)}>Previous</button>
-              <span className="muted">Page {page} / {totalPages}</span>
-              <button className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => loadStrings(page + 1)}>Next</button>
+              <button className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => loadStrings(page - 1)}>{t('Önceki')}</button>
+              <span className="muted">{t('Sayfa')} {page} / {totalPages}</span>
+              <button className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => loadStrings(page + 1)}>{t('Sonraki')}</button>
             </div>
           )}
         </div>

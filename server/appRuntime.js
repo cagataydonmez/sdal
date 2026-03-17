@@ -58,6 +58,7 @@ import { createJobQueue } from './src/infra/jobQueue.js';
 import { createMailSender } from './src/infra/mailSender.js';
 import { createUploadSecurity } from './src/uploads/createUploadSecurity.js';
 import { createMediaRuntime } from './src/uploads/createMediaRuntime.js';
+import { getLanguageConfig, getPublicLanguageStrings, listActiveLanguages } from './src/shared/languageCatalogStore.js';
 import { consumeUploadQuota } from './src/infra/uploadQuota.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
@@ -4071,12 +4072,7 @@ app.get('/api/new/lang-strings/:lang', async (req, res) => {
   const lang = String(req.params.lang || '').trim().toLowerCase();
   if (!lang) return res.status(400).json({ error: 'lang is required.' });
   try {
-    const langRow = await sqlGetAsync('SELECT code FROM languages WHERE code = $1 AND is_active IS TRUE', [lang]);
-    if (!langRow) return res.json({ strings: {} });
-    const rows = await sqlAllAsync('SELECT key, value FROM language_strings WHERE lang_code = $1', [lang]);
-    const strings = {};
-    for (const row of rows) strings[row.key] = row.value;
-    res.json({ strings });
+    res.json(await getPublicLanguageStrings(lang));
   } catch (err) {
     res.json({ strings: {} });
   }
@@ -4085,13 +4081,7 @@ app.get('/api/new/lang-strings/:lang', async (req, res) => {
 // Public endpoint: language selection config (enabled, defaults)
 app.get('/api/new/lang-config', async (_req, res) => {
   try {
-    const row = await sqlGetAsync('SELECT lang_selection_enabled, default_lang_open, default_lang_closed FROM language_config WHERE id = 1', []);
-    if (!row) return res.json({ lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' });
-    res.json({
-      lang_selection_enabled: !!row.lang_selection_enabled,
-      default_lang_open: row.default_lang_open || 'tr',
-      default_lang_closed: row.default_lang_closed || 'tr'
-    });
+    res.json(await getLanguageConfig());
   } catch {
     res.json({ lang_selection_enabled: true, default_lang_open: 'tr', default_lang_closed: 'tr' });
   }
@@ -4100,11 +4090,7 @@ app.get('/api/new/lang-config', async (_req, res) => {
 // Public endpoint: list active languages
 app.get('/api/new/languages', async (req, res) => {
   try {
-    const rows = await sqlAllAsync(
-      'SELECT code, name, native_name, is_default FROM languages WHERE is_active IS TRUE ORDER BY is_default DESC, code ASC',
-      []
-    );
-    res.json({ languages: rows });
+    res.json({ languages: await listActiveLanguages() });
   } catch (err) {
     res.json({ languages: [] });
   }

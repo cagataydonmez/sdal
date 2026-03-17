@@ -68,7 +68,8 @@ function RequireAuth({ children }) {
 }
 
 function RouteFallback() {
-  return <div className="muted" style={{ padding: 16 }}>Yukleniyor...</div>;
+  const { t } = useI18n();
+  return <div className="muted" style={{ padding: 16 }}>{t('loading')}</div>;
 }
 
 // Syncs auth state with language defaults configured by admin
