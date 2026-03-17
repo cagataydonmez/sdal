@@ -1,4 +1,5 @@
 import { trFallbackMessages } from '../../../frontend-modern/src/utils/i18nFallbackMessages.js';
+import { LANGUAGE_SEED_OVERRIDES } from './languageSeedOverrides.js';
 
 export const BUILT_IN_LANGUAGES = [
   { code: 'tr', name: 'Turkish', native_name: 'Türkçe', is_default: true, is_active: true },
@@ -333,9 +334,14 @@ const ALL_SEED_KEYS = Object.keys(TURKISH_SEED_STRINGS);
 function buildProjectedSeedStrings(lang) {
   if (lang === 'tr') return { ...TURKISH_SEED_STRINGS };
   const bundled = BUNDLED_MESSAGES[lang] || {};
+  const overrides = LANGUAGE_SEED_OVERRIDES[lang] || {};
   const projected = {};
   for (const key of ALL_SEED_KEYS) {
-    projected[key] = Object.prototype.hasOwnProperty.call(bundled, key) ? bundled[key] : '';
+    if (Object.prototype.hasOwnProperty.call(bundled, key)) {
+      projected[key] = bundled[key];
+      continue;
+    }
+    projected[key] = Object.prototype.hasOwnProperty.call(overrides, key) ? overrides[key] : '';
   }
   return projected;
 }
