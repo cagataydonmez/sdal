@@ -1,11 +1,21 @@
+import { z } from 'zod';
 import { isHttpError } from '../../shared/httpError.js';
 import { toLegacyAuthLoginResponse } from '../dto/legacyApiMappers.js';
 
+const LoginSchema = z.object({
+  kadi: z.string().min(1, 'Kullanıcı adı zorunludur.').max(15),
+  sifre: z.string().min(1, 'Şifre zorunludur.').max(20),
+});
+
 export function createAuthController({ authService, applyUserSession }) {
   async function login(req, res) {
+    const parsed = LoginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).send((parsed.error.issues ?? parsed.error.errors).map(e => e.message).join(', '));
+    }
     try {
-      const username = req.body?.kadi;
-      const password = req.body?.sifre;
+      const username = parsed.data.kadi;
+      const password = parsed.data.sifre;
       const result = await authService.loginWithPassword({ username, password });
 
       applyUserSession(req, result.user.legacy || {

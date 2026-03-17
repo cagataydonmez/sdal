@@ -1,8 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Link, useNavigate } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import { api } from '../utils/apiClient.js';
+
+const LoginSchema = z.object({
+  kadi: z.string().min(1, 'auth_username_required').max(15),
+  sifre: z.string().min(1, 'auth_password_required').max(20),
+});
 
 export default function LoginPage() {
   const { t } = useI18n();
@@ -10,76 +19,80 @@ export default function LoginPage() {
     { provider: 'google', title: 'Google', enabled: true, startUrl: '/api/auth/oauth/google/start?returnTo=/new/login' },
     { provider: 'x', title: 'X', enabled: true, startUrl: '/api/auth/oauth/x/start?returnTo=/new/login' }
   ];
-  const [kadi, setKadi] = useState('');
-  const [sifre, setSifre] = useState('');
-  const [error, setError] = useState('');
   const [oauthProviders, setOauthProviders] = useState(fallbackProviders);
   const { refresh } = useAuth();
   const navigate = useNavigate();
 
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm({ resolver: zodResolver(LoginSchema) });
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('oauth')) {
-      setError(t('login_error_oauth_failed'));
+      setError('root', { message: t('login_error_oauth_failed') });
     }
-  }, [t]);
+  }, [t, setError]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('/api/auth/oauth/providers', { credentials: 'include' });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await api.get('/api/auth/oauth/providers');
         if (!mounted) return;
         const remote = Array.isArray(data?.providers) ? data.providers : [];
-        if (!remote.length) {
-          setOauthProviders(fallbackProviders);
-          return;
-        }
-        const mapped = remote.map((item) => ({
-          provider: String(item?.provider || ''),
-          title: String(item?.title || ''),
-          enabled: item?.enabled !== false,
-          startUrl: String(item?.startUrl || `/api/auth/oauth/${item?.provider}/start?returnTo=/new/login`)
-        })).filter((item) => item.provider);
-        setOauthProviders(mapped.length ? mapped : fallbackProviders);
+        if (!remote.length) return;
+        const mapped = remote
+          .map((item) => ({
+            provider: String(item?.provider || ''),
+            title: String(item?.title || ''),
+            enabled: item?.enabled !== false,
+            startUrl: String(item?.startUrl || `/api/auth/oauth/${item?.provider}/start?returnTo=/new/login`),
+          }))
+          .filter((item) => item.provider);
+        if (mounted) setOauthProviders(mapped.length ? mapped : fallbackProviders);
       } catch {
         if (mounted) setOauthProviders(fallbackProviders);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  async function submit(e) {
-    e.preventDefault();
-    setError('');
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ kadi, sifre })
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      setError(msg || t('login_error_failed'));
-      return;
+  async function onSubmit({ kadi, sifre }) {
+    try {
+      await api.post('/api/auth/login', { kadi, sifre });
+      await refresh();
+      navigate('/new');
+    } catch (err) {
+      setError('root', { message: err.message || t('login_error_failed') });
     }
-    await refresh();
-    navigate('/new');
   }
 
   return (
     <Layout title={t('login_title')}>
       <div className="panel">
         <div className="panel-body">
-          <form onSubmit={submit} className="stack">
-            <input className="input" placeholder={t('auth_username')} value={kadi} onChange={(e) => setKadi(e.target.value)} />
-            <input className="input" type="password" placeholder={t('auth_password')} value={sifre} onChange={(e) => setSifre(e.target.value)} />
-            <button className="btn primary" type="submit">{t('login_submit')}</button>
-            {error ? <div className="error">{error}</div> : null}
+          <form onSubmit={handleSubmit(onSubmit)} className="stack">
+            <input
+              className="input"
+              placeholder={t('auth_username')}
+              {...register('kadi')}
+            />
+            {errors.kadi && <div className="error">{t(errors.kadi.message)}</div>}
+            <input
+              className="input"
+              type="password"
+              placeholder={t('auth_password')}
+              {...register('sifre')}
+            />
+            {errors.sifre && <div className="error">{t(errors.sifre.message)}</div>}
+            <button className="btn primary" type="submit" disabled={isSubmitting}>
+              {t('login_submit')}
+            </button>
+            {errors.root && <div className="error">{errors.root.message}</div>}
           </form>
           {oauthProviders.length ? (
             <div className="stack">

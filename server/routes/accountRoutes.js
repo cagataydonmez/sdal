@@ -1,3 +1,24 @@
+import { z } from 'zod';
+import { getValidationRejections } from '../src/http/middleware/validate.js';
+
+const RegisterPreviewSchema = z.object({
+  kadi: z.string().min(1, 'Kullanıcı adını girmedin.').max(15, 'Kullanıcı adı 15 karakterden fazla olmamalıdır.'),
+  sifre: z.string().min(1, 'Şifreni girmedin.').max(20, 'Şifre 20 karakterden fazla olmamalıdır.'),
+  sifre2: z.string().min(1),
+  email: z.string().min(1, 'Email adresini girmedin.').max(50, 'E-mail adresi 50 karakterden fazla olmamalıdır.'),
+  isim: z.string().min(1, 'İsmini girmedin.').max(20, 'İsim 20 karakterden fazla olmamalıdır.'),
+  soyisim: z.string().min(1, 'Soyismini girmedin.').max(20, 'Soyisim 20 karakterden fazla olmamalıdır.'),
+  mezuniyetyili: z.string().optional().default('0'),
+  gkodu: z.string().optional().default(''),
+  kvkk_consent: z.any().optional(),
+  directory_consent: z.any().optional(),
+});
+
+const RegisterCheckSchema = z.object({
+  kadi: z.string().max(15).optional().default(''),
+  email: z.string().max(50).optional().default(''),
+});
+
 export function registerAccountRoutes(app, deps) {
   const {
     sqlGet,
@@ -34,6 +55,10 @@ export function registerAccountRoutes(app, deps) {
   app.post('/api/register/preview', async (req, res) => {
     try {
       if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
+      const zodResult = RegisterPreviewSchema.safeParse(req.body || {});
+      if (!zodResult.success) {
+        return res.status(400).send((zodResult.error.issues ?? zodResult.error.errors)[0]?.message || 'Geçersiz istek.');
+      }
       const e2eMode = isE2EHarnessRequest(req);
       const {
         kadi = '',
@@ -107,6 +132,10 @@ export function registerAccountRoutes(app, deps) {
   app.post('/api/register/check', async (req, res) => {
     try {
       if (req.session.userId) return res.status(400).send('Zaten giriş yaptınız.');
+      const zodResult = RegisterCheckSchema.safeParse(req.body || {});
+      if (!zodResult.success) {
+        return res.status(400).send((zodResult.error.issues ?? zodResult.error.errors)[0]?.message || 'Geçersiz istek.');
+      }
       const { kadi = '', email = '' } = req.body || {};
       const cleanKadi = String(kadi || '').trim();
       const cleanEmail = normalizeEmail(email);

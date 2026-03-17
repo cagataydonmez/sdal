@@ -14,6 +14,7 @@ import SettingsSection from './sections/SettingsSection.jsx';
 import SystemSection from './sections/SystemSection.jsx';
 import TeacherNetworkSection from './sections/TeacherNetworkSection.jsx';
 import LanguagesSection from './sections/LanguagesSection.jsx';
+import SecuritySection from './sections/SecuritySection.jsx';
 import { useI18n } from '../../utils/i18n.jsx';
 
 function normalizeRole(value) {
@@ -128,6 +129,13 @@ export default function AdminShellPage() {
         hint: t('Öğretmen/mezun ilişki moderasyonu ve incelemesi'),
         visible: hasPermission('requests.view'),
         render: () => <TeacherNetworkSection />
+      },
+      {
+        key: 'security',
+        label: t('Güvenlik ve Doğrulama'),
+        hint: t('Helmet başlıkları, Zod şema kapsamı, doğrulama hata günlüğü'),
+        visible: isAdmin,
+        render: () => <SecuritySection />
       },
       {
         key: 'languages',

@@ -1,4 +1,5 @@
 import express from 'express';
+import helmet from 'helmet';
 import path from 'path';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
@@ -27,6 +28,7 @@ import { registerAdminExperimentRoutes } from './routes/adminExperimentRoutes.js
 import { registerAdminManagementRoutes } from './routes/adminManagementRoutes.js';
 import { registerAdminRequestModerationRoutes } from './routes/adminRequestModerationRoutes.js';
 import { registerAdminLanguageRoutes } from './routes/adminLanguageRoutes.js';
+import { registerAdminSecurityRoutes } from './routes/adminSecurityRoutes.js';
 import { registerAccountRoutes } from './routes/accountRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
 import { registerGroupRoutes } from './routes/groupRoutes.js';
@@ -81,6 +83,10 @@ const app = express();
 app.set('trust proxy', true);
 app.locals.dbDriver = dbDriver;
 
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  contentSecurityPolicy: false, // managed per-route as needed
+}));
 app.use(morgan('dev'));
 app.use(cookieParser());
 app.use(express.json());
@@ -4822,6 +4828,8 @@ registerAdminLanguageRoutes(app, {
   sqlAllAsync,
   sqlRunAsync
 });
+
+registerAdminSecurityRoutes(app, { requireAdmin });
 
 registerMiscAppRoutes(app, {
   appRootDir: __dirname,
