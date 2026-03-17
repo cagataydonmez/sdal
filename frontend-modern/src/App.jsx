@@ -75,11 +75,11 @@ function RouteFallback() {
 // Syncs auth state with language defaults configured by admin
 function LangAuthSync() {
   const { user, loading } = useAuth();
-  const { applyLangDefault } = useI18n();
+  const { applyLangDefault, langConfig } = useI18n();
   useEffect(() => {
     if (loading) return;
     applyLangDefault(!!user);
-  }, [user, loading]);
+  }, [user, loading, langConfig, applyLangDefault]);
   return null;
 }
 

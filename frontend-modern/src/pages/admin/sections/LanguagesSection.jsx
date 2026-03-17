@@ -310,7 +310,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
 // ─── Strings Tab ──────────────────────────────────────────────────────────────
 
 function StringsTab({ isAdmin, languages }) {
-  const { t } = useI18n();
+  const { t, reloadI18nConfig } = useI18n();
   const [filterLang, setFilterLang] = useState('');
   const [filterQ, setFilterQ] = useState('');
   const [strings, setStrings] = useState([]);
@@ -325,6 +325,7 @@ function StringsTab({ isAdmin, languages }) {
   const [importLang, setImportLang] = useState('');
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
+  const [fillingMissing, setFillingMissing] = useState(false);
   const LIMIT = 50;
 
   const loadStrings = useCallback(async (pg = 1) => {
@@ -430,6 +431,29 @@ function StringsTab({ isAdmin, languages }) {
     }
   };
 
+  const handleFillMissing = async () => {
+    if (!filterLang || filterLang === 'tr') {
+      setStatus(t('Boş dizeleri doldurmak için Türkçe dışı bir dil seç.'));
+      return;
+    }
+    setStatus('');
+    setFillingMissing(true);
+    try {
+      const result = await adminClient.post('/api/admin/language-strings/fill-missing', { lang: filterLang });
+      await reloadI18nConfig();
+      setStatus(t('"{lang}" dili için {filled}/{missing} boş dize dolduruldu.', {
+        lang: filterLang,
+        filled: result.filled || 0,
+        missing: result.missing || 0
+      }));
+      await loadStrings(page);
+    } catch (err) {
+      setStatus(err.message || t('Boş dizeler doldurulamadı.'));
+    } finally {
+      setFillingMissing(false);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
   return (
@@ -498,6 +522,9 @@ function StringsTab({ isAdmin, languages }) {
             </select>
             <button className="btn btn-secondary" onClick={handleExport} disabled={!filterLang}>
               {t('JSON olarak dışa aktar')} {filterLang ? `"${filterLang}"` : ''}
+            </button>
+            <button className="btn btn-secondary" onClick={handleFillMissing} disabled={fillingMissing || !filterLang || filterLang === 'tr'}>
+              {fillingMissing ? t('Boş dizeler dolduruluyor...') : t('Boş dizeleri doldur')}
             </button>
           </div>
           <form onSubmit={handleImport} className="stack">

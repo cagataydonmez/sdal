@@ -16,7 +16,7 @@ export default function Layout({ children, title, right }) {
   const navigate = useNavigate();
   const { user, logout, refresh } = useAuth();
   const { mode, theme, cycleMode } = useTheme();
-  const { t } = useI18n();
+  const { t, lang, setLang, availableLangs, langSelectionEnabled } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -231,6 +231,11 @@ export default function Layout({ children, title, right }) {
   const roleValue = String(user?.role || '').toLowerCase();
   const isAdminUser = Number(user?.admin || 0) === 1 || roleValue === 'admin' || roleValue === 'root';
   const routeMeta = useMemo(() => getRouteTransitionMeta(location.pathname), [location.pathname]);
+  const visibleLangOptions = useMemo(
+    () => (availableLangs || []).filter((item) => String(item?.code || '').trim()),
+    [availableLangs]
+  );
+  const showLanguageSelector = langSelectionEnabled && visibleLangOptions.length > 1;
 
   const navItems = useMemo(() => {
     const allItems = [
@@ -319,6 +324,21 @@ export default function Layout({ children, title, right }) {
             <p>{t('layout_subtitle')}</p>
           </div>
 	          <div className="top-actions">
+            {showLanguageSelector ? (
+              <select
+                className="input"
+                value={lang}
+                onChange={(e) => setLang(e.target.value)}
+                aria-label={t('language_selector_aria')}
+                style={{ minWidth: 132 }}
+              >
+                {visibleLangOptions.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.native_name || item.name || item.code.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <button className="btn ghost theme-toggle" onClick={cycleMode} title={t('theme_mode_title')}>
               {themeLabel}
             </button>
@@ -384,6 +404,20 @@ export default function Layout({ children, title, right }) {
           {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="mobile-nav-foot">
+          {showLanguageSelector ? (
+            <select
+              className="input"
+              value={lang}
+              onChange={(e) => setLang(e.target.value)}
+              aria-label={t('language_selector_aria')}
+            >
+              {visibleLangOptions.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.native_name || item.name || item.code.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <button className="btn ghost" onClick={cycleMode}>{themeLabel}</button>
           <a className="btn ghost" href="/">{t('layout_classic_short')}</a>
           {user ? <button className="btn" onClick={handleLogout}>{t('logout')}</button> : null}
