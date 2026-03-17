@@ -327,11 +327,24 @@ const BUNDLED_MESSAGES = {
   }
 };
 
+const TURKISH_SEED_STRINGS = { ...trFallbackMessages, ...BUNDLED_MESSAGES.tr };
+const ALL_SEED_KEYS = Object.keys(TURKISH_SEED_STRINGS);
+
+function buildProjectedSeedStrings(lang) {
+  if (lang === 'tr') return { ...TURKISH_SEED_STRINGS };
+  const bundled = BUNDLED_MESSAGES[lang] || {};
+  const projected = {};
+  for (const key of ALL_SEED_KEYS) {
+    projected[key] = Object.prototype.hasOwnProperty.call(bundled, key) ? bundled[key] : '';
+  }
+  return projected;
+}
+
 export const LANGUAGE_SEED_STRINGS = {
-  tr: { ...trFallbackMessages, ...BUNDLED_MESSAGES.tr },
-  en: { ...BUNDLED_MESSAGES.en },
-  de: { ...BUNDLED_MESSAGES.de },
-  fr: { ...BUNDLED_MESSAGES.fr }
+  tr: buildProjectedSeedStrings('tr'),
+  en: buildProjectedSeedStrings('en'),
+  de: buildProjectedSeedStrings('de'),
+  fr: buildProjectedSeedStrings('fr')
 };
 
 export function getSeedStringsForLang(lang) {
