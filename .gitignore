@@ -13,3 +13,4 @@ sdal_new/dist/
 .DS_Store
 Thumbs.db
 logs/*.log
+server/data/
