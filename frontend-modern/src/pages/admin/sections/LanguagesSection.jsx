@@ -49,7 +49,7 @@ export default function LanguagesSection({ isAdmin = false }) {
 // ─── Language Config Panel ─────────────────────────────────────────────────────
 
 function LangConfigPanel({ languages }) {
-  const { t } = useI18n();
+  const { t, reloadI18nConfig } = useI18n();
   const [config, setConfig] = useState(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
@@ -71,6 +71,7 @@ function LangConfigPanel({ languages }) {
     setStatus('');
     try {
       await adminClient.put('/api/admin/language-config', config);
+      await reloadI18nConfig();
       setStatus(t('Dil ayarları kaydedildi.'));
     } catch (err) {
       setStatus(err.message || t('Kaydetme başarısız.'));
@@ -135,7 +136,7 @@ function LangConfigPanel({ languages }) {
 // ─── Languages Tab ────────────────────────────────────────────────────────────
 
 function LanguagesTab({ isAdmin, onChanged }) {
-  const { t } = useI18n();
+  const { t, reloadI18nConfig } = useI18n();
   const [languages, setLanguages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -165,6 +166,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
       await adminClient.post('/api/admin/languages', addForm);
       setAddForm({ code: '', name: '', native_name: '' });
       await load();
+      await reloadI18nConfig();
       if (onChanged) onChanged();
     } catch (err) {
       setStatus(err.message || t('Dil eklenemedi.'));
@@ -178,6 +180,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
     try {
       await adminClient.put(`/api/admin/languages/${code}`, { is_active: !currentActive });
       await load();
+      await reloadI18nConfig();
       if (onChanged) onChanged();
     } catch (err) {
       setStatus(err.message || t('Dil güncellenemedi.'));
@@ -190,6 +193,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
     try {
       await adminClient.del(`/api/admin/languages/${code}`);
       await load();
+      await reloadI18nConfig();
       if (onChanged) onChanged();
     } catch (err) {
       setStatus(err.message || t('Dil silinemedi.'));

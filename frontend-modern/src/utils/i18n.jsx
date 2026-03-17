@@ -2,6 +2,9 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { trFallbackMessages } from './i18nFallbackMessages.js';
 
 const I18N_KEY = 'sdal_new_lang';
+const I18N_SOURCE_KEY = 'sdal_new_lang_source';
+const LANG_SOURCE_USER = 'user';
+const LANG_SOURCE_DEFAULT = 'default';
 
 const messages = {
   tr: {
@@ -326,6 +329,7 @@ const I18nContext = createContext({
   langSelectionEnabled: true,
   setLang: () => {},
   applyLangDefault: () => {},
+  reloadI18nConfig: async () => {},
   t: (key, params) => {
     const text = trFallbackMessages[key] || key;
     if (!params) return text;
@@ -338,6 +342,21 @@ function readInitialLang() {
   const stored = window.localStorage.getItem(I18N_KEY);
   if (stored) return stored;
   return 'tr';
+}
+
+function readLangSource() {
+  if (typeof window === 'undefined') return '';
+  return String(window.localStorage.getItem(I18N_SOURCE_KEY) || '').trim().toLowerCase();
+}
+
+function persistLang(code, source) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(I18N_KEY, code);
+  if (source) {
+    window.localStorage.setItem(I18N_SOURCE_KEY, source);
+  } else {
+    window.localStorage.removeItem(I18N_SOURCE_KEY);
+  }
 }
 
 function interpolate(text, params) {
@@ -380,27 +399,35 @@ export function I18nProvider({ children }) {
     langConfigRef.current = langConfig;
   }, [langConfig]);
 
-  // Fetch lang config and available languages from backend on mount
-  useEffect(() => {
+  const reloadI18nConfig = useCallback(async () => {
     if (typeof window === 'undefined') return;
-    Promise.all([
+    const [config, langsData] = await Promise.all([
       fetch('/api/new/lang-config', { credentials: 'include' }).then((r) => r.ok ? r.json() : DEFAULT_LANG_CONFIG).catch(() => DEFAULT_LANG_CONFIG),
       fetch('/api/new/languages', { credentials: 'include' }).then((r) => r.ok ? r.json() : { languages: [] }).catch(() => ({ languages: [] }))
-    ]).then(([config, langsData]) => {
-      setLangConfig(config);
-      const langs = langsData.languages || [];
-      if (langs.length) {
-        setAvailableLangs(langs);
-        const activeCodes = new Set(langs.map((item) => String(item.code || '').trim().toLowerCase()).filter(Boolean));
-        const currentLang = String(window.localStorage.getItem(I18N_KEY) || lang || '').trim().toLowerCase();
-        if (currentLang && !activeCodes.has(currentLang)) {
-          const fallbackLang = config.default_lang_open || config.default_lang_closed || 'tr';
-          setLangState(fallbackLang);
-          window.localStorage.setItem(I18N_KEY, fallbackLang);
-        }
-      }
-    });
+    ]);
+    setLangConfig(config);
+    const langs = langsData.languages || [];
+    if (!langs.length) return;
+    setAvailableLangs(langs);
+    const activeCodes = new Set(langs.map((item) => String(item.code || '').trim().toLowerCase()).filter(Boolean));
+    const currentLang = String(window.localStorage.getItem(I18N_KEY) || lang || '').trim().toLowerCase();
+    const source = readLangSource();
+    const fallbackLang = config.default_lang_open || config.default_lang_closed || 'tr';
+    if (currentLang && !activeCodes.has(currentLang)) {
+      setLangState(fallbackLang);
+      persistLang(fallbackLang, LANG_SOURCE_DEFAULT);
+      return;
+    }
+    if (source !== LANG_SOURCE_USER && currentLang !== fallbackLang) {
+      setLangState(fallbackLang);
+      persistLang(fallbackLang, LANG_SOURCE_DEFAULT);
+    }
   }, [lang]);
+
+  // Fetch lang config and available languages from backend on mount
+  useEffect(() => {
+    void reloadI18nConfig();
+  }, [reloadI18nConfig]);
 
   // Fetch DB strings for current language whenever it changes
   useEffect(() => {
@@ -422,16 +449,17 @@ export function I18nProvider({ children }) {
   const applyLangDefault = useCallback((isAuthenticated) => {
     const config = langConfigRef.current;
     const defaultLang = isAuthenticated ? (config.default_lang_open || 'tr') : (config.default_lang_closed || 'tr');
+    const source = readLangSource();
     if (!config.lang_selection_enabled) {
       // Selection disabled: always force the configured default
       setLangState(defaultLang);
-      if (typeof window !== 'undefined') window.localStorage.setItem(I18N_KEY, defaultLang);
+      persistLang(defaultLang, LANG_SOURCE_DEFAULT);
     } else {
-      // Selection enabled: only apply default if user has no stored preference
+      // Selection enabled: only preserve explicit user choices.
       const stored = typeof window !== 'undefined' ? window.localStorage.getItem(I18N_KEY) : null;
-      if (!stored) {
+      if (!stored || source !== LANG_SOURCE_USER) {
         setLangState(defaultLang);
-        if (typeof window !== 'undefined') window.localStorage.setItem(I18N_KEY, defaultLang);
+        persistLang(defaultLang, LANG_SOURCE_DEFAULT);
       }
     }
   }, []);
@@ -441,9 +469,7 @@ export function I18nProvider({ children }) {
     // Respect lang_selection_enabled: if disabled, ignore user attempts to change
     if (!langConfigRef.current.lang_selection_enabled) return;
     setLangState(code);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(I18N_KEY, code);
-    }
+    persistLang(code, LANG_SOURCE_USER);
   };
 
   const t = (key, params) => {
@@ -508,8 +534,8 @@ export function I18nProvider({ children }) {
 
   const langSelectionEnabled = langConfig.lang_selection_enabled;
   const value = useMemo(
-    () => ({ lang, availableLangs, langConfig, langSelectionEnabled, setLang, applyLangDefault, t }),
-    [lang, availableLangs, langConfig, dbMessages, runtimeMessages]
+    () => ({ lang, availableLangs, langConfig, langSelectionEnabled, setLang, applyLangDefault, reloadI18nConfig, t }),
+    [lang, availableLangs, langConfig, dbMessages, runtimeMessages, reloadI18nConfig]
   );
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
