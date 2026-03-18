@@ -597,6 +597,15 @@
   color: var(--muted);
   user-select: none;
   flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  margin: -4px 0;
+  cursor: grab;
+  touch-action: none;
+}
+.ops-drag-handle:active {
+  cursor: grabbing;
 }
 
 .ops-log-layout {

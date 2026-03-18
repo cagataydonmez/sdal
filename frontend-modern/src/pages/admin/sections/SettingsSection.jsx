@@ -33,6 +33,7 @@ export default function SettingsSection({ isAdmin = false }) {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const dragItemRef = useRef(null);
+  const pointerDragRef = useRef({ active: false, pointerId: null });
 
   const loadSite = useCallback(async () => {
     const data = await adminClient.get('/api/admin/site-controls');
@@ -235,6 +236,39 @@ export default function SettingsSection({ isAdmin = false }) {
     setPageForm(DEFAULT_PAGE_FORM);
   }, []);
 
+  const persistPageOrder = useCallback(async (reordered) => {
+    setPages(reordered);
+    setDragIndex(null);
+    setDragOverIndex(null);
+    dragItemRef.current = null;
+    try {
+      await adminClient.put('/api/admin/pages/reorder', { order: reordered.map((p) => p.id) });
+      setStatus(t('Sayfa sırası kaydedildi.'));
+    } catch (err) {
+      setStatus(err.message || t('Sıralama kaydedilemedi.'));
+      await loadPages();
+    }
+  }, [loadPages, t]);
+
+  const movePage = useCallback(async (fromIndex, toIndex) => {
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex === toIndex) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      dragItemRef.current = null;
+      return;
+    }
+    const reordered = [...pages];
+    const [moved] = reordered.splice(fromIndex, 1);
+    if (!moved) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      dragItemRef.current = null;
+      return;
+    }
+    reordered.splice(toIndex, 0, moved);
+    await persistPageOrder(reordered);
+  }, [pages, persistPageOrder]);
+
   // Drag and drop handlers
   const handleDragStart = useCallback((e, index) => {
     dragItemRef.current = index;
@@ -250,30 +284,58 @@ export default function SettingsSection({ isAdmin = false }) {
 
   const handleDrop = useCallback(async (e, dropIndex) => {
     e.preventDefault();
-    const fromIndex = dragItemRef.current;
-    if (fromIndex === null || fromIndex === dropIndex) {
-      setDragIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-    const reordered = [...pages];
-    const [moved] = reordered.splice(fromIndex, 1);
-    reordered.splice(dropIndex, 0, moved);
-    setPages(reordered);
-    setDragIndex(null);
-    setDragOverIndex(null);
-    try {
-      await adminClient.put('/api/admin/pages/reorder', { order: reordered.map((p) => p.id) });
-      setStatus(t('Sayfa sırası kaydedildi.'));
-    } catch (err) {
-      setStatus(err.message || t('Sıralama kaydedilemedi.'));
-      await loadPages();
-    }
-  }, [loadPages, pages, t]);
+    await movePage(dragItemRef.current, dropIndex);
+  }, [movePage]);
 
   const handleDragEnd = useCallback(() => {
     setDragIndex(null);
     setDragOverIndex(null);
+    dragItemRef.current = null;
+  }, []);
+
+  const handlePointerMove = useCallback((e) => {
+    if (!pointerDragRef.current.active) return;
+    e.preventDefault();
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const row = target?.closest?.('[data-page-index]');
+    const nextIndex = row ? Number(row.getAttribute('data-page-index')) : null;
+    if (Number.isInteger(nextIndex)) setDragOverIndex(nextIndex);
+  }, []);
+
+  const handlePointerUp = useCallback(async (e) => {
+    if (!pointerDragRef.current.active) return;
+    const { pointerId } = pointerDragRef.current;
+    if (pointerId !== null && e.pointerId !== pointerId) return;
+    pointerDragRef.current = { active: false, pointerId: null };
+    await movePage(dragItemRef.current, dragOverIndex);
+  }, [dragOverIndex, movePage]);
+
+  const handlePointerCancel = useCallback(() => {
+    pointerDragRef.current = { active: false, pointerId: null };
+    setDragIndex(null);
+    setDragOverIndex(null);
+    dragItemRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!pointerDragRef.current.active) return undefined;
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+    };
+  }, [handlePointerCancel, handlePointerMove, handlePointerUp, dragIndex]);
+
+  const handlePointerDragStart = useCallback((e, index) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointerDragRef.current = { active: true, pointerId: e.pointerId };
+    dragItemRef.current = index;
+    setDragIndex(index);
+    setDragOverIndex(index);
+    e.preventDefault();
   }, []);
 
   const moduleSwitches = useMemo(() => {
@@ -362,15 +424,24 @@ export default function SettingsSection({ isAdmin = false }) {
             {pages.map((page, index) => (
               <div
                 key={page.id}
+                data-page-index={index}
                 className={`ops-list-row ops-drag-row${dragIndex === index ? ' ops-drag-active' : ''}${dragOverIndex === index && dragIndex !== index ? ' ops-drag-over' : ''}`}
                 draggable
                 onDragStart={(e) => handleDragStart(e, index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                style={{ cursor: 'grab', opacity: dragIndex === index ? 0.5 : 1 }}
+                style={{ cursor: dragIndex === index ? 'grabbing' : 'default', opacity: dragIndex === index ? 0.5 : 1 }}
               >
-                <span className="ops-drag-handle" title={t('Sürükle')}>⠿</span>
+                <button
+                  type="button"
+                  className="ops-drag-handle"
+                  title={t('Sürükle')}
+                  aria-label={t('Sürükle')}
+                  onPointerDown={(e) => handlePointerDragStart(e, index)}
+                >
+                  ⠿
+                </button>
                 <div style={{ flex: 1 }}>
                   <strong style={{ opacity: page.menugorun ? 1 : 0.45 }}>{page.sayfaismi}</strong>
                   <div className="meta">{page.sayfaurl}</div>
