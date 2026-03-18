@@ -199,10 +199,18 @@ export function registerAdminOperationsRoutes(app, deps) {
       if (cached && cached.modules) return res.json(cached);
       const site = getSiteControl();
       const modules = getModuleControlMap();
+      let defaultLandingPage = '';
+      try {
+        const settingsRow = dbDriver === 'postgres'
+          ? await sqlGetAsync('SELECT default_landing_page FROM site_settings WHERE id = 1')
+          : await sqlGetAsync('SELECT default_landing_page FROM site_controls WHERE id = 1');
+        defaultLandingPage = String(settingsRow?.default_landing_page || '');
+      } catch { /* column may not exist yet on older deployments */ }
       const payload = {
         siteOpen: site.siteOpen,
         maintenanceMessage: site.maintenanceMessage,
         updatedAt: site.updatedAt,
+        defaultLandingPage,
         modules,
         moduleDefinitions: MODULE_DEFINITIONS
       };
@@ -226,6 +234,16 @@ export function registerAdminOperationsRoutes(app, deps) {
         } else {
           await sqlRunAsync('UPDATE site_controls SET site_open = ?, maintenance_message = ?, updated_at = ? WHERE id = 1', [nextOpen ? 1 : 0, nextMessage, now]);
         }
+      }
+      if (updates.defaultLandingPage !== undefined) {
+        const nextLanding = String(updates.defaultLandingPage || '').slice(0, 500);
+        try {
+          if (dbDriver === 'postgres') {
+            await sqlRunAsync('UPDATE site_settings SET default_landing_page = ? WHERE id = 1', [nextLanding]);
+          } else {
+            await sqlRunAsync('UPDATE site_controls SET default_landing_page = ? WHERE id = 1', [nextLanding]);
+          }
+        } catch { /* column may not exist yet on older deployments */ }
       }
       if (updates.modules && typeof updates.modules === 'object') {
         for (const def of MODULE_DEFINITIONS) {

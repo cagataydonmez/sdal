@@ -23,7 +23,7 @@ export default function Layout({ children, title, right }) {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [toasts, setToasts] = useState([]);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
-  const [moduleAccess, setModuleAccess] = useState({});
+  const [moduleAccess, setModuleAccess] = useState(null);
   const [notificationPreferences, setNotificationPreferences] = useState(NOTIFICATION_PREFERENCE_DEFAULTS);
   const unreadNotificationsRef = useRef(0);
   const unreadHydratedRef = useRef(false);
@@ -238,6 +238,7 @@ export default function Layout({ children, title, right }) {
   const showLanguageSelector = langSelectionEnabled && visibleLangOptions.length > 1;
 
   const navItems = useMemo(() => {
+    if (moduleAccess === null) return [];
     const allItems = [
       { to: '/new', label: t('nav_feed'), end: true, module: 'feed' },
       { to: '/new/explore', label: t('nav_explore'), module: 'explore' },

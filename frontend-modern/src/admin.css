@@ -585,6 +585,19 @@
   justify-content: space-between;
   gap: 8px;
 }
+.ops-drag-row {
+  transition: background 0.1s;
+}
+.ops-drag-row.ops-drag-over {
+  background: var(--surface-alt, #f0f0f0);
+  border-color: var(--accent, #0070f3);
+}
+.ops-drag-handle {
+  font-size: 1.2rem;
+  color: var(--muted);
+  user-select: none;
+  flex-shrink: 0;
+}
 
 .ops-log-layout {
   display: grid;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { adminClient } from '../../../admin/api/adminClient.js';
 import { useI18n } from '../../../utils/i18n.jsx';
 
@@ -13,6 +13,8 @@ const DEFAULT_MEDIA_FORM = {
   album_uploads_require_approval: false
 };
 
+const DEFAULT_PAGE_FORM = { sayfaismi: '', sayfaurl: '', menugorun: 1, babaid: '0', yonlendir: 0, mozellik: 0, resim: 'yok' };
+
 export default function SettingsSection({ isAdmin = false }) {
   const { t } = useI18n();
   const [siteForm, setSiteForm] = useState(null);
@@ -23,8 +25,14 @@ export default function SettingsSection({ isAdmin = false }) {
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [categoryForm, setCategoryForm] = useState({ ad: '', tur: 'all', deger: '', aciklama: '' });
   const [templateForm, setTemplateForm] = useState({ ad: '', konu: '', icerik: '' });
+  const [pages, setPages] = useState([]);
+  const [pageForm, setPageForm] = useState(DEFAULT_PAGE_FORM);
+  const [editingPage, setEditingPage] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
+  const dragItemRef = useRef(null);
 
   const loadSite = useCallback(async () => {
     const data = await adminClient.get('/api/admin/site-controls');
@@ -33,6 +41,7 @@ export default function SettingsSection({ isAdmin = false }) {
     setSiteForm({
       siteOpen: !!data.siteOpen,
       maintenanceMessage: data.maintenanceMessage || '',
+      defaultLandingPage: data.defaultLandingPage || '',
       modules
     });
   }, []);
@@ -67,17 +76,22 @@ export default function SettingsSection({ isAdmin = false }) {
     setEmailTemplates(templatesData.templates || []);
   }, []);
 
+  const loadPages = useCallback(async () => {
+    const data = await adminClient.get('/api/admin/pages');
+    setPages(data.pages || []);
+  }, []);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     setStatus('');
     try {
-      await Promise.all([loadSite(), loadMedia(), loadEmail()]);
+      await Promise.all([loadSite(), loadMedia(), loadEmail(), loadPages()]);
     } catch (err) {
       setStatus(err.message || t('Ayarlar yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [loadEmail, loadMedia, loadSite, t]);
+  }, [loadEmail, loadMedia, loadPages, loadSite, t]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -157,6 +171,111 @@ export default function SettingsSection({ isAdmin = false }) {
     }
   }, [loadEmail, t]);
 
+  const togglePageVisibility = useCallback(async (page) => {
+    try {
+      const nextVisible = page.menugorun ? 0 : 1;
+      await adminClient.put(`/api/admin/pages/${page.id}`, {
+        sayfaismi: page.sayfaismi,
+        sayfaurl: page.sayfaurl,
+        babaid: String(page.babaid || '0'),
+        menugorun: nextVisible,
+        yonlendir: Number(page.yonlendir || 0),
+        mozellik: Number(page.mozellik || 0),
+        resim: page.resim || 'yok'
+      });
+      await loadPages();
+    } catch (err) {
+      setStatus(err.message || t('Sayfa güncellenemedi.'));
+    }
+  }, [loadPages, t]);
+
+  const savePage = useCallback(async () => {
+    try {
+      if (editingPage) {
+        await adminClient.put(`/api/admin/pages/${editingPage.id}`, pageForm);
+        setStatus(t('Sayfa güncellendi.'));
+      } else {
+        await adminClient.post('/api/admin/pages', pageForm);
+        setStatus(t('Sayfa eklendi.'));
+      }
+      setPageForm(DEFAULT_PAGE_FORM);
+      setEditingPage(null);
+      await loadPages();
+    } catch (err) {
+      setStatus(err.message || t('Sayfa kaydedilemedi.'));
+    }
+  }, [editingPage, loadPages, pageForm, t]);
+
+  const deletePage = useCallback(async (id) => {
+    if (!window.confirm(t('Bu sayfayı silmek istediğinize emin misiniz?'))) return;
+    try {
+      await adminClient.del(`/api/admin/pages/${id}`);
+      await loadPages();
+      setStatus(t('Sayfa silindi.'));
+    } catch (err) {
+      setStatus(err.message || t('Sayfa silinemedi.'));
+    }
+  }, [loadPages, t]);
+
+  const startEdit = useCallback((page) => {
+    setEditingPage(page);
+    setPageForm({
+      sayfaismi: page.sayfaismi || '',
+      sayfaurl: page.sayfaurl || '',
+      menugorun: Number(page.menugorun ?? 1),
+      babaid: String(page.babaid || '0'),
+      yonlendir: Number(page.yonlendir || 0),
+      mozellik: Number(page.mozellik || 0),
+      resim: page.resim || 'yok'
+    });
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingPage(null);
+    setPageForm(DEFAULT_PAGE_FORM);
+  }, []);
+
+  // Drag and drop handlers
+  const handleDragStart = useCallback((e, index) => {
+    dragItemRef.current = index;
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback((e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  }, []);
+
+  const handleDrop = useCallback(async (e, dropIndex) => {
+    e.preventDefault();
+    const fromIndex = dragItemRef.current;
+    if (fromIndex === null || fromIndex === dropIndex) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    const reordered = [...pages];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(dropIndex, 0, moved);
+    setPages(reordered);
+    setDragIndex(null);
+    setDragOverIndex(null);
+    try {
+      await adminClient.put('/api/admin/pages/reorder', { order: reordered.map((p) => p.id) });
+      setStatus(t('Sayfa sırası kaydedildi.'));
+    } catch (err) {
+      setStatus(err.message || t('Sıralama kaydedilemedi.'));
+      await loadPages();
+    }
+  }, [loadPages, pages, t]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }, []);
+
   const moduleSwitches = useMemo(() => {
     if (!siteForm?.modules) return [];
     return moduleKeys.map((key) => ({ key, value: !!siteForm.modules[key] }));
@@ -197,6 +316,19 @@ export default function SettingsSection({ isAdmin = false }) {
             onChange={(e) => setSiteForm((prev) => ({ ...(prev || {}), maintenanceMessage: e.target.value }))}
             placeholder={t('Bakım mesajı')}
           />
+          <label>
+            <span>{t('Giriş sonrası açılacak sayfa')}</span>
+            <select
+              className="input"
+              value={siteForm?.defaultLandingPage || ''}
+              onChange={(e) => setSiteForm((prev) => ({ ...(prev || {}), defaultLandingPage: e.target.value }))}
+            >
+              <option value="">{t('Varsayılan (Ana Sayfa)')}</option>
+              {pages.filter((p) => !!p.menugorun).map((p) => (
+                <option key={p.id} value={p.sayfaurl}>{p.sayfaismi}</option>
+              ))}
+            </select>
+          </label>
           <div className="ops-toggle-grid">
             {moduleSwitches.map((row) => (
               <label key={row.key} className="ops-check-row">
@@ -217,6 +349,74 @@ export default function SettingsSection({ isAdmin = false }) {
           </div>
           <div className="ops-inline-actions">
             <button className="btn" onClick={saveSite}>{t('Site ayarlarını kaydet')}</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-body stack">
+          <h3>{t('Menü Sayfaları')}</h3>
+          <p className="muted">{t('Sayfaları sürükleyerek sıralayın. Göz simgesiyle menüde görünürlüğünü açıp kapatın.')}</p>
+
+          <div className="ops-list-grid">
+            {pages.map((page, index) => (
+              <div
+                key={page.id}
+                className={`ops-list-row ops-drag-row${dragIndex === index ? ' ops-drag-active' : ''}${dragOverIndex === index && dragIndex !== index ? ' ops-drag-over' : ''}`}
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                style={{ cursor: 'grab', opacity: dragIndex === index ? 0.5 : 1 }}
+              >
+                <span className="ops-drag-handle" title={t('Sürükle')}>⠿</span>
+                <div style={{ flex: 1 }}>
+                  <strong style={{ opacity: page.menugorun ? 1 : 0.45 }}>{page.sayfaismi}</strong>
+                  <div className="meta">{page.sayfaurl}</div>
+                </div>
+                <div className="ops-inline-actions">
+                  <button
+                    className={`btn ghost${page.menugorun ? '' : ' muted'}`}
+                    title={page.menugorun ? t('Menüden gizle') : t('Menüde göster')}
+                    onClick={() => togglePageVisibility(page)}
+                  >
+                    {page.menugorun ? '👁' : '🚫'}
+                  </button>
+                  <button className="btn ghost" onClick={() => startEdit(page)}>{t('Düzenle')}</button>
+                  <button className="btn ghost" onClick={() => deletePage(page.id)}>{t('Sil')}</button>
+                </div>
+              </div>
+            ))}
+            {!pages.length ? <div className="muted">{t('Henüz sayfa eklenmemiş.')}</div> : null}
+          </div>
+
+          <div className="panel" style={{ marginTop: '1rem' }}>
+            <div className="panel-body stack">
+              <h4>{editingPage ? t('Sayfa Düzenle') : t('Yeni Sayfa Ekle')}</h4>
+              <div className="ops-form-grid">
+                <label>
+                  <span>{t('Sayfa adı')}</span>
+                  <input className="input" placeholder={t('Sayfa adı')} value={pageForm.sayfaismi} onChange={(e) => setPageForm((prev) => ({ ...prev, sayfaismi: e.target.value }))} />
+                </label>
+                <label>
+                  <span>{t('URL (slug)')}</span>
+                  <input className="input" placeholder={t('sayfa-url')} value={pageForm.sayfaurl} onChange={(e) => setPageForm((prev) => ({ ...prev, sayfaurl: e.target.value }))} />
+                </label>
+              </div>
+              <label className="ops-check-row">
+                <input
+                  type="checkbox"
+                  checked={!!pageForm.menugorun}
+                  onChange={(e) => setPageForm((prev) => ({ ...prev, menugorun: e.target.checked ? 1 : 0 }))}
+                />
+                <span>{t('Menüde göster')}</span>
+              </label>
+              <div className="ops-inline-actions">
+                <button className="btn" onClick={savePage}>{editingPage ? t('Güncelle') : t('Ekle')}</button>
+                {editingPage ? <button className="btn ghost" onClick={cancelEdit}>{t('İptal')}</button> : null}
+              </div>
+            </div>
           </div>
         </div>
       </div>
