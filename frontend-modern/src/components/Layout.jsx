@@ -10,6 +10,7 @@ import { buildNotificationViewModel, shouldToastNotification } from '../utils/no
 import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
 import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
 import { getCached, setCache } from '../utils/swrCache.js';
+import { normalizeMenuVisibility, normalizeModuleOrder } from '../utils/moduleNavigation.js';
 
 export default function Layout({ children, title, right }) {
   const location = useLocation();
@@ -23,7 +24,7 @@ export default function Layout({ children, title, right }) {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [toasts, setToasts] = useState([]);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
-  const [moduleAccess, setModuleAccess] = useState(null);
+  const [siteAccess, setSiteAccess] = useState(null);
   const [notificationPreferences, setNotificationPreferences] = useState(NOTIFICATION_PREFERENCE_DEFAULTS);
   const unreadNotificationsRef = useRef(0);
   const unreadHydratedRef = useRef(false);
@@ -207,8 +208,8 @@ export default function Layout({ children, title, right }) {
   useEffect(() => {
     const key = `site-access:${location.pathname}`;
     const cached = getCached(key);
-    if (cached) {
-      setModuleAccess(cached.data);
+    if (cached?.data) {
+      setSiteAccess(cached.data);
       if (!cached.stale) return;
     }
     let mounted = true;
@@ -216,8 +217,8 @@ export default function Layout({ children, title, right }) {
       .then((r) => r.ok ? r.json() : null)
       .then((payload) => {
         if (!mounted || !payload?.modules) return;
-        setCache(key, payload.modules, 120_000);
-        setModuleAccess(payload.modules);
+        setCache(key, payload, 120_000);
+        setSiteAccess(payload);
       })
       .catch(() => {});
     return () => { mounted = false; };
@@ -238,7 +239,10 @@ export default function Layout({ children, title, right }) {
   const showLanguageSelector = langSelectionEnabled && visibleLangOptions.length > 1;
 
   const navItems = useMemo(() => {
-    if (moduleAccess === null) return [];
+    if (!siteAccess?.modules) return [];
+    const menuVisibility = normalizeMenuVisibility(siteAccess.menuVisibility);
+    const menuOrder = normalizeModuleOrder(siteAccess.moduleMenuOrder);
+    const orderIndex = new Map(menuOrder.map((key, index) => [key, index]));
     const allItems = [
       { to: '/new', label: t('nav_feed'), end: true, module: 'feed' },
       { to: '/new/explore', label: t('nav_explore'), module: 'explore' },
@@ -257,8 +261,16 @@ export default function Layout({ children, title, right }) {
       { to: '/new/profile', label: t('nav_profile'), module: 'profile' },
       { to: '/new/help', label: t('nav_help'), module: 'help' }
     ];
-    return allItems.filter((item) => moduleAccess[item.module] !== false);
-  }, [t, unreadCount, unreadNotifications, moduleAccess]);
+    return allItems
+      .filter((item) => siteAccess.modules[item.module] !== false)
+      .filter((item) => item.module === 'teachers_network' || menuVisibility[item.module] !== false)
+      .sort((a, b) => {
+        const aIndex = orderIndex.has(a.module) ? orderIndex.get(a.module) : Number.MAX_SAFE_INTEGER;
+        const bIndex = orderIndex.has(b.module) ? orderIndex.get(b.module) : Number.MAX_SAFE_INTEGER;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+        return allItems.indexOf(a) - allItems.indexOf(b);
+      });
+  }, [siteAccess, t, unreadCount, unreadNotifications]);
 
   async function handleLogout() {
     await logout();
