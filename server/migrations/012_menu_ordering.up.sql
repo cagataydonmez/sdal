@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Add sort_order to cms_pages for drag-and-drop menu ordering
 ALTER TABLE cms_pages ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
 
@@ -10,3 +12,5 @@ FROM (
   SELECT id, ROW_NUMBER() OVER (ORDER BY name ASC NULLS LAST) AS rn FROM cms_pages
 ) sub
 WHERE cms_pages.id = sub.id;
+
+COMMIT;
