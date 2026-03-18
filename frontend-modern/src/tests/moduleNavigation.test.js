@@ -4,7 +4,7 @@ import { normalizeMenuVisibility, normalizeModuleOrder, resolveLandingPathFromSi
 describe('moduleNavigation helpers', () => {
   it('keeps configured order and appends missing menu modules', () => {
     expect(normalizeModuleOrder(['events', 'feed'])).toEqual([
-      'events', 'feed', 'explore', 'following', 'groups', 'messages', 'messenger', 'notifications', 'albums', 'games', 'announcements', 'jobs', 'profile', 'help', 'requests'
+      'events', 'feed', 'explore', 'following', 'groups', 'messages', 'messenger', 'notifications', 'albums', 'games', 'announcements', 'jobs', 'opportunities', 'teachers_network', 'profile', 'help', 'requests'
     ]);
   });
 

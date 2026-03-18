@@ -108,7 +108,8 @@ export function registerSystemRoutes(app, deps) {
       moduleMenuOrder: site.moduleMenuOrder || [],
       modules,
       moduleKey,
-      moduleOpen: moduleKey ? !!modules[moduleKey] : true
+      moduleOpen: moduleKey ? !!modules[moduleKey] : true,
+      message: moduleKey && modules[moduleKey] === false ? 'Bu modül geçici olarak kapatıldı.' : ''
     });
   });
 
