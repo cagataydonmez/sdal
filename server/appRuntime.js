@@ -490,6 +490,9 @@ const MODULE_DEFINITIONS = [
   { key: 'events', label: 'Etkinlikler' },
   { key: 'announcements', label: 'Duyurular' },
   { key: 'jobs', label: 'İş İlanları' },
+  { key: 'opportunities', label: 'Fırsatlar' },
+  { key: 'networking', label: 'Ağ Merkezi' },
+  { key: 'teachers_network', label: 'Öğretmen Ağı' },
   { key: 'profile', label: 'Profil' },
   { key: 'help', label: 'Yardım' },
   { key: 'requests', label: 'Üye Talepleri' }
@@ -1063,6 +1066,9 @@ function resolveModuleKeyByPath(pathname) {
     ['events', ['/new/events', '/api/new/events']],
     ['announcements', ['/new/announcements', '/api/new/announcements']],
     ['jobs', ['/new/jobs', '/api/new/jobs']],
+    ['opportunities', ['/new/opportunities', '/api/new/opportunities']],
+    ['networking', ['/new/network/hub', '/new/network/inbox', '/api/new/network']],
+    ['teachers_network', ['/new/network/teachers', '/api/new/teachers']],
     ['profile', ['/new/profile', '/api/profile']],
     ['help', ['/new/help']],
     ['requests', ['/new/requests', '/api/new/requests']]
@@ -1105,6 +1111,7 @@ function canBypassSiteOrModuleLocks(req) {
   if (pathValue.startsWith('/api/new/admin/')) return true;
   if (pathValue === '/api/admin/login' || pathValue === '/api/admin/logout') return true;
   if (pathValue === '/api/admin/session' || pathValue === '/api/session' || pathValue === '/api/site-access') return true;
+  if (pathValue === '/api/module-access-requests') return true;
   if (pathValue === '/api/auth/login' || pathValue === '/api/auth/register' || pathValue === '/api/auth/logout') return true;
   if (pathValue.startsWith('/api/new/activation') || pathValue.startsWith('/api/new/password')) return true;
   if (pathValue.startsWith('/legacy/') || pathValue.startsWith('/uploads/')) return true;
@@ -1142,8 +1149,8 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return res.status(403).json({ error: 'MODULE_CLOSED', moduleKey, message: 'Bu modül geçici olarak kapatıldı.' });
   }
-  if (req.path.startsWith('/new')) return res.redirect(302, '/new');
-  return res.redirect(302, '/');
+  if (req.path.startsWith('/new')) return next();
+  return res.status(403).send('Bu modül geçici olarak kapatıldı.');
 });
 
 function requireAdmin(req, res, next) {
