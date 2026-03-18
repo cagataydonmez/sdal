@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminClient } from '../../../admin/api/adminClient.js';
 import { useI18n } from '../../../utils/i18n.jsx';
+import { MODULE_MENU_ITEMS, MODULE_ROUTE_BY_KEY, normalizeMenuVisibility, normalizeModuleOrder } from '../../../utils/moduleNavigation.js';
 
 const DEFAULT_MEDIA_FORM = {
   storage_provider: 'local',
@@ -13,37 +14,40 @@ const DEFAULT_MEDIA_FORM = {
   album_uploads_require_approval: false
 };
 
-const DEFAULT_PAGE_FORM = { sayfaismi: '', sayfaurl: '', menugorun: 1, babaid: '0', yonlendir: 0, mozellik: 0, resim: 'yok' };
-
 export default function SettingsSection({ isAdmin = false }) {
   const { t } = useI18n();
   const [siteForm, setSiteForm] = useState(null);
   const [moduleKeys, setModuleKeys] = useState([]);
+  const [moduleDefinitions, setModuleDefinitions] = useState(MODULE_MENU_ITEMS.map((item) => ({ key: item.key, label: item.defaultLabel })));
   const [mediaForm, setMediaForm] = useState(DEFAULT_MEDIA_FORM);
   const [mediaConnectionInfo, setMediaConnectionInfo] = useState({ spacesConfigured: false, spacesRegion: '', spacesBucket: '', spacesEndpoint: '' });
   const [emailCategories, setEmailCategories] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [categoryForm, setCategoryForm] = useState({ ad: '', tur: 'all', deger: '', aciklama: '' });
   const [templateForm, setTemplateForm] = useState({ ad: '', konu: '', icerik: '' });
-  const [pages, setPages] = useState([]);
-  const [pageForm, setPageForm] = useState(DEFAULT_PAGE_FORM);
-  const [editingPage, setEditingPage] = useState(null);
-  const [dragIndex, setDragIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
-  const dragItemRef = useRef(null);
-  const pointerDragRef = useRef({ active: false, pointerId: null });
 
   const loadSite = useCallback(async () => {
     const data = await adminClient.get('/api/admin/site-controls');
     const modules = data.modules || {};
-    setModuleKeys(Object.keys(modules));
+    const definitionKeys = Array.isArray(data.moduleDefinitions)
+      ? data.moduleDefinitions.map((item) => String(item?.key || '').trim()).filter(Boolean)
+      : [];
+    const keys = definitionKeys.length ? definitionKeys : Object.keys(modules);
+    setModuleKeys(keys);
+    setModuleDefinitions(
+      Array.isArray(data.moduleDefinitions) && data.moduleDefinitions.length
+        ? data.moduleDefinitions
+        : MODULE_MENU_ITEMS.map((item) => ({ key: item.key, label: item.defaultLabel }))
+    );
     setSiteForm({
       siteOpen: !!data.siteOpen,
       maintenanceMessage: data.maintenanceMessage || '',
       defaultLandingPage: data.defaultLandingPage || '',
-      modules
+      modules,
+      menuVisibility: normalizeMenuVisibility(data.menuVisibility, keys.filter((key) => Boolean(MODULE_ROUTE_BY_KEY[key]))),
+      moduleMenuOrder: normalizeModuleOrder(data.moduleMenuOrder, keys.filter((key) => Boolean(MODULE_ROUTE_BY_KEY[key])))
     });
   }, []);
 
@@ -77,22 +81,17 @@ export default function SettingsSection({ isAdmin = false }) {
     setEmailTemplates(templatesData.templates || []);
   }, []);
 
-  const loadPages = useCallback(async () => {
-    const data = await adminClient.get('/api/admin/pages');
-    setPages(data.pages || []);
-  }, []);
-
   const loadAll = useCallback(async () => {
     setLoading(true);
     setStatus('');
     try {
-      await Promise.all([loadSite(), loadMedia(), loadEmail(), loadPages()]);
+      await Promise.all([loadSite(), loadMedia(), loadEmail()]);
     } catch (err) {
       setStatus(err.message || t('Ayarlar yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [loadEmail, loadMedia, loadPages, loadSite, t]);
+  }, [loadEmail, loadMedia, loadSite, t]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -172,176 +171,58 @@ export default function SettingsSection({ isAdmin = false }) {
     }
   }, [loadEmail, t]);
 
-  const togglePageVisibility = useCallback(async (page) => {
-    try {
-      const nextVisible = page.menugorun ? 0 : 1;
-      await adminClient.put(`/api/admin/pages/${page.id}`, {
-        sayfaismi: page.sayfaismi,
-        sayfaurl: page.sayfaurl,
-        babaid: String(page.babaid || '0'),
-        menugorun: nextVisible,
-        yonlendir: Number(page.yonlendir || 0),
-        mozellik: Number(page.mozellik || 0),
-        resim: page.resim || 'yok'
-      });
-      await loadPages();
-    } catch (err) {
-      setStatus(err.message || t('Sayfa güncellenemedi.'));
-    }
-  }, [loadPages, t]);
+  const moduleLabels = useMemo(() => Object.fromEntries(
+    moduleDefinitions.map((item) => [item.key, item.label || item.key])
+  ), [moduleDefinitions]);
 
-  const savePage = useCallback(async () => {
-    try {
-      if (editingPage) {
-        await adminClient.put(`/api/admin/pages/${editingPage.id}`, pageForm);
-        setStatus(t('Sayfa güncellendi.'));
-      } else {
-        await adminClient.post('/api/admin/pages', pageForm);
-        setStatus(t('Sayfa eklendi.'));
+  const menuModuleKeys = useMemo(() => (
+    moduleKeys.filter((key) => Boolean(MODULE_ROUTE_BY_KEY[key]))
+  ), [moduleKeys]);
+
+  const toggleModuleMenuVisibility = useCallback((moduleKey) => {
+    setSiteForm((prev) => ({
+      ...(prev || {}),
+      menuVisibility: {
+        ...(prev?.menuVisibility || {}),
+        [moduleKey]: !(prev?.menuVisibility?.[moduleKey] !== false)
       }
-      setPageForm(DEFAULT_PAGE_FORM);
-      setEditingPage(null);
-      await loadPages();
-    } catch (err) {
-      setStatus(err.message || t('Sayfa kaydedilemedi.'));
-    }
-  }, [editingPage, loadPages, pageForm, t]);
+    }));
+  }, []);
 
-  const deletePage = useCallback(async (id) => {
-    if (!window.confirm(t('Bu sayfayı silmek istediğinize emin misiniz?'))) return;
-    try {
-      await adminClient.del(`/api/admin/pages/${id}`);
-      await loadPages();
-      setStatus(t('Sayfa silindi.'));
-    } catch (err) {
-      setStatus(err.message || t('Sayfa silinemedi.'));
-    }
-  }, [loadPages, t]);
-
-  const startEdit = useCallback((page) => {
-    setEditingPage(page);
-    setPageForm({
-      sayfaismi: page.sayfaismi || '',
-      sayfaurl: page.sayfaurl || '',
-      menugorun: Number(page.menugorun ?? 1),
-      babaid: String(page.babaid || '0'),
-      yonlendir: Number(page.yonlendir || 0),
-      mozellik: Number(page.mozellik || 0),
-      resim: page.resim || 'yok'
+  const moveModuleMenuItem = useCallback((moduleKey, direction) => {
+    setSiteForm((prev) => {
+      if (!prev) return prev;
+      const currentOrder = normalizeModuleOrder(prev.moduleMenuOrder, menuModuleKeys);
+      const fromIndex = currentOrder.indexOf(moduleKey);
+      if (fromIndex < 0) return prev;
+      const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+      if (toIndex < 0 || toIndex >= currentOrder.length) return prev;
+      const nextOrder = [...currentOrder];
+      const [moved] = nextOrder.splice(fromIndex, 1);
+      nextOrder.splice(toIndex, 0, moved);
+      return {
+        ...prev,
+        moduleMenuOrder: nextOrder
+      };
     });
-  }, []);
-
-  const cancelEdit = useCallback(() => {
-    setEditingPage(null);
-    setPageForm(DEFAULT_PAGE_FORM);
-  }, []);
-
-  const persistPageOrder = useCallback(async (reordered) => {
-    setPages(reordered);
-    setDragIndex(null);
-    setDragOverIndex(null);
-    dragItemRef.current = null;
-    try {
-      await adminClient.put('/api/admin/pages/reorder', { order: reordered.map((p) => p.id) });
-      setStatus(t('Sayfa sırası kaydedildi.'));
-    } catch (err) {
-      setStatus(err.message || t('Sıralama kaydedilemedi.'));
-      await loadPages();
-    }
-  }, [loadPages, t]);
-
-  const movePage = useCallback(async (fromIndex, toIndex) => {
-    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex === toIndex) {
-      setDragIndex(null);
-      setDragOverIndex(null);
-      dragItemRef.current = null;
-      return;
-    }
-    const reordered = [...pages];
-    const [moved] = reordered.splice(fromIndex, 1);
-    if (!moved) {
-      setDragIndex(null);
-      setDragOverIndex(null);
-      dragItemRef.current = null;
-      return;
-    }
-    reordered.splice(toIndex, 0, moved);
-    await persistPageOrder(reordered);
-  }, [pages, persistPageOrder]);
-
-  // Drag and drop handlers
-  const handleDragStart = useCallback((e, index) => {
-    dragItemRef.current = index;
-    setDragIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-  }, []);
-
-  const handleDragOver = useCallback((e, index) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex(index);
-  }, []);
-
-  const handleDrop = useCallback(async (e, dropIndex) => {
-    e.preventDefault();
-    await movePage(dragItemRef.current, dropIndex);
-  }, [movePage]);
-
-  const handleDragEnd = useCallback(() => {
-    setDragIndex(null);
-    setDragOverIndex(null);
-    dragItemRef.current = null;
-  }, []);
-
-  const handlePointerMove = useCallback((e) => {
-    if (!pointerDragRef.current.active) return;
-    e.preventDefault();
-    const target = document.elementFromPoint(e.clientX, e.clientY);
-    const row = target?.closest?.('[data-page-index]');
-    const nextIndex = row ? Number(row.getAttribute('data-page-index')) : null;
-    if (Number.isInteger(nextIndex)) setDragOverIndex(nextIndex);
-  }, []);
-
-  const handlePointerUp = useCallback(async (e) => {
-    if (!pointerDragRef.current.active) return;
-    const { pointerId } = pointerDragRef.current;
-    if (pointerId !== null && e.pointerId !== pointerId) return;
-    pointerDragRef.current = { active: false, pointerId: null };
-    await movePage(dragItemRef.current, dragOverIndex);
-  }, [dragOverIndex, movePage]);
-
-  const handlePointerCancel = useCallback(() => {
-    pointerDragRef.current = { active: false, pointerId: null };
-    setDragIndex(null);
-    setDragOverIndex(null);
-    dragItemRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    if (!pointerDragRef.current.active) return undefined;
-    window.addEventListener('pointermove', handlePointerMove, { passive: false });
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerCancel);
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerCancel);
-    };
-  }, [handlePointerCancel, handlePointerMove, handlePointerUp, dragIndex]);
-
-  const handlePointerDragStart = useCallback((e, index) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    pointerDragRef.current = { active: true, pointerId: e.pointerId };
-    dragItemRef.current = index;
-    setDragIndex(index);
-    setDragOverIndex(index);
-    e.preventDefault();
-  }, []);
+  }, [menuModuleKeys]);
 
   const moduleSwitches = useMemo(() => {
     if (!siteForm?.modules) return [];
-    return moduleKeys.map((key) => ({ key, value: !!siteForm.modules[key] }));
-  }, [moduleKeys, siteForm]);
+    return moduleKeys.map((key) => ({ key, label: moduleLabels[key] || key, value: !!siteForm.modules[key] }));
+  }, [moduleKeys, moduleLabels, siteForm]);
+
+  const moduleMenuRows = useMemo(() => {
+    const orderedKeys = normalizeModuleOrder(siteForm?.moduleMenuOrder, menuModuleKeys);
+    const menuVisibility = normalizeMenuVisibility(siteForm?.menuVisibility, menuModuleKeys);
+    return orderedKeys.map((key) => ({
+      key,
+      label: moduleLabels[key] || key,
+      path: MODULE_ROUTE_BY_KEY[key] || '',
+      visible: menuVisibility[key] !== false,
+      accessible: siteForm?.modules?.[key] !== false
+    }));
+  }, [menuModuleKeys, moduleLabels, siteForm]);
 
   if (!isAdmin) {
     return (
@@ -379,16 +260,18 @@ export default function SettingsSection({ isAdmin = false }) {
             placeholder={t('Bakım mesajı')}
           />
           <label>
-            <span>{t('Giriş sonrası açılacak sayfa')}</span>
+            <span>{t('Login sonrası açılacak modül')}</span>
             <select
               className="input"
               value={siteForm?.defaultLandingPage || ''}
               onChange={(e) => setSiteForm((prev) => ({ ...(prev || {}), defaultLandingPage: e.target.value }))}
             >
-              <option value="">{t('Varsayılan (Ana Sayfa)')}</option>
-              {pages.filter((p) => !!p.menugorun).map((p) => (
-                <option key={p.id} value={p.sayfaurl}>{p.sayfaismi}</option>
-              ))}
+              <option value="">{t('Menüdeki ilk görünür modül')}</option>
+              {moduleMenuRows
+                .filter((item) => item.accessible && item.visible && item.path)
+                .map((item) => (
+                  <option key={item.key} value={item.path}>{item.label}</option>
+                ))}
             </select>
           </label>
           <div className="ops-toggle-grid">
@@ -405,7 +288,7 @@ export default function SettingsSection({ isAdmin = false }) {
                     }
                   }))}
                 />
-                <span>{row.key}</span>
+                <span>{row.label}</span>
               </label>
             ))}
           </div>
@@ -417,77 +300,37 @@ export default function SettingsSection({ isAdmin = false }) {
 
       <div className="panel">
         <div className="panel-body stack">
-          <h3>{t('Menü Sayfaları')}</h3>
-          <p className="muted">{t('Sayfaları sürükleyerek sıralayın. Göz simgesiyle menüde görünürlüğünü açıp kapatın.')}</p>
+          <h3>{t('Menü Modülleri')}</h3>
+          <p className="muted">{t('Buradan ana menüde hangi modüllerin görüneceğini ve sırasını belirleyebilirsiniz.')}</p>
 
           <div className="ops-list-grid">
-            {pages.map((page, index) => (
-              <div
-                key={page.id}
-                data-page-index={index}
-                className={`ops-list-row ops-drag-row${dragIndex === index ? ' ops-drag-active' : ''}${dragOverIndex === index && dragIndex !== index ? ' ops-drag-over' : ''}`}
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
-                onDragEnd={handleDragEnd}
-                style={{ cursor: dragIndex === index ? 'grabbing' : 'default', opacity: dragIndex === index ? 0.5 : 1 }}
-              >
-                <button
-                  type="button"
-                  className="ops-drag-handle"
-                  title={t('Sürükle')}
-                  aria-label={t('Sürükle')}
-                  onPointerDown={(e) => handlePointerDragStart(e, index)}
-                >
-                  ⠿
-                </button>
+            {moduleMenuRows.map((item, index) => (
+              <div key={item.key} className="ops-list-row">
                 <div style={{ flex: 1 }}>
-                  <strong style={{ opacity: page.menugorun ? 1 : 0.45 }}>{page.sayfaismi}</strong>
-                  <div className="meta">{page.sayfaurl}</div>
+                  <strong style={{ opacity: item.visible ? 1 : 0.45 }}>{item.label}</strong>
+                  <div className="meta">
+                    {item.path || t('Bu modül için modern rota tanımlı değil.')}
+                    {!item.accessible ? ` · ${t('Kullanıcı erişimine kapalı')}` : ''}
+                  </div>
                 </div>
                 <div className="ops-inline-actions">
                   <button
-                    className={`btn ghost${page.menugorun ? '' : ' muted'}`}
-                    title={page.menugorun ? t('Menüden gizle') : t('Menüde göster')}
-                    onClick={() => togglePageVisibility(page)}
+                    className={`btn ghost${item.visible ? '' : ' muted'}`}
+                    type="button"
+                    title={item.visible ? t('Menüden gizle') : t('Menüde göster')}
+                    onClick={() => toggleModuleMenuVisibility(item.key)}
                   >
-                    {page.menugorun ? '👁' : '🚫'}
+                    {item.visible ? '👁' : '🚫'}
                   </button>
-                  <button className="btn ghost" onClick={() => startEdit(page)}>{t('Düzenle')}</button>
-                  <button className="btn ghost" onClick={() => deletePage(page.id)}>{t('Sil')}</button>
+                  <button className="btn ghost" type="button" onClick={() => moveModuleMenuItem(item.key, 'up')} disabled={index === 0}>{t('Yukarı')}</button>
+                  <button className="btn ghost" type="button" onClick={() => moveModuleMenuItem(item.key, 'down')} disabled={index === moduleMenuRows.length - 1}>{t('Aşağı')}</button>
                 </div>
               </div>
             ))}
-            {!pages.length ? <div className="muted">{t('Henüz sayfa eklenmemiş.')}</div> : null}
           </div>
 
-          <div className="panel" style={{ marginTop: '1rem' }}>
-            <div className="panel-body stack">
-              <h4>{editingPage ? t('Sayfa Düzenle') : t('Yeni Sayfa Ekle')}</h4>
-              <div className="ops-form-grid">
-                <label>
-                  <span>{t('Sayfa adı')}</span>
-                  <input className="input" placeholder={t('Sayfa adı')} value={pageForm.sayfaismi} onChange={(e) => setPageForm((prev) => ({ ...prev, sayfaismi: e.target.value }))} />
-                </label>
-                <label>
-                  <span>{t('URL (slug)')}</span>
-                  <input className="input" placeholder={t('sayfa-url')} value={pageForm.sayfaurl} onChange={(e) => setPageForm((prev) => ({ ...prev, sayfaurl: e.target.value }))} />
-                </label>
-              </div>
-              <label className="ops-check-row">
-                <input
-                  type="checkbox"
-                  checked={!!pageForm.menugorun}
-                  onChange={(e) => setPageForm((prev) => ({ ...prev, menugorun: e.target.checked ? 1 : 0 }))}
-                />
-                <span>{t('Menüde göster')}</span>
-              </label>
-              <div className="ops-inline-actions">
-                <button className="btn" onClick={savePage}>{editingPage ? t('Güncelle') : t('Ekle')}</button>
-                {editingPage ? <button className="btn ghost" onClick={cancelEdit}>{t('İptal')}</button> : null}
-              </div>
-            </div>
+          <div className="ops-inline-actions">
+            <button className="btn" onClick={saveSite}>{t('Menü ayarlarını kaydet')}</button>
           </div>
         </div>
       </div>

@@ -11,6 +11,7 @@ import PasswordResetPage from './pages/PasswordResetPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 import { ThemeProvider } from './utils/theme.jsx';
 import { I18nProvider, useI18n } from './utils/i18n.jsx';
+import { resolveLandingPathFromSiteAccess } from './utils/moduleNavigation.js';
 
 const ExplorePage = React.lazy(() => import('./pages/ExplorePage.jsx'));
 const ExploreSuggestionsPage = React.lazy(() => import('./pages/ExploreSuggestionsPage.jsx'));
@@ -72,6 +73,35 @@ function RouteFallback() {
   return <div className="muted" style={{ padding: 16 }}>{t('loading')}</div>;
 }
 
+function DefaultLandingRoute() {
+  const [targetPath, setTargetPath] = React.useState('');
+  const [loadingTarget, setLoadingTarget] = React.useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/site-access?path=/new', { credentials: 'include' })
+      .then((res) => res.ok ? res.json() : null)
+      .then((payload) => {
+        if (!mounted) return;
+        setTargetPath(resolveLandingPathFromSiteAccess(payload || {}));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setTargetPath('/new');
+      })
+      .finally(() => {
+        if (mounted) setLoadingTarget(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (loadingTarget) return <RouteFallback />;
+  if (!targetPath || targetPath === '/new') return <FeedPage />;
+  return <Navigate to={targetPath} replace />;
+}
+
 // Syncs auth state with language defaults configured by admin
 function LangAuthSync() {
   const { user, loading } = useAuth();
@@ -107,7 +137,7 @@ export const appRoutes = createRoutesFromElements(
     <Route path="/new/activate" element={<ActivationPage />} />
     <Route path="/new/activation/resend" element={<ActivationResendPage />} />
     <Route path="/new/password-reset" element={<PasswordResetPage />} />
-    <Route path="/new" element={<RequireAuth><FeedPage /></RequireAuth>} />
+    <Route path="/new" element={<RequireAuth><DefaultLandingRoute /></RequireAuth>} />
     <Route path="/new/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
     <Route path="/new/explore/members" element={<RequireAuth><ExplorePage fullMode /></RequireAuth>} />
     <Route path="/new/explore/suggestions" element={<RequireAuth><ExploreSuggestionsPage /></RequireAuth>} />
