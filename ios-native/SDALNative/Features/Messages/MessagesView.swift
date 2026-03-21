@@ -28,6 +28,7 @@ struct MessagesView: View {
     @State private var editingChatText = ""
     @State private var translatedChat: [Int: String] = [:]
     @State private var translatingChatIds: Set<Int> = []
+    @State private var chatSocketTask: Task<Void, Never>?
 
     private let api = APIClient.shared
 
@@ -61,9 +62,14 @@ struct MessagesView: View {
             }
             .task { if messages.isEmpty && chatMessages.isEmpty { await loadCurrent() } }
             .task(id: mode) {
-                guard mode == .chat else { return }
-                await runChatAutoRefresh()
+                if mode == .chat {
+                    await appState.ensureRealtimeConnected()
+                    startChatSocketListener()
+                } else {
+                    stopChatSocketListener()
+                }
             }
+            .onDisappear { stopChatSocketListener() }
             .onChange(of: router.openMessageId) { _, id in
                 guard let id else { return }
                 mode = .inbox
@@ -80,6 +86,9 @@ struct MessagesView: View {
                     mode = .chat
                 }
                 router.openMessagesDestination = nil
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .sdalRemoteNotificationReceived)) { notification in
+                Task { await handleRemoteNotification(notification.userInfo ?? [:]) }
             }
             .navigationDestination(for: Int.self) { messageId in
                 MessageDetailView(messageId: messageId)
@@ -270,6 +279,13 @@ struct MessagesView: View {
 
     private var chatPanel: some View {
         VStack(spacing: 8) {
+            if appState.chatConnectionState != .connected {
+                Label(chatStatusText, systemImage: "bolt.horizontal.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+            }
             if !onlineMembers.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -357,17 +373,6 @@ struct MessagesView: View {
         chat.userId == appState.session?.id
     }
 
-    private func runChatAutoRefresh() async {
-        while !Task.isCancelled, mode == .chat {
-            do {
-                try await loadChat(sinceOnly: true)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-        }
-    }
-
     private func loadCurrent() async {
         isLoading = true
         errorMessage = nil
@@ -410,6 +415,44 @@ struct MessagesView: View {
         chatMessages = map.values.sorted { $0.id < $1.id }
     }
 
+    private func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
+        guard mode == .inbox else { return }
+        let type = "\(userInfo["type"] ?? "")".lowercased()
+        guard type == "message" || type == "mention_message" else { return }
+        guard let messageId = integerValue(userInfo["entity_id"] ?? userInfo["entityId"] ?? userInfo["message_id"] ?? userInfo["id"]) else {
+            await loadCurrent()
+            return
+        }
+        do {
+            let detail = try await api.fetchMessage(id: messageId)
+            guard let row = detail.row else {
+                await loadCurrent()
+                return
+            }
+            mergeInboxMessage(row)
+        } catch {
+            await loadCurrent()
+        }
+    }
+
+    private func mergeInboxMessage(_ row: MessageSummary) {
+        if let existingIndex = messages.firstIndex(where: { $0.id == row.id }) {
+            messages.remove(at: existingIndex)
+        }
+        messages.insert(row, at: 0)
+        if selectedMessageId == nil {
+            selectedMessageId = row.id
+        }
+    }
+
+    private func integerValue(_ value: Any?) -> Int? {
+        guard let value else { return nil }
+        if let intValue = value as? Int {
+            return intValue
+        }
+        return Int("\(value)")
+    }
+
     private func sendChat() async {
         let text = chatDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -450,6 +493,75 @@ struct MessagesView: View {
             translatedChat[id] = nil
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func startChatSocketListener() {
+        chatSocketTask?.cancel()
+        chatSocketTask = Task {
+            let stream = await WebSocketManager.shared.eventStream(for: .chat)
+            for await event in stream {
+                if Task.isCancelled { break }
+                await handleChatSocketPayload(event.text)
+            }
+        }
+    }
+
+    private func stopChatSocketListener() {
+        chatSocketTask?.cancel()
+        chatSocketTask = nil
+    }
+
+    @MainActor
+    private func handleChatSocketPayload(_ text: String) async {
+        guard mode == .chat else { return }
+        guard let data = text.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = (json["type"] as? String)?.lowercased() else {
+            return
+        }
+
+        switch type {
+        case "chat:message", "chat:updated":
+            if let item = decodeSocketChatMessage(from: json) {
+                mergeChat([item])
+            } else {
+                try? await loadChat(sinceOnly: type == "chat:message")
+            }
+        case "chat:deleted":
+            if let id = decodeSocketMessageId(from: json) {
+                chatMessages.removeAll { $0.id == id }
+                translatedChat[id] = nil
+            } else {
+                try? await loadChat(sinceOnly: false)
+            }
+        default:
+            break
+        }
+    }
+
+    private func decodeSocketChatMessage(from json: [String: Any]) -> ChatMessage? {
+        guard JSONSerialization.isValidJSONObject(json),
+              let data = try? JSONSerialization.data(withJSONObject: json) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(ChatMessage.self, from: data)
+    }
+
+    private func decodeSocketMessageId(from json: [String: Any]) -> Int? {
+        if let id = json["id"] as? Int { return id }
+        if let id = json["id"] as? String { return Int(id) }
+        return nil
+    }
+
+    private var chatStatusText: String {
+        switch appState.chatConnectionState {
+        case .connected:
+            return "Connected"
+        case .connecting:
+            return "Connecting to live chat..."
+        case .disconnected:
+            return "Live chat disconnected. Reconnecting..."
         }
     }
 

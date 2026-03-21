@@ -2,18 +2,36 @@ import Foundation
 
 struct FeedEnvelope: Decodable {
     let items: [FeedPost]
+    let nextCursor: String?
+    let nextOffset: Int?
+    let hasMore: Bool?
 
     private enum CodingKeys: String, CodingKey {
-        case items, posts, rows, data
+        case items, posts, rows, data, cursor, nextCursor, next_offset, nextOffset, hasMore, has_more, more
     }
 
     init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(),
+           let direct = try? single.decode([FeedPost].self) {
+            items = direct
+            nextCursor = nil
+            nextOffset = nil
+            hasMore = direct.isEmpty ? false : nil
+            return
+        }
         let c = try decoder.container(keyedBy: CodingKeys.self)
         items = (try? c.decodeIfPresent([FeedPost].self, forKey: .items))
             ?? (try? c.decodeIfPresent([FeedPost].self, forKey: .posts))
             ?? (try? c.decodeIfPresent([FeedPost].self, forKey: .rows))
             ?? (try? c.decodeIfPresent([FeedPost].self, forKey: .data))
             ?? []
+        nextCursor = c.decodeLossyString(forKey: .nextCursor)
+            ?? c.decodeLossyString(forKey: .cursor)
+        nextOffset = c.decodeLossyInt(forKey: .nextOffset)
+            ?? c.decodeLossyInt(forKey: .next_offset)
+        hasMore = c.decodeLossyBool(forKey: .hasMore)
+            ?? c.decodeLossyBool(forKey: .has_more)
+            ?? c.decodeLossyBool(forKey: .more)
     }
 }
 
@@ -54,6 +72,52 @@ struct FeedPost: Decodable, Identifiable {
         self.liked = container.decodeLossyBool(forKey: .liked)
         self.groupId = container.decodeLossyInt(forKey: .groupId)
         self.author = try? container.decodeIfPresent(PostAuthor.self, forKey: .author)
+    }
+
+    init(
+        id: Int,
+        content: String?,
+        createdAt: String?,
+        image: String?,
+        likeCount: Int?,
+        commentCount: Int?,
+        liked: Bool?,
+        groupId: Int?,
+        author: PostAuthor?
+    ) {
+        self.id = id
+        self.content = content
+        self.createdAt = createdAt
+        self.image = image
+        self.likeCount = likeCount
+        self.commentCount = commentCount
+        self.liked = liked
+        self.groupId = groupId
+        self.author = author
+    }
+
+    func togglingLike(to liked: Bool) -> FeedPost {
+        let baseCount = likeCount ?? 0
+        let previousLiked = self.liked ?? false
+        let adjustedCount: Int
+        if previousLiked == liked {
+            adjustedCount = baseCount
+        } else if liked {
+            adjustedCount = baseCount + 1
+        } else {
+            adjustedCount = max(baseCount - 1, 0)
+        }
+        return FeedPost(
+            id: id,
+            content: content,
+            createdAt: createdAt,
+            image: image,
+            likeCount: adjustedCount,
+            commentCount: commentCount,
+            liked: liked,
+            groupId: groupId,
+            author: author
+        )
     }
 }
 

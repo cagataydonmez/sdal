@@ -1,9 +1,37 @@
 import Foundation
 
 extension APIClient {
+    func fetchFeedPage(
+        feedType: String = "main",
+        filter: String = "latest",
+        limit: Int = 20,
+        offset: Int = 0,
+        cursor: String? = nil
+    ) async throws -> FeedEnvelope {
+        var query: [String: String] = [
+            "feedType": feedType,
+            "filter": filter,
+            "limit": String(limit)
+        ]
+        if let cursor, !cursor.isEmpty {
+            query["cursor"] = cursor
+        } else {
+            query["offset"] = String(offset)
+        }
+        return try await request("GET", "/new/feed", query: query)
+    }
+
     func fetchFeed(limit: Int = 20, offset: Int = 0, scope: String = "all") async throws -> [FeedPost] {
-        let path = "/new/feed?limit=\(limit)&offset=\(offset)&scope=\(scope)"
-        let payload = try await request(path, as: FeedEnvelope.self)
+        let normalizedFilter: String
+        switch scope {
+        case "following":
+            normalizedFilter = "following"
+        case "popular":
+            normalizedFilter = "popular"
+        default:
+            normalizedFilter = "latest"
+        }
+        let payload = try await fetchFeedPage(feedType: "main", filter: normalizedFilter, limit: limit, offset: offset, cursor: nil)
         return payload.items
     }
 
@@ -144,10 +172,18 @@ extension APIClient {
         return payload.items
     }
 
-    func fetchNotifications(limit: Int = 30, offset: Int = 0) async throws -> [AppNotification] {
-        let path = "/new/notifications?limit=\(limit)&offset=\(offset)"
+    func fetchNotifications(limit: Int = 30, offset: Int = 0, category: String? = nil) async throws -> [AppNotification] {
+        var path = "/new/notifications?limit=\(limit)&offset=\(offset)"
+        if let category, !category.isEmpty {
+            path += "&category=\(category)"
+        }
         let payload = try await request(path, as: NotificationsEnvelope.self)
         return payload.items
+    }
+
+    func fetchUnreadNotificationsCount() async throws -> Int {
+        let payload = try await request("/new/notifications/unread", as: CountEnvelope.self)
+        return payload.count ?? 0
     }
 
     func fetchUnreadMessagesCount() async throws -> Int {
@@ -211,6 +247,45 @@ extension APIClient {
 
     func markNotificationsRead() async throws {
         _ = try await request("/new/notifications/read", method: "POST", as: APIWriteResponse.self)
+    }
+
+    func bulkReadNotifications(ids: [Int]) async throws {
+        struct Body: Encodable { let ids: [Int] }
+        _ = try await request("/new/notifications/bulk-read", method: "POST", body: Body(ids: ids), as: APIWriteResponse.self)
+    }
+
+    func markNotificationRead(id: Int) async throws {
+        _ = try await request("/new/notifications/\(id)/read", method: "POST", as: APIWriteResponse.self)
+    }
+
+    func openNotification(id: Int) async throws {
+        _ = try await request("/new/notifications/\(id)/open", method: "POST", as: APIWriteResponse.self)
+    }
+
+    func fetchNotificationPreferences() async throws -> NotificationPreferences {
+        try await request("/new/notifications/preferences", as: NotificationPreferences.self)
+    }
+
+    func updateNotificationPreferences(_ preferences: NotificationPreferences) async throws {
+        struct Body: Encodable {
+            let social_enabled: Bool
+            let messaging_enabled: Bool
+            let groups_enabled: Bool
+            let events_enabled: Bool
+            let networking_enabled: Bool
+            let jobs_enabled: Bool
+            let system_enabled: Bool
+        }
+        let body = Body(
+            social_enabled: preferences.socialEnabled ?? true,
+            messaging_enabled: preferences.messagingEnabled ?? true,
+            groups_enabled: preferences.groupsEnabled ?? true,
+            events_enabled: preferences.eventsEnabled ?? true,
+            networking_enabled: preferences.networkingEnabled ?? true,
+            jobs_enabled: preferences.jobsEnabled ?? true,
+            system_enabled: preferences.systemEnabled ?? true
+        )
+        _ = try await request("/new/notifications/preferences", method: "PUT", body: body, as: APIWriteResponse.self)
     }
 
     func fetchProfile() async throws -> Profile {

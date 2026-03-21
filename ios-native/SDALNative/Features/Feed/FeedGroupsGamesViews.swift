@@ -6,12 +6,19 @@ struct GroupsHubView: View {
     @EnvironmentObject private var i18n: LocalizationManager
     @Environment(\.dismiss) private var dismiss
 
+    let initialGroupId: Int?
+
     @State private var items: [GroupItem] = []
     @State private var loading = false
     @State private var error: String?
     @State private var showCreate = false
+    @State private var selectedGroupId: Int?
 
     private let api = APIClient.shared
+
+    init(initialGroupId: Int? = nil) {
+        self.initialGroupId = initialGroupId
+    }
 
     var body: some View {
         NavigationStack {
@@ -23,6 +30,7 @@ struct GroupsHubView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
+                            hubHeader
                             ForEach(items) { g in
                                 NavigationLink {
                                     GroupDetailScreen(groupId: g.id)
@@ -30,19 +38,21 @@ struct GroupsHubView: View {
                                     GlassCard {
                                         VStack(alignment: .leading, spacing: 8) {
                                             Text(g.name ?? "-")
-                                                .font(.headline)
+                                                .font(.title3.weight(.bold))
+                                                .fontDesign(.rounded)
                                             Text(g.description ?? "")
                                                 .font(.subheadline)
+                                                .foregroundStyle(.primary)
                                                 .lineLimit(2)
                                             HStack(spacing: 6) {
                                                 Text("\(g.members ?? 0) uye")
-                                                    .font(.caption2)
+                                                    .font(.subheadline)
                                                     .padding(.horizontal, 8)
                                                     .padding(.vertical, 4)
                                                     .background(SDALTheme.softPanel)
                                                     .clipShape(Capsule())
                                                 Text(g.membershipStatus ?? "none")
-                                                    .font(.caption2)
+                                                    .font(.subheadline)
                                                     .padding(.horizontal, 8)
                                                     .padding(.vertical, 4)
                                                     .background(SDALTheme.softPanel)
@@ -54,6 +64,7 @@ struct GroupsHubView: View {
                                 .buttonStyle(.plain)
                                 .swipeActions {
                                     Button(g.joined == true ? i18n.t("leave") : i18n.t("join")) {
+                                        SDALHaptics.tap(.light)
                                         Task { await joinLeave(g.id) }
                                     }
                                 }
@@ -66,15 +77,52 @@ struct GroupsHubView: View {
             }
             .navigationTitle(i18n.t("groups"))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(i18n.t("close")) { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) { Button(i18n.t("create")) { showCreate = true } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(i18n.t("close")) {
+                        SDALHaptics.tap(.light)
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(i18n.t("create")) {
+                        SDALHaptics.tap(.medium)
+                        showCreate = true
+                    }
+                }
             }
             .task { if items.isEmpty { await load() } }
+            .task {
+                if selectedGroupId == nil {
+                    selectedGroupId = initialGroupId
+                }
+            }
             .sheet(isPresented: $showCreate) {
                 GroupCreateSheet(onDone: {
                     showCreate = false
                     Task { await load() }
                 })
+            }
+            .navigationDestination(item: $selectedGroupId) { groupId in
+                GroupDetailScreen(groupId: groupId)
+            }
+        }
+    }
+
+    private var hubHeader: some View {
+        GlassCard {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "person.3.sequence.fill")
+                    .font(.title2.weight(.semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(SDALTheme.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(i18n.t("groups"))
+                        .font(.title2.weight(.bold))
+                        .fontDesign(.rounded)
+                    Text("Private and public alumni circles with invites, roles, posts, and shared updates.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -87,11 +135,16 @@ struct GroupsHubView: View {
     }
 
     private func joinLeave(_ id: Int) async {
-        do { try await api.joinOrLeaveGroup(id: id); await load() } catch { self.error = error.localizedDescription }
+        do {
+            try await api.joinOrLeaveGroup(id: id)
+            SDALHaptics.success()
+            await load()
+        } catch { self.error = error.localizedDescription }
     }
 }
 
 struct GroupCreateSheet: View {
+    @EnvironmentObject private var i18n: LocalizationManager
     @Environment(\.dismiss) private var dismiss
     let onDone: () -> Void
 
@@ -104,14 +157,25 @@ struct GroupCreateSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
-                TextField("Description", text: $description, axis: .vertical)
+                TextField(i18n.t("title"), text: $name)
+                TextField(i18n.t("description"), text: $description, axis: .vertical)
                 if let error { Text(error).foregroundStyle(.red) }
             }
+            .fontDesign(.rounded)
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(i18n.t("close")) {
+                        SDALHaptics.tap(.light)
+                        dismiss()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Create") { Task { await save() } }
+                    Button(i18n.t("create")) {
+                        SDALHaptics.tap(.medium)
+                        Task { await save() }
+                    }
                         .disabled(name.isEmpty)
                 }
             }
@@ -121,6 +185,7 @@ struct GroupCreateSheet: View {
     private func save() async {
         do {
             try await api.createGroup(name: name, description: description)
+            SDALHaptics.success()
             onDone()
             dismiss()
         } catch {
@@ -161,11 +226,13 @@ struct GroupDetailScreen: View {
     }
 
     var body: some View {
+        let coverPickerLabel = coverImageData == nil ? "Choose Cover" : i18n.t("change_photo")
+        let postPickerLabel = postImageData == nil ? i18n.t("add_photo") : i18n.t("change_photo")
         ScrollView {
             VStack(spacing: 14) {
                 if let group = detail?.group {
                     GlassCard {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 12) {
                             if let cover = group.coverImage,
                                let url = AppConfig.absoluteURL(path: cover) {
                                 ZStack(alignment: .bottomLeading) {
@@ -200,26 +267,37 @@ struct GroupDetailScreen: View {
                                 }
                             }
                             Text(group.name ?? "Group")
-                                .font(.title3.bold())
+                                .font(.title2.weight(.bold))
+                                .fontDesign(.rounded)
                             Text(group.description ?? "")
+                                .font(.subheadline)
                             HStack {
                                 Text("Status: \(detail?.membershipStatus ?? group.membershipStatus ?? "none")")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                                 Spacer()
                                 Button((group.joined == true) ? "Leave" : "Join") {
+                                    SDALHaptics.tap(.light)
                                     Task { await joinLeave() }
                                 }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
                             }
                             if group.invited == true {
                                 HStack {
-                                    Button("Accept Invite") { Task { await respondInvite("accept") } }
-                                        .buttonStyle(.bordered)
-                                    Button("Reject Invite") { Task { await respondInvite("reject") } }
-                                        .buttonStyle(.bordered)
+                                    Button("Accept Invite") {
+                                        SDALHaptics.tap(.light)
+                                        Task { await respondInvite("accept") }
+                                    }
+                                    .buttonStyle(PolishedGlassButtonStyle())
+                                    Button("Reject Invite") {
+                                        SDALHaptics.tap(.light)
+                                        Task { await respondInvite("reject") }
+                                    }
+                                    .buttonStyle(PolishedGlassButtonStyle())
                                 }
                             }
                             Text("Visibility: \(visibility)")
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -228,38 +306,57 @@ struct GroupDetailScreen: View {
                 if isManager {
                     GlassCard {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Group Settings").font(.headline)
+                            Label("Group Settings", systemImage: "slider.horizontal.3")
+                                .font(.title3.weight(.bold))
+                                .fontDesign(.rounded)
+                                .symbolRenderingMode(.hierarchical)
                             Text("Visibility")
-                                .font(.caption)
-                                .foregroundStyle(SDALTheme.muted)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                             HStack(spacing: 8) {
-                                Button("Public") { visibility = "public" }
+                                Button("Public") {
+                                    SDALHaptics.tap(.light)
+                                    visibility = "public"
+                                }
                                     .buttonStyle(FeedScopeChipButtonStyle(active: visibility == "public"))
-                                Button("Members Only") { visibility = "members_only" }
+                                Button("Members Only") {
+                                    SDALHaptics.tap(.light)
+                                    visibility = "members_only"
+                                }
                                     .buttonStyle(FeedScopeChipButtonStyle(active: visibility == "members_only"))
                             }
                             Toggle("Show contact hint", isOn: $showContactHint)
-                            Button("Save Settings") { Task { await saveSettings() } }
-                                .buttonStyle(.borderedProminent)
+                            Button("Save Settings") {
+                                SDALHaptics.tap(.medium)
+                                Task { await saveSettings() }
+                            }
+                                .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     }
 
                     GlassCard {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Cover Photo").font(.headline)
+                            Label("Cover Photo", systemImage: "photo.stack")
+                                .font(.title3.weight(.bold))
+                                .fontDesign(.rounded)
+                                .symbolRenderingMode(.hierarchical)
                             PhotosPicker(selection: $coverImageItem, matching: .images, photoLibrary: .shared()) {
-                                Label(coverImageData == nil ? "Choose Cover" : "Change Cover", systemImage: "photo")
+                                Label(coverPickerLabel, systemImage: "photo")
                             }
                             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                                 Button {
+                                    SDALHaptics.tap(.light)
                                     showCoverCamera = true
                                 } label: {
                                     Label(i18n.t("camera"), systemImage: "camera")
                                 }
                             }
-                            Button("Upload Cover") { Task { await uploadCover() } }
-                                .buttonStyle(.bordered)
+                            Button("Upload Cover") {
+                                SDALHaptics.tap(.medium)
+                                Task { await uploadCover() }
+                            }
+                                .buttonStyle(PolishedGlassButtonStyle())
                                 .disabled(coverImageData == nil)
                         }
                     }
@@ -267,22 +364,29 @@ struct GroupDetailScreen: View {
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("New Group Post").font(.headline)
+                        Label("New Group Post", systemImage: "square.and.pencil")
+                            .font(.title3.weight(.bold))
+                            .fontDesign(.rounded)
+                            .symbolRenderingMode(.hierarchical)
                         TextField("Write something...", text: $text, axis: .vertical)
                             .lineLimit(2...5)
                             .textFieldStyle(.roundedBorder)
                         PhotosPicker(selection: $postImageItem, matching: .images, photoLibrary: .shared()) {
-                            Label(postImageData == nil ? "Add Photo" : "Change Photo", systemImage: "photo")
+                            Label(postPickerLabel, systemImage: "photo")
                         }
                         if UIImagePickerController.isSourceTypeAvailable(.camera) {
                             Button {
+                                SDALHaptics.tap(.light)
                                 showPostCamera = true
                             } label: {
                                 Label(i18n.t("camera"), systemImage: "camera")
                             }
                         }
-                        Button("Share") { Task { await createPost() } }
-                            .buttonStyle(.borderedProminent)
+                        Button("Share") {
+                            SDALHaptics.tap(.medium)
+                            Task { await createPost() }
+                        }
+                            .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
                             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && postImageData == nil)
                     }
                 }
@@ -301,7 +405,10 @@ struct GroupDetailScreen: View {
                 if isManager {
                     GlassCard {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Join Requests").font(.headline)
+                            Label("Join Requests", systemImage: "person.badge.plus")
+                                .font(.title3.weight(.bold))
+                                .fontDesign(.rounded)
+                                .symbolRenderingMode(.hierarchical)
                             if joinRequests.isEmpty {
                                 Text("No pending requests").foregroundStyle(.secondary)
                             }
@@ -309,10 +416,16 @@ struct GroupDetailScreen: View {
                                 HStack {
                                     Text("@\(r.kadi ?? "user")")
                                     Spacer()
-                                    Button("Approve") { Task { await decideJoinRequest(r.id, action: "approve") } }
-                                        .buttonStyle(.bordered)
-                                    Button("Reject") { Task { await decideJoinRequest(r.id, action: "reject") } }
-                                        .buttonStyle(.bordered)
+                                    Button("Approve") {
+                                        SDALHaptics.tap(.light)
+                                        Task { await decideJoinRequest(r.id, action: "approve") }
+                                    }
+                                    .buttonStyle(PolishedGlassButtonStyle())
+                                    Button("Reject") {
+                                        SDALHaptics.tap(.light)
+                                        Task { await decideJoinRequest(r.id, action: "reject") }
+                                    }
+                                    .buttonStyle(PolishedGlassButtonStyle())
                                 }
                             }
                         }
@@ -320,14 +433,20 @@ struct GroupDetailScreen: View {
 
                     GlassCard {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Invite Members").font(.headline)
+                            Label("Invite Members", systemImage: "paperplane")
+                                .font(.title3.weight(.bold))
+                                .fontDesign(.rounded)
+                                .symbolRenderingMode(.hierarchical)
                             TextField("User IDs (comma separated)", text: $inviteUserIds)
                                 .textFieldStyle(.roundedBorder)
-                            Button("Send Invites") { Task { await sendInvites() } }
-                                .buttonStyle(.bordered)
+                            Button("Send Invites") {
+                                SDALHaptics.tap(.medium)
+                                Task { await sendInvites() }
+                            }
+                            .buttonStyle(PolishedGlassButtonStyle())
                             ForEach(pendingInvites) { invite in
                                 Text("@\(invite.kadi ?? "user") - pending")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -336,7 +455,10 @@ struct GroupDetailScreen: View {
                     if let members = detail?.members, !members.isEmpty {
                         GlassCard {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Roles").font(.headline)
+                                Label("Roles", systemImage: "person.text.rectangle")
+                                    .font(.title3.weight(.bold))
+                                    .fontDesign(.rounded)
+                                    .symbolRenderingMode(.hierarchical)
                                 ForEach(members) { m in
                                     HStack {
                                         Text("@\(m.kadi ?? "user")")
@@ -355,17 +477,26 @@ struct GroupDetailScreen: View {
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Group Events").font(.headline)
+                        Label("Group Events", systemImage: "calendar")
+                            .font(.title3.weight(.bold))
+                            .fontDesign(.rounded)
+                            .symbolRenderingMode(.hierarchical)
                         TextField("Title", text: $eventTitle).textFieldStyle(.roundedBorder)
                         TextField("Description", text: $eventDescription).textFieldStyle(.roundedBorder)
-                        Button("Add Event") { Task { await addGroupEvent() } }
-                            .buttonStyle(.bordered)
+                        Button("Add Event") {
+                            SDALHaptics.tap(.medium)
+                            Task { await addGroupEvent() }
+                        }
+                            .buttonStyle(PolishedGlassButtonStyle())
                         ForEach((detail?.groupEvents?.isEmpty == false ? detail?.groupEvents : groupEventsFallback) ?? []) { e in
                             HStack {
                                 Text(e.title ?? "-")
                                 Spacer()
-                                Button("Delete") { Task { await deleteGroupEvent(e.id) } }
-                                    .buttonStyle(.bordered)
+                                Button("Delete") {
+                                    SDALHaptics.tap(.light)
+                                    Task { await deleteGroupEvent(e.id) }
+                                }
+                                .buttonStyle(PolishedGlassButtonStyle())
                             }
                         }
                     }
@@ -373,17 +504,26 @@ struct GroupDetailScreen: View {
 
                 GlassCard {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Group Announcements").font(.headline)
+                        Label("Group Announcements", systemImage: "megaphone")
+                            .font(.title3.weight(.bold))
+                            .fontDesign(.rounded)
+                            .symbolRenderingMode(.hierarchical)
                         TextField("Title", text: $announcementTitle).textFieldStyle(.roundedBorder)
                         TextField("Body", text: $announcementBody).textFieldStyle(.roundedBorder)
-                        Button("Add Announcement") { Task { await addGroupAnnouncement() } }
-                            .buttonStyle(.bordered)
+                        Button("Add Announcement") {
+                            SDALHaptics.tap(.medium)
+                            Task { await addGroupAnnouncement() }
+                        }
+                            .buttonStyle(PolishedGlassButtonStyle())
                         ForEach((detail?.groupAnnouncements?.isEmpty == false ? detail?.groupAnnouncements : groupAnnouncementsFallback) ?? []) { a in
                             HStack {
                                 Text(a.title ?? "-")
                                 Spacer()
-                                Button("Delete") { Task { await deleteGroupAnnouncement(a.id) } }
-                                    .buttonStyle(.bordered)
+                                Button("Delete") {
+                                    SDALHaptics.tap(.light)
+                                    Task { await deleteGroupAnnouncement(a.id) }
+                                }
+                                    .buttonStyle(PolishedGlassButtonStyle())
                             }
                         }
                     }
@@ -455,11 +595,19 @@ struct GroupDetailScreen: View {
     }
 
     private func joinLeave() async {
-        do { try await api.joinOrLeaveGroup(id: groupId); await load() } catch { self.error = error.localizedDescription }
+        do {
+            try await api.joinOrLeaveGroup(id: groupId)
+            SDALHaptics.success()
+            await load()
+        } catch { self.error = error.localizedDescription }
     }
 
     private func respondInvite(_ action: String) async {
-        do { try await api.respondGroupInvite(groupId: groupId, action: action); await load() } catch { self.error = error.localizedDescription }
+        do {
+            try await api.respondGroupInvite(groupId: groupId, action: action)
+            SDALHaptics.success()
+            await load()
+        } catch { self.error = error.localizedDescription }
     }
 
     private func createPost() async {
@@ -471,6 +619,7 @@ struct GroupDetailScreen: View {
             }
             text = ""
             postImageData = nil
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -482,6 +631,7 @@ struct GroupDetailScreen: View {
             try await api.createGroupEvent(groupId: groupId, title: eventTitle, description: eventDescription, location: "", startsAt: "", endsAt: "")
             eventTitle = ""
             eventDescription = ""
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -489,7 +639,11 @@ struct GroupDetailScreen: View {
     }
 
     private func deleteGroupEvent(_ eventId: Int) async {
-        do { try await api.deleteGroupEvent(groupId: groupId, eventId: eventId); await load() } catch { self.error = error.localizedDescription }
+        do {
+            try await api.deleteGroupEvent(groupId: groupId, eventId: eventId)
+            SDALHaptics.success()
+            await load()
+        } catch { self.error = error.localizedDescription }
     }
 
     private func addGroupAnnouncement() async {
@@ -497,6 +651,7 @@ struct GroupDetailScreen: View {
             try await api.createGroupAnnouncement(groupId: groupId, title: announcementTitle, body: announcementBody)
             announcementTitle = ""
             announcementBody = ""
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -504,12 +659,17 @@ struct GroupDetailScreen: View {
     }
 
     private func deleteGroupAnnouncement(_ id: Int) async {
-        do { try await api.deleteGroupAnnouncement(groupId: groupId, announcementId: id); await load() } catch { self.error = error.localizedDescription }
+        do {
+            try await api.deleteGroupAnnouncement(groupId: groupId, announcementId: id)
+            SDALHaptics.success()
+            await load()
+        } catch { self.error = error.localizedDescription }
     }
 
     private func saveSettings() async {
         do {
             try await api.updateGroupSettings(groupId: groupId, visibility: visibility, showContactHint: showContactHint)
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -521,6 +681,7 @@ struct GroupDetailScreen: View {
         do {
             try await api.uploadGroupCover(groupId: groupId, imageData: coverImageData)
             self.coverImageData = nil
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -530,6 +691,7 @@ struct GroupDetailScreen: View {
     private func decideJoinRequest(_ requestId: Int, action: String) async {
         do {
             try await api.decideGroupJoinRequest(groupId: groupId, requestId: requestId, action: action)
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -548,6 +710,7 @@ struct GroupDetailScreen: View {
         do {
             try await api.sendGroupInvitations(groupId: groupId, userIds: ids)
             inviteUserIds = ""
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -557,6 +720,7 @@ struct GroupDetailScreen: View {
     private func setRole(userId: Int, role: String) async {
         do {
             try await api.setGroupRole(groupId: groupId, userId: userId, role: role)
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription

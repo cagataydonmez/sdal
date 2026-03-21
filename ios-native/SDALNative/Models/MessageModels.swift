@@ -100,6 +100,50 @@ struct NotificationsEnvelope: Decodable {
     }
 }
 
+struct NotificationPreferences: Decodable {
+    let socialEnabled: Bool?
+    let messagingEnabled: Bool?
+    let groupsEnabled: Bool?
+    let eventsEnabled: Bool?
+    let networkingEnabled: Bool?
+    let jobsEnabled: Bool?
+    let systemEnabled: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case socialEnabled, messagingEnabled, groupsEnabled, eventsEnabled, networkingEnabled, jobsEnabled, systemEnabled
+        case social_enabled, messaging_enabled, groups_enabled, events_enabled, networking_enabled, jobs_enabled, system_enabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        socialEnabled = c.decodeLossyBool(forKey: .socialEnabled) ?? c.decodeLossyBool(forKey: .social_enabled)
+        messagingEnabled = c.decodeLossyBool(forKey: .messagingEnabled) ?? c.decodeLossyBool(forKey: .messaging_enabled)
+        groupsEnabled = c.decodeLossyBool(forKey: .groupsEnabled) ?? c.decodeLossyBool(forKey: .groups_enabled)
+        eventsEnabled = c.decodeLossyBool(forKey: .eventsEnabled) ?? c.decodeLossyBool(forKey: .events_enabled)
+        networkingEnabled = c.decodeLossyBool(forKey: .networkingEnabled) ?? c.decodeLossyBool(forKey: .networking_enabled)
+        jobsEnabled = c.decodeLossyBool(forKey: .jobsEnabled) ?? c.decodeLossyBool(forKey: .jobs_enabled)
+        systemEnabled = c.decodeLossyBool(forKey: .systemEnabled) ?? c.decodeLossyBool(forKey: .system_enabled)
+    }
+
+    init(
+        socialEnabled: Bool?,
+        messagingEnabled: Bool?,
+        groupsEnabled: Bool?,
+        eventsEnabled: Bool?,
+        networkingEnabled: Bool?,
+        jobsEnabled: Bool?,
+        systemEnabled: Bool?
+    ) {
+        self.socialEnabled = socialEnabled
+        self.messagingEnabled = messagingEnabled
+        self.groupsEnabled = groupsEnabled
+        self.eventsEnabled = eventsEnabled
+        self.networkingEnabled = networkingEnabled
+        self.jobsEnabled = jobsEnabled
+        self.systemEnabled = systemEnabled
+    }
+}
+
 struct CountEnvelope: Decodable {
     let count: Int?
 
@@ -254,6 +298,146 @@ struct AppNotification: Decodable, Identifiable {
         self.verified = container.decodeLossyBool(forKey: .verified)
         self.inviteStatus = container.decodeLossyString(forKey: .inviteStatus)
             ?? container.decodeLossyString(forKey: .invite_status)
+    }
+
+    init(
+        id: Int,
+        type: String?,
+        entityId: Int?,
+        sourceUserId: Int?,
+        message: String?,
+        readAt: String?,
+        createdAt: String?,
+        kadi: String?,
+        isim: String?,
+        soyisim: String?,
+        resim: String?,
+        verified: Bool?,
+        inviteStatus: String?
+    ) {
+        self.id = id
+        self.type = type
+        self.entityId = entityId
+        self.sourceUserId = sourceUserId
+        self.message = message
+        self.readAt = readAt
+        self.createdAt = createdAt
+        self.kadi = kadi
+        self.isim = isim
+        self.soyisim = soyisim
+        self.resim = resim
+        self.verified = verified
+        self.inviteStatus = inviteStatus
+    }
+
+    var isUnread: Bool {
+        readAt?.isEmpty != false
+    }
+
+    func merged(with incoming: AppNotification) -> AppNotification {
+        AppNotification(
+            id: id,
+            type: incoming.type ?? type,
+            entityId: incoming.entityId ?? entityId,
+            sourceUserId: incoming.sourceUserId ?? sourceUserId,
+            message: incoming.message ?? message,
+            readAt: readAt ?? incoming.readAt,
+            createdAt: incoming.createdAt ?? createdAt,
+            kadi: incoming.kadi ?? kadi,
+            isim: incoming.isim ?? isim,
+            soyisim: incoming.soyisim ?? soyisim,
+            resim: incoming.resim ?? resim,
+            verified: incoming.verified ?? verified,
+            inviteStatus: incoming.inviteStatus ?? inviteStatus
+        )
+    }
+
+    init?(pushPayload userInfo: [AnyHashable: Any]) {
+        let id = AppNotification.integerValue(
+            userInfo["notification_id"] ?? userInfo["notificationId"] ?? userInfo["id"]
+        )
+        let type = AppNotification.stringValue(userInfo["type"])
+        let entityId = AppNotification.integerValue(userInfo["entity_id"] ?? userInfo["entityId"])
+        let sourceUserId = AppNotification.integerValue(userInfo["source_user_id"] ?? userInfo["sourceUserId"] ?? userInfo["user_id"])
+        let message = AppNotification.messageValue(from: userInfo)
+        let createdAt = AppNotification.stringValue(userInfo["created_at"] ?? userInfo["createdAt"])
+            ?? ISO8601DateFormatter().string(from: Date())
+        let kadi = AppNotification.stringValue(userInfo["kadi"] ?? userInfo["username"] ?? userInfo["source_username"])
+        let isim = AppNotification.stringValue(userInfo["isim"] ?? userInfo["first_name"] ?? userInfo["firstName"])
+        let soyisim = AppNotification.stringValue(userInfo["soyisim"] ?? userInfo["last_name"] ?? userInfo["lastName"])
+        let resim = AppNotification.stringValue(userInfo["resim"] ?? userInfo["avatar"] ?? userInfo["avatar_url"])
+        let verified = AppNotification.boolValue(userInfo["verified"])
+        let inviteStatus = AppNotification.stringValue(userInfo["invite_status"] ?? userInfo["inviteStatus"])
+
+        guard let resolvedId = id else {
+            return nil
+        }
+
+        self.init(
+            id: resolvedId,
+            type: type,
+            entityId: entityId,
+            sourceUserId: sourceUserId,
+            message: message,
+            readAt: nil,
+            createdAt: createdAt,
+            kadi: kadi,
+            isim: isim,
+            soyisim: soyisim,
+            resim: resim,
+            verified: verified,
+            inviteStatus: inviteStatus
+        )
+    }
+
+    private static func integerValue(_ value: Any?) -> Int? {
+        guard let value else { return nil }
+        if let intValue = value as? Int {
+            return intValue
+        }
+        return Int("\(value)")
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        guard let value else { return nil }
+        if let boolValue = value as? Bool {
+            return boolValue
+        }
+        if let intValue = value as? Int {
+            return intValue != 0
+        }
+        let stringValue = "\(value)".lowercased()
+        if ["1", "true", "yes"].contains(stringValue) {
+            return true
+        }
+        if ["0", "false", "no"].contains(stringValue) {
+            return false
+        }
+        return nil
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        guard let value else { return nil }
+        if let stringValue = value as? String, !stringValue.isEmpty {
+            return stringValue
+        }
+        return nil
+    }
+
+    private static func messageValue(from userInfo: [AnyHashable: Any]) -> String? {
+        if let direct = stringValue(userInfo["message"] ?? userInfo["msg"] ?? userInfo["text"] ?? userInfo["yorum"]) {
+            return direct
+        }
+        guard let aps = userInfo["aps"] as? [String: Any] else {
+            return nil
+        }
+        if let alert = aps["alert"] as? String, !alert.isEmpty {
+            return alert
+        }
+        if let alert = aps["alert"] as? [String: Any] {
+            return stringValue(alert["body"] ?? alert["subtitle"] ?? alert["title"])
+        }
+        return nil
     }
 }
 

@@ -12,6 +12,21 @@ enum FeedSidePanel: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+private enum FeedTypeTab: String, CaseIterable, Identifiable {
+    case main
+    case community
+
+    var id: String { rawValue }
+}
+
+private enum FeedFilterTab: String, CaseIterable, Identifiable {
+    case latest
+    case following
+    case popular
+
+    var id: String { rawValue }
+}
+
 struct FeedView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var i18n: LocalizationManager
@@ -21,10 +36,18 @@ struct FeedView: View {
     @State private var pendingPosts: [FeedPost]?
     @State private var pendingPostsCount = 0
     @State private var isLoading = false
+    @State private var isLoadingMore = false
     @State private var errorMessage: String?
     @State private var sheet: AppCommunityDestination?
-    @State private var scope = "all"
+    @State private var routedGroupId: Int?
+    @State private var feedType: FeedTypeTab = .main
+    @State private var filter: FeedFilterTab = .latest
+    @State private var nextCursor: String?
+    @State private var nextOffset = 0
+    @State private var hasMore = true
     @State private var postCommentsTarget: FeedPost?
+    @State private var routedPostId: Int?
+    @State private var routedEventId: Int?
     @State private var editingPost: FeedPost?
     @State private var feedScrollOffset: CGFloat = 0
     @State private var sidePanel: FeedSidePanel = .notifications
@@ -42,243 +65,380 @@ struct FeedView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isLoading && posts.isEmpty {
-                    ProgressView(i18n.t("loading_feed"))
-                } else if let errorMessage, posts.isEmpty {
-                    ScreenErrorView(message: errorMessage) { Task { await load() } }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 14) {
-                            GeometryReader { geo in
-                                Color.clear
-                                    .preference(key: FeedScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("feedScroll")).minY)
-                            }
-                            .frame(height: 0)
-
-                            StoryBarView()
-
-                            PostComposerView {
-                                await load()
-                            }
-
-                            if pendingPostsCount > 0 {
-                                Button {
-                                    applyPendingPosts()
-                                } label: {
-                                    Label(
-                                        String(format: i18n.t("new_posts_label"), pendingPostsCount),
-                                        systemImage: "arrow.clockwise.circle.fill"
-                                    )
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
-
-                            if !quickAccessUsers.isEmpty && !isCompact {
-                                GlassCard {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text("Quick Access")
-                                            .font(.headline)
-                                        ScrollView(.horizontal, showsIndicators: false) {
-                                            HStack(spacing: 8) {
-                                                ForEach(quickAccessUsers) { member in
-                                                    HStack(spacing: 6) {
-                                                        AsyncAvatarView(imageName: member.resim, size: 22)
-                                                        Text("@\(member.kadi ?? "uye")")
-                                                            .font(.caption)
-                                                        Button {
-                                                            Task { await removeQuickAccess(member.id) }
-                                                        } label: {
-                                                            Image(systemName: "xmark.circle.fill")
-                                                                .font(.caption)
-                                                        }
-                                                        .buttonStyle(.plain)
-                                                    }
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 6)
-                                                    .background(SDALTheme.softPanel)
-                                                    .clipShape(Capsule())
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            FeedSidePanelsView(
-                                sidePanel: $sidePanel,
-                                notifications: notifications,
-                                unreadMessages: unreadMessages,
-                                onlineMembers: onlineMembers,
-                                chatMessages: chatMessages,
-                                quickAccessUsers: quickAccessUsers,
-                                chatDraft: $chatDraft,
-                                isCompact: isCompact,
-                                onNotificationTap: { item in
-                                    openNotification(item)
-                                },
-                                onOpenMessages: {
-                                    router.selectedTab = .messages
-                                },
-                                onOpenExplore: {
-                                    router.selectedTab = .explore
-                                },
-                                onSendChat: {
-                                    Task { await sendFeedChat() }
-                                }
-                            )
-
-                            HStack(spacing: 8) {
-                                scopeChip(title: i18n.t("all"), value: "all")
-                                scopeChip(title: i18n.t("following"), value: "following")
-                                scopeChip(title: i18n.t("popular"), value: "popular")
-                            }
-
-                            ForEach(posts) { post in
-                                GlassCard {
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        HStack(spacing: 10) {
-                                            AsyncAvatarView(imageName: post.author?.resim, size: 42)
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text("@\(post.author?.kadi ?? "uye")")
-                                                    .font(.subheadline.bold())
-                                                Text(post.createdAt ?? "")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-
-                                        if let content = post.content, !content.isEmpty {
-                                            Text(content)
-                                                .font(.body)
-                                        }
-
-                                        if let imagePath = post.image,
-                                           let url = AppConfig.absoluteURL(path: imagePath) {
-                                            CachedRemoteImage(
-                                                url: url,
-                                                targetSize: CGSize(width: UIScreen.main.bounds.width - 32, height: 320)
-                                            ) { image in
-                                                ZStack {
-                                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                        .fill(SDALTheme.softPanel)
-                                                    image
-                                                        .resizable()
-                                                        .scaledToFit()
-                                                        .frame(maxWidth: .infinity, maxHeight: 320)
-                                                        .clipped()
-                                                }
-                                                .frame(maxWidth: .infinity)
-                                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                            } placeholder: {
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .fill(SDALTheme.softPanel)
-                                                    .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 320)
-                                            }
-                                        }
-
-                                        HStack(spacing: 14) {
-                                            Button {
-                                                Task { await toggleLike(post.id) }
-                                            } label: {
-                                                Label("\(post.likeCount ?? 0)", systemImage: post.liked == true ? "heart.fill" : "heart")
-                                            }
-                                            .buttonStyle(PressableActionButtonStyle(active: post.liked == true))
-                                            Button {
-                                                postCommentsTarget = post
-                                            } label: {
-                                                Label("\(post.commentCount ?? 0)", systemImage: "bubble.left")
-                                            }
-                                            .buttonStyle(PressableActionButtonStyle(active: false))
-                                        }
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .contextMenu {
-                                    if appState.session?.id == post.author?.id {
-                                        Button("Edit") { editingPost = post }
-                                        Button("Delete", role: .destructive) { Task { await deletePost(post.id) } }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(16)
+            feedRootContent
+        }
+        .task { if posts.isEmpty { await load(reset: true) } }
+        .task {
+            await loadPanels()
+        }
+        .task {
+            await runFeedAutoRefresh()
+        }
+        .task {
+            consumePendingCommunityRoute()
+        }
+        .onPreferenceChange(FeedScrollOffsetPreferenceKey.self) { value in
+            feedScrollOffset = value
+        }
+        .navigationTitle(i18n.t("feed"))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(i18n.t("events")) { sheet = .events }
+                    Button(i18n.t("announcements")) { sheet = .announcements }
+                    Button(i18n.t("groups")) {
+                        routedGroupId = nil
+                        sheet = .groups
                     }
-                    .coordinateSpace(name: "feedScroll")
-                    .refreshable { await load() }
+                    Button(i18n.t("games")) { sheet = .games }
+                } label: {
+                    Image(systemName: "square.grid.2x2")
                 }
             }
-            .task { if posts.isEmpty { await load() } }
-            .task {
-                await loadPanels()
+        }
+        .sheet(item: $sheet) { destination in
+            communitySheetView(for: destination)
+        }
+        .onChange(of: router.openCommunityDestination) { _, destination in
+            guard let destination else { return }
+            if destination != .groups {
+                routedGroupId = nil
             }
-            .task {
-                await runFeedAutoRefresh()
+            sheet = destination
+            router.openCommunityDestination = nil
+        }
+        .onChange(of: router.openGroupId) { _, groupId in
+            guard let groupId else { return }
+            routedGroupId = groupId
+            sheet = .groups
+            router.openGroupId = nil
+        }
+        .onChange(of: router.openPostId) { _, postId in
+            guard let postId else { return }
+            routedPostId = postId
+            router.openPostId = nil
+        }
+        .onChange(of: router.openEventId) { _, eventId in
+            guard let eventId else { return }
+            routedEventId = eventId
+            sheet = .events
+            router.openEventId = nil
+            router.openCommunityDestination = nil
+        }
+        .onChange(of: sheet) { _, newValue in
+            if newValue != .groups {
+                routedGroupId = nil
             }
-            .onPreferenceChange(FeedScrollOffsetPreferenceKey.self) { value in
-                feedScrollOffset = value
+            if newValue != .events {
+                routedEventId = nil
             }
-            .navigationTitle(i18n.t("feed"))
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button(i18n.t("events")) { sheet = .events }
-                        Button(i18n.t("announcements")) { sheet = .announcements }
-                        Button(i18n.t("groups")) { sheet = .groups }
-                        Button(i18n.t("games")) { sheet = .games }
-                    } label: {
-                        Image(systemName: "square.grid.2x2")
-                    }
-                }
+        }
+        .sheet(item: $postCommentsTarget) { post in
+            PostCommentsSheet(post: post)
+        }
+        .sheet(item: Binding(
+            get: { routedPostId.map(RoutedPostSelection.init(id:)) },
+            set: { routedPostId = $0?.id }
+        )) { selection in
+            PostCommentsSheet(postId: selection.id)
+        }
+        .sheet(item: $editingPost) { post in
+            EditPostSheet(post: post) {
+                editingPost = nil
+                Task { await load(reset: true) }
             }
-            .sheet(item: $sheet) { destination in
-                switch destination {
-                case .events: EventsHubView()
-                case .announcements: AnnouncementsHubView()
-                case .groups: GroupsHubView()
-                case .games: GamesHubView()
-                }
+        }
+        .overlay(alignment: .top) {
+            if let feedbackText {
+                GlobalActionFeedbackChip(message: feedbackText, isError: feedbackIsError)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .onChange(of: router.openCommunityDestination) { _, destination in
-                guard let destination else { return }
-                sheet = destination
-                router.openCommunityDestination = nil
-            }
-            .sheet(item: $postCommentsTarget) { post in
-                PostCommentsSheet(post: post)
-            }
-            .sheet(item: $editingPost) { post in
-                EditPostSheet(post: post) {
-                    editingPost = nil
-                    Task { await load() }
-                }
-            }
-            .overlay(alignment: .top) {
-                if let feedbackText {
-                    GlobalActionFeedbackChip(message: feedbackText, isError: feedbackIsError)
-                        .padding(.top, 8)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-            .animation(.easeInOut(duration: 0.22), value: feedbackText != nil)
-            .background(SDALTheme.appBackground.ignoresSafeArea())
+        }
+        .animation(.easeInOut(duration: 0.22), value: feedbackText != nil)
+        .background(SDALTheme.appBackground.ignoresSafeArea())
+    }
+
+    private var feedRootContent: AnyView {
+        if isLoading && posts.isEmpty {
+            return AnyView(ProgressView(i18n.t("loading_feed")))
+        } else if let errorMessage, posts.isEmpty {
+            return AnyView(ScreenErrorView(message: errorMessage) { Task { await load(reset: true) } })
+        } else {
+            return AnyView(feedScrollView)
         }
     }
 
-    private func load() async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
+    private var feedScrollView: some View {
+        ScrollView {
+            LazyVStack(spacing: 14) {
+                scrollOffsetReader
+                StoryBarView()
+                composerSection
+                pendingPostsSection
+                quickAccessSection
+                sidePanelsSection
+                feedTypePicker
+                filterBar
+                postsSection
+                loadingMoreSection
+            }
+            .padding(16)
+        }
+        .coordinateSpace(name: "feedScroll")
+        .refreshable { await load(reset: true) }
+    }
+
+    private var scrollOffsetReader: some View {
+        GeometryReader { geo in
+            Color.clear
+                .preference(key: FeedScrollOffsetPreferenceKey.self, value: geo.frame(in: .named("feedScroll")).minY)
+        }
+        .frame(height: 0)
+    }
+
+    private var composerSection: some View {
+        PostComposerView {
+            await load(reset: true)
+        }
+    }
+
+    @ViewBuilder
+    private var pendingPostsSection: some View {
+        if pendingPostsCount > 0 {
+            Button {
+                applyPendingPosts()
+            } label: {
+                Label(
+                    String(format: i18n.t("new_posts_label"), pendingPostsCount),
+                    systemImage: "arrow.clockwise.circle.fill"
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    @ViewBuilder
+    private var quickAccessSection: some View {
+        if !quickAccessUsers.isEmpty && !isCompact {
+            GlassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Quick Access")
+                        .font(.headline)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(quickAccessUsers) { member in
+                                HStack(spacing: 6) {
+                                    AsyncAvatarView(imageName: member.resim, size: 22)
+                                    Text("@\(member.kadi ?? "uye")")
+                                        .font(.caption)
+                                    Button {
+                                        Task { await removeQuickAccess(member.id) }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(SDALTheme.softPanel)
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var sidePanelsSection: some View {
+        FeedSidePanelsView(
+            sidePanel: $sidePanel,
+            notifications: notifications,
+            unreadMessages: unreadMessages,
+            onlineMembers: onlineMembers,
+            chatMessages: chatMessages,
+            quickAccessUsers: quickAccessUsers,
+            chatDraft: $chatDraft,
+            isCompact: isCompact,
+            onNotificationTap: { item in
+                openNotification(item)
+            },
+            onOpenMessages: {
+                router.selectedTab = .messages
+            },
+            onOpenExplore: {
+                router.selectedTab = .explore
+            },
+            onSendChat: {
+                Task { await sendFeedChat() }
+            }
+        )
+    }
+
+    private var feedTypePicker: some View {
+        Picker("", selection: $feedType) {
+            Text(i18n.t("feed_main")).tag(FeedTypeTab.main)
+            Text(i18n.t("feed_community")).tag(FeedTypeTab.community)
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: feedType) { _, _ in
+            Task { await load(reset: true) }
+        }
+    }
+
+    private var filterBar: some View {
+        HStack(spacing: 8) {
+            filterChip(title: i18n.t("all"), value: .latest)
+            filterChip(title: i18n.t("following"), value: .following)
+            filterChip(title: i18n.t("popular"), value: .popular)
+        }
+    }
+
+    private var postsSection: some View {
+        ForEach(posts) { post in
+            feedPostCard(post)
+                .contextMenu {
+                    if appState.session?.id == post.author?.id {
+                        Button("Edit") { editingPost = post }
+                        Button("Delete", role: .destructive) { Task { await deletePost(post.id) } }
+                    }
+                }
+                .onAppear {
+                    Task { await loadMoreIfNeeded(currentPostID: post.id) }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var loadingMoreSection: some View {
+        if isLoadingMore {
+            ProgressView(i18n.t("loading_feed"))
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func feedPostCard(_ post: FeedPost) -> some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    AsyncAvatarView(imageName: post.author?.resim, size: 42)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("@\(post.author?.kadi ?? "uye")")
+                            .font(.subheadline.bold())
+                        Text(post.createdAt ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let content = post.content, !content.isEmpty {
+                    Text(content)
+                        .font(.body)
+                }
+
+                feedPostImage(post)
+
+                HStack(spacing: 14) {
+                    Button {
+                        Task { await toggleLike(post.id) }
+                    } label: {
+                        Label("\(post.likeCount ?? 0)", systemImage: post.liked == true ? "heart.fill" : "heart")
+                    }
+                    .buttonStyle(PressableActionButtonStyle(active: post.liked == true))
+
+                    Button {
+                        postCommentsTarget = post
+                    } label: {
+                        Label("\(post.commentCount ?? 0)", systemImage: "bubble.left")
+                    }
+                    .buttonStyle(PressableActionButtonStyle(active: false))
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func communitySheetView(for destination: AppCommunityDestination) -> AnyView {
+        switch destination {
+        case .events:
+            return AnyView(EventsHubView(initialEventId: routedEventId))
+        case .announcements:
+            return AnyView(AnnouncementsHubView())
+        case .groups:
+            return AnyView(GroupsHubView(initialGroupId: routedGroupId))
+        case .games:
+            return AnyView(GamesHubView())
+        }
+    }
+
+    @ViewBuilder
+    private func feedPostImage(_ post: FeedPost) -> some View {
+        if let imagePath = post.image,
+           let url = AppConfig.absoluteURL(path: imagePath) {
+            CachedRemoteImage(
+                url: url,
+                targetSize: CGSize(width: UIScreen.main.bounds.width - 32, height: 320)
+            ) { image in
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(SDALTheme.softPanel)
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: 320)
+                        .clipped()
+                }
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } placeholder: {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(SDALTheme.softPanel)
+                    .frame(maxWidth: .infinity, minHeight: 160, maxHeight: 320)
+            }
+        }
+    }
+
+    private func load(reset: Bool) async {
+        if reset {
+            isLoading = true
+            errorMessage = nil
+        } else {
+            isLoadingMore = true
+        }
+        defer {
+            if reset {
+                isLoading = false
+            } else {
+                isLoadingMore = false
+            }
+        }
         do {
-            async let postsReq = api.fetchFeed(scope: scope)
+            let requestCursor = reset ? nil : nextCursor
+            let requestOffset = reset ? 0 : nextOffset
             async let quickReq = api.fetchQuickAccessUsers()
-            let rows = try await postsReq
+            async let contractPostsReq = api.fetchFeedPage(
+                feedType: feedType.rawValue,
+                filter: filter.rawValue,
+                limit: 20,
+                offset: requestOffset,
+                cursor: requestCursor
+            )
+            let page = try await contractPostsReq
             quickAccessUsers = (try? await quickReq) ?? []
-            posts = filterFeedRows(rows)
-            pendingPosts = nil
-            pendingPostsCount = 0
+            if reset {
+                posts = page.items
+                pendingPosts = nil
+                pendingPostsCount = 0
+            } else {
+                mergePage(page.items)
+            }
+            nextCursor = page.nextCursor
+            nextOffset = page.nextOffset ?? posts.count
+            hasMore = page.hasMore ?? (!page.items.isEmpty && (page.nextCursor != nil || page.items.count >= 20))
         } catch {
             if isCancelledRequest(error) { return }
             if posts.isEmpty {
@@ -302,7 +462,11 @@ struct FeedView: View {
     private func toggleLike(_ postId: Int) async {
         do {
             _ = try await api.togglePostLike(id: postId)
-            posts = filterFeedRows(try await api.fetchFeed(scope: scope))
+            if let index = posts.firstIndex(where: { $0.id == postId }) {
+                let current = posts[index]
+                let liked = !(current.liked ?? false)
+                posts[index] = current.togglingLike(to: liked)
+            }
             showFeedback(i18n.t("reaction_updated"))
         } catch {
             showFeedback(error.localizedDescription, isError: true)
@@ -330,9 +494,15 @@ struct FeedView: View {
     private func runFeedAutoRefresh() async {
         while !Task.isCancelled {
             do {
-                let latest = filterFeedRows(try await api.fetchFeed(scope: scope))
+                let latest = try await api.fetchFeedPage(
+                    feedType: feedType.rawValue,
+                    filter: filter.rawValue,
+                    limit: 20,
+                    offset: 0,
+                    cursor: nil
+                )
                 await MainActor.run {
-                    consumeRefreshedPosts(latest)
+                    consumeRefreshedPosts(latest.items)
                 }
                 await loadPanels()
             } catch {
@@ -373,10 +543,13 @@ struct FeedView: View {
         pendingPostsCount = 0
     }
 
-    private func filterFeedRows(_ rows: [FeedPost]) -> [FeedPost] {
-        guard scope == "following" || scope == "popular",
-              let myId = appState.session?.id else { return rows }
-        return rows.filter { $0.author?.id != myId }
+    private func mergePage(_ incoming: [FeedPost]) {
+        guard !incoming.isEmpty else { return }
+        var map = Dictionary(uniqueKeysWithValues: posts.map { ($0.id, $0) })
+        for item in incoming {
+            map[item.id] = item
+        }
+        posts = map.values.sorted { ($0.id) > ($1.id) }
     }
 
     private func applyPendingPosts() {
@@ -384,6 +557,35 @@ struct FeedView: View {
         posts = pendingPosts
         self.pendingPosts = nil
         pendingPostsCount = 0
+    }
+
+    private func consumePendingCommunityRoute() {
+        if let postId = router.openPostId {
+            routedPostId = postId
+            router.openPostId = nil
+            return
+        }
+        if let eventId = router.openEventId {
+            routedEventId = eventId
+            sheet = .events
+            router.openEventId = nil
+            router.openCommunityDestination = nil
+            return
+        }
+        if let groupId = router.openGroupId {
+            routedGroupId = groupId
+            sheet = .groups
+            router.openGroupId = nil
+            router.openCommunityDestination = nil
+            return
+        }
+        if let destination = router.openCommunityDestination {
+            if destination != .groups {
+                routedGroupId = nil
+            }
+            sheet = destination
+            router.openCommunityDestination = nil
+        }
     }
 
     private func loadPanels() async {
@@ -427,46 +629,35 @@ struct FeedView: View {
         }
     }
 
-    private func scopeChip(title: String, value: String) -> some View {
-        Button(title) {
-            guard scope != value else { return }
-            withAnimation(.easeInOut(duration: 0.18)) {
-                scope = value
-            }
-            Task { await load() }
+    private func loadMoreIfNeeded(currentPostID: Int) async {
+        guard hasMore, !isLoading, !isLoadingMore else { return }
+        guard let index = posts.firstIndex(where: { $0.id == currentPostID }) else { return }
+        let threshold = max(posts.count - 3, 0)
+        if index >= threshold {
+            await load(reset: false)
         }
-        .buttonStyle(FeedScopeChipButtonStyle(active: scope == value))
+    }
+
+    private func filterChip(title: String, value: FeedFilterTab) -> some View {
+        Button(title) {
+            guard filter != value else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                filter = value
+            }
+            Task { await load(reset: true) }
+        }
+        .buttonStyle(FeedScopeChipButtonStyle(active: filter == value))
     }
 
     private func openNotification(_ n: AppNotification) {
-        if let path = notificationTargetPath(n) {
-            router.handleNotificationPayload(["path": path])
-        } else {
-            router.selectedTab = .feed
-        }
+        router.handleNotificationPayload([
+            "type": n.type ?? "",
+            "entity_id": n.entityId as Any,
+            "source_user_id": n.sourceUserId as Any
+        ])
     }
+}
 
-    private func notificationTargetPath(_ n: AppNotification) -> String? {
-        let type = (n.type ?? "").lowercased()
-        if ["like", "comment", "mention_post"].contains(type), let id = n.entityId {
-            return "/new?post=\(id)"
-        }
-        if ["event_comment", "event_invite", "mention_event"].contains(type) {
-            return "/new/events"
-        }
-        if ["mention_group", "group_join_request", "group_join_approved", "group_join_rejected", "group_invite"].contains(type),
-           let id = n.entityId {
-            return "/new/groups/\(id)"
-        }
-        if ["mention_photo", "photo_comment"].contains(type), let id = n.entityId {
-            return "/new/albums/photo/\(id)"
-        }
-        if type == "mention_message", let id = n.entityId {
-            return "/new/messages/\(id)"
-        }
-        if type == "follow", let id = n.sourceUserId {
-            return "/new/members/\(id)"
-        }
-        return "/new"
-    }
+private struct RoutedPostSelection: Identifiable {
+    let id: Int
 }

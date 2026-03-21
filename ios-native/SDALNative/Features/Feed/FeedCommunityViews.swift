@@ -6,13 +6,19 @@ struct EventsHubView: View {
     @EnvironmentObject private var i18n: LocalizationManager
     @Environment(\.dismiss) private var dismiss
 
+    let initialEventId: Int?
     @State private var items: [EventItem] = []
     @State private var loading = false
     @State private var error: String?
     @State private var createOpen = false
     @State private var selectedEvent: EventItem?
+    @State private var didOpenInitialEvent = false
 
     private let api = APIClient.shared
+
+    init(initialEventId: Int? = nil) {
+        self.initialEventId = initialEventId
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,18 +30,42 @@ struct EventsHubView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
+                            GlassCard {
+                                HStack(alignment: .top, spacing: 14) {
+                                    Image(systemName: "calendar.badge.clock")
+                                        .font(.title2.weight(.semibold))
+                                        .symbolRenderingMode(.hierarchical)
+                                        .symbolEffect(.pulse, options: .repeating.speed(0.8))
+                                        .foregroundStyle(SDALTheme.primary)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(i18n.t("events"))
+                                            .font(.title2.weight(.bold))
+                                            .fontDesign(.rounded)
+                                        Text("Live alumni events with approval, attendance, reminders, and comments.")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
                             ForEach(items) { e in
                                 GlassCard {
                                     VStack(alignment: .leading, spacing: 10) {
                                         Text(e.title ?? "-")
-                                            .font(.headline)
-                                        if let desc = e.description, !desc.isEmpty { Text(desc).font(.subheadline) }
-                                        HStack(spacing: 8) {
-                                            Text(e.startsAt ?? "")
-                                            Text("•")
-                                            Text(e.location ?? "-")
+                                            .font(.title3.weight(.bold))
+                                            .fontDesign(.rounded)
+                                        if let desc = e.description, !desc.isEmpty {
+                                            Text(desc)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.primary)
                                         }
-                                        .font(.caption)
+                                        HStack(spacing: 8) {
+                                            Label(e.startsAt ?? "", systemImage: "clock")
+                                                .symbolRenderingMode(.hierarchical)
+                                            Text("•")
+                                            Label(e.location ?? "-", systemImage: "mappin.and.ellipse")
+                                                .symbolRenderingMode(.hierarchical)
+                                        }
+                                        .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                         HStack(spacing: 6) {
                                             if (e.approved == false) {
@@ -63,14 +93,26 @@ struct EventsHubView: View {
                                         }
 
                                         HStack(spacing: 8) {
-                                            Button(i18n.t("attend")) { Task { await respond(e.id, "attend") } }
-                                                .buttonStyle(.bordered)
-                                            Button(i18n.t("decline")) { Task { await respond(e.id, "decline") } }
-                                                .buttonStyle(.bordered)
-                                            Button(i18n.t("notify")) { Task { await notify(e.id) } }
-                                                .buttonStyle(.bordered)
-                                            Button(i18n.t("comments")) { selectedEvent = e }
-                                                .buttonStyle(.borderedProminent)
+                                            Button(i18n.t("attend")) {
+                                                SDALHaptics.tap(.light)
+                                                Task { await respond(e.id, "attend") }
+                                            }
+                                            .buttonStyle(PolishedGlassButtonStyle())
+                                            Button(i18n.t("decline")) {
+                                                SDALHaptics.tap(.light)
+                                                Task { await respond(e.id, "decline") }
+                                            }
+                                            .buttonStyle(PolishedGlassButtonStyle())
+                                            Button(i18n.t("notify")) {
+                                                SDALHaptics.tap(.light)
+                                                Task { await notify(e.id) }
+                                            }
+                                            .buttonStyle(PolishedGlassButtonStyle())
+                                            Button(i18n.t("comments")) {
+                                                SDALHaptics.tap(.light)
+                                                selectedEvent = e
+                                            }
+                                            .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
                                         }
 
                                         if e.canManageResponses == true {
@@ -119,8 +161,18 @@ struct EventsHubView: View {
             }
             .navigationTitle(i18n.t("events"))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(i18n.t("close")) { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) { Button(i18n.t("create")) { createOpen = true } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(i18n.t("close")) {
+                        SDALHaptics.tap(.light)
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(i18n.t("create")) {
+                        SDALHaptics.tap(.medium)
+                        createOpen = true
+                    }
+                }
             }
             .task { if items.isEmpty { await load() } }
             .sheet(isPresented: $createOpen) {
@@ -130,7 +182,9 @@ struct EventsHubView: View {
                 })
             }
             .sheet(item: $selectedEvent) { event in
-                EventCommentsSheet(event: event)
+                EventCommentsSheet(event: event) {
+                    Task { await load() }
+                }
             }
         }
     }
@@ -139,15 +193,34 @@ struct EventsHubView: View {
         loading = true
         error = nil
         defer { loading = false }
-        do { items = try await api.fetchEvents() } catch { self.error = error.localizedDescription }
+        do {
+            items = try await api.fetchEvents(limit: initialEventId == nil ? 20 : 60)
+            presentInitialEventIfNeeded()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func presentInitialEventIfNeeded() {
+        guard !didOpenInitialEvent, let initialEventId else { return }
+        guard let match = items.first(where: { $0.id == initialEventId }) else { return }
+        didOpenInitialEvent = true
+        selectedEvent = match
     }
 
     private func respond(_ id: Int, _ value: String) async {
-        do { try await api.respondEvent(id: id, response: value); await load() } catch { self.error = error.localizedDescription }
+        do {
+            try await api.respondEvent(id: id, response: value)
+            SDALHaptics.success()
+            await load()
+        } catch { self.error = error.localizedDescription }
     }
 
     private func notify(_ id: Int) async {
-        do { try await api.notifyEventFollowers(id: id) } catch { self.error = error.localizedDescription }
+        do {
+            try await api.notifyEventFollowers(id: id)
+            SDALHaptics.success()
+        } catch { self.error = error.localizedDescription }
     }
 
     private func setVisibility(_ id: Int, showCounts: Bool, showAttendeeNames: Bool, showDeclinerNames: Bool) async {
@@ -196,6 +269,7 @@ struct EventCreateSheet: View {
     private let api = APIClient.shared
 
     var body: some View {
+        let photoLabel = imageData == nil ? i18n.t("add_photo") : i18n.t("change_photo")
         NavigationStack {
             Form {
                 TextField(i18n.t("title"), text: $title)
@@ -204,10 +278,11 @@ struct EventCreateSheet: View {
                 TextField(i18n.t("starts_at_iso"), text: $startsAt)
                 TextField(i18n.t("ends_at_iso"), text: $endsAt)
                 PhotosPicker(selection: $item, matching: .images, photoLibrary: .shared()) {
-                    Label(imageData == nil ? "Add Photo" : "Change Photo", systemImage: "photo")
+                    Label(photoLabel, systemImage: "photo")
                 }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button {
+                        SDALHaptics.tap(.light)
                         showCamera = true
                     } label: {
                         Label(i18n.t("camera"), systemImage: "camera")
@@ -215,10 +290,21 @@ struct EventCreateSheet: View {
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }
+            .fontDesign(.rounded)
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(i18n.t("close")) { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(i18n.t("close")) {
+                        SDALHaptics.tap(.light)
+                        dismiss()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(i18n.t("create")) { Task { await save() } }
+                    Button(i18n.t("create")) {
+                        SDALHaptics.tap(.medium)
+                        Task { await save() }
+                    }
                         .disabled(title.isEmpty || description.isEmpty)
                 }
             }
@@ -252,6 +338,7 @@ struct EventCreateSheet: View {
             } else {
                 try await api.createEvent(title: title, description: description, location: location, startsAt: startsAt, endsAt: endsAt)
             }
+            SDALHaptics.success()
             onDone()
             dismiss()
         } catch {
@@ -264,46 +351,200 @@ struct EventCommentsSheet: View {
     @EnvironmentObject private var i18n: LocalizationManager
     @Environment(\.dismiss) private var dismiss
 
-    let event: EventItem
+    let eventId: Int
+    let eventTitle: String?
+    let onChanged: (() -> Void)?
+    @State private var event: EventItem?
     @State private var comments: [EventComment] = []
     @State private var text = ""
     @State private var error: String?
+    @State private var isSubmitting = false
 
     private let api = APIClient.shared
 
+    init(event: EventItem, onChanged: (() -> Void)? = nil) {
+        self.eventId = event.id
+        self.eventTitle = event.title
+        self.onChanged = onChanged
+        _event = State(initialValue: event)
+    }
+
+    init(eventId: Int, eventTitle: String? = nil, onChanged: (() -> Void)? = nil) {
+        self.eventId = eventId
+        self.eventTitle = eventTitle
+        self.onChanged = onChanged
+        _event = State(initialValue: nil)
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 10) {
-                List(comments) { c in
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("@\(c.kadi ?? "user")").font(.caption.bold())
-                        Text(c.comment ?? "")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let event {
+                        GlassCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(event.title ?? eventTitle ?? i18n.t("event"))
+                                    .font(.title2.weight(.bold))
+                                    .fontDesign(.rounded)
+                                if let description = event.description, !description.isEmpty {
+                                    Text(description)
+                                        .font(.subheadline)
+                                }
+                                HStack(spacing: 10) {
+                                    Label(event.startsAt ?? "-", systemImage: "clock")
+                                        .symbolRenderingMode(.hierarchical)
+                                    Label(event.location ?? "-", systemImage: "mappin.and.ellipse")
+                                        .symbolRenderingMode(.hierarchical)
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                HStack(spacing: 8) {
+                                    if let response = event.myResponse, !response.isEmpty {
+                                        SDALPill(text: response.capitalized, tint: SDALTheme.primary.opacity(0.16), foreground: SDALTheme.ink)
+                                    }
+                                    if let counts = event.responseCounts {
+                                        SDALPill(text: "\(i18n.t("attend")) \(counts.attend ?? 0)", tint: SDALTheme.cardAlt, foreground: SDALTheme.ink)
+                                        SDALPill(text: "\(i18n.t("decline")) \(counts.decline ?? 0)", tint: SDALTheme.cardAlt, foreground: SDALTheme.ink)
+                                    }
+                                }
+                                HStack(spacing: 8) {
+                                    Button(i18n.t("attend")) {
+                                        SDALHaptics.tap(.light)
+                                        Task { await respond("attend") }
+                                    }
+                                    .buttonStyle(PolishedGlassButtonStyle())
+                                    Button(i18n.t("decline")) {
+                                        SDALHaptics.tap(.light)
+                                        Task { await respond("decline") }
+                                    }
+                                    .buttonStyle(PolishedGlassButtonStyle())
+                                    if event.canManageResponses == true {
+                                        Button(i18n.t("notify")) {
+                                            SDALHaptics.tap(.medium)
+                                            Task { await notifyFollowers() }
+                                        }
+                                        .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(i18n.t("comments"))
+                                .font(.headline)
+                                .fontDesign(.rounded)
+                            if comments.isEmpty {
+                                Text(i18n.t("no_comments"))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                LazyVStack(alignment: .leading, spacing: 10) {
+                                    ForEach(comments) { comment in
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("@\(comment.kadi ?? "user")")
+                                                .font(.caption.weight(.semibold))
+                                            Text(comment.comment ?? "")
+                                                .font(.subheadline)
+                                            if let createdAt = comment.createdAt {
+                                                Text(createdAt)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(12)
+                                        .background(SDALTheme.softPanel)
+                                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        TextField(i18n.t("comment"), text: $text, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                        Button(i18n.t("send")) {
+                            SDALHaptics.tap(.light)
+                            Task { await add() }
+                        }
+                        .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
+                        .disabled(isSubmitting || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
+                    if let error {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.footnote)
                     }
                 }
-                HStack {
-                    TextField(i18n.t("comment"), text: $text)
-                        .textFieldStyle(.roundedBorder)
-                    Button(i18n.t("send")) { Task { await add() } }
-                        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                .padding(.horizontal, 12)
-                if let error { Text(error).foregroundStyle(.red).font(.footnote) }
+                .padding(16)
             }
-            .navigationTitle(event.title ?? i18n.t("event"))
+            .navigationTitle(eventTitle ?? i18n.t("event"))
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button(i18n.t("close")) { dismiss() } } }
             .task { await load() }
+            .background(SDALTheme.appBackground.ignoresSafeArea())
         }
     }
 
     private func load() async {
-        do { comments = try await api.fetchEventComments(id: event.id) } catch { self.error = error.localizedDescription }
+        error = nil
+        do {
+            async let commentsRequest = api.fetchEventComments(id: eventId)
+            comments = try await commentsRequest
+            if event == nil {
+                let events = try await api.fetchEvents(limit: 60)
+                event = events.first(where: { $0.id == eventId })
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func refreshEvent() async {
+        do {
+            let events = try await api.fetchEvents(limit: 60)
+            if let refreshed = events.first(where: { $0.id == eventId }) {
+                event = refreshed
+            }
+        } catch {
+            // Keep event detail usable even if refresh fails.
+        }
+    }
+
+    private func respond(_ response: String) async {
+        do {
+            try await api.respondEvent(id: eventId, response: response)
+            SDALHaptics.success()
+            await refreshEvent()
+            onChanged?()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func notifyFollowers() async {
+        do {
+            try await api.notifyEventFollowers(id: eventId)
+            SDALHaptics.success()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     private func add() async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isSubmitting = true
+        defer { isSubmitting = false }
         do {
-            try await api.addEventComment(id: event.id, comment: text)
+            try await api.addEventComment(id: eventId, comment: trimmed)
             text = ""
-            comments = try await api.fetchEventComments(id: event.id)
+            comments = try await api.fetchEventComments(id: eventId)
+            SDALHaptics.success()
+            onChanged?()
         } catch {
             self.error = error.localizedDescription
         }
@@ -331,11 +572,29 @@ struct AnnouncementsHubView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
+                            GlassCard {
+                                HStack(alignment: .top, spacing: 14) {
+                                    Image(systemName: "megaphone.fill")
+                                        .font(.title2.weight(.semibold))
+                                        .symbolRenderingMode(.hierarchical)
+                                        .symbolEffect(.pulse, options: .repeating.speed(0.8))
+                                        .foregroundStyle(SDALTheme.primary)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(i18n.t("announcements"))
+                                            .font(.title2.weight(.bold))
+                                            .fontDesign(.rounded)
+                                        Text("Broadcast updates for alumni, moderators, and community organizers.")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
                             ForEach(items) { a in
                                 GlassCard {
                                     VStack(alignment: .leading, spacing: 8) {
                                         Text(a.title ?? "-")
-                                            .font(.headline)
+                                            .font(.title3.weight(.bold))
+                                            .fontDesign(.rounded)
                                         Text(a.body ?? "")
                                             .font(.subheadline)
                                         HStack(spacing: 8) {
@@ -354,8 +613,12 @@ struct AnnouncementsHubView: View {
                                     }
                                 }
                                 .swipeActions(edge: .trailing) {
-                                    Button("Delete", role: .destructive) { Task { await deleteAnnouncement(a.id) } }
+                                    Button("Delete", role: .destructive) {
+                                        SDALHaptics.tap(.light)
+                                        Task { await deleteAnnouncement(a.id) }
+                                    }
                                     Button(a.approved == true ? "Unapprove" : "Approve") {
+                                        SDALHaptics.tap(.light)
                                         Task { await approveAnnouncement(a.id, approved: a.approved != true) }
                                     }
                                     .tint(.orange)
@@ -369,8 +632,18 @@ struct AnnouncementsHubView: View {
             }
             .navigationTitle(i18n.t("announcements"))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(i18n.t("close")) { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) { Button(i18n.t("create")) { showCreate = true } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(i18n.t("close")) {
+                        SDALHaptics.tap(.light)
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(i18n.t("create")) {
+                        SDALHaptics.tap(.medium)
+                        showCreate = true
+                    }
+                }
             }
             .task { if items.isEmpty { await load() } }
             .sheet(isPresented: $showCreate) {
@@ -392,6 +665,7 @@ struct AnnouncementsHubView: View {
     private func approveAnnouncement(_ id: Int, approved: Bool) async {
         do {
             try await api.approveAnnouncement(id: id, approved: approved)
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -401,6 +675,7 @@ struct AnnouncementsHubView: View {
     private func deleteAnnouncement(_ id: Int) async {
         do {
             try await api.deleteAnnouncement(id: id)
+            SDALHaptics.success()
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -423,16 +698,18 @@ struct AnnouncementCreateSheet: View {
     private let api = APIClient.shared
 
     var body: some View {
+        let photoLabel = imageData == nil ? i18n.t("add_photo") : i18n.t("change_photo")
         NavigationStack {
             Form {
-                TextField("Title", text: $title)
-                TextField("Body", text: $announcementText, axis: .vertical)
+                TextField(i18n.t("title"), text: $title)
+                TextField(i18n.t("body"), text: $announcementText, axis: .vertical)
                     .lineLimit(4...8)
                 PhotosPicker(selection: $item, matching: .images, photoLibrary: .shared()) {
-                    Label(imageData == nil ? "Add Photo" : "Change Photo", systemImage: "photo")
+                    Label(photoLabel, systemImage: "photo")
                 }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button {
+                        SDALHaptics.tap(.light)
                         showCamera = true
                     } label: {
                         Label(i18n.t("camera"), systemImage: "camera")
@@ -440,10 +717,21 @@ struct AnnouncementCreateSheet: View {
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }
+            .fontDesign(.rounded)
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(i18n.t("close")) {
+                        SDALHaptics.tap(.light)
+                        dismiss()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Create") { Task { await save() } }
+                    Button(i18n.t("create")) {
+                        SDALHaptics.tap(.medium)
+                        Task { await save() }
+                    }
                         .disabled(title.isEmpty || announcementText.isEmpty)
                 }
             }
@@ -470,6 +758,7 @@ struct AnnouncementCreateSheet: View {
             } else {
                 try await api.createAnnouncement(title: title, body: announcementText)
             }
+            SDALHaptics.success()
             onDone()
             dismiss()
         } catch {

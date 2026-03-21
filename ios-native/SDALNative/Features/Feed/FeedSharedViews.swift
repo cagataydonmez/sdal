@@ -185,6 +185,7 @@ struct FeedScopeChipButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.semibold))
+            .fontDesign(.rounded)
             .foregroundStyle(active ? SDALTheme.ink : SDALTheme.muted)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -198,6 +199,7 @@ struct FeedScopeChipButtonStyle: ButtonStyle {
                     .stroke(active ? SDALTheme.primary.opacity(0.5) : SDALTheme.line, lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }
 
@@ -218,7 +220,7 @@ struct PressableActionButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .opacity(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }
 
@@ -269,12 +271,23 @@ struct PostCommentsSheet: View {
     @EnvironmentObject private var i18n: LocalizationManager
     @Environment(\.dismiss) private var dismiss
 
-    let post: FeedPost
+    let postId: Int
+    let postTitle: String?
     @State private var comments: [PostComment] = []
     @State private var text = ""
     @State private var error: String?
 
     private let api = APIClient.shared
+
+    init(post: FeedPost) {
+        self.postId = post.id
+        self.postTitle = post.content
+    }
+
+    init(postId: Int, postTitle: String? = nil) {
+        self.postId = postId
+        self.postTitle = postTitle
+    }
 
     var body: some View {
         NavigationStack {
@@ -298,21 +311,21 @@ struct PostCommentsSheet: View {
                 .padding(.horizontal, 12)
                 if let error { Text(error).foregroundStyle(.red).font(.footnote) }
             }
-            .navigationTitle(i18n.t("comments"))
+            .navigationTitle(postTitle?.isEmpty == false ? postTitle! : i18n.t("comments"))
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button(i18n.t("close")) { dismiss() } } }
             .task { await load() }
         }
     }
 
     private func load() async {
-        do { comments = try await api.fetchPostComments(id: post.id) } catch { self.error = error.localizedDescription }
+        do { comments = try await api.fetchPostComments(id: postId) } catch { self.error = error.localizedDescription }
     }
 
     private func add() async {
         do {
-            try await api.addPostComment(id: post.id, comment: text)
+            try await api.addPostComment(id: postId, comment: text)
             text = ""
-            comments = try await api.fetchPostComments(id: post.id)
+            comments = try await api.fetchPostComments(id: postId)
         } catch {
             self.error = error.localizedDescription
         }

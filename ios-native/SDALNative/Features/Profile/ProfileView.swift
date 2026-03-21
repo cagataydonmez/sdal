@@ -28,9 +28,18 @@ struct ProfileView: View {
     @State private var photoData: Data?
     @State private var showCamera = false
 
+    let completionRequired: Bool
+
     private let api = APIClient.shared
 
+    init(completionRequired: Bool = false) {
+        self.completionRequired = completionRequired
+    }
+
     var body: some View {
+        let changePhotoLabel = i18n.t("change_photo")
+        let cameraLabel = i18n.t("camera")
+        let uploadLabel = i18n.t("upload")
         NavigationStack {
             Group {
                 if isLoading && profile == nil {
@@ -40,6 +49,19 @@ struct ProfileView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 14) {
+                            if completionRequired {
+                                GlassCard {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(i18n.t("complete_profile_title"))
+                                            .font(.headline)
+                                        Text(i18n.t("complete_profile_message"))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+
                             GlassCard {
                                 VStack(spacing: 12) {
                                     AsyncAvatarView(imageName: profile?.photo, size: 88)
@@ -50,21 +72,21 @@ struct ProfileView: View {
 
                                     HStack {
                                         PhotosPicker(selection: $photoPickerItem, matching: .images, photoLibrary: .shared()) {
-                                            Label(i18n.t("change_photo"), systemImage: "photo")
+                                            Label(changePhotoLabel, systemImage: "photo")
                                         }
                                         .buttonStyle(.bordered)
                                         if UIImagePickerController.isSourceTypeAvailable(.camera) {
                                             Button {
                                                 showCamera = true
                                             } label: {
-                                                Label(i18n.t("camera"), systemImage: "camera")
+                                                Label(cameraLabel, systemImage: "camera")
                                             }
                                             .buttonStyle(.bordered)
                                         }
                                     }
 
                                     if photoData != nil {
-                                        Button(i18n.t("upload")) {
+                                        Button(uploadLabel) {
                                             Task { await uploadPhoto() }
                                         }
                                         .buttonStyle(.borderedProminent)
@@ -148,20 +170,22 @@ struct ProfileView: View {
                                 }
                             }
 
-                            GlassCard {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(i18n.t("admin_tools"))
-                                            .font(.headline)
-                                        Text(i18n.t("moderation_tools"))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                            if appState.session?.canAccessAdmin == true {
+                                GlassCard {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(i18n.t("admin_tools"))
+                                                .font(.headline)
+                                            Text(i18n.t("moderation_tools"))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        NavigationLink(i18n.t("open")) {
+                                            AdminView()
+                                        }
+                                        .buttonStyle(.borderedProminent)
                                     }
-                                    Spacer()
-                                    NavigationLink(i18n.t("open")) {
-                                        AdminView()
-                                    }
-                                    .buttonStyle(.borderedProminent)
                                 }
                             }
 
@@ -374,6 +398,7 @@ struct ProfileView: View {
             )
             infoMessage = i18n.t("profile_updated")
             await load()
+            await appState.refreshSession()
         } catch {
             errorMessage = error.localizedDescription
         }

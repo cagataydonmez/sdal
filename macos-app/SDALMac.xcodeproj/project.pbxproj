@@ -1,0 +1,642 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		05A47FFBE27CEDDC7383074C /* MembersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0E24D4451B3C42B50C9821 /* MembersViewModel.swift */; };
+		096FB57454BB7DAB2FEFF318 /* ProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67D6164EB8C7CB2DFC778D4 /* ProfileViewModel.swift */; };
+		10DDF4098CF024BA7BDBAB46 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41445830F5180ED3EA89E2EC /* ProfileView.swift */; };
+		179155A64027B516061B2FF6 /* StoriesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964AFD549D9F613A661EFCF2 /* StoriesViewModel.swift */; };
+		1CFDEE0B5E43D31B100E2A49 /* PostCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F5595076B2944F1E75A66E /* PostCardView.swift */; };
+		22BEDED389641889A51162E2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 428893781B4DC70A4F597CC9 /* Assets.xcassets */; };
+		288814C0F8AED4E7893076A7 /* WebSocketService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13ACEE53F2DAC7B9CEF9B4B6 /* WebSocketService.swift */; };
+		2D78FE04FC445D836DE1BF74 /* Job.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1325E0DE89A1D2F1FCED31A8 /* Job.swift */; };
+		32BD7E122DB1B1999DEFE5FC /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8809DA894B1778F5F524BFD1 /* APIConfig.swift */; };
+		342C30E3E1591A005140E292 /* AnnouncementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D709D53B58D7D3312B2E3B04 /* AnnouncementsView.swift */; };
+		3B44174BA81E9E7E76DA456B /* Event.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723258E15AAF04CF865DEFC3 /* Event.swift */; };
+		3BCF67792416B0EBDBE3232B /* AdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217207569B5AC4AA35CFCFF2 /* AdminViewModel.swift */; };
+		3C6666C5929D9176EB2A5D4F /* AnnouncementsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C912A0210780D7CBBC393B /* AnnouncementsViewModel.swift */; };
+		3D3AABEC1652380F9DFD365A /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617287B105852A7599119500 /* FeedViewModel.swift */; };
+		3E23AAC5AC5AB15600475D50 /* GroupsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C7E4C7A5DDAD7A210C9BC6 /* GroupsViewModel.swift */; };
+		493DCE846AA58B5B2E58FBA2 /* JobsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56EBC577B13DDD569650275E /* JobsViewModel.swift */; };
+		4D075F88F8CDD1C63A1D04B2 /* Story.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5742456380257B9388F6877 /* Story.swift */; };
+		54E1093F5745886C742AABE5 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E1A998CA0DF56D2E7FF35EB /* AdminView.swift */; };
+		619E1A295E4351FD3FC83BAD /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59AA5CDFE2667A2093FABA34 /* FeedView.swift */; };
+		650F2F5A3A705D39EFAB3A0C /* NotificationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25AF4D8C52CB60F6821D4FD4 /* NotificationsViewModel.swift */; };
+		665FADA5B87D28BE9AF4BF4E /* JobsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805BE5CA6B07D0BC496D0949 /* JobsView.swift */; };
+		674FA913C3CF30653DAC08BE /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB64F70F415607EC5C5878F /* AvatarView.swift */; };
+		6988AD9FBF8E5EBAC84465C5 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7230DDC4C05E1625EE9871E1 /* AuthService.swift */; };
+		7780D387D96AC7BB73A20C86 /* Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18E5BA0F3754922368BC2869 /* Connection.swift */; };
+		781F35B138F077606F9808F3 /* EventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66F6F979235D15CA4C57CC8 /* EventsView.swift */; };
+		81287018187F3EFB5825E537 /* Notification.swift in Sources */ = {isa = PBXBuildFile; fileRef = F180AF40F5BFE1F62FF844A7 /* Notification.swift */; };
+		87E0BD824159452F3DC6026F /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F401C0163CE74B0F6263CDEC /* LoginView.swift */; };
+		8D4233496A587FBE2623F41F /* MessengerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F09738D4E84BED4ADD4FE754 /* MessengerViewModel.swift */; };
+		91E4C2BE88EE4D8EA3CCECBB /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2AE15DC2E21E38485C85B8 /* NotificationsView.swift */; };
+		93203BF7F6B2986A61150C86 /* MembersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDCA0215AEEEE2B3F738ADC4 /* MembersView.swift */; };
+		9397EDDD1A356C7B3CB85EA9 /* PostComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25265E9CC669406098732711 /* PostComposerView.swift */; };
+		95E9B2A7DF59FC2CD3E156EB /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1B51A19FB0F20D74420195 /* EmptyStateView.swift */; };
+		95ECD9C5FDC180593C1A3533 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B5AF347BA76A824620302D /* User.swift */; };
+		96463B95D247CF0A5A2AC5F0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F52BE992D97CDFABBBBB7B /* ContentView.swift */; };
+		9CAC95804A86CD1E4A1D598D /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8ABFB1B7919F2B74047DB2E /* Group.swift */; };
+		A18102A3786E1AB8C2F23B77 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9860A01D822FD5C5EA9CBFA /* Message.swift */; };
+		A94FB2B1BC7F4DD6BF1F2EAC /* MessengerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0077D4F6FE6F4F99C71958C /* MessengerView.swift */; };
+		AEE6A96F180C858B85EB8EFB /* EventsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D143DD39F9DA3C9F41253E /* EventsViewModel.swift */; };
+		B367E18015223C6D38AE9DF5 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6D46F0ED483883965968A5 /* Post.swift */; };
+		BDD7C4D5968DEA4EE9AF6090 /* BadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496C4F0E141CAC76C3B1ED67 /* BadgeView.swift */; };
+		C6B4115C3DA08E3900AB3E6A /* SDALMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E36BF472A1D8E865520E12 /* SDALMacApp.swift */; };
+		DD980142D9D2AF5BA4E16EAF /* StoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7188EF46EB2AE52B19D24D /* StoriesView.swift */; };
+		E5420A3D745DA0C44268849C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7F7F65AEDF21B181EC8F013 /* APIClient.swift */; };
+		E7EED3E57FF82D14F7402792 /* GroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79DCAF899B40621BC114FB3E /* GroupsView.swift */; };
+		FC3405939D6DE5954DDFA1FA /* MemberDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5592F8AA880CEE1649A0CD6D /* MemberDetailView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0DB64F70F415607EC5C5878F /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
+		1325E0DE89A1D2F1FCED31A8 /* Job.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Job.swift; sourceTree = "<group>"; };
+		13ACEE53F2DAC7B9CEF9B4B6 /* WebSocketService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketService.swift; sourceTree = "<group>"; };
+		17C912A0210780D7CBBC393B /* AnnouncementsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementsViewModel.swift; sourceTree = "<group>"; };
+		18E5BA0F3754922368BC2869 /* Connection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Connection.swift; sourceTree = "<group>"; };
+		1F7188EF46EB2AE52B19D24D /* StoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoriesView.swift; sourceTree = "<group>"; };
+		20B5AF347BA76A824620302D /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		217207569B5AC4AA35CFCFF2 /* AdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminViewModel.swift; sourceTree = "<group>"; };
+		25265E9CC669406098732711 /* PostComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostComposerView.swift; sourceTree = "<group>"; };
+		25AF4D8C52CB60F6821D4FD4 /* NotificationsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsViewModel.swift; sourceTree = "<group>"; };
+		3B6D46F0ED483883965968A5 /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
+		410650201299A1547D6EBE50 /* SDALMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SDALMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		41445830F5180ED3EA89E2EC /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		428893781B4DC70A4F597CC9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		496C4F0E141CAC76C3B1ED67 /* BadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeView.swift; sourceTree = "<group>"; };
+		4E1A998CA0DF56D2E7FF35EB /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
+		5592F8AA880CEE1649A0CD6D /* MemberDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberDetailView.swift; sourceTree = "<group>"; };
+		56EBC577B13DDD569650275E /* JobsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobsViewModel.swift; sourceTree = "<group>"; };
+		59AA5CDFE2667A2093FABA34 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		617287B105852A7599119500 /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
+		70F52BE992D97CDFABBBBB7B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		7230DDC4C05E1625EE9871E1 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		723258E15AAF04CF865DEFC3 /* Event.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Event.swift; sourceTree = "<group>"; };
+		79DCAF899B40621BC114FB3E /* GroupsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupsView.swift; sourceTree = "<group>"; };
+		805BE5CA6B07D0BC496D0949 /* JobsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobsView.swift; sourceTree = "<group>"; };
+		8809DA894B1778F5F524BFD1 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
+		964AFD549D9F613A661EFCF2 /* StoriesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoriesViewModel.swift; sourceTree = "<group>"; };
+		A5742456380257B9388F6877 /* Story.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Story.swift; sourceTree = "<group>"; };
+		A7F7F65AEDF21B181EC8F013 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		AAE9BBFD50A3DA9F12DFA4C1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AB1B51A19FB0F20D74420195 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		B66F6F979235D15CA4C57CC8 /* EventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsView.swift; sourceTree = "<group>"; };
+		B9D143DD39F9DA3C9F41253E /* EventsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsViewModel.swift; sourceTree = "<group>"; };
+		C0077D4F6FE6F4F99C71958C /* MessengerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessengerView.swift; sourceTree = "<group>"; };
+		C4F5595076B2944F1E75A66E /* PostCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCardView.swift; sourceTree = "<group>"; };
+		C8ABFB1B7919F2B74047DB2E /* Group.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Group.swift; sourceTree = "<group>"; };
+		CF0E24D4451B3C42B50C9821 /* MembersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembersViewModel.swift; sourceTree = "<group>"; };
+		D67D6164EB8C7CB2DFC778D4 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
+		D709D53B58D7D3312B2E3B04 /* AnnouncementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementsView.swift; sourceTree = "<group>"; };
+		EC2AE15DC2E21E38485C85B8 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		EDCA0215AEEEE2B3F738ADC4 /* MembersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembersView.swift; sourceTree = "<group>"; };
+		F09738D4E84BED4ADD4FE754 /* MessengerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessengerViewModel.swift; sourceTree = "<group>"; };
+		F180AF40F5BFE1F62FF844A7 /* Notification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notification.swift; sourceTree = "<group>"; };
+		F401C0163CE74B0F6263CDEC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		F4C7E4C7A5DDAD7A210C9BC6 /* GroupsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupsViewModel.swift; sourceTree = "<group>"; };
+		F8E36BF472A1D8E865520E12 /* SDALMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDALMacApp.swift; sourceTree = "<group>"; };
+		F9860A01D822FD5C5EA9CBFA /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1630C8C7813C4AFEF84079E5 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				F401C0163CE74B0F6263CDEC /* LoginView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		1A76F147638AD6D239FF4BBB /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				41445830F5180ED3EA89E2EC /* ProfileView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		261E22A648F27BFC569AEB3E /* Network */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		2C1BCD5E82E2864BAB5F44BA /* SDALMac */ = {
+			isa = PBXGroup;
+			children = (
+				AAE9BBFD50A3DA9F12DFA4C1 /* Info.plist */,
+				FB8B873B1C0ED65738193D93 /* App */,
+				38F7FDC8352C12C2C22405A2 /* Models */,
+				D98F393019C6C77E623A7CCB /* Resources */,
+				D7EC49172E85A4255AFD0BA3 /* Services */,
+				CEF4C6A782E384DCE53F0F42 /* ViewModels */,
+				BE8C52005B94CA8CFA544C9D /* Views */,
+			);
+			path = SDALMac;
+			sourceTree = "<group>";
+		};
+		2CA7EA7014D80ACF1A14CFCE /* Jobs */ = {
+			isa = PBXGroup;
+			children = (
+				805BE5CA6B07D0BC496D0949 /* JobsView.swift */,
+			);
+			path = Jobs;
+			sourceTree = "<group>";
+		};
+		38B975687A4C40347C53A091 /* Members */ = {
+			isa = PBXGroup;
+			children = (
+				5592F8AA880CEE1649A0CD6D /* MemberDetailView.swift */,
+				EDCA0215AEEEE2B3F738ADC4 /* MembersView.swift */,
+			);
+			path = Members;
+			sourceTree = "<group>";
+		};
+		38F7FDC8352C12C2C22405A2 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				18E5BA0F3754922368BC2869 /* Connection.swift */,
+				723258E15AAF04CF865DEFC3 /* Event.swift */,
+				C8ABFB1B7919F2B74047DB2E /* Group.swift */,
+				1325E0DE89A1D2F1FCED31A8 /* Job.swift */,
+				F9860A01D822FD5C5EA9CBFA /* Message.swift */,
+				F180AF40F5BFE1F62FF844A7 /* Notification.swift */,
+				3B6D46F0ED483883965968A5 /* Post.swift */,
+				A5742456380257B9388F6877 /* Story.swift */,
+				20B5AF347BA76A824620302D /* User.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		724A80744F457BFB740A8FBA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				410650201299A1547D6EBE50 /* SDALMac.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		741FAC89A93CEBD7BFE990E3 /* Messenger */ = {
+			isa = PBXGroup;
+			children = (
+				C0077D4F6FE6F4F99C71958C /* MessengerView.swift */,
+			);
+			path = Messenger;
+			sourceTree = "<group>";
+		};
+		760C261E8C104DA3106E87CA /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				4E1A998CA0DF56D2E7FF35EB /* AdminView.swift */,
+			);
+			path = Admin;
+			sourceTree = "<group>";
+		};
+		7845325FDB80564FEE5F6098 /* Events */ = {
+			isa = PBXGroup;
+			children = (
+				B66F6F979235D15CA4C57CC8 /* EventsView.swift */,
+			);
+			path = Events;
+			sourceTree = "<group>";
+		};
+		7ABF08C0DB3E7C8AC2B5A546 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				0DB64F70F415607EC5C5878F /* AvatarView.swift */,
+				496C4F0E141CAC76C3B1ED67 /* BadgeView.swift */,
+				AB1B51A19FB0F20D74420195 /* EmptyStateView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		8ED8EBABFFFF65F55E20D563 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				EC2AE15DC2E21E38485C85B8 /* NotificationsView.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		9C163E7F0E3B1350C2033B90 /* Stories */ = {
+			isa = PBXGroup;
+			children = (
+				1F7188EF46EB2AE52B19D24D /* StoriesView.swift */,
+			);
+			path = Stories;
+			sourceTree = "<group>";
+		};
+		AF69C3E65431BF52AF8185C2 /* Feed */ = {
+			isa = PBXGroup;
+			children = (
+				59AA5CDFE2667A2093FABA34 /* FeedView.swift */,
+				C4F5595076B2944F1E75A66E /* PostCardView.swift */,
+				25265E9CC669406098732711 /* PostComposerView.swift */,
+			);
+			path = Feed;
+			sourceTree = "<group>";
+		};
+		BE8C52005B94CA8CFA544C9D /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				70F52BE992D97CDFABBBBB7B /* ContentView.swift */,
+				760C261E8C104DA3106E87CA /* Admin */,
+				D3C0828F018174B2423B84D8 /* Announcements */,
+				1630C8C7813C4AFEF84079E5 /* Auth */,
+				7845325FDB80564FEE5F6098 /* Events */,
+				AF69C3E65431BF52AF8185C2 /* Feed */,
+				FC11DCD9AF48E11F827576D5 /* Groups */,
+				2CA7EA7014D80ACF1A14CFCE /* Jobs */,
+				38B975687A4C40347C53A091 /* Members */,
+				741FAC89A93CEBD7BFE990E3 /* Messenger */,
+				261E22A648F27BFC569AEB3E /* Network */,
+				8ED8EBABFFFF65F55E20D563 /* Notifications */,
+				1A76F147638AD6D239FF4BBB /* Profile */,
+				7ABF08C0DB3E7C8AC2B5A546 /* Shared */,
+				9C163E7F0E3B1350C2033B90 /* Stories */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		CEF4C6A782E384DCE53F0F42 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				217207569B5AC4AA35CFCFF2 /* AdminViewModel.swift */,
+				17C912A0210780D7CBBC393B /* AnnouncementsViewModel.swift */,
+				B9D143DD39F9DA3C9F41253E /* EventsViewModel.swift */,
+				617287B105852A7599119500 /* FeedViewModel.swift */,
+				F4C7E4C7A5DDAD7A210C9BC6 /* GroupsViewModel.swift */,
+				56EBC577B13DDD569650275E /* JobsViewModel.swift */,
+				CF0E24D4451B3C42B50C9821 /* MembersViewModel.swift */,
+				F09738D4E84BED4ADD4FE754 /* MessengerViewModel.swift */,
+				25AF4D8C52CB60F6821D4FD4 /* NotificationsViewModel.swift */,
+				D67D6164EB8C7CB2DFC778D4 /* ProfileViewModel.swift */,
+				964AFD549D9F613A661EFCF2 /* StoriesViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		D3C0828F018174B2423B84D8 /* Announcements */ = {
+			isa = PBXGroup;
+			children = (
+				D709D53B58D7D3312B2E3B04 /* AnnouncementsView.swift */,
+			);
+			path = Announcements;
+			sourceTree = "<group>";
+		};
+		D7EC49172E85A4255AFD0BA3 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A7F7F65AEDF21B181EC8F013 /* APIClient.swift */,
+				8809DA894B1778F5F524BFD1 /* APIConfig.swift */,
+				7230DDC4C05E1625EE9871E1 /* AuthService.swift */,
+				13ACEE53F2DAC7B9CEF9B4B6 /* WebSocketService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		D98F393019C6C77E623A7CCB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				428893781B4DC70A4F597CC9 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		FB8B873B1C0ED65738193D93 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F8E36BF472A1D8E865520E12 /* SDALMacApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		FC11DCD9AF48E11F827576D5 /* Groups */ = {
+			isa = PBXGroup;
+			children = (
+				79DCAF899B40621BC114FB3E /* GroupsView.swift */,
+			);
+			path = Groups;
+			sourceTree = "<group>";
+		};
+		FC4E4AED21CAAF68B3502440 = {
+			isa = PBXGroup;
+			children = (
+				2C1BCD5E82E2864BAB5F44BA /* SDALMac */,
+				724A80744F457BFB740A8FBA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9F3715C1FAB8F99503F925ED /* SDALMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 98AE31DC59E3BFDFA20D5326 /* Build configuration list for PBXNativeTarget "SDALMac" */;
+			buildPhases = (
+				C820A8BD87FE8FE543559F62 /* Sources */,
+				7DAF8F1786C96B136AE35F59 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SDALMac;
+			packageProductDependencies = (
+			);
+			productName = SDALMac;
+			productReference = 410650201299A1547D6EBE50 /* SDALMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B342F569813EA9B80E51AB59 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					9F3715C1FAB8F99503F925ED = {
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 7025DEF63C3DDF6726AC25D2 /* Build configuration list for PBXProject "SDALMac" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FC4E4AED21CAAF68B3502440;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 724A80744F457BFB740A8FBA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9F3715C1FAB8F99503F925ED /* SDALMac */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7DAF8F1786C96B136AE35F59 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				22BEDED389641889A51162E2 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C820A8BD87FE8FE543559F62 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E5420A3D745DA0C44268849C /* APIClient.swift in Sources */,
+				32BD7E122DB1B1999DEFE5FC /* APIConfig.swift in Sources */,
+				54E1093F5745886C742AABE5 /* AdminView.swift in Sources */,
+				3BCF67792416B0EBDBE3232B /* AdminViewModel.swift in Sources */,
+				342C30E3E1591A005140E292 /* AnnouncementsView.swift in Sources */,
+				3C6666C5929D9176EB2A5D4F /* AnnouncementsViewModel.swift in Sources */,
+				6988AD9FBF8E5EBAC84465C5 /* AuthService.swift in Sources */,
+				674FA913C3CF30653DAC08BE /* AvatarView.swift in Sources */,
+				BDD7C4D5968DEA4EE9AF6090 /* BadgeView.swift in Sources */,
+				7780D387D96AC7BB73A20C86 /* Connection.swift in Sources */,
+				96463B95D247CF0A5A2AC5F0 /* ContentView.swift in Sources */,
+				95E9B2A7DF59FC2CD3E156EB /* EmptyStateView.swift in Sources */,
+				3B44174BA81E9E7E76DA456B /* Event.swift in Sources */,
+				781F35B138F077606F9808F3 /* EventsView.swift in Sources */,
+				AEE6A96F180C858B85EB8EFB /* EventsViewModel.swift in Sources */,
+				619E1A295E4351FD3FC83BAD /* FeedView.swift in Sources */,
+				3D3AABEC1652380F9DFD365A /* FeedViewModel.swift in Sources */,
+				9CAC95804A86CD1E4A1D598D /* Group.swift in Sources */,
+				E7EED3E57FF82D14F7402792 /* GroupsView.swift in Sources */,
+				3E23AAC5AC5AB15600475D50 /* GroupsViewModel.swift in Sources */,
+				2D78FE04FC445D836DE1BF74 /* Job.swift in Sources */,
+				665FADA5B87D28BE9AF4BF4E /* JobsView.swift in Sources */,
+				493DCE846AA58B5B2E58FBA2 /* JobsViewModel.swift in Sources */,
+				87E0BD824159452F3DC6026F /* LoginView.swift in Sources */,
+				FC3405939D6DE5954DDFA1FA /* MemberDetailView.swift in Sources */,
+				93203BF7F6B2986A61150C86 /* MembersView.swift in Sources */,
+				05A47FFBE27CEDDC7383074C /* MembersViewModel.swift in Sources */,
+				A18102A3786E1AB8C2F23B77 /* Message.swift in Sources */,
+				A94FB2B1BC7F4DD6BF1F2EAC /* MessengerView.swift in Sources */,
+				8D4233496A587FBE2623F41F /* MessengerViewModel.swift in Sources */,
+				81287018187F3EFB5825E537 /* Notification.swift in Sources */,
+				91E4C2BE88EE4D8EA3CCECBB /* NotificationsView.swift in Sources */,
+				650F2F5A3A705D39EFAB3A0C /* NotificationsViewModel.swift in Sources */,
+				B367E18015223C6D38AE9DF5 /* Post.swift in Sources */,
+				1CFDEE0B5E43D31B100E2A49 /* PostCardView.swift in Sources */,
+				9397EDDD1A356C7B3CB85EA9 /* PostComposerView.swift in Sources */,
+				10DDF4098CF024BA7BDBAB46 /* ProfileView.swift in Sources */,
+				096FB57454BB7DAB2FEFF318 /* ProfileViewModel.swift in Sources */,
+				C6B4115C3DA08E3900AB3E6A /* SDALMacApp.swift in Sources */,
+				DD980142D9D2AF5BA4E16EAF /* StoriesView.swift in Sources */,
+				179155A64027B516061B2FF6 /* StoriesViewModel.swift in Sources */,
+				4D075F88F8CDD1C63A1D04B2 /* Story.swift in Sources */,
+				95ECD9C5FDC180593C1A3533 /* User.swift in Sources */,
+				288814C0F8AED4E7893076A7 /* WebSocketService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3461AE9E7CE04FE6EBF6BBE8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		7852141E262C2D33CFFB8B9B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = SDALMac/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.sdal.mac;
+				PRODUCT_NAME = SDAL;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		B05AE08845FD48BBE806DBD7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		CB5C3CD020E8E9998B180AC3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = SDALMac/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.sdal.mac;
+				PRODUCT_NAME = SDAL;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7025DEF63C3DDF6726AC25D2 /* Build configuration list for PBXProject "SDALMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3461AE9E7CE04FE6EBF6BBE8 /* Debug */,
+				B05AE08845FD48BBE806DBD7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		98AE31DC59E3BFDFA20D5326 /* Build configuration list for PBXNativeTarget "SDALMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7852141E262C2D33CFFB8B9B /* Debug */,
+				CB5C3CD020E8E9998B180AC3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B342F569813EA9B80E51AB59 /* Project object */;
+}

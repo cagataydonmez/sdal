@@ -18,6 +18,10 @@ struct PostComposerView: View {
     private let api = APIClient.shared
 
     var body: some View {
+        let photoLabel = imageData == nil ? i18n.t("add_photo") : i18n.t("change_photo")
+        let cameraLabel = i18n.t("camera")
+        let removeLabel = i18n.t("remove")
+        let shareLabel = i18n.t("share")
         GlassCard {
             VStack(alignment: .leading, spacing: 10) {
                 Text(i18n.t("create_post"))
@@ -58,7 +62,7 @@ struct PostComposerView: View {
 
                 HStack {
                     PhotosPicker(selection: $selectedItem, matching: .images, photoLibrary: .shared()) {
-                        Label(imageData == nil ? i18n.t("add_photo") : i18n.t("change_photo"), systemImage: "photo")
+                        Label(photoLabel, systemImage: "photo")
                     }
                     .buttonStyle(.bordered)
 
@@ -66,13 +70,13 @@ struct PostComposerView: View {
                         Button {
                             showCamera = true
                         } label: {
-                            Label(i18n.t("camera"), systemImage: "camera")
+                            Label(cameraLabel, systemImage: "camera")
                         }
                         .buttonStyle(.bordered)
                     }
 
                     if imageData != nil {
-                        Button(i18n.t("remove")) { imageData = nil }
+                        Button(removeLabel) { imageData = nil }
                             .buttonStyle(.bordered)
                     }
 
@@ -83,7 +87,7 @@ struct PostComposerView: View {
                     } label: {
                         HStack {
                             if isSubmitting { ProgressView().tint(.white) }
-                            Text(i18n.t("share"))
+                            Text(shareLabel)
                         }
                     }
                     .buttonStyle(.borderedProminent)

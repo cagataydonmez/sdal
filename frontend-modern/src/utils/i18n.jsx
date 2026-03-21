@@ -20,7 +20,7 @@ const messages = {
     nav_explore: 'Keşfet',
     nav_following: 'Takip Ettiklerim',
     nav_groups: 'Gruplar',
-    nav_messages: 'Mesajlar',
+    nav_messages: 'SDAL Inbox',
     nav_messenger: 'SDAL Messenger',
     nav_photos: 'Fotoğraflar',
     nav_games: 'Oyunlar',

@@ -63,24 +63,32 @@ struct StoryBarView: View {
     }
 
     var body: some View {
+        let addStoryLabel = i18n.t("add_story")
+        let cameraLabel = i18n.t("camera")
+        let manageLabel = i18n.t("manage")
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(i18n.t("stories"))
                     .font(.headline)
                 Spacer()
                 PhotosPicker(selection: $selectedItem, matching: .images, photoLibrary: .shared()) {
-                    Label(i18n.t("add_story"), systemImage: "plus.circle.fill")
+                    Label(addStoryLabel, systemImage: "plus.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button {
                         showCamera = true
                     } label: {
-                        Label(i18n.t("camera"), systemImage: "camera")
+                        Label(cameraLabel, systemImage: "camera")
                     }
                     .buttonStyle(.bordered)
                 }
-                Button(i18n.t("manage")) { manageOpen = true }
+                Button(manageLabel) {
+                    Task {
+                        await loadMyStories()
+                        manageOpen = true
+                    }
+                }
                     .buttonStyle(.bordered)
             }
 
@@ -163,7 +171,7 @@ struct StoryBarView: View {
             StoryManageSheet(
                 stories: $myStories,
                 onReload: {
-                    Task { await loadMyStories() }
+                    Task { await refreshStoryData() }
                 }
             )
         }
@@ -190,7 +198,7 @@ struct StoryBarView: View {
             captionDraft = ""
             self.pendingImageData = nil
             uploadError = nil
-            await loadStories()
+            await refreshStoryData()
         } catch {
             uploadError = error.localizedDescription
         }
@@ -226,6 +234,11 @@ struct StoryBarView: View {
             uploadError = error.localizedDescription
         }
     }
+
+    private func refreshStoryData() async {
+        await loadStories()
+        await loadMyStories()
+    }
 }
 
 private struct StoryManageSheet: View {
@@ -245,7 +258,7 @@ private struct StoryManageSheet: View {
         NavigationStack {
             List(stories) { s in
                 VStack(alignment: .leading, spacing: 6) {
-                    if let url = AppConfig.absoluteURL(path: s.image) {
+                    if let url = AppConfig.absoluteURL(path: s.thumbnailPath) {
                         CachedRemoteImage(url: url, targetSize: CGSize(width: 300, height: 180)) { image in
                             image
                                 .resizable()
@@ -310,6 +323,7 @@ private struct StoryManageSheet: View {
         do {
             try await api.editStoryCaption(id: editingId, caption: editCaption)
             self.editingId = nil
+            self.error = nil
             onReload()
         } catch {
             self.error = error.localizedDescription
@@ -320,6 +334,8 @@ private struct StoryManageSheet: View {
         do {
             try await api.deleteStory(id: id)
             stories.removeAll { $0.id == id }
+            self.error = nil
+            onReload()
         } catch {
             self.error = error.localizedDescription
         }
@@ -328,6 +344,7 @@ private struct StoryManageSheet: View {
     private func repost(_ id: Int) async {
         do {
             try await api.repostStory(id: id)
+            self.error = nil
             onReload()
         } catch {
             self.error = error.localizedDescription
@@ -495,7 +512,7 @@ struct StorySequenceViewerSheet: View {
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
-        } else if let url = imageURL(for: story.image) {
+        } else if let url = displayURL(for: story) {
             CachedRemoteImage(url: url, targetSize: UIScreen.main.bounds.size) { image in
                 image
                     .resizable()
@@ -607,8 +624,8 @@ struct StorySequenceViewerSheet: View {
         }
     }
 
-    private func imageURL(for value: String?) -> URL? {
-        AppConfig.absoluteURL(path: value)
+    private func displayURL(for story: Story) -> URL? {
+        AppConfig.absoluteURL(path: story.fullScreenPath)
     }
 
     private func clamp(_ value: Int, in range: ClosedRange<Int>) -> Int {
@@ -651,7 +668,7 @@ struct StorySequenceViewerSheet: View {
     private func preloadImage(_ story: Story) async {
         guard preloadedImages[story.id] == nil,
               !preloadingIds.contains(story.id),
-              let url = imageURL(for: story.image)
+              let url = displayURL(for: story)
         else { return }
 
         _ = await MainActor.run { preloadingIds.insert(story.id) }

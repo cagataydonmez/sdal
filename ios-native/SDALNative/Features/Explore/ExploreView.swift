@@ -11,6 +11,7 @@ private enum ExploreMode: String, CaseIterable, Identifiable {
 
 struct ExploreView: View {
     @EnvironmentObject private var i18n: LocalizationManager
+    @EnvironmentObject private var router: AppRouter
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var mode: ExploreMode = .suggestions
@@ -21,6 +22,7 @@ struct ExploreView: View {
     @State private var errorMessage: String?
     @State private var query = ""
     @State private var selectedMemberId: Int?
+    @State private var selectedPhotoId: Int?
 
     private let api = APIClient.shared
 
@@ -62,6 +64,9 @@ struct ExploreView: View {
                 }
             }
             .task { if members.isEmpty { await load() } }
+            .task {
+                consumePendingMemberRoute()
+            }
             .navigationTitle(i18n.t("explore"))
             .background(SDALTheme.appBackground.ignoresSafeArea())
             .toolbar {
@@ -137,6 +142,28 @@ struct ExploreView: View {
                 set: { selectedMemberId = $0?.id }
             )) { payload in
                 MemberDetailSheet(memberId: payload.id)
+            }
+            .sheet(item: Binding(
+                get: { selectedPhotoId.map { PhotoID(id: $0) } },
+                set: { selectedPhotoId = $0?.id }
+            )) { payload in
+                NavigationStack {
+                    AlbumPhotoDetailView(photoId: payload.id)
+                }
+            }
+            .onChange(of: router.openMemberId) { _, memberId in
+                guard let memberId else { return }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    selectedMemberId = memberId
+                }
+                router.openMemberId = nil
+            }
+            .onChange(of: router.openPhotoId) { _, photoId in
+                guard let photoId else { return }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    selectedPhotoId = photoId
+                }
+                router.openPhotoId = nil
             }
         }
     }
@@ -264,9 +291,21 @@ struct ExploreView: View {
             errorMessage = error.localizedDescription
         }
     }
+
+    private func consumePendingMemberRoute() {
+        if let memberId = router.openMemberId {
+            selectedMemberId = memberId
+            router.openMemberId = nil
+        }
+        if let photoId = router.openPhotoId {
+            selectedPhotoId = photoId
+            router.openPhotoId = nil
+        }
+    }
 }
 
 private struct MemberID: Identifiable { let id: Int }
+private struct PhotoID: Identifiable { let id: Int }
 
 private struct MemberDetailSheet: View {
     let memberId: Int
@@ -429,7 +468,7 @@ private struct StoryThumb: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let imagePath = story.image,
+            if let imagePath = story.thumbnailPath,
                let url = AppConfig.absoluteURL(path: imagePath) {
                 CachedRemoteImage(url: url, targetSize: CGSize(width: 96, height: 140)) { image in
                     image.resizable().scaledToFill()
@@ -741,6 +780,8 @@ private struct AlbumUploadView: View {
     private let api = APIClient.shared
 
     var body: some View {
+        let photoLabel = imageData == nil ? i18n.t("select_photo") : i18n.t("change_photo")
+        let cameraLabel = i18n.t("camera")
         NavigationStack {
             Form {
                 Picker(i18n.t("category"), selection: $selectedCategoryId) {
@@ -752,13 +793,13 @@ private struct AlbumUploadView: View {
                 TextField(i18n.t("title"), text: $title)
                 TextField(i18n.t("description"), text: $description, axis: .vertical)
                 PhotosPicker(selection: $selectedItem, matching: .images, photoLibrary: .shared()) {
-                    Label(imageData == nil ? i18n.t("select_photo") : i18n.t("change_photo"), systemImage: "photo")
+                    Label(photoLabel, systemImage: "photo")
                 }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button {
                         showCamera = true
                     } label: {
-                        Label(i18n.t("camera"), systemImage: "camera")
+                        Label(cameraLabel, systemImage: "camera")
                     }
                 }
                 if let errorMessage {
