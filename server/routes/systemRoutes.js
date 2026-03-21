@@ -103,9 +103,13 @@ export function registerSystemRoutes(app, deps) {
     res.json({
       siteOpen: site.siteOpen,
       maintenanceMessage: site.maintenanceMessage,
+      defaultLandingPage: site.defaultLandingPage || '',
+      menuVisibility: site.menuVisibility || {},
+      moduleMenuOrder: site.moduleMenuOrder || [],
       modules,
       moduleKey,
-      moduleOpen: moduleKey ? !!modules[moduleKey] : true
+      moduleOpen: moduleKey ? !!modules[moduleKey] : true,
+      message: moduleKey && modules[moduleKey] === false ? 'Bu modül geçici olarak kapatıldı.' : ''
     });
   });
 

@@ -94,6 +94,9 @@ export function ensureSqliteRuntimeSchema(db) {
       id INTEGER PRIMARY KEY,
       site_open INTEGER DEFAULT 1,
       maintenance_message TEXT,
+      default_landing_page TEXT DEFAULT '',
+      menu_visibility_json TEXT,
+      menu_order_json TEXT,
       updated_at TEXT
     );
     CREATE TABLE IF NOT EXISTS module_controls (

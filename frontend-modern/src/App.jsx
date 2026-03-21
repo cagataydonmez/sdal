@@ -11,6 +11,8 @@ import PasswordResetPage from './pages/PasswordResetPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 import { ThemeProvider } from './utils/theme.jsx';
 import { I18nProvider, useI18n } from './utils/i18n.jsx';
+import { resolveLandingPathFromSiteAccess } from './utils/moduleNavigation.js';
+import ModuleInactivePage from './pages/ModuleInactivePage.jsx';
 
 const ExplorePage = React.lazy(() => import('./pages/ExplorePage.jsx'));
 const ExploreSuggestionsPage = React.lazy(() => import('./pages/ExploreSuggestionsPage.jsx'));
@@ -42,6 +44,39 @@ const TeachersNetworkPage = React.lazy(() => import('./pages/TeachersNetworkPage
 const NetworkingHubPage = React.lazy(() => import('./pages/NetworkingHubPage.jsx'));
 const OpportunityInboxPage = React.lazy(() => import('./pages/OpportunityInboxPage.jsx'));
 
+function RequireModuleAccess({ moduleKey, accessPath, children }) {
+  const location = useLocation();
+  const [accessState, setAccessState] = React.useState({ loading: true, moduleOpen: true, moduleKey, message: '' });
+  const requestedPath = accessPath || location.pathname;
+
+  useEffect(() => {
+    let mounted = true;
+    setAccessState((prev) => ({ ...prev, loading: true }));
+    fetch(`/api/site-access?path=${encodeURIComponent(requestedPath)}`, { credentials: 'include' })
+      .then((res) => res.ok ? res.json() : null)
+      .then((payload) => {
+        if (!mounted) return;
+        setAccessState({
+          loading: false,
+          moduleOpen: payload?.moduleOpen !== false,
+          moduleKey: payload?.moduleKey || moduleKey,
+          message: payload?.moduleOpen === false ? (payload?.message || 'Bu modül geçici olarak kapatıldı.') : ''
+        });
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setAccessState({ loading: false, moduleOpen: true, moduleKey, message: '' });
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [moduleKey, requestedPath]);
+
+  if (accessState.loading) return <RouteFallback />;
+  if (!accessState.moduleOpen) return <ModuleInactivePage moduleKey={accessState.moduleKey} message={accessState.message} />;
+  return children;
+}
+
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -70,6 +105,35 @@ function RequireAuth({ children }) {
 function RouteFallback() {
   const { t } = useI18n();
   return <div className="muted" style={{ padding: 16 }}>{t('loading')}</div>;
+}
+
+function DefaultLandingRoute() {
+  const [targetPath, setTargetPath] = React.useState('');
+  const [loadingTarget, setLoadingTarget] = React.useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/site-access?path=/new', { credentials: 'include' })
+      .then((res) => res.ok ? res.json() : null)
+      .then((payload) => {
+        if (!mounted) return;
+        setTargetPath(resolveLandingPathFromSiteAccess(payload || {}));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setTargetPath('/new');
+      })
+      .finally(() => {
+        if (mounted) setLoadingTarget(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (loadingTarget) return <RouteFallback />;
+  if (!targetPath || targetPath === '/new') return <FeedPage />;
+  return <Navigate to={targetPath} replace />;
 }
 
 // Syncs auth state with language defaults configured by admin
@@ -107,38 +171,38 @@ export const appRoutes = createRoutesFromElements(
     <Route path="/new/activate" element={<ActivationPage />} />
     <Route path="/new/activation/resend" element={<ActivationResendPage />} />
     <Route path="/new/password-reset" element={<PasswordResetPage />} />
-    <Route path="/new" element={<RequireAuth><FeedPage /></RequireAuth>} />
-    <Route path="/new/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
-    <Route path="/new/explore/members" element={<RequireAuth><ExplorePage fullMode /></RequireAuth>} />
-    <Route path="/new/explore/suggestions" element={<RequireAuth><ExploreSuggestionsPage /></RequireAuth>} />
-    <Route path="/new/following" element={<RequireAuth><FollowingPage /></RequireAuth>} />
+    <Route path="/new" element={<RequireAuth><DefaultLandingRoute /></RequireAuth>} />
+    <Route path="/new/explore" element={<RequireAuth><RequireModuleAccess moduleKey="explore" accessPath="/new/explore"><ExplorePage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/explore/members" element={<RequireAuth><RequireModuleAccess moduleKey="explore" accessPath="/new/explore"><ExplorePage fullMode /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/explore/suggestions" element={<RequireAuth><RequireModuleAccess moduleKey="explore" accessPath="/new/explore"><ExploreSuggestionsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/following" element={<RequireAuth><RequireModuleAccess moduleKey="following" accessPath="/new/following"><FollowingPage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/members/:id" element={<RequireAuth><MemberDetailPage /></RequireAuth>} />
-    <Route path="/new/groups" element={<RequireAuth><GroupsPage /></RequireAuth>} />
-    <Route path="/new/groups/:id" element={<RequireAuth><GroupDetailPage /></RequireAuth>} />
-    <Route path="/new/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
-    <Route path="/new/messenger" element={<RequireAuth><MessengerPage /></RequireAuth>} />
-    <Route path="/new/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
-    <Route path="/new/messages/compose" element={<RequireAuth><MessageComposePage /></RequireAuth>} />
-    <Route path="/new/messages/:id" element={<RequireAuth><MessageDetailPage /></RequireAuth>} />
-    <Route path="/new/albums" element={<RequireAuth><AlbumsPage /></RequireAuth>} />
-    <Route path="/new/albums/upload" element={<RequireAuth><AlbumUploadPage /></RequireAuth>} />
-    <Route path="/new/albums/photo/:id" element={<RequireAuth><AlbumPhotoPage /></RequireAuth>} />
-    <Route path="/new/albums/:id" element={<RequireAuth><AlbumCategoryPage /></RequireAuth>} />
-    <Route path="/new/events" element={<RequireAuth><EventsPage /></RequireAuth>} />
-    <Route path="/new/announcements" element={<RequireAuth><AnnouncementsPage /></RequireAuth>} />
-    <Route path="/new/jobs" element={<RequireAuth><JobsPage /></RequireAuth>} />
-    <Route path="/new/opportunities" element={<RequireAuth><OpportunityInboxPage /></RequireAuth>} />
-    <Route path="/new/network/hub" element={<RequireAuth><NetworkingHubPage /></RequireAuth>} />
-    <Route path="/new/network/inbox" element={<RequireAuth><NetworkingHubPage /></RequireAuth>} />
-    <Route path="/new/network/teachers" element={<RequireAuth><TeachersNetworkPage /></RequireAuth>} />
-    <Route path="/new/games" element={<RequireAuth><GamesPage /></RequireAuth>} />
-    <Route path="/new/games/:game" element={<RequireAuth><GamesPage /></RequireAuth>} />
-    <Route path="/new/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
-    <Route path="/new/profile/photo" element={<RequireAuth><ProfilePhotoPage /></RequireAuth>} />
-    <Route path="/new/profile/verification" element={<RequireAuth><ProfileVerificationPage /></RequireAuth>} />
-    <Route path="/new/profile/email-change" element={<RequireAuth><ProfileEmailChangePage /></RequireAuth>} />
-    <Route path="/new/requests" element={<RequireAuth><MemberRequestsPage /></RequireAuth>} />
-    <Route path="/new/help" element={<RequireAuth><HelpPage /></RequireAuth>} />
+    <Route path="/new/groups" element={<RequireAuth><RequireModuleAccess moduleKey="groups" accessPath="/new/groups"><GroupsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/groups/:id" element={<RequireAuth><RequireModuleAccess moduleKey="groups" accessPath="/new/groups"><GroupDetailPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/messages" element={<RequireAuth><RequireModuleAccess moduleKey="messages" accessPath="/new/messages"><MessagesPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/messenger" element={<RequireAuth><RequireModuleAccess moduleKey="messenger" accessPath="/new/messenger"><MessengerPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/notifications" element={<RequireAuth><RequireModuleAccess moduleKey="notifications" accessPath="/new/notifications"><NotificationsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/messages/compose" element={<RequireAuth><RequireModuleAccess moduleKey="messages" accessPath="/new/messages"><MessageComposePage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/messages/:id" element={<RequireAuth><RequireModuleAccess moduleKey="messages" accessPath="/new/messages"><MessageDetailPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/albums" element={<RequireAuth><RequireModuleAccess moduleKey="albums" accessPath="/new/albums"><AlbumsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/albums/upload" element={<RequireAuth><RequireModuleAccess moduleKey="albums" accessPath="/new/albums"><AlbumUploadPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/albums/photo/:id" element={<RequireAuth><RequireModuleAccess moduleKey="albums" accessPath="/new/albums"><AlbumPhotoPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/albums/:id" element={<RequireAuth><RequireModuleAccess moduleKey="albums" accessPath="/new/albums"><AlbumCategoryPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/events" element={<RequireAuth><RequireModuleAccess moduleKey="events" accessPath="/new/events"><EventsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/announcements" element={<RequireAuth><RequireModuleAccess moduleKey="announcements" accessPath="/new/announcements"><AnnouncementsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/jobs" element={<RequireAuth><RequireModuleAccess moduleKey="jobs" accessPath="/new/jobs"><JobsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/opportunities" element={<RequireAuth><RequireModuleAccess moduleKey="opportunities" accessPath="/new/opportunities"><OpportunityInboxPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/network/hub" element={<RequireAuth><RequireModuleAccess moduleKey="networking" accessPath="/new/network/hub"><NetworkingHubPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/network/inbox" element={<RequireAuth><RequireModuleAccess moduleKey="networking" accessPath="/new/network/hub"><NetworkingHubPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/network/teachers" element={<RequireAuth><RequireModuleAccess moduleKey="teachers_network" accessPath="/new/network/teachers"><TeachersNetworkPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/games" element={<RequireAuth><RequireModuleAccess moduleKey="games" accessPath="/new/games"><GamesPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/games/:game" element={<RequireAuth><RequireModuleAccess moduleKey="games" accessPath="/new/games"><GamesPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/profile" element={<RequireAuth><RequireModuleAccess moduleKey="profile" accessPath="/new/profile"><ProfilePage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/profile/photo" element={<RequireAuth><RequireModuleAccess moduleKey="profile" accessPath="/new/profile"><ProfilePhotoPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/profile/verification" element={<RequireAuth><RequireModuleAccess moduleKey="profile" accessPath="/new/profile"><ProfileVerificationPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/profile/email-change" element={<RequireAuth><RequireModuleAccess moduleKey="profile" accessPath="/new/profile"><ProfileEmailChangePage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/requests" element={<RequireAuth><RequireModuleAccess moduleKey="requests" accessPath="/new/requests"><MemberRequestsPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/help" element={<RequireAuth><RequireModuleAccess moduleKey="help" accessPath="/new/help"><HelpPage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
     <Route path="/new/*" element={<Navigate to="/new" replace />} />
   </Route>

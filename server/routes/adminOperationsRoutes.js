@@ -36,6 +36,8 @@ export function registerAdminOperationsRoutes(app, deps) {
     setCacheJson,
     getSiteControl,
     getModuleControlMap,
+    normalizeModuleMenuVisibility,
+    normalizeModuleMenuOrder,
     invalidateControlSnapshots,
     invalidateCacheNamespace,
     MODULE_DEFINITIONS,
@@ -199,10 +201,20 @@ export function registerAdminOperationsRoutes(app, deps) {
       if (cached && cached.modules) return res.json(cached);
       const site = getSiteControl();
       const modules = getModuleControlMap();
+      let defaultLandingPage = '';
+      try {
+        const settingsRow = dbDriver === 'postgres'
+          ? await sqlGetAsync('SELECT default_landing_page FROM site_settings WHERE id = 1')
+          : await sqlGetAsync('SELECT default_landing_page FROM site_controls WHERE id = 1');
+        defaultLandingPage = String(settingsRow?.default_landing_page || '');
+      } catch { /* column may not exist yet on older deployments */ }
       const payload = {
         siteOpen: site.siteOpen,
         maintenanceMessage: site.maintenanceMessage,
         updatedAt: site.updatedAt,
+        defaultLandingPage: defaultLandingPage || site.defaultLandingPage || '',
+        menuVisibility: site.menuVisibility || normalizeModuleMenuVisibility(null),
+        moduleMenuOrder: site.moduleMenuOrder || normalizeModuleMenuOrder(null),
         modules,
         moduleDefinitions: MODULE_DEFINITIONS
       };
@@ -218,14 +230,45 @@ export function registerAdminOperationsRoutes(app, deps) {
     try {
       const updates = req.body || {};
       const now = new Date().toISOString();
+      const currentSite = getSiteControl();
       if (updates.siteOpen !== undefined || updates.maintenanceMessage !== undefined) {
-        const nextOpen = updates.siteOpen === undefined ? getSiteControl().siteOpen : !!updates.siteOpen;
-        const nextMessage = String(updates.maintenanceMessage || getSiteControl().maintenanceMessage || '').slice(0, 1200);
+        const nextOpen = updates.siteOpen === undefined ? currentSite.siteOpen : !!updates.siteOpen;
+        const nextMessage = String(updates.maintenanceMessage || currentSite.maintenanceMessage || '').slice(0, 1200);
         if (dbDriver === 'postgres') {
           await sqlRunAsync('UPDATE site_settings SET site_open = ?, maintenance_message = ?, updated_at = ? WHERE id = 1', [nextOpen ? true : false, nextMessage, now]);
         } else {
           await sqlRunAsync('UPDATE site_controls SET site_open = ?, maintenance_message = ?, updated_at = ? WHERE id = 1', [nextOpen ? 1 : 0, nextMessage, now]);
         }
+      }
+      if (updates.defaultLandingPage !== undefined) {
+        const nextLanding = String(updates.defaultLandingPage || '').slice(0, 500);
+        try {
+          if (dbDriver === 'postgres') {
+            await sqlRunAsync('UPDATE site_settings SET default_landing_page = ? WHERE id = 1', [nextLanding]);
+          } else {
+            await sqlRunAsync('UPDATE site_controls SET default_landing_page = ? WHERE id = 1', [nextLanding]);
+          }
+        } catch { /* column may not exist yet on older deployments */ }
+      }
+      if (updates.menuVisibility !== undefined) {
+        const nextMenuVisibility = JSON.stringify(normalizeModuleMenuVisibility(updates.menuVisibility));
+        try {
+          if (dbDriver === 'postgres') {
+            await sqlRunAsync('UPDATE site_settings SET menu_visibility_json = ? WHERE id = 1', [nextMenuVisibility]);
+          } else {
+            await sqlRunAsync('UPDATE site_controls SET menu_visibility_json = ? WHERE id = 1', [nextMenuVisibility]);
+          }
+        } catch { /* column may not exist yet on older deployments */ }
+      }
+      if (updates.moduleMenuOrder !== undefined) {
+        const nextModuleMenuOrder = JSON.stringify(normalizeModuleMenuOrder(updates.moduleMenuOrder));
+        try {
+          if (dbDriver === 'postgres') {
+            await sqlRunAsync('UPDATE site_settings SET menu_order_json = ? WHERE id = 1', [nextModuleMenuOrder]);
+          } else {
+            await sqlRunAsync('UPDATE site_controls SET menu_order_json = ? WHERE id = 1', [nextModuleMenuOrder]);
+          }
+        } catch { /* column may not exist yet on older deployments */ }
       }
       if (updates.modules && typeof updates.modules === 'object') {
         for (const def of MODULE_DEFINITIONS) {
@@ -250,7 +293,15 @@ export function registerAdminOperationsRoutes(app, deps) {
       invalidateControlSnapshots();
       invalidateCacheNamespace(cacheNamespaces.adminSettings);
       const site = getSiteControl();
-      res.json({ ok: true, siteOpen: site.siteOpen, maintenanceMessage: site.maintenanceMessage, modules: getModuleControlMap() });
+      res.json({
+        ok: true,
+        siteOpen: site.siteOpen,
+        maintenanceMessage: site.maintenanceMessage,
+        defaultLandingPage: site.defaultLandingPage || '',
+        menuVisibility: site.menuVisibility || normalizeModuleMenuVisibility(null),
+        moduleMenuOrder: site.moduleMenuOrder || normalizeModuleMenuOrder(null),
+        modules: getModuleControlMap()
+      });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

@@ -335,8 +335,24 @@ export function registerAdminManagementRoutes(app, {
 
   app.get('/api/admin/pages', requireAdmin, async (_req, res) => {
     try {
-      const pages = await sqlAllAsync('SELECT * FROM sayfalar ORDER BY sayfaismi');
+      const pages = await sqlAllAsync('SELECT * FROM sayfalar ORDER BY sort_order ASC, sayfaismi ASC');
       res.json({ pages });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.put('/api/admin/pages/reorder', requireAdmin, async (req, res) => {
+    try {
+      const { order } = req.body || {};
+      if (!Array.isArray(order)) return res.status(400).send('Sıralama listesi gereklidir.');
+      for (let i = 0; i < order.length; i++) {
+        const id = Number(order[i]);
+        if (!Number.isFinite(id) || id <= 0) continue;
+        await sqlRunAsync('UPDATE sayfalar SET sort_order = ? WHERE id = ?', [i + 1, id]);
+      }
+      res.json({ ok: true });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -352,15 +368,16 @@ export function registerAdminManagementRoutes(app, {
       const menugorun = Number(body.menugorun);
       const yonlendir = Number(body.yonlendir);
       const mozellik = Number(body.mozellik);
-      const resim = String(body.resim || '').trim();
+      const resim = String(body.resim || 'yok').trim();
       if (!sayfaismi) return res.status(400).send('Sayfa ismini girmedin.');
       if (!sayfaurl) return res.status(400).send('Sayfa adresini girmedin.');
       if (Number.isNaN(Number(babaid))) return res.status(400).send('BabaID bir sayı olmalıdır.');
-      if (!resim) return res.status(400).send('Resim girmedin. Eğer resim yoksa yok yazmalısın.');
+      const maxOrder = await sqlGetAsync('SELECT COALESCE(MAX(sort_order), 0) AS m FROM sayfalar');
+      const nextOrder = Number(maxOrder?.m || 0) + 1;
       await sqlRunAsync(
-        `INSERT INTO sayfalar (sayfaismi, sayfaurl, babaid, menugorun, yonlendir, mozellik, resim)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [sayfaismi, sayfaurl, Number(babaid), menugorun, yonlendir, mozellik, resim]
+        `INSERT INTO sayfalar (sayfaismi, sayfaurl, babaid, menugorun, yonlendir, mozellik, resim, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sayfaismi, sayfaurl, Number(babaid), menugorun, yonlendir, mozellik, resim, nextOrder]
       );
       res.json({ ok: true });
     } catch (err) {
@@ -378,11 +395,10 @@ export function registerAdminManagementRoutes(app, {
       const menugorun = Number(body.menugorun);
       const yonlendir = Number(body.yonlendir);
       const mozellik = Number(body.mozellik);
-      const resim = String(body.resim || '').trim();
+      const resim = String(body.resim || 'yok').trim();
       if (!sayfaismi) return res.status(400).send('Sayfa ismini girmedin.');
       if (!sayfaurl) return res.status(400).send('Sayfa adresini girmedin.');
       if (Number.isNaN(Number(babaid))) return res.status(400).send('BabaID bir sayı olmalıdır.');
-      if (!resim) return res.status(400).send('Resim girmedin. Eğer resim yoksa yok yazmalısın.');
       await sqlRunAsync(
         `UPDATE sayfalar SET sayfaismi = ?, sayfaurl = ?, babaid = ?, menugorun = ?, yonlendir = ?, mozellik = ?, resim = ?
          WHERE id = ?`,

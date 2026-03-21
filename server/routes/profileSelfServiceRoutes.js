@@ -401,6 +401,23 @@ export function registerProfileSelfServiceRoutes(app, {
     }
   });
 
+  app.post('/api/module-access-requests', requireAuth, async (req, res) => {
+    try {
+      const payload = req.body?.payload || {};
+      const categoryKey = 'feature_access_request';
+      const category = await sqlGetAsync('SELECT category_key FROM request_categories WHERE category_key = ? AND active = 1', [categoryKey]);
+      if (!category) return res.status(400).send('Özellik erişim talebi şu anda kullanılamıyor.');
+      await sqlRunAsync(
+        'INSERT INTO member_requests (user_id, category_key, payload_json, status, created_at) VALUES (?, ?, ?, ?, ?)',
+        [req.session.userId, categoryKey, JSON.stringify(payload || {}), 'pending', new Date().toISOString()]
+      );
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
   app.post('/api/profile/password', async (req, res) => {
     try {
       if (!req.session.userId) return res.status(401).send('Login required');

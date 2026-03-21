@@ -10,6 +10,7 @@ import { buildNotificationViewModel, shouldToastNotification } from '../utils/no
 import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
 import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
 import { getCached, setCache } from '../utils/swrCache.js';
+import { normalizeMenuVisibility, normalizeModuleOrder } from '../utils/moduleNavigation.js';
 
 export default function Layout({ children, title, right }) {
   const location = useLocation();
@@ -23,7 +24,8 @@ export default function Layout({ children, title, right }) {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [toasts, setToasts] = useState([]);
   const [mobileThemeLabel, setMobileThemeLabel] = useState(false);
-  const [moduleAccess, setModuleAccess] = useState({});
+  const [siteAccess, setSiteAccess] = useState(null);
+  const [siteAccessVersion, setSiteAccessVersion] = useState(0);
   const [notificationPreferences, setNotificationPreferences] = useState(NOTIFICATION_PREFERENCE_DEFAULTS);
   const unreadNotificationsRef = useRef(0);
   const unreadHydratedRef = useRef(false);
@@ -205,10 +207,17 @@ export default function Layout({ children, title, right }) {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleSiteAccessUpdated = () => setSiteAccessVersion((value) => value + 1);
+    window.addEventListener('sdal:site-access-updated', handleSiteAccessUpdated);
+    return () => window.removeEventListener('sdal:site-access-updated', handleSiteAccessUpdated);
+  }, []);
+
+  useEffect(() => {
     const key = `site-access:${location.pathname}`;
     const cached = getCached(key);
-    if (cached) {
-      setModuleAccess(cached.data);
+    if (cached?.data) {
+      setSiteAccess(cached.data);
       if (!cached.stale) return;
     }
     let mounted = true;
@@ -216,12 +225,12 @@ export default function Layout({ children, title, right }) {
       .then((r) => r.ok ? r.json() : null)
       .then((payload) => {
         if (!mounted || !payload?.modules) return;
-        setCache(key, payload.modules, 120_000);
-        setModuleAccess(payload.modules);
+        setCache(key, payload, 120_000);
+        setSiteAccess(payload);
       })
       .catch(() => {});
     return () => { mounted = false; };
-  }, [location.pathname]);
+  }, [location.pathname, siteAccessVersion]);
 
   const themeLabel = mobileThemeLabel
     ? (mode === 'auto' ? t('Otomatik') : (mode === 'dark' ? t('theme_dark') : t('theme_light')))
@@ -238,6 +247,10 @@ export default function Layout({ children, title, right }) {
   const showLanguageSelector = langSelectionEnabled && visibleLangOptions.length > 1;
 
   const navItems = useMemo(() => {
+    if (!siteAccess?.modules) return [];
+    const menuVisibility = normalizeMenuVisibility(siteAccess.menuVisibility);
+    const menuOrder = normalizeModuleOrder(siteAccess.moduleMenuOrder);
+    const orderIndex = new Map(menuOrder.map((key, index) => [key, index]));
     const allItems = [
       { to: '/new', label: t('nav_feed'), end: true, module: 'feed' },
       { to: '/new/explore', label: t('nav_explore'), module: 'explore' },
@@ -251,13 +264,21 @@ export default function Layout({ children, title, right }) {
       { to: '/new/events', label: t('nav_events'), module: 'events' },
       { to: '/new/announcements', label: t('nav_announcements'), module: 'announcements' },
       { to: '/new/jobs', label: t('nav_jobs'), module: 'jobs' },
-      { to: '/new/opportunities', label: t('nav_opportunities'), module: 'explore' },
+      { to: '/new/opportunities', label: t('nav_opportunities'), module: 'opportunities' },
       { to: '/new/network/teachers', label: t('nav_teacher_network'), module: 'teachers_network' },
       { to: '/new/profile', label: t('nav_profile'), module: 'profile' },
       { to: '/new/help', label: t('nav_help'), module: 'help' }
     ];
-    return allItems.filter((item) => moduleAccess[item.module] !== false);
-  }, [t, unreadCount, unreadNotifications, moduleAccess]);
+    return allItems
+      .filter((item) => siteAccess.modules[item.module] !== false)
+      .filter((item) => menuVisibility[item.module] !== false)
+      .sort((a, b) => {
+        const aIndex = orderIndex.has(a.module) ? orderIndex.get(a.module) : Number.MAX_SAFE_INTEGER;
+        const bIndex = orderIndex.has(b.module) ? orderIndex.get(b.module) : Number.MAX_SAFE_INTEGER;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+        return allItems.indexOf(a) - allItems.indexOf(b);
+      });
+  }, [siteAccess, t, unreadCount, unreadNotifications]);
 
   async function handleLogout() {
     await logout();

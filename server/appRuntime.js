@@ -490,10 +490,50 @@ const MODULE_DEFINITIONS = [
   { key: 'events', label: 'Etkinlikler' },
   { key: 'announcements', label: 'Duyurular' },
   { key: 'jobs', label: 'İş İlanları' },
+  { key: 'opportunities', label: 'Fırsatlar' },
+  { key: 'networking', label: 'Ağ Merkezi' },
+  { key: 'teachers_network', label: 'Öğretmen Ağı' },
   { key: 'profile', label: 'Profil' },
   { key: 'help', label: 'Yardım' },
   { key: 'requests', label: 'Üye Talepleri' }
 ];
+
+const MODULE_DEFINITION_KEYS = MODULE_DEFINITIONS.map((def) => def.key);
+const MODULE_DEFINITION_KEY_SET = new Set(MODULE_DEFINITION_KEYS);
+
+function normalizeModuleMenuVisibility(rawValue) {
+  const next = Object.fromEntries(MODULE_DEFINITION_KEYS.map((key) => [key, true]));
+  if (!rawValue || typeof rawValue !== 'object') return next;
+  for (const key of MODULE_DEFINITION_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(rawValue, key)) {
+      next[key] = rawValue[key] !== false;
+    }
+  }
+  return next;
+}
+
+function normalizeModuleMenuOrder(rawValue) {
+  const ordered = [];
+  for (const value of Array.isArray(rawValue) ? rawValue : []) {
+    const key = String(value || '').trim();
+    if (!MODULE_DEFINITION_KEY_SET.has(key) || ordered.includes(key)) continue;
+    ordered.push(key);
+  }
+  for (const key of MODULE_DEFINITION_KEYS) {
+    if (!ordered.includes(key)) ordered.push(key);
+  }
+  return ordered;
+}
+
+function parseOptionalJson(rawValue, fallbackValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === '') return fallbackValue;
+  if (typeof rawValue === 'object') return rawValue;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return fallbackValue;
+  }
+}
 
 const MODERATION_ACTION_DEFINITIONS = [
   { key: 'view', label: 'Görüntüleme', description: 'Listeleme ve detay görüntüleme' },
@@ -582,6 +622,9 @@ async function ensureRuntimeDefaults() {
       id INTEGER PRIMARY KEY,
       site_open INTEGER DEFAULT 1,
       maintenance_message TEXT,
+      default_landing_page TEXT DEFAULT '',
+      menu_visibility_json TEXT,
+      menu_order_json TEXT,
       updated_at TEXT
     )
   `);
@@ -607,6 +650,15 @@ async function ensureRuntimeDefaults() {
       updated_at TEXT
     )
   `);
+  if (!hasColumn('site_controls', 'default_landing_page')) {
+    sqlRun("ALTER TABLE site_controls ADD COLUMN default_landing_page TEXT DEFAULT ''");
+  }
+  if (!hasColumn('site_controls', 'menu_visibility_json')) {
+    sqlRun('ALTER TABLE site_controls ADD COLUMN menu_visibility_json TEXT');
+  }
+  if (!hasColumn('site_controls', 'menu_order_json')) {
+    sqlRun('ALTER TABLE site_controls ADD COLUMN menu_order_json TEXT');
+  }
   if (!hasColumn('media_settings', 'album_uploads_require_approval')) {
     sqlRun('ALTER TABLE media_settings ADD COLUMN album_uploads_require_approval INTEGER DEFAULT 0');
   }
@@ -899,16 +951,29 @@ function readSiteControlFromDb() {
     return {
       siteOpen: true,
       maintenanceMessage: 'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.',
+      defaultLandingPage: '',
+      menuVisibility: normalizeModuleMenuVisibility(null),
+      moduleMenuOrder: normalizeModuleMenuOrder(null),
       updatedAt: null
     };
   }
+  const tableName = dbDriver === 'postgres' ? 'site_settings' : 'site_controls';
+  const columns = ['site_open', 'maintenance_message', 'updated_at'];
+  if (hasColumn(tableName, 'default_landing_page')) columns.push('default_landing_page');
+  if (hasColumn(tableName, 'menu_visibility_json')) columns.push('menu_visibility_json');
+  if (hasColumn(tableName, 'menu_order_json')) columns.push('menu_order_json');
   const row = dbDriver === 'postgres'
-    ? (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_settings WHERE id = 1') || {})
-    : (sqlGet('SELECT site_open, maintenance_message, updated_at FROM site_controls WHERE id = 1') || {});
+    ? (sqlGet(`SELECT ${columns.join(', ')} FROM site_settings WHERE id = 1`) || {})
+    : (sqlGet(`SELECT ${columns.join(', ')} FROM site_controls WHERE id = 1`) || {});
   const rawSiteOpen = row.site_open;
+  const menuVisibility = normalizeModuleMenuVisibility(parseOptionalJson(row.menu_visibility_json, null));
+  const moduleMenuOrder = normalizeModuleMenuOrder(parseOptionalJson(row.menu_order_json, null));
   return {
     siteOpen: rawSiteOpen === true || Number(rawSiteOpen ?? 1) === 1,
     maintenanceMessage: String(row.maintenance_message || 'Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.'),
+    defaultLandingPage: String(row.default_landing_page || ''),
+    menuVisibility,
+    moduleMenuOrder,
     updatedAt: row.updated_at || null
   };
 }
@@ -1001,6 +1066,9 @@ function resolveModuleKeyByPath(pathname) {
     ['events', ['/new/events', '/api/new/events']],
     ['announcements', ['/new/announcements', '/api/new/announcements']],
     ['jobs', ['/new/jobs', '/api/new/jobs']],
+    ['opportunities', ['/new/opportunities', '/api/new/opportunities']],
+    ['networking', ['/new/network/hub', '/new/network/inbox', '/api/new/network']],
+    ['teachers_network', ['/new/network/teachers', '/api/new/teachers']],
     ['profile', ['/new/profile', '/api/profile']],
     ['help', ['/new/help']],
     ['requests', ['/new/requests', '/api/new/requests']]
@@ -1043,6 +1111,7 @@ function canBypassSiteOrModuleLocks(req) {
   if (pathValue.startsWith('/api/new/admin/')) return true;
   if (pathValue === '/api/admin/login' || pathValue === '/api/admin/logout') return true;
   if (pathValue === '/api/admin/session' || pathValue === '/api/session' || pathValue === '/api/site-access') return true;
+  if (pathValue === '/api/module-access-requests') return true;
   if (pathValue === '/api/auth/login' || pathValue === '/api/auth/register' || pathValue === '/api/auth/logout') return true;
   if (pathValue.startsWith('/api/new/activation') || pathValue.startsWith('/api/new/password')) return true;
   if (pathValue.startsWith('/legacy/') || pathValue.startsWith('/uploads/')) return true;
@@ -1080,8 +1149,8 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return res.status(403).json({ error: 'MODULE_CLOSED', moduleKey, message: 'Bu modül geçici olarak kapatıldı.' });
   }
-  if (req.path.startsWith('/new')) return res.redirect(302, '/new');
-  return res.redirect(302, '/');
+  if (req.path.startsWith('/new')) return next();
+  return res.status(403).send('Bu modül geçici olarak kapatıldı.');
 });
 
 function requireAdmin(req, res, next) {
@@ -3541,6 +3610,8 @@ registerSystemRoutes(app, {
   resolveModuleKeyByPath,
   getModuleControlMap,
   getSiteControl,
+  normalizeModuleMenuVisibility,
+  normalizeModuleMenuOrder,
   getCurrentUser,
   isOAuthProfileIncomplete,
   getUserRole,
@@ -3637,6 +3708,8 @@ registerAdminOperationsRoutes(app, {
   setCacheJson,
   getSiteControl,
   getModuleControlMap,
+  normalizeModuleMenuVisibility,
+  normalizeModuleMenuOrder,
   invalidateControlSnapshots,
   invalidateCacheNamespace,
   MODULE_DEFINITIONS,
