@@ -189,14 +189,13 @@ struct FeedScopeChipButtonStyle: ButtonStyle {
             .foregroundStyle(active ? SDALTheme.ink : SDALTheme.muted)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(active ? SDALTheme.primary.opacity(0.22) : SDALTheme.softPanel)
+                    .fill(active ? SDALTheme.primary.opacity(0.18) : SDALTheme.elevatedPanel)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(active ? SDALTheme.primary.opacity(0.5) : SDALTheme.line, lineWidth: 1)
+                    .stroke(active ? SDALTheme.primary.opacity(0.44) : SDALTheme.line.opacity(0.8), lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: configuration.isPressed)
@@ -208,15 +207,17 @@ struct PressableActionButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .font(.footnote.weight(.semibold))
+            .fontDesign(.rounded)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(active ? SDALTheme.primary.opacity(0.18) : SDALTheme.softPanel)
+                    .fill(active ? SDALTheme.primary.opacity(0.14) : SDALTheme.elevatedPanel)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(active ? SDALTheme.primary.opacity(0.45) : SDALTheme.line, lineWidth: 1)
+                    .stroke(active ? SDALTheme.primary.opacity(0.4) : SDALTheme.line.opacity(0.8), lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .opacity(configuration.isPressed ? 0.92 : 1.0)

@@ -161,7 +161,7 @@ struct FeedView: View {
 
     private var feedRootContent: AnyView {
         if isLoading && posts.isEmpty {
-            return AnyView(ProgressView(i18n.t("loading_feed")))
+            return AnyView(loadingStateView)
         } else if let errorMessage, posts.isEmpty {
             return AnyView(ScreenErrorView(message: errorMessage) { Task { await load(reset: true) } })
         } else {
@@ -171,22 +171,40 @@ struct FeedView: View {
 
     private var feedScrollView: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            LazyVStack(spacing: 16) {
                 scrollOffsetReader
+                heroSection
                 StoryBarView()
                 composerSection
                 pendingPostsSection
                 quickAccessSection
                 sidePanelsSection
-                feedTypePicker
-                filterBar
+                discoveryControlsSection
                 postsSection
                 loadingMoreSection
             }
             .padding(16)
         }
         .coordinateSpace(name: "feedScroll")
+        .scrollIndicators(.hidden)
         .refreshable { await load(reset: true) }
+    }
+
+    private var loadingStateView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                heroSection
+                    .redacted(reason: .placeholder)
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(i18n.t("loading_feed"))
+                            .font(.headline)
+                        SDALSkeletonLines(rows: 8)
+                    }
+                }
+            }
+            .padding(16)
+        }
     }
 
     private var scrollOffsetReader: some View {
@@ -203,6 +221,50 @@ struct FeedView: View {
         }
     }
 
+    private var heroSection: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(i18n.t("feed"))
+                            .font(SDALTypography.title)
+                            .foregroundStyle(SDALTheme.ink)
+                        Text("@\(appState.session?.kadi ?? "uye")")
+                            .font(SDALTypography.bodyStrong)
+                            .foregroundStyle(SDALTheme.muted)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    AsyncAvatarView(imageName: appState.session?.photo, size: 48)
+                }
+
+                HStack(spacing: 8) {
+                    statusPill(title: i18n.t("messages"), state: appState.messengerConnectionState)
+                    statusPill(title: i18n.t("live_chat_title"), state: appState.chatConnectionState)
+                }
+
+                HStack(spacing: 10) {
+                    quickActionButton(title: i18n.t("events"), systemImage: "calendar") {
+                        sheet = .events
+                    }
+                    quickActionButton(title: i18n.t("groups"), systemImage: "person.3") {
+                        routedGroupId = nil
+                        sheet = .groups
+                    }
+                    quickActionButton(title: i18n.t("messages"), systemImage: "bubble.left.and.bubble.right") {
+                        router.selectedTab = .messages
+                    }
+                }
+            }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(SDALTheme.heroBackground.opacity(0.72))
+                .padding(.vertical, 4)
+        }
+    }
+
     @ViewBuilder
     private var pendingPostsSection: some View {
         if pendingPostsCount > 0 {
@@ -215,7 +277,7 @@ struct FeedView: View {
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
         }
     }
 
@@ -223,11 +285,17 @@ struct FeedView: View {
     private var quickAccessSection: some View {
         if !quickAccessUsers.isEmpty && !isCompact {
             GlassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Quick Access")
-                        .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Quick Access")
+                            .font(.headline)
+                        Spacer()
+                        Text("\(quickAccessUsers.count)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(SDALTheme.muted)
+                    }
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 10) {
                             ForEach(quickAccessUsers) { member in
                                 HStack(spacing: 6) {
                                     AsyncAvatarView(imageName: member.resim, size: 22)
@@ -241,9 +309,9 @@ struct FeedView: View {
                                     }
                                     .buttonStyle(.plain)
                                 }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(SDALTheme.softPanel)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(SDALTheme.elevatedPanel)
                                 .clipShape(Capsule())
                             }
                         }
@@ -278,22 +346,38 @@ struct FeedView: View {
         )
     }
 
-    private var feedTypePicker: some View {
-        Picker("", selection: $feedType) {
-            Text(i18n.t("feed_main")).tag(FeedTypeTab.main)
-            Text(i18n.t("feed_community")).tag(FeedTypeTab.community)
-        }
-        .pickerStyle(.segmented)
-        .onChange(of: feedType) { _, _ in
-            Task { await load(reset: true) }
-        }
-    }
+    private var discoveryControlsSection: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(i18n.t("feed"))
+                            .font(.headline)
+                        Text("\(posts.count) posts")
+                            .font(.caption)
+                            .foregroundStyle(SDALTheme.muted)
+                    }
+                    Spacer()
+                }
 
-    private var filterBar: some View {
-        HStack(spacing: 8) {
-            filterChip(title: i18n.t("all"), value: .latest)
-            filterChip(title: i18n.t("following"), value: .following)
-            filterChip(title: i18n.t("popular"), value: .popular)
+                Picker("", selection: $feedType) {
+                    Text(i18n.t("feed_main")).tag(FeedTypeTab.main)
+                    Text(i18n.t("feed_community")).tag(FeedTypeTab.community)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: feedType) { _, _ in
+                    Task { await load(reset: true) }
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        filterChip(title: i18n.t("all"), value: .latest)
+                        filterChip(title: i18n.t("following"), value: .following)
+                        filterChip(title: i18n.t("popular"), value: .popular)
+                    }
+                    .padding(.vertical, 1)
+                }
+            }
         }
     }
 
@@ -322,42 +406,47 @@ struct FeedView: View {
 
     private func feedPostCard(_ post: FeedPost) -> some View {
         GlassCard {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 10) {
                     AsyncAvatarView(imageName: post.author?.resim, size: 42)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("@\(post.author?.kadi ?? "uye")")
-                            .font(.subheadline.bold())
+                            .font(.subheadline.weight(.semibold))
                         Text(post.createdAt ?? "")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(SDALTheme.muted)
                     }
+                    Spacer()
                 }
 
                 if let content = post.content, !content.isEmpty {
                     Text(content)
-                        .font(.body)
+                        .font(SDALTypography.body)
+                        .foregroundStyle(SDALTheme.ink)
                 }
 
                 feedPostImage(post)
 
-                HStack(spacing: 14) {
-                    Button {
+                HStack(spacing: 10) {
+                    postActionButton(
+                        title: "\(post.likeCount ?? 0)",
+                        systemImage: post.liked == true ? "heart.fill" : "heart",
+                        active: post.liked == true
+                    ) {
                         Task { await toggleLike(post.id) }
-                    } label: {
-                        Label("\(post.likeCount ?? 0)", systemImage: post.liked == true ? "heart.fill" : "heart")
                     }
-                    .buttonStyle(PressableActionButtonStyle(active: post.liked == true))
 
-                    Button {
+                    postActionButton(
+                        title: "\(post.commentCount ?? 0)",
+                        systemImage: "bubble.left",
+                        active: false
+                    ) {
                         postCommentsTarget = post
-                    } label: {
-                        Label("\(post.commentCount ?? 0)", systemImage: "bubble.left")
                     }
-                    .buttonStyle(PressableActionButtonStyle(active: false))
+
+                    Spacer()
                 }
                 .font(.footnote)
-                .foregroundStyle(.secondary)
             }
         }
     }
@@ -647,6 +736,35 @@ struct FeedView: View {
             Task { await load(reset: true) }
         }
         .buttonStyle(FeedScopeChipButtonStyle(active: filter == value))
+    }
+
+    private func quickActionButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PolishedGlassButtonStyle())
+    }
+
+    private func statusPill(title: String, state: WebSocketConnectionState) -> some View {
+        SDALPill(
+            text: title,
+            tint: state == .connected ? SDALTheme.success.opacity(0.18) : SDALTheme.softPanel,
+            foreground: state == .connected ? SDALTheme.success : SDALTheme.muted
+        )
+    }
+
+    private func postActionButton(
+        title: String,
+        systemImage: String,
+        active: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .foregroundStyle(active ? SDALTheme.primary : SDALTheme.muted)
+        }
+        .buttonStyle(PressableActionButtonStyle(active: active))
     }
 
     private func openNotification(_ n: AppNotification) {

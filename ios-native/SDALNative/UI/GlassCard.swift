@@ -19,19 +19,26 @@ struct PolishedGlassButtonStyle: ButtonStyle {
     var emphasized = false
 
     func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+
         configuration.label
             .font(.subheadline.weight(.semibold))
             .fontDesign(.rounded)
-            .foregroundStyle(Color.primary)
+            .foregroundStyle(SDALTheme.ink)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background {
-                let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
                 shape
-                    .fill(emphasized ? Color(uiColor: .secondarySystemGroupedBackground) : Color(uiColor: .tertiarySystemGroupedBackground))
-                    .background(.ultraThinMaterial, in: shape)
+                    .fill(emphasized ? SDALTheme.elevatedPanel : SDALTheme.softPanel)
+                    .background(.thinMaterial, in: shape)
                     .overlay(
-                        shape.strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+                        shape.strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                    )
+                    .overlay(
+                        shape.strokeBorder(
+                            emphasized ? SDALTheme.primary.opacity(0.24) : SDALTheme.line.opacity(0.7),
+                            lineWidth: 1
+                        )
                     )
             }
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
@@ -44,23 +51,36 @@ struct GlassCard<Content: View>: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+
         content
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 shape
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.82))
-                    .background(.ultraThinMaterial, in: shape)
+                    .fill(SDALTheme.card.opacity(0.9))
+                    .background(.thinMaterial, in: shape)
+                    .overlay(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.16),
+                                Color.clear,
+                                SDALTheme.primary.opacity(0.06)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .clipShape(shape)
+                    )
                     .overlay(
                         shape.strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
                     )
                     .overlay(
                         shape.inset(by: 1)
-                            .stroke(SDALTheme.line.opacity(0.55), lineWidth: 1)
+                            .stroke(SDALTheme.line.opacity(0.72), lineWidth: 1)
                     )
             }
             .clipShape(shape)
-            .shadow(color: .black.opacity(0.10), radius: 16, y: 8)
+            .shadow(color: .black.opacity(0.07), radius: 18, y: 10)
     }
 }
 
@@ -78,11 +98,15 @@ struct SDALPill: View {
             .padding(.vertical, 6)
             .background {
                 Capsule()
-                    .fill(tint.opacity(0.9))
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .fill(tint.opacity(0.92))
+                    .background(.thinMaterial, in: Capsule())
                     .overlay(
                         Capsule()
                             .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(SDALTheme.line.opacity(0.6), lineWidth: 1)
                     )
             }
     }
@@ -123,8 +147,8 @@ struct GlobalActionFeedbackChip: View {
         .padding(.vertical, 10)
         .background {
             Capsule()
-                .fill(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.92))
-                .background(.ultraThinMaterial, in: Capsule())
+                .fill(SDALTheme.elevatedPanel.opacity(0.96))
+                .background(.thinMaterial, in: Capsule())
                 .overlay(
                     Capsule()
                         .stroke((isError ? SDALTheme.danger : SDALTheme.success).opacity(0.35), lineWidth: 1)

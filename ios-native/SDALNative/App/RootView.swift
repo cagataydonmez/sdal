@@ -8,8 +8,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if appState.isBootstrapping {
-                ProgressView(i18n.t("loading"))
-                    .tint(SDALTheme.primary)
+                BootstrappingView()
             } else if appState.session == nil, !appState.siteAccess.isOpen {
                 SiteAccessClosedView(message: appState.siteAccess.message)
             } else if appState.isProfileCompletionRequired {
@@ -29,6 +28,38 @@ struct RootView: View {
     }
 }
 
+private struct BootstrappingView: View {
+    @EnvironmentObject private var i18n: LocalizationManager
+
+    var body: some View {
+        ZStack {
+            SDALTheme.appBackground.ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                Image(systemName: "sparkles.rectangle.stack.fill")
+                    .font(.system(size: 34))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(SDALTheme.primary)
+
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(i18n.t("loading"))
+                            .font(SDALTypography.title)
+                            .foregroundStyle(SDALTheme.ink)
+                        Text("SDAL Native")
+                            .font(SDALTypography.bodyStrong)
+                            .foregroundStyle(SDALTheme.muted)
+                        ProgressView()
+                            .tint(SDALTheme.primary)
+                    }
+                }
+                .frame(maxWidth: 320)
+            }
+            .padding(24)
+        }
+    }
+}
+
 private struct SiteAccessClosedView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var i18n: LocalizationManager
@@ -36,23 +67,28 @@ private struct SiteAccessClosedView: View {
     let message: String?
 
     var body: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "lock.circle.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(SDALTheme.secondary)
-            Text(i18n.t("site_closed_title"))
-                .font(.title3.weight(.bold))
-            Text(message?.isEmpty == false ? message! : i18n.t("site_closed_message"))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            Button(i18n.t("retry")) {
-                Task { await appState.bootstrapSession() }
+        ZStack {
+            SDALTheme.appBackground.ignoresSafeArea()
+
+            GlassCard {
+                VStack(spacing: 18) {
+                    Image(systemName: "lock.circle.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(SDALTheme.secondary)
+                    Text(i18n.t("site_closed_title"))
+                        .font(.title3.weight(.bold))
+                    Text(message?.isEmpty == false ? message! : i18n.t("site_closed_message"))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    Button(i18n.t("retry")) {
+                        Task { await appState.bootstrapSession() }
+                    }
+                    .buttonStyle(PolishedGlassButtonStyle(emphasized: true))
+                }
+                .frame(maxWidth: 420)
             }
-            .buttonStyle(.borderedProminent)
+            .padding(24)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SDALTheme.appBackground.ignoresSafeArea())
     }
 }
 
@@ -113,6 +149,8 @@ private struct MainTabView: View {
                 .tag(AppTab.profile)
         }
         .tint(SDALTheme.primary)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(.thinMaterial, for: .tabBar)
         .task {
             await refreshUnread()
         }

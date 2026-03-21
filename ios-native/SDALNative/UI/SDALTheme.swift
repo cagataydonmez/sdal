@@ -20,17 +20,29 @@ enum SDALTheme {
     static let card = Color.adaptive(light: .init(red: 1.0, green: 0.99, blue: 0.98, alpha: 1), dark: .init(red: 0.10, green: 0.14, blue: 0.19, alpha: 1))
     static let cardAlt = Color.adaptive(light: .init(red: 0.98, green: 0.96, blue: 0.94, alpha: 1), dark: .init(red: 0.13, green: 0.17, blue: 0.23, alpha: 1))
     static let softPanel = Color.adaptive(light: .init(red: 0.98, green: 0.96, blue: 0.94, alpha: 1), dark: .init(red: 0.11, green: 0.15, blue: 0.21, alpha: 1))
+    static let elevatedPanel = Color.adaptive(light: .init(red: 1.0, green: 0.985, blue: 0.97, alpha: 1), dark: .init(red: 0.12, green: 0.16, blue: 0.22, alpha: 1))
+    static let heroStart = Color.adaptive(light: .init(red: 1.0, green: 0.83, blue: 0.72, alpha: 1), dark: .init(red: 0.27, green: 0.17, blue: 0.15, alpha: 1))
+    static let heroEnd = Color.adaptive(light: .init(red: 0.91, green: 0.95, blue: 0.90, alpha: 1), dark: .init(red: 0.09, green: 0.20, blue: 0.18, alpha: 1))
     static let success = Color.adaptive(light: .init(red: 0.12, green: 0.48, blue: 0.22, alpha: 1), dark: .init(red: 0.49, green: 0.89, blue: 0.67, alpha: 1))
     static let danger = Color.adaptive(light: .init(red: 0.63, green: 0.16, blue: 0.16, alpha: 1), dark: .init(red: 1.0, green: 0.60, blue: 0.65, alpha: 1))
 
     static let appBackground = LinearGradient(
         colors: [
-            Color.adaptive(light: .init(red: 1.0, green: 0.97, blue: 0.94, alpha: 1), dark: .init(red: 0.10, green: 0.14, blue: 0.20, alpha: 1)),
-            Color.adaptive(light: .init(red: 0.95, green: 0.94, blue: 0.91, alpha: 1), dark: .init(red: 0.07, green: 0.10, blue: 0.15, alpha: 1)),
-            Color.adaptive(light: .init(red: 0.91, green: 0.87, blue: 0.82, alpha: 1), dark: .init(red: 0.05, green: 0.07, blue: 0.11, alpha: 1))
+            Color.adaptive(light: .init(red: 1.0, green: 0.98, blue: 0.95, alpha: 1), dark: .init(red: 0.09, green: 0.13, blue: 0.19, alpha: 1)),
+            Color.adaptive(light: .init(red: 0.96, green: 0.94, blue: 0.90, alpha: 1), dark: .init(red: 0.07, green: 0.10, blue: 0.14, alpha: 1)),
+            Color.adaptive(light: .init(red: 0.90, green: 0.89, blue: 0.85, alpha: 1), dark: .init(red: 0.04, green: 0.06, blue: 0.10, alpha: 1))
         ],
-        startPoint: .topTrailing,
-        endPoint: .bottomLeading
+        startPoint: .top,
+        endPoint: .bottomTrailing
+    )
+
+    static let heroBackground = LinearGradient(
+        colors: [
+            heroStart.opacity(0.95),
+            heroEnd.opacity(0.92)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
     )
 }
 
