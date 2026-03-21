@@ -287,7 +287,7 @@ struct FeedView: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Quick Access")
+                        Text(i18n.t("quick_access"))
                             .font(.headline)
                         Spacer()
                         Text("\(quickAccessUsers.count)")
@@ -353,7 +353,7 @@ struct FeedView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(i18n.t("feed"))
                             .font(.headline)
-                        Text("\(posts.count) posts")
+                        Text("\(posts.count) \(i18n.t("posts"))")
                             .font(.caption)
                             .foregroundStyle(SDALTheme.muted)
                     }

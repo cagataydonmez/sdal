@@ -14,3 +14,4 @@ sdal_new/dist/
 Thumbs.db
 logs/*.log
 server/data/
+ios-native/build/

@@ -169,7 +169,7 @@ export const trFallbackMessages = {
   message_compose_clear_recipient: 'Alıcıyı Temizle',
   message_quick_reply_placeholder: 'Hızlı cevap yaz...',
   message_quick_reply_send: 'Hızlı Cevap Gönder',
-  messages_title: 'Mesajlar',
+  messages_title: 'SDAL Inbox',
   messages_inbox: 'Gelen Kutusu',
   messages_outbox: 'Giden Kutusu',
   messages_all: 'Tüm Mesajlar',
