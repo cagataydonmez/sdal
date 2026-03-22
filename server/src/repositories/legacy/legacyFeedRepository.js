@@ -32,8 +32,8 @@ export class LegacyFeedRepository extends FeedRepository {
       ? `${whereSql} AND p.id < ?`
       : whereSql;
     const params = cursorId > 0
-      ? [...whereParams, cursorId, viewerId, limit, offset]
-      : [...whereParams, viewerId, limit, offset];
+      ? [viewerId, ...whereParams, cursorId, limit, offset]
+      : [viewerId, ...whereParams, limit, offset];
 
     const esJoin = filter === 'popular'
       ? `LEFT JOIN member_engagement_scores es ON es.user_id = p.user_id`

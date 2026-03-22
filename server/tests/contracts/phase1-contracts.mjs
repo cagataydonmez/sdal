@@ -353,6 +353,10 @@ try {
   });
   assert.equal(yearFeed.resp.status, 200, 'year mode feed status mismatch');
   assert.ok(Array.isArray(yearFeed.json?.items), 'year mode feed items must be array');
+  assert.ok(
+    (yearFeed.json?.items || []).some((item) => Number(item?.id || 0) === communityPostId),
+    'community feed post should appear in year feed'
+  );
 
   const commentCreate = await requestJson(`/api/new/posts/${createdPostId}/comments`, {
     method: 'POST',
