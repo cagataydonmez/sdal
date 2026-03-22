@@ -328,6 +328,26 @@ try {
     now
   ]);
 
+  const communityPostCreate = await requestJson('/api/new/posts', {
+    method: 'POST',
+    cookie: userLogin.cookie,
+    body: { content: 'phase1 community composer post', feedType: 'community' }
+  });
+  assert.equal(communityPostCreate.resp.status, 200, 'community create post status mismatch');
+  const communityPostId = Number(communityPostCreate.json?.id || 0);
+  assert.ok(communityPostId > 0, 'community create post did not return id');
+  const communityPostRow = sqlGet('SELECT group_id FROM posts WHERE id = ?', [communityPostId]);
+  assert.equal(Number(communityPostRow?.group_id || 0), Number(cohortGroup.id), 'community feed create should attach cohort group');
+
+  const mainFeedAfterCommunityCreate = await requestJson('/api/new/feed?mode=global&limit=20', {
+    cookie: userLogin.cookie
+  });
+  assert.equal(mainFeedAfterCommunityCreate.resp.status, 200, 'global mode feed status mismatch');
+  assert.ok(
+    !(mainFeedAfterCommunityCreate.json?.items || []).some((item) => Number(item?.id || 0) === communityPostId),
+    'community feed post should not appear in main feed'
+  );
+
   const yearFeed = await requestJson('/api/new/feed?mode=year&limit=10', {
     cookie: userLogin.cookie
   });

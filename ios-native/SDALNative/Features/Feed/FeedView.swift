@@ -216,7 +216,7 @@ struct FeedView: View {
     }
 
     private var composerSection: some View {
-        PostComposerView {
+        PostComposerView(feedType: feedType.rawValue) {
             await load(reset: true)
         }
     }

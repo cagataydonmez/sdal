@@ -65,6 +65,7 @@ import { consumeUploadQuota } from './src/infra/uploadQuota.js';
 import { createRateLimitMiddleware } from './src/http/middleware/rateLimit.js';
 import { createIdempotencyMiddleware } from './src/http/middleware/idempotency.js';
 import { pgQuery, getPostgresPool } from './src/infra/postgresPool.js';
+import { resolveFeedPostGroupId } from './src/shared/feedPostGroupResolver.js';
 import {
   buildMemberTrustBadges,
   buildScoredNetworkSuggestion,
@@ -3898,79 +3899,96 @@ app.get('/api/new/feed', requireAuth, phase1Domain.controllers.feed.getFeed);
 app.post('/api/new/posts', requireAuth, createPostIdempotency, postWriteRateLimit, phase1Domain.controllers.posts.createPost);
 
 app.post('/api/new/posts/upload', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
-  const content = formatUserText(req.body?.content || '');
-  const filter = req.body?.filter || '';
-  const groupId = req.body?.group_id || null;
-  let processedUpload = null;
-  if (req.file?.path) {
-    processedUpload = await processDiskImageUpload({
-      req,
-      res,
-      file: req.file,
-      bucket: groupId ? 'group_post_image' : 'post_image',
-      preset: uploadImagePresets.postImage,
-      filter
-    });
-    if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
-  }
-  const image = processedUpload?.url || null;
-  if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
-  const now = new Date().toISOString();
-
-  // Also generate variants via new pipeline (if file buffer or file exists)
-  let imageRecordId = null;
-  let variants = null;
   try {
-    const fileBuffer = processedUpload?.path && fs.existsSync(processedUpload.path)
-      ? fs.readFileSync(processedUpload.path)
-      : null;
-    if (fileBuffer) {
-      const uploadResult = await processUpload({
-        buffer: fileBuffer,
-        mimeType: processedUpload?.mime || req.file?.mimetype || 'image/jpeg',
-        userId: req.session.userId,
-        entityType: 'post',
-        entityId: '0', // will be updated after insert
-        sqlGet,
-        sqlRun,
-        uploadsDir,
-        writeAppLog
+    const content = formatUserText(req.body?.content || '');
+    const filter = req.body?.filter || '';
+    const groupId = await resolveFeedPostGroupId({
+      requestedGroupId: req.body?.group_id || null,
+      feedType: req.body?.feedType || '',
+      authorId: req.session.userId,
+      findGraduationYearById: async (userId) => {
+        const row = sqlGet('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [userId])
+          || sqlGet('SELECT graduation_year AS mezuniyetyili FROM users WHERE id = ?', [userId]);
+        return row?.mezuniyetyili ? Number(row.mezuniyetyili) || null : null;
+      },
+      findGroupByName: async (name) => sqlGet('SELECT * FROM groups WHERE name = ?', [name])
+    });
+
+    let processedUpload = null;
+    if (req.file?.path) {
+      processedUpload = await processDiskImageUpload({
+        req,
+        res,
+        file: req.file,
+        bucket: groupId ? 'group_post_image' : 'post_image',
+        preset: uploadImagePresets.postImage,
+        filter
       });
-      imageRecordId = uploadResult.imageId;
-      variants = uploadResult.variants;
+      if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
     }
-  } catch (err) {
-    writeAppLog('error', 'post_variant_generation_failed', { message: err?.message });
-    // Non-fatal: the legacy single image is still saved
-  }
+    const image = processedUpload?.url || null;
+    if (isFormattedContentEmpty(content) && !image) return res.status(400).send('İçerik boş olamaz.');
+    const now = new Date().toISOString();
 
-  const result = sqlRun('INSERT INTO posts (user_id, content, image, image_record_id, created_at, group_id) VALUES (?, ?, ?, ?, ?, ?)', [
-    req.session.userId,
-    content,
-    image,
-    imageRecordId,
-    now,
-    groupId
-  ]);
-
-  // Update the image record with the actual post ID
-  const postId = result?.lastInsertRowid;
-  if (imageRecordId && postId) {
+    // Also generate variants via new pipeline (if file buffer or file exists)
+    let imageRecordId = null;
+    let variants = null;
     try {
-      sqlRun('UPDATE image_records SET entity_id = ? WHERE id = ?', [postId, imageRecordId]);
-    } catch { /* best effort */ }
-  }
+      const fileBuffer = processedUpload?.path && fs.existsSync(processedUpload.path)
+        ? fs.readFileSync(processedUpload.path)
+        : null;
+      if (fileBuffer) {
+        const uploadResult = await processUpload({
+          buffer: fileBuffer,
+          mimeType: processedUpload?.mime || req.file?.mimetype || 'image/jpeg',
+          userId: req.session.userId,
+          entityType: 'post',
+          entityId: '0', // will be updated after insert
+          sqlGet,
+          sqlRun,
+          uploadsDir,
+          writeAppLog
+        });
+        imageRecordId = uploadResult.imageId;
+        variants = uploadResult.variants;
+      }
+    } catch (err) {
+      writeAppLog('error', 'post_variant_generation_failed', { message: err?.message });
+      // Non-fatal: the legacy single image is still saved
+    }
 
-  notifyMentions({
-    text: req.body?.content || '',
-    sourceUserId: req.session.userId,
-    entityId: postId,
-    type: 'mention_post',
-    message: 'Gönderide senden bahsetti.'
-  });
-  scheduleEngagementRecalculation('post_created');
-  invalidateCacheNamespace(cacheNamespaces.feed);
-  res.json({ ok: true, id: postId, image, variants });
+    const result = sqlRun('INSERT INTO posts (user_id, content, image, image_record_id, created_at, group_id) VALUES (?, ?, ?, ?, ?, ?)', [
+      req.session.userId,
+      content,
+      image,
+      imageRecordId,
+      now,
+      groupId
+    ]);
+
+    // Update the image record with the actual post ID
+    const postId = result?.lastInsertRowid;
+    if (imageRecordId && postId) {
+      try {
+        sqlRun('UPDATE image_records SET entity_id = ? WHERE id = ?', [postId, imageRecordId]);
+      } catch { /* best effort */ }
+    }
+
+    notifyMentions({
+      text: req.body?.content || '',
+      sourceUserId: req.session.userId,
+      entityId: postId,
+      type: 'mention_post',
+      message: 'Gönderide senden bahsetti.'
+    });
+    scheduleEngagementRecalculation('post_created');
+    invalidateCacheNamespace(cacheNamespaces.feed);
+    return res.json({ ok: true, id: postId, image, variants });
+  } catch (err) {
+    if (typeof err?.statusCode === 'number') return res.status(err.statusCode).send(err.message);
+    console.error('posts.upload failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
 });
 
 

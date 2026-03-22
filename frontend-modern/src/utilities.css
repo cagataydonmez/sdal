@@ -568,6 +568,31 @@ body.story-view-open .global-feedback {
   .scope-btn-label {
     display: none;
   }
+  .feed-mobile-scope-card .scope-btn {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    padding: 10px 12px;
+    gap: 8px;
+    border-radius: 16px;
+  }
+  .feed-mobile-scope-card .scope-tabs,
+  .feed-mobile-scope-card .scope-tabs-feedtype,
+  .feed-mobile-scope-card .scope-tabs-filter {
+    display: grid;
+    overflow: visible;
+  }
+  .feed-mobile-scope-card .scope-tabs-feedtype {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .feed-mobile-scope-card .scope-tabs-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .feed-mobile-scope-card .scope-btn-label {
+    display: inline;
+    white-space: normal;
+    text-align: left;
+  }
   .feed-tab-badge {
     top: -2px;
     right: -2px;

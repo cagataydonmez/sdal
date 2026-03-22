@@ -726,9 +726,12 @@ extension APIClient {
         return payload.items
     }
 
-    func createPost(content: String) async throws -> APIWriteResponse {
-        struct Body: Encodable { let content: String }
-        return try await request("/new/posts", method: "POST", body: Body(content: content), as: APIWriteResponse.self)
+    func createPost(content: String, feedType: String? = nil) async throws -> APIWriteResponse {
+        struct Body: Encodable {
+            let content: String
+            let feedType: String?
+        }
+        return try await request("/new/posts", method: "POST", body: Body(content: content, feedType: feedType), as: APIWriteResponse.self)
     }
 
     func editPost(id: Int, content: String) async throws {
@@ -774,13 +777,17 @@ extension APIClient {
         imageData: Data,
         fileName: String,
         mimeType: String,
-        filter: String
+        filter: String,
+        feedType: String? = nil
     ) async throws -> APIWriteResponse {
-        let parts = [
+        var parts = [
             MultipartPart(name: "content", fileName: nil, mimeType: nil, data: Data(content.utf8)),
             MultipartPart(name: "filter", fileName: nil, mimeType: nil, data: Data(filter.utf8)),
             MultipartPart(name: "image", fileName: fileName, mimeType: mimeType, data: imageData)
         ]
+        if let feedType, !feedType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append(MultipartPart(name: "feedType", fileName: nil, mimeType: nil, data: Data(feedType.utf8)))
+        }
         return try await requestMultipart("/new/posts/upload", method: "POST", parts: parts, as: APIWriteResponse.self)
     }
 

@@ -15,7 +15,7 @@ const FILTERS = [
   { key: 'sharp', label: 'Sharp' }
 ];
 
-export default function PostComposer({ onPost }) {
+export default function PostComposer({ onPost, feedType = 'main' }) {
   const { t, lang } = useI18n();
   const [content, setContent] = useState('');
   const [image, setImage] = useState(null);
@@ -39,6 +39,7 @@ export default function PostComposer({ onPost }) {
       if (image) {
         const form = new FormData();
         form.append('content', content);
+        form.append('feedType', feedType);
         form.append('image', image);
         form.append('filter', filter);
         const res = await fetch('/api/new/posts/upload', {
@@ -52,7 +53,7 @@ export default function PostComposer({ onPost }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ content })
+          body: JSON.stringify({ content, feedType })
         });
         if (!res.ok) throw new Error(await res.text());
       }

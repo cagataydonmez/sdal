@@ -1,8 +1,11 @@
 import { isHttpError } from '../../shared/httpError.js';
+import { resolveFeedPostGroupId } from '../../shared/feedPostGroupResolver.js';
 import { toLegacyCommentItem } from '../dto/legacyApiMappers.js';
 
 export function createPostController({
   postService,
+  userRepository,
+  groupRepository,
   formatUserText,
   isFormattedContentEmpty,
   getCurrentUser,
@@ -16,7 +19,13 @@ export function createPostController({
     try {
       const content = formatUserText(req.body?.content || '');
       const image = req.body?.image || null;
-      const groupId = req.body?.group_id || null;
+      const groupId = await resolveFeedPostGroupId({
+        requestedGroupId: req.body?.group_id || null,
+        feedType: req.body?.feedType || '',
+        authorId: req.session.userId,
+        findGraduationYearById: (userId) => userRepository.findGraduationYearById(userId),
+        findGroupByName: (name) => groupRepository.findByName(name)
+      });
 
       const created = await postService.createPost({
         authorId: req.session.userId,

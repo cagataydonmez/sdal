@@ -5,6 +5,7 @@ import PhotosUI
 struct PostComposerView: View {
     @EnvironmentObject private var i18n: LocalizationManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    let feedType: String
     let onPostCreated: () async -> Void
 
     @State private var content = ""
@@ -133,10 +134,11 @@ struct PostComposerView: View {
                     imageData: imageData,
                     fileName: "post.jpg",
                     mimeType: "image/jpeg",
-                    filter: ""
+                    filter: "",
+                    feedType: feedType
                 )
             } else {
-                _ = try await api.createPost(content: content)
+                _ = try await api.createPost(content: content, feedType: feedType)
             }
             content = ""
             imageData = nil

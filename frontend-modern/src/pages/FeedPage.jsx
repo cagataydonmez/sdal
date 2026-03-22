@@ -488,7 +488,7 @@ export default function FeedPage() {
                   <div className="feed-composer-meta">{t('feed_filter_selected')}: {activeFilterLabel}</div>
                 </div>
               </div>
-              <PostComposer onPost={() => load({ silent: true, force: true })} />
+              <PostComposer feedType={feedType} onPost={() => load({ silent: true, force: true })} />
             </div>
 
             <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">

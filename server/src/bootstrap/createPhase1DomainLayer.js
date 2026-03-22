@@ -149,6 +149,8 @@ export function createPhase1DomainLayer(deps) {
     }),
     posts: createPostController({
       postService: services.posts,
+      userRepository: repositories.users,
+      groupRepository: repositories.groups,
       formatUserText: deps.formatUserText,
       isFormattedContentEmpty: deps.isFormattedContentEmpty,
       getCurrentUser: deps.getCurrentUser,
