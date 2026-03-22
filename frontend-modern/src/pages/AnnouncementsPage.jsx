@@ -8,6 +8,7 @@ import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
+import { contentImageAlt } from '../utils/a11y.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -172,7 +173,7 @@ export default function AnnouncementsPage() {
           >
             <h3>{a.title}</h3>
             <div className="panel-body">
-              {a.image ? <img className="post-image" src={a.image} alt="" /> : null}
+              {a.image ? <img className="post-image" src={a.image} alt={contentImageAlt(a.title || t('nav_announcements'), a.body || '')} /> : null}
               <TranslatableHtml html={a.body || ''} />
               <div className="meta">{formatDateTime(a.created_at)} · @{a.creator_kadi || t('member_fallback')} {Number(a.approved || 0) === 1 ? '' : `· ${t('pending_approval')}`}</div>
               {isAdmin ? (

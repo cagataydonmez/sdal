@@ -11,6 +11,7 @@ import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '
 import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
 import { getCached, setCache } from '../utils/swrCache.js';
 import { normalizeMenuVisibility, normalizeModuleOrder } from '../utils/moduleNavigation.js';
+import { avatarAlt } from '../utils/a11y.js';
 
 export default function Layout({ children, title, right }) {
   const location = useLocation();
@@ -31,6 +32,10 @@ export default function Layout({ children, title, right }) {
   const unreadHydratedRef = useRef(false);
   const toastTimersRef = useRef(new Map());
   const notificationToastIdsRef = useRef(new Set());
+  const userMenuRef = useRef(null);
+  const userMenuButtonRef = useRef(null);
+  const mobileNavRef = useRef(null);
+  const mobileNavButtonRef = useRef(null);
 
   const dismissToast = useCallback((toastId) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== toastId));
@@ -245,6 +250,7 @@ export default function Layout({ children, title, right }) {
     [availableLangs]
   );
   const showLanguageSelector = langSelectionEnabled && visibleLangOptions.length > 1;
+  const moduleAccess = siteAccess?.modules || {};
 
   const navItems = useMemo(() => {
     if (!siteAccess?.modules) return [];
@@ -301,6 +307,54 @@ export default function Layout({ children, title, right }) {
   }, [mobileNavOpen]);
 
   useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (userMenuRef.current?.contains(event.target) || userMenuButtonRef.current?.contains(event.target)) return;
+      setMenuOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      setMenuOpen(false);
+      userMenuButtonRef.current?.focus();
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+    const first = mobileNavRef.current?.querySelector('button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (first instanceof HTMLElement) first.focus();
+    const onKeyDown = (event) => {
+      if (!mobileNavRef.current) return;
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false);
+        mobileNavButtonRef.current?.focus();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const nodes = Array.from(mobileNavRef.current.querySelectorAll('button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+        .filter((element) => !element.hasAttribute('disabled'));
+      if (!nodes.length) return;
+      const firstNode = nodes[0];
+      const lastNode = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === firstNode) {
+        event.preventDefault();
+        lastNode.focus();
+      } else if (!event.shiftKey && document.activeElement === lastNode) {
+        event.preventDefault();
+        firstNode.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
     syncViewTransitionContext(location.pathname);
   }, [location.pathname]);
 
@@ -331,9 +385,11 @@ export default function Layout({ children, title, right }) {
 	      <main className={`main-area route-family-${routeMeta.family} route-kind-${routeMeta.kind}`}>
         <header className="top-bar">
           <button
+            ref={mobileNavButtonRef}
             className={`mobile-hamburger mobile-hamburger-left ${mobileNavOpen ? 'open' : ''}`}
             aria-label={mobileNavOpen ? t('close') : t('open')}
             aria-expanded={mobileNavOpen}
+            aria-controls="mobile-nav-drawer"
             onClick={() => setMobileNavOpen((prev) => !prev)}
           >
             <span></span>
@@ -366,17 +422,24 @@ export default function Layout({ children, title, right }) {
 	            {right}
 	            {user ? (
               <div className="user-menu">
-                <button className="user-chip" onClick={() => setMenuOpen((v) => !v)}>
-                  <img src={profileImage} alt="" />
+                <button
+                  ref={userMenuButtonRef}
+                  className="user-chip"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  aria-controls="user-menu-dropdown"
+                >
+                  <img src={profileImage} alt={avatarAlt(user)} />
                   <span>{user.kadi}</span>
                 </button>
                 {menuOpen ? (
-                  <div className="user-dropdown">
-                    <Link to="/new/profile" onClick={() => setMenuOpen(false)}>{t('profile_view')}</Link>
-                    <Link to="/new/profile/photo" onClick={() => setMenuOpen(false)}>{t('profile_photo_update')}</Link>
-                    {moduleAccess.requests !== false ? <Link to="/new/requests" onClick={() => setMenuOpen(false)}>{t('member_requests_title')}</Link> : null}
-                    <Link to="/new/messages/compose" onClick={() => setMenuOpen(false)}>{t('member_send_message')}</Link>
-                    <button className="linkish" onClick={handleLogout}>{t('logout')}</button>
+                  <div ref={userMenuRef} id="user-menu-dropdown" className="user-dropdown" role="menu">
+                    <Link to="/new/profile" role="menuitem" onClick={() => setMenuOpen(false)}>{t('profile_view')}</Link>
+                    <Link to="/new/profile/photo" role="menuitem" onClick={() => setMenuOpen(false)}>{t('profile_photo_update')}</Link>
+                    {moduleAccess.requests !== false ? <Link to="/new/requests" role="menuitem" onClick={() => setMenuOpen(false)}>{t('member_requests_title')}</Link> : null}
+                    <Link to="/new/messages/compose" role="menuitem" onClick={() => setMenuOpen(false)}>{t('member_send_message')}</Link>
+                    <button className="linkish" role="menuitem" onClick={handleLogout}>{t('logout')}</button>
                   </div>
                 ) : null}
               </div>
@@ -391,7 +454,7 @@ export default function Layout({ children, title, right }) {
         </div>
       </main>
 
-      <div className={`mobile-nav-overlay ${mobileNavOpen ? 'open' : ''}`} onClick={() => setMobileNavOpen(false)} />
+      <button type="button" className={`mobile-nav-overlay ${mobileNavOpen ? 'open' : ''}`} aria-label={t('close')} onClick={() => setMobileNavOpen(false)} />
       {toasts.length > 0 ? (
         <div className="app-toast-stack" aria-live="polite">
           {toasts.map((toast) => (
@@ -410,7 +473,15 @@ export default function Layout({ children, title, right }) {
           ))}
         </div>
       ) : null}
-      <aside className={`mobile-nav-drawer ${mobileNavOpen ? 'open' : ''}`} aria-hidden={!mobileNavOpen}>
+      <aside
+        ref={mobileNavRef}
+        id="mobile-nav-drawer"
+        className={`mobile-nav-drawer ${mobileNavOpen ? 'open' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('navigation')}
+        aria-hidden={!mobileNavOpen}
+      >
         <div className="mobile-nav-head">
           <Link to="/new" className="brand" aria-label={t('SDAL ana sayfa')} onClick={() => setMobileNavOpen(false)}>
             <span className="brand-text">SDAL</span>

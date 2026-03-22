@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { contentImageAlt } from '../../utils/a11y.js';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
@@ -46,7 +47,7 @@ export default function AdminPreviewModal({ previewModal, setPreviewModal }) {
             <div className="meta">Paylaşım ID: {previewModal.data?.id}</div>
             <div className="meta">Tarih: {formatDate(previewModal.data?.created_at)}</div>
             <div>{previewModal.data?.content || '(metin yok)'}</div>
-            {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
+            {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt={contentImageAlt('Gönderi görseli', previewModal.data?.content || '')} /> : null}
           </div>
         ) : null}
         {previewModal.type === 'post-all' ? (
@@ -99,7 +100,7 @@ export default function AdminPreviewModal({ previewModal, setPreviewModal }) {
             <div className="meta">{formatDate(previewModal.data?.starts_at)}</div>
             <div className="meta">{previewModal.data?.location || '-'}</div>
             <div dangerouslySetInnerHTML={{ __html: previewModal.data?.description || previewModal.data?.body || '' }} />
-            {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
+            {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt={contentImageAlt(previewModal.data?.title || 'Etkinlik', previewModal.data?.description || previewModal.data?.body || '')} /> : null}
           </div>
         ) : null}
         {previewModal.type === 'announcement' ? (
@@ -107,7 +108,7 @@ export default function AdminPreviewModal({ previewModal, setPreviewModal }) {
             <div className="name">{previewModal.data?.title}</div>
             <div className="meta">{formatDate(previewModal.data?.created_at)}</div>
             <div dangerouslySetInnerHTML={{ __html: previewModal.data?.body || previewModal.data?.description || '' }} />
-            {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt="" /> : null}
+            {previewModal.data?.image ? <img className="post-image" src={previewModal.data.image} alt={contentImageAlt(previewModal.data?.title || 'Duyuru', previewModal.data?.body || previewModal.data?.description || '')} /> : null}
           </div>
         ) : null}
       </div>

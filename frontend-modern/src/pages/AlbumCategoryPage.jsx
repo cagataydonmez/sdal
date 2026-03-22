@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import { contentImageAlt } from '../utils/a11y.js';
 
 export default function AlbumCategoryPage() {
   const { t } = useI18n();
@@ -56,7 +57,7 @@ export default function AlbumCategoryPage() {
       <div className="photo-grid">
         {photos.map((p) => (
           <Link key={p.id} to={`/new/albums/photo/${p.id}`}>
-            <img src={`/api/media/kucukresim?width=260&file=${encodeURIComponent(p.dosyaadi)}`} alt="" />
+            <img src={`/api/media/kucukresim?width=260&file=${encodeURIComponent(p.dosyaadi)}`} alt={contentImageAlt(p.baslik || category.kategori || t('photo_title'), p.aciklama || category.kategori || '')} />
           </Link>
         ))}
       </div>

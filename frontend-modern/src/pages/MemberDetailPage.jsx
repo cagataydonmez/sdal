@@ -7,6 +7,7 @@ import { readApiPayload } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 import { NETWORKING_MESSAGES } from '../utils/networkingRegistry.js';
+import { avatarAlt } from '../utils/a11y.js';
 
 function canLinkToTeacherNetwork(member) {
   const role = String(member?.role || '').trim().toLowerCase();
@@ -110,7 +111,7 @@ export default function MemberDetailPage() {
     <Layout title={`${member.isim} ${member.soyisim}`}>
       <div className="panel">
         <div className="panel-body">
-          <img className="profile-avatar-xl" src={member.resim ? `/api/media/vesikalik/${member.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+          <img className="profile-avatar-xl" src={member.resim ? `/api/media/vesikalik/${member.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(member)} />
           <div className="name">@{member.kadi}</div>
           <div className="meta">{member.mezuniyetyili || ''}</div>
           <div className="meta">{member.sehir || ''}</div>

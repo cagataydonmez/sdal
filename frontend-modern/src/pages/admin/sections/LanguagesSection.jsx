@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import { useI18n } from '../../../utils/i18n.jsx';
+import { openConfirm } from '../../../utils/dialogs.js';
 
 const TABS = [
   { key: 'languages', label: 'Diller' },
@@ -188,7 +189,13 @@ function LanguagesTab({ isAdmin, onChanged }) {
   };
 
   const handleDelete = async (code) => {
-    if (!window.confirm(t('"{code}" dili ve tüm çevirileri silinsin mi?', { code }))) return;
+    if (!(await openConfirm({
+      title: t('delete'),
+      message: t('"{code}" dili ve tüm çevirileri silinsin mi?', { code }),
+      confirmLabel: t('delete'),
+      cancelLabel: t('close'),
+      tone: 'error'
+    }))) return;
     setStatus('');
     try {
       await adminClient.del(`/api/admin/languages/${code}`);
@@ -357,7 +364,13 @@ function StringsTab({ isAdmin, languages }) {
   };
 
   const handleDelete = async (lang, key) => {
-    if (!window.confirm(t('"{lang}" dili için "{key}" dizesi silinsin mi?', { lang, key }))) return;
+    if (!(await openConfirm({
+      title: t('delete'),
+      message: t('"{lang}" dili için "{key}" dizesi silinsin mi?', { lang, key }),
+      confirmLabel: t('delete'),
+      cancelLabel: t('close'),
+      tone: 'error'
+    }))) return;
     setStatus('');
     try {
       await adminClient.del(`/api/admin/language-strings/${lang}/${encodeURIComponent(key)}`);

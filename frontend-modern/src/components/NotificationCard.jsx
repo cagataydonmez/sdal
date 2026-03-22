@@ -1,6 +1,7 @@
 import React from 'react';
 import { formatDateTime } from '../utils/date.js';
 import { buildNotificationViewModel, getNotificationCategoryLabel } from '../utils/notificationRegistry.js';
+import { avatarAlt } from '../utils/a11y.js';
 
 function avatarUrl(photo) {
   return photo ? `/api/media/vesikalik/${photo}` : '/legacy/vesikalik/nophoto.jpg';
@@ -21,7 +22,7 @@ export default function NotificationCard({
   return (
     <article className={`notification-card${view.read_at ? '' : ' unread'}${compact ? ' compact' : ''}${view.isActionable ? ' actionable' : ''}`}>
       <a className="notification-card-avatar" href={view.href || '/new'} onClick={() => onOpen?.(view)}>
-        <img className="avatar" src={avatarUrl(view.resim)} loading="lazy" decoding="async" alt="" />
+        <img className="avatar" src={avatarUrl(view.resim)} loading="lazy" decoding="async" alt={avatarAlt(view)} />
       </a>
       <div className="notification-card-body">
         <div className="notification-card-head">

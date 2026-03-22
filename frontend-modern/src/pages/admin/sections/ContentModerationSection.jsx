@@ -6,6 +6,7 @@ import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 import AdminFilterBar from '../../../admin/components/AdminFilterBar.jsx';
 import AdminBulkActionsBar from '../../../admin/components/AdminBulkActionsBar.jsx';
 import { useI18n } from '../../../utils/i18n.jsx';
+import { avatarAlt, contentImageAlt, storyImageAlt } from '../../../utils/a11y.js';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
@@ -74,7 +75,7 @@ function PostPreview({ item, t }) {
   return (
     <article className="post-card">
       <div className="post-header">
-        <img className="avatar" src={avatarUrl(item.resim)} alt="" />
+        <img className="avatar" src={avatarUrl(item.resim)} alt={avatarAlt(item)} />
         <div>
           <div className="name">
             {item.isim} {item.soyisim}
@@ -92,7 +93,7 @@ function PostPreview({ item, t }) {
         ) : (
           <div className="muted">{t('(boş)')}</div>
         )}
-        {item.image && <img className="post-image" src={imageUrl(item.image)} alt="" loading="lazy" />}
+        {item.image && <img className="post-image" src={imageUrl(item.image)} alt={contentImageAlt('Gönderi görseli', stripHtml(item.content || ''))} loading="lazy" />}
       </div>
     </article>
   );
@@ -103,7 +104,7 @@ function StoryPreview({ item, t }) {
     <div className="content-preview-story">
       <div className="content-preview-story-frame">
         <div className="content-preview-story-head">
-          <img className="avatar" src={avatarUrl(item.resim)} alt="" style={{ width: 36, height: 36 }} />
+          <img className="avatar" src={avatarUrl(item.resim)} alt={avatarAlt(item)} style={{ width: 36, height: 36 }} />
           <div>
             <div className="name" style={{ color: '#fff' }}>
               {item.isim} {item.soyisim}
@@ -111,7 +112,7 @@ function StoryPreview({ item, t }) {
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>@{item.kadi}</div>
           </div>
         </div>
-        {item.image && <img className="content-preview-story-img" src={imageUrl(item.image)} alt="" />}
+        {item.image && <img className="content-preview-story-img" src={imageUrl(item.image)} alt={storyImageAlt(item)} />}
         {item.caption && (
           <div className="content-preview-story-caption">{item.caption}</div>
         )}
@@ -128,7 +129,7 @@ function CommentPreview({ item, t }) {
   return (
     <div className="content-preview-comment">
       <div className="comment-line" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <img className="avatar" src={avatarUrl(item.resim)} alt="" style={{ width: 32, height: 32 }} />
+        <img className="avatar" src={avatarUrl(item.resim)} alt={avatarAlt(item)} style={{ width: 32, height: 32 }} />
         <div>
           <div className="name" style={{ fontWeight: 700 }}>@{item.kadi}</div>
           <div dangerouslySetInnerHTML={{ __html: item.body || '' }} />
@@ -186,7 +187,7 @@ function GroupPreview({ item, t }) {
   return (
     <div className="content-preview-group">
       {item.cover_image && (
-        <img src={imageUrl(item.cover_image)} alt="" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }} />
+        <img src={imageUrl(item.cover_image)} alt={contentImageAlt(item.name || t('Grup'), item.description || '')} style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }} />
       )}
       <h3>{item.name}</h3>
       {item.description && <p>{item.description}</p>}
@@ -233,7 +234,7 @@ function UserPreview({ item, t }) {
           <img
             className="profile-avatar-xl"
             src={avatarUrl(item.resim)}
-            alt=""
+            alt={avatarAlt(item)}
             style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 12px' }}
           />
           <div className="name" style={{ fontSize: 18 }}>
@@ -661,7 +662,7 @@ export default function ContentModerationSection({
           { key: 'id', label: 'ID' },
           { key: 'kadi', label: t('Yazar'), render: (r) => `@${r.kadi || '-'}` },
           { key: 'content', label: t('İçerik'), render: (r) => stripHtml(r.content).slice(0, 140) || t('(boş)') },
-          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
+          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt={contentImageAlt('Gönderi görseli', stripHtml(r.content || ''))} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
           { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
           { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
@@ -670,7 +671,7 @@ export default function ContentModerationSection({
           { key: 'id', label: 'ID' },
           { key: 'kadi', label: t('Yazar'), render: (r) => `@${r.kadi || '-'}` },
           { key: 'caption', label: t('Açıklama'), render: (r) => (r.caption || '').slice(0, 100) || t('(açıklama yok)') },
-          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
+          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt={storyImageAlt(r)} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
           { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
           { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
@@ -688,7 +689,7 @@ export default function ContentModerationSection({
           {
             key: 'avatar',
             label: '',
-            render: (r) => <img src={avatarUrl(r.resim)} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+            render: (r) => <img src={avatarUrl(r.resim)} alt={avatarAlt(r)} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
           },
           { key: 'kadi', label: t('Kullanıcı Adı'), render: (r) => `@${r.kadi || '-'}` },
           {
@@ -716,7 +717,7 @@ export default function ContentModerationSection({
             key: 'preview_thumb',
             label: t('Önizleme'),
             render: (r) => r.dosyaadi
-              ? <img src={photoPreviewUrl(r.dosyaadi, 120)} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+              ? <img src={photoPreviewUrl(r.dosyaadi, 120)} alt={contentImageAlt(r.baslik || t('Fotoğraf'), r.categoryName || '')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
               : <span className="muted">-</span>
           },
           { key: 'id', label: 'ID' },

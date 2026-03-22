@@ -519,7 +519,7 @@
   padding-inline: 0;
 }
 .explore-search-input:focus {
-  outline: none;
+  outline: 0;
 }
 .explore-filter-row {
   display: grid;

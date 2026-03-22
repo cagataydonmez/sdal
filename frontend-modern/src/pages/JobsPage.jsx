@@ -5,6 +5,7 @@ import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import { formatDateTime } from '../utils/date.js';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
+import { openConfirm } from '../utils/dialogs.js';
 
 const EMPTY_FORM = { company: '', title: '', description: '', location: '', job_type: '', link: '' };
 
@@ -174,7 +175,7 @@ export default function JobsPage() {
   }
 
   async function deleteJob(id) {
-    if (!window.confirm(t('jobs_delete_confirm'))) return;
+    if (!(await openConfirm({ title: t('delete'), message: t('jobs_delete_confirm'), confirmLabel: t('delete'), cancelLabel: t('close'), tone: 'error' }))) return;
     try {
       const res = await fetch(`/api/new/jobs/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error(await res.text());

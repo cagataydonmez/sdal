@@ -4,6 +4,7 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { NETWORKING_EVENTS } from '../utils/networkingRegistry.js';
+import { avatarAlt } from '../utils/a11y.js';
 
 const PAGE_SIZE = 24;
 
@@ -90,7 +91,7 @@ export default function ExploreSuggestionsPage() {
         {items.map((m) => (
           <div className="member-card" key={m.id}>
             <Link to={`/new/members/${m.id}`}>
-              <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+              <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(m)} />
             </Link>
             <div>
               <div className="name">

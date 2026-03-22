@@ -12,6 +12,7 @@ import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { FEED_FILTER_CONTRACT, FEED_SCOPE_CONTRACT, FEED_TAB_CONTRACT } from '../contracts/feedUiContract.js';
 import { getCached, setCache } from '../utils/swrCache.js';
+import { avatarAlt } from '../utils/a11y.js';
 
 function FeedIcon({ name }) {
   const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -503,7 +504,7 @@ export default function FeedPage() {
                           src={member.resim ? `/api/media/vesikalik/${member.resim}` : '/legacy/vesikalik/nophoto.jpg'}
                           loading="lazy"
                           decoding="async"
-                          alt=""
+                          alt={avatarAlt(member)}
                         />
                       ))}
                     </div>
@@ -638,7 +639,7 @@ export default function FeedPage() {
               ) : null}
               {!onlineMembersLoading && !onlineMembersError && onlineMembers.map((u) => (
                 <Link key={u.id} className="verify-user feed-member-row" to={`/new/members/${u.id}`}>
-                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
+                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt={avatarAlt(u)} />
                   <div>
                     <div>@{u.kadi}</div>
                     <div className="meta"><span className="feed-member-status-dot" aria-hidden="true" />{t('status_online')}</div>
@@ -687,7 +688,7 @@ export default function FeedPage() {
               ) : null}
               {!quickAccessLoading && !quickAccessError && quickUsers.map((u) => (
                 <Link key={u.id} className="verify-user feed-member-row" to={`/new/members/${u.id}`}>
-                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
+                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt={avatarAlt(u)} />
                   <div>
                     <div>@{u.kadi}</div>
                     <div className="meta">

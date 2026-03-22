@@ -7,6 +7,8 @@ import TranslatableHtml from './TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { avatarAlt, postImageAlt } from '../utils/a11y.js';
+import { openAlert, openConfirm } from '../utils/dialogs.js';
 
 function PostActionIcon({ type, active = false }) {
   const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: active ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -150,14 +152,14 @@ export default function PostCard({ post, onRefresh, focused = false }) {
       emitAppChange('post:updated', { postId: post.id });
       onRefresh?.();
     } catch (err) {
-      window.alert(err?.message || t('post_update_failed'));
+      await openAlert({ title: t('post_update_failed'), message: err?.message || t('post_update_failed'), tone: 'error' });
     } finally {
       setPostBusy(false);
     }
   }
 
   async function deletePost() {
-    if (!window.confirm(t('post_confirm_delete'))) return;
+    if (!(await openConfirm({ title: t('delete'), message: t('post_confirm_delete'), confirmLabel: t('delete'), cancelLabel: t('close'), tone: 'error' }))) return;
     setPostBusy(true);
     try {
       let res = await fetch(`/api/new/posts/${post.id}`, {
@@ -174,7 +176,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
       emitAppChange('post:deleted', { postId: post.id });
       onRefresh?.();
     } catch (err) {
-      window.alert(err?.message || t('post_delete_failed'));
+      await openAlert({ title: t('post_delete_failed'), message: err?.message || t('post_delete_failed'), tone: 'error' });
     } finally {
       setPostBusy(false);
     }
@@ -185,10 +187,10 @@ export default function PostCard({ post, onRefresh, focused = false }) {
       <div className="post-header">
         {authorId ? (
           <Link to={`/new/members/${authorId}`} aria-label={`${post.author?.kadi || 'uye'} profiline git`}>
-            <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(post.author)} />
           </Link>
         ) : (
-          <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+          <img className="avatar" src={post.author?.resim ? `/api/media/vesikalik/${post.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(post.author)} />
         )}
         <div>
           <div className="name">
@@ -229,9 +231,9 @@ export default function PostCard({ post, onRefresh, focused = false }) {
               src={post.variants.feedUrl}
               srcSet={`${post.variants.thumbUrl} 200w, ${post.variants.feedUrl} 800w, ${post.variants.fullUrl} 1600w`}
               sizes="(max-width: 600px) 200px, (max-width: 1200px) 800px, 1600px"
-              loading="lazy" alt="" />
+              loading="lazy" alt={postImageAlt(post)} />
           ) : (
-            <img className="post-image" src={post.image} loading="lazy" alt="" />
+            <img className="post-image" src={post.image} loading="lazy" alt={postImageAlt(post)} />
           )
         ) : null}
       </div>
@@ -277,7 +279,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
           {comments.map((c) => (
             <div key={c.id} className="comment-line">
               <Link to={`/new/members/${c.user_id}`} aria-label={`${c.kadi || 'uye'} profiline git`}>
-                <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(c)} />
               </Link>
               <div>
                 <Link className="name" to={`/new/members/${c.user_id}`}>@{c.kadi}</Link>

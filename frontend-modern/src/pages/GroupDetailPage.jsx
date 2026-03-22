@@ -10,6 +10,8 @@ import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
+import { avatarAlt, contentImageAlt } from '../utils/a11y.js';
+import { openAlert } from '../utils/dialogs.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -287,15 +289,15 @@ export default function GroupDetailPage() {
     }
   }
 
-  function showManagersHint() {
+  async function showManagersHint() {
     if (!managers.length) {
-      window.alert(t('group_manager_info_missing'));
+      await openAlert({ title: t('group_managers_label'), message: t('group_manager_info_missing') });
       return;
     }
     const message = managers
       .map((m) => `${m.role === 'owner' ? t('role_owner') : t('role_moderator')}: ${[m.isim, m.soyisim].filter(Boolean).join(' ')} (@${m.kadi || t('member_fallback')})`)
       .join('\n');
-    window.alert(`${t('group_managers_label')}:\n${message}\n\n${t('group_managers_hint')}`);
+    await openAlert({ title: t('group_managers_label'), message: `${message}\n\n${t('group_managers_hint')}` });
   }
 
   async function searchInviteCandidates(term) {
@@ -359,7 +361,7 @@ export default function GroupDetailPage() {
             }}
           >
             <div className="group-hero">
-              {group?.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">{t('group_cover_image')}</div>}
+              {group?.cover_image ? <img src={group.cover_image} alt={contentImageAlt(group?.name || t('group_title'), group?.description || '')} /> : <div className="group-cover-empty">{t('group_cover_image')}</div>}
               <div>
                 <h3>{group?.name || t('group_title')}</h3>
                 <div className="panel-body">{group?.description || ''}</div>
@@ -401,7 +403,7 @@ export default function GroupDetailPage() {
     <Layout title={group.name}>
       <div className="panel">
         <div className="group-hero">
-          {group.cover_image ? <img src={group.cover_image} alt="" /> : <div className="group-cover-empty">{t('group_cover_image')}</div>}
+          {group.cover_image ? <img src={group.cover_image} alt={contentImageAlt(group.name || t('group_title'), group.description || '')} /> : <div className="group-cover-empty">{t('group_cover_image')}</div>}
           <div>
             <h3>{group.name}</h3>
             <TranslatableHtml html={group.description || ''} className="panel-body" />
@@ -548,7 +550,7 @@ export default function GroupDetailPage() {
               {members.map((m) => (
                 <div key={m.id} className="notif">
                   <Link to={`/new/members/${m.id}`} aria-label={t('go_profile_aria', { username: m.kadi || t('member_fallback') })}>
-                    <img className="avatar" src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                    <img className="avatar" src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(m)} />
                   </Link>
                   <div>
                     <b>{m.isim} {m.soyisim}</b>{m.verified ? <span className="badge">✓</span> : null}
@@ -581,7 +583,7 @@ export default function GroupDetailPage() {
                 {joinRequests.map((r) => (
                   <div key={r.id} className={`notif${focusedRequestId === Number(r.id || 0) ? ' notification-focus-inline-panel' : ''}`}>
                     <Link to={`/new/members/${r.user_id}`} aria-label={t('go_profile_aria', { username: r.kadi || t('member_fallback') })}>
-                      <img className="avatar" src={r.resim ? `/api/media/vesikalik/${r.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                      <img className="avatar" src={r.resim ? `/api/media/vesikalik/${r.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(r)} />
                     </Link>
                     <div>
                       <b>{r.isim} {r.soyisim}</b>{r.verified ? <span className="badge">✓</span> : null}
@@ -636,7 +638,7 @@ export default function GroupDetailPage() {
                 {pendingInvites.map((inv) => (
                   <div key={inv.id} className="notif">
                     <Link to={`/new/members/${inv.invited_user_id}`} aria-label={t('go_profile_aria', { username: inv.kadi || t('member_fallback') })}>
-                      <img className="avatar" src={inv.resim ? `/api/media/vesikalik/${inv.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                      <img className="avatar" src={inv.resim ? `/api/media/vesikalik/${inv.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(inv)} />
                     </Link>
                     <div>
                       <b>{inv.isim} {inv.soyisim}</b>{inv.verified ? <span className="badge">✓</span> : null}

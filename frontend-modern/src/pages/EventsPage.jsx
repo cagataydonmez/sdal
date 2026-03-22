@@ -9,6 +9,7 @@ import NativeImageButtons from '../components/NativeImageButtons.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
+import { avatarAlt, contentImageAlt } from '../utils/a11y.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -278,7 +279,7 @@ export default function EventsPage() {
                 </div>
               ) : null}
               <div className="meta">{e.location} · {formatDateTime(e.starts_at)}{e.ends_at ? ` - ${formatDateTime(e.ends_at)}` : ''}</div>
-              {e.image ? <img className="post-image" src={e.image} alt="" /> : null}
+              {e.image ? <img className="post-image" src={e.image} alt={contentImageAlt(e.title || t('nav_events'), e.description || '')} /> : null}
               <TranslatableHtml html={e.description || ''} />
               <div className="meta">{t('added_by')}: @{e.creator_kadi || t('member_fallback')} {Number(e.approved || 0) === 1 ? '' : `· ${t('pending_approval')}`}</div>
               <div className="composer-actions">
@@ -381,10 +382,10 @@ export default function EventsPage() {
                   <div key={c.id} className="comment-line">
                     {(Number(c.user_id || c.uye_id || 0) || null) ? (
                       <Link to={`/new/members/${Number(c.user_id || c.uye_id || 0)}`} aria-label={t('go_profile_aria', { username: c.kadi || t('member_fallback') })}>
-                        <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                        <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(c)} />
                       </Link>
                     ) : (
-                      <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+                      <img className="avatar" src={c.resim ? `/api/media/vesikalik/${c.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(c)} />
                     )}
                     <div>
                       <div className="name">@{c.kadi} {c.verified ? <span className="badge">✓</span> : null}</div>

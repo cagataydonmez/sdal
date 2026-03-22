@@ -4,6 +4,8 @@ import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import NativeImageButtons from './NativeImageButtons.jsx';
+import { avatarAlt, storyImageAlt } from '../utils/a11y.js';
+import { openAlert, openConfirm, openPrompt } from '../utils/dialogs.js';
 
 function firstUnviewedIndex(items = []) {
   const idx = items.findIndex((s) => !s.viewed);
@@ -26,6 +28,8 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   const [imageReady, setImageReady] = useState(false);
   const loadedImagesRef = useRef(new Set());
   const touchStartRef = useRef({ x: 0, y: 0 });
+  const storyFrameRef = useRef(null);
+  const storyTriggerRef = useRef(null);
   const durationMs = 5000;
 
   const storyRequest = useCallback(async (url, init = {}) => {
@@ -141,6 +145,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   }
 
   async function openGroup(group, groupIndex) {
+    storyTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const startIndex = firstUnviewedIndex(group?.items || []);
     setActiveGroupIndex(groupIndex);
     setActiveStoryIndex(startIndex);
@@ -212,6 +217,28 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   }, [active]);
 
   useEffect(() => {
+    if (!active) {
+      storyTriggerRef.current?.focus?.();
+      return undefined;
+    }
+    storyFrameRef.current?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setActiveGroupIndex(null);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goNext();
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goPrev();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [active, goNext, goPrev]);
+
+  useEffect(() => {
     if (!active) return;
     markViewed(active);
   }, [active]);
@@ -222,7 +249,13 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   async function upload(file) {
     if (!file) return;
-    const caption = window.prompt(t('story_prompt_upload_caption'), '') || '';
+    const caption = (await openPrompt({
+      title: t('story_add'),
+      message: t('story_prompt_upload_caption'),
+      defaultValue: '',
+      confirmLabel: t('save'),
+      cancelLabel: t('close')
+    })) ?? '';
     const form = new FormData();
     form.append('image', file);
     form.append('caption', caption);
@@ -239,7 +272,13 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   async function editActiveStory() {
     if (!active?.id || !isOwnActiveStory || busyAction) return;
-    const nextCaption = window.prompt(t('story_prompt_edit_caption'), active.caption || '');
+    const nextCaption = await openPrompt({
+      title: t('edit'),
+      message: t('story_prompt_edit_caption'),
+      defaultValue: active.caption || '',
+      confirmLabel: t('save'),
+      cancelLabel: t('close')
+    });
     if (nextCaption === null) return;
     setBusyAction('edit');
     try {
@@ -266,7 +305,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       await load();
       emitAppChange('story:created');
     } catch (err) {
-      window.alert(err?.message || t('story_update_failed'));
+      await openAlert({ title: t('story_update_failed'), message: err?.message || t('story_update_failed'), tone: 'error' });
     } finally {
       setBusyAction('');
     }
@@ -274,7 +313,13 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   async function deleteActiveStory() {
     if (!active?.id || !isOwnActiveStory || busyAction) return;
-    const ok = window.confirm(t('story_confirm_delete'));
+    const ok = await openConfirm({
+      title: t('delete'),
+      message: t('story_confirm_delete'),
+      confirmLabel: t('delete'),
+      cancelLabel: t('close'),
+      tone: 'error'
+    });
     if (!ok) return;
     setBusyAction('delete');
     try {
@@ -290,7 +335,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       await load();
       emitAppChange('story:created');
     } catch (err) {
-      window.alert(err?.message || t('story_delete_failed'));
+      await openAlert({ title: t('story_delete_failed'), message: err?.message || t('story_delete_failed'), tone: 'error' });
     } finally {
       setBusyAction('');
     }
@@ -323,10 +368,10 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
             <span>{t('story_add')}</span>
           </label>
         ) : null}
-        {showUpload ? <NativeImageButtons onPick={upload} onError={(message) => window.alert(message)} className="story-native-picker" /> : null}
+        {showUpload ? <NativeImageButtons onPick={upload} onError={(message) => openAlert({ title: t('story_add'), message, tone: 'error' })} className="story-native-picker" /> : null}
         {groups.map((g, idx) => (
           <button key={g.author?.id || idx} className={g.viewed ? 'story viewed' : 'story'} onClick={() => openGroup(g, idx)}>
-            <img src={g.author?.resim ? `/api/media/vesikalik/${g.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
+            <img src={g.author?.resim ? `/api/media/vesikalik/${g.author.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt={avatarAlt(g.author)} />
             <span>@{g.author?.kadi}</span>
           </button>
         ))}
@@ -335,7 +380,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
       {active ? createPortal(
         <div className="story-modal" onClick={() => setActiveGroupIndex(null)}>
-          <div className="story-frame" onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          <div ref={storyFrameRef} className="story-frame" role="dialog" aria-modal="true" aria-label={storyImageAlt(active)} tabIndex={-1} onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <div className="story-progress">
               {activeGroup.items.map((s, idx) => {
                 const width = idx < activeStoryIndex ? 100 : idx === activeStoryIndex ? Math.round(progress * 100) : 0;
@@ -356,14 +401,14 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
                     src={active.variants.fullUrl}
                     srcSet={`${active.variants.feedUrl} 800w, ${active.variants.fullUrl} 1080w`}
                     sizes="(max-width: 800px) 800px, 1080px"
-                    alt=""
+                    alt={storyImageAlt(active)}
                     onLoad={() => setImageReady(true)}
                     className={imageReady ? 'story-photo ready' : 'story-photo'}
                   />
                 ) : (
                   <img
                     src={active.image}
-                    alt=""
+                    alt={storyImageAlt(active)}
                     onLoad={() => setImageReady(true)}
                     className={imageReady ? 'story-photo ready' : 'story-photo'}
                   />

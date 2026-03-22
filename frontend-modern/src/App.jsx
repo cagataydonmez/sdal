@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Navigate, Outlet, Route, createRoutesFromElements, useLocation } from './router.jsx';
 import { AuthProvider, useAuth } from './utils/auth.jsx';
-import FeedPage from './pages/FeedPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RootLoginPage from './pages/RootLoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -15,6 +14,7 @@ import { resolveLandingPathFromSiteAccess } from './utils/moduleNavigation.js';
 import ModuleInactivePage from './pages/ModuleInactivePage.jsx';
 
 const ExplorePage = React.lazy(() => import('./pages/ExplorePage.jsx'));
+const FeedPage = React.lazy(() => import('./pages/FeedPage.jsx'));
 const ExploreSuggestionsPage = React.lazy(() => import('./pages/ExploreSuggestionsPage.jsx'));
 const GroupsPage = React.lazy(() => import('./pages/GroupsPage.jsx'));
 const GroupDetailPage = React.lazy(() => import('./pages/GroupDetailPage.jsx'));

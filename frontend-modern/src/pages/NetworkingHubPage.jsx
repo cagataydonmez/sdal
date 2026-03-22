@@ -5,6 +5,7 @@ import { useNetworkingHubState } from '../hooks/useNetworkingHubState.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
+import { avatarAlt } from '../utils/a11y.js';
 
 function daysSince(value) {
   if (!value) return null;
@@ -29,10 +30,11 @@ function avatarUrl(photo) {
 }
 
 function PersonLink({ href, photo, name, handle, meta }) {
+  const person = { isim: name, kadi: handle };
   return (
     <div className="network-person-block">
       <Link to={href} className="network-avatar-link">
-        <img src={avatarUrl(photo)} alt="" />
+        <img src={avatarUrl(photo)} alt={avatarAlt(person)} />
       </Link>
       <div className="network-person-copy">
         <div className="network-person-name">{name}</div>

@@ -11,6 +11,27 @@ html {
   --vt-duration-slow: 340ms;
   --vt-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --vt-ease-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --focus-ring: color-mix(in srgb, var(--accent) 76%, white 24%);
+  --focus-ring-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 18%, transparent 82%), 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent 80%);
+}
+
+:where(a, button, input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring-shadow);
+}
+
+.user-chip:focus-visible,
+.mobile-hamburger:focus-visible,
+.btn:focus-visible,
+.linkish:focus-visible,
+.chip:focus-within,
+.explore-search-shell:focus-within,
+.rich-editor:focus-within,
+.rich-editor-input:focus-visible,
+.user-dropdown a:focus-visible,
+.user-dropdown button:focus-visible {
+  box-shadow: var(--focus-ring-shadow);
 }
 
 ::view-transition-old(root),
@@ -176,6 +197,27 @@ html[data-route-kind='detail']::view-transition-new(page-content) {
 html[data-route-kind='play']::view-transition-new(page-content),
 html[data-route-kind='dashboard']::view-transition-new(page-content) {
   animation-duration: var(--vt-duration-slow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    --vt-duration-fast: 1ms;
+    --vt-duration-base: 1ms;
+    --vt-duration-slow: 1ms;
+    scroll-behavior: auto;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-group(page-title),
+  ::view-transition-group(page-content),
+  ::view-transition-old(page-title),
+  ::view-transition-new(page-title),
+  ::view-transition-old(page-content),
+  ::view-transition-new(page-content) {
+    animation-duration: 1ms !important;
+    animation-name: none !important;
+  }
 }
 
 @keyframes vt-root-soft-out {

@@ -76,6 +76,9 @@
   position: relative;
   touch-action: pan-y;
 }
+.story-frame:focus {
+  outline: none;
+}
 .story-progress {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
@@ -299,6 +302,9 @@
   max-height: min(78vh, 360px);
   overflow: auto;
   margin: 0 auto;
+}
+.app-dialog .input {
+  margin-bottom: 12px;
 }
 
 @media (max-width: 640px) {

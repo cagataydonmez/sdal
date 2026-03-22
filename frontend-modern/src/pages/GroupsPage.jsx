@@ -4,6 +4,7 @@ import Layout from '../components/Layout.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import { contentImageAlt } from '../utils/a11y.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -111,7 +112,7 @@ export default function GroupsPage() {
       <div className="card-grid">
         {groups.map((g) => (
           <div className="member-card" key={g.id}>
-            {g.cover_image ? <img src={g.cover_image} alt="" /> : <div className="group-cover-empty">{t('cover')}</div>}
+            {g.cover_image ? <img src={g.cover_image} alt={contentImageAlt(g.name || t('nav_groups'), g.description || '')} /> : <div className="group-cover-empty">{t('cover')}</div>}
             <div>
               <div className="name">{g.name}</div>
               <TranslatableHtml html={g.description || ''} className="meta" />

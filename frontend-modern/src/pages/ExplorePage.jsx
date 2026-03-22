@@ -10,6 +10,8 @@ import {
   NETWORKING_EVENTS,
   NETWORKING_MESSAGES
 } from '../utils/networkingRegistry.js';
+import { avatarAlt } from '../utils/a11y.js';
+import { openAlert } from '../utils/dialogs.js';
 
 function ExploreIcon({ name }) {
   const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -263,7 +265,7 @@ export default function ExplorePage({ fullMode = false }) {
         if (res.status === 409 && message.toLowerCase().includes('zaten bekleyen bir bağlantı isteği')) {
           await loadConnectionRequests();
         }
-        window.alert(message);
+        await openAlert({ title: t('connection_request'), message, tone: 'error' });
         return;
       }
       emitAppChange(getConnectionActionEvent({ incomingRequestId, outgoingRequestId }), { userId: id });
@@ -316,7 +318,7 @@ export default function ExplorePage({ fullMode = false }) {
       >
         <div className="explore-member-media">
           <Link to={`/new/members/${m.id}`}>
-            <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+            <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(m)} />
           </Link>
           <span className={`explore-member-presence ${Number(m.online || 0) === 1 ? 'is-online' : 'is-offline'}`} aria-hidden="true" />
         </div>

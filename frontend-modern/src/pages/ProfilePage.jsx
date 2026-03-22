@@ -3,6 +3,8 @@ import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
+import { storyImageAlt } from '../utils/a11y.js';
+import { openConfirm, openPrompt } from '../utils/dialogs.js';
 
 async function apiJson(url, options = {}) {
   const res = await fetch(url, {
@@ -113,7 +115,13 @@ export default function ProfilePage() {
   }
 
   async function editStory(story) {
-    const caption = window.prompt(t('story_prompt_edit_caption'), story.caption || '');
+    const caption = await openPrompt({
+      title: t('edit'),
+      message: t('story_prompt_edit_caption'),
+      defaultValue: story.caption || '',
+      confirmLabel: t('save'),
+      cancelLabel: t('close')
+    });
     if (caption === null) return;
     setStoryBusy(`edit:${story.id}`);
     try {
@@ -144,7 +152,7 @@ export default function ProfilePage() {
   }
 
   async function deleteStory(story) {
-    if (!window.confirm(t('story_confirm_delete'))) return;
+    if (!(await openConfirm({ title: t('delete'), message: t('story_confirm_delete'), confirmLabel: t('delete'), cancelLabel: t('close'), tone: 'error' }))) return;
     setStoryBusy(`delete:${story.id}`);
     try {
       try {
@@ -276,7 +284,7 @@ export default function ProfilePage() {
           <div className="story-profile-grid">
             {activeStories.map((s) => (
               <article key={s.id} className="story-mini-card">
-                <img src={s.image} alt="" />
+                <img src={s.image} alt={storyImageAlt(s)} />
                 <div className="meta">{new Date(s.createdAt).toLocaleString()}</div>
                 <div className="story-mini-caption">{s.caption || t('no_description')}</div>
                 <div className="story-mini-actions">
@@ -296,7 +304,7 @@ export default function ProfilePage() {
           <div className="story-profile-grid">
             {expiredStories.map((s) => (
               <article key={s.id} className="story-mini-card expired">
-                <img src={s.image} alt="" />
+                <img src={s.image} alt={storyImageAlt(s)} />
                 <div className="meta">{new Date(s.createdAt).toLocaleString()}</div>
                 <div className="story-mini-caption">{s.caption || t('no_description')}</div>
                 <div className="story-mini-actions">

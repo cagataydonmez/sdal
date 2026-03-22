@@ -5,6 +5,7 @@ import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { NETWORKING_EVENTS } from '../utils/networkingRegistry.js';
+import { avatarAlt } from '../utils/a11y.js';
 
 export default function FollowingPage() {
   const { t } = useI18n();
@@ -68,7 +69,7 @@ export default function FollowingPage() {
         {items.map((m) => (
           <div key={m.following_id} className="list-item">
             <Link to={`/new/members/${m.following_id}`} className="verify-user">
-              <img className="avatar" src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+              <img className="avatar" src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(m)} />
               <div>
                 <div className="name">{m.isim} {m.soyisim}</div>
                 <div className="meta">@{m.kadi}</div>

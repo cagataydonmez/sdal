@@ -6,6 +6,7 @@ import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { contentImageAlt } from '../utils/a11y.js';
 
 export default function AlbumPhotoPage() {
   const { t } = useI18n();
@@ -57,7 +58,7 @@ export default function AlbumPhotoPage() {
   return (
     <Layout title={photo.baslik || t('photo_title')}>
       <div className="panel">
-        <img className="photo-view-image" src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(photo.dosyaadi)}`} alt="" />
+        <img className="photo-view-image" src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(photo.dosyaadi)}`} alt={contentImageAlt(photo.baslik || t('photo_title'), photo.aciklama || '')} />
           <div className="panel-body">
           <div className="meta">{formatDateTime(photo.tarih)}</div>
           <TranslatableHtml html={photo.aciklama || ''} />
