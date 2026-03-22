@@ -85,31 +85,77 @@ export default function ExploreSuggestionsPage() {
     }
   }
 
+  const featuredMember = items[0] || null;
+  const directoryMembers = featuredMember ? items.slice(1) : items;
+
   return (
     <Layout title={t('explore_suggestions_title')}>
-      <div className="card-grid">
-        {items.map((m) => (
-          <div className="member-card" key={m.id}>
-            <Link to={`/new/members/${m.id}`}>
-              <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(m)} />
+      <section className="suggestions-directory">
+        {featuredMember ? (
+          <article className="suggestions-directory-feature">
+            <Link className="suggestions-directory-feature-avatar" to={`/new/members/${featuredMember.id}`}>
+              <img
+                src={featuredMember.resim ? `/api/media/vesikalik/${featuredMember.resim}` : '/legacy/vesikalik/nophoto.jpg'}
+                alt={avatarAlt(featuredMember)}
+              />
             </Link>
-            <div>
-              <div className="name">
-                {m.isim} {m.soyisim}
-                {m.verified ? <span className="badge">✓</span> : null}
+            <div className="suggestions-directory-feature-body">
+              <div className="suggestions-directory-kicker">{t('explore_suggestions_title')}</div>
+              <Link className="suggestions-directory-name" to={`/new/members/${featuredMember.id}`}>
+                {featuredMember.isim} {featuredMember.soyisim}
+                {featuredMember.verified ? <span className="badge">✓</span> : null}
+              </Link>
+              <div className="handle">@{featuredMember.kadi}</div>
+              <div className="meta">
+                {featuredMember.mezuniyetyili || ''}
+                {Number(featuredMember.online || 0) === 1 ? ` · ${t('status_online')}` : ''}
               </div>
-              <div className="handle">@{m.kadi}</div>
-              <div className="meta">{m.mezuniyetyili || ''}{Number(m.online || 0) === 1 ? ` · ${t('status_online')}` : ''}</div>
             </div>
-            <button className="btn ghost" onClick={() => toggleFollow(m.id)} disabled={Boolean(pendingFollow[Number(m.id)])}>
-              {followingIds.has(Number(m.id)) ? t('unfollow') : t('follow')}
-            </button>
-          </div>
-        ))}
-      </div>
-      <div ref={sentinelRef} />
-      {loading ? <div className="muted">{t('loading')}</div> : null}
-      {!hasMore && items.length > 0 ? <div className="muted">{t('explore_suggestions_all_loaded')}</div> : null}
+            <div className="suggestions-directory-feature-actions">
+              <button
+                className="btn ghost"
+                onClick={() => toggleFollow(featuredMember.id)}
+                disabled={Boolean(pendingFollow[Number(featuredMember.id)])}
+              >
+                {followingIds.has(Number(featuredMember.id)) ? t('unfollow') : t('follow')}
+              </button>
+            </div>
+          </article>
+        ) : null}
+
+        <div className="suggestions-directory-list" role="list">
+          {directoryMembers.map((m, index) => (
+            <article className="suggestions-directory-row" key={m.id} role="listitem">
+              <div className="suggestions-directory-rank" aria-hidden="true">
+                {String(index + (featuredMember ? 2 : 1)).padStart(2, '0')}
+              </div>
+              <Link className="suggestions-directory-row-main" to={`/new/members/${m.id}`}>
+                <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(m)} />
+                <div className="suggestions-directory-row-copy">
+                  <div className="name">
+                    {m.isim} {m.soyisim}
+                    {m.verified ? <span className="badge">✓</span> : null}
+                  </div>
+                  <div className="handle">@{m.kadi}</div>
+                  <div className="meta">
+                    {m.mezuniyetyili || ''}
+                    {Number(m.online || 0) === 1 ? ` · ${t('status_online')}` : ''}
+                  </div>
+                </div>
+              </Link>
+              <button className="btn ghost" onClick={() => toggleFollow(m.id)} disabled={Boolean(pendingFollow[Number(m.id)])}>
+                {followingIds.has(Number(m.id)) ? t('unfollow') : t('follow')}
+              </button>
+            </article>
+          ))}
+        </div>
+
+        <div ref={sentinelRef} />
+        {loading ? <div className="muted suggestions-directory-state">{t('loading')}</div> : null}
+        {!hasMore && items.length > 0 ? (
+          <div className="muted suggestions-directory-state">{t('explore_suggestions_all_loaded')}</div>
+        ) : null}
+      </section>
     </Layout>
   );
 }

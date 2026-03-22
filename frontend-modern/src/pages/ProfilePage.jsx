@@ -99,6 +99,28 @@ export default function ProfilePage() {
 
   const activeStories = stories.filter((s) => !s.isExpired);
   const expiredStories = stories.filter((s) => s.isExpired);
+  const completionChecks = [
+    {
+      key: 'identity',
+      label: t('profile_editor_check_identity'),
+      done: Boolean(profile.isim && profile.soyisim && profile.mezuniyetyili && profile.sehir)
+    },
+    {
+      key: 'professional',
+      label: t('profile_editor_check_professional'),
+      done: Boolean(profile.meslek || profile.sirket || profile.unvan || profile.uzmanlik)
+    },
+    {
+      key: 'community',
+      label: t('profile_editor_check_community'),
+      done: Boolean(profile.mentor_opt_in || profile.linkedin_url || profile.imza)
+    }
+  ];
+  const completionPercent = Math.round((completionChecks.filter((item) => item.done).length / completionChecks.length) * 100);
+  const displayName = [profile.isim, profile.soyisim].filter(Boolean).join(' ').trim() || t('profile_editor_name_empty');
+  const summaryLine = [profile.meslek, profile.sirket || profile.unvan].filter(Boolean).join(' · ') || t('profile_editor_work_empty');
+  const summaryLocation = profile.sehir || t('profile_editor_city_empty');
+  const needsProfileCompletion = String(user?.state || '').toLowerCase() === 'incomplete';
 
   async function refreshStories() {
     try {
@@ -186,96 +208,191 @@ export default function ProfilePage() {
 
   return (
     <Layout title={t('nav_profile')}>
-      <div className="panel">
-        <div className="panel-body">
-          {String(user?.state || '').toLowerCase() === 'incomplete' ? <div className="muted">{t('profile_completion_required')}</div> : null}
-          <div className="form-row">
-            <label>{t('profile_first_name')}</label>
-            <input className="input" value={profile.isim || ''} onChange={(e) => setProfile({ ...profile, isim: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_last_name')}</label>
-            <input className="input" value={profile.soyisim || ''} onChange={(e) => setProfile({ ...profile, soyisim: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('auth_email')}</label>
-            <input className="input" value={profile.email || ''} disabled />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_city')}</label>
-            <input className="input" value={profile.sehir || ''} onChange={(e) => setProfile({ ...profile, sehir: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_job')}</label>
-            <input className="input" value={profile.meslek || ''} onChange={(e) => setProfile({ ...profile, meslek: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_company')}</label>
-            <input className="input" value={profile.sirket || ''} onChange={(e) => setProfile({ ...profile, sirket: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_title')}</label>
-            <input className="input" value={profile.unvan || ''} onChange={(e) => setProfile({ ...profile, unvan: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_expertise')}</label>
-            <input className="input" value={profile.uzmanlik || ''} onChange={(e) => setProfile({ ...profile, uzmanlik: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_linkedin')}</label>
-            <input className="input" value={profile.linkedin_url || ''} onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/..." />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_university_department')}</label>
-            <input className="input" value={profile.universite_bolum || ''} onChange={(e) => setProfile({ ...profile, universite_bolum: e.target.value })} />
-          </div>
-          <div className="form-row">
-            <label>{t('profile_mentor_topics')}</label>
-            <textarea className="input" value={profile.mentor_konulari || ''} onChange={(e) => setProfile({ ...profile, mentor_konulari: e.target.value })} />
-          </div>
-          <label className="chip" style={{ marginBottom: 12 }}>
-            <input type="checkbox" checked={Boolean(profile.mentor_opt_in)} onChange={(e) => setProfile({ ...profile, mentor_opt_in: e.target.checked })} />
-            {t('profile_mentor_opt_in')}
-          </label>
-          <div className="form-row">
-            <label>{t('profile_graduation')}</label>
-            <select className="input" value={String(profile.mezuniyetyili || '0')} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })} disabled={Number(user?.verified || 0) === 1}>
-              <option value="0">Mezuniyet yılı / grup seçiniz</option>
-              <option value="teacher">Öğretmen (SDAL)</option>
-              {graduationYears.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
-          </div>
-          <div className="form-row">
-            <label>{t('profile_signature')}</label>
-            <textarea className="input" value={profile.imza || ''} onChange={(e) => setProfile({ ...profile, imza: e.target.value })} />
-          </div>
-          {String(user?.oauth_provider || '').trim() ? (
-            <>
-              <label className="chip" style={{ marginBottom: 12, display: 'block' }}>
-                <input type="checkbox" checked={Boolean(profile.kvkk_consent)} onChange={(e) => setProfile({ ...profile, kvkk_consent: e.target.checked })} />
-                <span>
-                  {t('profile_kvkk_consent_label')} (<a href="/kvkk" target="_blank" rel="noreferrer">metni görüntüle</a>).
-                </span>
+      <section className="profile-editor-shell">
+        <div className="panel profile-editor-main">
+          <div className="panel-body profile-editor-main-body">
+            <section className="profile-editor-hero">
+              <div className="profile-editor-hero-copy">
+                <h2 className="profile-editor-title">{t('profile_editor_title')}</h2>
+                <p className="profile-editor-subtitle">{t('profile_editor_subtitle')}</p>
+              </div>
+              <div className="profile-editor-progress">
+                <div className="profile-editor-progress-label">{t('profile_editor_progress_label')}</div>
+                <div className="profile-editor-progress-value">{completionPercent}%</div>
+                <div className="muted">
+                  {needsProfileCompletion ? t('profile_completion_required') : t('profile_editor_progress_ready')}
+                </div>
+              </div>
+            </section>
+
+            <div className="profile-editor-checklist" role="list">
+              {completionChecks.map((item) => (
+                <div className={`profile-editor-check ${item.done ? 'is-complete' : ''}`} key={item.key} role="listitem">
+                  <span className="profile-editor-check-mark" aria-hidden="true">{item.done ? '✓' : '•'}</span>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {needsProfileCompletion ? (
+              <div className="profile-editor-note">
+                <strong>{t('profile_completion_required')}</strong>
+              </div>
+            ) : null}
+
+            <section className="profile-editor-section">
+              <div className="profile-editor-section-head">
+                <div className="profile-editor-section-kicker">01</div>
+                <div>
+                  <h3>{t('profile_editor_identity_title')}</h3>
+                </div>
+              </div>
+              <div className="profile-editor-grid">
+                <div className="form-row">
+                  <label>{t('profile_first_name')}</label>
+                  <input className="input" value={profile.isim || ''} onChange={(e) => setProfile({ ...profile, isim: e.target.value })} />
+                </div>
+                <div className="form-row">
+                  <label>{t('profile_last_name')}</label>
+                  <input className="input" value={profile.soyisim || ''} onChange={(e) => setProfile({ ...profile, soyisim: e.target.value })} />
+                </div>
+                <div className="form-row">
+                  <label>{t('auth_email')}</label>
+                  <input className="input" value={profile.email || ''} disabled />
+                  <div className="muted">{t('profile_editor_email_note')}</div>
+                </div>
+                <div className="form-row">
+                  <label>{t('profile_city')}</label>
+                  <input className="input" value={profile.sehir || ''} onChange={(e) => setProfile({ ...profile, sehir: e.target.value })} />
+                </div>
+                <div className="form-row profile-editor-grid-wide">
+                  <label>{t('profile_graduation')}</label>
+                  <select className="input" value={String(profile.mezuniyetyili || '0')} onChange={(e) => setProfile({ ...profile, mezuniyetyili: e.target.value })} disabled={Number(user?.verified || 0) === 1}>
+                    <option value="0">Mezuniyet yılı / grup seçiniz</option>
+                    <option value="teacher">Öğretmen (SDAL)</option>
+                    {graduationYears.map((year) => <option key={year} value={year}>{year}</option>)}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-editor-section">
+              <div className="profile-editor-section-head">
+                <div className="profile-editor-section-kicker">02</div>
+                <div>
+                  <h3>{t('profile_editor_presence_title')}</h3>
+                </div>
+              </div>
+              <div className="profile-editor-grid">
+                <div className="form-row">
+                  <label>{t('profile_job')}</label>
+                  <input className="input" value={profile.meslek || ''} onChange={(e) => setProfile({ ...profile, meslek: e.target.value })} />
+                </div>
+                <div className="form-row">
+                  <label>{t('profile_company')}</label>
+                  <input className="input" value={profile.sirket || ''} onChange={(e) => setProfile({ ...profile, sirket: e.target.value })} />
+                </div>
+                <div className="form-row">
+                  <label>{t('profile_title')}</label>
+                  <input className="input" value={profile.unvan || ''} onChange={(e) => setProfile({ ...profile, unvan: e.target.value })} />
+                </div>
+                <div className="form-row">
+                  <label>{t('profile_expertise')}</label>
+                  <input className="input" value={profile.uzmanlik || ''} onChange={(e) => setProfile({ ...profile, uzmanlik: e.target.value })} />
+                </div>
+                <div className="form-row">
+                  <label>{t('profile_linkedin')}</label>
+                  <input className="input" value={profile.linkedin_url || ''} onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/..." />
+                </div>
+                <div className="form-row">
+                  <label>{t('profile_university_department')}</label>
+                  <input className="input" value={profile.universite_bolum || ''} onChange={(e) => setProfile({ ...profile, universite_bolum: e.target.value })} />
+                </div>
+              </div>
+            </section>
+
+            <section className="profile-editor-section">
+              <div className="profile-editor-section-head">
+                <div className="profile-editor-section-kicker">03</div>
+                <div>
+                  <h3>{t('profile_editor_community_title')}</h3>
+                </div>
+              </div>
+              <div className="profile-editor-grid">
+                <div className="form-row profile-editor-grid-wide">
+                  <label>{t('profile_mentor_topics')}</label>
+                  <textarea className="input" value={profile.mentor_konulari || ''} onChange={(e) => setProfile({ ...profile, mentor_konulari: e.target.value })} />
+                </div>
+                <div className="form-row profile-editor-grid-wide">
+                  <label>{t('profile_signature')}</label>
+                  <textarea className="input" value={profile.imza || ''} onChange={(e) => setProfile({ ...profile, imza: e.target.value })} />
+                </div>
+              </div>
+              <label className="profile-editor-chip-toggle">
+                <input type="checkbox" checked={Boolean(profile.mentor_opt_in)} onChange={(e) => setProfile({ ...profile, mentor_opt_in: e.target.checked })} />
+                <span>{t('profile_mentor_opt_in')}</span>
               </label>
-              <label className="chip" style={{ marginBottom: 12, display: 'block' }}>
-                <input type="checkbox" checked={Boolean(profile.directory_consent)} onChange={(e) => setProfile({ ...profile, directory_consent: e.target.checked })} />
-                <span>
-                  {t('profile_directory_consent_label')} (<a href="/kvkk/acik-riza" target="_blank" rel="noreferrer">metni görüntüle</a>).
-                </span>
-              </label>
-            </>
-          ) : null}
-          <button className="btn primary" onClick={save}>{t('save')}</button>
-          <Link className="btn ghost" to="/new/profile/email-change">{t('profile_email_change_cta')}</Link>
-          {Number(user?.verified || 0) === 1 ? <Link className="btn ghost" to="/new/requests?category=graduation_year_change">{t('profile_graduation_change_request_cta')}</Link> : null}
-          <Link className="btn ghost" to="/new/profile/photo">{t('profile_photo_title')}</Link>
-          {profile?.id ? <Link className="btn ghost" to={`/new/members/${profile.id}`}>{t('profile_preview_members')}</Link> : null}
-          {String(profile?.mezuniyetyili || '').toLowerCase() === 'teacher' ? <Link className="btn ghost" to="/new/network/teachers">Öğretmen Ağı Yönetimi</Link> : null}
-          {Number(user?.verified || 0) !== 1 ? <Link className="btn ghost" to="/new/profile/verification">{t('profile_verification_page_cta')}</Link> : null}
-          {status ? <div className="ok">{status}</div> : null}
-          {error ? <div className="error">{error}</div> : null}
+            </section>
+
+            {String(user?.oauth_provider || '').trim() ? (
+              <section className="profile-editor-section">
+                <div className="profile-editor-section-head">
+                  <div className="profile-editor-section-kicker">04</div>
+                  <div>
+                    <h3>{t('profile_editor_consent_title')}</h3>
+                  </div>
+                </div>
+                <div className="profile-editor-consent-list">
+                  <label className="profile-editor-chip-toggle is-block">
+                    <input type="checkbox" checked={Boolean(profile.kvkk_consent)} onChange={(e) => setProfile({ ...profile, kvkk_consent: e.target.checked })} />
+                    <span>
+                      {t('profile_kvkk_consent_label')} (<a href="/kvkk" target="_blank" rel="noreferrer">metni görüntüle</a>).
+                    </span>
+                  </label>
+                  <label className="profile-editor-chip-toggle is-block">
+                    <input type="checkbox" checked={Boolean(profile.directory_consent)} onChange={(e) => setProfile({ ...profile, directory_consent: e.target.checked })} />
+                    <span>
+                      {t('profile_directory_consent_label')} (<a href="/kvkk/acik-riza" target="_blank" rel="noreferrer">metni görüntüle</a>).
+                    </span>
+                  </label>
+                </div>
+              </section>
+            ) : null}
+
+            <div className="profile-editor-actions">
+              <button className="btn primary" onClick={save}>{t('save')}</button>
+              <Link className="btn ghost" to="/new/profile/email-change">{t('profile_email_change_cta')}</Link>
+              {Number(user?.verified || 0) === 1 ? <Link className="btn ghost" to="/new/requests?category=graduation_year_change">{t('profile_graduation_change_request_cta')}</Link> : null}
+              <Link className="btn ghost" to="/new/profile/photo">{t('profile_photo_title')}</Link>
+              {profile?.id ? <Link className="btn ghost" to={`/new/members/${profile.id}`}>{t('profile_preview_members')}</Link> : null}
+              {String(profile?.mezuniyetyili || '').toLowerCase() === 'teacher' ? <Link className="btn ghost" to="/new/network/teachers">Öğretmen Ağı Yönetimi</Link> : null}
+              {Number(user?.verified || 0) !== 1 ? <Link className="btn ghost" to="/new/profile/verification">{t('profile_verification_page_cta')}</Link> : null}
+            </div>
+
+            {status ? <div className="ok">{status}</div> : null}
+            {error ? <div className="error">{error}</div> : null}
+          </div>
         </div>
-      </div>
+
+        <aside className="panel profile-editor-sidebar">
+          <div className="panel-body profile-editor-sidebar-body">
+            <div>
+              <h3 className="profile-editor-preview-name">{displayName}</h3>
+              <div className="profile-editor-preview-meta">{summaryLocation}</div>
+              <div className="profile-editor-preview-meta">{summaryLine}</div>
+            </div>
+            <div className={`profile-editor-visibility ${needsProfileCompletion ? '' : 'is-ready'}`}>
+              {needsProfileCompletion ? t('profile_editor_visibility_incomplete') : t('profile_editor_visibility_ready')}
+            </div>
+            <div className="profile-editor-sidebar-actions">
+              <div className="profile-editor-actions-title">{t('profile_editor_actions_title')}</div>
+              <Link className="btn ghost" to="/new/profile/photo">{t('profile_photo_title')}</Link>
+              {profile?.id ? <Link className="btn ghost" to={`/new/members/${profile.id}`}>{t('profile_preview_members')}</Link> : null}
+              {Number(user?.verified || 0) !== 1 ? <Link className="btn ghost" to="/new/profile/verification">{t('profile_verification_page_cta')}</Link> : null}
+            </div>
+          </div>
+        </aside>
+      </section>
 
       <div className="panel">
         <h3>{t('my_stories')}</h3>
@@ -297,7 +414,13 @@ export default function ProfilePage() {
                 </div>
               </article>
             ))}
-            {!activeStories.length ? <div className="muted">{t('active_stories_empty')}</div> : null}
+            {!activeStories.length ? (
+              <div className="profile-story-empty">
+                <strong>{t('active_stories_empty')}</strong>
+                <span>{t('profile_editor_story_active_hint')}</span>
+                <Link className="btn ghost" to="/new">{t('nav_feed')}</Link>
+              </div>
+            ) : null}
           </div>
 
           <div className="muted">{t('expired_stories')}</div>
@@ -320,7 +443,12 @@ export default function ProfilePage() {
                 </div>
               </article>
             ))}
-            {!expiredStories.length ? <div className="muted">{t('expired_stories_empty')}</div> : null}
+            {!expiredStories.length ? (
+              <div className="profile-story-empty">
+                <strong>{t('expired_stories_empty')}</strong>
+                <span>{t('profile_editor_story_expired_hint')}</span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

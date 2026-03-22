@@ -33,11 +33,6 @@ function ExploreIcon({ name }) {
   }
 }
 
-function hasMentorSignal(member) {
-  const badges = Array.isArray(member?.trust_badges) ? member.trust_badges : [];
-  return badges.includes('mentor') || badges.includes('teacher_network');
-}
-
 export default function ExplorePage({ fullMode = false }) {
   const { t, lang } = useI18n();
   const [members, setMembers] = useState([]);
@@ -313,7 +308,7 @@ export default function ExplorePage({ fullMode = false }) {
   function renderMemberCard(m, showReasons = false) {
     return (
       <div
-        className={`member-card explore-member-card ${showReasons ? 'is-suggested' : ''} ${Number(m.online || 0) === 1 ? 'is-online' : ''}`}
+        className={`explore-member-card ${showReasons ? 'is-suggested' : ''} ${Number(m.online || 0) === 1 ? 'is-online' : ''}`}
         key={`${showReasons ? 's' : 'm'}-${m.id}`}
       >
         <div className="explore-member-media">
@@ -400,21 +395,6 @@ export default function ExplorePage({ fullMode = false }) {
     }
     return items;
   }, [filters, query, t]);
-  const exploreStats = useMemo(() => {
-    const onlinePeople = new Set();
-    [...members, ...suggestions].forEach((member) => {
-      if (Number(member?.online || 0) === 1 && Number(member?.id || 0) > 0) onlinePeople.add(Number(member.id));
-    });
-    const mentorCount = [...members, ...suggestions].filter(hasMentorSignal).length;
-    return [
-      { key: 'suggestions', icon: 'spark', value: suggestions.length, label: t('explore_suggestions_title') },
-      { key: 'members', icon: 'people', value: members.length, label: t('members') },
-      { key: 'online', icon: 'online', value: onlinePeople.size, label: t('status_online') },
-      { key: 'filters', icon: 'filter', value: activeFilterTags.length, label: activeFilterTags.length ? t('selected') : t('sort_recommended') },
-      { key: 'mentors', icon: 'compass', value: mentorCount, label: t('mentors') }
-    ];
-  }, [activeFilterTags.length, members, suggestions, t]);
-
   return (
     <Layout title={t('nav_explore')}>
       <div className="explore-page-shell">
@@ -435,16 +415,6 @@ export default function ExplorePage({ fullMode = false }) {
                 ))}
               </div>
             </div>
-          </div>
-
-          <div className="explore-stat-grid">
-            {exploreStats.map((item) => (
-              <div key={item.key} className={`explore-stat-card explore-stat-card-${item.key}`}>
-                <span className="explore-stat-icon" aria-hidden="true"><ExploreIcon name={item.icon} /></span>
-                <strong className="explore-stat-value">{item.value}</strong>
-                <span className="explore-stat-label">{item.label}</span>
-              </div>
-            ))}
           </div>
         </section>
 
@@ -561,7 +531,7 @@ export default function ExplorePage({ fullMode = false }) {
           </div>
 
           {visibleMembers.length > 0 ? (
-            <div className="card-grid explore-card-grid">
+            <div className="explore-card-grid">
               {visibleMembers.map((m) => renderMemberCard(m, false))}
             </div>
           ) : null}

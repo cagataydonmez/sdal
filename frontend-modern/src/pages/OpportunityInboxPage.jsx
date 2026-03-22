@@ -69,15 +69,6 @@ export default function OpportunityInboxPage() {
 
   const activeTab = normalizeTab(searchParams.get('tab'), TAB_OPTIONS);
   const { state, actions } = useOpportunityInboxState(activeTab);
-  const counts = state.summary || {};
-
-  const heroStats = useMemo(() => ([
-    { label: t('opportunity_stat_total'), value: Number(counts.all || 0) },
-    { label: t('opportunity_stat_action_now'), value: Number(counts.now || 0) },
-    { label: t('opportunity_stat_networking'), value: Number(counts.networking || 0) },
-    { label: t('opportunity_stat_jobs'), value: Number(counts.jobs || 0) }
-  ]), [counts, t]);
-
   function selectTab(nextTab) {
     const next = normalizeTab(nextTab, TAB_OPTIONS);
     const params = new URLSearchParams(searchParams);
@@ -93,14 +84,6 @@ export default function OpportunityInboxPage() {
           <span className="network-eyebrow">{t('opportunity_hero_eyebrow')}</span>
           <h2>{t('opportunity_hero_title')}</h2>
           <p>{t('opportunity_hero_description')}</p>
-          <div className="network-inline-stats">
-            {heroStats.map((stat) => (
-              <div className="network-inline-stat" key={stat.label}>
-                <strong>{stat.value}</strong>
-                <span>{stat.label}</span>
-              </div>
-            ))}
-          </div>
         </div>
         <div className="network-hero-actions">
           <Link className="btn ghost" to="/new/network/hub">{t('opportunity_action_old_hub')}</Link>

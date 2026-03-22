@@ -123,9 +123,6 @@ export default function NetworkingHubPage() {
     pendingAction
   } = state;
   const actionableCount = incoming.length + incomingMentorship.length + teacherUnreadCount;
-  const acceptedConnections = Number(metrics.connections?.accepted || 0);
-  const mentorshipWins = Number(metrics.mentorship?.accepted || 0);
-  const teacherLinksCreated = Number(metrics.teacherLinks?.created || 0);
   const focusedSection = String(searchParams.get('section') || '').trim();
   const focusedRequestId = Number(searchParams.get('request') || 0);
   const focusedNotificationId = Number(searchParams.get('notification') || 0);
@@ -237,20 +234,6 @@ export default function NetworkingHubPage() {
           <span className="network-eyebrow">Networking command center</span>
           <h2>{t('network_hub_intro_title')}</h2>
           <p>{t('network_hub_intro_subtitle')}</p>
-          <div className="network-inline-stats">
-            <div className="network-inline-stat">
-              <strong>{actionableCount}</strong>
-              <span>{t('hub_stat_actionable')}</span>
-            </div>
-            <div className="network-inline-stat">
-              <strong>{acceptedConnections}</strong>
-              <span>{t('hub_stat_accepted_connections')}</span>
-            </div>
-            <div className="network-inline-stat">
-              <strong>{mentorshipWins + teacherLinksCreated}</strong>
-              <span>{t('hub_stat_mentorship_teacher')}</span>
-            </div>
-          </div>
         </div>
         <div className="network-hero-actions">
           <Link className="btn primary" to="/new/explore">{t('hub_action_discover')}</Link>

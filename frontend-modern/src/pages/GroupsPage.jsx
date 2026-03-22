@@ -92,44 +92,94 @@ export default function GroupsPage() {
     }
   }
 
+  const leadGroup = groups[0] || null;
+  const communityGroups = leadGroup ? groups.slice(1) : groups;
+
+  function groupActionLabel(group) {
+    if (group.joined) return t('leave');
+    if (group.invited) return t('group_invite_accept');
+    if (group.pending) return t('group_request_cancel');
+    return t('group_request_join');
+  }
+
   return (
     <Layout title={t('nav_groups')}>
-      <div className="panel">
-        <h3>{t('groups_new')}</h3>
-        <div className="panel-body">
-          <input className="input" placeholder={t('groups_name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <RichTextEditor
-            value={form.description}
-            onChange={(next) => setForm((prev) => ({ ...prev, description: next }))}
-            placeholder={t('description')}
-            minHeight={110}
-          />
-          <button className="btn primary" onClick={create}>{t('create')}</button>
-          {error ? <div className="error">{error}</div> : null}
-        </div>
-      </div>
-
-      <div className="card-grid">
-        {groups.map((g) => (
-          <div className="member-card" key={g.id}>
-            {g.cover_image ? <img src={g.cover_image} alt={contentImageAlt(g.name || t('nav_groups'), g.description || '')} /> : <div className="group-cover-empty">{t('cover')}</div>}
-            <div>
-              <div className="name">{g.name}</div>
-              <TranslatableHtml html={g.description || ''} className="meta" />
-              <div className="meta">{t('groups_member_count', { count: g.members })} {g.visibility === 'members_only' ? `· ${t('private')}` : ''}</div>
-              <Link className="btn ghost" to={`/new/groups/${g.id}`}>{t('open')}</Link>
-            </div>
-            <button className="btn" onClick={() => toggleJoin(g.id)}>
-              {g.joined ? t('leave') : (g.invited ? t('group_invite_accept') : (g.pending ? t('group_request_cancel') : t('group_request_join')))}
-            </button>
+      <section className="groups-page-shell">
+        <div className="panel groups-composer-panel">
+          <h3>{t('groups_new')}</h3>
+          <div className="panel-body">
+            <input className="input" placeholder={t('groups_name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <RichTextEditor
+              value={form.description}
+              onChange={(next) => setForm((prev) => ({ ...prev, description: next }))}
+              placeholder={t('description')}
+              minHeight={110}
+            />
+            <button className="btn primary" onClick={create}>{t('create')}</button>
+            {error ? <div className="error">{error}</div> : null}
           </div>
-        ))}
-      </div>
-      <div ref={sentinelRef} />
-      {loadingMore ? <div className="muted">{t('groups_loading_more')}</div> : null}
-      {!loadingMore && hasMore ? (
-        <button className="btn ghost" onClick={loadMore}>{t('show_more')}</button>
-      ) : null}
+        </div>
+
+        {leadGroup ? (
+          <article className="group-feature">
+            <div className="group-feature-media">
+              {leadGroup.cover_image ? (
+                <img src={leadGroup.cover_image} alt={contentImageAlt(leadGroup.name || t('nav_groups'), leadGroup.description || '')} />
+              ) : (
+                <div className="group-cover-empty">{t('cover')}</div>
+              )}
+            </div>
+            <div className="group-feature-body">
+              <div className="group-story-kicker">
+                {t('groups_member_count', { count: leadGroup.members })}
+                {leadGroup.visibility === 'members_only' ? ` · ${t('private')}` : ''}
+              </div>
+              <Link className="group-feature-title" to={`/new/groups/${leadGroup.id}`}>{leadGroup.name}</Link>
+              <TranslatableHtml html={leadGroup.description || ''} className="group-feature-copy" />
+            </div>
+            <div className="group-feature-actions">
+              <Link className="btn ghost" to={`/new/groups/${leadGroup.id}`}>{t('open')}</Link>
+              <button className="btn" onClick={() => toggleJoin(leadGroup.id)}>
+                {groupActionLabel(leadGroup)}
+              </button>
+            </div>
+          </article>
+        ) : null}
+
+        <div className="group-story-list" role="list">
+          {communityGroups.map((g) => (
+            <article className="group-story-card" key={g.id} role="listitem">
+              <Link className="group-story-cover" to={`/new/groups/${g.id}`}>
+                {g.cover_image ? (
+                  <img src={g.cover_image} alt={contentImageAlt(g.name || t('nav_groups'), g.description || '')} />
+                ) : (
+                  <div className="group-cover-empty">{t('cover')}</div>
+                )}
+              </Link>
+              <div className="group-story-main">
+                <Link className="group-story-title" to={`/new/groups/${g.id}`}>{g.name}</Link>
+                <TranslatableHtml html={g.description || ''} className="group-story-copy" />
+                <div className="group-story-meta">
+                  <span>{t('groups_member_count', { count: g.members })}</span>
+                  {g.visibility === 'members_only' ? <span>{t('private')}</span> : null}
+                </div>
+              </div>
+              <div className="group-story-actions">
+                <Link className="btn ghost" to={`/new/groups/${g.id}`}>{t('open')}</Link>
+                <button className="btn" onClick={() => toggleJoin(g.id)}>
+                  {groupActionLabel(g)}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div ref={sentinelRef} />
+        {loadingMore ? <div className="muted">{t('groups_loading_more')}</div> : null}
+        {!loadingMore && hasMore ? (
+          <button className="btn ghost group-story-more" onClick={loadMore}>{t('show_more')}</button>
+        ) : null}
+      </section>
     </Layout>
   );
 }

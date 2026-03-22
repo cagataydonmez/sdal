@@ -73,43 +73,74 @@ export default function LoginPage() {
 
   return (
     <Layout title={t('login_title')}>
-      <div className="panel">
-        <div className="panel-body">
-          <form onSubmit={handleSubmit(onSubmit)} className="stack">
-            <input
-              className="input"
-              placeholder={t('auth_username')}
-              {...register('kadi')}
-            />
-            {errors.kadi && <div className="error">{t(errors.kadi.message)}</div>}
-            <input
-              className="input"
-              type="password"
-              placeholder={t('auth_password')}
-              {...register('sifre')}
-            />
-            {errors.sifre && <div className="error">{t(errors.sifre.message)}</div>}
-            <button className="btn primary" type="submit" disabled={isSubmitting}>
-              {t('login_submit')}
-            </button>
-            {errors.root && <div className="error">{errors.root.message}</div>}
-          </form>
-          {oauthProviders.length ? (
-            <div className="stack">
-              <div className="muted">{t('login_social_divider')}</div>
-              {oauthProviders.map((p) => (
-                <a key={p.provider} className="btn ghost" href={p.startUrl}>
-                  {p.provider === 'google' ? t('login_social_google') : t('login_social_x')}
-                </a>
-              ))}
+      <section className="auth-entry-shell">
+        <section className="auth-entry-story">
+          <h2 className="auth-entry-title">{t('login_welcome_title')}</h2>
+          <p className="auth-entry-copy">{t('login_welcome_subtitle')}</p>
+          <div className="auth-entry-points" role="list">
+            {[t('login_welcome_step_feed'), t('login_welcome_step_people'), t('login_welcome_step_groups')].map((item, index) => (
+              <div className="auth-entry-point" key={item} role="listitem">
+                <span className="auth-entry-point-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="panel auth-entry-panel">
+          <div className="panel-body auth-entry-panel-body">
+            <div className="auth-form-head">
+              <h3>{t('login_title')}</h3>
             </div>
-          ) : null}
-          <div className="panel-body">
-            <Link className="btn ghost" to="/new/register">{t('register_submit')}</Link>
-            <Link className="btn ghost" to="/new/password-reset">{t('login_forgot_password')}</Link>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="auth-form-stack">
+              <label className="auth-field">
+                <span>{t('auth_username')}</span>
+                <input
+                  className="input"
+                  placeholder={t('auth_username')}
+                  {...register('kadi')}
+                />
+              </label>
+              {errors.kadi && <div className="error">{t(errors.kadi.message)}</div>}
+              <label className="auth-field">
+                <span>{t('auth_password')}</span>
+                <input
+                  className="input"
+                  type="password"
+                  placeholder={t('auth_password')}
+                  {...register('sifre')}
+                />
+              </label>
+              {errors.sifre && <div className="error">{t(errors.sifre.message)}</div>}
+              <button className="btn primary auth-submit" type="submit" disabled={isSubmitting}>
+                {t('login_submit')}
+              </button>
+              {errors.root && <div className="error">{errors.root.message}</div>}
+            </form>
+
+            {oauthProviders.length ? (
+              <div className="auth-alt-stack">
+                <div className="auth-alt-title">{t('login_oauth_title')}</div>
+                <div className="auth-provider-list">
+                  {oauthProviders.map((p) => (
+                    <a key={p.provider} className="btn ghost" href={p.startUrl}>
+                      {p.provider === 'google' ? t('login_social_google') : t('login_social_x')}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="auth-entry-footer">
+              <div className="auth-entry-links">
+                <Link className="btn ghost" to="/new/register">{t('register_submit')}</Link>
+                <Link className="btn ghost" to="/new/password-reset">{t('login_forgot_password')}</Link>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
     </Layout>
   );
 }

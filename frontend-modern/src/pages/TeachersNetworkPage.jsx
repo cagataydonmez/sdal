@@ -260,20 +260,6 @@ export default function TeachersNetworkPage() {
           <span className="network-eyebrow">Teacher network graph</span>
           <h2>{t('teacher_section_manage_title')}</h2>
           <p>{t('teacher_section_manage_description')}</p>
-          <div className="network-inline-stats">
-            <div className="network-inline-stat">
-              <strong>{teacherOptions.length}</strong>
-              <span>{t('teacher_stat_accessible')}</span>
-            </div>
-            <div className="network-inline-stat">
-              <strong>{items.length}</strong>
-              <span>{t('teacher_stat_active')}</span>
-            </div>
-            <div className="network-inline-stat">
-              <strong>{hasMore ? `${offset}+` : offset}</strong>
-              <span>{t('teacher_stat_loaded')}</span>
-            </div>
-          </div>
         </div>
         <div className="network-hero-actions">
           <Link className="btn primary" to="/new/network/hub">{t('teacher_action_back_hub')}</Link>

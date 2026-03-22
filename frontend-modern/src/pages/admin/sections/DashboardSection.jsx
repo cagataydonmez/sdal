@@ -240,6 +240,7 @@ export default function DashboardSection({ onNavigate }) {
       ]
     }
   ];
+  const moderationQueueTotal = moderationQueueCards.reduce((sum, item) => sum + Number(item.value || 0), 0);
 
   return (
     <section className="stack">
@@ -251,34 +252,16 @@ export default function DashboardSection({ onNavigate }) {
       {error ? <div className="panel"><div className="panel-body muted">{error}</div></div> : null}
 
       <div className="ops-dashboard-topline">
-        <section className="panel ops-dashboard-overview">
+        <section className="panel ops-dashboard-queue ops-dashboard-queue-primary">
           <div className="panel-body stack">
             <div className="ops-dashboard-section-head">
               <div>
-                <span className="ops-dashboard-eyebrow">{t('Genel Durum')}</span>
-                <h3>{t('Platform Nabzı')}</h3>
-              </div>
-              <div className="muted">{t('Toplam içerik ve topluluk büyüklüğü')}</div>
-            </div>
-            <div className="ops-kpi-grid ops-kpi-grid-featured">
-              {primaryOverviewCards.map((item) => (
-                <button key={item.key} className="ops-kpi-card ops-kpi-card-featured" onClick={() => onNavigate?.(item.target)}>
-                  <span>{item.label}</span>
-                  <b>{item.value}</b>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="panel ops-dashboard-queue">
-          <div className="panel-body stack">
-            <div className="ops-dashboard-section-head">
-              <div>
-                <span className="ops-dashboard-eyebrow">{t('Moderasyon')}</span>
                 <h3>{t('Bekleyen Akış')}</h3>
               </div>
-              <div className="muted">{t('İlk müdahale gerektiren işler')}</div>
+              <div className="ops-dashboard-priority-count">
+                <b>{formatInteger(moderationQueueTotal)}</b>
+                <span>{t('İlk müdahale gerektiren işler')}</span>
+              </div>
             </div>
             <div className="ops-dashboard-queue-list">
               {moderationQueueCards.map((item) => (
@@ -290,81 +273,24 @@ export default function DashboardSection({ onNavigate }) {
             </div>
           </div>
         </section>
-      </div>
 
-      <div className="panel">
-        <div className="panel-body stack">
-          <h3>{t('Social Hub Ağ Hunisi')}</h3>
-          <div className="ops-dashboard-funnel">
-            <div className="ops-kpi-grid ops-kpi-grid-featured">
-              {funnelLeadMetrics.map((item) => (
-                <div key={item.key} className="ops-kpi-card ops-kpi-card-featured" role="status" aria-live="polite">
-                  <span>{item.label}</span>
-                  <b>{item.value}</b>
-                </div>
-              ))}
+        <section className="panel ops-dashboard-overview ops-dashboard-overview-secondary">
+          <div className="panel-body stack">
+            <div className="ops-dashboard-section-head">
+              <div>
+                <h3>{t('Platform Özeti')}</h3>
+              </div>
             </div>
-            <div className="ops-dashboard-support-list">
-              {funnelSupportMetrics.map((item) => (
-                <div key={item.key} className="ops-dashboard-support-item" role="status" aria-live="polite">
+            <div className="ops-kpi-grid">
+              {primaryOverviewCards.map((item) => (
+                <button key={item.key} className="ops-kpi-card ops-kpi-card-quiet" onClick={() => onNavigate?.(item.target)}>
                   <span>{item.label}</span>
                   <b>{item.value}</b>
-                </div>
+                </button>
               ))}
             </div>
           </div>
-          {teacherRelationshipBreakdown.length ? (
-            <div className="muted">
-              {t('Öğretmen ilişki kırılımı')}:{' '}
-              {teacherRelationshipBreakdown.map(([type, value]) => `${type}: ${formatInteger(value)}`).join(' · ')}
-            </div>
-          ) : (
-            <div className="muted">{t('Öğretmen ilişki kırılımı henüz oluşmadı.')}</div>
-          )}
-        </div>
-      </div>
-
-      <div className="panel">
-        <div className="panel-body stack">
-          <div className="ops-head-row">
-            <h3>{t('Ağ Görünürlük Paneli')}</h3>
-            <div className="muted">
-              {analyticsSummary.source || t('doğrudan')} · {t('son yeniden oluşturma')} {lastRebuiltLabel}
-            </div>
-          </div>
-          <div className="ops-dashboard-visibility-grid">
-            {visibilityBands.map((band) => (
-              <div key={band.key} className="ops-dashboard-band-card">
-                <span className="ops-dashboard-band-title">{band.title}</span>
-                <div className="ops-dashboard-band-list">
-                  {band.items.map((item) => (
-                    <div key={`${band.key}-${item.label}`} className="ops-dashboard-band-item" role="status" aria-live="polite">
-                      <span>{item.label}</span>
-                      <b>{item.value}</b>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div className="ops-dashboard-band-card ops-dashboard-band-card-secondary">
-              <span className="ops-dashboard-band-title">{t('Öğretmen Etkileşimi')}</span>
-              <div className="ops-dashboard-band-list">
-                <div className="ops-dashboard-band-item" role="status" aria-live="polite">
-                  <span>{t('Oluşturulan Öğretmen Linkleri (30g)')}</span>
-                  <b>{formatInteger(analyticsTeacherLinks.created)}</b>
-                </div>
-                <div className="ops-dashboard-band-item" role="status" aria-live="polite">
-                  <span>{t('Okunan Öğretmen Linkleri (30g)')}</span>
-                  <b>{formatInteger(telemetryActions.teacher_links_read)}</b>
-                </div>
-                <div className="ops-dashboard-band-item" role="status" aria-live="polite">
-                  <span>{t('İptal Edilen Bağlantılar')}</span>
-                  <b>{formatInteger(analyticsConnections.cancelled)}</b>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
 
       <div className="panel">
@@ -384,67 +310,151 @@ export default function DashboardSection({ onNavigate }) {
         </div>
       </div>
 
-      <div className="ops-dashboard-split">
-        <div className="panel">
-          <div className="panel-body stack">
-            <h3>{t('En Aktif Mezuniyet Yılları')}</h3>
-            <div className="list">
-              {topCohorts.length ? topCohorts.map((row) => (
-                <div key={row.cohort} className="list-item">
-                  <div>
-                    <div className="name">{row.cohort}</div>
-                    <div className="meta">{t('Son 30 gündeki ağ aksiyonları')}</div>
-                  </div>
-                  <b>{formatInteger(row.actions)}</b>
-                </div>
-              )) : <div className="muted">{t('Henüz mezuniyet yılı aktivitesi yok.')}</div>}
-            </div>
+      <details className="panel ops-dashboard-disclosure">
+        <summary className="ops-dashboard-disclosure-summary">
+          <div>
+            <h3>{t('Ağ Görünürlüğü ve Eğilimler')}</h3>
           </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-body stack">
-            <h3>{t('Mentor Arzı ve Talebi')}</h3>
-            <div className="list">
-              {demandPressureRows.length ? demandPressureRows.map((row) => (
-                <div key={row.cohort} className="list-item">
-                  <div>
-                    <div className="name">{row.cohort}</div>
-                    <div className="meta">{t('Talep')} {formatInteger(row.demand)} · {t('Arz')} {formatInteger(row.supply)}</div>
-                  </div>
-                  <b>{row.gap > 0 ? `+${formatInteger(row.gap)}` : formatInteger(row.gap)}</b>
-                </div>
-              )) : <div className="muted">{t('Mentor talep baskısı tespit edilmedi.')}</div>}
-            </div>
+          <div className="muted">
+            {analyticsSummary.source || t('doğrudan')} · {t('son yeniden oluşturma')} {lastRebuiltLabel}
           </div>
-        </div>
-      </div>
-
-      <div className="panel">
-        <div className="panel-body stack">
-          <h3>{t('Öne Çıkan Ağ Etkinlikleri')}</h3>
-          <div className="list">
-            {topEvents.length ? topEvents.map((row) => (
-              <div key={row.event_name} className="list-item">
-                <div>
-                  <div className="name">{row.event_name}</div>
-                  <div className="meta">{t('Son 30 gün toplam sayısı')}</div>
+        </summary>
+        <div className="panel-body stack ops-dashboard-secondary-stack">
+          <div className="panel ops-dashboard-secondary-panel">
+            <div className="panel-body stack">
+              <h3>{t('Social Hub Ağ Hunisi')}</h3>
+              <div className="ops-dashboard-funnel">
+                <div className="ops-kpi-grid ops-kpi-grid-featured">
+                  {funnelLeadMetrics.map((item) => (
+                    <div key={item.key} className="ops-kpi-card ops-kpi-card-featured ops-kpi-card-quiet" role="status" aria-live="polite">
+                      <span>{item.label}</span>
+                      <b>{item.value}</b>
+                    </div>
+                  ))}
                 </div>
-                <b>{formatInteger(row.count)}</b>
+                <div className="ops-dashboard-support-list">
+                  {funnelSupportMetrics.map((item) => (
+                    <div key={item.key} className="ops-dashboard-support-item" role="status" aria-live="polite">
+                      <span>{item.label}</span>
+                      <b>{item.value}</b>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )) : <div className="muted">{t('Telemetri henüz öne çıkan etkinlik üretmedi.')}</div>}
-          </div>
-        </div>
-      </div>
-
-      <div className="panel">
-        <div className="panel-body stack">
-          <div className="ops-head-row">
-            <h3>{t('Öneri Deney Paneli')}</h3>
-            <div className="muted">
-              {t('Maruz kalan kullanıcı')} {formatInteger(suggestionExperiment.total_exposure_users || 0)} · {t('yükleme olayı')} {formatInteger(suggestionExperiment.total_exposure_events || 0)}
+              {teacherRelationshipBreakdown.length ? (
+                <div className="muted">
+                  {t('Öğretmen ilişki kırılımı')}:{' '}
+                  {teacherRelationshipBreakdown.map(([type, value]) => `${type}: ${formatInteger(value)}`).join(' · ')}
+                </div>
+              ) : (
+                <div className="muted">{t('Öğretmen ilişki kırılımı henüz oluşmadı.')}</div>
+              )}
             </div>
           </div>
+
+          <div className="panel ops-dashboard-secondary-panel">
+            <div className="panel-body stack">
+              <h3>{t('Ağ Görünürlük Paneli')}</h3>
+              <div className="ops-dashboard-visibility-grid">
+                {visibilityBands.map((band) => (
+                  <div key={band.key} className="ops-dashboard-band-card">
+                    <span className="ops-dashboard-band-title">{band.title}</span>
+                    <div className="ops-dashboard-band-list">
+                      {band.items.map((item) => (
+                        <div key={`${band.key}-${item.label}`} className="ops-dashboard-band-item" role="status" aria-live="polite">
+                          <span>{item.label}</span>
+                          <b>{item.value}</b>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="ops-dashboard-band-card ops-dashboard-band-card-secondary">
+                  <span className="ops-dashboard-band-title">{t('Öğretmen Etkileşimi')}</span>
+                  <div className="ops-dashboard-band-list">
+                    <div className="ops-dashboard-band-item" role="status" aria-live="polite">
+                      <span>{t('Oluşturulan Öğretmen Linkleri (30g)')}</span>
+                      <b>{formatInteger(analyticsTeacherLinks.created)}</b>
+                    </div>
+                    <div className="ops-dashboard-band-item" role="status" aria-live="polite">
+                      <span>{t('Okunan Öğretmen Linkleri (30g)')}</span>
+                      <b>{formatInteger(telemetryActions.teacher_links_read)}</b>
+                    </div>
+                    <div className="ops-dashboard-band-item" role="status" aria-live="polite">
+                      <span>{t('İptal Edilen Bağlantılar')}</span>
+                      <b>{formatInteger(analyticsConnections.cancelled)}</b>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="ops-dashboard-split">
+            <div className="panel ops-dashboard-secondary-panel">
+              <div className="panel-body stack">
+                <h3>{t('En Aktif Mezuniyet Yılları')}</h3>
+                <div className="list">
+                  {topCohorts.length ? topCohorts.map((row) => (
+                    <div key={row.cohort} className="list-item">
+                      <div>
+                        <div className="name">{row.cohort}</div>
+                        <div className="meta">{t('Son 30 gündeki ağ aksiyonları')}</div>
+                      </div>
+                      <b>{formatInteger(row.actions)}</b>
+                    </div>
+                  )) : <div className="muted">{t('Henüz mezuniyet yılı aktivitesi yok.')}</div>}
+                </div>
+              </div>
+            </div>
+
+            <div className="panel ops-dashboard-secondary-panel">
+              <div className="panel-body stack">
+                <h3>{t('Mentor Arzı ve Talebi')}</h3>
+                <div className="list">
+                  {demandPressureRows.length ? demandPressureRows.map((row) => (
+                    <div key={row.cohort} className="list-item">
+                      <div>
+                        <div className="name">{row.cohort}</div>
+                        <div className="meta">{t('Talep')} {formatInteger(row.demand)} · {t('Arz')} {formatInteger(row.supply)}</div>
+                      </div>
+                      <b>{row.gap > 0 ? `+${formatInteger(row.gap)}` : formatInteger(row.gap)}</b>
+                    </div>
+                  )) : <div className="muted">{t('Mentor talep baskısı tespit edilmedi.')}</div>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel ops-dashboard-secondary-panel">
+            <div className="panel-body stack">
+              <h3>{t('Öne Çıkan Ağ Etkinlikleri')}</h3>
+              <div className="list">
+                {topEvents.length ? topEvents.map((row) => (
+                  <div key={row.event_name} className="list-item">
+                    <div>
+                      <div className="name">{row.event_name}</div>
+                      <div className="meta">{t('Son 30 gün toplam sayısı')}</div>
+                    </div>
+                    <b>{formatInteger(row.count)}</b>
+                  </div>
+                )) : <div className="muted">{t('Telemetri henüz öne çıkan etkinlik üretmedi.')}</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details className="panel ops-dashboard-disclosure">
+        <summary className="ops-dashboard-disclosure-summary">
+          <div>
+            <h3>{t('Öneri Deney Paneli')}</h3>
+          </div>
+          <div className="muted">
+            {t('Maruz kalan kullanıcı')} {formatInteger(suggestionExperiment.total_exposure_users || 0)} · {t('yükleme olayı')} {formatInteger(suggestionExperiment.total_exposure_events || 0)}
+          </div>
+        </summary>
+        <div className="panel-body stack ops-dashboard-secondary-stack">
           {leadingSuggestionVariant ? (
             <div className="muted">
               {t('Öne çıkan varyant')}: {leadingSuggestionVariant.variant} · {t('aktivasyon oranı')} {formatPercent(Number(leadingSuggestionVariant.activation_rate || 0) * 100)}
@@ -547,9 +557,9 @@ export default function DashboardSection({ onNavigate }) {
             )) : <div className="muted">{t('Henüz öneri yapılandırma değişikliği geçmişi yok.')}</div>}
           </div>
         </div>
-      </div>
+      </details>
 
-      <div className="panel">
+      <div className="panel ops-dashboard-secondary-panel">
         <div className="panel-body stack">
           <h3>{t('Sistem ve Depolama')}</h3>
           <div className="ops-kpi-grid">
@@ -595,7 +605,7 @@ export default function DashboardSection({ onNavigate }) {
         </div>
       </div>
 
-      <div className="panel">
+      <div className="panel ops-dashboard-secondary-panel">
         <div className="panel-body">
           <h3>{t('Canlı Aktivite')}</h3>
           {loadingLive ? <div className="muted">{t('Canlı akış yükleniyor...')}</div> : null}

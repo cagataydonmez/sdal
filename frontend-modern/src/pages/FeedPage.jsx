@@ -148,48 +148,6 @@ export default function FeedPage() {
     }).slice(0, 4);
   }, [onlineMembers, quickUsers]);
   const liveSignalCount = Math.max(0, unreadNotifications) + Math.max(0, unreadMessages) + Math.max(0, pendingPostsCount);
-  const pulseItems = useMemo(() => ([
-    {
-      key: 'scope',
-      icon: feedType,
-      value: posts.length,
-      label: activeScopeLabel,
-      meta: activeFilterLabel
-    },
-    {
-      key: 'notifications',
-      icon: 'notifications',
-      value: unreadNotifications,
-      label: t('nav_notifications'),
-      meta: pendingPostsCount > 0 ? t('feed_new_posts_refresh', { count: pendingPostsCount }) : t('nav_feed')
-    },
-    {
-      key: 'messages',
-      icon: 'messages',
-      value: unreadMessages,
-      label: t('new_messages'),
-      meta: quickUsers.length > 0 ? t('quick_access') : t('nav_messages')
-    },
-    {
-      key: 'online',
-      icon: 'online',
-      value: onlineMembers.length,
-      label: t('online_members'),
-      meta: featuredMembers.length > 0 ? `@${featuredMembers[0].kadi}` : t('status_online')
-    }
-  ]), [
-    activeFilterLabel,
-    activeScopeLabel,
-    feedType,
-    featuredMembers,
-    onlineMembers.length,
-    pendingPostsCount,
-    posts.length,
-    quickUsers.length,
-    t,
-    unreadMessages,
-    unreadNotifications
-  ]);
   const quickLinks = useMemo(() => ([
     { to: '/new/explore', icon: 'community', label: t('feed_discover_members') },
     { to: '/new/events', icon: 'latest', label: t('feed_upcoming_events') },
@@ -494,38 +452,7 @@ export default function FeedPage() {
                     {user?.kadi ? <span className="feed-hero-tag">@{user.kadi}</span> : null}
                   </div>
                 </div>
-                {featuredMembers.length ? (
-                  <div className="feed-hero-members" aria-label={onlineMembers.length > 0 ? t('online_members') : t('quick_access')}>
-                    <div className="feed-hero-member-stack">
-                      {featuredMembers.map((member) => (
-                        <img
-                          key={`hero-member-${member.id}`}
-                          className="feed-hero-member-avatar"
-                          src={member.resim ? `/api/media/vesikalik/${member.resim}` : '/legacy/vesikalik/nophoto.jpg'}
-                          loading="lazy"
-                          decoding="async"
-                          alt={avatarAlt(member)}
-                        />
-                      ))}
-                    </div>
-                    <div className="feed-hero-member-copy">
-                      <strong>{onlineMembers.length || featuredMembers.length}</strong>
-                      <span>{onlineMembers.length > 0 ? t('online_members') : t('quick_access')}</span>
-                    </div>
-                  </div>
-                ) : null}
               </div>
-            </div>
-
-            <div className="feed-pulse-grid">
-              {pulseItems.map((item) => (
-                <div key={item.key} className={`feed-pulse-card feed-pulse-card-${item.key}`}>
-                  <span className="feed-pulse-icon" aria-hidden="true"><FeedIcon name={item.icon} /></span>
-                  <div className="feed-pulse-value">{item.value}</div>
-                  <div className="feed-pulse-label">{item.label}</div>
-                  <div className="feed-pulse-meta">{item.meta}</div>
-                </div>
-              ))}
             </div>
 
             {pendingPostsCount > 0 ? (
@@ -545,12 +472,26 @@ export default function FeedPage() {
                 <span className="feed-hero-footnote-dot" aria-hidden="true" />
                 <span>{liveSignalCount}</span>
                 <span>{t('nav_notifications')}</span>
+                <span className="feed-hero-footnote-separator" aria-hidden="true">·</span>
+                <span>{onlineMembers.length || featuredMembers.length}</span>
+                <span>{onlineMembers.length > 0 ? t('online_members') : t('quick_access')}</span>
               </div>
             )}
           </section>
 
           <div className="feed-intent-band">
-            <div className="panel feed-mobile-scope-card">
+            <div className="feed-composer-shell">
+              <div className="feed-composer-head">
+                <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
+                <div className="feed-composer-copy">
+                  <div className="feed-composer-title">{activeScopeLabel}</div>
+                  <div className="feed-composer-meta">{activeFilterLabel}</div>
+                </div>
+              </div>
+              <PostComposer onPost={() => load({ silent: true, force: true })} />
+            </div>
+
+            <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
               <div className="panel-body scope-tabs scope-tabs-feedtype">
                 {scopeOptions.map((scopeItem) => (
                   <button
@@ -583,17 +524,6 @@ export default function FeedPage() {
               </div>
               <div className="scope-mobile-selected-title">{activeFilterLabel}</div>
               <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
-            </div>
-
-            <div className="feed-composer-shell">
-              <div className="feed-composer-head">
-                <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
-                <div className="feed-composer-copy">
-                  <div className="feed-composer-title">{activeScopeLabel}</div>
-                  <div className="feed-composer-meta">{activeFilterLabel}</div>
-                </div>
-              </div>
-              <PostComposer onPost={() => load({ silent: true, force: true })} />
             </div>
           </div>
 
@@ -630,7 +560,7 @@ export default function FeedPage() {
           </div>
 
           <div className="feed-side-pair">
-            <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'online' ? 'is-active' : ''}`}>
+            <div className={`panel feed-tab-panel feed-side-panel feed-side-panel-muted ${mobileTab === 'online' ? 'is-active' : ''}`}>
               <div className="feed-side-panel-heading">
                 <h3>{t('online_members')}</h3>
                 <span className="feed-side-panel-count">{onlineMembers.length}</span>
@@ -653,7 +583,7 @@ export default function FeedPage() {
               </div>
             </div>
 
-            <div className={`panel feed-tab-panel feed-side-panel feed-side-panel-compact ${mobileTab === 'messages' ? 'is-active' : ''}`}>
+            <div className={`panel feed-tab-panel feed-side-panel feed-side-panel-compact feed-side-panel-muted ${mobileTab === 'messages' ? 'is-active' : ''}`}>
               <div className="feed-side-panel-heading">
                 <h3>{t('new_messages')}</h3>
                 <span className="feed-side-panel-count">{unreadMessages}</span>
@@ -680,7 +610,7 @@ export default function FeedPage() {
             )}
           </div>
 
-          <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'quick' ? 'is-active' : ''}`}>
+          <div className={`panel feed-tab-panel feed-side-panel feed-side-panel-muted ${mobileTab === 'quick' ? 'is-active' : ''}`}>
             <div className="feed-side-panel-heading">
               <h3>{t('quick_access')}</h3>
               <span className="feed-side-panel-count">{quickUsers.length}</span>

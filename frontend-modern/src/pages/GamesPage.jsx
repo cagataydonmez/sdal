@@ -573,23 +573,49 @@ const GAME_COMPONENTS = {
 
 function GamesCatalog() {
   const { t } = useI18n();
+  const gameSections = [
+    { key: 'classic', label: 'Classic', items: Object.entries(GAME_META).filter(([, meta]) => meta.type === 'classic') },
+    { key: 'arcade', label: 'Arcade', items: Object.entries(GAME_META).filter(([, meta]) => meta.type === 'arcade') }
+  ];
+
   return (
     <Layout title={t('nav_games')}>
-      <div className="panel">
-        <h3>Arcade</h3>
-        <div className="panel-body games-catalog">
-          {Object.entries(GAME_META).map(([key, meta]) => (
-            <Link key={key} className="member-card game-card-link" to={`/new/games/${key}`}>
-              <div className="group-cover-empty">{t('games_game')}</div>
-              <div>
-                <div className="name">{t(meta.titleKey)}</div>
-                <div className="meta">{t('games_catalog_hint')}</div>
+      <section className="games-directory">
+        <div className="panel games-directory-head">
+          <div className="panel-body">
+            <div className="games-directory-heading">
+              <h3>Arcade</h3>
+              <div className="meta">{t('games_catalog_hint')}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="games-catalog-bands">
+          {gameSections.map((section) => (
+            <section className="games-catalog-band" key={section.key}>
+              <div className="games-catalog-band-head">
+                <h4>{section.label}</h4>
+                <span className="meta">{section.items.length}</span>
               </div>
-              <span className="btn ghost">{t('open')}</span>
-            </Link>
+              <div className="games-catalog-list">
+                {section.items.map(([key, meta], index) => (
+                  <Link key={key} className="game-shelf-link" to={`/new/games/${key}`}>
+                    <div className="game-shelf-rank" aria-hidden="true">
+                      {String(index + 1).padStart(2, '0')}
+                    </div>
+                    <div className="game-shelf-body">
+                      <div className="name">{t(meta.titleKey)}</div>
+                      <div className="meta">{t('games_catalog_hint')}</div>
+                    </div>
+                    <span className="game-shelf-type">{section.label}</span>
+                    <span className="btn ghost">{t('open')}</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
-      </div>
+      </section>
     </Layout>
   );
 }
