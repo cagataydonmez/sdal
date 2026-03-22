@@ -485,44 +485,56 @@ export default function FeedPage() {
                 <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
                 <div className="feed-composer-copy">
                   <div className="feed-composer-title">{activeScopeLabel}</div>
-                  <div className="feed-composer-meta">{activeFilterLabel}</div>
+                  <div className="feed-composer-meta">{t('feed_filter_selected')}: {activeFilterLabel}</div>
                 </div>
               </div>
               <PostComposer onPost={() => load({ silent: true, force: true })} />
             </div>
 
             <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
-              <div className="panel-body scope-tabs scope-tabs-feedtype">
-                {scopeOptions.map((scopeItem) => (
-                  <button
-                    key={`scope-${scopeItem.key}`}
-                    className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
-                    onClick={() => setFeedType(scopeItem.key)}
-                    title={scopeItem.label}
-                    aria-label={scopeItem.label}
-                  >
-                    <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
-                    <span className="scope-btn-label">{scopeItem.label}</span>
-                  </button>
-                ))}
+              <div className="feed-scope-group">
+                <div className="feed-scope-group-label">{t('feed_scope_prompt')}</div>
+                <div className="panel-body scope-tabs scope-tabs-feedtype">
+                  {scopeOptions.map((scopeItem) => (
+                    <button
+                      key={`scope-${scopeItem.key}`}
+                      className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
+                      onClick={() => setFeedType(scopeItem.key)}
+                      title={scopeItem.label}
+                      aria-label={scopeItem.label}
+                    >
+                      <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
+                      <span className="scope-btn-label">{scopeItem.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="scope-mobile-selected-title">
+                  <span>{t('feed_scope_selected')}</span>
+                  <strong>{activeScopeLabel}</strong>
+                </div>
               </div>
-              <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
 
-              <div className="panel-body scope-tabs scope-tabs-filter">
-                {filterOptions.map((filterItem) => (
-                  <button
-                    key={`filter-${filterItem.key}`}
-                    className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
-                    onClick={() => setFilter(filterItem.key)}
-                    title={filterItem.label}
-                    aria-label={filterItem.label}
-                  >
-                    <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
-                    <span className="scope-btn-label">{filterItem.label}</span>
-                  </button>
-                ))}
+              <div className="feed-scope-group">
+                <div className="feed-scope-group-label">{t('feed_filter_prompt')}</div>
+                <div className="panel-body scope-tabs scope-tabs-filter">
+                  {filterOptions.map((filterItem) => (
+                    <button
+                      key={`filter-${filterItem.key}`}
+                      className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
+                      onClick={() => setFilter(filterItem.key)}
+                      title={filterItem.label}
+                      aria-label={filterItem.label}
+                    >
+                      <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
+                      <span className="scope-btn-label">{filterItem.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="scope-mobile-selected-title">
+                  <span>{t('feed_filter_selected')}</span>
+                  <strong>{activeFilterLabel}</strong>
+                </div>
               </div>
-              <div className="scope-mobile-selected-title">{activeFilterLabel}</div>
               <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
             </div>
           </div>

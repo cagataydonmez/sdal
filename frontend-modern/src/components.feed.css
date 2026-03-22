@@ -9,6 +9,21 @@
   display: none;
   margin-top: 8px;
   text-align: center;
+  color: color-mix(in srgb, var(--text) 62%, var(--muted) 38%);
+}
+.scope-mobile-selected-title span,
+.feed-mobile-selected-title span {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.scope-mobile-selected-title strong,
+.feed-mobile-selected-title strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.92rem;
   font-weight: 700;
   color: var(--ink);
 }
@@ -167,6 +182,21 @@
   inset: auto 16px 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-soft-line) 64%, transparent), transparent);
+}
+.feed-scope-group {
+  display: grid;
+  gap: 8px;
+}
+.feed-scope-group + .feed-scope-group {
+  margin-top: 4px;
+}
+.feed-scope-group-label {
+  padding: 14px 16px 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 56%, var(--muted) 44%);
 }
 .feed-composer-shell {
   position: relative;

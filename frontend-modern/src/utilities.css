@@ -574,7 +574,8 @@ body.story-view-open .global-feedback {
     transform: scale(0.9);
   }
   .scope-mobile-selected-title {
-    display: none;
+    display: grid;
+    gap: 2px;
   }
   .feed-mobile-selected-title {
     display: none;
