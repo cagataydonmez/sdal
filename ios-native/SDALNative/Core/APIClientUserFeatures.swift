@@ -52,22 +52,28 @@ extension APIClient {
         page: Int = 1,
         pageSize: Int = 24
     ) async throws -> [MemberSummary] {
-        var query = "page=\(page)&pageSize=\(pageSize)&excludeSelf=1&sort=\(sort)"
-        if !term.isEmpty {
-            let encoded = term.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            query += "&term=\(encoded)"
-        }
-        if let gradYear, gradYear > 0 { query += "&gradYear=\(gradYear)" }
-        if verifiedOnly { query += "&verified=1" }
-        if withPhoto { query += "&withPhoto=1" }
-        if onlineOnly { query += "&online=1" }
-        if !relation.isEmpty { query += "&relation=\(relation)" }
-        let payload = try await request("/members?\(query)", as: MembersEnvelope.self)
+        var query: [String: String] = [
+            "page": String(page),
+            "pageSize": String(pageSize),
+            "excludeSelf": "1",
+            "sort": sort
+        ]
+        if !term.isEmpty { query["term"] = term }
+        if let gradYear, gradYear > 0 { query["gradYear"] = String(gradYear) }
+        if verifiedOnly { query["verified"] = "1" }
+        if withPhoto { query["withPhoto"] = "1" }
+        if onlineOnly { query["online"] = "1" }
+        if !relation.isEmpty { query["relation"] = relation }
+        let payload = try await request("/members", query: query, as: MembersEnvelope.self)
         return payload.list
     }
 
     func fetchFollowing(limit: Int = 30, offset: Int = 0) async throws -> [MemberSummary] {
-        let payload = try await request("/new/follows?limit=\(limit)&offset=\(offset)&sort=engagement", as: MembersEnvelope.self)
+        let payload = try await request("/new/follows", query: [
+            "limit": String(limit),
+            "offset": String(offset),
+            "sort": "engagement"
+        ], as: MembersEnvelope.self)
         return payload.list
     }
 
@@ -83,14 +89,20 @@ extension APIClient {
     }
 
     func fetchInbox(page: Int = 1, pageSize: Int = 20) async throws -> [MessageSummary] {
-        let path = "/messages?box=inbox&page=\(page)&pageSize=\(pageSize)"
-        let payload = try await request(path, as: MessagesEnvelope.self)
+        let payload = try await request("/messages", query: [
+            "box": "inbox",
+            "page": String(page),
+            "pageSize": String(pageSize)
+        ], as: MessagesEnvelope.self)
         return payload.rows
     }
 
     func fetchOutbox(page: Int = 1, pageSize: Int = 20) async throws -> [MessageSummary] {
-        let path = "/messages?box=outbox&page=\(page)&pageSize=\(pageSize)"
-        let payload = try await request(path, as: MessagesEnvelope.self)
+        let payload = try await request("/messages", query: [
+            "box": "outbox",
+            "page": String(page),
+            "pageSize": String(pageSize)
+        ], as: MessagesEnvelope.self)
         return payload.rows
     }
 
@@ -117,18 +129,23 @@ extension APIClient {
     }
 
     func fetchMessengerThreads(query: String = "", limit: Int = 40, offset: Int = 0) async throws -> [MessengerThread] {
-        var parts = ["limit=\(limit)", "offset=\(offset)"]
-        if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            parts.append("q=\(encoded)")
+        var params: [String: String] = [
+            "limit": String(limit),
+            "offset": String(offset)
+        ]
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            params["q"] = trimmed
         }
-        let payload = try await request("/sdal-messenger/threads?\(parts.joined(separator: "&"))", as: MessengerThreadsEnvelope.self)
+        let payload = try await request("/sdal-messenger/threads", query: params, as: MessengerThreadsEnvelope.self)
         return payload.items
     }
 
     func searchMessengerContacts(query: String, limit: Int = 20) async throws -> [MessageRecipient] {
-        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let payload = try await request("/sdal-messenger/contacts?q=\(encoded)&limit=\(limit)", as: MessengerContactsEnvelope.self)
+        let payload = try await request("/sdal-messenger/contacts", query: [
+            "q": query,
+            "limit": String(limit)
+        ], as: MessengerContactsEnvelope.self)
         return payload.items
     }
 
@@ -140,9 +157,9 @@ extension APIClient {
     }
 
     func fetchMessengerMessages(threadId: Int, beforeId: Int? = nil, limit: Int = 60) async throws -> [MessengerMessage] {
-        var parts = ["limit=\(limit)"]
-        if let beforeId, beforeId > 0 { parts.append("beforeId=\(beforeId)") }
-        let payload = try await request("/sdal-messenger/threads/\(threadId)/messages?\(parts.joined(separator: "&"))", as: MessengerMessagesEnvelope.self)
+        var params = ["limit": String(limit)]
+        if let beforeId, beforeId > 0 { params["beforeId"] = String(beforeId) }
+        let payload = try await request("/sdal-messenger/threads/\(threadId)/messages", query: params, as: MessengerMessagesEnvelope.self)
         return payload.items
     }
 
@@ -166,18 +183,22 @@ extension APIClient {
     }
 
     func searchRecipients(query: String, limit: Int = 12) async throws -> [MessageRecipient] {
-        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let path = "/messages/recipients?q=\(encoded)&limit=\(limit)"
-        let payload = try await request(path, as: RecipientsEnvelope.self)
+        let payload = try await request("/messages/recipients", query: [
+            "q": query,
+            "limit": String(limit)
+        ], as: RecipientsEnvelope.self)
         return payload.items
     }
 
     func fetchNotifications(limit: Int = 30, offset: Int = 0, category: String? = nil) async throws -> [AppNotification] {
-        var path = "/new/notifications?limit=\(limit)&offset=\(offset)"
+        var query: [String: String] = [
+            "limit": String(limit),
+            "offset": String(offset)
+        ]
         if let category, !category.isEmpty {
-            path += "&category=\(category)"
+            query["category"] = category
         }
-        let payload = try await request(path, as: NotificationsEnvelope.self)
+        let payload = try await request("/new/notifications", query: query, as: NotificationsEnvelope.self)
         return payload.items
     }
 
@@ -192,15 +213,18 @@ extension APIClient {
     }
 
     func fetchOnlineMembers(limit: Int = 12) async throws -> [MemberSummary] {
-        let payload = try await request("/new/online-members?limit=\(limit)&excludeSelf=1", as: MembersEnvelope.self)
+        let payload = try await request("/new/online-members", query: [
+            "limit": String(limit),
+            "excludeSelf": "1"
+        ], as: MembersEnvelope.self)
         return payload.list
     }
 
     func fetchChatMessages(sinceId: Int? = nil, beforeId: Int? = nil, limit: Int = 40) async throws -> [ChatMessage] {
-        var parts = ["limit=\(limit)"]
-        if let sinceId, sinceId > 0 { parts.append("sinceId=\(sinceId)") }
-        if let beforeId, beforeId > 0 { parts.append("beforeId=\(beforeId)") }
-        let payload = try await request("/new/chat/messages?\(parts.joined(separator: "&"))", as: ChatMessagesEnvelope.self)
+        var query = ["limit": String(limit)]
+        if let sinceId, sinceId > 0 { query["sinceId"] = String(sinceId) }
+        if let beforeId, beforeId > 0 { query["beforeId"] = String(beforeId) }
+        let payload = try await request("/new/chat/messages", query: query, as: ChatMessagesEnvelope.self)
         return payload.items
     }
 
@@ -343,15 +367,23 @@ extension APIClient {
     }
 
     func fetchAlbum(id: Int, page: Int = 1, pageSize: Int = 24) async throws -> AlbumListEnvelope {
-        try await request("/albums/\(id)?page=\(page)&pageSize=\(pageSize)", as: AlbumListEnvelope.self)
+        try await request("/albums/\(id)", query: [
+            "page": String(page),
+            "pageSize": String(pageSize)
+        ], as: AlbumListEnvelope.self)
     }
 
     func fetchLatestAlbumPhotos(limit: Int = 24, offset: Int = 0) async throws -> AlbumLatestEnvelope {
-        try await request("/album/latest?limit=\(limit)&offset=\(offset)", as: AlbumLatestEnvelope.self)
+        try await request("/album/latest", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: AlbumLatestEnvelope.self)
     }
 
     func fetchLatestMembers(limit: Int = 24) async throws -> [MemberSummary] {
-        let payload = try await request("/members/latest?limit=\(limit)", as: MembersEnvelope.self)
+        let payload = try await request("/members/latest", query: [
+            "limit": String(limit)
+        ], as: MembersEnvelope.self)
         return payload.list
     }
 
@@ -371,7 +403,10 @@ extension APIClient {
     }
 
     func fetchPanolar(categoryId: Int = 0, page: Int = 1) async throws -> PanolarEnvelope {
-        try await request("/panolar?mkatid=\(categoryId)&page=\(page)", as: PanolarEnvelope.self)
+        try await request("/panolar", query: [
+            "mkatid": String(categoryId),
+            "page": String(page)
+        ], as: PanolarEnvelope.self)
     }
 
     func createPanoMessage(message: String, categoryId: Int = 0) async throws {
@@ -415,7 +450,10 @@ extension APIClient {
     }
 
     func fetchEvents(limit: Int = 20, offset: Int = 0) async throws -> [EventItem] {
-        let payload = try await request("/new/events?limit=\(limit)&offset=\(offset)", as: EventsEnvelope.self)
+        let payload = try await request("/new/events", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: EventsEnvelope.self)
         return payload.items
     }
 
@@ -505,7 +543,10 @@ extension APIClient {
     }
 
     func fetchAnnouncements(limit: Int = 20, offset: Int = 0) async throws -> [AnnouncementItem] {
-        let payload = try await request("/new/announcements?limit=\(limit)&offset=\(offset)", as: AnnouncementsEnvelope.self)
+        let payload = try await request("/new/announcements", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: AnnouncementsEnvelope.self)
         return payload.items
     }
 
@@ -533,7 +574,10 @@ extension APIClient {
     }
 
     func fetchGroups(limit: Int = 30, offset: Int = 0) async throws -> [GroupItem] {
-        let payload = try await request("/new/groups?limit=\(limit)&offset=\(offset)", as: GroupsEnvelope.self)
+        let payload = try await request("/new/groups", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: GroupsEnvelope.self)
         return payload.items
     }
 
@@ -676,8 +720,9 @@ extension APIClient {
     }
 
     func fetchStoriesByUser(userId: Int, includeExpired: Bool = false) async throws -> [Story] {
-        let include = includeExpired ? 1 : 0
-        let payload = try await request("/new/stories/user/\(userId)?includeExpired=\(include)", as: StoriesEnvelope.self)
+        let payload = try await request("/new/stories/user/\(userId)", query: [
+            "includeExpired": includeExpired ? "1" : "0"
+        ], as: StoriesEnvelope.self)
         return payload.items
     }
 

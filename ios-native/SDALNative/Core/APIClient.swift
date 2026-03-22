@@ -220,9 +220,10 @@ actor APIClient {
     }
 
     func activateAccount(id: String, code: String) async throws -> ActivationResponse {
-        let safeId = id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? id
-        let safeCode = code.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? code
-        return try await request("/activate?id=\(safeId)&akt=\(safeCode)", as: ActivationResponse.self)
+        return try await request("GET", "/activate", query: [
+            "id": id,
+            "akt": code
+        ])
     }
 
     func fetchSession() async throws -> SessionUser {
@@ -424,8 +425,22 @@ extension APIClient {
         try await request(method, path)
     }
 
+    func request<T: Decodable>(_ path: String, method: String = "GET", query: [String: String]?, as type: T.Type) async throws -> T {
+        try await request(method, path, query: query)
+    }
+
     func request<T: Decodable, B: Encodable>(_ path: String, method: String = "GET", body: B?, as type: T.Type) async throws -> T {
         try await request(method, path, body: body)
+    }
+
+    func request<T: Decodable, B: Encodable>(
+        _ path: String,
+        method: String = "GET",
+        body: B?,
+        query: [String: String]?,
+        as type: T.Type
+    ) async throws -> T {
+        try await request(method, path, body: body, query: query)
     }
 
     func requestMultipart<T: Decodable>(_ path: String, method: String, parts: [MultipartPart], as type: T.Type) async throws -> T {
@@ -464,3 +479,22 @@ extension KeyedDecodingContainer {
         return nil
     }
 }
+
+struct LossyArray<Element: Decodable>: Decodable {
+    var elements: [Element]
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        var items: [Element] = []
+        while !container.isAtEnd {
+            if let item = try? container.decode(Element.self) {
+                items.append(item)
+            } else {
+                _ = try? container.decode(DiscardedDecodable.self)
+            }
+        }
+        elements = items
+    }
+}
+
+private struct DiscardedDecodable: Decodable {}

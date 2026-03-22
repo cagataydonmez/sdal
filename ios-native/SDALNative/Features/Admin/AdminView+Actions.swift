@@ -1,6 +1,44 @@
 import Foundation
 
 extension AdminView {
+    func resolveAdminAccessIfNeeded() async {
+        guard !didResolveAdminAccess, adminUser == nil else { return }
+        isLoading = true
+        errorMessage = nil
+        defer {
+            isLoading = false
+            didResolveAdminAccess = true
+        }
+
+        guard let session = appState.session else {
+            errorMessage = i18n.t("login_as_normal_user_first")
+            return
+        }
+        guard session.canAccessAdmin else {
+            errorMessage = i18n.t("admin_login_required_not_admin")
+            return
+        }
+
+        if let fetched = (try? await api.fetchAdminSession()) ?? nil {
+            adminUser = fetched
+        } else {
+            guard let sessionId = session.id else {
+                errorMessage = i18n.t("admin_login_required_not_admin")
+                return
+            }
+            adminUser = AdminUser(
+                id: sessionId,
+                kadi: session.kadi,
+                isim: session.isim,
+                soyisim: session.soyisim,
+                email: session.email,
+                role: session.role
+            )
+        }
+
+        await loadOverview()
+    }
+
     func login() async {
         isLoading = true
         errorMessage = nil
@@ -24,6 +62,7 @@ extension AdminView {
         defer { isLoading = false }
         do { try await api.adminLogout() } catch {}
         adminUser = nil
+        didResolveAdminAccess = false
         stats = nil
         live = nil
         moderationItems = []

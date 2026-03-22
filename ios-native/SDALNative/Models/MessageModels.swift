@@ -548,4 +548,40 @@ struct MessengerMessage: Decodable, Identifiable {
         self.resim = c.decodeLossyString(forKey: .resim)
         self.verified = c.decodeLossyBool(forKey: .verified)
     }
+
+    init(
+        id: Int,
+        threadId: Int?,
+        senderId: Int?,
+        receiverId: Int?,
+        isMine: Bool?,
+        body: String?,
+        clientWrittenAt: String?,
+        serverReceivedAt: String?,
+        deliveredAt: String?,
+        createdAt: String?,
+        readAt: String?,
+        kadi: String?,
+        isim: String?,
+        soyisim: String?,
+        resim: String?,
+        verified: Bool?
+    ) {
+        self.id = id
+        self.threadId = threadId
+        self.senderId = senderId
+        self.receiverId = receiverId
+        self.isMine = isMine
+        self.body = body
+        self.clientWrittenAt = clientWrittenAt
+        self.serverReceivedAt = serverReceivedAt
+        self.deliveredAt = deliveredAt
+        self.createdAt = createdAt
+        self.readAt = readAt
+        self.kadi = kadi
+        self.isim = isim
+        self.soyisim = soyisim
+        self.resim = resim
+        self.verified = verified
+    }
 }

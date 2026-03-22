@@ -607,7 +607,7 @@ struct FeedView: View {
                     }
                 }
             }
-            try? await Task.sleep(nanoseconds: 7_000_000_000)
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
         }
     }
 
@@ -620,6 +620,7 @@ struct FeedView: View {
     }
 
     private func consumeRefreshedPosts(_ latest: [FeedPost]) {
+        guard !sameFeedPosts(posts, latest) else { return }
         let existing = Dictionary(uniqueKeysWithValues: posts.map { ($0.id, $0) })
         let hasNew = latest.contains { existing[$0.id] == nil }
         if hasNew && isReadingOldFeed {
@@ -682,10 +683,18 @@ struct FeedView: View {
         async let unreadReq = api.fetchUnreadMessagesCount()
         async let onlineReq = api.fetchOnlineMembers(limit: 10)
         async let chatReq = api.fetchChatMessages(limit: 10)
-        notifications = (try? await notifReq) ?? notifications
-        unreadMessages = (try? await unreadReq) ?? unreadMessages
-        onlineMembers = (try? await onlineReq) ?? onlineMembers
-        chatMessages = (try? await chatReq) ?? chatMessages
+        if let nextNotifications = try? await notifReq, !sameNotifications(notifications, nextNotifications) {
+            notifications = nextNotifications
+        }
+        if let nextUnread = try? await unreadReq, unreadMessages != nextUnread {
+            unreadMessages = nextUnread
+        }
+        if let nextOnline = try? await onlineReq, !sameMembers(onlineMembers, nextOnline) {
+            onlineMembers = nextOnline
+        }
+        if let nextChatMessages = try? await chatReq, !sameChatMessages(chatMessages, nextChatMessages) {
+            chatMessages = nextChatMessages
+        }
     }
 
     private func sendFeedChat() async {
@@ -773,6 +782,45 @@ struct FeedView: View {
             "entity_id": n.entityId as Any,
             "source_user_id": n.sourceUserId as Any
         ])
+    }
+
+    private func sameFeedPosts(_ lhs: [FeedPost], _ rhs: [FeedPost]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            left.id == right.id
+                && left.likeCount == right.likeCount
+                && left.commentCount == right.commentCount
+                && left.liked == right.liked
+                && left.content == right.content
+                && left.image == right.image
+        }
+    }
+
+    private func sameNotifications(_ lhs: [AppNotification], _ rhs: [AppNotification]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            left.id == right.id
+                && left.readAt == right.readAt
+                && left.message == right.message
+        }
+    }
+
+    private func sameMembers(_ lhs: [MemberSummary], _ rhs: [MemberSummary]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            left.id == right.id
+                && left.kadi == right.kadi
+                && left.online == right.online
+        }
+    }
+
+    private func sameChatMessages(_ lhs: [ChatMessage], _ rhs: [ChatMessage]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            left.id == right.id
+                && left.message == right.message
+                && left.createdAt == right.createdAt
+        }
     }
 }
 

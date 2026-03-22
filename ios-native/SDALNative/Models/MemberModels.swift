@@ -6,6 +6,26 @@ struct MembersEnvelope: Decodable {
     let users: [MemberSummary]?
     let data: [MemberSummary]?
 
+    private enum CodingKeys: String, CodingKey {
+        case items, rows, users, data
+    }
+
+    init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(),
+           let direct = try? single.decode(LossyArray<MemberSummary>.self) {
+            items = direct.elements
+            rows = nil
+            users = nil
+            data = nil
+            return
+        }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        items = (try? c.decodeIfPresent(LossyArray<MemberSummary>.self, forKey: .items))?.elements
+        rows = (try? c.decodeIfPresent(LossyArray<MemberSummary>.self, forKey: .rows))?.elements
+        users = (try? c.decodeIfPresent(LossyArray<MemberSummary>.self, forKey: .users))?.elements
+        data = (try? c.decodeIfPresent(LossyArray<MemberSummary>.self, forKey: .data))?.elements
+    }
+
     var list: [MemberSummary] { items ?? rows ?? users ?? data ?? [] }
 }
 
@@ -24,14 +44,22 @@ struct MemberSummary: Decodable, Identifiable {
     let followedAt: String?
     let engagementScore: Double?
     let reasons: [String]?
+    let trustBadges: [String]?
+    let role: String?
 
     private enum CodingKeys: String, CodingKey {
-        case id, kadi, isim, soyisim, resim, verified, online, mezuniyetyili, sehir, universite, meslek, followedAt, engagementScore, reasons
+        case id, userId, followingId
+        case kadi, isim, soyisim, resim, verified, online, mezuniyetyili, sehir, universite, meslek, followedAt, engagementScore, reasons, trustBadges, role
+        case user_id, following_id, followed_at, engagement_score, trust_badges
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        guard let id = container.decodeLossyInt(forKey: .id) else {
+        guard let id = container.decodeLossyInt(forKey: .id)
+            ?? container.decodeLossyInt(forKey: .followingId)
+            ?? container.decodeLossyInt(forKey: .following_id)
+            ?? container.decodeLossyInt(forKey: .userId)
+            ?? container.decodeLossyInt(forKey: .user_id) else {
             throw DecodingError.dataCorruptedError(forKey: .id, in: container, debugDescription: "Missing member id")
         }
         self.id = id
@@ -46,14 +74,22 @@ struct MemberSummary: Decodable, Identifiable {
         universite = container.decodeLossyString(forKey: .universite)
         meslek = container.decodeLossyString(forKey: .meslek)
         followedAt = container.decodeLossyString(forKey: .followedAt)
+            ?? container.decodeLossyString(forKey: .followed_at)
         if let val = try? container.decodeIfPresent(Double.self, forKey: .engagementScore) {
             engagementScore = val
+        } else if let val = try? container.decodeIfPresent(Double.self, forKey: .engagement_score) {
+            engagementScore = val
         } else if let val = container.decodeLossyInt(forKey: .engagementScore) {
+            engagementScore = Double(val)
+        } else if let val = container.decodeLossyInt(forKey: .engagement_score) {
             engagementScore = Double(val)
         } else {
             engagementScore = nil
         }
         reasons = try? container.decodeIfPresent([String].self, forKey: .reasons)
+        trustBadges = (try? container.decodeIfPresent([String].self, forKey: .trustBadges))
+            ?? (try? container.decodeIfPresent([String].self, forKey: .trust_badges))
+        role = container.decodeLossyString(forKey: .role)
     }
 }
 

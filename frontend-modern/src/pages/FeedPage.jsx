@@ -64,7 +64,7 @@ function EmptyPanelState({ message, actionLabel, href, onRetry }) {
 }
 
 export default function FeedPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user } = useAuth();
   const [mobileTab, setMobileTab] = useState('posts');
   const [mobileTabsExpanded, setMobileTabsExpanded] = useState(false);
@@ -125,6 +125,75 @@ export default function FeedPage() {
   const activeScopeLabel = scopeOptions.find((item) => item.key === feedType)?.label || t('main_feed');
   const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
   const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
+  const todayLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(lang || undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      }).format(new Date());
+    } catch {
+      return '';
+    }
+  }, [lang]);
+  const featuredMembers = useMemo(() => {
+    const source = onlineMembers.length ? onlineMembers : quickUsers;
+    const seen = new Set();
+    return source.filter((item) => {
+      const id = Number(item?.id || 0);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }).slice(0, 4);
+  }, [onlineMembers, quickUsers]);
+  const liveSignalCount = Math.max(0, unreadNotifications) + Math.max(0, unreadMessages) + Math.max(0, pendingPostsCount);
+  const pulseItems = useMemo(() => ([
+    {
+      key: 'scope',
+      icon: feedType,
+      value: posts.length,
+      label: activeScopeLabel,
+      meta: activeFilterLabel
+    },
+    {
+      key: 'notifications',
+      icon: 'notifications',
+      value: unreadNotifications,
+      label: t('nav_notifications'),
+      meta: pendingPostsCount > 0 ? t('feed_new_posts_refresh', { count: pendingPostsCount }) : t('nav_feed')
+    },
+    {
+      key: 'messages',
+      icon: 'messages',
+      value: unreadMessages,
+      label: t('new_messages'),
+      meta: quickUsers.length > 0 ? t('quick_access') : t('nav_messages')
+    },
+    {
+      key: 'online',
+      icon: 'online',
+      value: onlineMembers.length,
+      label: t('online_members'),
+      meta: featuredMembers.length > 0 ? `@${featuredMembers[0].kadi}` : t('status_online')
+    }
+  ]), [
+    activeFilterLabel,
+    activeScopeLabel,
+    feedType,
+    featuredMembers,
+    onlineMembers.length,
+    pendingPostsCount,
+    posts.length,
+    quickUsers.length,
+    t,
+    unreadMessages,
+    unreadNotifications
+  ]);
+  const quickLinks = useMemo(() => ([
+    { to: '/new/explore', icon: 'community', label: t('feed_discover_members') },
+    { to: '/new/events', icon: 'latest', label: t('feed_upcoming_events') },
+    { to: '/new/announcements', icon: 'notifications', label: t('nav_announcements') }
+  ]), [t]);
 
   const mobileTabToggleLabel = mobileTabsExpanded
     ? `${t('close')} • ${activeFeedTabLabel}`
@@ -409,6 +478,76 @@ export default function FeedPage() {
 
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
+          <section className="panel feed-hero-panel" aria-label={t('nav_feed')}>
+            <div className="feed-hero-copy">
+              <div className="feed-hero-kicker">
+                <span className="feed-hero-mark">SDAL</span>
+                {todayLabel ? <span className="feed-hero-date">{todayLabel}</span> : null}
+              </div>
+              <div className="feed-hero-headline">
+                <div>
+                  <h2 className="feed-hero-title">{t('nav_feed')}</h2>
+                  <div className="feed-hero-tags" aria-label={t('nav_feed')}>
+                    <span className="feed-hero-tag">{activeScopeLabel}</span>
+                    <span className="feed-hero-tag">{activeFilterLabel}</span>
+                    {user?.kadi ? <span className="feed-hero-tag">@{user.kadi}</span> : null}
+                  </div>
+                </div>
+                {featuredMembers.length ? (
+                  <div className="feed-hero-members" aria-label={onlineMembers.length > 0 ? t('online_members') : t('quick_access')}>
+                    <div className="feed-hero-member-stack">
+                      {featuredMembers.map((member) => (
+                        <img
+                          key={`hero-member-${member.id}`}
+                          className="feed-hero-member-avatar"
+                          src={member.resim ? `/api/media/vesikalik/${member.resim}` : '/legacy/vesikalik/nophoto.jpg'}
+                          loading="lazy"
+                          decoding="async"
+                          alt=""
+                        />
+                      ))}
+                    </div>
+                    <div className="feed-hero-member-copy">
+                      <strong>{onlineMembers.length || featuredMembers.length}</strong>
+                      <span>{onlineMembers.length > 0 ? t('online_members') : t('quick_access')}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="feed-pulse-grid">
+              {pulseItems.map((item) => (
+                <div key={item.key} className={`feed-pulse-card feed-pulse-card-${item.key}`}>
+                  <span className="feed-pulse-icon" aria-hidden="true"><FeedIcon name={item.icon} /></span>
+                  <div className="feed-pulse-value">{item.value}</div>
+                  <div className="feed-pulse-label">{item.label}</div>
+                  <div className="feed-pulse-meta">{item.meta}</div>
+                </div>
+              ))}
+            </div>
+
+            {pendingPostsCount > 0 ? (
+              <button
+                className="btn primary feed-refresh-banner"
+                onClick={() => {
+                  if (pendingItems) setPosts(pendingItems);
+                  setPendingItems(null);
+                  setPendingPostsCount(0);
+                }}
+              >
+                <span className="feed-refresh-banner-dot" aria-hidden="true" />
+                {t('feed_new_posts_refresh', { count: pendingPostsCount })}
+              </button>
+            ) : (
+              <div className="feed-hero-footnote">
+                <span className="feed-hero-footnote-dot" aria-hidden="true" />
+                <span>{liveSignalCount}</span>
+                <span>{t('nav_notifications')}</span>
+              </div>
+            )}
+          </section>
+
           <div className="panel feed-mobile-scope-card">
             <div className="panel-body scope-tabs scope-tabs-feedtype">
               {scopeOptions.map((scopeItem) => (
@@ -444,20 +583,16 @@ export default function FeedPage() {
             <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
           </div>
 
-          {pendingPostsCount > 0 ? (
-            <button
-              className="btn primary"
-              onClick={() => {
-                if (pendingItems) setPosts(pendingItems);
-                setPendingItems(null);
-                setPendingPostsCount(0);
-              }}
-            >
-              {t('feed_new_posts_refresh', { count: pendingPostsCount })}
-            </button>
-          ) : null}
-
-          <PostComposer onPost={() => load({ silent: true, force: true })} />
+          <div className="feed-composer-shell">
+            <div className="feed-composer-head">
+              <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
+              <div className="feed-composer-copy">
+                <div className="feed-composer-title">{activeScopeLabel}</div>
+                <div className="feed-composer-meta">{activeFilterLabel}</div>
+              </div>
+            </div>
+            <PostComposer onPost={() => load({ silent: true, force: true })} />
+          </div>
 
           {loading && posts.length === 0 ? (
             <div className="feed-skeleton-list" aria-label={t('loading')}>
@@ -487,23 +622,26 @@ export default function FeedPage() {
         </div>
 
         <div className="col-side feed-side">
-          <div className={`feed-tab-panel ${mobileTab === 'notifications' ? 'is-active' : ''}`}>
+          <div className={`feed-tab-panel feed-side-notification-wrap ${mobileTab === 'notifications' ? 'is-active' : ''}`}>
             <NotificationPanel limit={3} showAllLink showEmptyCta onReload={loadUnreadNotifications} />
           </div>
 
-          <div className={`panel feed-tab-panel ${mobileTab === 'online' ? 'is-active' : ''}`}>
-            <h3>{t('online_members')}</h3>
+          <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'online' ? 'is-active' : ''}`}>
+            <div className="feed-side-panel-heading">
+              <h3>{t('online_members')}</h3>
+              <span className="feed-side-panel-count">{onlineMembers.length}</span>
+            </div>
             <div className="panel-body">
               {onlineMembersLoading ? <SkeletonRows count={2} /> : null}
               {!onlineMembersLoading && onlineMembersError ? (
                 <EmptyPanelState message={t('online_members_empty')} actionLabel={t('games_refresh')} onRetry={() => loadOnlineMembers({ background: false })} />
               ) : null}
               {!onlineMembersLoading && !onlineMembersError && onlineMembers.map((u) => (
-                <Link key={u.id} className="verify-user" to={`/new/members/${u.id}`}>
+                <Link key={u.id} className="verify-user feed-member-row" to={`/new/members/${u.id}`}>
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>
                     <div>@{u.kadi}</div>
-                    <div className="meta">{t('status_online')}</div>
+                    <div className="meta"><span className="feed-member-status-dot" aria-hidden="true" />{t('status_online')}</div>
                   </div>
                 </Link>
               ))}
@@ -511,8 +649,11 @@ export default function FeedPage() {
             </div>
           </div>
 
-          <div className={`panel feed-tab-panel ${mobileTab === 'messages' ? 'is-active' : ''}`}>
-            <h3>{t('new_messages')}</h3>
+          <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'messages' ? 'is-active' : ''}`}>
+            <div className="feed-side-panel-heading">
+              <h3>{t('new_messages')}</h3>
+              <span className="feed-side-panel-count">{unreadMessages}</span>
+            </div>
             <div className="panel-body">
               {unreadMessagesLoading ? <SkeletonRows count={1} /> : null}
               {!unreadMessagesLoading && unreadMessagesError ? (
@@ -534,25 +675,36 @@ export default function FeedPage() {
             )}
           </div>
 
-          <div className={`panel feed-tab-panel ${mobileTab === 'quick' ? 'is-active' : ''}`}>
-            <h3>{t('quick_access')}</h3>
+          <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'quick' ? 'is-active' : ''}`}>
+            <div className="feed-side-panel-heading">
+              <h3>{t('quick_access')}</h3>
+              <span className="feed-side-panel-count">{quickUsers.length}</span>
+            </div>
             <div className="panel-body">
               {quickAccessLoading ? <SkeletonRows count={3} /> : null}
               {!quickAccessLoading && quickAccessError ? (
                 <EmptyPanelState message={t('feed_discover_members')} actionLabel={t('games_refresh')} onRetry={() => loadQuickAccess({ background: false })} />
               ) : null}
               {!quickAccessLoading && !quickAccessError && quickUsers.map((u) => (
-                <Link key={u.id} className="verify-user" to={`/new/members/${u.id}`}>
+                <Link key={u.id} className="verify-user feed-member-row" to={`/new/members/${u.id}`}>
                   <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt="" />
                   <div>
                     <div>@{u.kadi}</div>
-                    <div className="meta">{Number(u.online) === 1 ? t('status_online') : t('status_offline')}</div>
+                    <div className="meta">
+                      <span className={`feed-member-status-dot ${Number(u.online) === 1 ? 'is-online' : 'is-offline'}`} aria-hidden="true" />
+                      {Number(u.online) === 1 ? t('status_online') : t('status_offline')}
+                    </div>
                   </div>
                 </Link>
               ))}
-              <Link to="/new/explore">{t('feed_discover_members')}</Link>
-              <Link to="/new/events">{t('feed_upcoming_events')}</Link>
-              <Link to="/new/announcements">{t('nav_announcements')}</Link>
+              <div className="feed-quick-links">
+                {quickLinks.map((item) => (
+                  <Link key={item.to} className="feed-quick-link" to={item.to}>
+                    <span className="feed-quick-link-icon" aria-hidden="true"><FeedIcon name={item.icon} /></span>
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         </div>

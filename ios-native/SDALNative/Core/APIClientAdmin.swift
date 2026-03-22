@@ -28,22 +28,34 @@ extension APIClient {
     }
 
     func fetchAdminPosts(limit: Int = 40, offset: Int = 0) async throws -> [AdminModerationItem] {
-        let payload = try await request("/new/admin/posts?limit=\(limit)&offset=\(offset)", as: AdminListEnvelope<AdminModerationItem>.self)
+        let payload = try await request("/new/admin/posts", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: AdminListEnvelope<AdminModerationItem>.self)
         return payload.list
     }
 
     func fetchAdminStories(limit: Int = 40, offset: Int = 0) async throws -> [AdminModerationItem] {
-        let payload = try await request("/new/admin/stories?limit=\(limit)&offset=\(offset)", as: AdminListEnvelope<AdminModerationItem>.self)
+        let payload = try await request("/new/admin/stories", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: AdminListEnvelope<AdminModerationItem>.self)
         return payload.list
     }
 
     func fetchAdminMessages(limit: Int = 40, offset: Int = 0) async throws -> [AdminModerationItem] {
-        let payload = try await request("/new/admin/messages?limit=\(limit)&offset=\(offset)", as: AdminListEnvelope<AdminModerationItem>.self)
+        let payload = try await request("/new/admin/messages", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: AdminListEnvelope<AdminModerationItem>.self)
         return payload.list
     }
 
     func fetchAdminChatMessages(limit: Int = 40, offset: Int = 0) async throws -> [AdminModerationItem] {
-        let payload = try await request("/new/admin/chat/messages?limit=\(limit)&offset=\(offset)", as: AdminListEnvelope<AdminModerationItem>.self)
+        let payload = try await request("/new/admin/chat/messages", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: AdminListEnvelope<AdminModerationItem>.self)
         return payload.list
     }
 
@@ -92,7 +104,10 @@ extension APIClient {
     }
 
     func fetchAdminFollows(userId: Int, limit: Int = 40, offset: Int = 0) async throws -> AdminFollowsEnvelope {
-        try await request("/new/admin/follows/\(userId)?limit=\(limit)&offset=\(offset)", as: AdminFollowsEnvelope.self)
+        try await request("/new/admin/follows/\(userId)", query: [
+            "limit": String(limit),
+            "offset": String(offset)
+        ], as: AdminFollowsEnvelope.self)
     }
 
     func fetchAdminGroups() async throws -> [AdminGroupItem] {
@@ -164,16 +179,15 @@ extension APIClient {
         page: Int = 1,
         limit: Int = 40
     ) async throws -> EngagementScoresEnvelope {
-        var parts = ["sort=\(sort)", "status=\(status)", "page=\(page)", "limit=\(limit)"]
-        if !query.isEmpty {
-            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            parts.append("q=\(encoded)")
-        }
-        if !variant.isEmpty {
-            let encoded = variant.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            parts.append("variant=\(encoded)")
-        }
-        return try await request("/new/admin/engagement-scores?\(parts.joined(separator: "&"))", as: EngagementScoresEnvelope.self)
+        var params: [String: String] = [
+            "sort": sort,
+            "status": status,
+            "page": String(page),
+            "limit": String(limit)
+        ]
+        if !query.isEmpty { params["q"] = query }
+        if !variant.isEmpty { params["variant"] = variant }
+        return try await request("/new/admin/engagement-scores", query: params, as: EngagementScoresEnvelope.self)
     }
 
     func recalculateEngagementScores() async throws {
@@ -235,7 +249,10 @@ extension APIClient {
 
     func fetchAdminDbTable(name: String, page: Int = 1, limit: Int = 30) async throws -> AdminDbTableEnvelope {
         let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
-        return try await request("/new/admin/db/table/\(encoded)?page=\(page)&limit=\(limit)", as: AdminDbTableEnvelope.self)
+        return try await request("/new/admin/db/table/\(encoded)", query: [
+            "page": String(page),
+            "limit": String(limit)
+        ], as: AdminDbTableEnvelope.self)
     }
 
     func fetchAdminDbBackups() async throws -> AdminDbBackupsEnvelope {
@@ -270,20 +287,17 @@ extension APIClient {
         sort: String = "engagement_desc",
         limit: Int = 500
     ) async throws -> AdminUsersListEnvelope {
-        var parts: [String] = [
-            "filter=\(filter)",
-            "sort=\(sort)",
-            "limit=\(limit)"
+        var params: [String: String] = [
+            "filter": filter,
+            "sort": sort,
+            "limit": String(limit)
         ]
-        if !query.isEmpty {
-            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            parts.append("q=\(encoded)")
-        }
-        if withPhoto { parts.append("photo=1") }
-        if verifiedOnly { parts.append("verified=1") }
-        if onlineOnly { parts.append("online=1") }
-        if adminOnly { parts.append("admin=1") }
-        return try await request("/admin/users/lists?\(parts.joined(separator: "&"))", as: AdminUsersListEnvelope.self)
+        if !query.isEmpty { params["q"] = query }
+        if withPhoto { params["photo"] = "1" }
+        if verifiedOnly { params["verified"] = "1" }
+        if onlineOnly { params["online"] = "1" }
+        if adminOnly { params["admin"] = "1" }
+        return try await request("/admin/users/lists", query: params, as: AdminUsersListEnvelope.self)
     }
 
     func fetchAdminUserDetail(id: Int) async throws -> AdminManagedUser {
@@ -297,13 +311,13 @@ extension APIClient {
     }
 
     func searchAdminUsers(query: String, onlyWithPhoto: Bool = false, sort: String = "engagement_desc", limit: Int = 800) async throws -> AdminUsersListEnvelope {
-        var parts: [String] = [
-            "q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")",
-            "sort=\(sort)",
-            "limit=\(limit)"
+        var params: [String: String] = [
+            "q": query,
+            "sort": sort,
+            "limit": String(limit)
         ]
-        if onlyWithPhoto { parts.append("res=1") }
-        return try await request("/admin/users/search?\(parts.joined(separator: "&"))", as: AdminUsersListEnvelope.self)
+        if onlyWithPhoto { params["res"] = "1" }
+        return try await request("/admin/users/search", query: params, as: AdminUsersListEnvelope.self)
     }
 
     func fetchAdminPages() async throws -> [AdminPageItem] {
@@ -334,21 +348,21 @@ extension APIClient {
         limit: Int = 500,
         offset: Int = 0
     ) async throws -> AdminLogsEnvelope {
-        var parts = ["type=\(type)"]
+        var params = ["type": type]
         if let file, !file.isEmpty {
-            parts.append("file=\(file.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")
-            if !query.isEmpty { parts.append("q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") }
-            if !activity.isEmpty { parts.append("activity=\(activity.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") }
-            if !userId.isEmpty { parts.append("userId=\(userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") }
-            if !from.isEmpty { parts.append("from=\(from)") }
-            if !to.isEmpty { parts.append("to=\(to)") }
-            parts.append("limit=\(limit)")
-            parts.append("offset=\(offset)")
+            params["file"] = file
+            if !query.isEmpty { params["q"] = query }
+            if !activity.isEmpty { params["activity"] = activity }
+            if !userId.isEmpty { params["userId"] = userId }
+            if !from.isEmpty { params["from"] = from }
+            if !to.isEmpty { params["to"] = to }
+            params["limit"] = String(limit)
+            params["offset"] = String(offset)
         } else {
-            if !from.isEmpty { parts.append("from=\(from)") }
-            if !to.isEmpty { parts.append("to=\(to)") }
+            if !from.isEmpty { params["from"] = from }
+            if !to.isEmpty { params["to"] = to }
         }
-        return try await request("/admin/logs?\(parts.joined(separator: "&"))", as: AdminLogsEnvelope.self)
+        return try await request("/admin/logs", query: params, as: AdminLogsEnvelope.self)
     }
 
     func fetchAdminAlbumCategories() async throws -> AdminAlbumCategoriesEnvelope {
@@ -368,12 +382,11 @@ extension APIClient {
     }
 
     func fetchAdminAlbumPhotos(krt: String = "", kid: String = "", diz: String = "") async throws -> AdminAlbumPhotosEnvelope {
-        var parts: [String] = []
-        if !krt.isEmpty { parts.append("krt=\(krt)") }
-        if !kid.isEmpty { parts.append("kid=\(kid)") }
-        if !diz.isEmpty { parts.append("diz=\(diz)") }
-        let suffix = parts.isEmpty ? "" : "?\(parts.joined(separator: "&"))"
-        return try await request("/admin/album/photos\(suffix)", as: AdminAlbumPhotosEnvelope.self)
+        var params: [String: String] = [:]
+        if !krt.isEmpty { params["krt"] = krt }
+        if !kid.isEmpty { params["kid"] = kid }
+        if !diz.isEmpty { params["diz"] = diz }
+        return try await request("/admin/album/photos", query: params, as: AdminAlbumPhotosEnvelope.self)
     }
 
     func bulkAdminAlbumPhotos(ids: [Int], action: String) async throws {

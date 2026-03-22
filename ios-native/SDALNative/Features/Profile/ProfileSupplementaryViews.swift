@@ -619,7 +619,7 @@ struct SDALMessengerView: View {
 
     private func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
         let type = "\(userInfo["type"] ?? "")".lowercased()
-        guard type == "messenger:new" || type == "messenger:read" || type == "messenger:delivered" else { return }
+        guard type == "messenger:new" else { return }
         await loadThreads(silent: true)
     }
 }
@@ -782,7 +782,7 @@ struct SDALMessengerThreadView: View {
         do {
             messages = try await api.fetchMessengerMessages(threadId: thread.id, limit: 90)
             try? await api.markMessengerThreadRead(threadId: thread.id)
-            messages = try await api.fetchMessengerMessages(threadId: thread.id, limit: 90)
+            markIncomingMessagesReadLocally(at: ISO8601DateFormatter().string(from: Date()))
         } catch {
             self.error = error.localizedDescription
         }
@@ -811,12 +811,29 @@ struct SDALMessengerThreadView: View {
         if type == "messenger:hello" { return }
         let eventThreadId = Int("\(json["threadId"] ?? "")") ?? 0
         if eventThreadId != thread.id { return }
-        await load()
+        switch type {
+        case "messenger:new":
+            if let item = decodeSocketMessengerMessage(from: json["item"]) {
+                mergeMessages([item])
+                if (item.senderId ?? 0) != (appState.session?.id ?? -1) {
+                    try? await api.markMessengerThreadRead(threadId: thread.id)
+                    markIncomingMessagesReadLocally(at: ISO8601DateFormatter().string(from: Date()))
+                }
+            } else {
+                await load()
+            }
+        case "messenger:delivered":
+            applyDeliveredReceipt(deliveredAt: stringValue(json["deliveredAt"]))
+        case "messenger:read":
+            applyReadReceipt(readAt: stringValue(json["readAt"]))
+        default:
+            break
+        }
     }
 
     private func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
         let type = "\(userInfo["type"] ?? "")".lowercased()
-        guard type == "messenger:new" || type == "messenger:read" || type == "messenger:delivered" else { return }
+        guard type == "messenger:new" else { return }
         let eventThreadId = integerValue(userInfo["thread_id"] ?? userInfo["threadId"] ?? userInfo["entity_id"])
         guard eventThreadId == thread.id else { return }
         await load()
@@ -841,6 +858,92 @@ struct SDALMessengerThreadView: View {
         }
     }
 
+    private func mergeMessages(_ incoming: [MessengerMessage]) {
+        guard !incoming.isEmpty else { return }
+        var map = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
+        for item in incoming {
+            map[item.id] = item
+        }
+        messages = map.values.sorted { $0.id < $1.id }
+    }
+
+    private func markIncomingMessagesReadLocally(at readAt: String) {
+        let sessionId = appState.session?.id ?? -1
+        messages = messages.map { message in
+            guard (message.receiverId ?? -1) == sessionId else { return message }
+            return MessengerMessage(
+                id: message.id,
+                threadId: message.threadId,
+                senderId: message.senderId,
+                receiverId: message.receiverId,
+                isMine: message.isMine,
+                body: message.body,
+                clientWrittenAt: message.clientWrittenAt,
+                serverReceivedAt: message.serverReceivedAt,
+                deliveredAt: message.deliveredAt ?? readAt,
+                createdAt: message.createdAt,
+                readAt: message.readAt ?? readAt,
+                kadi: message.kadi,
+                isim: message.isim,
+                soyisim: message.soyisim,
+                resim: message.resim,
+                verified: message.verified
+            )
+        }
+    }
+
+    private func applyDeliveredReceipt(deliveredAt: String?) {
+        guard let deliveredAt, !deliveredAt.isEmpty else { return }
+        let sessionId = appState.session?.id ?? -1
+        messages = messages.map { message in
+            guard (message.senderId ?? -1) == sessionId, message.deliveredAt == nil else { return message }
+            return MessengerMessage(
+                id: message.id,
+                threadId: message.threadId,
+                senderId: message.senderId,
+                receiverId: message.receiverId,
+                isMine: message.isMine,
+                body: message.body,
+                clientWrittenAt: message.clientWrittenAt,
+                serverReceivedAt: message.serverReceivedAt,
+                deliveredAt: deliveredAt,
+                createdAt: message.createdAt,
+                readAt: message.readAt,
+                kadi: message.kadi,
+                isim: message.isim,
+                soyisim: message.soyisim,
+                resim: message.resim,
+                verified: message.verified
+            )
+        }
+    }
+
+    private func applyReadReceipt(readAt: String?) {
+        guard let readAt, !readAt.isEmpty else { return }
+        let sessionId = appState.session?.id ?? -1
+        messages = messages.map { message in
+            guard (message.senderId ?? -1) == sessionId else { return message }
+            return MessengerMessage(
+                id: message.id,
+                threadId: message.threadId,
+                senderId: message.senderId,
+                receiverId: message.receiverId,
+                isMine: message.isMine,
+                body: message.body,
+                clientWrittenAt: message.clientWrittenAt,
+                serverReceivedAt: message.serverReceivedAt,
+                deliveredAt: message.deliveredAt ?? readAt,
+                createdAt: message.createdAt,
+                readAt: message.readAt ?? readAt,
+                kadi: message.kadi,
+                isim: message.isim,
+                soyisim: message.soyisim,
+                resim: message.resim,
+                verified: message.verified
+            )
+        }
+    }
+
     @ViewBuilder
     private func detailRow(_ title: String, _ value: String?) -> some View {
         let text = (value?.isEmpty == false) ? (value ?? "-") : "-"
@@ -858,6 +961,24 @@ struct SDALMessengerThreadView: View {
             return intValue
         }
         return Int("\(value)")
+    }
+
+    private func decodeSocketMessengerMessage(from payload: Any?) -> MessengerMessage? {
+        guard let payload,
+              JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(MessengerMessage.self, from: data)
+    }
+
+    private func stringValue(_ value: Any?) -> String? {
+        guard let value else { return nil }
+        if let stringValue = value as? String, !stringValue.isEmpty {
+            return stringValue
+        }
+        let raw = "\(value)"
+        return raw.isEmpty ? nil : raw
     }
 }
 

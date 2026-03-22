@@ -5,15 +5,23 @@ enum AppConfig {
     static let apiPrefix = "/api"
 
     static func apiURL(path: String, query: [String: String]? = nil) -> URL? {
-        let normalizedPath = path.hasPrefix("/") ? path : "/" + path
+        let componentsWithEmbeddedQuery = path.hasPrefix("/")
+            ? URLComponents(string: path)
+            : URLComponents(string: "/" + path)
+        let normalizedPath = componentsWithEmbeddedQuery?.path.isEmpty == false
+            ? componentsWithEmbeddedQuery?.path ?? path
+            : (path.hasPrefix("/") ? path : "/" + path)
         guard var components = URLComponents(url: baseURL.appendingPathComponent(apiPrefix), resolvingAgainstBaseURL: false) else {
             return nil
         }
         components.path = apiPrefix + normalizedPath
-        if let query, !query.isEmpty {
-            components.queryItems = query
-                .sorted { $0.key < $1.key }
-                .map { URLQueryItem(name: $0.key, value: $0.value) }
+        let embeddedItems = componentsWithEmbeddedQuery?.queryItems ?? []
+        let explicitItems = (query ?? [:])
+            .sorted { $0.key < $1.key }
+            .map { URLQueryItem(name: $0.key, value: $0.value) }
+        let combinedItems = embeddedItems + explicitItems
+        if !combinedItems.isEmpty {
+            components.queryItems = combinedItems
         }
         return components.url
     }

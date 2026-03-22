@@ -61,10 +61,12 @@ enum AdminEmailSendMode: String, CaseIterable, Identifiable {
 }
 
 struct AdminView: View {
+    @EnvironmentObject var appState: AppState
     @EnvironmentObject var i18n: LocalizationManager
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @State var adminUser: AdminUser?
+    @State var didResolveAdminAccess = false
     @State var password = ""
     @State var isLoading = false
     @State var errorMessage: String?
@@ -182,11 +184,16 @@ struct AdminView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if adminUser == nil {
-                    adminLoginForm
+                if adminUser == nil, !didResolveAdminAccess {
+                    ProgressView(i18n.t("loading"))
+                } else if adminUser == nil {
+                    adminAccessDeniedView
                 } else {
                     adminWorkspace
                 }
+            }
+            .task {
+                await resolveAdminAccessIfNeeded()
             }
             .navigationTitle(i18n.t("admin"))
             .sheet(item: $editingUser) { user in
@@ -292,6 +299,23 @@ struct AdminView: View {
                         .foregroundStyle(.red)
                         .font(.footnote)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(16)
+        }
+    }
+
+    private var adminAccessDeniedView: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(i18n.t("admin"))
+                            .font(.headline)
+                        Text(errorMessage ?? i18n.t("admin_login_required_not_admin"))
+                            .font(.caption)
+                            .foregroundStyle(SDALTheme.muted)
+                    }
                 }
             }
             .padding(16)

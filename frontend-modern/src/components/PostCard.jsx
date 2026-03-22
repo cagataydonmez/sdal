@@ -8,6 +8,14 @@ import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
 
+function PostActionIcon({ type, active = false }) {
+  const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: active ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
+  if (type === 'comment') {
+    return <svg aria-hidden="true" {...common}><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 3v-6.5A8.5 8.5 0 1 1 21 11.5z" /></svg>;
+  }
+  return <svg aria-hidden="true" {...common}><path d="M12 20.5s-7-4.4-7-10.3A4.2 4.2 0 0 1 9.2 6c1.4 0 2.3.6 2.8 1.3.5-.7 1.4-1.3 2.8-1.3A4.2 4.2 0 0 1 19 10.2c0 5.9-7 10.3-7 10.3z" /></svg>;
+}
+
 export default function PostCard({ post, onRefresh, focused = false }) {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -23,6 +31,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
   const [commentCount, setCommentCount] = useState(Number(post.commentCount || 0));
   const [likeBusy, setLikeBusy] = useState(false);
   const [commentBusy, setCommentBusy] = useState(false);
+  const [likePulse, setLikePulse] = useState(false);
 
   async function loadComments() {
     const res = await fetch(`/api/new/posts/${post.id}/comments`, { credentials: 'include' });
@@ -60,6 +69,10 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     setLikeBusy(true);
     setLiked(nextLiked);
     setLikeCount((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
+    if (nextLiked) {
+      setLikePulse(true);
+      window.setTimeout(() => setLikePulse(false), 720);
+    }
     try {
       const res = await fetch(`/api/new/posts/${post.id}/like`, { method: 'POST', credentials: 'include' });
       if (!res.ok) throw new Error(await res.text());
@@ -168,7 +181,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
   }
 
   return (
-    <article className="post-card">
+    <article className={`post-card ${focused ? 'is-focused' : ''} ${showCommentForm ? 'is-conversing' : ''} ${likePulse ? 'is-like-pulsing' : ''}`}>
       <div className="post-header">
         {authorId ? (
           <Link to={`/new/members/${authorId}`} aria-label={`${post.author?.kadi || 'uye'} profiline git`}>
@@ -223,16 +236,27 @@ export default function PostCard({ post, onRefresh, focused = false }) {
         ) : null}
       </div>
       <div className="post-actions">
-        <button className={liked ? 'pill liked' : 'pill'} onClick={toggleLike} disabled={likeBusy}>
-          ♥ {likeCount}
+        <button
+          className={`pill post-action-pill ${liked ? 'liked' : ''} ${likePulse ? 'is-pulsing' : ''}`}
+          onClick={toggleLike}
+          disabled={likeBusy}
+          aria-pressed={liked}
+        >
+          <span className="post-action-icon"><PostActionIcon type="like" active={liked} /></span>
+          <span>{likeCount}</span>
         </button>
-        <button className="pill" onClick={() => {
-          const next = !showCommentForm;
-          setShowCommentForm(next);
-          setShowComments(next);
-          if (next) loadComments();
-        }}>
-          💬 {commentCount}
+        <button
+          className={`pill post-action-pill ${showCommentForm ? 'is-open' : ''}`}
+          onClick={() => {
+            const next = !showCommentForm;
+            setShowCommentForm(next);
+            setShowComments(next);
+            if (next) loadComments();
+          }}
+          aria-expanded={showCommentForm}
+        >
+          <span className="post-action-icon"><PostActionIcon type="comment" active={showCommentForm} /></span>
+          <span>{commentCount}</span>
         </button>
       </div>
       {showCommentForm ? (
@@ -244,7 +268,7 @@ export default function PostCard({ post, onRefresh, focused = false }) {
             minHeight={84}
             compact
           />
-          <button className="btn" disabled={commentBusy}>{t('send')}</button>
+          <button className="btn primary" disabled={commentBusy}>{t('send')}</button>
         </form>
       ) : null}
       {showComments ? (

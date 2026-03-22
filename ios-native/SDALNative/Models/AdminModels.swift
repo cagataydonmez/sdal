@@ -31,6 +31,22 @@ struct AdminUser: Decodable, Identifiable {
         email = c.decodeLossyString(forKey: .email)
         role = c.decodeLossyString(forKey: .role) ?? c.decodeLossyString(forKey: .rol)
     }
+
+    init(
+        id: Int,
+        kadi: String?,
+        isim: String?,
+        soyisim: String?,
+        email: String?,
+        role: String?
+    ) {
+        self.id = id
+        self.kadi = kadi
+        self.isim = isim
+        self.soyisim = soyisim
+        self.email = email
+        self.role = role
+    }
 }
 
 struct AdminStatsEnvelope: Decodable {
