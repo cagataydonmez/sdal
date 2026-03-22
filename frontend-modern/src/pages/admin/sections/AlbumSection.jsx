@@ -325,7 +325,7 @@ export default function AlbumSection({ canManageAlbums = false }) {
       label: t('Önizleme'),
       render: (row) => (
         row.dosyaadi
-          ? <img src={previewUrl(row.dosyaadi)} alt={row.baslik || ''} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 12 }} />
+          ? <img className="admin-preview-thumb" src={previewUrl(row.dosyaadi)} alt={row.baslik || ''} />
           : <span className="muted">{t('Dosya yok')}</span>
       )
     },
@@ -505,9 +505,9 @@ export default function AlbumSection({ canManageAlbums = false }) {
                   <div className="panel">
                     <div className="panel-body stack">
                       <img
+                        className="admin-preview-photo-stage"
                         src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(selectedPhoto.dosyaadi)}`}
                         alt={selectedPhoto.baslik || ''}
-                        style={{ width: '100%', maxHeight: 560, objectFit: 'contain', borderRadius: 16 }}
                       />
                       <div className="ops-inline-actions">
                         <a className="btn ghost" href={`/new/albums/photo/${selectedPhoto.id}`}>{t('Herkese açık fotoğraf sayfasını aç')}</a>

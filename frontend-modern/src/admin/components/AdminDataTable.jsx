@@ -62,13 +62,44 @@ export default function AdminDataTable({
                   </td>
                 ) : null}
                 {columns.map((column) => (
-                  <td key={`${id}-${column.key}`}>{column.render ? column.render(row) : String(row?.[column.key] ?? '-')}</td>
+                  <td key={`${id}-${column.key}`} data-label={typeof column.label === 'string' ? column.label : ''}>
+                    {column.render ? column.render(row) : String(row?.[column.key] ?? '-')}
+                  </td>
                 ))}
               </tr>
             );
           }) : null}
         </tbody>
       </table>
+      <div className="ops-card-list">
+        {loading ? <div className="muted ops-card-item">{t('loading')}</div> : null}
+        {!loading && !hasRows ? <div className="muted ops-card-item">{emptyText}</div> : null}
+        {!loading && hasRows ? rows.map((row) => {
+          const id = getRowId(row, rowKey);
+          return (
+            <article key={`card-${id}`} className={`ops-card-item${onRowClick ? ' clickable' : ''}`} onClick={() => onRowClick?.(row)}>
+              {selectable ? (
+                <label className="ops-card-check" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(id)}
+                    onChange={(e) => onToggleRow?.(row, e.target.checked)}
+                  />
+                  <span>{t('selected')}</span>
+                </label>
+              ) : null}
+              <div className="ops-card-fields">
+                {columns.map((column) => (
+                  <div key={`${id}-card-${column.key}`} className="ops-card-field">
+                    <span className="ops-card-label">{column.label}</span>
+                    <div className="ops-card-value">{column.render ? column.render(row) : String(row?.[column.key] ?? '-')}</div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          );
+        }) : null}
+      </div>
       {pagination ? (
         <div className="ops-table-pagination">
           <button className="btn ghost" disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)}>{t('Önceki')}</button>

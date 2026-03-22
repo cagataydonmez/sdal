@@ -549,50 +549,52 @@ export default function FeedPage() {
             )}
           </section>
 
-          <div className="panel feed-mobile-scope-card">
-            <div className="panel-body scope-tabs scope-tabs-feedtype">
-              {scopeOptions.map((scopeItem) => (
-                <button
-                  key={`scope-${scopeItem.key}`}
-                  className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
-                  onClick={() => setFeedType(scopeItem.key)}
-                  title={scopeItem.label}
-                  aria-label={scopeItem.label}
-                >
-                  <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
-                  <span className="scope-btn-label">{scopeItem.label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
-
-            <div className="panel-body scope-tabs scope-tabs-filter">
-              {filterOptions.map((filterItem) => (
-                <button
-                  key={`filter-${filterItem.key}`}
-                  className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
-                  onClick={() => setFilter(filterItem.key)}
-                  title={filterItem.label}
-                  aria-label={filterItem.label}
-                >
-                  <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
-                  <span className="scope-btn-label">{filterItem.label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="scope-mobile-selected-title">{activeFilterLabel}</div>
-            <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
-          </div>
-
-          <div className="feed-composer-shell">
-            <div className="feed-composer-head">
-              <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
-              <div className="feed-composer-copy">
-                <div className="feed-composer-title">{activeScopeLabel}</div>
-                <div className="feed-composer-meta">{activeFilterLabel}</div>
+          <div className="feed-intent-band">
+            <div className="panel feed-mobile-scope-card">
+              <div className="panel-body scope-tabs scope-tabs-feedtype">
+                {scopeOptions.map((scopeItem) => (
+                  <button
+                    key={`scope-${scopeItem.key}`}
+                    className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
+                    onClick={() => setFeedType(scopeItem.key)}
+                    title={scopeItem.label}
+                    aria-label={scopeItem.label}
+                  >
+                    <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
+                    <span className="scope-btn-label">{scopeItem.label}</span>
+                  </button>
+                ))}
               </div>
+              <div className="scope-mobile-selected-title">{activeScopeLabel}</div>
+
+              <div className="panel-body scope-tabs scope-tabs-filter">
+                {filterOptions.map((filterItem) => (
+                  <button
+                    key={`filter-${filterItem.key}`}
+                    className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
+                    onClick={() => setFilter(filterItem.key)}
+                    title={filterItem.label}
+                    aria-label={filterItem.label}
+                  >
+                    <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
+                    <span className="scope-btn-label">{filterItem.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="scope-mobile-selected-title">{activeFilterLabel}</div>
+              <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
             </div>
-            <PostComposer onPost={() => load({ silent: true, force: true })} />
+
+            <div className="feed-composer-shell">
+              <div className="feed-composer-head">
+                <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
+                <div className="feed-composer-copy">
+                  <div className="feed-composer-title">{activeScopeLabel}</div>
+                  <div className="feed-composer-meta">{activeFilterLabel}</div>
+                </div>
+              </div>
+              <PostComposer onPost={() => load({ silent: true, force: true })} />
+            </div>
           </div>
 
           {loading && posts.length === 0 ? (
@@ -627,48 +629,50 @@ export default function FeedPage() {
             <NotificationPanel limit={3} showAllLink showEmptyCta onReload={loadUnreadNotifications} />
           </div>
 
-          <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'online' ? 'is-active' : ''}`}>
-            <div className="feed-side-panel-heading">
-              <h3>{t('online_members')}</h3>
-              <span className="feed-side-panel-count">{onlineMembers.length}</span>
+          <div className="feed-side-pair">
+            <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'online' ? 'is-active' : ''}`}>
+              <div className="feed-side-panel-heading">
+                <h3>{t('online_members')}</h3>
+                <span className="feed-side-panel-count">{onlineMembers.length}</span>
+              </div>
+              <div className="panel-body">
+                {onlineMembersLoading ? <SkeletonRows count={2} /> : null}
+                {!onlineMembersLoading && onlineMembersError ? (
+                  <EmptyPanelState message={t('online_members_empty')} actionLabel={t('games_refresh')} onRetry={() => loadOnlineMembers({ background: false })} />
+                ) : null}
+                {!onlineMembersLoading && !onlineMembersError && onlineMembers.map((u) => (
+                  <Link key={u.id} className="verify-user feed-member-row" to={`/new/members/${u.id}`}>
+                    <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt={avatarAlt(u)} />
+                    <div>
+                      <div>@{u.kadi}</div>
+                      <div className="meta"><span className="feed-member-status-dot" aria-hidden="true" />{t('status_online')}</div>
+                    </div>
+                  </Link>
+                ))}
+                {!onlineMembersLoading && !onlineMembersError && !onlineMembers.length ? <div className="muted">{t('online_members_empty')}</div> : null}
+              </div>
             </div>
-            <div className="panel-body">
-              {onlineMembersLoading ? <SkeletonRows count={2} /> : null}
-              {!onlineMembersLoading && onlineMembersError ? (
-                <EmptyPanelState message={t('online_members_empty')} actionLabel={t('games_refresh')} onRetry={() => loadOnlineMembers({ background: false })} />
-              ) : null}
-              {!onlineMembersLoading && !onlineMembersError && onlineMembers.map((u) => (
-                <Link key={u.id} className="verify-user feed-member-row" to={`/new/members/${u.id}`}>
-                  <img className="avatar" src={u.resim ? `/api/media/vesikalik/${u.resim}` : '/legacy/vesikalik/nophoto.jpg'} loading="lazy" decoding="async" alt={avatarAlt(u)} />
-                  <div>
-                    <div>@{u.kadi}</div>
-                    <div className="meta"><span className="feed-member-status-dot" aria-hidden="true" />{t('status_online')}</div>
-                  </div>
-                </Link>
-              ))}
-              {!onlineMembersLoading && !onlineMembersError && !onlineMembers.length ? <div className="muted">{t('online_members_empty')}</div> : null}
+
+            <div className={`panel feed-tab-panel feed-side-panel feed-side-panel-compact ${mobileTab === 'messages' ? 'is-active' : ''}`}>
+              <div className="feed-side-panel-heading">
+                <h3>{t('new_messages')}</h3>
+                <span className="feed-side-panel-count">{unreadMessages}</span>
+              </div>
+              <div className="panel-body">
+                {unreadMessagesLoading ? <SkeletonRows count={1} /> : null}
+                {!unreadMessagesLoading && unreadMessagesError ? (
+                  <EmptyPanelState message={t('no_new_messages')} actionLabel={t('games_refresh')} onRetry={() => loadUnreadMessages({ background: false })} />
+                ) : null}
+                {!unreadMessagesLoading && !unreadMessagesError ? (
+                  <Link to="/new/messages">
+                    {unreadMessages > 0 ? t('unread_messages_count', { count: unreadMessages }) : t('no_new_messages')}
+                  </Link>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          <div className={`panel feed-tab-panel feed-side-panel ${mobileTab === 'messages' ? 'is-active' : ''}`}>
-            <div className="feed-side-panel-heading">
-              <h3>{t('new_messages')}</h3>
-              <span className="feed-side-panel-count">{unreadMessages}</span>
-            </div>
-            <div className="panel-body">
-              {unreadMessagesLoading ? <SkeletonRows count={1} /> : null}
-              {!unreadMessagesLoading && unreadMessagesError ? (
-                <EmptyPanelState message={t('no_new_messages')} actionLabel={t('games_refresh')} onRetry={() => loadUnreadMessages({ background: false })} />
-              ) : null}
-              {!unreadMessagesLoading && !unreadMessagesError ? (
-                <Link to="/new/messages">
-                  {unreadMessages > 0 ? t('unread_messages_count', { count: unreadMessages }) : t('no_new_messages')}
-                </Link>
-              ) : null}
-            </div>
-          </div>
-
-          <div className={`feed-tab-panel ${mobileTab === 'livechat' ? 'is-active' : ''}`}>
+          <div className={`feed-tab-panel feed-side-livechat ${mobileTab === 'livechat' ? 'is-active' : ''}`}>
             {mountLiveChat || mobileTab === 'livechat' ? (
               <LiveChatPanel />
             ) : (

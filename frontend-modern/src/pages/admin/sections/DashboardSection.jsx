@@ -187,6 +187,59 @@ export default function DashboardSection({ onNavigate }) {
       gap: Number(demandRow?.count || 0) - Number(supplyRow?.count || 0)
     };
   });
+  const primaryOverviewCards = [
+    { key: 'users', label: t('Toplam Kullanıcı'), value: counts.users || 0, target: 'users' },
+    { key: 'posts', label: t('Toplam Gönderi'), value: counts.posts || 0, target: 'content' },
+    { key: 'stories', label: t('Toplam Hikaye'), value: counts.stories || 0, target: 'content' },
+    { key: 'groups', label: t('Toplam Grup'), value: counts.groups || 0, target: 'groups' }
+  ];
+  const moderationQueueCards = [
+    { key: 'verifications', label: t('Bekleyen Doğrulamalar'), value: queue.pendingVerifications || 0, target: 'notifications' },
+    { key: 'events', label: t('Bekleyen Etkinlikler'), value: queue.pendingEvents || 0, target: 'groups' },
+    { key: 'announcements', label: t('Bekleyen Duyurular'), value: queue.pendingAnnouncements || 0, target: 'groups' },
+    { key: 'photos', label: t('Bekleyen Fotoğraflar'), value: queue.pendingPhotos || 0, target: 'content' }
+  ];
+  const funnelLeadMetrics = [
+    { key: 'connection-requested', label: 'Bağlantı İstekleri (Bekliyor)', value: formatInteger(connection.requested) },
+    { key: 'connection-accepted', label: 'Bağlantı İstekleri (Kabul)', value: formatInteger(connection.accepted) },
+    { key: 'mentorship-requested', label: 'Mentorluk İstekleri (Bekliyor)', value: formatInteger(mentorship.requested) },
+    { key: 'mentorship-accepted', label: 'Mentorluk İstekleri (Kabul)', value: formatInteger(mentorship.accepted) }
+  ];
+  const funnelSupportMetrics = [
+    { key: 'mentorship-declined', label: 'Mentorluk İstekleri (Reddedildi)', value: formatInteger(mentorship.declined) },
+    { key: 'connection-ignored', label: 'Bağlantı İstekleri (Yoksayıldı)', value: formatInteger(connection.ignored) },
+    { key: 'connection-declined', label: 'Bağlantı İstekleri (Reddedildi)', value: formatInteger(connection.declined) },
+    { key: 'teacher-links', label: 'Öğretmen-Ağ Link Toplamı', value: formatInteger(teacherLinks.total) }
+  ];
+  const visibilityBands = [
+    {
+      key: 'conversion',
+      title: t('Dönüşüm'),
+      items: [
+        { label: t('Bağlantı Kabul Oranı'), value: formatPercent(connectionAcceptanceRate) },
+        { label: t('Mentorluk Kabul Oranı'), value: formatPercent(mentorshipAcceptanceRate) },
+        { label: t('Özet Yenileme'), value: analyticsSummary.skipped_refresh ? t('önbellekten') : t('yeniden oluşturuldu') }
+      ]
+    },
+    {
+      key: 'reach',
+      title: t('Görünürlük'),
+      items: [
+        { label: t('Hub Görüntülenmeleri'), value: formatInteger(telemetryFrontend.hub_views) },
+        { label: t('Keşfet Görüntülenmeleri'), value: formatInteger(telemetryFrontend.explore_views) },
+        { label: t('Öğretmen Ağı Görüntülenmeleri'), value: formatInteger(telemetryFrontend.teacher_network_views) }
+      ]
+    },
+    {
+      key: 'actions',
+      title: t('Aksiyonlar'),
+      items: [
+        { label: t('Oluşturulan Takip'), value: formatInteger(telemetryActions.follow_created) },
+        { label: t('Kaldırılan Takip'), value: formatInteger(telemetryActions.follow_removed) },
+        { label: t('Hub Öneri Yüklemeleri'), value: formatInteger(telemetryFrontend.hub_suggestion_loads) }
+      ]
+    }
+  ];
 
   return (
     <section className="stack">
@@ -197,57 +250,67 @@ export default function DashboardSection({ onNavigate }) {
 
       {error ? <div className="panel"><div className="panel-body muted">{error}</div></div> : null}
 
-      <div className="ops-kpi-grid">
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('users')}><span>{t('Toplam Kullanıcı')}</span><b>{counts.users || 0}</b></button>
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('content')}><span>{t('Toplam Gönderi')}</span><b>{counts.posts || 0}</b></button>
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('content')}><span>{t('Toplam Hikaye')}</span><b>{counts.stories || 0}</b></button>
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('groups')}><span>{t('Toplam Grup')}</span><b>{counts.groups || 0}</b></button>
-      </div>
+      <div className="ops-dashboard-topline">
+        <section className="panel ops-dashboard-overview">
+          <div className="panel-body stack">
+            <div className="ops-dashboard-section-head">
+              <div>
+                <span className="ops-dashboard-eyebrow">{t('Genel Durum')}</span>
+                <h3>{t('Platform Nabzı')}</h3>
+              </div>
+              <div className="muted">{t('Toplam içerik ve topluluk büyüklüğü')}</div>
+            </div>
+            <div className="ops-kpi-grid ops-kpi-grid-featured">
+              {primaryOverviewCards.map((item) => (
+                <button key={item.key} className="ops-kpi-card ops-kpi-card-featured" onClick={() => onNavigate?.(item.target)}>
+                  <span>{item.label}</span>
+                  <b>{item.value}</b>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      <div className="ops-kpi-grid">
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('notifications')}><span>{t('Bekleyen Doğrulamalar')}</span><b>{queue.pendingVerifications || 0}</b></button>
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('groups')}><span>{t('Bekleyen Etkinlikler')}</span><b>{queue.pendingEvents || 0}</b></button>
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('groups')}><span>{t('Bekleyen Duyurular')}</span><b>{queue.pendingAnnouncements || 0}</b></button>
-        <button className="ops-kpi-card" onClick={() => onNavigate?.('content')}><span>{t('Bekleyen Fotoğraflar')}</span><b>{queue.pendingPhotos || 0}</b></button>
+        <section className="panel ops-dashboard-queue">
+          <div className="panel-body stack">
+            <div className="ops-dashboard-section-head">
+              <div>
+                <span className="ops-dashboard-eyebrow">{t('Moderasyon')}</span>
+                <h3>{t('Bekleyen Akış')}</h3>
+              </div>
+              <div className="muted">{t('İlk müdahale gerektiren işler')}</div>
+            </div>
+            <div className="ops-dashboard-queue-list">
+              {moderationQueueCards.map((item) => (
+                <button key={item.key} className="ops-dashboard-queue-item" onClick={() => onNavigate?.(item.target)}>
+                  <span>{item.label}</span>
+                  <b>{item.value}</b>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
 
       <div className="panel">
         <div className="panel-body stack">
           <h3>{t('Social Hub Ağ Hunisi')}</h3>
-          <div className="ops-kpi-grid">
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Bağlantı İstekleri (Bekliyor)</span>
-              <b>{formatInteger(connection.requested)}</b>
+          <div className="ops-dashboard-funnel">
+            <div className="ops-kpi-grid ops-kpi-grid-featured">
+              {funnelLeadMetrics.map((item) => (
+                <div key={item.key} className="ops-kpi-card ops-kpi-card-featured" role="status" aria-live="polite">
+                  <span>{item.label}</span>
+                  <b>{item.value}</b>
+                </div>
+              ))}
             </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Bağlantı İstekleri (Kabul)</span>
-              <b>{formatInteger(connection.accepted)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Mentorluk İstekleri (Bekliyor)</span>
-              <b>{formatInteger(mentorship.requested)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Mentorluk İstekleri (Kabul)</span>
-              <b>{formatInteger(mentorship.accepted)}</b>
-            </div>
-          </div>
-          <div className="ops-kpi-grid">
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Mentorluk İstekleri (Reddedildi)</span>
-              <b>{formatInteger(mentorship.declined)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Bağlantı İstekleri (Yoksayıldı)</span>
-              <b>{formatInteger(connection.ignored)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Bağlantı İstekleri (Reddedildi)</span>
-              <b>{formatInteger(connection.declined)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>Öğretmen-Ağ Link Toplamı</span>
-              <b>{formatInteger(teacherLinks.total)}</b>
+            <div className="ops-dashboard-support-list">
+              {funnelSupportMetrics.map((item) => (
+                <div key={item.key} className="ops-dashboard-support-item" role="status" aria-live="polite">
+                  <span>{item.label}</span>
+                  <b>{item.value}</b>
+                </div>
+              ))}
             </div>
           </div>
           {teacherRelationshipBreakdown.length ? (
@@ -269,58 +332,36 @@ export default function DashboardSection({ onNavigate }) {
               {analyticsSummary.source || t('doğrudan')} · {t('son yeniden oluşturma')} {lastRebuiltLabel}
             </div>
           </div>
-          <div className="ops-kpi-grid">
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Bağlantı Kabul Oranı')}</span>
-              <b>{formatPercent(connectionAcceptanceRate)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Mentorluk Kabul Oranı')}</span>
-              <b>{formatPercent(mentorshipAcceptanceRate)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Oluşturulan Öğretmen Linkleri (30g)')}</span>
-              <b>{formatInteger(analyticsTeacherLinks.created)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Okunan Öğretmen Linkleri (30g)')}</span>
-              <b>{formatInteger(telemetryActions.teacher_links_read)}</b>
-            </div>
-          </div>
-          <div className="ops-kpi-grid">
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Hub Görüntülenmeleri')}</span>
-              <b>{formatInteger(telemetryFrontend.hub_views)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Keşfet Görüntülenmeleri')}</span>
-              <b>{formatInteger(telemetryFrontend.explore_views)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Öğretmen Ağı Görüntülenmeleri')}</span>
-              <b>{formatInteger(telemetryFrontend.teacher_network_views)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Özet Yenileme')}</span>
-              <b>{analyticsSummary.skipped_refresh ? t('önbellekten') : t('yeniden oluşturuldu')}</b>
-            </div>
-          </div>
-          <div className="ops-kpi-grid">
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Oluşturulan Takip')}</span>
-              <b>{formatInteger(telemetryActions.follow_created)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Kaldırılan Takip')}</span>
-              <b>{formatInteger(telemetryActions.follow_removed)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('İptal Edilen Bağlantılar')}</span>
-              <b>{formatInteger(analyticsConnections.cancelled)}</b>
-            </div>
-            <div className="ops-kpi-card" role="status" aria-live="polite">
-              <span>{t('Hub Öneri Yüklemeleri')}</span>
-              <b>{formatInteger(telemetryFrontend.hub_suggestion_loads)}</b>
+          <div className="ops-dashboard-visibility-grid">
+            {visibilityBands.map((band) => (
+              <div key={band.key} className="ops-dashboard-band-card">
+                <span className="ops-dashboard-band-title">{band.title}</span>
+                <div className="ops-dashboard-band-list">
+                  {band.items.map((item) => (
+                    <div key={`${band.key}-${item.label}`} className="ops-dashboard-band-item" role="status" aria-live="polite">
+                      <span>{item.label}</span>
+                      <b>{item.value}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="ops-dashboard-band-card ops-dashboard-band-card-secondary">
+              <span className="ops-dashboard-band-title">{t('Öğretmen Etkileşimi')}</span>
+              <div className="ops-dashboard-band-list">
+                <div className="ops-dashboard-band-item" role="status" aria-live="polite">
+                  <span>{t('Oluşturulan Öğretmen Linkleri (30g)')}</span>
+                  <b>{formatInteger(analyticsTeacherLinks.created)}</b>
+                </div>
+                <div className="ops-dashboard-band-item" role="status" aria-live="polite">
+                  <span>{t('Okunan Öğretmen Linkleri (30g)')}</span>
+                  <b>{formatInteger(telemetryActions.teacher_links_read)}</b>
+                </div>
+                <div className="ops-dashboard-band-item" role="status" aria-live="polite">
+                  <span>{t('İptal Edilen Bağlantılar')}</span>
+                  <b>{formatInteger(analyticsConnections.cancelled)}</b>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -343,7 +384,7 @@ export default function DashboardSection({ onNavigate }) {
         </div>
       </div>
 
-      <div className="ops-kpi-grid">
+      <div className="ops-dashboard-split">
         <div className="panel">
           <div className="panel-body stack">
             <h3>{t('En Aktif Mezuniyet Yılları')}</h3>
@@ -448,7 +489,7 @@ export default function DashboardSection({ onNavigate }) {
                         : t('Yama verisi yok')}
                   </div>
                 </div>
-                <div className="stack" style={{ alignItems: 'flex-end' }}>
+                <div className="stack admin-align-end">
                   <b>{formatPercent(Number(row.confidence || 0) * 100)}</b>
                   <button
                     className="btn ghost"
@@ -490,7 +531,7 @@ export default function DashboardSection({ onNavigate }) {
                     </div>
                   ) : null}
                 </div>
-                <div className="stack" style={{ alignItems: 'flex-end' }}>
+                <div className="stack admin-align-end">
                   <b>{row.rolled_back_at ? t('geri alındı') : t('aktif')}</b>
                   {row.action_type === 'apply' && !row.rolled_back_at ? (
                     <button

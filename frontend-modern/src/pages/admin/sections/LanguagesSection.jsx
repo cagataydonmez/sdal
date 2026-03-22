@@ -26,7 +26,7 @@ export default function LanguagesSection({ isAdmin = false }) {
     <div className="stack">
       <div className="panel">
         <div className="panel-body">
-          <div className="tabs-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="tabs-row admin-inline-wrap">
             {TABS.map((tabItem) => (
               <button
                 key={tabItem.key}
@@ -96,8 +96,8 @@ function LangConfigPanel({ languages }) {
             />
             <span>{t('Kullanıcıların dilini değiştirmesine izin ver')}</span>
           </label>
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
+          <div className="admin-inline-wrap">
+            <label className="admin-field-stack admin-field-grow">
               <span className="label-text">{t('Varsayılan dil — site açık (giriş yapanlar)')}</span>
               <select
                 className="input"
@@ -109,7 +109,7 @@ function LangConfigPanel({ languages }) {
                 ))}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
+            <label className="admin-field-stack admin-field-grow">
               <span className="label-text">{t('Varsayılan dil — site kapalı (ziyaretçiler)')}</span>
               <select
                 className="input"
@@ -127,7 +127,11 @@ function LangConfigPanel({ languages }) {
               {saving ? t('saving') : t('Dil Ayarlarını Kaydet')}
             </button>
           </div>
-          {status && <div className="muted" style={{ color: status.includes(t('kaydedildi')) || status.includes('saved') ? 'var(--color-success, green)' : 'var(--color-danger, red)' }}>{status}</div>}
+          {status ? (
+            <div className={`muted admin-status-message ${status.includes(t('kaydedildi')) || status.includes('saved') ? 'is-success' : 'is-error'}`}>
+              {status}
+            </div>
+          ) : null}
         </form>
       </div>
     </div>
@@ -212,12 +216,11 @@ function LanguagesTab({ isAdmin, onChanged }) {
       <div className="panel">
         <div className="panel-header"><strong>{t('Dil Ekle')}</strong></div>
         <div className="panel-body">
-          <form onSubmit={handleAdd} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '0 0 auto' }}>
+          <form onSubmit={handleAdd} className="admin-inline-wrap admin-inline-wrap-end">
+            <label className="admin-field-stack admin-field-compact">
               <span className="label-text">{t('Kod (ör. es)')}</span>
               <input
-                className="input"
-                style={{ width: '80px' }}
+                className="input admin-input-code"
                 value={addForm.code}
                 onChange={(e) => setAddForm((f) => ({ ...f, code: e.target.value.toLowerCase().trim() }))}
                 placeholder="es"
@@ -225,7 +228,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
                 required
               />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 160px' }}>
+            <label className="admin-field-stack admin-field-grow">
               <span className="label-text">{t('Ad (İngilizce)')}</span>
               <input
                 className="input"
@@ -236,7 +239,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
                 required
               />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 160px' }}>
+            <label className="admin-field-stack admin-field-grow">
               <span className="label-text">{t('Yerel Ad')}</span>
               <input
                 className="input"
@@ -251,21 +254,21 @@ function LanguagesTab({ isAdmin, onChanged }) {
               {adding ? t('Ekleniyor...') : t('Dil Ekle')}
             </button>
           </form>
-          {status && <div className="muted" style={{ marginTop: '8px', color: 'var(--color-danger, red)' }}>{status}</div>}
+          {status ? <div className="muted admin-status-message is-error admin-preview-note">{status}</div> : null}
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-header">
           <strong>{t('Diller')}</strong>
-          <button className="btn btn-sm btn-secondary" onClick={load} disabled={loading} style={{ marginLeft: 'auto' }}>
+          <button className="btn btn-sm btn-secondary admin-inline-spacer" onClick={load} disabled={loading}>
             {loading ? t('loading') : t('Yenile')}
           </button>
         </div>
         <div className="panel-body">
           {languages.length === 0 && !loading && <div className="muted">{t('Dil bulunamadı.')}</div>}
           {languages.length > 0 && (
-            <table className="data-table" style={{ width: '100%' }}>
+            <table className="data-table admin-table-full">
               <thead>
                 <tr>
                   <th>{t('Kod')}</th>
@@ -475,8 +478,8 @@ function StringsTab({ isAdmin, languages }) {
       <div className="panel">
         <div className="panel-header"><strong>{t('Çeviri Dizesi Ekle')}</strong></div>
         <div className="panel-body">
-          <form onSubmit={handleAddKey} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '0 0 auto' }}>
+          <form onSubmit={handleAddKey} className="admin-inline-wrap admin-inline-wrap-end">
+            <label className="admin-field-stack admin-field-compact">
               <span className="label-text">{t('Dil')}</span>
               <select
                 className="input"
@@ -490,7 +493,7 @@ function StringsTab({ isAdmin, languages }) {
                 ))}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 180px' }}>
+            <label className="admin-field-stack admin-field-grow">
               <span className="label-text">{t('Anahtar (ör. nav_home)')}</span>
               <input
                 className="input"
@@ -500,7 +503,7 @@ function StringsTab({ isAdmin, languages }) {
                 required
               />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '2 1 220px' }}>
+            <label className="admin-field-stack admin-field-grow-wide">
               <span className="label-text">{t('Değer')}</span>
               <input
                 className="input"
@@ -521,10 +524,9 @@ function StringsTab({ isAdmin, languages }) {
       <div className="panel">
         <div className="panel-header"><strong>{t('JSON İçe / Dışa Aktar')}</strong></div>
         <div className="panel-body stack">
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="admin-inline-wrap admin-inline-wrap-center">
             <select
-              className="input"
-              style={{ flex: '0 0 auto', width: '180px' }}
+              className="input admin-input-select"
               value={filterLang}
               onChange={(e) => setFilterLang(e.target.value)}
             >
@@ -541,11 +543,10 @@ function StringsTab({ isAdmin, languages }) {
             </button>
           </div>
           <form onSubmit={handleImport} className="stack">
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="admin-inline-wrap admin-inline-wrap-center">
               <label className="label-text">{t('Şu dile içe aktar:')}</label>
               <select
-                className="input"
-                style={{ flex: '0 0 auto', width: '180px' }}
+                className="input admin-input-select"
                 value={importLang}
                 onChange={(e) => setImportLang(e.target.value)}
                 required
@@ -557,9 +558,8 @@ function StringsTab({ isAdmin, languages }) {
               </select>
             </div>
             <textarea
-              className="input"
+              className="input admin-textarea-mono"
               rows={6}
-              style={{ fontFamily: 'monospace', fontSize: '12px', width: '100%', boxSizing: 'border-box' }}
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
               placeholder={'{\n  "nav_home": "Home",\n  "nav_feed": "Feed"\n}'}
@@ -570,7 +570,11 @@ function StringsTab({ isAdmin, languages }) {
               </button>
             </div>
           </form>
-          {status && <div className="muted" style={{ color: status.includes(t('içe aktarıldı')) || status.startsWith('Imported') ? 'var(--color-success, green)' : 'var(--color-danger, red)' }}>{status}</div>}
+          {status ? (
+            <div className={`muted admin-status-message ${status.includes(t('içe aktarıldı')) || status.startsWith('Imported') ? 'is-success' : 'is-error'}`}>
+              {status}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -578,17 +582,16 @@ function StringsTab({ isAdmin, languages }) {
       <div className="panel">
         <div className="panel-header">
           <strong>{t('Dizeler')}</strong>
-          <span className="muted" style={{ marginLeft: '8px' }}>({total} {t('toplam')})</span>
-          <button className="btn btn-sm btn-secondary" onClick={() => loadStrings(page)} disabled={loading} style={{ marginLeft: 'auto' }}>
+          <span className="muted admin-preview-note">({total} {t('toplam')})</span>
+          <button className="btn btn-sm btn-secondary admin-inline-spacer" onClick={() => loadStrings(page)} disabled={loading}>
             {loading ? t('loading') : t('Yenile')}
           </button>
         </div>
         <div className="panel-body stack">
           {/* Filters */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="admin-inline-wrap">
             <select
-              className="input"
-              style={{ flex: '0 0 auto', width: '180px' }}
+              className="input admin-input-select"
               value={filterLang}
               onChange={(e) => { setFilterLang(e.target.value); setPage(1); }}
             >
@@ -598,8 +601,7 @@ function StringsTab({ isAdmin, languages }) {
               ))}
             </select>
             <input
-              className="input"
-              style={{ flex: '1 1 200px' }}
+              className="input admin-input-search"
               placeholder={t('Anahtar veya değer ara...')}
               value={filterQ}
               onChange={(e) => { setFilterQ(e.target.value); setPage(1); }}
@@ -609,13 +611,13 @@ function StringsTab({ isAdmin, languages }) {
           {strings.length === 0 && !loading && <div className="muted">{t('Dize bulunamadı.')}</div>}
 
           {strings.length > 0 && (
-            <table className="data-table" style={{ width: '100%' }}>
+            <table className="data-table admin-table-full">
               <thead>
                 <tr>
-                  <th style={{ width: '80px' }}>{t('Dil')}</th>
-                  <th style={{ width: '220px' }}>{t('Anahtar')}</th>
+                  <th className="admin-table-col-xs">{t('Dil')}</th>
+                  <th className="admin-table-col-lg">{t('Anahtar')}</th>
                   <th>{t('Değer')}</th>
-                  <th style={{ width: '120px' }}>{t('İşlemler')}</th>
+                  <th className="admin-table-col-sm">{t('İşlemler')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -625,29 +627,28 @@ function StringsTab({ isAdmin, languages }) {
                   return (
                     <tr key={rowId}>
                       <td><code>{s.lang_code}</code></td>
-                      <td><code style={{ fontSize: '12px', wordBreak: 'break-all' }}>{s.key}</code></td>
+                      <td><code className="admin-code-wrap">{s.key}</code></td>
                       <td>
                         {isEditing ? (
                           <textarea
-                            className="input"
+                            className="input admin-textarea-resizable"
                             rows={2}
-                            style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
                             autoFocus
                           />
                         ) : (
-                          <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{s.value}</span>
+                          <span className="admin-text-wrap">{s.value}</span>
                         )}
                       </td>
                       <td>
                         {isEditing ? (
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          <div className="admin-actions-compact">
                             <button className="btn btn-sm btn-primary" onClick={() => handleSave(s.lang_code, s.key)}>{t('save')}</button>
                             <button className="btn btn-sm btn-secondary" onClick={() => setEditingId(null)}>{t('İptal')}</button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          <div className="admin-actions-compact">
                             <button
                               className="btn btn-sm btn-secondary"
                               onClick={() => { setEditingId(rowId); setEditValue(s.value); }}
@@ -672,7 +673,7 @@ function StringsTab({ isAdmin, languages }) {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="admin-inline-wrap admin-inline-wrap-center">
               <button className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => loadStrings(page - 1)}>{t('Önceki')}</button>
               <span className="muted">{t('Sayfa')} {page} / {totalPages}</span>
               <button className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => loadStrings(page + 1)}>{t('Sonraki')}</button>

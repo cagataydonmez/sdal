@@ -1,29 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
+import AdminPreviewDialog from '../../../components/admin/AdminPreviewDialog.jsx';
 import { useI18n } from '../../../utils/i18n.jsx';
 
 function ConfirmModal({ modal, onConfirm, onCancel }) {
   const { t } = useI18n();
   if (!modal) return null;
   return (
-    <div className="story-modal" onClick={onCancel}>
-      <div className="story-frame admin-preview" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-        <div className="composer-actions">
-          <h3>{modal.title}</h3>
-          <button className="btn ghost" onClick={onCancel}>{t('İptal')}</button>
-        </div>
-        <div className="stack" style={{ padding: '0 0 8px' }}>
-          {(modal.lines || []).map((line, i) => (
-            <div key={i} className={line.muted ? 'muted' : ''}>{line.text}</div>
-          ))}
-        </div>
+    <AdminPreviewDialog
+      title={modal.title}
+      onClose={onCancel}
+      closeLabel={t('İptal')}
+      compact
+      footer={(
         <div className="ops-inline-actions">
           <button className="btn" onClick={onConfirm}>{modal.confirmLabel || t('Onayla')}</button>
           <button className="btn ghost" onClick={onCancel}>{t('İptal')}</button>
         </div>
+      )}
+    >
+      <div className="stack admin-preview-copy">
+        {(modal.lines || []).map((line, i) => (
+          <div key={i} className={line.muted ? 'muted' : ''}>{line.text}</div>
+        ))}
       </div>
-    </div>
+    </AdminPreviewDialog>
   );
 }
 
@@ -438,15 +440,15 @@ export default function SystemSection({ isAdmin = false }) {
           <h3>{t('Veritabanı Verisi Kopyala')}</h3>
           <div className="muted">{t('Aktif sürücüyü değiştirmeden sürücüler arasında veri kopyala.')}</div>
           <div className="ops-inline-actions">
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label className="admin-field-stack">
               <span className="meta">{t('Kaynak')}</span>
               <select className="input" value={copyOnlySrc} onChange={(e) => { setCopyOnlySrc(e.target.value); setCopyOnlyResult(null); }}>
                 <option value="sqlite">SQLite</option>
                 <option value="postgres">PostgreSQL</option>
               </select>
             </label>
-            <span style={{ alignSelf: 'flex-end', paddingBottom: 4 }}>→</span>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="admin-copy-arrow">→</span>
+            <label className="admin-field-stack">
               <span className="meta">{t('Hedef')}</span>
               <select className="input" value={copyOnlyTgt} onChange={(e) => { setCopyOnlyTgt(e.target.value); setCopyOnlyResult(null); }}>
                 <option value="postgres">PostgreSQL</option>
@@ -454,8 +456,7 @@ export default function SystemSection({ isAdmin = false }) {
               </select>
             </label>
             <button
-              className="btn"
-              style={{ alignSelf: 'flex-end' }}
+              className="btn admin-self-end"
               onClick={requestCopyOnlyData}
               disabled={copyOnlyBusy || copyOnlySrc === copyOnlyTgt}
             >

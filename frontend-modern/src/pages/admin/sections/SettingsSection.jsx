@@ -320,8 +320,8 @@ export default function SettingsSection({ isAdmin = false }) {
                 <button className={`ops-drag-handle${item.menuEligible ? '' : ' disabled'}`} type="button" disabled={!item.menuEligible} title={item.menuEligible ? t('Sürükleyerek menü sırasını değiştir') : t('Bu modül menüde sıralanmaz')}>
                   ☰
                 </button>
-                <div style={{ flex: 1 }}>
-                  <strong style={{ opacity: item.active ? 1 : 0.45 }}>{item.label}</strong>
+                <div className="admin-flex-grow">
+                  <strong className={item.active ? '' : 'admin-dimmed'}>{item.label}</strong>
                   <div className="meta">
                     {item.path || t('Bu modül için kullanıcı menüsü/rota tanımlı değil.')}
                     {!item.menuEligible ? ` · ${t('Menü dışında çalışır')}` : ''}

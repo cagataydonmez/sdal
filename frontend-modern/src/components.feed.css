@@ -156,7 +156,7 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-top: 20px;
 }
@@ -171,6 +171,18 @@
   border: 1px solid color-mix(in srgb, var(--line) 84%, white 16%);
   background: linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 88%, var(--accent-soft-bg) 12%) 100%);
   box-shadow: 0 16px 34px rgba(39, 26, 14, 0.07);
+}
+.feed-pulse-card:first-child {
+  grid-column: span 3;
+  grid-row: span 2;
+  align-content: end;
+  min-height: 176px;
+}
+.feed-pulse-card:nth-child(2) {
+  grid-column: span 3;
+}
+.feed-pulse-card:nth-child(n+3) {
+  grid-column: span 3;
 }
 .feed-pulse-card::after {
   content: '';
@@ -231,10 +243,15 @@
   margin-top: 18px;
   width: fit-content;
 }
+.feed-intent-band {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1.22fr);
+  gap: 16px;
+  align-items: start;
+}
 .feed-mobile-scope-card {
   position: relative;
   overflow: hidden;
-  margin-bottom: 16px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 92%, transparent) 100%);
 }
 .feed-mobile-scope-card::before {
@@ -247,7 +264,6 @@
 .feed-composer-shell {
   position: relative;
   overflow: hidden;
-  margin-bottom: 16px;
   border-radius: calc(var(--radius) + 2px);
   background: linear-gradient(145deg, color-mix(in srgb, var(--card) 90%, transparent) 0%, color-mix(in srgb, var(--card-alt) 86%, var(--accent-soft-bg) 14%) 100%);
   border: 1px solid color-mix(in srgb, var(--line) 84%, white 16%);
@@ -648,6 +664,15 @@
 .feed-side-panel {
   background: linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 90%, transparent) 100%);
 }
+.feed-side-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.feed-side-livechat > .panel {
+  border-color: color-mix(in srgb, var(--line) 84%, white 16%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 90%, transparent) 100%);
+}
 .feed-side-notification-wrap > .panel,
 .feed-side-panel {
   border-color: color-mix(in srgb, var(--line) 84%, white 16%);
@@ -923,8 +948,18 @@
     align-items: flex-start;
     flex-direction: column;
   }
+  .feed-intent-band {
+    grid-template-columns: 1fr;
+  }
   .feed-pulse-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .feed-pulse-card:first-child,
+  .feed-pulse-card:nth-child(2),
+  .feed-pulse-card:nth-child(n+3) {
+    grid-column: span 1;
+    grid-row: span 1;
+    min-height: 128px;
   }
 }
 

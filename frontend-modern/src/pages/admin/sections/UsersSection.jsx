@@ -163,7 +163,7 @@ export default function UsersSection({ canManageRoles }) {
             <div className="chip">{t('Doğrulama')}: {Number(detail.verified || 0) === 1 ? t('verified') : t('not verified')}</div>
             <div className="chip">{t('Dönem')}: {detail.mezuniyetyili || '-'}</div>
             <div className="ops-inline-actions">
-              <select className="input" value={graduationYearInput} onChange={(e) => setGraduationYearInput(e.target.value)} style={{ maxWidth: 220 }}>
+              <select className="input admin-input-year" value={graduationYearInput} onChange={(e) => setGraduationYearInput(e.target.value)}>
                 <option value="teacher">Öğretmen</option>
                 {Array.from({ length: new Date().getFullYear() - 1999 + 1 }, (_, i) => String(new Date().getFullYear() - i)).map((year) => <option key={year} value={year}>{year}</option>)}
               </select>

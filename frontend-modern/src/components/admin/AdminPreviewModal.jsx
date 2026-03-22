@@ -1,6 +1,6 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { contentImageAlt } from '../../utils/a11y.js';
+import AdminPreviewDialog from './AdminPreviewDialog.jsx';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '-';
@@ -9,13 +9,9 @@ function formatDate(value) {
 export default function AdminPreviewModal({ previewModal, setPreviewModal }) {
   if (!previewModal) return null;
 
-  return createPortal(
-    <div className="story-modal" onClick={() => setPreviewModal(null)}>
-      <div className="story-frame admin-preview" onClick={(e) => e.stopPropagation()}>
-        <div className="composer-actions">
-          <h3>Önizleme</h3>
-          <button className="btn ghost" onClick={() => setPreviewModal(null)}>Kapat</button>
-        </div>
+  return (
+    <AdminPreviewDialog title="Önizleme" onClose={() => setPreviewModal(null)}>
+      <div className="stack">
         {previewModal.type === 'activity' ? (
           <div className="stack">
             <div className="name">{previewModal.data?.message}</div>
@@ -112,6 +108,6 @@ export default function AdminPreviewModal({ previewModal, setPreviewModal }) {
           </div>
         ) : null}
       </div>
-    </div>
-  , document.body);
+    </AdminPreviewDialog>
+  );
 }

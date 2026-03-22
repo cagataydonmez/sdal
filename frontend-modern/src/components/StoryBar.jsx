@@ -23,7 +23,6 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   const [stories, setStories] = useState([]);
   const [activeGroupIndex, setActiveGroupIndex] = useState(null);
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
   const [busyAction, setBusyAction] = useState('');
   const [imageReady, setImageReady] = useState(false);
   const loadedImagesRef = useRef(new Set());
@@ -149,7 +148,6 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     const startIndex = firstUnviewedIndex(group?.items || []);
     setActiveGroupIndex(groupIndex);
     setActiveStoryIndex(startIndex);
-    setProgress(0);
     await markViewed(group?.items?.[startIndex]);
   }
 
@@ -190,19 +188,11 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   }, [active, activeGroup, activeStoryIndex, activeGroupIndex, groups, preloadImage]);
 
   useEffect(() => {
-    if (!active || !imageReady) return;
-    let start = Date.now();
-    setProgress(0);
-    const timer = setInterval(() => {
-      const ratio = Math.min((Date.now() - start) / durationMs, 1);
-      setProgress(ratio);
-      if (ratio >= 1) {
-        clearInterval(timer);
-        goNext();
-        start = Date.now();
-      }
-    }, 60);
-    return () => clearInterval(timer);
+    if (!active || !imageReady) return undefined;
+    const timer = window.setTimeout(() => {
+      goNext();
+    }, durationMs);
+    return () => window.clearTimeout(timer);
   }, [active, imageReady, goNext]);
 
   useEffect(() => {
@@ -383,10 +373,14 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
           <div ref={storyFrameRef} className="story-frame" role="dialog" aria-modal="true" aria-label={storyImageAlt(active)} tabIndex={-1} onClick={(e) => e.stopPropagation()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <div className="story-progress">
               {activeGroup.items.map((s, idx) => {
-                const width = idx < activeStoryIndex ? 100 : idx === activeStoryIndex ? Math.round(progress * 100) : 0;
+                const fillClass = idx < activeStoryIndex
+                  ? 'story-bar-fill is-complete'
+                  : idx === activeStoryIndex && imageReady
+                    ? 'story-bar-fill is-active'
+                    : 'story-bar-fill';
                 return (
                   <div key={s.id} className="story-bar-track">
-                    <span className="story-bar-fill" style={{ width: `${width}%` }}></span>
+                    <span key={`${s.id}-${fillClass}`} className={fillClass} style={idx === activeStoryIndex && imageReady ? { animationDuration: `${durationMs}ms` } : undefined}></span>
                   </div>
                 );
               })}

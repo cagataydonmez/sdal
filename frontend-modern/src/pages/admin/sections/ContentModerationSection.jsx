@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { adminClient, withQuery } from '../../../admin/api/adminClient.js';
 import useAdminQueryState from '../../../admin/hooks/useAdminQueryState.js';
 import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 import AdminFilterBar from '../../../admin/components/AdminFilterBar.jsx';
 import AdminBulkActionsBar from '../../../admin/components/AdminBulkActionsBar.jsx';
+import AdminPreviewDialog from '../../../components/admin/AdminPreviewDialog.jsx';
 import { useI18n } from '../../../utils/i18n.jsx';
 import { avatarAlt, contentImageAlt, storyImageAlt } from '../../../utils/a11y.js';
 
@@ -56,19 +56,11 @@ function ContentPreviewModal({ item, kind, onClose }) {
   };
   const PreviewComponent = previewMap[kind];
 
-  return createPortal(
-    <div className="content-preview-backdrop" onClick={onClose}>
-      <div className="content-preview-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="content-preview-header">
-          <h4>{t('Önizleme')} - {t(KIND_CONFIG[kind]?.labelKey || kind)}</h4>
-          <button className="btn ghost" onClick={onClose}>{t('Kapat')}</button>
-        </div>
-        <div className="content-preview-body">
-          {PreviewComponent ? <PreviewComponent item={item} t={t} /> : <pre>{JSON.stringify(item, null, 2)}</pre>}
-        </div>
-      </div>
-    </div>
-  , document.body);
+  return (
+    <AdminPreviewDialog title={`${t('Önizleme')} - ${t(KIND_CONFIG[kind]?.labelKey || kind)}`} onClose={onClose} closeLabel={t('Kapat')}>
+      {PreviewComponent ? <PreviewComponent item={item} t={t} /> : <pre>{JSON.stringify(item, null, 2)}</pre>}
+    </AdminPreviewDialog>
+  );
 }
 
 function PostPreview({ item, t }) {
@@ -104,19 +96,19 @@ function StoryPreview({ item, t }) {
     <div className="content-preview-story">
       <div className="content-preview-story-frame">
         <div className="content-preview-story-head">
-          <img className="avatar" src={avatarUrl(item.resim)} alt={avatarAlt(item)} style={{ width: 36, height: 36 }} />
+          <img className="avatar admin-preview-avatar-sm" src={avatarUrl(item.resim)} alt={avatarAlt(item)} />
           <div>
-            <div className="name" style={{ color: '#fff' }}>
+            <div className="name content-preview-story-name">
               {item.isim} {item.soyisim}
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>@{item.kadi}</div>
+            <div className="content-preview-story-handle">@{item.kadi}</div>
           </div>
         </div>
         {item.image && <img className="content-preview-story-img" src={imageUrl(item.image)} alt={storyImageAlt(item)} />}
         {item.caption && (
           <div className="content-preview-story-caption">{item.caption}</div>
         )}
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>
+        <div className="content-preview-story-meta">
           {formatDate(item.created_at)}
           {item.expires_at && <span> - {t('Bitiş')} {formatDate(item.expires_at)}</span>}
         </div>
@@ -128,12 +120,12 @@ function StoryPreview({ item, t }) {
 function CommentPreview({ item, t }) {
   return (
     <div className="content-preview-comment">
-      <div className="comment-line" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <img className="avatar" src={avatarUrl(item.resim)} alt={avatarAlt(item)} style={{ width: 32, height: 32 }} />
+      <div className="comment-line admin-preview-inline">
+        <img className="avatar admin-preview-avatar-xs" src={avatarUrl(item.resim)} alt={avatarAlt(item)} />
         <div>
-          <div className="name" style={{ fontWeight: 700 }}>@{item.kadi}</div>
+          <div className="name admin-preview-strong">@{item.kadi}</div>
           <div dangerouslySetInnerHTML={{ __html: item.body || '' }} />
-          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          <div className="muted admin-preview-note">
             {t('Gönderi')} #{item.post_id} - {formatDate(item.created_at)}
           </div>
         </div>
@@ -145,12 +137,12 @@ function CommentPreview({ item, t }) {
 function ChatPreview({ item }) {
   return (
     <div className="content-preview-chat">
-      <div className="chat-line" style={{ padding: '10px 0', borderBottom: '1px dashed var(--line)' }}>
-        <div className="chat-line-head" style={{ fontWeight: 700, marginBottom: 4 }}>
+      <div className="chat-line admin-preview-chat-line">
+        <div className="chat-line-head admin-preview-strong admin-preview-chat-head">
           @{item.kadi}
         </div>
         <div className="chat-text" dangerouslySetInnerHTML={{ __html: item.message || '' }} />
-        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{formatDate(item.created_at)}</div>
+        <div className="muted admin-preview-note">{formatDate(item.created_at)}</div>
       </div>
     </div>
   );
@@ -159,26 +151,21 @@ function ChatPreview({ item }) {
 function MessagePreview({ item, t }) {
   return (
     <div className="content-preview-message">
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div className="admin-preview-meta-split">
         <div>
-          <span style={{ fontWeight: 700 }}>{t('Kimden')}:</span> @{item.kimden_kadi}
+          <span className="admin-preview-strong">{t('Kimden')}:</span> @{item.kimden_kadi}
         </div>
         <div>
-          <span style={{ fontWeight: 700 }}>{t('Kime')}:</span> @{item.kime_kadi}
+          <span className="admin-preview-strong">{t('Kime')}:</span> @{item.kime_kadi}
         </div>
       </div>
       {item.konu && (
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{item.konu}</div>
+        <div className="admin-preview-message-title">{item.konu}</div>
       )}
-      <div className="message-bubble" style={{
-        background: 'var(--soft-panel)',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 8
-      }}>
+      <div className="message-bubble admin-preview-message-bubble">
         <div dangerouslySetInnerHTML={{ __html: item.mesaj || '' }} />
       </div>
-      <div className="muted" style={{ fontSize: 12 }}>{formatDate(item.tarih)}</div>
+      <div className="muted admin-preview-note">{formatDate(item.tarih)}</div>
     </div>
   );
 }
@@ -187,11 +174,11 @@ function GroupPreview({ item, t }) {
   return (
     <div className="content-preview-group">
       {item.cover_image && (
-        <img src={imageUrl(item.cover_image)} alt={contentImageAlt(item.name || t('Grup'), item.description || '')} style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 12, marginBottom: 12 }} />
+        <img className="admin-preview-cover" src={imageUrl(item.cover_image)} alt={contentImageAlt(item.name || t('Grup'), item.description || '')} />
       )}
       <h3>{item.name}</h3>
       {item.description && <p>{item.description}</p>}
-      <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+      <div className="muted admin-preview-note">
         {t('Sahibi')}: @{item.owner_kadi || '-'} - {t('Oluşturulma')} {formatDate(item.created_at)}
       </div>
     </div>
@@ -203,8 +190,8 @@ function EventPreview({ item, t }) {
     <div className="content-preview-event">
       <h3>{item.title}</h3>
       {item.description && <p>{item.description}</p>}
-      {item.location && <div><span style={{ fontWeight: 700 }}>{t('Konum')}:</span> {item.location}</div>}
-      <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+      {item.location && <div><span className="admin-preview-strong">{t('Konum')}:</span> {item.location}</div>}
+      <div className="muted admin-preview-note">
         {t('Başlangıç')}: {formatDate(item.starts_at)} - {t('Oluşturan')} @{item.creator_kadi || '-'}
         <br />{t('Durum')}: {Number(item.approved || 0) === 1 ? t('Onaylandı') : t('Beklemede')}
       </div>
@@ -217,7 +204,7 @@ function AnnouncementPreview({ item, t }) {
     <div className="content-preview-announcement">
       <h3>{item.title}</h3>
       {item.body && <div dangerouslySetInnerHTML={{ __html: item.body }} />}
-      <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+      <div className="muted admin-preview-note">
         {t('Oluşturan')} @{item.creator_kadi || '-'} - {formatDate(item.created_at)}
         <br />{t('Durum')}: {Number(item.approved || 0) === 1 ? t('Onaylandı') : t('Beklemede')}
       </div>
@@ -230,66 +217,65 @@ function UserPreview({ item, t }) {
   return (
     <div className="content-preview-user">
       <div className="panel">
-        <div className="panel-body" style={{ textAlign: 'center' }}>
+        <div className="panel-body admin-preview-profile-head">
           <img
-            className="profile-avatar-xl"
+            className="profile-avatar-xl admin-preview-avatar-lg"
             src={avatarUrl(item.resim)}
             alt={avatarAlt(item)}
-            style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 12px' }}
           />
-          <div className="name" style={{ fontSize: 18 }}>
+          <div className="name admin-preview-profile-name">
             {item.isim} {item.soyisim}
             {Number(item.verified) === 1 && <span className="badge">✓</span>}
           </div>
-          <div className="handle" style={{ marginBottom: 8 }}>@{item.kadi}</div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+          <div className="handle admin-preview-profile-handle">@{item.kadi}</div>
+          <div className="admin-preview-chip-row">
             <span className="chip">{status}</span>
             <span className="chip">{item.role || t('kullanıcı')}</span>
             {item.mezuniyetyili && <span className="chip">{t('Mezuniyet Yılı')}: {item.mezuniyetyili}</span>}
           </div>
         </div>
       </div>
-      <div className="stack" style={{ marginTop: 12 }}>
+      <div className="stack admin-preview-section-gap">
         <div className="list">
           {item.email && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('E-posta')}</span>
+              <span className="admin-preview-label">{t('E-posta')}</span>
               <span>{item.email}</span>
             </div>
           )}
           {item.sehir && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Şehir')}</span>
+              <span className="admin-preview-label">{t('Şehir')}</span>
               <span>{item.sehir}</span>
             </div>
           )}
           {item.meslek && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Meslek')}</span>
+              <span className="admin-preview-label">{t('Meslek')}</span>
               <span>{item.meslek}</span>
             </div>
           )}
           {item.universite && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Üniversite')}</span>
+              <span className="admin-preview-label">{t('Üniversite')}</span>
               <span>{item.universite}</span>
             </div>
           )}
           {item.websitesi && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Web sitesi')}</span>
+              <span className="admin-preview-label">{t('Web sitesi')}</span>
               <span>{item.websitesi}</span>
             </div>
           )}
           {item.engagement_score != null && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Etkileşim')}</span>
+              <span className="admin-preview-label">{t('Etkileşim')}</span>
               <span>{Number(item.engagement_score || 0).toFixed(2)}</span>
             </div>
           )}
           {item.sontarih && (
             <div className="list-item">
-              <span style={{ fontWeight: 700, minWidth: 100 }}>{t('Son görülme')}</span>
+              <span className="admin-preview-label">{t('Son görülme')}</span>
               <span>{formatDate(item.sontarih)}</span>
             </div>
           )}
@@ -305,23 +291,23 @@ function PhotoPreview({ item, t }) {
     <div className="content-preview-photo">
       {src ? (
         <img
+          className="admin-preview-photo-image"
           src={src}
           alt={item.baslik || ''}
-          style={{ width: '100%', maxHeight: 500, objectFit: 'contain', borderRadius: 12, marginBottom: 12 }}
         />
       ) : (
-        <div className="muted" style={{ marginBottom: 12 }}>{t('(görsel dosyası yok)')}</div>
+        <div className="muted admin-preview-empty-media">{t('(görsel dosyası yok)')}</div>
       )}
       <h3>{item.baslik || t('(başlıksız)')}</h3>
       {item.aciklama && <p>{item.aciklama}</p>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+      <div className="admin-preview-chip-row admin-preview-chip-row-start">
         <span className="chip">
           {Number(item.aktif || 0) === 1 ? t('Aktif') : t('Beklemede')}
         </span>
         {item.categoryName && <span className="chip">{item.categoryName}</span>}
         {item.uploaderName && <span className="chip">{t('Yükleyen')} @{item.uploaderName}</span>}
       </div>
-      <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+      <div className="muted admin-preview-note">
         {t('Görüntülenme')}: {item.hit || 0} - {t('Yorumlar')}: {item.commentCount || 0} - {t('Yüklendi')} {formatDate(item.tarih)}
       </div>
     </div>
@@ -662,7 +648,7 @@ export default function ContentModerationSection({
           { key: 'id', label: 'ID' },
           { key: 'kadi', label: t('Yazar'), render: (r) => `@${r.kadi || '-'}` },
           { key: 'content', label: t('İçerik'), render: (r) => stripHtml(r.content).slice(0, 140) || t('(boş)') },
-          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt={contentImageAlt('Gönderi görseli', stripHtml(r.content || ''))} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
+          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img className="admin-preview-table-thumb" src={imageUrl(r.image)} alt={contentImageAlt('Gönderi görseli', stripHtml(r.content || ''))} /> : '-' },
           { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
           { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
@@ -671,7 +657,7 @@ export default function ContentModerationSection({
           { key: 'id', label: 'ID' },
           { key: 'kadi', label: t('Yazar'), render: (r) => `@${r.kadi || '-'}` },
           { key: 'caption', label: t('Açıklama'), render: (r) => (r.caption || '').slice(0, 100) || t('(açıklama yok)') },
-          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img src={imageUrl(r.image)} alt={storyImageAlt(r)} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : '-' },
+          { key: 'image', label: t('Görsel'), render: (r) => r.image ? <img className="admin-preview-table-thumb" src={imageUrl(r.image)} alt={storyImageAlt(r)} /> : '-' },
           { key: 'created_at', label: t('Oluşturulma'), render: (r) => formatDate(r.created_at) },
           { key: 'actions', label: t('Aksiyonlar'), render: actionsCol }
         ];
@@ -689,7 +675,7 @@ export default function ContentModerationSection({
           {
             key: 'avatar',
             label: '',
-            render: (r) => <img src={avatarUrl(r.resim)} alt={avatarAlt(r)} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+            render: (r) => <img className="admin-preview-table-avatar" src={avatarUrl(r.resim)} alt={avatarAlt(r)} />
           },
           { key: 'kadi', label: t('Kullanıcı Adı'), render: (r) => `@${r.kadi || '-'}` },
           {
@@ -717,7 +703,7 @@ export default function ContentModerationSection({
             key: 'preview_thumb',
             label: t('Önizleme'),
             render: (r) => r.dosyaadi
-              ? <img src={photoPreviewUrl(r.dosyaadi, 120)} alt={contentImageAlt(r.baslik || t('Fotoğraf'), r.categoryName || '')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+              ? <img className="admin-preview-table-photo" src={photoPreviewUrl(r.dosyaadi, 120)} alt={contentImageAlt(r.baslik || t('Fotoğraf'), r.categoryName || '')} />
               : <span className="muted">-</span>
           },
           { key: 'id', label: 'ID' },

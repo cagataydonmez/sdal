@@ -96,7 +96,20 @@
   height: 100%;
   background: #fff;
   width: 0%;
-  transition: width 0.05s linear;
+}
+.story-bar-fill.is-complete {
+  width: 100%;
+}
+.story-bar-fill.is-active {
+  animation: story-progress-fill linear forwards;
+}
+@keyframes story-progress-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
 }
 .story-frame img,
 .story-photo {

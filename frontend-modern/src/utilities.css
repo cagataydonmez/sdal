@@ -451,20 +451,24 @@ body.story-view-open .global-feedback {
     width: auto;
   }
   .feed-mobile-tabs-toggle {
-    width: 38px;
-    height: 38px;
-    min-width: 38px;
+    min-width: 44px;
+    min-height: 44px;
     margin-left: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0;
+    padding: 0 12px;
     border-radius: 999px;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1;
+    gap: 8px;
   }
   .feed-mobile-tabs-toggle-label {
-    display: none;
+    display: inline;
+    max-width: 22vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .feed-mobile-tabs-toggle-icon {
     transition: transform 0.2s ease;
@@ -506,13 +510,13 @@ body.story-view-open .global-feedback {
     gap: 8px;
     width: 100%;
     min-width: 0;
-    height: 42px;
+    min-height: 44px;
     justify-content: flex-start;
   }
   .scope-btn {
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
     padding: 0;
     gap: 0;
     border-radius: 999px;
@@ -521,12 +525,12 @@ body.story-view-open .global-feedback {
     border-radius: 999px;
   }
   .scope-tabs .scope-btn {
-    min-width: 40px;
-    flex: 0 0 40px;
+    min-width: 44px;
+    flex: 0 0 44px;
   }
   .scope-tabs-feedtype .scope-btn {
-    min-width: 40px;
-    flex: 0 0 40px;
+    min-width: 44px;
+    flex: 0 0 44px;
   }
   .scope-tabs-feedtype {
     display: flex;
@@ -547,8 +551,8 @@ body.story-view-open .global-feedback {
     -webkit-overflow-scrolling: touch;
   }
   .scope-tabs-filter .scope-btn {
-    min-width: 40px;
-    flex: 0 0 40px;
+    min-width: 44px;
+    flex: 0 0 44px;
   }
   .feed-tab-btn-icon {
     font-size: 11px;
@@ -607,12 +611,12 @@ body.story-view-open .global-feedback {
     gap: 8px;
   }
   .post-header {
-    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-columns: 44px minmax(0, 1fr);
     gap: 8px;
   }
   .post-header .avatar {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
   }
   .post-meta-col {
     grid-column: 1 / -1;

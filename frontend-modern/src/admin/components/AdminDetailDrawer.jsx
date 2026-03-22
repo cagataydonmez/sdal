@@ -7,7 +7,7 @@ export default function AdminDetailDrawer({ title, open, onClose, children, widt
   if (!open) return null;
   return createPortal(
     <div className="ops-drawer-overlay" onClick={onClose}>
-      <aside className="ops-drawer" style={{ width }} onClick={(e) => e.stopPropagation()}>
+      <aside className="ops-drawer" style={{ '--ops-drawer-width': `${width}px` }} onClick={(e) => e.stopPropagation()}>
         <div className="ops-drawer-head">
           <h3>{title}</h3>
           <button className="btn ghost" onClick={onClose}>{t('close')}</button>

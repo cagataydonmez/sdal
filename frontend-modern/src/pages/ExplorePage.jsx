@@ -370,6 +370,8 @@ export default function ExplorePage({ fullMode = false }) {
   }
 
   const suggestionItems = fullMode ? suggestions : suggestions.slice(0, 6);
+  const spotlightSuggestion = suggestionItems[0] || null;
+  const suggestionRailItems = spotlightSuggestion ? (fullMode ? suggestionItems.slice(1) : suggestionItems.slice(1, 5)) : [];
   const visibleMembers = fullMode ? members : members.slice(0, 18);
   const activeFilterTags = useMemo(() => {
     const items = [];
@@ -446,8 +448,8 @@ export default function ExplorePage({ fullMode = false }) {
           </div>
         </section>
 
-        <div className="explore-panel-stack">
-          <div className="panel explore-panel">
+        <div className="explore-discovery-grid">
+          <div className="panel explore-panel explore-panel-suggestions">
             <div className="explore-panel-heading">
               <div>
                 <span className="explore-panel-eyebrow">{t('explore_suggestions_title')}</span>
@@ -463,9 +465,20 @@ export default function ExplorePage({ fullMode = false }) {
                   <span>{t('explore_filtered_hint')}</span>
                 </div>
               ) : null}
-              <div className="card-grid explore-card-grid explore-card-grid-suggestions">
-                {suggestionItems.map((m) => renderMemberCard(m, true))}
-              </div>
+              {spotlightSuggestion ? (
+                <div className="explore-suggestion-layout">
+                  <div className="explore-suggestion-spotlight">
+                    {renderMemberCard(spotlightSuggestion, true)}
+                  </div>
+                  <div className="explore-suggestion-rail">
+                    {suggestionRailItems.map((m) => (
+                      <div key={`suggestion-rail-${m.id}`} className="explore-suggestion-rail-item">
+                        {renderMemberCard(m, true)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {!fullMode ? <Link className="btn ghost explore-panel-link" to="/new/explore/suggestions">{t('see_all')}</Link> : null}
             </div>
           </div>
@@ -538,25 +551,27 @@ export default function ExplorePage({ fullMode = false }) {
           </div>
         </div>
 
-        <div className="explore-results-head">
-          <div>
-            <h3>{t('members')}</h3>
-            <div className="muted">{t('explore_filtered_hint')}</div>
+        <section className="panel explore-results-stage">
+          <div className="explore-results-head">
+            <div>
+              <h3>{t('members')}</h3>
+              <div className="muted">{t('explore_filtered_hint')}</div>
+            </div>
+            <span className="explore-panel-count">{visibleMembers.length}</span>
           </div>
-          <span className="explore-panel-count">{visibleMembers.length}</span>
-        </div>
 
-        {visibleMembers.length > 0 ? (
-          <div className="card-grid explore-card-grid">
-            {visibleMembers.map((m) => renderMemberCard(m, false))}
-          </div>
-        ) : null}
-        {!loading && visibleMembers.length === 0 ? (
-          <div className="network-empty-state explore-empty-state">
-            <strong>{t('no_results')}</strong>
-            <span>{t('explore_filtered_hint')}</span>
-          </div>
-        ) : null}
+          {visibleMembers.length > 0 ? (
+            <div className="card-grid explore-card-grid">
+              {visibleMembers.map((m) => renderMemberCard(m, false))}
+            </div>
+          ) : null}
+          {!loading && visibleMembers.length === 0 ? (
+            <div className="network-empty-state explore-empty-state">
+              <strong>{t('no_results')}</strong>
+              <span>{t('explore_filtered_hint')}</span>
+            </div>
+          ) : null}
+        </section>
         {fullMode ? <div ref={sentinelRef} /> : null}
         {fullMode && loading ? <div className="explore-inline-state">{t('loading')}</div> : null}
         {fullMode && !loading && page >= pages && members.length > 0 ? <div className="explore-inline-state">{t('results_end')}</div> : null}

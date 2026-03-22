@@ -4,7 +4,7 @@ import AdminDataTable from '../../../admin/components/AdminDataTable.jsx';
 
 function StatusChip({ active }) {
   return (
-    <span className="chip" style={{ background: active ? 'var(--color-success, #22c55e)' : 'var(--color-danger, #ef4444)', color: '#fff' }}>
+    <span className={`chip admin-status-chip ${active ? 'is-active' : 'is-inactive'}`}>
       {active ? 'Aktif' : 'Pasif'}
     </span>
   );
