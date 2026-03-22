@@ -11,8 +11,33 @@ import {
   NETWORKING_MESSAGES
 } from '../utils/networkingRegistry.js';
 
+function ExploreIcon({ name }) {
+  const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
+  switch (name) {
+    case 'compass':
+      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /><path d="M14.8 9.2l-2.1 5.6-5.5 2.1 2.1-5.6 5.5-2.1z" /></svg>;
+    case 'spark':
+      return <svg aria-hidden="true" {...common}><path d="M12 3l1.9 4.9L19 10l-5.1 2.1L12 17l-1.9-4.9L5 10l5.1-2.1L12 3z" /></svg>;
+    case 'people':
+      return <svg aria-hidden="true" {...common}><circle cx="8" cy="9" r="3" /><circle cx="16" cy="9" r="3" /><path d="M3.5 19c.9-2.8 3.2-4.2 4.5-4.2" /><path d="M20.5 19c-.9-2.8-3.2-4.2-4.5-4.2" /><path d="M9 18c.8-2.3 2-3.4 3-3.4s2.2 1.1 3 3.4" /></svg>;
+    case 'online':
+      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" /></svg>;
+    case 'filter':
+      return <svg aria-hidden="true" {...common}><path d="M4 6h16" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>;
+    case 'search':
+      return <svg aria-hidden="true" {...common}><circle cx="11" cy="11" r="6" /><path d="M20 20l-3.5-3.5" /></svg>;
+    default:
+      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /></svg>;
+  }
+}
+
+function hasMentorSignal(member) {
+  const badges = Array.isArray(member?.trust_badges) ? member.trust_badges : [];
+  return badges.includes('mentor') || badges.includes('teacher_network');
+}
+
 export default function ExplorePage({ fullMode = false }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [members, setMembers] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
@@ -47,6 +72,17 @@ export default function ExplorePage({ fullMode = false }) {
     for (let y = yearNow + 1; y >= 1970; y -= 1) items.push(y);
     return items;
   }, [yearNow]);
+  const todayLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(lang || undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      }).format(new Date());
+    } catch {
+      return '';
+    }
+  }, [lang]);
 
   const load = useCallback(async (term = '', nextPage = 1, append = false, activeFilters = filters) => {
     setLoading(true);
@@ -274,11 +310,17 @@ export default function ExplorePage({ fullMode = false }) {
 
   function renderMemberCard(m, showReasons = false) {
     return (
-      <div className="member-card" key={`${showReasons ? 's' : 'm'}-${m.id}`}>
-        <Link to={`/new/members/${m.id}`}>
-          <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
-        </Link>
-        <div>
+      <div
+        className={`member-card explore-member-card ${showReasons ? 'is-suggested' : ''} ${Number(m.online || 0) === 1 ? 'is-online' : ''}`}
+        key={`${showReasons ? 's' : 'm'}-${m.id}`}
+      >
+        <div className="explore-member-media">
+          <Link to={`/new/members/${m.id}`}>
+            <img src={m.resim ? `/api/media/vesikalik/${m.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt="" />
+          </Link>
+          <span className={`explore-member-presence ${Number(m.online || 0) === 1 ? 'is-online' : 'is-offline'}`} aria-hidden="true" />
+        </div>
+        <div className="explore-member-body">
           <div className="name">
             {m.isim} {m.soyisim}
             {m.verified ? <span className="badge">✓</span> : null}
@@ -289,12 +331,12 @@ export default function ExplorePage({ fullMode = false }) {
           {m.uzmanlik ? <div className="meta">{m.uzmanlik}</div> : null}
           {renderTrustBadges(m)}
           {showReasons && Array.isArray(m.reasons) && m.reasons.length ? (
-            <div className="composer-actions">
-              {m.reasons.slice(0, 2).map((r) => <span className="chip" key={`${m.id}-${r}`}>{r}</span>)}
+            <div className="explore-chip-row explore-reason-row">
+              {m.reasons.slice(0, 2).map((r) => <span className="chip explore-reason-chip" key={`${m.id}-${r}`}>{r}</span>)}
             </div>
           ) : null}
         </div>
-        <div className="composer-actions">
+        <div className="composer-actions explore-member-actions">
           {Boolean(m.verified) ? (
             <button
               className="btn ghost"
@@ -327,78 +369,196 @@ export default function ExplorePage({ fullMode = false }) {
 
   const suggestionItems = fullMode ? suggestions : suggestions.slice(0, 6);
   const visibleMembers = fullMode ? members : members.slice(0, 18);
+  const activeFilterTags = useMemo(() => {
+    const items = [];
+    if (query.trim()) items.push(query.trim());
+    if (filters.relation !== 'all') {
+      items.push(filters.relation === 'following' ? t('nav_following') : t('explore_relation_not_following'));
+    }
+    if (filters.verified) items.push(t('verified'));
+    if (filters.withPhoto) items.push(t('with_photo'));
+    if (filters.online) items.push(t('status_online'));
+    if (filters.mentors) items.push(t('mentors'));
+    if (filters.gradYear) items.push(String(filters.gradYear));
+    if (filters.location.trim()) items.push(filters.location.trim());
+    if (filters.profession.trim()) items.push(filters.profession.trim());
+    if (filters.expertise.trim()) items.push(filters.expertise.trim());
+    if (filters.title.trim()) items.push(filters.title.trim());
+    if (filters.sort !== 'recommended') {
+      const sortLabelMap = {
+        engagement: t('sort_engagement'),
+        name: t('sort_name'),
+        recent: t('sort_recent_members'),
+        online: t('sort_online_first'),
+        year: t('sort_graduation_year')
+      };
+      items.push(sortLabelMap[filters.sort] || t('sort_recommended'));
+    }
+    return items;
+  }, [filters, query, t]);
+  const exploreStats = useMemo(() => {
+    const onlinePeople = new Set();
+    [...members, ...suggestions].forEach((member) => {
+      if (Number(member?.online || 0) === 1 && Number(member?.id || 0) > 0) onlinePeople.add(Number(member.id));
+    });
+    const mentorCount = [...members, ...suggestions].filter(hasMentorSignal).length;
+    return [
+      { key: 'suggestions', icon: 'spark', value: suggestions.length, label: t('explore_suggestions_title') },
+      { key: 'members', icon: 'people', value: members.length, label: t('members') },
+      { key: 'online', icon: 'online', value: onlinePeople.size, label: t('status_online') },
+      { key: 'filters', icon: 'filter', value: activeFilterTags.length, label: activeFilterTags.length ? t('selected') : t('sort_recommended') },
+      { key: 'mentors', icon: 'compass', value: mentorCount, label: t('mentors') }
+    ];
+  }, [activeFilterTags.length, members, suggestions, t]);
 
   return (
     <Layout title={t('nav_explore')}>
-      <div className="panel">
-        <h3>{t('explore_suggestions_title')}</h3>
-        <div className="panel-body">
-          {loadingSuggestions ? <div className="muted">{t('explore_suggestions_loading')}</div> : null}
-          {!loadingSuggestions && suggestions.length === 0 ? <div className="muted">{t('explore_suggestions_empty')}</div> : null}
-          <div className="card-grid">
-            {suggestionItems.map((m) => renderMemberCard(m, true))}
+      <div className="explore-page-shell">
+        <section className="panel explore-hero-panel">
+          <div className="explore-hero-copy">
+            <div className="explore-hero-kicker">
+              <span className="explore-hero-mark"><ExploreIcon name="compass" />{t('nav_explore')}</span>
+              {todayLabel ? <span className="explore-hero-date">{todayLabel}</span> : null}
+            </div>
+            <div className="explore-hero-heading">
+              <div>
+                <h2 className="explore-hero-title">{t('nav_explore')}</h2>
+                <p className="explore-hero-subtitle">{t('explore_filtered_hint')}</p>
+              </div>
+              <div className="explore-hero-tags">
+                {(activeFilterTags.length ? activeFilterTags : [t('everyone'), t('sort_recommended')]).slice(0, 4).map((tag) => (
+                  <span key={`explore-tag-${tag}`} className="explore-hero-tag">{tag}</span>
+                ))}
+              </div>
+            </div>
           </div>
-          {!fullMode ? <Link className="btn ghost" to="/new/explore/suggestions">{t('see_all')}</Link> : null}
-        </div>
-      </div>
 
-      <div className="panel">
-        <h3>{t('explore_filtered_title')}</h3>
-        <div className="panel-body stack">
-          <div className="muted">{t('explore_filtered_hint')}</div>
-          <input className="search" placeholder={t('member_search_short')} value={query} onChange={(e) => setQuery(e.target.value)} />
-          <div className="composer-actions">
-            <select className="input" value={filters.relation} onChange={(e) => setFilter('relation', e.target.value)}>
-              <option value="all">{t('everyone')}</option>
-              <option value="not_following">{t('explore_relation_not_following')}</option>
-              <option value="following">{t('nav_following')}</option>
-            </select>
-            <select className="input" value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
-              <option value="recommended">{t('sort_recommended')}</option>
-              <option value="engagement">{t('sort_engagement')}</option>
-              <option value="name">{t('sort_name')}</option>
-              <option value="recent">{t('sort_recent_members')}</option>
-              <option value="online">{t('sort_online_first')}</option>
-              <option value="year">{t('sort_graduation_year')}</option>
-            </select>
-            <select className="input" value={filters.gradYear} onChange={(e) => setFilter('gradYear', e.target.value)}>
-              <option value="">{t('all_years')}</option>
-              {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <label className="chip">
-              <input type="checkbox" checked={filters.verified} onChange={(e) => setFilter('verified', e.target.checked)} />
-              {t('verified')}
-            </label>
-            <label className="chip">
-              <input type="checkbox" checked={filters.withPhoto} onChange={(e) => setFilter('withPhoto', e.target.checked)} />
-              {t('with_photo')}
-            </label>
-            <label className="chip">
-              <input type="checkbox" checked={filters.online} onChange={(e) => setFilter('online', e.target.checked)} />
-              {t('status_online')}
-            </label>
-            <label className="chip">
-              <input type="checkbox" checked={filters.mentors} onChange={(e) => setFilter('mentors', e.target.checked)} />
-              {t('mentors')}
-            </label>
+          <div className="explore-stat-grid">
+            {exploreStats.map((item) => (
+              <div key={item.key} className={`explore-stat-card explore-stat-card-${item.key}`}>
+                <span className="explore-stat-icon" aria-hidden="true"><ExploreIcon name={item.icon} /></span>
+                <strong className="explore-stat-value">{item.value}</strong>
+                <span className="explore-stat-label">{item.label}</span>
+              </div>
+            ))}
           </div>
-          <div className="composer-actions">
-            <input className="input" placeholder={t('location') || 'Şehir'} value={filters.location} onChange={(e) => setFilter('location', e.target.value)} />
-            <input className="input" placeholder={t('profession') || 'Meslek'} value={filters.profession} onChange={(e) => setFilter('profession', e.target.value)} />
-            <input className="input" placeholder={t('profile_expertise')} value={filters.expertise} onChange={(e) => setFilter('expertise', e.target.value)} />
-            <input className="input" placeholder={t('profile_title')} value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
-          </div>
-          {loading ? <div className="muted">{t('searching')}</div> : null}
-          {!fullMode ? <Link className="btn ghost" to="/new/explore/members">{t('see_all')}</Link> : null}
-        </div>
-      </div>
+        </section>
 
-      <div className="card-grid">
-        {visibleMembers.map((m) => renderMemberCard(m, false))}
+        <div className="explore-panel-stack">
+          <div className="panel explore-panel">
+            <div className="explore-panel-heading">
+              <div>
+                <span className="explore-panel-eyebrow">{t('explore_suggestions_title')}</span>
+                <h3>{t('explore_suggestions_title')}</h3>
+              </div>
+              <span className="explore-panel-count">{suggestions.length}</span>
+            </div>
+            <div className="panel-body">
+              {loadingSuggestions ? <div className="explore-inline-state">{t('explore_suggestions_loading')}</div> : null}
+              {!loadingSuggestions && suggestions.length === 0 ? (
+                <div className="network-empty-state">
+                  <strong>{t('explore_suggestions_empty')}</strong>
+                  <span>{t('explore_filtered_hint')}</span>
+                </div>
+              ) : null}
+              <div className="card-grid explore-card-grid explore-card-grid-suggestions">
+                {suggestionItems.map((m) => renderMemberCard(m, true))}
+              </div>
+              {!fullMode ? <Link className="btn ghost explore-panel-link" to="/new/explore/suggestions">{t('see_all')}</Link> : null}
+            </div>
+          </div>
+
+          <div className="panel explore-panel explore-filter-panel">
+            <div className="explore-panel-heading">
+              <div>
+                <span className="explore-panel-eyebrow">{t('explore_filtered_title')}</span>
+                <h3>{t('explore_filtered_title')}</h3>
+              </div>
+              <span className="explore-panel-count">{activeFilterTags.length}</span>
+            </div>
+            <div className="panel-body stack">
+              <div className="muted">{t('explore_filtered_hint')}</div>
+              <label className="explore-search-shell">
+                <span className="explore-search-icon" aria-hidden="true"><ExploreIcon name="search" /></span>
+                <input className="search explore-search-input" placeholder={t('member_search_short')} value={query} onChange={(e) => setQuery(e.target.value)} />
+              </label>
+              <div className="explore-filter-row">
+                <select className="input explore-filter-input" value={filters.relation} onChange={(e) => setFilter('relation', e.target.value)}>
+                  <option value="all">{t('everyone')}</option>
+                  <option value="not_following">{t('explore_relation_not_following')}</option>
+                  <option value="following">{t('nav_following')}</option>
+                </select>
+                <select className="input explore-filter-input" value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
+                  <option value="recommended">{t('sort_recommended')}</option>
+                  <option value="engagement">{t('sort_engagement')}</option>
+                  <option value="name">{t('sort_name')}</option>
+                  <option value="recent">{t('sort_recent_members')}</option>
+                  <option value="online">{t('sort_online_first')}</option>
+                  <option value="year">{t('sort_graduation_year')}</option>
+                </select>
+                <select className="input explore-filter-input" value={filters.gradYear} onChange={(e) => setFilter('gradYear', e.target.value)}>
+                  <option value="">{t('all_years')}</option>
+                  {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <div className="explore-chip-row">
+                <label className={`chip explore-filter-chip ${filters.verified ? 'is-active' : ''}`}>
+                  <input type="checkbox" checked={filters.verified} onChange={(e) => setFilter('verified', e.target.checked)} />
+                  {t('verified')}
+                </label>
+                <label className={`chip explore-filter-chip ${filters.withPhoto ? 'is-active' : ''}`}>
+                  <input type="checkbox" checked={filters.withPhoto} onChange={(e) => setFilter('withPhoto', e.target.checked)} />
+                  {t('with_photo')}
+                </label>
+                <label className={`chip explore-filter-chip ${filters.online ? 'is-active' : ''}`}>
+                  <input type="checkbox" checked={filters.online} onChange={(e) => setFilter('online', e.target.checked)} />
+                  {t('status_online')}
+                </label>
+                <label className={`chip explore-filter-chip ${filters.mentors ? 'is-active' : ''}`}>
+                  <input type="checkbox" checked={filters.mentors} onChange={(e) => setFilter('mentors', e.target.checked)} />
+                  {t('mentors')}
+                </label>
+              </div>
+              <div className="explore-filter-row">
+                <input className="input explore-filter-input" placeholder={t('location')} value={filters.location} onChange={(e) => setFilter('location', e.target.value)} />
+                <input className="input explore-filter-input" placeholder={t('profession')} value={filters.profession} onChange={(e) => setFilter('profession', e.target.value)} />
+                <input className="input explore-filter-input" placeholder={t('profile_expertise')} value={filters.expertise} onChange={(e) => setFilter('expertise', e.target.value)} />
+                <input className="input explore-filter-input" placeholder={t('profile_title')} value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
+              </div>
+              {activeFilterTags.length ? (
+                <div className="explore-active-filter-list">
+                  {activeFilterTags.slice(0, 8).map((tag) => <span key={`active-filter-${tag}`} className="explore-active-filter">{tag}</span>)}
+                </div>
+              ) : null}
+              {loading ? <div className="explore-inline-state">{t('searching')}</div> : null}
+              {!fullMode ? <Link className="btn ghost explore-panel-link" to="/new/explore/members">{t('see_all')}</Link> : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="explore-results-head">
+          <div>
+            <h3>{t('members')}</h3>
+            <div className="muted">{t('explore_filtered_hint')}</div>
+          </div>
+          <span className="explore-panel-count">{visibleMembers.length}</span>
+        </div>
+
+        {visibleMembers.length > 0 ? (
+          <div className="card-grid explore-card-grid">
+            {visibleMembers.map((m) => renderMemberCard(m, false))}
+          </div>
+        ) : null}
+        {!loading && visibleMembers.length === 0 ? (
+          <div className="network-empty-state explore-empty-state">
+            <strong>{t('no_results')}</strong>
+            <span>{t('explore_filtered_hint')}</span>
+          </div>
+        ) : null}
+        {fullMode ? <div ref={sentinelRef} /> : null}
+        {fullMode && loading ? <div className="explore-inline-state">{t('loading')}</div> : null}
+        {fullMode && !loading && page >= pages && members.length > 0 ? <div className="explore-inline-state">{t('results_end')}</div> : null}
       </div>
-      {fullMode ? <div ref={sentinelRef} /> : null}
-      {fullMode && loading ? <div className="muted">{t('loading')}</div> : null}
-      {fullMode && !loading && page >= pages && members.length > 0 ? <div className="muted">{t('results_end')}</div> : null}
     </Layout>
   );
 }
