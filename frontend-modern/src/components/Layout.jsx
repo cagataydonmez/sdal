@@ -9,9 +9,9 @@ import { openNotification } from '../utils/notificationApi.js';
 import { buildNotificationViewModel, shouldToastNotification } from '../utils/notificationRegistry.js';
 import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
 import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
-import { getCached, setCache } from '../utils/swrCache.js';
 import { normalizeMenuVisibility, normalizeModuleOrder } from '../utils/moduleNavigation.js';
 import { avatarAlt } from '../utils/a11y.js';
+import { fetchSiteAccess, getCachedSiteAccess } from '../utils/siteAccess.js';
 
 export default function Layout({ children, title, right }) {
   const location = useLocation();
@@ -219,18 +219,15 @@ export default function Layout({ children, title, right }) {
   }, []);
 
   useEffect(() => {
-    const key = `site-access:${location.pathname}`;
-    const cached = getCached(key);
+    const cached = getCachedSiteAccess(location.pathname);
     if (cached?.data) {
       setSiteAccess(cached.data);
       if (!cached.stale) return;
     }
     let mounted = true;
-    fetch(`/api/site-access?path=${encodeURIComponent(location.pathname)}`, { credentials: 'include' })
-      .then((r) => r.ok ? r.json() : null)
+    fetchSiteAccess(location.pathname, { force: Boolean(cached?.stale) })
       .then((payload) => {
         if (!mounted || !payload?.modules) return;
-        setCache(key, payload, 120_000);
         setSiteAccess(payload);
       })
       .catch(() => {});

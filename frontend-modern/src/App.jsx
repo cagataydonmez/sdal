@@ -1,17 +1,19 @@
 import React, { useEffect } from 'react';
 import { Navigate, Outlet, Route, createRoutesFromElements, useLocation } from './router.jsx';
 import { AuthProvider, useAuth } from './utils/auth.jsx';
-import LoginPage from './pages/LoginPage.jsx';
-import RootLoginPage from './pages/RootLoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
-import ActivationPage from './pages/ActivationPage.jsx';
-import ActivationResendPage from './pages/ActivationResendPage.jsx';
-import PasswordResetPage from './pages/PasswordResetPage.jsx';
 import GlobalActionFeedback from './components/GlobalActionFeedback.jsx';
 import { ThemeProvider } from './utils/theme.jsx';
 import { I18nProvider, useI18n } from './utils/i18n.jsx';
 import { resolveLandingPathFromSiteAccess } from './utils/moduleNavigation.js';
-import ModuleInactivePage from './pages/ModuleInactivePage.jsx';
+import { fetchSiteAccess, getCachedSiteAccess } from './utils/siteAccess.js';
+
+const LoginPage = React.lazy(() => import('./pages/LoginPage.jsx'));
+const RootLoginPage = React.lazy(() => import('./pages/RootLoginPage.jsx'));
+const RegisterPage = React.lazy(() => import('./pages/RegisterPage.jsx'));
+const ActivationPage = React.lazy(() => import('./pages/ActivationPage.jsx'));
+const ActivationResendPage = React.lazy(() => import('./pages/ActivationResendPage.jsx'));
+const PasswordResetPage = React.lazy(() => import('./pages/PasswordResetPage.jsx'));
+const ModuleInactivePage = React.lazy(() => import('./pages/ModuleInactivePage.jsx'));
 
 const ExplorePage = React.lazy(() => import('./pages/ExplorePage.jsx'));
 const FeedPage = React.lazy(() => import('./pages/FeedPage.jsx'));
@@ -44,6 +46,15 @@ const TeachersNetworkPage = React.lazy(() => import('./pages/TeachersNetworkPage
 const NetworkingHubPage = React.lazy(() => import('./pages/NetworkingHubPage.jsx'));
 const OpportunityInboxPage = React.lazy(() => import('./pages/OpportunityInboxPage.jsx'));
 
+function buildAccessState(payload, moduleKey) {
+  return {
+    loading: false,
+    moduleOpen: payload?.moduleOpen !== false,
+    moduleKey: payload?.moduleKey || moduleKey,
+    message: payload?.moduleOpen === false ? (payload?.message || 'Bu modül geçici olarak kapatıldı.') : ''
+  };
+}
+
 function RequireModuleAccess({ moduleKey, accessPath, children }) {
   const location = useLocation();
   const [accessState, setAccessState] = React.useState({ loading: true, moduleOpen: true, moduleKey, message: '' });
@@ -51,17 +62,19 @@ function RequireModuleAccess({ moduleKey, accessPath, children }) {
 
   useEffect(() => {
     let mounted = true;
-    setAccessState((prev) => ({ ...prev, loading: true }));
-    fetch(`/api/site-access?path=${encodeURIComponent(requestedPath)}`, { credentials: 'include' })
-      .then((res) => res.ok ? res.json() : null)
+    const cached = getCachedSiteAccess(requestedPath);
+    if (cached?.data) {
+      setAccessState(buildAccessState(cached.data, moduleKey));
+      if (!cached.stale) return () => {
+        mounted = false;
+      };
+    } else {
+      setAccessState((prev) => ({ ...prev, loading: true }));
+    }
+    fetchSiteAccess(requestedPath, { force: Boolean(cached?.stale) })
       .then((payload) => {
         if (!mounted) return;
-        setAccessState({
-          loading: false,
-          moduleOpen: payload?.moduleOpen !== false,
-          moduleKey: payload?.moduleKey || moduleKey,
-          message: payload?.moduleOpen === false ? (payload?.message || 'Bu modül geçici olarak kapatıldı.') : ''
-        });
+        setAccessState(buildAccessState(payload, moduleKey));
       })
       .catch(() => {
         if (!mounted) return;
@@ -109,12 +122,21 @@ function RouteFallback() {
 
 function DefaultLandingRoute() {
   const [targetPath, setTargetPath] = React.useState('');
-  const [loadingTarget, setLoadingTarget] = React.useState(true);
+  const [loadingTarget, setLoadingTarget] = React.useState(() => !getCachedSiteAccess('/new')?.data);
 
   useEffect(() => {
     let mounted = true;
-    fetch('/api/site-access?path=/new', { credentials: 'include' })
-      .then((res) => res.ok ? res.json() : null)
+    const cached = getCachedSiteAccess('/new');
+    if (cached?.data) {
+      setTargetPath(resolveLandingPathFromSiteAccess(cached.data || {}));
+      if (!cached.stale) {
+        setLoadingTarget(false);
+        return () => {
+          mounted = false;
+        };
+      }
+    }
+    fetchSiteAccess('/new', { force: Boolean(cached?.stale) })
       .then((payload) => {
         if (!mounted) return;
         setTargetPath(resolveLandingPathFromSiteAccess(payload || {}));

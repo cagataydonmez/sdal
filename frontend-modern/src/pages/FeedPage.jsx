@@ -11,8 +11,8 @@ import { useLiveRefresh } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { FEED_FILTER_CONTRACT, FEED_SCOPE_CONTRACT, FEED_TAB_CONTRACT } from '../contracts/feedUiContract.js';
-import { getCached, setCache } from '../utils/swrCache.js';
 import { avatarAlt } from '../utils/a11y.js';
+import { fetchSiteAccess, getCachedSiteAccess } from '../utils/siteAccess.js';
 
 function FeedIcon({ name }) {
   const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -178,20 +178,17 @@ export default function FeedPage() {
   }, [mobileTabsExpanded]);
 
   useEffect(() => {
-    const key = 'site-access:/new';
-    const cached = getCached(key);
-    if (cached) {
-      const isOpen = cached.data?.main_feed !== false;
+    const cached = getCachedSiteAccess('/new');
+    if (cached?.data) {
+      const isOpen = cached.data?.modules?.main_feed !== false;
       setMainFeedOpen(isOpen);
       if (!isOpen && feedType === 'main') setFeedType('community');
       if (!cached.stale) return;
     }
     let mounted = true;
-    fetch('/api/site-access?path=/new', { credentials: 'include' })
-      .then((r) => r.ok ? r.json() : null)
+    fetchSiteAccess('/new', { force: Boolean(cached?.stale) })
       .then((payload) => {
         if (!mounted) return;
-        if (payload?.modules) setCache(key, payload.modules, 120_000);
         const isOpen = payload?.modules?.main_feed !== false;
         setMainFeedOpen(isOpen);
         if (!isOpen && feedType === 'main') setFeedType('community');
