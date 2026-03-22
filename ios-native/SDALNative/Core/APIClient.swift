@@ -3,11 +3,17 @@ import Foundation
 enum APIError: Error, LocalizedError {
     case invalidResponse
     case httpError(Int, String)
+    case sessionExpired
+    case unexpectedHTMLResponse
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
             return "Invalid response from server."
+        case .sessionExpired:
+            return "Your session expired. Please sign in again."
+        case .unexpectedHTMLResponse:
+            return "The server returned an unexpected page. Please try again."
         case let .httpError(code, message):
             return "Server error (\(code)): \(message)"
         }
@@ -357,8 +363,9 @@ actor APIClient {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
-        if http.statusCode == 401 {
+        if http.statusCode == 401 || looksLikeUnauthorizedHTML(response: http, data: data) {
             NotificationCenter.default.post(name: .sdalUnauthorizedResponse, object: nil)
+            throw APIError.sessionExpired
         }
         guard (200...299).contains(http.statusCode) else {
             if retryOnServerError, (500...599).contains(http.statusCode) {
@@ -374,7 +381,41 @@ actor APIClient {
         if data.isEmpty, let empty = EmptyResponse() as? T {
             return empty
         }
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch let error as DecodingError {
+            if let text = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               text.hasPrefix("<") {
+                throw APIError.unexpectedHTMLResponse
+            }
+            throw error
+        }
+    }
+
+    private func looksLikeUnauthorizedHTML(response: HTTPURLResponse, data: Data) -> Bool {
+        let finalPath = response.url?.path.lowercased() ?? ""
+        if finalPath.contains("/login") || finalPath.contains("/giris") {
+            return true
+        }
+
+        let contentType = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+        guard contentType.contains("text/html") || contentType.contains("application/xhtml") else {
+            return false
+        }
+
+        guard let text = String(data: data.prefix(4096), encoding: .utf8)?.lowercased() else {
+            return false
+        }
+        if text.contains("<html") || text.contains("<!doctype html") {
+            return text.contains("login")
+                || text.contains("giris")
+                || text.contains("session")
+                || text.contains("oturum")
+                || text.contains("sign in")
+                || text.contains("kadi")
+        }
+        return false
     }
 }
 

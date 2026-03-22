@@ -490,11 +490,19 @@ struct SDALMessengerView: View {
                 Text("Sohbet bulunamadi")
             }
         }
-        .navigationDestination(item: Binding(
-            get: { routedThreadId.map(RoutedMessengerThreadSelection.init(id:)) },
-            set: { routedThreadId = $0?.id }
-        )) { selection in
-            MessengerThreadRouteView(threadId: selection.id)
+        .navigationDestination(isPresented: Binding(
+            get: { routedThreadId != nil },
+            set: { isPresented in
+                if !isPresented {
+                    routedThreadId = nil
+                }
+            }
+        )) {
+            if let routedThreadId {
+                MessengerThreadRouteView(threadId: routedThreadId)
+            } else {
+                Text("Sohbet bulunamadi")
+            }
         }
         .sheet(isPresented: $showNewChat) {
             SDALMessengerNewChatView { _ in
@@ -851,10 +859,6 @@ struct SDALMessengerThreadView: View {
         }
         return Int("\(value)")
     }
-}
-
-private struct RoutedMessengerThreadSelection: Identifiable {
-    let id: Int
 }
 
 private struct MessengerThreadRouteView: View {
