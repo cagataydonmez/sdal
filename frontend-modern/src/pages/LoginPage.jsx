@@ -15,6 +15,11 @@ const LoginSchema = z.object({
 
 export default function LoginPage() {
   const { t } = useI18n();
+  const welcomePoints = [
+    t('login_welcome_step_feed'),
+    t('login_welcome_step_people'),
+    t('login_welcome_step_groups')
+  ];
   const fallbackProviders = [
     { provider: 'google', title: 'Google', enabled: true, startUrl: '/api/auth/oauth/google/start?returnTo=/new/login' },
     { provider: 'x', title: 'X', enabled: true, startUrl: '/api/auth/oauth/x/start?returnTo=/new/login' }
@@ -75,10 +80,11 @@ export default function LoginPage() {
     <Layout title={t('login_title')}>
       <section className="auth-entry-shell">
         <section className="auth-entry-story">
+          <span className="auth-entry-kicker">SDAL</span>
           <h2 className="auth-entry-title">{t('login_welcome_title')}</h2>
           <p className="auth-entry-copy">{t('login_welcome_subtitle')}</p>
           <div className="auth-entry-points" role="list">
-            {[t('login_welcome_step_feed'), t('login_welcome_step_people'), t('login_welcome_step_groups')].map((item, index) => (
+            {welcomePoints.map((item, index) => (
               <div className="auth-entry-point" key={item} role="listitem">
                 <span className="auth-entry-point-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                 <span>{item}</span>
@@ -91,6 +97,7 @@ export default function LoginPage() {
           <div className="panel-body auth-entry-panel-body">
             <div className="auth-form-head">
               <h3>{t('login_title')}</h3>
+              <p className="auth-form-copy">{t('login_welcome_subtitle')}</p>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="auth-form-stack">
@@ -133,9 +140,9 @@ export default function LoginPage() {
             ) : null}
 
             <div className="auth-entry-footer">
-              <div className="auth-entry-links">
-                <Link className="btn ghost" to="/new/register">{t('register_submit')}</Link>
-                <Link className="btn ghost" to="/new/password-reset">{t('login_forgot_password')}</Link>
+              <div className="auth-entry-links auth-entry-links-minimal">
+                <Link className="linkish" to="/new/register">{t('register_submit')}</Link>
+                <Link className="linkish" to="/new/password-reset">{t('login_forgot_password')}</Link>
               </div>
             </div>
           </div>
