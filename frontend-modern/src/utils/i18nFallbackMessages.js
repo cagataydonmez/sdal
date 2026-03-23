@@ -63,6 +63,8 @@ export const trFallbackMessages = {
   feed_filter_prompt: 'Gönderiler nasıl sıralansın?',
   feed_scope_selected: 'Seçili akış',
   feed_filter_selected: 'Seçili sıra',
+  stories_scope_main_note: 'Hikayen tüm SDAL akışında görünür.',
+  stories_scope_community_note: 'Hikayen yalnızca topluluğunda görünür.',
   latest: 'En yeni',
   popular: 'Öne çıkanlar',
   following: 'Takip ettiklerin',

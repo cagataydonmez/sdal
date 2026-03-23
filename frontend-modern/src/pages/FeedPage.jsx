@@ -132,6 +132,7 @@ export default function FeedPage() {
   ]), [t, unreadNotifications, onlineMembers.length, unreadMessages]);
   const activeScopeLabel = scopeOptions.find((item) => item.key === feedType)?.label || t('main_feed');
   const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
+  const activeStoryScopeNote = feedType === 'main' ? t('stories_scope_main_note') : t('stories_scope_community_note');
   const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
   const todayLabel = useMemo(() => {
     try {
@@ -438,8 +439,31 @@ export default function FeedPage() {
   return (
     <Layout title={t('nav_feed')}>
       <div className="feed-mobile-sticky-stack">
+        <div className="panel feed-story-scope-card">
+          <div className="feed-story-scope-copy">
+            <div className="feed-story-scope-summary">
+              <span className="feed-story-scope-kicker">{t('feed_scope_selected')}</span>
+              <strong className="feed-story-scope-title">{activeScopeLabel}</strong>
+              <span className="feed-story-scope-note">{activeStoryScopeNote}</span>
+            </div>
+          </div>
+          <div className="scope-tabs feed-story-scope-tabs">
+            {scopeOptions.map((scopeItem) => (
+              <button
+                key={`story-scope-${scopeItem.key}`}
+                className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
+                onClick={() => setFeedType(scopeItem.key)}
+                title={scopeItem.label}
+                aria-label={scopeItem.label}
+              >
+                <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
+                <span className="scope-btn-label">{scopeItem.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="panel feed-mobile-stories-wrap">
-          <StoryBar title={t('stories_title')} variant={isMobile ? 'feed-mobile' : 'default'} />
+          <StoryBar title={t('stories_title')} variant={isMobile ? 'feed-mobile' : 'default'} feedType={feedType} />
         </div>
       </div>
 
@@ -554,35 +578,13 @@ export default function FeedPage() {
                     onClick={() => setMobileFeedControlsOpen((value) => !value)}
                     aria-expanded={mobileFeedControlsOpen}
                   >
-                    <span>{activeScopeLabel} · {activeFilterLabel}</span>
+                    <span>{activeFilterLabel}</span>
                     <strong>{mobileFeedControlsOpen ? t('close') : t('open')}</strong>
                   </button>
                 ) : null}
 
                 {!isMobile || mobileFeedControlsOpen ? (
                   <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
-                    <div className="feed-scope-group">
-                      <div className="feed-scope-group-label">{t('feed_scope_prompt')}</div>
-                      <div className="panel-body scope-tabs scope-tabs-feedtype">
-                        {scopeOptions.map((scopeItem) => (
-                          <button
-                            key={`scope-${scopeItem.key}`}
-                            className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
-                            onClick={() => setFeedType(scopeItem.key)}
-                            title={scopeItem.label}
-                            aria-label={scopeItem.label}
-                          >
-                            <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
-                            <span className="scope-btn-label">{scopeItem.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="scope-mobile-selected-title">
-                        <span>{t('feed_scope_selected')}</span>
-                        <strong>{activeScopeLabel}</strong>
-                      </div>
-                    </div>
-
                     <div className="feed-scope-group">
                       <div className="feed-scope-group-label">{t('feed_filter_prompt')}</div>
                       <div className="panel-body scope-tabs scope-tabs-filter">
@@ -604,7 +606,6 @@ export default function FeedPage() {
                         <strong>{activeFilterLabel}</strong>
                       </div>
                     </div>
-                    <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
                   </div>
                 ) : null}
               </div>

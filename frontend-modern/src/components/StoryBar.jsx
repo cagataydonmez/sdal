@@ -17,7 +17,21 @@ function getStoryMediaUrl(story) {
   return String(story?.variants?.fullUrl || story?.variants?.feedUrl || story?.image || '').trim();
 }
 
-export default function StoryBar({ endpoint = '/api/new/stories', showUpload = true, title = '', variant = 'default' }) {
+function buildStoryEndpoint(endpoint, feedType) {
+  const raw = String(endpoint || '').trim();
+  if (!raw.startsWith('/api/new/stories') || raw.startsWith('/api/new/stories/user/') || raw.startsWith('/api/new/stories/mine')) {
+    return raw;
+  }
+  try {
+    const url = new URL(raw, 'http://localhost');
+    url.searchParams.set('feedType', feedType || 'main');
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return raw;
+  }
+}
+
+export default function StoryBar({ endpoint = '/api/new/stories', showUpload = true, title = '', variant = 'default', feedType = 'main' }) {
   const { t } = useI18n();
   const { user } = useAuth();
   const [stories, setStories] = useState([]);
@@ -30,6 +44,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   const storyFrameRef = useRef(null);
   const storyTriggerRef = useRef(null);
   const durationMs = 5000;
+  const storiesEndpoint = useMemo(() => buildStoryEndpoint(endpoint, feedType), [endpoint, feedType]);
 
   const storyRequest = useCallback(async (url, init = {}) => {
     return fetch(url, { credentials: 'include', ...init });
@@ -57,7 +72,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(endpoint, { credentials: 'include' });
+      const res = await fetch(storiesEndpoint, { credentials: 'include' });
       if (res.ok) {
         const payload = await res.json();
         setStories(payload.items || []);
@@ -65,17 +80,17 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
       }
       throw new Error(`endpoint_failed_${res.status}`);
     } catch {
-      const m = String(endpoint).match(/\/api\/new\/stories\/user\/(\d+)/);
+      const m = String(storiesEndpoint).match(/\/api\/new\/stories\/user\/(\d+)/);
       if (!m) return;
       const userId = Number(m[1] || 0);
       if (!userId) return;
-      const fallback = await fetch('/api/new/stories', { credentials: 'include' });
+      const fallback = await fetch(buildStoryEndpoint('/api/new/stories', feedType), { credentials: 'include' });
       if (!fallback.ok) return;
       const payload = await fallback.json();
       const items = (payload.items || []).filter((s) => Number(s?.author?.id || 0) === userId);
       setStories(items);
     }
-  }, [endpoint]);
+  }, [feedType, storiesEndpoint]);
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -257,6 +272,7 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     const form = new FormData();
     form.append('image', file);
     form.append('caption', caption);
+    form.append('feedType', feedType || 'main');
     await storyRequest('/api/new/stories/upload', { method: 'POST', body: form });
     emitAppChange('story:created');
     load();

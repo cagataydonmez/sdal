@@ -48,6 +48,11 @@ for (const sql of postsCompatibilityColumns) {
     // column already exists
   }
 }
+try {
+  bootstrapDb.exec("ALTER TABLE stories ADD COLUMN group_id INTEGER;");
+} catch {
+  // column already exists
+}
 bootstrapDb.exec(`
   CREATE TABLE IF NOT EXISTS site_controls (
     id INTEGER PRIMARY KEY,
@@ -71,6 +76,19 @@ bootstrapDb.exec(`
     max_upload_bytes INTEGER DEFAULT 10485760,
     avif_enabled INTEGER DEFAULT 0,
     updated_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS image_records (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER,
+    entity_type TEXT,
+    entity_id TEXT,
+    provider TEXT,
+    thumb_path TEXT,
+    feed_path TEXT,
+    full_path TEXT,
+    width INTEGER,
+    height INTEGER,
+    created_at TEXT
   );
 `);
 bootstrapDb.exec(`
@@ -125,6 +143,22 @@ bootstrapDb.exec(`
     id INTEGER PRIMARY KEY,
     user_id INTEGER,
     message TEXT,
+    created_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS stories (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER,
+    image TEXT,
+    image_record_id TEXT,
+    caption TEXT,
+    created_at TEXT,
+    expires_at TEXT,
+    group_id INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS story_views (
+    id INTEGER PRIMARY KEY,
+    story_id INTEGER,
+    user_id INTEGER,
     created_at TEXT
   );
   CREATE TABLE IF NOT EXISTS member_engagement_scores (
@@ -356,6 +390,48 @@ try {
   assert.ok(
     (yearFeed.json?.items || []).some((item) => Number(item?.id || 0) === communityPostId),
     'community feed post should appear in year feed'
+  );
+
+  const communityStoryNow = new Date().toISOString();
+  const communityStoryExpires = new Date(Date.now() + (12 * 60 * 60 * 1000)).toISOString();
+  sqlRun(
+    'INSERT INTO stories (user_id, image, caption, created_at, expires_at, group_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [userId, '/uploads/stories/community-contract.webp', 'phase1 community story', communityStoryNow, communityStoryExpires, cohortGroup.id]
+  );
+  const communityStoryId = Number(sqlGet('SELECT id FROM stories WHERE caption = ? ORDER BY id DESC LIMIT 1', ['phase1 community story'])?.id || 0);
+  assert.ok(communityStoryId > 0, 'community story seed should exist');
+
+  sqlRun(
+    'INSERT INTO stories (user_id, image, caption, created_at, expires_at, group_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [userId, '/uploads/stories/main-contract.webp', 'phase1 main story', communityStoryNow, communityStoryExpires, null]
+  );
+  const mainStoryId = Number(sqlGet('SELECT id FROM stories WHERE caption = ? ORDER BY id DESC LIMIT 1', ['phase1 main story'])?.id || 0);
+  assert.ok(mainStoryId > 0, 'main story seed should exist');
+
+  const communityStories = await requestJson('/api/new/stories?feedType=community', {
+    cookie: userLogin.cookie
+  });
+  assert.equal(communityStories.resp.status, 200, 'community stories list status mismatch');
+  assert.ok(
+    (communityStories.json?.items || []).some((item) => Number(item?.id || 0) === communityStoryId),
+    'community story should appear in community stories rail'
+  );
+  assert.ok(
+    !(communityStories.json?.items || []).some((item) => Number(item?.id || 0) === mainStoryId),
+    'main story should not appear in community stories rail'
+  );
+
+  const mainStories = await requestJson('/api/new/stories?feedType=main', {
+    cookie: userLogin.cookie
+  });
+  assert.equal(mainStories.resp.status, 200, 'main stories list status mismatch');
+  assert.ok(
+    !(mainStories.json?.items || []).some((item) => Number(item?.id || 0) === communityStoryId),
+    'community story should not appear in main stories rail'
+  );
+  assert.ok(
+    (mainStories.json?.items || []).some((item) => Number(item?.id || 0) === mainStoryId),
+    'main story should appear in main stories rail'
   );
 
   const commentCreate = await requestJson(`/api/new/posts/${createdPostId}/comments`, {

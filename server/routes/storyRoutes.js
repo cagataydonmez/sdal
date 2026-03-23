@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { resolveFeedPostGroupId } from '../src/shared/feedPostGroupResolver.js';
 
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -23,6 +24,10 @@ function parseStoryId(value) {
   const storyId = Number(value);
   if (!Number.isInteger(storyId) || storyId <= 0) return null;
   return storyId;
+}
+
+function normalizeStoryFeedType(value) {
+  return String(value || '').trim().toLowerCase() === 'community' ? 'community' : 'main';
 }
 
 export function registerStoryRoutes(app, {
@@ -52,16 +57,55 @@ export function registerStoryRoutes(app, {
   deleteImageRecord,
   writeAppLog,
   scheduleEngagementRecalculation,
-  invalidateCacheNamespace
+  invalidateCacheNamespace,
+  isPostgresDb = false
 }) {
+  if (typeof sqlRun === 'function') {
+    try {
+      sqlRun(isPostgresDb
+        ? 'ALTER TABLE stories ADD COLUMN IF NOT EXISTS group_id INTEGER'
+        : 'ALTER TABLE stories ADD COLUMN group_id INTEGER');
+    } catch {
+      // column already exists or table unavailable during bootstrap
+    }
+  }
+
+  async function resolveStoryFeedGroupId(feedType, userId, { strict = false } = {}) {
+    if (feedType !== 'community') return null;
+    try {
+      return await resolveFeedPostGroupId({
+        requestedGroupId: null,
+        feedType,
+        authorId: userId,
+        findGraduationYearById: async (targetUserId) => {
+          const row = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [targetUserId])
+            || await sqlGetAsync('SELECT graduation_year AS mezuniyetyili FROM users WHERE id = ?', [targetUserId]);
+          return row?.mezuniyetyili ? Number(row.mezuniyetyili) || null : null;
+        },
+        findGroupByName: async (name) => sqlGetAsync('SELECT id, name FROM groups WHERE name = ?', [name])
+      });
+    } catch (err) {
+      if (strict) throw err;
+      return null;
+    }
+  }
+
   app.get('/api/new/stories', requireAuth, async (req, res) => {
     try {
       const nowMs = Date.now();
       const nowIso = new Date(nowMs).toISOString();
       const limit = Math.min(Math.max(parseInt(req.query.limit || '60', 10), 1), 120);
       const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+      const feedType = normalizeStoryFeedType(req.query.feedType || '');
+      const scopeGroupId = await resolveStoryFeedGroupId(feedType, req.session.userId);
+      if (feedType === 'community' && !scopeGroupId) {
+        res.setHeader('X-Has-More', '0');
+        return res.json({ items: [] });
+      }
       const cacheKey = await buildVersionedCacheKey(cacheNamespaces.stories, [
         `user:${Number(req.session.userId || 0)}`,
+        `feedType:${feedType}`,
+        `scopeGroup:${Number(scopeGroupId || 0)}`,
         `limit:${limit}`,
         `cursor:${cursor || 0}`
       ]);
@@ -73,12 +117,18 @@ export function registerStoryRoutes(app, {
 
       const whereParts = ['(s.expires_at IS NULL OR s.expires_at > ?)'];
       const params = [nowIso];
+      if (feedType === 'community') {
+        whereParts.push('s.group_id = ?');
+        params.push(scopeGroupId);
+      } else {
+        whereParts.push('s.group_id IS NULL');
+      }
       if (cursor > 0) {
         whereParts.push('s.id < ?');
         params.push(cursor);
       }
       const rows = await sqlAllAsync(
-        `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
+        `SELECT s.id, s.user_id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at, s.group_id,
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified
          FROM stories s
          LEFT JOIN uyeler u ON u.id = s.user_id
@@ -102,6 +152,7 @@ export function registerStoryRoutes(app, {
             id: r.id,
             image: r.image,
             caption: r.caption,
+            groupId: r.group_id == null ? null : Number(r.group_id),
             createdAt: timing.createdAt,
             expiresAt: timing.expiresAt,
             isExpired: timing.isExpired,
@@ -134,15 +185,28 @@ export function registerStoryRoutes(app, {
 
   app.get('/api/new/stories/mine', requireAuth, async (req, res) => {
     try {
+      const feedType = normalizeStoryFeedType(req.query.feedType || '');
+      const scopeGroupId = await resolveStoryFeedGroupId(feedType, req.session.userId);
+      if (feedType === 'community' && !scopeGroupId) {
+        return res.json({ items: [] });
+      }
+      const whereParts = ['s.user_id = ?'];
+      const params = [req.session.userId];
+      if (feedType === 'community') {
+        whereParts.push('s.group_id = ?');
+        params.push(scopeGroupId);
+      } else {
+        whereParts.push('s.group_id IS NULL');
+      }
       const rows = await sqlAllAsync(
-        `SELECT s.id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at,
+        `SELECT s.id, s.image, s.image_record_id, s.caption, s.created_at, s.expires_at, s.group_id,
                 COUNT(v.id) AS view_count
          FROM stories s
          LEFT JOIN story_views v ON v.story_id = s.id
-         WHERE s.user_id = ?
+         WHERE ${whereParts.join(' AND ')}
          GROUP BY s.id
          ORDER BY s.created_at DESC`,
-        [req.session.userId]
+        params
       );
       const nowMs = Date.now();
       const variantsMap = await getImageVariantsBatch(
@@ -157,6 +221,7 @@ export function registerStoryRoutes(app, {
             id: row.id,
             image: row.image,
             caption: row.caption,
+            groupId: row.group_id == null ? null : Number(row.group_id),
             createdAt: timing.createdAt,
             expiresAt: timing.expiresAt,
             isExpired: timing.isExpired,
@@ -237,6 +302,8 @@ export function registerStoryRoutes(app, {
   app.post('/api/new/stories/upload', requireAuth, uploadRateLimit, storyUpload.single('image'), async (req, res) => {
     if (!req.file) return res.status(400).send('Görsel seçilmedi.');
     try {
+      const feedType = normalizeStoryFeedType(req.body?.feedType || '');
+      const groupId = await resolveStoryFeedGroupId(feedType, req.session.userId, { strict: true });
       const validation = validateUploadedImageFile(req.file.path, {
         allowedMimes: allowedImageSafetyMimes,
         maxBytes: getMediaUploadLimitBytes()
@@ -293,13 +360,14 @@ export function registerStoryRoutes(app, {
         writeAppLog('error', 'story_variant_generation_failed', { message: err?.message });
       }
 
-      const result = await sqlRunAsync('INSERT INTO stories (user_id, image, image_record_id, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [
+      const result = await sqlRunAsync('INSERT INTO stories (user_id, image, image_record_id, caption, created_at, expires_at, group_id) VALUES (?, ?, ?, ?, ?, ?, ?)', [
         req.session.userId,
         image,
         imageRecordId,
         caption,
         now.toISOString(),
-        expires.toISOString()
+        expires.toISOString(),
+        groupId
       ]);
 
       const storyId = result?.lastInsertRowid;
@@ -317,7 +385,8 @@ export function registerStoryRoutes(app, {
         userId: req.session?.userId || null,
         message: err?.message || 'unknown_error'
       });
-      return res.status(500).send('Hikaye yükleme sırasında hata oluştu.');
+      const status = Number(err?.statusCode || err?.status || 500);
+      return res.status(status >= 400 ? status : 500).send(err?.message || 'Hikaye yükleme sırasında hata oluştu.');
     }
   });
 
@@ -367,7 +436,7 @@ export function registerStoryRoutes(app, {
     try {
       const storyId = parseStoryId(req.params.id);
       if (!storyId) return res.status(400).send('Geçersiz hikaye kimliği.');
-      const story = await sqlGetAsync('SELECT id, user_id, image, caption, created_at, expires_at FROM stories WHERE id = ?', [storyId]);
+      const story = await sqlGetAsync('SELECT id, user_id, image, caption, created_at, expires_at, group_id FROM stories WHERE id = ?', [storyId]);
       if (!story || Number(story.user_id) !== Number(req.session.userId)) {
         return res.status(404).send('Hikaye bulunamadı.');
       }
@@ -378,8 +447,8 @@ export function registerStoryRoutes(app, {
       const now = new Date();
       const expires = new Date(now.getTime() + STORY_TTL_MS);
       const result = await sqlRunAsync(
-        'INSERT INTO stories (user_id, image, caption, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
-        [req.session.userId, story.image, story.caption || '', now.toISOString(), expires.toISOString()]
+        'INSERT INTO stories (user_id, image, caption, created_at, expires_at, group_id) VALUES (?, ?, ?, ?, ?, ?)',
+        [req.session.userId, story.image, story.caption || '', now.toISOString(), expires.toISOString(), story.group_id == null ? null : Number(story.group_id)]
       );
       scheduleEngagementRecalculation('story_created');
       invalidateCacheNamespace(cacheNamespaces.stories);

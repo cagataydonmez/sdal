@@ -4260,7 +4260,8 @@ registerStoryRoutes(app, {
   deleteImageRecord,
   writeAppLog,
   scheduleEngagementRecalculation,
-  invalidateCacheNamespace
+  invalidateCacheNamespace,
+  isPostgresDb
 });
 
 
