@@ -7,6 +7,11 @@ import { useNotificationNavigationTracking } from '../utils/notificationNavigati
 import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
 import { avatarAlt } from '../utils/a11y.js';
 
+function getNetworkingMobileMatch() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(max-width: 760px)').matches;
+}
+
 function daysSince(value) {
   if (!value) return null;
   const ts = new Date(value).getTime();
@@ -99,6 +104,10 @@ function PriorityCard({ label, count, title, description, actionLabel, actionHre
 
 export default function NetworkingHubPage() {
   const { t } = useI18n();
+  const [isMobile, setIsMobile] = React.useState(getNetworkingMobileMatch);
+  const [mobileHeroToolsOpen, setMobileHeroToolsOpen] = React.useState(false);
+  const [mobileMetricsOpen, setMobileMetricsOpen] = React.useState(false);
+  const [mobilePriorityOpen, setMobilePriorityOpen] = React.useState(false);
   const [searchParams] = useSearchParams();
   const { state, actions } = useNetworkingHubState(t);
   const {
@@ -160,6 +169,27 @@ export default function NetworkingHubPage() {
     }, 180);
     return () => window.clearTimeout(timer);
   }, [focusedSection, bootstrapping]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(max-width: 760px)');
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileHeroToolsOpen(false);
+      setMobileMetricsOpen(false);
+      setMobilePriorityOpen(false);
+    }
+  }, [isMobile]);
 
   const priorityCards = [
     incoming.length > 0
@@ -226,20 +256,35 @@ export default function NetworkingHubPage() {
           actionHref: '/new/network/teachers'
         }
   ];
+  const visiblePriorityCards = isMobile && !mobilePriorityOpen
+    ? (() => {
+        const actionableCards = priorityCards.filter((card) => Number(card.count || 0) > 0);
+        return actionableCards.length ? actionableCards.slice(0, 1) : priorityCards.slice(0, 1);
+      })()
+    : priorityCards;
 
   return (
     <Layout title={t('network_hub_title')}>
-      <section className="network-hero">
+      <section className={`network-hero ${isMobile ? 'is-mobile-condensed' : ''}`}>
         <div className="network-hero-copy">
-          <span className="network-eyebrow">Networking command center</span>
+          <span className="network-eyebrow">Ağ merkezi</span>
           <h2>{t('network_hub_intro_title')}</h2>
-          <p>{t('network_hub_intro_subtitle')}</p>
+          {!isMobile ? <p>{t('network_hub_intro_subtitle')}</p> : null}
         </div>
         <div className="network-hero-actions">
           <Link className="btn primary" to="/new/explore">{t('hub_action_discover')}</Link>
-          <Link className="btn ghost" to="/new/network/teachers">{t('hub_action_teacher_network')}</Link>
-          <Link className="btn ghost" to="/new/messages">{t('hub_action_messages')}</Link>
-          {hubRefreshing ? <span className="chip">{t('hub_status_updating')}</span> : null}
+          {isMobile ? (
+            <button className="btn ghost" type="button" onClick={() => setMobileHeroToolsOpen((value) => !value)} aria-expanded={mobileHeroToolsOpen}>
+              {mobileHeroToolsOpen ? 'Araçları kapat' : 'Araçlar'}
+            </button>
+          ) : null}
+          {!isMobile || mobileHeroToolsOpen ? (
+            <>
+              <Link className="btn ghost" to="/new/network/teachers">{t('hub_action_teacher_network')}</Link>
+              <Link className="btn ghost" to="/new/messages">{t('hub_action_messages')}</Link>
+              {hubRefreshing ? <span className="chip">{t('hub_status_updating')}</span> : null}
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -252,11 +297,16 @@ export default function NetworkingHubPage() {
           </div>
           <div className="network-section-tools">
             <span className="chip">{t('hub_tools_open_count', { count: actionableCount })}</span>
+            {isMobile && priorityCards.length > 1 ? (
+              <button className="btn ghost" type="button" onClick={() => setMobilePriorityOpen((value) => !value)} aria-expanded={mobilePriorityOpen}>
+                {mobilePriorityOpen ? 'Öncelikleri kapat' : 'Öncelikleri aç'}
+              </button>
+            ) : null}
           </div>
         </div>
         <div className="panel-body network-section-body">
           <div className="network-priority-grid">
-            {priorityCards.map((card) => (
+            {visiblePriorityCards.map((card) => (
               <PriorityCard key={card.key} {...card} />
             ))}
           </div>
@@ -272,25 +322,33 @@ export default function NetworkingHubPage() {
       <section id="health-snapshot" className="panel network-section-card">
         <div className="network-section-head">
           <div>
-            <span className="network-section-kicker">Health snapshot</span>
+            <span className="network-section-kicker">Sağlık özeti</span>
             <h3>{t('network_hub_metrics_title')}</h3>
-            <p>{t('hub_metrics_description')}</p>
+            {!isMobile ? <p>{t('hub_metrics_description')}</p> : null}
           </div>
           <div className="network-section-tools">
-            <div className="network-window-tabs">
-              {['7d', '30d', '90d'].map((windowValue) => (
-                <button
-                  key={windowValue}
-                  className={`btn ${metricsWindow === windowValue ? 'primary' : 'ghost'}`}
-                  onClick={() => actions.setMetricsWindow(windowValue)}
-                >
-                  {t('network_hub_window_days', { days: windowValue.replace('d', '') })}
-                </button>
-              ))}
-            </div>
+            {isMobile ? (
+              <button className="btn ghost" type="button" onClick={() => setMobileMetricsOpen((value) => !value)} aria-expanded={mobileMetricsOpen}>
+                {mobileMetricsOpen ? 'Özeti kapat' : 'Özeti aç'}
+              </button>
+            ) : null}
+            {!isMobile || mobileMetricsOpen ? (
+              <div className="network-window-tabs">
+                {['7d', '30d', '90d'].map((windowValue) => (
+                  <button
+                    key={windowValue}
+                    className={`btn ${metricsWindow === windowValue ? 'primary' : 'ghost'}`}
+                    onClick={() => actions.setMetricsWindow(windowValue)}
+                  >
+                    {t('network_hub_window_days', { days: windowValue.replace('d', '') })}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="panel-body network-section-body">
+        {!isMobile || mobileMetricsOpen ? (
+          <div className="panel-body network-section-body">
           {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : (
             <div className="network-metric-grid">
               <div className="network-metric-card">
@@ -319,7 +377,8 @@ export default function NetworkingHubPage() {
               </div>
             </div>
           )}
-        </div>
+          </div>
+        ) : null}
       </section>
 
       <div className="network-dashboard">

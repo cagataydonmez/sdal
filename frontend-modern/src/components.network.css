@@ -80,6 +80,9 @@
   align-items: stretch;
   gap: 10px;
 }
+.network-hero.is-mobile-condensed {
+  gap: 14px;
+}
 .network-soft-alert {
   margin-bottom: 16px;
   padding: 12px 14px;
@@ -899,6 +902,9 @@
   .network-hero {
     padding: 18px;
   }
+  .network-hero.is-mobile-condensed .network-hero-copy p {
+    display: none;
+  }
   .network-section-head {
     flex-direction: column;
   }
@@ -1006,6 +1012,41 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+.mailbox-list-note {
+  margin-top: 4px;
+}
+.mailbox-preview-back {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .message-mailbox {
+    gap: 12px;
+  }
+  .mailbox-sidebar .panel-body {
+    gap: 10px;
+  }
+  .mailbox-list-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .mailbox-preview-back {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+  .mailbox-preview-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mailbox-preview-head .composer-actions {
+    width: 100%;
+  }
+  .mailbox-preview-head .composer-actions .btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
 }
 
 .bottom-nav {

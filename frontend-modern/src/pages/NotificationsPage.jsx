@@ -19,8 +19,14 @@ function mergeUniqueById(prev, next) {
   return Array.from(map.values()).filter((item) => Number(item?.id || 0) > 0);
 }
 
+function getNotificationsMobileMatch() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(max-width: 760px)').matches;
+}
+
 export default function NotificationsPage() {
   const { t } = useI18n();
+  const [isMobile, setIsMobile] = useState(getNotificationsMobileMatch);
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [hasMore, setHasMore] = useState(true);
@@ -33,6 +39,8 @@ export default function NotificationsPage() {
   const [preferencesLoading, setPreferencesLoading] = useState(true);
   const [preferencesBusy, setPreferencesBusy] = useState(false);
   const [preferencesStatus, setPreferencesStatus] = useState('');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobilePreferencesOpen, setMobilePreferencesOpen] = useState(false);
   const sentinelRef = useRef(null);
   const loadingRef = useRef(false);
   const nextCursorRef = useRef('');
@@ -111,6 +119,19 @@ export default function NotificationsPage() {
     loadPreferences();
   }, [loadPreferences]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(max-width: 760px)');
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
+
   useLiveRefresh(() => load(false), { intervalMs: 12000, eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action'] });
 
   useEffect(() => {
@@ -172,6 +193,14 @@ export default function NotificationsPage() {
     if (selectedTab === 'action') return Boolean(item.isActionable);
     return item.category === selectedTab;
   }), [orderedItems, selectedTab]);
+  const summaryCards = useMemo(() => ([
+    { key: 'unread', value: unreadCount, label: 'Okunmamış' },
+    { key: 'actionable', value: actionableCount, label: 'Aksiyon bekleyen' },
+    { key: 'networking', value: groupedCounts.networking, label: getNotificationCategoryLabel('networking') },
+    { key: 'other', value: groupedCounts.groups + groupedCounts.events + groupedCounts.jobs + groupedCounts.social, label: 'Diğer akışlar' },
+    { key: 'system', value: groupedCounts.system, label: 'Sistem' }
+  ]), [actionableCount, groupedCounts, unreadCount]);
+  const visibleSummaryCards = isMobile ? summaryCards.slice(0, 2) : summaryCards;
   const actionItems = filteredItems.filter((item) => item.isActionable);
   const recentItems = filteredItems.filter((item) => !item.isActionable);
 
@@ -255,116 +284,123 @@ export default function NotificationsPage() {
     <Layout title={t('nav_notifications')}>
       <div className="panel">
         <div className="panel-body">
-          <div className="notification-preferences-panel">
-            <div className="notification-page-heading">
-              <strong>{t('notifications_preferences_heading')}</strong>
-              <span className="meta">
-                Sıralama: {sortOrderVariant === 'recent' ? t('notifications_sort_recent') : t('notifications_sort_priority')} ·
-                Düzen: {inboxLayoutVariant === 'flat' ? t('notifications_layout_flat') : t('notifications_layout_grouped')}
-              </span>
+          {isMobile ? (
+            <div className="notification-mobile-toolbar">
+              <div className="notification-mobile-toolbar-copy">
+                <strong>{t('nav_notifications')}</strong>
+                <span className="meta">{summaryCards[0].value} okunmamış · {summaryCards[1].value} aksiyon</span>
+              </div>
+              <div className="notification-mobile-toolbar-actions">
+                <button className="btn ghost" type="button" onClick={() => setMobileFiltersOpen((value) => !value)} aria-expanded={mobileFiltersOpen}>
+                  {mobileFiltersOpen ? 'Sekmeleri kapat' : 'Sekmeler'}
+                </button>
+                <button className="btn ghost" type="button" onClick={() => setMobilePreferencesOpen((value) => !value)} aria-expanded={mobilePreferencesOpen}>
+                  {mobilePreferencesOpen ? 'Tercihleri kapat' : 'Tercihler'}
+                </button>
+              </div>
             </div>
-            <div className="notification-preferences-grid">
-              {Object.entries(preferences.categories || {}).map(([key, enabled]) => (
-                <label key={key} className="notification-preference-toggle">
+          ) : null}
+
+          {!isMobile || mobilePreferencesOpen ? (
+            <div className="notification-preferences-panel">
+              <div className="notification-page-heading">
+                <strong>{t('notifications_preferences_heading')}</strong>
+                <span className="meta">
+                  Sıralama: {sortOrderVariant === 'recent' ? t('notifications_sort_recent') : t('notifications_sort_priority')} ·
+                  Düzen: {inboxLayoutVariant === 'flat' ? t('notifications_layout_flat') : t('notifications_layout_grouped')}
+                </span>
+              </div>
+              <div className="notification-preferences-grid">
+                {Object.entries(preferences.categories || {}).map(([key, enabled]) => (
+                  <label key={key} className="notification-preference-toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(enabled)}
+                      onChange={(e) => setPreferences((prev) => ({
+                        ...prev,
+                        categories: { ...prev.categories, [key]: e.target.checked }
+                      }))}
+                    />
+                    <span>{getNotificationCategoryLabel(key)}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="notification-preferences-grid">
+                <label className="notification-preference-toggle">
                   <input
                     type="checkbox"
-                    checked={Boolean(enabled)}
+                    checked={Boolean(preferences?.quiet_mode?.enabled)}
                     onChange={(e) => setPreferences((prev) => ({
                       ...prev,
-                      categories: { ...prev.categories, [key]: e.target.checked }
+                      quiet_mode: { ...prev.quiet_mode, enabled: e.target.checked }
                     }))}
                   />
-                  <span>{getNotificationCategoryLabel(key)}</span>
+                  <span>Sessiz mod</span>
                 </label>
-              ))}
+                <label className="form-row">
+                  <span className="meta">Başlangıç</span>
+                  <input
+                    className="input"
+                    type="time"
+                    value={preferences?.quiet_mode?.start || ''}
+                    onChange={(e) => setPreferences((prev) => ({
+                      ...prev,
+                      quiet_mode: { ...prev.quiet_mode, start: e.target.value }
+                    }))}
+                  />
+                </label>
+                <label className="form-row">
+                  <span className="meta">Bitiş</span>
+                  <input
+                    className="input"
+                    type="time"
+                    value={preferences?.quiet_mode?.end || ''}
+                    onChange={(e) => setPreferences((prev) => ({
+                      ...prev,
+                      quiet_mode: { ...prev.quiet_mode, end: e.target.value }
+                    }))}
+                  />
+                </label>
+              </div>
+              <div className="composer-actions">
+                <button className="btn ghost" onClick={loadPreferences} disabled={preferencesLoading || preferencesBusy}>
+                  {preferencesLoading ? t('loading') : 'Tercihleri yenile'}
+                </button>
+                <button className="btn primary" onClick={handleSavePreferences} disabled={preferencesBusy || preferencesLoading}>
+                  {preferencesBusy ? t('loading') : 'Tercihleri kaydet'}
+                </button>
+              </div>
+              {preferencesStatus ? <div className="ok">{preferencesStatus}</div> : null}
             </div>
-            <div className="notification-preferences-grid">
-              <label className="notification-preference-toggle">
-                <input
-                  type="checkbox"
-                  checked={Boolean(preferences?.quiet_mode?.enabled)}
-                  onChange={(e) => setPreferences((prev) => ({
-                    ...prev,
-                    quiet_mode: { ...prev.quiet_mode, enabled: e.target.checked }
-                  }))}
-                />
-                <span>Sessiz mod</span>
-              </label>
-              <label className="form-row">
-                <span className="meta">Başlangıç</span>
-                <input
-                  className="input"
-                  type="time"
-                  value={preferences?.quiet_mode?.start || ''}
-                  onChange={(e) => setPreferences((prev) => ({
-                    ...prev,
-                    quiet_mode: { ...prev.quiet_mode, start: e.target.value }
-                  }))}
-                />
-              </label>
-              <label className="form-row">
-                <span className="meta">Bitiş</span>
-                <input
-                  className="input"
-                  type="time"
-                  value={preferences?.quiet_mode?.end || ''}
-                  onChange={(e) => setPreferences((prev) => ({
-                    ...prev,
-                    quiet_mode: { ...prev.quiet_mode, end: e.target.value }
-                  }))}
-                />
-              </label>
-            </div>
-            <div className="composer-actions">
-              <button className="btn ghost" onClick={loadPreferences} disabled={preferencesLoading || preferencesBusy}>
-                {preferencesLoading ? t('loading') : 'Tercihleri yenile'}
-              </button>
-              <button className="btn primary" onClick={handleSavePreferences} disabled={preferencesBusy || preferencesLoading}>
-                {preferencesBusy ? t('loading') : 'Tercihleri kaydet'}
-              </button>
-            </div>
-            {preferencesStatus ? <div className="ok">{preferencesStatus}</div> : null}
-          </div>
+          ) : null}
 
-          <div className="notification-page-summary">
-            <div className="notification-summary-card">
-              <strong>{unreadCount}</strong>
-              <span>Okunmamış</span>
-            </div>
-            <div className="notification-summary-card">
-              <strong>{actionableCount}</strong>
-              <span>Aksiyon bekleyen</span>
-            </div>
-            <div className="notification-summary-card">
-              <strong>{groupedCounts.networking}</strong>
-              <span>{getNotificationCategoryLabel('networking')}</span>
-            </div>
-            <div className="notification-summary-card">
-              <strong>{groupedCounts.groups + groupedCounts.events + groupedCounts.jobs + groupedCounts.social}</strong>
-              <span>Diğer akışlar</span>
-            </div>
-            <div className="notification-summary-card">
-              <strong>{groupedCounts.system}</strong>
-              <span>Sistem</span>
-            </div>
-          </div>
-
-          <div className="notification-tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                className={`btn ${selectedTab === tab.key ? 'primary' : 'ghost'}`}
-                onClick={() => {
-                  const next = new URLSearchParams(searchParams);
-                  if (tab.key === 'all') next.delete('tab');
-                  else next.set('tab', tab.key);
-                  setSearchParams(next);
-                }}
-              >
-                {tab.label}
-              </button>
+          <div className={`notification-page-summary ${isMobile ? 'is-mobile-condensed' : ''}`}>
+            {visibleSummaryCards.map((card) => (
+              <div key={card.key} className="notification-summary-card">
+                <strong>{card.value}</strong>
+                <span>{card.label}</span>
+              </div>
             ))}
           </div>
+
+          {!isMobile || mobileFiltersOpen ? (
+            <div className="notification-tabs">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  className={`btn ${selectedTab === tab.key ? 'primary' : 'ghost'}`}
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    if (tab.key === 'all') next.delete('tab');
+                    else next.set('tab', tab.key);
+                    setSearchParams(next);
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <div className="composer-actions">
             <button className="btn ghost" onClick={handleBulkRead} disabled={bulkBusy || unreadCount === 0}>

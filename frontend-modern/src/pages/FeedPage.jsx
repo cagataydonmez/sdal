@@ -64,11 +64,19 @@ function EmptyPanelState({ message, actionLabel, href, onRetry }) {
   );
 }
 
+function getFeedMobileMatch() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(max-width: 760px)').matches;
+}
+
 export default function FeedPage() {
   const { t, lang } = useI18n();
   const { user } = useAuth();
+  const [isMobile, setIsMobile] = useState(getFeedMobileMatch);
   const [mobileTab, setMobileTab] = useState('posts');
   const [mobileTabsExpanded, setMobileTabsExpanded] = useState(false);
+  const [mobileStoriesOpen, setMobileStoriesOpen] = useState(false);
+  const [mobileFeedControlsOpen, setMobileFeedControlsOpen] = useState(false);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -163,8 +171,33 @@ export default function FeedPage() {
   }, [posts]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(max-width: 760px)');
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
+
+  useEffect(() => {
     setMobileTabsExpanded(false);
   }, [mobileTab]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileStoriesOpen(false);
+      setMobileFeedControlsOpen(false);
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    setMobileFeedControlsOpen(false);
+  }, [feedType, filter, isMobile]);
 
   useEffect(() => {
     if (!mobileTabsExpanded || typeof document === 'undefined') return undefined;
@@ -381,9 +414,24 @@ export default function FeedPage() {
   return (
     <Layout title={t('nav_feed')}>
       <div className="feed-mobile-sticky-stack">
-        <div className="panel feed-mobile-stories-wrap">
-          <StoryBar title={t('stories_title')} />
-        </div>
+        {isMobile ? (
+          <div className="panel feed-mobile-story-toggle-panel">
+            <button
+              type="button"
+              className={`btn ghost feed-mobile-section-toggle ${mobileStoriesOpen ? 'is-open' : ''}`}
+              onClick={() => setMobileStoriesOpen((value) => !value)}
+              aria-expanded={mobileStoriesOpen}
+            >
+              <span>{t('stories_title')}</span>
+              <strong>{mobileStoriesOpen ? t('close') : t('open')}</strong>
+            </button>
+          </div>
+        ) : null}
+        {!isMobile || mobileStoriesOpen ? (
+          <div className="panel feed-mobile-stories-wrap">
+            <StoryBar title={t('stories_title')} />
+          </div>
+        ) : null}
       </div>
 
       {createPortal(
@@ -434,19 +482,19 @@ export default function FeedPage() {
 
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
-          <section className="panel feed-hero-panel" aria-label={t('nav_feed')}>
+          <section className={`panel feed-hero-panel ${isMobile ? 'is-mobile-condensed' : ''}`} aria-label={t('nav_feed')}>
             <div className="feed-hero-copy">
               <div className="feed-hero-kicker">
                 <span className="feed-hero-mark">SDAL</span>
-                {todayLabel ? <span className="feed-hero-date">{todayLabel}</span> : null}
+                {!isMobile && todayLabel ? <span className="feed-hero-date">{todayLabel}</span> : null}
               </div>
               <div className="feed-hero-headline">
                 <div>
                   <h2 className="feed-hero-title">{t('nav_feed')}</h2>
                   <div className="feed-hero-tags" aria-label={t('nav_feed')}>
                     <span className="feed-hero-tag">{activeScopeLabel}</span>
-                    <span className="feed-hero-tag">{activeFilterLabel}</span>
-                    {user?.kadi ? <span className="feed-hero-tag">@{user.kadi}</span> : null}
+                    {!isMobile ? <span className="feed-hero-tag">{activeFilterLabel}</span> : null}
+                    {!isMobile && user?.kadi ? <span className="feed-hero-tag">@{user.kadi}</span> : null}
                   </div>
                 </div>
               </div>
@@ -464,7 +512,7 @@ export default function FeedPage() {
                 <span className="feed-refresh-banner-dot" aria-hidden="true" />
                 {t('feed_new_posts_refresh', { count: pendingPostsCount })}
               </button>
-            ) : (
+            ) : !isMobile ? (
               <div className="feed-hero-footnote">
                 <span className="feed-hero-footnote-dot" aria-hidden="true" />
                 <span>{liveSignalCount}</span>
@@ -473,7 +521,7 @@ export default function FeedPage() {
                 <span>{onlineMembers.length || featuredMembers.length}</span>
                 <span>{onlineMembers.length > 0 ? t('online_members') : t('quick_access')}</span>
               </div>
-            )}
+            ) : null}
           </section>
 
           <div className="feed-intent-band">
@@ -482,57 +530,73 @@ export default function FeedPage() {
                 <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
                 <div className="feed-composer-copy">
                   <div className="feed-composer-title">{activeScopeLabel}</div>
-                  <div className="feed-composer-meta">{t('feed_filter_selected')}: {activeFilterLabel}</div>
+                  {!isMobile ? <div className="feed-composer-meta">{t('feed_filter_selected')}: {activeFilterLabel}</div> : null}
                 </div>
               </div>
               <PostComposer feedType={feedType} onPost={() => load({ silent: true, force: true })} />
             </div>
 
-            <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
-              <div className="feed-scope-group">
-                <div className="feed-scope-group-label">{t('feed_scope_prompt')}</div>
-                <div className="panel-body scope-tabs scope-tabs-feedtype">
-                  {scopeOptions.map((scopeItem) => (
-                    <button
-                      key={`scope-${scopeItem.key}`}
-                      className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
-                      onClick={() => setFeedType(scopeItem.key)}
-                      title={scopeItem.label}
-                      aria-label={scopeItem.label}
-                    >
-                      <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
-                      <span className="scope-btn-label">{scopeItem.label}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="scope-mobile-selected-title">
-                  <span>{t('feed_scope_selected')}</span>
-                  <strong>{activeScopeLabel}</strong>
-                </div>
-              </div>
+            <div className="feed-mobile-controls">
+              {isMobile ? (
+                <button
+                  type="button"
+                  className={`btn ghost feed-mobile-section-toggle ${mobileFeedControlsOpen ? 'is-open' : ''}`}
+                  onClick={() => setMobileFeedControlsOpen((value) => !value)}
+                  aria-expanded={mobileFeedControlsOpen}
+                >
+                  <span>{activeScopeLabel} · {activeFilterLabel}</span>
+                  <strong>{mobileFeedControlsOpen ? t('close') : t('open')}</strong>
+                </button>
+              ) : null}
 
-              <div className="feed-scope-group">
-                <div className="feed-scope-group-label">{t('feed_filter_prompt')}</div>
-                <div className="panel-body scope-tabs scope-tabs-filter">
-                  {filterOptions.map((filterItem) => (
-                    <button
-                      key={`filter-${filterItem.key}`}
-                      className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
-                      onClick={() => setFilter(filterItem.key)}
-                      title={filterItem.label}
-                      aria-label={filterItem.label}
-                    >
-                      <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
-                      <span className="scope-btn-label">{filterItem.label}</span>
-                    </button>
-                  ))}
+              {!isMobile || mobileFeedControlsOpen ? (
+                <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
+                  <div className="feed-scope-group">
+                    <div className="feed-scope-group-label">{t('feed_scope_prompt')}</div>
+                    <div className="panel-body scope-tabs scope-tabs-feedtype">
+                      {scopeOptions.map((scopeItem) => (
+                        <button
+                          key={`scope-${scopeItem.key}`}
+                          className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
+                          onClick={() => setFeedType(scopeItem.key)}
+                          title={scopeItem.label}
+                          aria-label={scopeItem.label}
+                        >
+                          <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
+                          <span className="scope-btn-label">{scopeItem.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="scope-mobile-selected-title">
+                      <span>{t('feed_scope_selected')}</span>
+                      <strong>{activeScopeLabel}</strong>
+                    </div>
+                  </div>
+
+                  <div className="feed-scope-group">
+                    <div className="feed-scope-group-label">{t('feed_filter_prompt')}</div>
+                    <div className="panel-body scope-tabs scope-tabs-filter">
+                      {filterOptions.map((filterItem) => (
+                        <button
+                          key={`filter-${filterItem.key}`}
+                          className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
+                          onClick={() => setFilter(filterItem.key)}
+                          title={filterItem.label}
+                          aria-label={filterItem.label}
+                        >
+                          <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
+                          <span className="scope-btn-label">{filterItem.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="scope-mobile-selected-title">
+                      <span>{t('feed_filter_selected')}</span>
+                      <strong>{activeFilterLabel}</strong>
+                    </div>
+                  </div>
+                  <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
                 </div>
-                <div className="scope-mobile-selected-title">
-                  <span>{t('feed_filter_selected')}</span>
-                  <strong>{activeFilterLabel}</strong>
-                </div>
-              </div>
-              <div className="muted feed-note">{feedType === 'main' ? t('main_feed_public_note') : t('community_feed_note')}</div>
+              ) : null}
             </div>
           </div>
 

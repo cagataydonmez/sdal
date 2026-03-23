@@ -5,6 +5,11 @@ import { formatDateTime } from '../utils/date.js';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { useI18n } from '../utils/i18n.jsx';
 
+function getMobileMailboxMatch() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(max-width: 760px)').matches;
+}
+
 export default function MessagesPage() {
   const { t } = useI18n();
   const [messages, setMessages] = useState([]);
@@ -15,6 +20,7 @@ export default function MessagesPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [selectedId, setSelectedId] = useState(null);
+  const [isMobile, setIsMobile] = useState(getMobileMailboxMatch);
   const messagesRef = useRef([]);
   const sentinelRef = useRef(null);
 
@@ -52,6 +58,19 @@ export default function MessagesPage() {
   }, [load]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(max-width: 760px)');
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
+
+  useEffect(() => {
     const node = sentinelRef.current;
     if (!node) return undefined;
     const io = new IntersectionObserver((entries) => {
@@ -77,93 +96,120 @@ export default function MessagesPage() {
   );
 
   const selected = useMemo(
-    () => filtered.find((m) => String(m.id) === String(selectedId)) || filtered[0] || null,
-    [filtered, selectedId]
+    () => {
+      if (selectedId != null) {
+        return filtered.find((m) => String(m.id) === String(selectedId)) || null;
+      }
+      return isMobile ? null : filtered[0] || null;
+    },
+    [filtered, isMobile, selectedId]
   );
 
   useEffect(() => {
-    if (!selected && filtered.length) setSelectedId(filtered[0].id);
-  }, [filtered, selected]);
+    if (selectedId == null || filtered.some((m) => String(m.id) === String(selectedId))) return;
+    setSelectedId(null);
+  }, [filtered, selectedId]);
+
+  useEffect(() => {
+    if (isMobile || selectedId != null || !filtered.length) return;
+    setSelectedId(filtered[0].id);
+  }, [filtered, isMobile, selectedId]);
 
   const unreadCount = useMemo(
     () => messages.filter((m) => box === 'inbox' && Number(m.yeni) === 1).length,
     [messages, box]
   );
 
+  const showMobilePreview = isMobile && selected;
+  const showMailboxNavigation = !showMobilePreview;
+
   return (
     <Layout title={t('messages_title')}>
-      <div className="message-mailbox">
-        <aside className="panel mailbox-sidebar">
+      <div className={`message-mailbox ${showMobilePreview ? 'mobile-thread-open' : ''}`}>
+        {showMailboxNavigation ? (
+          <aside className="panel mailbox-sidebar">
+            <div className="panel-body stack">
+              <Link className="btn primary" to="/new/messages/compose">{t('message_compose_title')}</Link>
+              <button
+                className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`}
+                onClick={() => {
+                  setBox('inbox');
+                  setMode('all');
+                  setPage(1);
+                  setMessages([]);
+                  setSelectedId(null);
+                }}
+              >
+                {t('messages_inbox')} {box === 'inbox' ? t('messages_unread_count', { count: unreadCount }) : ''}
+              </button>
+              <button
+                className={`btn ${box === 'outbox' ? 'primary' : 'ghost'}`}
+                onClick={() => {
+                  setBox('outbox');
+                  setMode('all');
+                  setPage(1);
+                  setMessages([]);
+                  setSelectedId(null);
+                }}
+              >
+                {t('messages_outbox')}
+              </button>
+              <div className="composer-actions">
+                <button className={`btn ${mode === 'all' ? 'primary' : 'ghost'}`} onClick={() => setMode('all')}>{t('messages_all')}</button>
+                {box === 'inbox' ? <button className={`btn ${mode === 'unread' ? 'primary' : 'ghost'}`} onClick={() => setMode('unread')}>{t('messages_unread')}</button> : null}
+              </div>
+              <input className="input" placeholder={t('messages_search_placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
+            </div>
+          </aside>
+        ) : null}
+
+        {showMailboxNavigation ? (
+          <section className="panel mailbox-list">
+            <div className="panel-body">
+              <div className="mailbox-list-head">
+                <div>
+                  <h3>{box === 'inbox' ? t('messages_inbox_list') : t('messages_outbox_list')}</h3>
+                  {isMobile ? <div className="meta mailbox-list-note">{t('Bir konuşma açmak için kart seç.')}</div> : null}
+                </div>
+                {loading ? <span className="meta">{t('loading')}</span> : null}
+              </div>
+              <div className="list mailbox-items">
+                {!loading && filtered.length === 0 ? <div className="muted">{t('messages_empty_filtered')}</div> : null}
+                {filtered.map((m) => {
+                  const unread = box === 'inbox' && Number(m.yeni) === 1;
+                  const active = selected && String(selected.id) === String(m.id);
+                  return (
+                    <button
+                      className={`list-item mailbox-item ${unread ? 'unread-item' : ''} ${active ? 'mailbox-item-active' : ''}`}
+                      key={m.id}
+                      type="button"
+                      onClick={() => setSelectedId(m.id)}
+                    >
+                      <div className="message-list-main">
+                        <div className="name">{m.konu || t('message_title')}</div>
+                        <div className="meta">{m.kimden_kadi} → {m.kime_kadi}{unread ? ` • ${t('new')}` : ''}</div>
+                        <div className="message-snippet">{String(m.mesaj || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 130)}</div>
+                      </div>
+                      <div className="message-list-side">
+                        <div className="meta">{formatDateTime(m.tarih)}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+                <div ref={sentinelRef} />
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {!isMobile || selected ? (
+          <section className="panel mailbox-preview">
           <div className="panel-body stack">
-            <Link className="btn primary" to="/new/messages/compose">{t('message_compose_title')}</Link>
-            <button
-              className={`btn ${box === 'inbox' ? 'primary' : 'ghost'}`}
-              onClick={() => {
-                setBox('inbox');
-                setMode('all');
-                setPage(1);
-                setMessages([]);
-                setSelectedId(null);
-              }}
-            >
-              {t('messages_inbox')} {box === 'inbox' ? t('messages_unread_count', { count: unreadCount }) : ''}
-            </button>
-            <button
-              className={`btn ${box === 'outbox' ? 'primary' : 'ghost'}`}
-              onClick={() => {
-                setBox('outbox');
-                setMode('all');
-                setPage(1);
-                setMessages([]);
-                setSelectedId(null);
-              }}
-            >
-              {t('messages_outbox')}
-            </button>
-            <div className="composer-actions">
-              <button className={`btn ${mode === 'all' ? 'primary' : 'ghost'}`} onClick={() => setMode('all')}>{t('messages_all')}</button>
-              {box === 'inbox' ? <button className={`btn ${mode === 'unread' ? 'primary' : 'ghost'}`} onClick={() => setMode('unread')}>{t('messages_unread')}</button> : null}
-            </div>
-            <input className="input" placeholder={t('messages_search_placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
-          </div>
-        </aside>
-
-        <section className="panel mailbox-list">
-          <div className="panel-body">
-            <div className="mailbox-list-head">
-              <h3>{box === 'inbox' ? t('messages_inbox_list') : t('messages_outbox_list')}</h3>
-              {loading ? <span className="meta">{t('loading')}</span> : null}
-            </div>
-            <div className="list mailbox-items">
-              {!loading && filtered.length === 0 ? <div className="muted">{t('messages_empty_filtered')}</div> : null}
-              {filtered.map((m) => {
-                const unread = box === 'inbox' && Number(m.yeni) === 1;
-                const active = selected && String(selected.id) === String(m.id);
-                return (
-                  <button
-                    className={`list-item mailbox-item ${unread ? 'unread-item' : ''} ${active ? 'mailbox-item-active' : ''}`}
-                    key={m.id}
-                    type="button"
-                    onClick={() => setSelectedId(m.id)}
-                  >
-                    <div className="message-list-main">
-                      <div className="name">{m.konu || t('message_title')}</div>
-                      <div className="meta">{m.kimden_kadi} → {m.kime_kadi}{unread ? ` • ${t('new')}` : ''}</div>
-                      <div className="message-snippet">{String(m.mesaj || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 130)}</div>
-                    </div>
-                    <div className="message-list-side">
-                      <div className="meta">{formatDateTime(m.tarih)}</div>
-                    </div>
-                  </button>
-                );
-              })}
-              <div ref={sentinelRef} />
-            </div>
-          </div>
-        </section>
-
-        <section className="panel mailbox-preview">
-          <div className="panel-body">
+            {isMobile ? (
+              <button type="button" className="btn ghost mailbox-preview-back" onClick={() => setSelectedId(null)}>
+                {t('Mesaj listesine dön')}
+              </button>
+            ) : null}
             {!selected ? <div className="muted">{t('messages_select_prompt')}</div> : null}
             {selected ? (
               <>
@@ -180,7 +226,8 @@ export default function MessagesPage() {
               </>
             ) : null}
           </div>
-        </section>
+          </section>
+        ) : null}
       </div>
     </Layout>
   );

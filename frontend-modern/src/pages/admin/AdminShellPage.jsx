@@ -21,6 +21,11 @@ function normalizeRole(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function getCompactNavMatch() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(max-width: 1160px)').matches;
+}
+
 export default function AdminShellPage() {
   const { user } = useAuth();
   const { t } = useI18n();
@@ -164,6 +169,21 @@ export default function AdminShellPage() {
   }, [hasPermission, isAdmin, isAlbumAdmin, t]);
 
   const [activeKey, setActiveKey] = useState('dashboard');
+  const [isCompactNav, setIsCompactNav] = useState(getCompactNavMatch);
+  const [isCompactNavOpen, setIsCompactNavOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(max-width: 1160px)');
+    const sync = () => setIsCompactNav(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
 
   useEffect(() => {
     if (!sections.length) return;
@@ -171,6 +191,10 @@ export default function AdminShellPage() {
       setActiveKey(sections[0].key);
     }
   }, [activeKey, sections]);
+
+  useEffect(() => {
+    setIsCompactNavOpen(false);
+  }, [activeKey]);
 
   const activeSection = sections.find((item) => item.key === activeKey) || sections[0] || null;
 
@@ -196,10 +220,51 @@ export default function AdminShellPage() {
 
   return (
     <Layout title={t('Yönetim Konsolu')}>
-      <div className="ops-shell">
-        <AdminSidebar sections={sections} activeKey={activeKey} onChange={setActiveKey} />
+      <div className={`ops-shell ${isCompactNav ? 'ops-shell-compact' : ''}`}>
+        {!isCompactNav ? <AdminSidebar sections={sections} activeKey={activeKey} onChange={setActiveKey} /> : null}
 
         <div className="ops-content stack">
+          {isCompactNav ? (
+            <div className="panel ops-mobile-nav">
+              <div className="panel-body">
+                <div className="admin-page-top ops-mobile-nav-top">
+                  <button
+                    className={`admin-hamburger ${isCompactNavOpen ? 'open' : ''}`}
+                    type="button"
+                    aria-expanded={isCompactNavOpen}
+                    aria-label={isCompactNavOpen ? t('Yönetim bölümlerini kapat') : t('Yönetim bölümlerini aç')}
+                    onClick={() => setIsCompactNavOpen((value) => !value)}
+                  >
+                    <span />
+                    <span />
+                    <span />
+                  </button>
+                  <div className="ops-mobile-nav-summary">
+                    <div className="ops-mobile-nav-kicker">{t('Operasyon Konsolu')}</div>
+                    <strong>{activeSection?.label}</strong>
+                    {activeSection?.hint ? <div className="muted">{activeSection.hint}</div> : null}
+                  </div>
+                </div>
+
+                <div className={`admin-hamburger-menu ops-mobile-nav-menu ${isCompactNavOpen ? 'open' : ''}`}>
+                  <nav className="ops-sidebar-nav" aria-label={t('Yönetim bölümleri')}>
+                    {sections.map((section) => (
+                      <button
+                        key={section.key}
+                        type="button"
+                        className={`ops-sidebar-item ${activeKey === section.key ? 'active' : ''}`}
+                        onClick={() => setActiveKey(section.key)}
+                      >
+                        <div className="name">{section.label}</div>
+                        <div className="meta">{section.hint}</div>
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="panel">
             <div className="panel-body ops-shell-header">
               <div>

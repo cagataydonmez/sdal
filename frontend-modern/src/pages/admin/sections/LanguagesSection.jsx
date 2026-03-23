@@ -282,11 +282,11 @@ function LanguagesTab({ isAdmin, onChanged }) {
               <tbody>
                 {languages.map((lang) => (
                   <tr key={lang.code}>
-                    <td><code>{lang.code}</code></td>
-                    <td>{lang.name}</td>
-                    <td>{lang.native_name}</td>
-                    <td>{lang.is_default ? <span className="chip">{t('Varsayılan')}</span> : '—'}</td>
-                    <td>
+                    <td data-label={t('Kod')}><code>{lang.code}</code></td>
+                    <td data-label={t('Ad')}>{lang.name}</td>
+                    <td data-label={t('Yerel Ad')}>{lang.native_name}</td>
+                    <td data-label={t('Varsayılan')}>{lang.is_default ? <span className="chip">{t('Varsayılan')}</span> : '—'}</td>
+                    <td data-label={t('Aktif')}>
                       <button
                         className={`btn btn-sm ${lang.is_active ? 'btn-success' : 'btn-secondary'}`}
                         onClick={() => handleToggle(lang.code, lang.is_active)}
@@ -296,7 +296,7 @@ function LanguagesTab({ isAdmin, onChanged }) {
                         {lang.is_active ? t('Aktif') : t('Pasif')}
                       </button>
                     </td>
-                    <td>
+                    <td data-label={t('İşlemler')}>
                       {!lang.is_default && (
                         <button
                           className="btn btn-sm btn-danger"
@@ -626,9 +626,9 @@ function StringsTab({ isAdmin, languages }) {
                   const isEditing = editingId === rowId;
                   return (
                     <tr key={rowId}>
-                      <td><code>{s.lang_code}</code></td>
-                      <td><code className="admin-code-wrap">{s.key}</code></td>
-                      <td>
+                      <td data-label={t('Dil')}><code>{s.lang_code}</code></td>
+                      <td data-label={t('Anahtar')}><code className="admin-code-wrap">{s.key}</code></td>
+                      <td data-label={t('Değer')}>
                         {isEditing ? (
                           <textarea
                             className="input admin-textarea-resizable"
@@ -641,7 +641,7 @@ function StringsTab({ isAdmin, languages }) {
                           <span className="admin-text-wrap">{s.value}</span>
                         )}
                       </td>
-                      <td>
+                      <td data-label={t('İşlemler')}>
                         {isEditing ? (
                           <div className="admin-actions-compact">
                             <button className="btn btn-sm btn-primary" onClick={() => handleSave(s.lang_code, s.key)}>{t('save')}</button>
