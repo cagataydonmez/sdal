@@ -262,61 +262,66 @@ export default function NetworkingHubPage() {
         return actionableCards.length ? actionableCards.slice(0, 1) : priorityCards.slice(0, 1);
       })()
     : priorityCards;
+  const hasNetworkFeedback = Boolean(feedback.message || loadError || loadNotice);
 
   return (
     <Layout title={t('network_hub_title')}>
-      <section className={`network-hero ${isMobile ? 'is-mobile-condensed' : ''}`}>
-        <div className="network-hero-copy">
-          <span className="network-eyebrow">Ağ merkezi</span>
-          <h2>{t('network_hub_intro_title')}</h2>
-          {!isMobile ? <p>{t('network_hub_intro_subtitle')}</p> : null}
-        </div>
-        <div className="network-hero-actions">
-          <Link className="btn primary" to="/new/explore">{t('hub_action_discover')}</Link>
-          {isMobile ? (
-            <button className="btn ghost" type="button" onClick={() => setMobileHeroToolsOpen((value) => !value)} aria-expanded={mobileHeroToolsOpen}>
-              {mobileHeroToolsOpen ? 'Araçları kapat' : 'Araçlar'}
-            </button>
-          ) : null}
-          {!isMobile || mobileHeroToolsOpen ? (
-            <>
-              <Link className="btn ghost" to="/new/network/teachers">{t('hub_action_teacher_network')}</Link>
-              <Link className="btn ghost" to="/new/messages">{t('hub_action_messages')}</Link>
-              {hubRefreshing ? <span className="chip">{t('hub_status_updating')}</span> : null}
-            </>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="panel network-priority-strip">
-        <div className="network-section-head">
-          <div>
-            <span className="network-section-kicker">{t('hub_section_priority_kicker')}</span>
-            <h3>{t('hub_section_priority_title')}</h3>
-            <p>{t('hub_section_priority_desc')}</p>
+      <div className="network-mobile-lead">
+        <section className={`network-hero ${isMobile ? 'is-mobile-condensed' : ''}`}>
+          <div className="network-hero-copy">
+            <span className="network-eyebrow">Ağ merkezi</span>
+            <h2>{t('network_hub_intro_title')}</h2>
+            {!isMobile ? <p>{t('network_hub_intro_subtitle')}</p> : null}
           </div>
-          <div className="network-section-tools">
-            <span className="chip">{t('hub_tools_open_count', { count: actionableCount })}</span>
-            {isMobile && priorityCards.length > 1 ? (
-              <button className="btn ghost" type="button" onClick={() => setMobilePriorityOpen((value) => !value)} aria-expanded={mobilePriorityOpen}>
-                {mobilePriorityOpen ? 'Öncelikleri kapat' : 'Öncelikleri aç'}
+          <div className="network-hero-actions">
+            <Link className="btn primary" to="/new/explore">{t('hub_action_discover')}</Link>
+            {isMobile ? (
+              <button className="btn ghost" type="button" onClick={() => setMobileHeroToolsOpen((value) => !value)} aria-expanded={mobileHeroToolsOpen}>
+                {mobileHeroToolsOpen ? 'Araçları kapat' : 'Araçlar'}
               </button>
             ) : null}
+            {!isMobile || mobileHeroToolsOpen ? (
+              <>
+                <Link className="btn ghost" to="/new/network/teachers">{t('hub_action_teacher_network')}</Link>
+                <Link className="btn ghost" to="/new/messages">{t('hub_action_messages')}</Link>
+                {hubRefreshing ? <span className="chip">{t('hub_status_updating')}</span> : null}
+              </>
+            ) : null}
           </div>
-        </div>
-        <div className="panel-body network-section-body">
-          <div className="network-priority-grid">
-            {visiblePriorityCards.map((card) => (
-              <PriorityCard key={card.key} {...card} />
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <div className="network-feedback-slot">
-        {feedback.message ? <div className={feedback.type === 'error' ? 'error' : 'ok'}>{feedback.message}</div> : null}
-        {loadError ? <div className="error">{loadError}</div> : null}
-        {loadNotice ? <div className="network-soft-alert">{loadNotice}</div> : null}
+        {hasNetworkFeedback ? (
+          <div className="network-feedback-slot">
+            {feedback.message ? <div className={feedback.type === 'error' ? 'error' : 'ok'}>{feedback.message}</div> : null}
+            {loadError ? <div className="error">{loadError}</div> : null}
+            {loadNotice ? <div className="network-soft-alert">{loadNotice}</div> : null}
+          </div>
+        ) : null}
+
+        <section className="panel network-priority-strip">
+          <div className="network-section-head">
+            <div>
+              <span className="network-section-kicker">{t('hub_section_priority_kicker')}</span>
+              <h3>{t('hub_section_priority_title')}</h3>
+              <p>{t('hub_section_priority_desc')}</p>
+            </div>
+            <div className="network-section-tools">
+              <span className="chip">{t('hub_tools_open_count', { count: actionableCount })}</span>
+              {isMobile && priorityCards.length > 1 ? (
+                <button className="btn ghost" type="button" onClick={() => setMobilePriorityOpen((value) => !value)} aria-expanded={mobilePriorityOpen}>
+                  {mobilePriorityOpen ? 'Öncelikleri kapat' : 'Öncelikleri aç'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="panel-body network-section-body">
+            <div className="network-priority-grid">
+              {visiblePriorityCards.map((card) => (
+                <PriorityCard key={card.key} {...card} />
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
 
       <section id="health-snapshot" className="panel network-section-card">

@@ -619,6 +619,18 @@
   gap: 12px;
   margin-top: 14px;
 }
+.notification-page-section + .notification-page-section {
+  margin-top: 20px;
+}
+.notification-page-top {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.notification-control-cluster {
+  display: grid;
+  gap: 12px;
+}
 
 .notification-panel-heading,
 .notification-page-heading {
@@ -755,6 +767,11 @@
 }
 
 @media (max-width: 760px) {
+  .notification-page-top {
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
   .notification-mobile-toolbar {
     display: grid;
     gap: 10px;
@@ -782,6 +799,11 @@
 
   .notification-page-summary.is-mobile-condensed {
     margin-bottom: 10px;
+  }
+
+  .notification-bulk-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .notification-preferences-grid,

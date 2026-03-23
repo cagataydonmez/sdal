@@ -92,12 +92,20 @@
   color: var(--muted);
 }
 .network-feedback-slot {
-  min-height: 52px;
-  margin-bottom: 8px;
+  display: grid;
+  gap: 8px;
 }
 .network-priority-strip {
   margin-bottom: 16px;
   scroll-margin-top: 110px;
+}
+.network-mobile-lead {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.network-mobile-lead .network-priority-strip {
+  margin-bottom: 0;
 }
 .network-priority-grid {
   display: grid;
@@ -899,6 +907,10 @@
 }
 
 @media (max-width: 720px) {
+  .network-mobile-lead {
+    gap: 12px;
+    margin-bottom: 16px;
+  }
   .network-hero {
     padding: 18px;
   }
