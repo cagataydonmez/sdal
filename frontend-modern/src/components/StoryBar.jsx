@@ -17,7 +17,7 @@ function getStoryMediaUrl(story) {
   return String(story?.variants?.fullUrl || story?.variants?.feedUrl || story?.image || '').trim();
 }
 
-export default function StoryBar({ endpoint = '/api/new/stories', showUpload = true, title = '' }) {
+export default function StoryBar({ endpoint = '/api/new/stories', showUpload = true, title = '', variant = 'default' }) {
   const { t } = useI18n();
   const { user } = useAuth();
   const [stories, setStories] = useState([]);
@@ -99,6 +99,9 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     });
     return arr;
   }, [stories]);
+  const unviewedGroupCount = useMemo(() => groups.filter((group) => !group.viewed).length, [groups]);
+  const storySignalCount = unviewedGroupCount || groups.length;
+  const wrapClassName = `story-wrap${variant === 'feed-mobile' ? ' is-feed-mobile' : ''}`;
 
   const activeGroup = activeGroupIndex !== null ? groups[activeGroupIndex] : null;
   const active = activeGroup?.items?.[activeStoryIndex] || null;
@@ -353,8 +356,18 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
   }
 
   return (
-    <div className="story-wrap">
-      {title ? <h3>{title}</h3> : null}
+    <div className={wrapClassName}>
+      {title ? (
+        variant === 'feed-mobile' ? (
+          <div className="story-head">
+            <div className="story-headline">
+              <span className="story-head-glow" aria-hidden="true" />
+              <h3>{title}</h3>
+            </div>
+            {storySignalCount > 0 ? <span className="story-count-pill">{storySignalCount}</span> : null}
+          </div>
+        ) : <h3>{title}</h3>
+      ) : null}
       <div className="story-bar">
         {showUpload ? (
           <label className="story add">

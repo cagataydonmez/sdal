@@ -51,6 +51,13 @@
 .feed-mobile-story-toggle-panel {
   padding: 10px 12px;
 }
+.feed-mobile-stories-wrap {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent-soft-line) 54%, var(--line) 46%);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-soft-bg) 60%, white 40%) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, var(--surface-side) 6%) 0%, color-mix(in srgb, var(--card-alt) 86%, var(--accent-soft-bg) 14%) 100%);
+}
 .feed-mobile-section-toggle {
   width: 100%;
   min-height: 44px;
@@ -993,6 +1000,10 @@
   }
   .feed-mobile-story-toggle-panel {
     margin-bottom: 0;
+  }
+  .feed-mobile-stories-wrap {
+    padding: 10px 10px 8px;
+    border-radius: 18px;
   }
   .feed-hero-panel,
   .feed-composer-shell {

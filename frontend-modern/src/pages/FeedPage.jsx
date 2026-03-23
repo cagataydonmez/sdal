@@ -75,7 +75,6 @@ export default function FeedPage() {
   const [isMobile, setIsMobile] = useState(getFeedMobileMatch);
   const [mobileTab, setMobileTab] = useState('posts');
   const [mobileTabsExpanded, setMobileTabsExpanded] = useState(false);
-  const [mobileStoriesOpen, setMobileStoriesOpen] = useState(false);
   const [mobileFeedControlsOpen, setMobileFeedControlsOpen] = useState(false);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +188,6 @@ export default function FeedPage() {
 
   useEffect(() => {
     if (!isMobile) {
-      setMobileStoriesOpen(false);
       setMobileFeedControlsOpen(false);
     }
   }, [isMobile]);
@@ -440,24 +438,9 @@ export default function FeedPage() {
   return (
     <Layout title={t('nav_feed')}>
       <div className="feed-mobile-sticky-stack">
-        {isMobile ? (
-          <div className="panel feed-mobile-story-toggle-panel">
-            <button
-              type="button"
-              className={`btn ghost feed-mobile-section-toggle ${mobileStoriesOpen ? 'is-open' : ''}`}
-              onClick={() => setMobileStoriesOpen((value) => !value)}
-              aria-expanded={mobileStoriesOpen}
-            >
-              <span>{t('stories_title')}</span>
-              <strong>{mobileStoriesOpen ? t('close') : t('open')}</strong>
-            </button>
-          </div>
-        ) : null}
-        {!isMobile || mobileStoriesOpen ? (
-          <div className="panel feed-mobile-stories-wrap">
-            <StoryBar title={t('stories_title')} />
-          </div>
-        ) : null}
+        <div className="panel feed-mobile-stories-wrap">
+          <StoryBar title={t('stories_title')} variant={isMobile ? 'feed-mobile' : 'default'} />
+        </div>
       </div>
 
       {createPortal(
