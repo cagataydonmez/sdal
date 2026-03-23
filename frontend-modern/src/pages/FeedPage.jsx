@@ -373,6 +373,20 @@ export default function FeedPage() {
     load({ silent: true });
   }, [load]);
 
+  const refreshFeedSignals = useCallback(() => {
+    Promise.allSettled([
+      loadUnreadMessages(),
+      loadUnreadNotifications()
+    ]).catch(() => {});
+  }, [loadUnreadMessages, loadUnreadNotifications]);
+
+  const refreshFeedDirectory = useCallback(() => {
+    Promise.allSettled([
+      loadQuickAccess(),
+      loadOnlineMembers()
+    ]).catch(() => {});
+  }, [loadQuickAccess, loadOnlineMembers]);
+
   useEffect(() => {
     const isSubsequentScopeLoad = initializedRef.current;
     load({ silent: isSubsequentScopeLoad, force: isSubsequentScopeLoad });
@@ -405,11 +419,23 @@ export default function FeedPage() {
     return () => io.disconnect();
   }, [loadMore]);
 
-  useLiveRefresh(refreshFeedSilently, { intervalMs: 9000, eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created'] });
-  useLiveRefresh(loadUnreadMessages, { intervalMs: 12000, eventTypes: ['message:created'] });
-  useLiveRefresh(loadUnreadNotifications, { intervalMs: 12000, eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action'] });
-  useLiveRefresh(loadQuickAccess, { intervalMs: 20000, eventTypes: [] });
-  useLiveRefresh(loadOnlineMembers, { intervalMs: 12000, eventTypes: [] });
+  useLiveRefresh(refreshFeedSilently, {
+    intervalMs: 15000,
+    hiddenIntervalMs: 60000,
+    eventDebounceMs: 500,
+    eventTypes: ['post:created', 'post:liked', 'post:commented', 'story:created']
+  });
+  useLiveRefresh(refreshFeedSignals, {
+    intervalMs: 20000,
+    hiddenIntervalMs: 60000,
+    eventDebounceMs: 400,
+    eventTypes: ['message:created', 'notification:new', 'notification:read', 'notification:opened', 'notification:action']
+  });
+  useLiveRefresh(refreshFeedDirectory, {
+    intervalMs: 30000,
+    hiddenIntervalMs: 90000,
+    eventTypes: []
+  });
 
   return (
     <Layout title={t('nav_feed')}>

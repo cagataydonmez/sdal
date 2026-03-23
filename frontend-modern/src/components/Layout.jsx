@@ -114,11 +114,18 @@ export default function Layout({ children, title, right }) {
   }, [user]);
 
   useLiveRefresh(loadUnreadCount, {
-    intervalMs: 12000,
+    intervalMs: 20000,
+    hiddenIntervalMs: 60000,
+    eventDebounceMs: 400,
     eventTypes: ['message:created', 'notification:new', 'notification:read', 'notification:opened', 'notification:action'],
     enabled: !!user
   });
-  useLiveRefresh(refresh, { intervalMs: 20000, eventTypes: ['profile:updated'], enabled: !!user });
+  useLiveRefresh(refresh, {
+    intervalMs: 0,
+    eventDebounceMs: 200,
+    eventTypes: ['profile:updated'],
+    enabled: !!user
+  });
 
   useEffect(() => {
     if (!user) return;

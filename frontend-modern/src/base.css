@@ -12,12 +12,90 @@ html {
   --vt-ease-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
   --focus-ring: color-mix(in srgb, var(--accent) 76%, white 24%);
   --focus-ring-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 18%, transparent 82%), 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent 80%);
+  --ink-on-strong: color-mix(in srgb, var(--nav-ink) 94%, var(--card) 6%);
+  --ink-on-accent: color-mix(in srgb, var(--nav-bg) 86%, var(--ink) 14%);
+  --surface-inverse: color-mix(in srgb, var(--nav-bg) 88%, var(--surface-main) 12%);
+  --surface-inverse-muted: color-mix(in srgb, var(--nav-bg) 82%, var(--surface-main) 18%);
+  --surface-inverse-accent: color-mix(in srgb, var(--surface-inverse) 82%, var(--accent) 18%);
+  --surface-inverse-accent-2: color-mix(in srgb, var(--surface-inverse) 74%, var(--accent-2) 26%);
+  --surface-inverse-danger: color-mix(in srgb, var(--surface-inverse) 76%, var(--danger-ink) 24%);
+  --surface-spot: color-mix(in srgb, var(--card) 82%, var(--surface-side) 18%);
+  --surface-spot-strong: color-mix(in srgb, var(--card) 72%, var(--surface-side) 28%);
+  --surface-accent-soft: color-mix(in srgb, var(--accent-soft-bg) 66%, var(--surface-side) 34%);
+  --surface-success-strong: color-mix(in srgb, var(--accent-2) 84%, var(--nav-bg) 16%);
+  --surface-overlay-soft: color-mix(in srgb, var(--overlay) 72%, transparent);
+  --line-inverse: color-mix(in srgb, var(--nav-ink) 28%, transparent);
 }
 
 :where(a, button, input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   box-shadow: var(--focus-ring-shadow);
+}
+
+.route-fallback-shell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 104px;
+  padding: 12px 0;
+}
+
+.route-fallback-shell.is-page {
+  min-height: min(56vh, 420px);
+  justify-content: center;
+}
+
+.route-fallback-card {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: min(100%, 220px);
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 18px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 86%, transparent) 100%);
+}
+
+.route-fallback-kicker {
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 58%, var(--muted) 42%);
+}
+
+.route-fallback-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.route-fallback-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 76%, white 24%);
+  animation: route-fallback-pulse 0.95s ease-in-out infinite;
+}
+
+.route-fallback-dots span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.route-fallback-dots span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes route-fallback-pulse {
+  0%, 100% {
+    transform: scale(0.82);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .user-chip:focus-visible,
@@ -425,5 +503,5 @@ textarea::placeholder {
 }
 .side-nav nav a.active,
 .side-nav nav a:hover {
-  background: rgba(255,255,255,0.14);
+  background: var(--line-inverse);
 }

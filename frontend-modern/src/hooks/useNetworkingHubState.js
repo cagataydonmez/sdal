@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useEffect, useReducer, useRef } from 'react';
-import { emitAppChange } from '../utils/live.js';
+import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import { unwrapApiData } from '../utils/api.js';
 import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
 import {
@@ -394,6 +394,11 @@ export function useNetworkingHubState(t) {
     }, delay);
   }, [loadDiscoveryData, loadHubData]);
 
+  const refreshHubSilently = useCallback(() => {
+    if (!hasMountedRef.current) return;
+    queueSilentRefresh({ hub: true, discovery: true, delay: 0 });
+  }, [queueSilentRefresh]);
+
   useEffect(() => {
     hasMountedRef.current = true;
     void loadHubData({ silent: false, windowValue: stateRef.current.metricsWindow });
@@ -406,13 +411,11 @@ export function useNetworkingHubState(t) {
     };
   }, [loadHubData]);
 
-  useEffect(() => {
-    if (!hasMountedRef.current) return undefined;
-    const refreshTimer = window.setInterval(() => {
-      queueSilentRefresh({ hub: true, discovery: true, delay: 0 });
-    }, 25000);
-    return () => window.clearInterval(refreshTimer);
-  }, [queueSilentRefresh]);
+  useLiveRefresh(refreshHubSilently, {
+    intervalMs: 45000,
+    hiddenIntervalMs: 120000,
+    eventTypes: []
+  });
 
   useEffect(() => {
     if (!hasMountedRef.current) return;

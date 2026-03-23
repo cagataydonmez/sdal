@@ -71,7 +71,9 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
   }, [load]);
 
   useLiveRefresh(load, {
-    intervalMs: 12000,
+    intervalMs: 20000,
+    hiddenIntervalMs: 60000,
+    eventDebounceMs: 500,
     eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action', 'post:liked', 'post:commented', NETWORKING_EVENTS.followChanged]
   });
 
@@ -183,7 +185,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
 
         {!loading && !error && actionItems.length > 0 ? (
           <div className="notification-panel-section">
-            <div className="notification-panel-heading">Aksiyon Gerekenler</div>
+            <div className="notification-panel-heading">{t('notifications_action_heading')}</div>
             <div className="notification-card-stack">
               {actionItems.map((item) => (
                 <NotificationCard
@@ -202,7 +204,7 @@ export default function NotificationPanel({ limit = 5, showAllLink = true, showE
 
         {!loading && !error && recentItems.length > 0 ? (
           <div className="notification-panel-section">
-            <div className="notification-panel-heading">Son Güncellemeler</div>
+            <div className="notification-panel-heading">{t('notifications_updates_heading')}</div>
             <div className="notification-card-stack">
               {recentItems.map((item) => (
                 <NotificationCard

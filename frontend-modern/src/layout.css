@@ -333,14 +333,14 @@
   border-radius: 999px;
   font-size: 12px;
   text-align: center;
-  color: #fff;
-  background: #1fa855;
+  color: var(--ink-on-strong);
+  background: var(--surface-success-strong);
 }
 .messenger-main-head {
   border-bottom: 1px solid var(--line);
   margin-bottom: 8px;
   padding-bottom: 6px;
-  background: color-mix(in srgb, var(--messenger-head) 82%, #075e54 18%);
+  background: color-mix(in srgb, var(--messenger-head) 82%, var(--accent-2) 18%);
   border-radius: 10px;
   padding: 10px 12px;
 }
@@ -353,9 +353,9 @@
   overflow: auto;
   padding: 10px;
   background:
-    radial-gradient(circle at 20% 20%, rgba(255,255,255,0.12), transparent 34%),
-    radial-gradient(circle at 80% 80%, rgba(0,0,0,0.12), transparent 40%),
-    repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 6px, transparent 6px 12px),
+    radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--card) 14%, transparent) 0%, transparent 34%),
+    radial-gradient(circle at 80% 80%, color-mix(in srgb, var(--nav-bg) 12%, transparent) 0%, transparent 40%),
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--card) 3%, transparent) 0 6px, transparent 6px 12px),
     var(--messenger-bg);
 }
 .messenger-bubble-row {
@@ -385,7 +385,7 @@
   padding: 8px 10px;
   background: var(--messenger-bubble-theirs);
   color: var(--messenger-bubble-text);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--nav-bg) 12%, transparent);
 }
 .messenger-bubble-row.mine .messenger-bubble {
   background: var(--messenger-bubble-mine);
@@ -416,7 +416,7 @@
   color: var(--messenger-bubble-meta);
 }
 .msg-state.read .ticks {
-  color: #1da1f2;
+  color: var(--accent-2);
 }
 .messenger-composer {
   margin-top: 10px;

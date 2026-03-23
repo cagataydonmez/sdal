@@ -105,6 +105,14 @@ export default function LoginPage() {
                 <span>{t('auth_username')}</span>
                 <input
                   className="input"
+                  type="text"
+                  autoFocus
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  enterKeyHint="next"
+                  aria-invalid={errors.kadi ? 'true' : 'false'}
                   placeholder={t('auth_username')}
                   {...register('kadi')}
                 />
@@ -115,6 +123,9 @@ export default function LoginPage() {
                 <input
                   className="input"
                   type="password"
+                  autoComplete="current-password"
+                  enterKeyHint="go"
+                  aria-invalid={errors.sifre ? 'true' : 'false'}
                   placeholder={t('auth_password')}
                   {...register('sifre')}
                 />

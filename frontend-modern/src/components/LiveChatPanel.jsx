@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../utils/auth.jsx';
-import { emitAppChange } from '../utils/live.js';
+import { emitAppChange, useLiveRefresh } from '../utils/live.js';
 import RichTextEditor from './RichTextEditor.jsx';
 import TranslatableHtml from './TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
@@ -101,14 +101,15 @@ export default function LiveChatPanel() {
     loadInitial();
   }, [loadInitial]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.hidden) return;
-      if (wsConnectedRef.current) return;
-      loadNewer();
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [loadNewer]);
+  useLiveRefresh(() => {
+    if (wsConnectedRef.current) return;
+    loadNewer();
+  }, {
+    intervalMs: 15000,
+    hiddenIntervalMs: 45000,
+    eventDebounceMs: 300,
+    eventTypes: ['chat:new']
+  });
 
   useEffect(() => {
     const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/chat`;

@@ -132,7 +132,12 @@ export default function NotificationsPage() {
     return () => mq.removeListener(sync);
   }, []);
 
-  useLiveRefresh(() => load(false), { intervalMs: 12000, eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action'] });
+  useLiveRefresh(() => load(false), {
+    intervalMs: 20000,
+    hiddenIntervalMs: 60000,
+    eventDebounceMs: 500,
+    eventTypes: ['notification:new', 'notification:read', 'notification:opened', 'notification:action']
+  });
 
   useEffect(() => {
     const nextEvents = items
@@ -289,14 +294,14 @@ export default function NotificationsPage() {
               <div className="notification-mobile-toolbar">
                 <div className="notification-mobile-toolbar-copy">
                   <strong>{t('nav_notifications')}</strong>
-                  <span className="meta">{summaryCards[0].value} okunmamış · {summaryCards[1].value} aksiyon</span>
+                  <span className="meta">{t('notifications_mobile_summary', { unread: summaryCards[0].value, action: summaryCards[1].value })}</span>
                 </div>
                 <div className="notification-mobile-toolbar-actions">
                   <button className="btn ghost" type="button" onClick={() => setMobileFiltersOpen((value) => !value)} aria-expanded={mobileFiltersOpen}>
-                    {mobileFiltersOpen ? 'Sekmeleri kapat' : 'Sekmeler'}
+                    {t('notifications_toggle_filters')}
                   </button>
                   <button className="btn ghost" type="button" onClick={() => setMobilePreferencesOpen((value) => !value)} aria-expanded={mobilePreferencesOpen}>
-                    {mobilePreferencesOpen ? 'Tercihleri kapat' : 'Tercihler'}
+                    {t('notifications_toggle_preferences')}
                   </button>
                 </div>
               </div>
@@ -336,10 +341,10 @@ export default function NotificationsPage() {
                         quiet_mode: { ...prev.quiet_mode, enabled: e.target.checked }
                       }))}
                     />
-                    <span>Sessiz mod</span>
+                    <span>{t('notifications_quiet_mode')}</span>
                   </label>
                   <label className="form-row">
-                    <span className="meta">Başlangıç</span>
+                    <span className="meta">{t('notifications_time_start')}</span>
                     <input
                       className="input"
                       type="time"
@@ -351,7 +356,7 @@ export default function NotificationsPage() {
                     />
                   </label>
                   <label className="form-row">
-                    <span className="meta">Bitiş</span>
+                    <span className="meta">{t('notifications_time_end')}</span>
                     <input
                       className="input"
                       type="time"
@@ -365,10 +370,10 @@ export default function NotificationsPage() {
                 </div>
                 <div className="composer-actions">
                   <button className="btn ghost" onClick={loadPreferences} disabled={preferencesLoading || preferencesBusy}>
-                    {preferencesLoading ? t('loading') : 'Tercihleri yenile'}
+                    {preferencesLoading ? t('loading') : t('notifications_preferences_reload')}
                   </button>
                   <button className="btn primary" onClick={handleSavePreferences} disabled={preferencesBusy || preferencesLoading}>
-                    {preferencesBusy ? t('loading') : 'Tercihleri kaydet'}
+                    {preferencesBusy ? t('loading') : t('notifications_preferences_save')}
                   </button>
                 </div>
                 {preferencesStatus ? <div className="ok">{preferencesStatus}</div> : null}
@@ -406,7 +411,7 @@ export default function NotificationsPage() {
 
               <div className="composer-actions notification-bulk-actions">
                 <button className="btn ghost" onClick={handleBulkRead} disabled={bulkBusy || unreadCount === 0}>
-                  {bulkBusy ? t('loading') : 'Tümünü okundu yap'}
+                  {bulkBusy ? t('loading') : t('notifications_bulk_read')}
                 </button>
               </div>
             </div>
@@ -419,8 +424,8 @@ export default function NotificationsPage() {
             filteredItems.length > 0 ? (
               <div className="notification-page-section">
                 <div className="notification-page-heading">
-                  <strong>Bildirim akışı</strong>
-                  <span className="meta">{filteredItems.length} kayıt</span>
+                  <strong>{t('notifications_flow_heading')}</strong>
+                  <span className="meta">{t('notifications_records', { count: filteredItems.length })}</span>
                 </div>
                 <div className="notification-card-stack">
                   {filteredItems.map((item) => (
@@ -442,8 +447,8 @@ export default function NotificationsPage() {
               {actionItems.length > 0 ? (
                 <div className="notification-page-section">
                   <div className="notification-page-heading">
-                    <strong>Aksiyon Gerekenler</strong>
-                    <span className="meta">{actionItems.length} kayıt</span>
+                    <strong>{t('notifications_action_heading')}</strong>
+                    <span className="meta">{t('notifications_records', { count: actionItems.length })}</span>
                   </div>
                   <div className="notification-card-stack">
                     {actionItems.map((item) => (
@@ -464,8 +469,8 @@ export default function NotificationsPage() {
               {recentItems.length > 0 ? (
                 <div className="notification-page-section">
                   <div className="notification-page-heading">
-                    <strong>Son Güncellemeler</strong>
-                    <span className="meta">{recentItems.length} kayıt</span>
+                    <strong>{t('notifications_updates_heading')}</strong>
+                    <span className="meta">{t('notifications_records', { count: recentItems.length })}</span>
                   </div>
                   <div className="notification-card-stack">
                     {recentItems.map((item) => (

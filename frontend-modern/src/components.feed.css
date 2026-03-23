@@ -669,11 +669,19 @@
 .btn {
   border: none;
   border-radius: 999px;
-  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 16px;
   cursor: pointer;
   background: var(--button-bg);
   color: var(--button-ink);
   font-weight: 600;
+  line-height: 1.15;
+  touch-action: manipulation;
 }
 .btn.primary { background: var(--accent); color: #111; }
 .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
@@ -855,10 +863,12 @@
 .input, .search, textarea.input {
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 10px;
+  min-height: 44px;
+  padding: 11px 12px;
   width: 100%;
   background: var(--input-bg);
   color: var(--ink);
+  line-height: 1.35;
 }
 
 .form-row {
@@ -1119,6 +1129,9 @@
 .auth-field span {
   font-weight: 600;
 }
+.auth-field-note {
+  margin: -2px 0 0;
+}
 .auth-submit {
   width: 100%;
 }
@@ -1148,6 +1161,26 @@
 .auth-entry-links-minimal .linkish:hover,
 .auth-entry-links-minimal .linkish:focus-visible {
   color: var(--text);
+}
+.auth-consent-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin: 4px 0;
+}
+.auth-consent-checkbox {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+.auth-consent-label {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+.auth-consent-label a {
+  text-decoration: underline;
 }
 .profile-editor-shell {
   display: grid;
@@ -1353,6 +1386,13 @@
   }
   .auth-entry-panel-body {
     gap: 14px;
+  }
+  .btn,
+  .input,
+  .search,
+  textarea.input,
+  select.input {
+    min-height: 46px;
   }
   .auth-provider-list {
     width: 100%;

@@ -1013,8 +1013,9 @@
   gap: 8px;
 }
 .btn-xs {
-  font-size: 12px;
-  padding: 4px 8px;
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 13px;
 }
 .post-rich-body {
   margin-bottom: 4px;

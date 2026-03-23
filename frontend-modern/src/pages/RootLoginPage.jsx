@@ -47,11 +47,14 @@ export default function RootLoginPage() {
             <input
               className="input"
               type="password"
+              autoFocus
+              autoComplete="current-password"
+              enterKeyHint="go"
               value={password}
               placeholder="ROOT_BOOTSTRAP_PASSWORD"
               onChange={(e) => setPassword(e.target.value)}
             />
-            <button className="btn primary" type="submit" disabled={busy}>{busy ? t('root_login_submitting') : t('root_login_submit')}</button>
+            <button className="btn primary" type="submit" disabled={busy || !String(password || '').trim()}>{busy ? t('root_login_submitting') : t('root_login_submit')}</button>
             {status ? <div className="error">{status}</div> : null}
           </form>
           <Link className="btn ghost" to="/new/login">{t('root_login_back_link')}</Link>

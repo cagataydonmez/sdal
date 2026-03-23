@@ -133,7 +133,7 @@
 }
 .admin-nav-item.active {
   background: var(--accent-2);
-  color: color-mix(in srgb, white 92%, var(--accent-2) 8%);
+  color: var(--ink-on-strong);
   border-color: var(--accent-2);
 }
 .admin-content {
@@ -594,7 +594,7 @@
   height: 36px;
   border-radius: 999px;
   object-fit: cover;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid color-mix(in srgb, var(--line) 76%, var(--surface-side) 24%);
 }
 
 .icon-btn {
@@ -610,7 +610,7 @@
 .admin-profile-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.55);
+  background: var(--surface-overlay-soft);
   z-index: 1200;
   display: grid;
   place-items: center;
@@ -1171,8 +1171,8 @@
   transition: background 0.1s;
 }
 .ops-drag-row.ops-drag-over {
-  background: var(--surface-alt, #f0f0f0);
-  border-color: var(--accent, #0070f3);
+  background: color-mix(in srgb, var(--soft-panel) 84%, var(--accent-soft-bg) 16%);
+  border-color: var(--accent);
 }
 .ops-drag-handle {
   font-size: 1.2rem;
@@ -1264,7 +1264,7 @@
 .content-preview-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.55);
+  background: var(--surface-overlay-soft);
   z-index: 1200;
   display: grid;
   place-items: center;

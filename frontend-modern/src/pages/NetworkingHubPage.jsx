@@ -269,7 +269,7 @@ export default function NetworkingHubPage() {
       <div className="network-mobile-lead">
         <section className={`network-hero ${isMobile ? 'is-mobile-condensed' : ''}`}>
           <div className="network-hero-copy">
-            <span className="network-eyebrow">Ağ merkezi</span>
+            <span className="network-eyebrow">{t('hub_hero_kicker')}</span>
             <h2>{t('network_hub_intro_title')}</h2>
             {!isMobile ? <p>{t('network_hub_intro_subtitle')}</p> : null}
           </div>
@@ -277,7 +277,7 @@ export default function NetworkingHubPage() {
             <Link className="btn primary" to="/new/explore">{t('hub_action_discover')}</Link>
             {isMobile ? (
               <button className="btn ghost" type="button" onClick={() => setMobileHeroToolsOpen((value) => !value)} aria-expanded={mobileHeroToolsOpen}>
-                {mobileHeroToolsOpen ? 'Araçları kapat' : 'Araçlar'}
+                {t('hub_mobile_tools')}
               </button>
             ) : null}
             {!isMobile || mobileHeroToolsOpen ? (
@@ -309,7 +309,7 @@ export default function NetworkingHubPage() {
               <span className="chip">{t('hub_tools_open_count', { count: actionableCount })}</span>
               {isMobile && priorityCards.length > 1 ? (
                 <button className="btn ghost" type="button" onClick={() => setMobilePriorityOpen((value) => !value)} aria-expanded={mobilePriorityOpen}>
-                  {mobilePriorityOpen ? 'Öncelikleri kapat' : 'Öncelikleri aç'}
+                  {t('hub_mobile_priorities')}
                 </button>
               ) : null}
             </div>
@@ -327,16 +327,16 @@ export default function NetworkingHubPage() {
       <section id="health-snapshot" className="panel network-section-card">
         <div className="network-section-head">
           <div>
-            <span className="network-section-kicker">Sağlık özeti</span>
+            <span className="network-section-kicker">{t('hub_metrics_kicker')}</span>
             <h3>{t('network_hub_metrics_title')}</h3>
             {!isMobile ? <p>{t('hub_metrics_description')}</p> : null}
           </div>
-          <div className="network-section-tools">
-            {isMobile ? (
-              <button className="btn ghost" type="button" onClick={() => setMobileMetricsOpen((value) => !value)} aria-expanded={mobileMetricsOpen}>
-                {mobileMetricsOpen ? 'Özeti kapat' : 'Özeti aç'}
-              </button>
-            ) : null}
+	          <div className="network-section-tools">
+	            {isMobile ? (
+	              <button className="btn ghost" type="button" onClick={() => setMobileMetricsOpen((value) => !value)} aria-expanded={mobileMetricsOpen}>
+	                {mobileMetricsOpen ? t('hub_mobile_metrics_close') : t('hub_mobile_metrics_open')}
+	              </button>
+	            ) : null}
             {!isMobile || mobileMetricsOpen ? (
               <div className="network-window-tabs">
                 {['7d', '30d', '90d'].map((windowValue) => (
@@ -388,13 +388,13 @@ export default function NetworkingHubPage() {
 
       <div className="network-dashboard">
         <div className="network-column">
-          <SectionCard
-            sectionId="incoming-connections"
-            title={t('network_hub_incoming_title')}
-            kicker="Priority queue"
-            description={t('hub_section_incoming_desc')}
-            count={incoming.length}
-          >
+	          <SectionCard
+	            sectionId="incoming-connections"
+	            title={t('network_hub_incoming_title')}
+	            kicker={t('hub_section_incoming_kicker')}
+	            description={t('hub_section_incoming_desc')}
+	            count={incoming.length}
+	          >
             {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : null}
             {!bootstrapping && incoming.length === 0 ? (
               <EmptyState
@@ -427,13 +427,13 @@ export default function NetworkingHubPage() {
             ) : null}
           </SectionCard>
 
-          <SectionCard
-            sectionId="incoming-mentorship"
-            title={t('network_hub_mentorship_incoming_title')}
-            kicker="Mentor queue"
-            description={t('hub_section_mentorship_incoming_desc')}
-            count={incomingMentorship.length}
-          >
+	          <SectionCard
+	            sectionId="incoming-mentorship"
+	            title={t('network_hub_mentorship_incoming_title')}
+	            kicker={t('hub_section_mentorship_incoming_kicker')}
+	            description={t('hub_section_mentorship_incoming_desc')}
+	            count={incomingMentorship.length}
+	          >
             {bootstrapping ? <LoadingState label={t('loading')} description={t('hub_loading_description')} /> : null}
             {!bootstrapping && incomingMentorship.length === 0 ? (
               <EmptyState
@@ -472,7 +472,7 @@ export default function NetworkingHubPage() {
           <SectionCard
             sectionId="teacher-notifications"
             title={t('network_hub_teacher_links_title')}
-            kicker="Verified graph"
+            kicker={t('hub_teacher_kicker')}
             description={t('hub_section_teacher_desc')}
             count={teacherUnreadCount}
             actions={teacherUnreadCount > 0 ? (

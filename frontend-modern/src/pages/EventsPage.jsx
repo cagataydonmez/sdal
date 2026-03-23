@@ -94,7 +94,7 @@ function eventStageLabel(event, timing, copy, t) {
 }
 
 export default function EventsPage() {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [events, setEvents] = useState([]);
@@ -126,30 +126,17 @@ export default function EventsPage() {
   const isAdmin = user?.admin === 1;
 
   const pulseCopy = useMemo(() => {
-    const normalized = String(lang || '').trim().toLowerCase();
-    if (normalized.startsWith('tr')) {
-      return {
-        stagePast: 'Tamamlandı',
-        stageLive: 'Bugün',
-        stageSoon: '72 Saat',
-        stageDefault: 'Yayında',
-        statWindow: 'Yakında',
-        statResponses: 'Yanıtlar',
-        statComments: 'Yorumlar',
-        densityLabel: 'sosyal pulse'
-      };
-    }
     return {
-      stagePast: 'Wrapped',
-      stageLive: 'Today',
-      stageSoon: '72h',
-      stageDefault: 'Live',
-      statWindow: 'Soon',
-      statResponses: 'Responses',
-      statComments: 'Comments',
-      densityLabel: 'social pulse'
+      stagePast: t('events_stage_past'),
+      stageLive: t('events_stage_live'),
+      stageSoon: t('events_stage_soon'),
+      stageDefault: t('events_stage_default'),
+      statWindow: t('events_stat_window'),
+      statResponses: t('events_stat_responses'),
+      statComments: t('events_stat_comments'),
+      densityLabel: t('events_density_label')
     };
-  }, [lang]);
+  }, [t]);
 
   const boardItems = useMemo(() => events.map((event) => {
     const timing = eventTiming(event);

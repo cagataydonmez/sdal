@@ -155,7 +155,12 @@ export default function StoryBar({ endpoint = '/api/new/stories', showUpload = t
     load();
   }, [load]);
 
-  useLiveRefresh(load, { intervalMs: 20000, eventTypes: ['story:created'] });
+  useLiveRefresh(load, {
+    intervalMs: 45000,
+    hiddenIntervalMs: 120000,
+    eventDebounceMs: 600,
+    eventTypes: ['story:created']
+  });
 
   useEffect(() => {
     if (!groups.length) return;

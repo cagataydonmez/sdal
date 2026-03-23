@@ -104,7 +104,7 @@ function RequireAuth({ children }) {
     return location.pathname === '/new/profile' || location.pathname === '/new/profile/photo' || location.pathname === '/new/profile/verification' || location.pathname === '/new/profile/email-change' || location.pathname === '/new/requests';
   }
 
-  if (loading) return null;
+  if (loading) return <RouteFallback fullPage />;
   if (!user) return <Navigate to="/new/login" replace />;
   if (location.pathname === '/new/profile/verification' && Number(user?.verified || 0) === 1) {
     return <Navigate to="/new/profile" replace />;
@@ -115,9 +115,20 @@ function RequireAuth({ children }) {
   return children;
 }
 
-function RouteFallback() {
+function RouteFallback({ fullPage = false }) {
   const { t } = useI18n();
-  return <div className="muted" style={{ padding: 16 }}>{t('loading')}</div>;
+  return (
+    <div className={`route-fallback-shell ${fullPage ? 'is-page' : ''}`} role="status" aria-live="polite">
+      <div className="route-fallback-card">
+        <span className="route-fallback-kicker">{t('loading')}</span>
+        <div className="route-fallback-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DefaultLandingRoute() {
@@ -153,7 +164,7 @@ function DefaultLandingRoute() {
     };
   }, []);
 
-  if (loadingTarget) return <RouteFallback />;
+  if (loadingTarget) return <RouteFallback fullPage />;
   if (!targetPath || targetPath === '/new') return <FeedPage />;
   return <Navigate to={targetPath} replace />;
 }
