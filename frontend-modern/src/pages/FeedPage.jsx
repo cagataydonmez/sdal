@@ -70,12 +70,11 @@ function getFeedMobileMatch() {
 }
 
 export default function FeedPage() {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const { user } = useAuth();
   const [isMobile, setIsMobile] = useState(getFeedMobileMatch);
   const [mobileTab, setMobileTab] = useState('posts');
   const [mobileTabsExpanded, setMobileTabsExpanded] = useState(false);
-  const [mobileFeedControlsOpen, setMobileFeedControlsOpen] = useState(false);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -134,28 +133,6 @@ export default function FeedPage() {
   const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
   const activeStoryScopeNote = feedType === 'main' ? t('stories_scope_main_note') : t('stories_scope_community_note');
   const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
-  const todayLabel = useMemo(() => {
-    try {
-      return new Intl.DateTimeFormat(lang || undefined, {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric'
-      }).format(new Date());
-    } catch {
-      return '';
-    }
-  }, [lang]);
-  const featuredMembers = useMemo(() => {
-    const source = onlineMembers.length ? onlineMembers : quickUsers;
-    const seen = new Set();
-    return source.filter((item) => {
-      const id = Number(item?.id || 0);
-      if (!id || seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    }).slice(0, 4);
-  }, [onlineMembers, quickUsers]);
-  const liveSignalCount = Math.max(0, unreadNotifications) + Math.max(0, unreadMessages) + Math.max(0, pendingPostsCount);
   const quickLinks = useMemo(() => ([
     { to: '/new/explore', icon: 'community', label: t('feed_discover_members') },
     { to: '/new/events', icon: 'latest', label: t('feed_upcoming_events') },
@@ -186,17 +163,6 @@ export default function FeedPage() {
   useEffect(() => {
     setMobileTabsExpanded(false);
   }, [mobileTab]);
-
-  useEffect(() => {
-    if (!isMobile) {
-      setMobileFeedControlsOpen(false);
-    }
-  }, [isMobile]);
-
-  useEffect(() => {
-    if (!isMobile) return;
-    setMobileFeedControlsOpen(false);
-  }, [feedType, filter, isMobile]);
 
   useEffect(() => {
     if (!mobileTabsExpanded || typeof document === 'undefined') return undefined;
@@ -447,7 +413,7 @@ export default function FeedPage() {
               <span className="feed-story-scope-note">{activeStoryScopeNote}</span>
             </div>
           </div>
-          <div className="scope-tabs feed-story-scope-tabs">
+          <div className="scope-tabs feed-story-scope-tabs" aria-label={t('feed_scope_prompt')}>
             {scopeOptions.map((scopeItem) => (
               <button
                 key={`story-scope-${scopeItem.key}`}
@@ -455,6 +421,7 @@ export default function FeedPage() {
                 onClick={() => setFeedType(scopeItem.key)}
                 title={scopeItem.label}
                 aria-label={scopeItem.label}
+                aria-pressed={feedType === scopeItem.key}
               >
                 <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
                 <span className="scope-btn-label">{scopeItem.label}</span>
@@ -516,48 +483,6 @@ export default function FeedPage() {
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
           <div className="feed-primary-stack">
-            <section className={`panel feed-hero-panel ${isMobile ? 'is-mobile-condensed' : ''}`} aria-label={t('nav_feed')}>
-              <div className="feed-hero-copy">
-                <div className="feed-hero-kicker">
-                  <span className="feed-hero-mark">SDAL</span>
-                  {!isMobile && todayLabel ? <span className="feed-hero-date">{todayLabel}</span> : null}
-                </div>
-                <div className="feed-hero-headline">
-                  <div>
-                    <h2 className="feed-hero-title">{t('nav_feed')}</h2>
-                    <div className="feed-hero-tags" aria-label={t('nav_feed')}>
-                      <span className="feed-hero-tag">{activeScopeLabel}</span>
-                      {!isMobile ? <span className="feed-hero-tag">{activeFilterLabel}</span> : null}
-                      {!isMobile && user?.kadi ? <span className="feed-hero-tag">@{user.kadi}</span> : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {pendingPostsCount > 0 ? (
-                <button
-                  className="btn primary feed-refresh-banner"
-                  onClick={() => {
-                    if (pendingItems) setPosts(pendingItems);
-                    setPendingItems(null);
-                    setPendingPostsCount(0);
-                  }}
-                >
-                  <span className="feed-refresh-banner-dot" aria-hidden="true" />
-                  {t('feed_new_posts_refresh', { count: pendingPostsCount })}
-                </button>
-              ) : !isMobile ? (
-                <div className="feed-hero-footnote">
-                  <span className="feed-hero-footnote-dot" aria-hidden="true" />
-                  <span>{liveSignalCount}</span>
-                  <span>{t('nav_notifications')}</span>
-                  <span className="feed-hero-footnote-separator" aria-hidden="true">·</span>
-                  <span>{onlineMembers.length || featuredMembers.length}</span>
-                  <span>{onlineMembers.length > 0 ? t('online_members') : t('quick_access')}</span>
-                </div>
-              ) : null}
-            </section>
-
             <div className="feed-intent-band">
               <div className="feed-composer-shell">
                 <div className="feed-composer-head">
@@ -567,47 +492,43 @@ export default function FeedPage() {
                     {!isMobile ? <div className="feed-composer-meta">{t('feed_filter_selected')}: {activeFilterLabel}</div> : null}
                   </div>
                 </div>
+                {pendingPostsCount > 0 ? (
+                  <button
+                    className="btn primary feed-refresh-banner"
+                    onClick={() => {
+                      if (pendingItems) setPosts(pendingItems);
+                      setPendingItems(null);
+                      setPendingPostsCount(0);
+                    }}
+                  >
+                    <span className="feed-refresh-banner-dot" aria-hidden="true" />
+                    {t('feed_new_posts_refresh', { count: pendingPostsCount })}
+                  </button>
+                ) : null}
                 <PostComposer feedType={feedType} onPost={() => load({ silent: true, force: true })} />
               </div>
 
               <div className="feed-mobile-controls">
-                {isMobile ? (
-                  <button
-                    type="button"
-                    className={`btn ghost feed-mobile-section-toggle ${mobileFeedControlsOpen ? 'is-open' : ''}`}
-                    onClick={() => setMobileFeedControlsOpen((value) => !value)}
-                    aria-expanded={mobileFeedControlsOpen}
-                  >
-                    <span>{activeFilterLabel}</span>
-                    <strong>{mobileFeedControlsOpen ? t('close') : t('open')}</strong>
-                  </button>
-                ) : null}
-
-                {!isMobile || mobileFeedControlsOpen ? (
-                  <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
-                    <div className="feed-scope-group">
-                      <div className="feed-scope-group-label">{t('feed_filter_prompt')}</div>
-                      <div className="panel-body scope-tabs scope-tabs-filter">
-                        {filterOptions.map((filterItem) => (
-                          <button
-                            key={`filter-${filterItem.key}`}
-                            className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
-                            onClick={() => setFilter(filterItem.key)}
-                            title={filterItem.label}
-                            aria-label={filterItem.label}
-                          >
-                            <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
-                            <span className="scope-btn-label">{filterItem.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="scope-mobile-selected-title">
-                        <span>{t('feed_filter_selected')}</span>
-                        <strong>{activeFilterLabel}</strong>
-                      </div>
+                <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
+                  <div className="feed-scope-group">
+                    <div className="feed-scope-group-label">{t('feed_filter_prompt')}</div>
+                    <div className="panel-body scope-tabs scope-tabs-filter" aria-label={t('feed_filter_prompt')}>
+                      {filterOptions.map((filterItem) => (
+                        <button
+                          key={`filter-${filterItem.key}`}
+                          className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
+                          onClick={() => setFilter(filterItem.key)}
+                          title={filterItem.label}
+                          aria-label={filterItem.label}
+                          aria-pressed={filter === filterItem.key}
+                        >
+                          <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
+                          <span className="scope-btn-label">{filterItem.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ) : null}
+                </div>
               </div>
             </div>
           </div>
