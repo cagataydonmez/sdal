@@ -138,6 +138,12 @@ export default function FeedPage() {
     { to: '/new/events', icon: 'latest', label: t('feed_upcoming_events') },
     { to: '/new/announcements', icon: 'notifications', label: t('nav_announcements') }
   ]), [t]);
+  const feedCategoryLinks = useMemo(() => ([
+    { to: '/new/groups', icon: 'community', label: t('nav_groups'), note: t('community_feed') },
+    { to: '/new/events', icon: 'latest', label: t('nav_events'), note: t('feed_upcoming_events') },
+    { to: '/new/announcements', icon: 'notifications', label: t('nav_announcements'), note: t('nav_notifications') },
+    { to: '/new/albums', icon: 'quick', label: t('nav_photos'), note: t('quick_access') }
+  ]), [t]);
 
   const mobileTabToggleLabel = mobileTabsExpanded
     ? `${t('close')} • ${activeFeedTabLabel}`
@@ -431,6 +437,25 @@ export default function FeedPage() {
         </div>
         <div className="panel feed-mobile-stories-wrap">
           <StoryBar title={t('stories_title')} variant={isMobile ? 'feed-mobile' : 'default'} feedType={feedType} />
+        </div>
+        <div className="panel category-map-panel feed-category-map">
+          <div className="category-map-head">
+            <div>
+              <span className="category-map-kicker">{t('nav_feed')}</span>
+              <h3>{activeScopeLabel}</h3>
+              <p>{activeStoryScopeNote}</p>
+            </div>
+            <span className="chip">{t('stories_title')}</span>
+          </div>
+          <div className="category-map-grid">
+            {feedCategoryLinks.map((item) => (
+              <Link key={item.to} className="category-map-card" to={item.to}>
+                <span className="category-map-icon" aria-hidden="true"><FeedIcon name={item.icon} /></span>
+                <strong>{item.label}</strong>
+                <span>{item.note}</span>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 

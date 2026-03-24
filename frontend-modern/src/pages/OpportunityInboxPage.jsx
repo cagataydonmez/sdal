@@ -58,6 +58,12 @@ function OpportunityCard({ item, t }) {
 export default function OpportunityInboxPage() {
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
+  const categoryLinks = useMemo(() => ([
+    { to: '/new/network/hub', label: t('network_hub_title'), note: t('hub_section_priority_desc') },
+    { to: '/new/jobs', label: t('nav_jobs'), note: t('opportunity_category_job') },
+    { to: '/new/explore', label: t('nav_explore'), note: t('opportunity_category_networking') },
+    { to: '/new/notifications', label: t('nav_notifications'), note: t('opportunity_category_update') }
+  ]), [t]);
 
   const TAB_OPTIONS = useMemo(() => [
     { key: 'all', label: t('opportunity_tab_all') },
@@ -88,6 +94,25 @@ export default function OpportunityInboxPage() {
         <div className="network-hero-actions">
           <Link className="btn ghost" to="/new/network/hub">{t('opportunity_action_old_hub')}</Link>
           <Link className="btn ghost" to="/new/jobs">{t('opportunity_action_jobs')}</Link>
+        </div>
+      </section>
+
+      <section className="panel category-map-panel opportunity-category-map">
+        <div className="category-map-head">
+          <div>
+            <span className="category-map-kicker">{t('network_category_title')}</span>
+            <h3>{t('opportunity_page_title')}</h3>
+            <p>{t('opportunity_hero_description')}</p>
+          </div>
+          <span className="chip">{t('opportunity_tab_now')}</span>
+        </div>
+        <div className="category-map-grid">
+          {categoryLinks.map((item) => (
+            <Link key={item.to} className="category-map-card" to={item.to}>
+              <strong>{item.label}</strong>
+              <span>{item.note}</span>
+            </Link>
+          ))}
         </div>
       </section>
 

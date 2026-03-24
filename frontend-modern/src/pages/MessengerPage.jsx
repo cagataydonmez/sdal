@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
@@ -45,6 +46,12 @@ export default function MessengerPage() {
     () => threads.find((t) => String(t.id) === String(selectedThreadId)) || null,
     [threads, selectedThreadId]
   );
+  const messengerCategoryLinks = useMemo(() => ([
+    { to: '/new/network/hub', label: t('network_hub_title'), note: t('hub_section_priority_desc') },
+    { to: '/new/messages', label: t('nav_messages'), note: t('messenger_meta_title') },
+    { to: '/new/explore', label: t('nav_explore'), note: t('feed_discover_members') },
+    { to: '/new', label: t('live_chat_title'), note: t('nav_feed') }
+  ]), [t]);
 
   const loadThreads = useCallback(async (silent = false) => {
     const reqId = ++threadsReq.current;
@@ -237,6 +244,37 @@ export default function MessengerPage() {
 
   return (
     <Layout title={t('messenger_page_title')}>
+      <section className="network-hero messenger-hero">
+        <div className="network-hero-copy">
+          <span className="network-eyebrow">{t('nav_messenger')}</span>
+          <h2>{t('messenger_page_title')}</h2>
+          <p>{t('messenger_private_note')}</p>
+        </div>
+        <div className="network-hero-actions">
+          <Link className="btn ghost" to="/new/network/hub">{t('network_hub_title')}</Link>
+          <Link className="btn ghost" to="/new/messages">{t('nav_messages')}</Link>
+        </div>
+      </section>
+
+      <section className="panel category-map-panel messenger-category-map">
+        <div className="category-map-head">
+          <div>
+            <span className="category-map-kicker">{t('nav_messenger')}</span>
+            <h3>{t('nav_messenger')}</h3>
+            <p>{t('member_send_message')}</p>
+          </div>
+          <span className="chip">{t('nav_messenger')}</span>
+        </div>
+        <div className="category-map-grid">
+          {messengerCategoryLinks.map((item) => (
+            <Link key={item.to} className="category-map-card" to={item.to}>
+              <strong>{item.label}</strong>
+              <span>{item.note}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <div className="messenger-shell">
         <aside className="messenger-sidebar panel">
           <div className="panel-body">

@@ -125,6 +125,17 @@ export default function MessagesPage() {
 
   return (
     <Layout title={t('messages_title')}>
+      <section className="panel category-map-panel">
+        <div className="category-map-head">
+          <div>
+            <span className="category-map-kicker">{t('nav_messages')}</span>
+            <h3>{t('messages_title')}</h3>
+            <p>{t('messages_legacy_notice')}</p>
+          </div>
+          <Link className="btn ghost" to="/new/messenger">{t('nav_messenger')}</Link>
+        </div>
+      </section>
+
       <div className={`message-mailbox ${showMobilePreview ? 'mobile-thread-open' : ''}`}>
         {showMailboxNavigation ? (
           <aside className="panel mailbox-sidebar">

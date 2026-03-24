@@ -1,0 +1,279 @@
+import { getCacheJson, setCacheJson } from '../src/infra/performanceCache.js';
+import { createRateLimitMiddleware } from '../src/http/middleware/rateLimit.js';
+
+const opportunityEndpointRateLimit = createRateLimitMiddleware({
+  bucket: 'heavy_opportunities',
+  limit: 15,
+  windowSeconds: 60,
+  keyGenerator: (req) => String(req.session?.userId || req.ip || 'unknown')
+});
+
+export function registerOpportunityRoutes(app, {
+  requireAuth,
+  sqlGetAsync,
+  sqlRunAsync,
+  sqlAllAsync,
+  apiSuccessEnvelope,
+  sendApiError,
+  getCurrentUser,
+  hasAdminSession,
+  sameUserId,
+  addNotification,
+  sanitizePlainUserText,
+  formatUserText,
+  isFormattedContentEmpty,
+  ensureJobApplicationsTable,
+  ensureVerifiedSocialHubMember,
+  buildOpportunityInboxPayload
+}) {
+  app.get('/api/new/opportunities', requireAuth, opportunityEndpointRateLimit, async (req, res) => {
+    try {
+      const userId = Number(req.session?.userId || 0);
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 40);
+      const cursor = String(req.query.cursor || '').trim();
+      const tab = String(req.query.tab || 'all').trim().toLowerCase();
+
+      const cacheKey = `opp-inbox:${userId}:${tab}:${cursor}:${limit}`;
+      const cached = await getCacheJson(cacheKey);
+      if (cached) {
+        return res.json(apiSuccessEnvelope(
+          'OPPORTUNITY_INBOX_OK',
+          'Fırsat merkezi hazır.',
+          { opportunities: cached },
+          { opportunities: cached }
+        ));
+      }
+
+      const opportunities = await buildOpportunityInboxPayload(userId, { limit, cursor, tab });
+      await setCacheJson(cacheKey, opportunities, 15);
+      return res.json(apiSuccessEnvelope(
+        'OPPORTUNITY_INBOX_OK',
+        'Fırsat merkezi hazır.',
+        { opportunities },
+        { opportunities }
+      ));
+    } catch (err) {
+      console.error('opportunity.inbox failed:', err);
+      return sendApiError(res, 500, 'OPPORTUNITY_INBOX_FAILED', 'Fırsat merkezi verileri hazırlanamadı.');
+    }
+  });
+
+  app.get('/api/new/jobs', requireAuth, async (req, res) => {
+    ensureJobApplicationsTable();
+    const search = sanitizePlainUserText(String(req.query.search || '').trim(), 120).toLowerCase();
+    const location = sanitizePlainUserText(String(req.query.location || '').trim(), 120).toLowerCase();
+    const jobType = sanitizePlainUserText(String(req.query.job_type || '').trim(), 60).toLowerCase();
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 100);
+    const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+    const where = [];
+    const params = [];
+    if (search) {
+      where.push('(LOWER(j.title) LIKE ? OR LOWER(j.company) LIKE ? OR LOWER(j.description) LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    if (location) {
+      where.push('LOWER(j.location) LIKE ?');
+      params.push(`%${location}%`);
+    }
+    if (jobType) {
+      where.push('LOWER(j.job_type) = ?');
+      params.push(jobType);
+    }
+
+    const rows = await sqlAllAsync(
+      `SELECT j.*, u.kadi AS poster_kadi, u.isim AS poster_isim, u.soyisim AS poster_soyisim,
+              ja_self.id AS my_application_id,
+              ja_self.status AS my_application_status,
+              ja_self.created_at AS my_application_created_at,
+              ja_self.reviewed_at AS my_application_reviewed_at,
+              ja_self.decision_note AS my_application_decision_note
+       FROM jobs j
+       LEFT JOIN uyeler u ON u.id = j.poster_id
+       LEFT JOIN job_applications ja_self ON ja_self.job_id = j.id AND ja_self.applicant_id = ?
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY j.id DESC
+       LIMIT ? OFFSET ?`,
+      [req.session.userId, ...params, limit, offset]
+    );
+
+    res.json({ items: rows, hasMore: rows.length === limit });
+  });
+
+  app.post('/api/new/jobs/:id/apply', requireAuth, async (req, res) => {
+    if (!ensureVerifiedSocialHubMember(req, res)) return;
+    const jobId = Number(req.params.id || 0);
+    if (!jobId) return res.status(400).send('Geçersiz iş ilanı kimliği.');
+
+    ensureJobApplicationsTable();
+
+    const job = await sqlGetAsync('SELECT id, poster_id, title FROM jobs WHERE id = ?', [jobId]);
+    if (!job) return res.status(404).send('İş ilanı bulunamadı.');
+    if (sameUserId(job.poster_id, req.session.userId)) {
+      return res.status(409).json({ code: 'CANNOT_APPLY_OWN_JOB', message: 'Kendi ilanına başvuru yapamazsın.' });
+    }
+
+    const existing = await sqlGetAsync('SELECT id FROM job_applications WHERE job_id = ? AND applicant_id = ?', [jobId, req.session.userId]);
+    if (existing) {
+      return res.status(409).json({ code: 'ALREADY_APPLIED', message: 'Bu iş ilanına zaten başvuru yaptın.' });
+    }
+
+    const coverLetter = formatUserText(String(req.body?.cover_letter || ''));
+    const now = new Date().toISOString();
+    const result = await sqlRunAsync(
+      'INSERT INTO job_applications (job_id, applicant_id, cover_letter, status, created_at) VALUES (?, ?, ?, ?, ?)',
+      [jobId, req.session.userId, isFormattedContentEmpty(coverLetter) ? null : coverLetter, 'pending', now]
+    );
+
+    addNotification({
+      userId: Number(job.poster_id),
+      type: 'job_application',
+      sourceUserId: Number(req.session.userId),
+      entityId: jobId,
+      message: `"${job.title || 'İş ilanı'}" ilanına yeni bir başvuru geldi.`
+    });
+
+    res.json({ ok: true, id: result?.lastInsertRowid, status: 'applied' });
+  });
+
+  app.get('/api/new/jobs/:id/applications', requireAuth, async (req, res) => {
+    const jobId = Number(req.params.id || 0);
+    if (!jobId) return res.status(400).send('Geçersiz iş ilanı kimliği.');
+
+    ensureJobApplicationsTable();
+
+    const user = getCurrentUser(req);
+    const isAdmin = hasAdminSession(req, user);
+    const job = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [jobId]);
+    if (!job) return res.status(404).send('İş ilanı bulunamadı.');
+    if (!isAdmin && !sameUserId(job.poster_id, req.session.userId)) {
+      return res.status(403).send('Bu ilanın başvurularını görüntüleme yetkin yok.');
+    }
+
+    const rows = await sqlAllAsync(
+      `SELECT ja.id, ja.job_id, ja.applicant_id, ja.cover_letter, ja.created_at,
+              ja.status, ja.reviewed_at, ja.reviewed_by, ja.decision_note,
+              u.kadi, u.isim, u.soyisim, u.sirket, u.unvan, u.linkedin_url,
+              reviewer.kadi AS reviewed_by_kadi, reviewer.isim AS reviewed_by_isim, reviewer.soyisim AS reviewed_by_soyisim
+       FROM job_applications ja
+       LEFT JOIN uyeler u ON u.id = ja.applicant_id
+       LEFT JOIN uyeler reviewer ON reviewer.id = ja.reviewed_by
+       WHERE ja.job_id = ?
+       ORDER BY ja.id DESC`,
+      [jobId]
+    );
+
+    res.json({ items: rows });
+  });
+
+  app.post('/api/new/jobs/:jobId/applications/:applicationId/review', requireAuth, async (req, res) => {
+    const jobId = Number(req.params.jobId || 0);
+    const applicationId = Number(req.params.applicationId || 0);
+    if (!jobId || !applicationId) return sendApiError(res, 400, 'INVALID_JOB_APPLICATION_ID', 'Geçersiz başvuru kimliği.');
+
+    ensureJobApplicationsTable();
+
+    const actor = getCurrentUser(req);
+    const isAdmin = hasAdminSession(req, actor);
+    const nextStatus = String(req.body?.status || '').trim().toLowerCase();
+    const allowedStatuses = new Set(['reviewed', 'accepted', 'rejected']);
+    if (!allowedStatuses.has(nextStatus)) {
+      return sendApiError(res, 400, 'INVALID_JOB_APPLICATION_STATUS', 'Geçersiz başvuru durumu.');
+    }
+
+    const applicationRow = await sqlGetAsync(
+      `SELECT ja.id, ja.job_id, ja.applicant_id, ja.status, j.poster_id, j.title
+       FROM job_applications ja
+       LEFT JOIN jobs j ON j.id = ja.job_id
+       WHERE ja.id = ? AND ja.job_id = ?`,
+      [applicationId, jobId]
+    );
+    if (!applicationRow) {
+      return sendApiError(res, 404, 'JOB_APPLICATION_NOT_FOUND', 'İş başvurusu bulunamadı.');
+    }
+    if (!isAdmin && !sameUserId(applicationRow.poster_id, req.session.userId)) {
+      return sendApiError(res, 403, 'JOB_APPLICATION_REVIEW_FORBIDDEN', 'Bu başvuruyu değerlendirme yetkin yok.');
+    }
+
+    const decisionNote = sanitizePlainUserText(String(req.body?.decision_note || '').trim(), 500) || null;
+    const reviewedAt = new Date().toISOString();
+    await sqlRunAsync(
+      `UPDATE job_applications
+       SET status = ?, reviewed_at = ?, reviewed_by = ?, decision_note = ?
+       WHERE id = ? AND job_id = ?`,
+      [nextStatus, reviewedAt, req.session.userId, decisionNote, applicationId, jobId]
+    );
+
+    let notificationType = 'job_application_reviewed';
+    if (nextStatus === 'accepted') notificationType = 'job_application_accepted';
+    else if (nextStatus === 'rejected') notificationType = 'job_application_rejected';
+    addNotification({
+      userId: Number(applicationRow.applicant_id),
+      type: notificationType,
+      sourceUserId: Number(req.session.userId),
+      entityId: applicationId,
+      message: nextStatus === 'accepted'
+        ? `"${applicationRow.title || 'İş ilanı'}" başvurun kabul edildi.`
+        : nextStatus === 'rejected'
+          ? `"${applicationRow.title || 'İş ilanı'}" başvurun olumsuz sonuçlandı.`
+          : `"${applicationRow.title || 'İş ilanı'}" başvurun inceleniyor.`
+    });
+
+    return res.json(apiSuccessEnvelope(
+      'JOB_APPLICATION_REVIEWED',
+      'İş başvurusu güncellendi.',
+      {
+        id: applicationId,
+        job_id: jobId,
+        status: nextStatus,
+        reviewed_at: reviewedAt,
+        reviewed_by: Number(req.session.userId),
+        decision_note: decisionNote
+      },
+      {
+        id: applicationId,
+        job_id: jobId,
+        status: nextStatus,
+        reviewed_at: reviewedAt,
+        reviewed_by: Number(req.session.userId),
+        decision_note: decisionNote
+      }
+    ));
+  });
+
+  app.post('/api/new/jobs', requireAuth, async (req, res) => {
+    if (!ensureVerifiedSocialHubMember(req, res)) return;
+    const company = sanitizePlainUserText(String(req.body?.company || '').trim(), 140);
+    const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
+    const description = formatUserText(String(req.body?.description || ''));
+    const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 120);
+    const jobType = sanitizePlainUserText(String(req.body?.job_type || '').trim(), 60);
+    const link = sanitizePlainUserText(String(req.body?.link || '').trim(), 500);
+    if (!company || !title || isFormattedContentEmpty(description)) {
+      return res.status(400).send('Şirket, başlık ve açıklama gerekli.');
+    }
+    if (link && !/^https?:\/\//i.test(link)) return res.status(400).send('Link http:// veya https:// ile başlamalı.');
+    const now = new Date().toISOString();
+    const result = await sqlRunAsync(
+      `INSERT INTO jobs (poster_id, company, title, description, location, job_type, link, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.session.userId, company, title, description, location, jobType, link || null, now]
+    );
+    res.json({ ok: true, id: result?.lastInsertRowid });
+  });
+
+  app.delete('/api/new/jobs/:id', requireAuth, async (req, res) => {
+    try {
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminSession(req, user);
+      const row = await sqlGetAsync('SELECT id, poster_id FROM jobs WHERE id = ?', [req.params.id]);
+      if (!row) return res.status(404).send('İş ilanı bulunamadı.');
+      if (!isAdmin && !sameUserId(row.poster_id, req.session.userId)) return res.status(403).send('Bu ilanı silme yetkin yok.');
+      await sqlRunAsync('DELETE FROM jobs WHERE id = ?', [req.params.id]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+}

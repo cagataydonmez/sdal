@@ -4482,8 +4482,6 @@ registerGroupRoutes(app, {
   sqlGet,
   sqlAll,
   sqlRun,
-  listOnlineMembersAsync,
-  writeAppLog,
   getCurrentUser,
   hasAdminRole,
   hasAdminSession,
@@ -4509,6 +4507,7 @@ registerEventJobRoutes(app, {
   requireAdmin,
   uploadRateLimit,
   postUpload,
+  listOnlineMembersAsync,
   getCurrentUser,
   hasAdminSession,
   sameUserId,
@@ -4533,6 +4532,7 @@ registerEventJobRoutes(app, {
   notifyMentions,
   ensureJobApplicationsTable,
   ensureVerifiedSocialHubMember,
+  buildOpportunityInboxPayload,
   apiSuccessEnvelope,
   sendApiError
 });

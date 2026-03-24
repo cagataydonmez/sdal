@@ -125,12 +125,15 @@
 .mobile-nav-links {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
 }
 .mobile-nav-links a {
   padding: 10px 12px;
   border-radius: 10px;
   font-weight: 600;
+}
+.mobile-nav-links .nav-category-switch {
+  margin-bottom: 0;
 }
 .mobile-nav-links a.active {
   background: var(--hover-soft);
@@ -225,6 +228,68 @@
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 16px;
+}
+.category-map-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.category-map-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.category-map-head h3 {
+  margin: 4px 0 4px;
+}
+.category-map-head p {
+  margin: 0;
+  color: var(--muted);
+}
+.category-map-kicker {
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.category-map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.category-map-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--card) 86%, var(--hover-soft) 14%);
+  min-height: 108px;
+}
+.category-map-card strong {
+  font-family: 'Space Grotesk', sans-serif;
+}
+.category-map-card span:last-child {
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+.jobs-hero,
+.messenger-hero,
+.opportunity-hero {
+  margin-bottom: 12px;
+}
+.category-map-icon {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--hover-soft);
 }
 .panel h3 { margin: 0 0 10px; font-family: 'Space Grotesk'; }
 .panel-body { display: flex; flex-direction: column; gap: 10px; }

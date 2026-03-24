@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from '../router.jsx';
+import { Link, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { useAuth } from '../utils/auth.jsx';
 import { useI18n } from '../utils/i18n.jsx';
+import { readApiPayload } from '../utils/api.js';
 import { formatDateTime } from '../utils/date.js';
 import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 import { openConfirm } from '../utils/dialogs.js';
@@ -50,6 +51,12 @@ export default function JobsPage() {
         ? Boolean(highlightedJob)
         : Boolean(highlightedJobId ? highlightedJob : true)
   );
+  const jobsCategoryLinks = useMemo(() => ([
+    { to: '/new/opportunities', label: t('nav_opportunities'), note: t('opportunity_hero_description') },
+    { to: '/new/network/hub', label: t('network_hub_title'), note: t('hub_section_priority_desc') },
+    { to: '/new/messenger', label: t('nav_messenger'), note: t('member_send_message') },
+    { to: '/new/explore', label: t('nav_explore'), note: t('feed_discover_members') }
+  ]), [t]);
 
   useNotificationNavigationTracking(notificationId, {
     surface: 'jobs_page',
@@ -187,6 +194,37 @@ export default function JobsPage() {
 
   return (
     <Layout title={t('jobs_title')}>
+      <section className="network-hero jobs-hero">
+        <div className="network-hero-copy">
+          <span className="network-eyebrow">{t('nav_jobs')}</span>
+          <h2>{t('jobs_title')}</h2>
+          <p>{t('opportunity_category_job')} · {t('opportunity_hero_description')}</p>
+        </div>
+        <div className="network-hero-actions">
+          <Link className="btn ghost" to="/new/opportunities">{t('nav_opportunities')}</Link>
+          <Link className="btn ghost" to="/new/network/hub">{t('network_hub_title')}</Link>
+        </div>
+      </section>
+
+      <section className="panel category-map-panel jobs-category-map">
+        <div className="category-map-head">
+          <div>
+            <span className="category-map-kicker">{t('nav_jobs')}</span>
+            <h3>{t('jobs_new_post')}</h3>
+            <p>{t('jobs_title')}</p>
+          </div>
+          <span className="chip">{t('nav_jobs')}</span>
+        </div>
+        <div className="category-map-grid">
+          {jobsCategoryLinks.map((item) => (
+            <Link key={item.to} className="category-map-card" to={item.to}>
+              <strong>{item.label}</strong>
+              <span>{item.note}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <div className="panel">
         <h3>{t('jobs_new_post')}</h3>
         <form className="panel-body grid two" onSubmit={submitJob}>

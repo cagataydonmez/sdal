@@ -9,7 +9,13 @@ import { openNotification } from '../utils/notificationApi.js';
 import { buildNotificationViewModel, shouldToastNotification } from '../utils/notificationRegistry.js';
 import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
 import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
-import { normalizeMenuVisibility, normalizeModuleOrder } from '../utils/moduleNavigation.js';
+import {
+  GLOBAL_NAV_CATEGORY,
+  PRIMARY_NAV_CATEGORIES,
+  groupMenuItemsByCategory,
+  resolvePrimaryCategoryForPath,
+  resolveVisibleMenuItems
+} from '../utils/moduleNavigation.js';
 import { avatarAlt } from '../utils/a11y.js';
 import { fetchSiteAccess, getCachedSiteAccess } from '../utils/siteAccess.js';
 
@@ -28,6 +34,7 @@ export default function Layout({ children, title, right }) {
   const [siteAccess, setSiteAccess] = useState(null);
   const [siteAccessVersion, setSiteAccessVersion] = useState(0);
   const [notificationPreferences, setNotificationPreferences] = useState(NOTIFICATION_PREFERENCE_DEFAULTS);
+  const [navCategory, setNavCategory] = useState(() => resolvePrimaryCategoryForPath(location.pathname));
   const unreadNotificationsRef = useRef(0);
   const unreadHydratedRef = useRef(false);
   const toastTimersRef = useRef(new Map());
@@ -255,40 +262,38 @@ export default function Layout({ children, title, right }) {
   );
   const showLanguageSelector = langSelectionEnabled && visibleLangOptions.length > 1;
   const moduleAccess = siteAccess?.modules || {};
-
   const navItems = useMemo(() => {
-    if (!siteAccess?.modules) return [];
-    const menuVisibility = normalizeMenuVisibility(siteAccess.menuVisibility);
-    const menuOrder = normalizeModuleOrder(siteAccess.moduleMenuOrder);
-    const orderIndex = new Map(menuOrder.map((key, index) => [key, index]));
-    const allItems = [
-      { to: '/new', label: t('nav_feed'), end: true, module: 'feed' },
-      { to: '/new/explore', label: t('nav_explore'), module: 'explore' },
-      { to: '/new/following', label: t('nav_following'), module: 'following' },
-      { to: '/new/groups', label: t('nav_groups'), module: 'groups' },
-      { to: '/new/messages', label: t('nav_messages'), module: 'messages', badge: unreadCount },
-      { to: '/new/messenger', label: t('nav_messenger'), module: 'messenger' },
-      { to: '/new/notifications', label: t('nav_notifications'), module: 'notifications', badge: unreadNotifications },
-      { to: '/new/albums', label: t('nav_photos'), module: 'albums' },
-      { to: '/new/games', label: t('nav_games'), module: 'games' },
-      { to: '/new/events', label: t('nav_events'), module: 'events' },
-      { to: '/new/announcements', label: t('nav_announcements'), module: 'announcements' },
-      { to: '/new/jobs', label: t('nav_jobs'), module: 'jobs' },
-      { to: '/new/opportunities', label: t('nav_opportunities'), module: 'opportunities' },
-      { to: '/new/network/teachers', label: t('nav_teacher_network'), module: 'teachers_network' },
-      { to: '/new/profile', label: t('nav_profile'), module: 'profile' },
-      { to: '/new/help', label: t('nav_help'), module: 'help' }
-    ];
-    return allItems
-      .filter((item) => siteAccess.modules[item.module] !== false)
-      .filter((item) => menuVisibility[item.module] !== false)
-      .sort((a, b) => {
-        const aIndex = orderIndex.has(a.module) ? orderIndex.get(a.module) : Number.MAX_SAFE_INTEGER;
-        const bIndex = orderIndex.has(b.module) ? orderIndex.get(b.module) : Number.MAX_SAFE_INTEGER;
-        if (aIndex !== bIndex) return aIndex - bIndex;
-        return allItems.indexOf(a) - allItems.indexOf(b);
-      });
+    const visibleItems = resolveVisibleMenuItems(siteAccess);
+    return visibleItems.map((item) => ({
+      ...item,
+      to: item.path,
+      end: item.path === '/new',
+      label: item.labelKey ? t(item.labelKey) : item.defaultLabel,
+      badge: item.key === 'messages'
+        ? unreadCount
+        : item.key === 'notifications'
+          ? unreadNotifications
+          : 0
+    }));
   }, [siteAccess, t, unreadCount, unreadNotifications]);
+  const navItemsByCategory = useMemo(() => groupMenuItemsByCategory(navItems), [navItems]);
+  const activePrimaryCategory = useMemo(() => resolvePrimaryCategoryForPath(location.pathname), [location.pathname]);
+  const selectedPrimaryCategory = navItemsByCategory[navCategory]?.length ? navCategory : activePrimaryCategory;
+  const primaryNavItems = navItemsByCategory[selectedPrimaryCategory] || [];
+  const globalNavItems = navItemsByCategory.global || [];
+
+  useEffect(() => {
+    if (activePrimaryCategory === 'feed' || activePrimaryCategory === 'network') {
+      setNavCategory(activePrimaryCategory);
+    }
+  }, [activePrimaryCategory]);
+
+  const renderNavLinks = useCallback((items) => items.map((item) => (
+    <NavLink key={item.to} to={item.to} end={item.end}>
+      {item.label}
+      {item.badge > 0 ? <span className="mini-badge">{item.badge}</span> : null}
+    </NavLink>
+  )), []);
 
   async function handleLogout() {
     await logout();
@@ -370,9 +375,34 @@ export default function Layout({ children, title, right }) {
           <span className="brand-sub">{t('Yeni')}</span>
         </Link>
         <nav>
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}{item.badge > 0 ? <span className="mini-badge">{item.badge}</span> : null}</NavLink>
-          ))}
+          <div className="nav-category-switch" role="tablist" aria-label="Primary navigation">
+            {PRIMARY_NAV_CATEGORIES.map((category) => {
+              const isActive = selectedPrimaryCategory === category.key;
+              return (
+                <button
+                  key={category.key}
+                  type="button"
+                  className={`nav-category-button ${isActive ? 'active' : ''}`}
+                  aria-pressed={isActive}
+                  onClick={() => setNavCategory(category.key)}
+                >
+                  {category.defaultLabel}
+                </button>
+              );
+            })}
+          </div>
+          <div className="nav-section">
+            <p className="nav-section-label">
+              {PRIMARY_NAV_CATEGORIES.find((item) => item.key === selectedPrimaryCategory)?.defaultLabel || PRIMARY_NAV_CATEGORIES[0].defaultLabel}
+            </p>
+            {renderNavLinks(primaryNavItems)}
+          </div>
+          {globalNavItems.length > 0 ? (
+            <div className="nav-section nav-section-global">
+              <p className="nav-section-label">{GLOBAL_NAV_CATEGORY.defaultLabel}</p>
+              {renderNavLinks(globalNavItems)}
+            </div>
+          ) : null}
           {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="side-footer">
@@ -494,9 +524,34 @@ export default function Layout({ children, title, right }) {
           <button className="btn ghost" onClick={() => setMobileNavOpen(false)}>{t('close')}</button>
         </div>
         <nav className="mobile-nav-links">
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>{item.label}{item.badge > 0 ? <span className="mini-badge">{item.badge}</span> : null}</NavLink>
-          ))}
+          <div className="nav-category-switch" role="tablist" aria-label="Primary navigation">
+            {PRIMARY_NAV_CATEGORIES.map((category) => {
+              const isActive = selectedPrimaryCategory === category.key;
+              return (
+                <button
+                  key={category.key}
+                  type="button"
+                  className={`nav-category-button ${isActive ? 'active' : ''}`}
+                  aria-pressed={isActive}
+                  onClick={() => setNavCategory(category.key)}
+                >
+                  {category.defaultLabel}
+                </button>
+              );
+            })}
+          </div>
+          <div className="nav-section">
+            <p className="nav-section-label">
+              {PRIMARY_NAV_CATEGORIES.find((item) => item.key === selectedPrimaryCategory)?.defaultLabel || PRIMARY_NAV_CATEGORIES[0].defaultLabel}
+            </p>
+            {renderNavLinks(primaryNavItems)}
+          </div>
+          {globalNavItems.length > 0 ? (
+            <div className="nav-section nav-section-global">
+              <p className="nav-section-label">{GLOBAL_NAV_CATEGORY.defaultLabel}</p>
+              {renderNavLinks(globalNavItems)}
+            </div>
+          ) : null}
           {isAdminUser ? <NavLink to="/new/admin">{t('nav_admin')}</NavLink> : null}
         </nav>
         <div className="mobile-nav-foot">

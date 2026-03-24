@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeMenuVisibility, normalizeModuleOrder, resolveLandingPathFromSiteAccess } from '../utils/moduleNavigation.js';
+import {
+  groupMenuItemsByCategory,
+  normalizeMenuVisibility,
+  normalizeModuleOrder,
+  resolveLandingPathFromSiteAccess,
+  resolveModuleFromPath,
+  resolveVisibleMenuItems
+} from '../utils/moduleNavigation.js';
 
 describe('moduleNavigation helpers', () => {
   it('keeps configured order and appends missing menu modules', () => {
     expect(normalizeModuleOrder(['events', 'feed'])).toEqual([
-      'events', 'feed', 'explore', 'following', 'groups', 'messages', 'messenger', 'notifications', 'albums', 'games', 'announcements', 'jobs', 'opportunities', 'teachers_network', 'profile', 'help', 'requests'
+      'events', 'feed', 'groups', 'albums', 'announcements', 'networking', 'explore', 'following', 'jobs', 'opportunities', 'teachers_network', 'messenger', 'notifications', 'messages', 'profile', 'help', 'requests', 'games'
     ]);
   });
 
@@ -32,5 +39,47 @@ describe('moduleNavigation helpers', () => {
       moduleMenuOrder: ['feed', 'events']
     });
     expect(landing).toBe('/new');
+  });
+
+  it('resolves module definitions for nested routes', () => {
+    expect(resolveModuleFromPath('/new/messages/compose')?.key).toBe('messages');
+    expect(resolveModuleFromPath('/new/network/teachers')?.key).toBe('teachers_network');
+  });
+
+  it('groups visible menu items by category', () => {
+    const items = resolveVisibleMenuItems({
+      modules: {
+        feed: true,
+        groups: true,
+        networking: true,
+        profile: true,
+        notifications: true,
+        albums: false,
+        events: false,
+        announcements: false,
+        explore: false,
+        following: false,
+        jobs: false,
+        opportunities: false,
+        teachers_network: false,
+        messenger: false,
+        messages: false,
+        help: false,
+        requests: false,
+        games: false
+      },
+      menuVisibility: {
+        feed: true,
+        groups: true,
+        networking: true,
+        profile: true,
+        notifications: true
+      },
+      moduleMenuOrder: ['networking', 'feed', 'groups', 'notifications', 'profile']
+    });
+    const grouped = groupMenuItemsByCategory(items);
+    expect(grouped.feed.map((item) => item.key)).toEqual(['feed', 'groups']);
+    expect(grouped.network.map((item) => item.key)).toEqual(['networking']);
+    expect(grouped.global.map((item) => item.key)).toEqual(['notifications', 'profile']);
   });
 });

@@ -263,6 +263,14 @@ export default function NetworkingHubPage() {
       })()
     : priorityCards;
   const hasNetworkFeedback = Boolean(feedback.message || loadError || loadNotice);
+  const categoryLinks = [
+    { to: '#incoming-connections', label: t('network_hub_incoming_title'), note: t('hub_section_incoming_kicker') },
+    { to: '#incoming-mentorship', label: t('network_hub_mentorship_incoming_title'), note: t('hub_priority_mentorship_label') },
+    { to: '/new/jobs', label: t('nav_jobs'), note: t('nav_opportunities') },
+    { to: '/new/opportunities', label: t('nav_opportunities'), note: t('hub_section_suggestions_desc') },
+    { to: '/new/network/teachers', label: t('nav_teacher_network'), note: t('hub_priority_teacher_label') },
+    { to: '/new/messenger', label: t('nav_messenger'), note: t('member_send_message') }
+  ];
 
   return (
     <Layout title={t('network_hub_title')}>
@@ -297,6 +305,32 @@ export default function NetworkingHubPage() {
             {loadNotice ? <div className="network-soft-alert">{loadNotice}</div> : null}
           </div>
         ) : null}
+
+        <section className="panel category-map-panel network-category-map">
+          <div className="category-map-head">
+            <div>
+              <span className="category-map-kicker">{t('network_category_title')}</span>
+              <h3>{t('network_hub_title')}</h3>
+              <p>{t('network_hub_intro_subtitle')}</p>
+            </div>
+            <span className="chip">{t('nav_teacher_network')}</span>
+          </div>
+          <div className="category-map-grid">
+            {categoryLinks.map((item) => (
+              item.to.startsWith('#') ? (
+                <a key={item.to} className="category-map-card" href={item.to}>
+                  <strong>{item.label}</strong>
+                  <span>{item.note}</span>
+                </a>
+              ) : (
+                <Link key={item.to} className="category-map-card" to={item.to}>
+                  <strong>{item.label}</strong>
+                  <span>{item.note}</span>
+                </Link>
+              )
+            ))}
+          </div>
+        </section>
 
         <section className="panel network-priority-strip">
           <div className="network-section-head">

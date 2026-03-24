@@ -1,30 +1,38 @@
 export const MODULE_CONTROL_ITEMS = [
-  { key: 'feed', path: '/new', labelKey: 'nav_feed', defaultLabel: 'Akış', menu: true },
-  { key: 'main_feed', path: '', labelKey: '', defaultLabel: 'Ana Akış (Herkese Açık)', menu: false },
-  { key: 'year_feed', path: '', labelKey: '', defaultLabel: 'Yıl Akışı (Dönemim)', menu: false },
-  { key: 'explore', path: '/new/explore', labelKey: 'nav_explore', defaultLabel: 'Keşfet', menu: true },
-  { key: 'following', path: '/new/following', labelKey: 'nav_following', defaultLabel: 'Takip', menu: true },
-  { key: 'groups', path: '/new/groups', labelKey: 'nav_groups', defaultLabel: 'Gruplar', menu: true },
-  { key: 'messages', path: '/new/messages', labelKey: 'nav_messages', defaultLabel: 'Mesajlar', menu: true },
-  { key: 'messenger', path: '/new/messenger', labelKey: 'nav_messenger', defaultLabel: 'Canlı Mesajlaşma', menu: true },
-  { key: 'notifications', path: '/new/notifications', labelKey: 'nav_notifications', defaultLabel: 'Bildirimler', menu: true },
-  { key: 'albums', path: '/new/albums', labelKey: 'nav_photos', defaultLabel: 'Albüm/Fotolar', menu: true },
-  { key: 'games', path: '/new/games', labelKey: 'nav_games', defaultLabel: 'Oyunlar', menu: true },
-  { key: 'events', path: '/new/events', labelKey: 'nav_events', defaultLabel: 'Etkinlikler', menu: true },
-  { key: 'announcements', path: '/new/announcements', labelKey: 'nav_announcements', defaultLabel: 'Duyurular', menu: true },
-  { key: 'jobs', path: '/new/jobs', labelKey: 'nav_jobs', defaultLabel: 'İş İlanları', menu: true },
-  { key: 'opportunities', path: '/new/opportunities', labelKey: 'nav_opportunities', defaultLabel: 'Fırsatlar', menu: true },
-  { key: 'networking', path: '/new/network/hub', labelKey: '', defaultLabel: 'Ağ Merkezi', menu: false },
-  { key: 'teachers_network', path: '/new/network/teachers', labelKey: 'nav_teacher_network', defaultLabel: 'Öğretmen Ağı', menu: true },
-  { key: 'profile', path: '/new/profile', labelKey: 'nav_profile', defaultLabel: 'Profil', menu: true },
-  { key: 'help', path: '/new/help', labelKey: 'nav_help', defaultLabel: 'Yardım', menu: true },
-  { key: 'requests', path: '/new/requests', labelKey: 'requests_title', defaultLabel: 'Üye Talepleri', menu: true }
+  { key: 'feed', path: '/new', labelKey: 'nav_feed', defaultLabel: 'Akış', menu: true, category: 'feed' },
+  { key: 'main_feed', path: '', labelKey: '', defaultLabel: 'Ana Akış (Herkese Açık)', menu: false, category: 'feed' },
+  { key: 'year_feed', path: '', labelKey: '', defaultLabel: 'Yıl Akışı (Dönemim)', menu: false, category: 'feed' },
+  { key: 'groups', path: '/new/groups', labelKey: 'nav_groups', defaultLabel: 'Gruplar', menu: true, category: 'feed' },
+  { key: 'albums', path: '/new/albums', labelKey: 'nav_photos', defaultLabel: 'Albüm/Fotolar', menu: true, category: 'feed' },
+  { key: 'events', path: '/new/events', labelKey: 'nav_events', defaultLabel: 'Etkinlikler', menu: true, category: 'feed' },
+  { key: 'announcements', path: '/new/announcements', labelKey: 'nav_announcements', defaultLabel: 'Duyurular', menu: true, category: 'feed' },
+  { key: 'networking', path: '/new/network/hub', labelKey: 'nav_network_hub', defaultLabel: 'Ağ Merkezi', menu: true, category: 'network' },
+  { key: 'explore', path: '/new/explore', labelKey: 'nav_explore', defaultLabel: 'Keşfet', menu: true, category: 'network' },
+  { key: 'following', path: '/new/following', labelKey: 'nav_following', defaultLabel: 'Takip', menu: true, category: 'network' },
+  { key: 'jobs', path: '/new/jobs', labelKey: 'nav_jobs', defaultLabel: 'İş İlanları', menu: true, category: 'network' },
+  { key: 'opportunities', path: '/new/opportunities', labelKey: 'nav_opportunities', defaultLabel: 'Fırsatlar', menu: true, category: 'network' },
+  { key: 'teachers_network', path: '/new/network/teachers', labelKey: 'nav_teacher_network', defaultLabel: 'Öğretmen Ağı', menu: true, category: 'network' },
+  { key: 'messenger', path: '/new/messenger', labelKey: 'nav_messenger', defaultLabel: 'Canlı Mesajlaşma', menu: true, category: 'network' },
+  { key: 'notifications', path: '/new/notifications', labelKey: 'nav_notifications', defaultLabel: 'Bildirimler', menu: true, category: 'global' },
+  { key: 'messages', path: '/new/messages', labelKey: 'nav_messages', defaultLabel: 'Mesajlar', menu: true, category: 'global' },
+  { key: 'profile', path: '/new/profile', labelKey: 'nav_profile', defaultLabel: 'Profil', menu: true, category: 'global' },
+  { key: 'help', path: '/new/help', labelKey: 'nav_help', defaultLabel: 'Yardım', menu: true, category: 'global' },
+  { key: 'requests', path: '/new/requests', labelKey: 'requests_title', defaultLabel: 'Üye Talepleri', menu: true, category: 'global' },
+  { key: 'games', path: '/new/games', labelKey: 'nav_games', defaultLabel: 'Oyunlar', menu: true, category: 'global' }
 ];
+
+export const PRIMARY_NAV_CATEGORIES = [
+  { key: 'feed', defaultLabel: 'Feed' },
+  { key: 'network', defaultLabel: 'Network & Opportunities' }
+];
+
+export const GLOBAL_NAV_CATEGORY = { key: 'global', defaultLabel: 'Global' };
 
 export const MODULE_MENU_ITEMS = MODULE_CONTROL_ITEMS.filter((item) => item.menu && item.path);
 
 export const MODULE_ROUTE_BY_KEY = Object.fromEntries(MODULE_CONTROL_ITEMS.filter((item) => item.path).map((item) => [item.key, item.path]));
 export const MODULE_KEY_BY_ROUTE = Object.fromEntries(MODULE_CONTROL_ITEMS.filter((item) => item.path).map((item) => [item.path, item.key]));
+export const MODULE_DEFINITION_BY_KEY = Object.fromEntries(MODULE_CONTROL_ITEMS.map((item) => [item.key, item]));
 
 export function normalizeModuleOrder(rawOrder, availableKeys = MODULE_MENU_ITEMS.map((item) => item.key)) {
   const allowed = new Set(availableKeys);
@@ -85,4 +93,45 @@ export function resolveLandingPathFromSiteAccess(siteAccess) {
   }
 
   return '/new';
+}
+
+export function resolveVisibleMenuItems(siteAccess) {
+  if (!siteAccess?.modules) return [];
+  const menuVisibility = normalizeMenuVisibility(siteAccess.menuVisibility);
+  const menuOrder = normalizeModuleOrder(siteAccess.moduleMenuOrder);
+  const orderIndex = new Map(menuOrder.map((key, index) => [key, index]));
+
+  return MODULE_MENU_ITEMS
+    .filter((item) => siteAccess.modules[item.key] !== false)
+    .filter((item) => menuVisibility[item.key] !== false)
+    .sort((a, b) => {
+      const aIndex = orderIndex.has(a.key) ? orderIndex.get(a.key) : Number.MAX_SAFE_INTEGER;
+      const bIndex = orderIndex.has(b.key) ? orderIndex.get(b.key) : Number.MAX_SAFE_INTEGER;
+      if (aIndex !== bIndex) return aIndex - bIndex;
+      return MODULE_MENU_ITEMS.indexOf(a) - MODULE_MENU_ITEMS.indexOf(b);
+    });
+}
+
+export function resolveModuleFromPath(pathname) {
+  const path = String(pathname || '').trim();
+  if (!path) return null;
+  const candidates = MODULE_CONTROL_ITEMS
+    .filter((item) => item.path)
+    .sort((a, b) => b.path.length - a.path.length);
+  return candidates.find((item) => path === item.path || path.startsWith(`${item.path}/`)) || null;
+}
+
+export function resolvePrimaryCategoryForPath(pathname) {
+  const moduleItem = resolveModuleFromPath(pathname);
+  const category = moduleItem?.category || 'feed';
+  return category === 'network' ? 'network' : 'feed';
+}
+
+export function groupMenuItemsByCategory(items) {
+  return items.reduce((acc, item) => {
+    const category = item.category || 'global';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(item);
+    return acc;
+  }, {});
 }
