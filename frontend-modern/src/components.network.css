@@ -720,6 +720,9 @@
 }
 .explore-search-icon {
   color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .explore-search-input {
   border: 0;

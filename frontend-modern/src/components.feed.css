@@ -565,6 +565,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: inherit;
 }
 
 .comment-form {
@@ -717,6 +718,10 @@
   border-radius: 10px;
   background: color-mix(in srgb, var(--soft-panel) 88%, transparent);
   color: color-mix(in srgb, var(--muted) 70%, var(--ink) 30%);
+}
+.feed-quick-link-icon .animated-icon,
+.post-action-icon .animated-icon {
+  color: inherit;
 }
 
 .list {

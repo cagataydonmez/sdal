@@ -4,6 +4,7 @@ import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from './RichTextEditor.jsx';
 import TranslatableHtml from './TranslatableHtml.jsx';
+import AnimatedIcon from './AnimatedIcon.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
@@ -11,11 +12,7 @@ import { avatarAlt, postImageAlt } from '../utils/a11y.js';
 import { openAlert, openConfirm } from '../utils/dialogs.js';
 
 function PostActionIcon({ type, active = false }) {
-  const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: active ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
-  if (type === 'comment') {
-    return <svg aria-hidden="true" {...common}><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 3v-6.5A8.5 8.5 0 1 1 21 11.5z" /></svg>;
-  }
-  return <svg aria-hidden="true" {...common}><path d="M12 20.5s-7-4.4-7-10.3A4.2 4.2 0 0 1 9.2 6c1.4 0 2.3.6 2.8 1.3.5-.7 1.4-1.3 2.8-1.3A4.2 4.2 0 0 1 19 10.2c0 5.9-7 10.3-7 10.3z" /></svg>;
+  return <AnimatedIcon name={type === 'comment' ? 'message-square' : 'heart'} size={16} active={active} />;
 }
 
 export default function PostCard({ post, onRefresh, focused = false }) {

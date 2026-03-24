@@ -7,6 +7,7 @@ import PostCard from '../components/PostCard.jsx';
 import NotificationPanel from '../components/NotificationPanel.jsx';
 import StoryBar from '../components/StoryBar.jsx';
 import LiveChatPanel from '../components/LiveChatPanel.jsx';
+import AnimatedIcon from '../components/AnimatedIcon.jsx';
 import { useLiveRefresh } from '../utils/live.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { useAuth } from '../utils/auth.jsx';
@@ -14,35 +15,19 @@ import { FEED_FILTER_CONTRACT, FEED_SCOPE_CONTRACT, FEED_TAB_CONTRACT } from '..
 import { avatarAlt } from '../utils/a11y.js';
 import { fetchSiteAccess, getCachedSiteAccess } from '../utils/siteAccess.js';
 
-function FeedIcon({ name }) {
-  const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
-  switch (name) {
-    case 'feed':
-      return <svg aria-hidden="true" {...common}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>;
-    case 'notifications':
-      return <svg aria-hidden="true" {...common}><path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5" /><path d="M9.5 17a2.5 2.5 0 0 0 5 0" /></svg>;
-    case 'livechat':
-      return <svg aria-hidden="true" {...common}><path d="M4 5h16v10H8l-4 4V5z" /></svg>;
-    case 'online':
-      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" /></svg>;
-    case 'messages':
-      return <svg aria-hidden="true" {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 8l9 6 9-6" /></svg>;
-    case 'quick':
-      return <svg aria-hidden="true" {...common}><path d="M12 3l2.4 4.9L20 9l-4 3.8.9 5.5-4.9-2.6-4.9 2.6.9-5.5L4 9l5.6-1.1L12 3z" /></svg>;
-    case 'main':
-      return <svg aria-hidden="true" {...common}><path d="M3 11.5L12 4l9 7.5" /><path d="M6.5 10.5V20h11V10.5" /></svg>;
-    case 'community':
-      return <svg aria-hidden="true" {...common}><circle cx="8" cy="10" r="3" /><circle cx="16" cy="10" r="3" /><path d="M3.5 19c.8-2.8 3.1-4 4.5-4" /><path d="M20.5 19c-.8-2.8-3.1-4-4.5-4" /><path d="M9 18c.8-2.4 2.2-3.5 3-3.5.8 0 2.2 1.1 3 3.5" /></svg>;
-    case 'latest':
-      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>;
-    case 'popular':
-      return <svg aria-hidden="true" {...common}><path d="M12 3l2.6 5.3L20.5 9l-4.2 4 .9 6-5.2-2.9L6.8 19l.9-6-4.2-4 5.9-.7L12 3z" /></svg>;
-    case 'following':
-      return <svg aria-hidden="true" {...common}><circle cx="8" cy="8" r="3" /><path d="M3 19c1-3 3.3-4.5 5-4.5 1.7 0 4 1.5 5 4.5" /><path d="M16 8h5" /><path d="M18.5 5.5v5" /></svg>;
-    default:
-      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /></svg>;
-  }
-}
+const FEED_ICON_MAP = {
+  feed: 'home',
+  notifications: 'bell',
+  livechat: 'message-circle',
+  online: 'users',
+  messages: 'mailbox',
+  quick: 'sparkles',
+  main: 'home',
+  community: 'users',
+  latest: 'clock',
+  popular: 'flame',
+  following: 'user'
+};
 
 function SkeletonRows({ count = 3 }) {
   return (
@@ -429,7 +414,7 @@ export default function FeedPage() {
                 aria-label={scopeItem.label}
                 aria-pressed={feedType === scopeItem.key}
               >
-                <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={scopeItem.icon} /></span>
+                <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[scopeItem.icon] || 'home'} size={16} /></span>
                 <span className="scope-btn-label">{scopeItem.label}</span>
               </button>
             ))}
@@ -450,7 +435,7 @@ export default function FeedPage() {
           <div className="category-map-grid">
             {feedCategoryLinks.map((item) => (
               <Link key={item.to} className="category-map-card" to={item.to}>
-                <span className="category-map-icon" aria-hidden="true"><FeedIcon name={item.icon} /></span>
+                <span className="category-map-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[item.icon] || 'home'} size={16} /></span>
                 <strong>{item.label}</strong>
                 <span>{item.note}</span>
               </Link>
@@ -477,7 +462,7 @@ export default function FeedPage() {
                 role="tab"
                 aria-selected={mobileTab === tabItem.key}
               >
-                <span className="feed-tab-btn-icon" aria-hidden="true"><FeedIcon name={tabItem.icon} /></span>
+                <span className="feed-tab-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[tabItem.icon] || 'home'} size={16} /></span>
                 <span className="feed-tab-btn-label">{tabItem.label}</span>
                 {tabItem.badge > 0 ? <span className="mini-badge feed-tab-badge">{tabItem.badge}</span> : null}
               </button>
@@ -511,7 +496,7 @@ export default function FeedPage() {
             <div className="feed-intent-band">
               <div className="feed-composer-shell">
                 <div className="feed-composer-head">
-                  <div className="feed-composer-badge" aria-hidden="true"><FeedIcon name={feedType} /></div>
+                  <div className="feed-composer-badge" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[feedType] || 'home'} size={18} /></div>
                   <div className="feed-composer-copy">
                     <div className="feed-composer-title">{activeScopeLabel}</div>
                     {!isMobile ? <div className="feed-composer-meta">{t('feed_filter_selected')}: {activeFilterLabel}</div> : null}
@@ -547,7 +532,7 @@ export default function FeedPage() {
                           aria-label={filterItem.label}
                           aria-pressed={filter === filterItem.key}
                         >
-                          <span className="scope-btn-icon" aria-hidden="true"><FeedIcon name={filterItem.icon} /></span>
+                          <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[filterItem.icon] || 'home'} size={16} /></span>
                           <span className="scope-btn-label">{filterItem.label}</span>
                         </button>
                       ))}
@@ -672,7 +657,7 @@ export default function FeedPage() {
               <div className="feed-quick-links">
                 {quickLinks.map((item) => (
                   <Link key={item.to} className="feed-quick-link" to={item.to}>
-                    <span className="feed-quick-link-icon" aria-hidden="true"><FeedIcon name={item.icon} /></span>
+                    <span className="feed-quick-link-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[item.icon] || 'home'} size={16} /></span>
                     <span>{item.label}</span>
                   </Link>
                 ))}

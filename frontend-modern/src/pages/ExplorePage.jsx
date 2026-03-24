@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
+import AnimatedIcon from '../components/AnimatedIcon.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { readApiPayload, unwrapApiData } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
@@ -14,25 +15,14 @@ import {
 import { avatarAlt } from '../utils/a11y.js';
 import { openAlert } from '../utils/dialogs.js';
 
-function ExploreIcon({ name }) {
-  const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.9', strokeLinecap: 'round', strokeLinejoin: 'round' };
-  switch (name) {
-    case 'compass':
-      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /><path d="M14.8 9.2l-2.1 5.6-5.5 2.1 2.1-5.6 5.5-2.1z" /></svg>;
-    case 'spark':
-      return <svg aria-hidden="true" {...common}><path d="M12 3l1.9 4.9L19 10l-5.1 2.1L12 17l-1.9-4.9L5 10l5.1-2.1L12 3z" /></svg>;
-    case 'people':
-      return <svg aria-hidden="true" {...common}><circle cx="8" cy="9" r="3" /><circle cx="16" cy="9" r="3" /><path d="M3.5 19c.9-2.8 3.2-4.2 4.5-4.2" /><path d="M20.5 19c-.9-2.8-3.2-4.2-4.5-4.2" /><path d="M9 18c.8-2.3 2-3.4 3-3.4s2.2 1.1 3 3.4" /></svg>;
-    case 'online':
-      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" /></svg>;
-    case 'filter':
-      return <svg aria-hidden="true" {...common}><path d="M4 6h16" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>;
-    case 'search':
-      return <svg aria-hidden="true" {...common}><circle cx="11" cy="11" r="6" /><path d="M20 20l-3.5-3.5" /></svg>;
-    default:
-      return <svg aria-hidden="true" {...common}><circle cx="12" cy="12" r="8" /></svg>;
-  }
-}
+const EXPLORE_ICON_MAP = {
+  compass: 'compass',
+  spark: 'sparkles',
+  people: 'users',
+  online: 'users',
+  filter: 'sliders-horizontal',
+  search: 'search'
+};
 
 function getExploreMobileMatch() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
@@ -486,7 +476,7 @@ export default function ExplorePage({ fullMode = false }) {
         <div className="panel-body stack">
           <div className="muted">{t('explore_filtered_hint')}</div>
           <label className="explore-search-shell">
-            <span className="explore-search-icon" aria-hidden="true"><ExploreIcon name="search" /></span>
+            <span className="explore-search-icon" aria-hidden="true"><AnimatedIcon name={EXPLORE_ICON_MAP.search} size={18} /></span>
             <input className="search explore-search-input" placeholder={t('member_search_short')} value={query} onChange={(e) => setQuery(e.target.value)} />
           </label>
           <div className="explore-filter-row">
@@ -549,7 +539,7 @@ export default function ExplorePage({ fullMode = false }) {
         <section className="panel explore-hero-panel">
           <div className="explore-hero-copy">
             <div className="explore-hero-kicker">
-              <span className="explore-hero-mark"><ExploreIcon name="compass" />{t('nav_explore')}</span>
+              <span className="explore-hero-mark"><AnimatedIcon name={EXPLORE_ICON_MAP.compass} size={18} />{t('nav_explore')}</span>
               {todayLabel ? <span className="explore-hero-date">{todayLabel}</span> : null}
             </div>
             <div className="explore-hero-heading">

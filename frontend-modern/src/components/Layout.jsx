@@ -9,6 +9,7 @@ import { openNotification } from '../utils/notificationApi.js';
 import { buildNotificationViewModel, shouldToastNotification } from '../utils/notificationRegistry.js';
 import { fetchNotificationPreferences, NOTIFICATION_PREFERENCE_DEFAULTS } from '../utils/notificationPreferences.js';
 import { getRouteTransitionMeta, syncViewTransitionContext } from '../viewTransitions.js';
+import AnimatedIcon from './AnimatedIcon.jsx';
 import {
   GLOBAL_NAV_CATEGORY,
   PRIMARY_NAV_CATEGORIES,
@@ -297,7 +298,10 @@ export default function Layout({ children, title, right }) {
 
   const renderNavLinks = useCallback((items) => items.map((item) => (
     <NavLink key={item.to} to={item.to} end={item.end}>
-      {item.label}
+      <span className="nav-link-main">
+        <AnimatedIcon name={item.icon || 'home'} size={17} className="nav-link-icon" />
+        <span>{item.label}</span>
+      </span>
       {item.badge > 0 ? <span className="mini-badge">{item.badge}</span> : null}
     </NavLink>
   )), []);
@@ -433,9 +437,7 @@ export default function Layout({ children, title, right }) {
             aria-controls="mobile-nav-drawer"
             onClick={() => setMobileNavOpen((prev) => !prev)}
           >
-            <span></span>
-            <span></span>
-            <span></span>
+            <AnimatedIcon name="menu" size={20} className="mobile-hamburger-icon" />
           </button>
           <div className="page-title route-title-shell" data-route-family={routeMeta.family} data-route-kind={routeMeta.kind}>
             <h1>{title}</h1>
