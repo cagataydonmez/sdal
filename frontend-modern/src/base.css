@@ -456,12 +456,12 @@ textarea::placeholder {
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 28px 20px;
+  padding: 26px 18px 18px;
   background: var(--nav-bg);
   color: var(--nav-ink);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .brand {
@@ -470,6 +470,7 @@ textarea::placeholder {
   gap: 10px;
   font-family: 'Space Grotesk', sans-serif;
   width: fit-content;
+  padding: 4px 2px;
 }
 
 .brand-logo {
@@ -488,48 +489,55 @@ textarea::placeholder {
 .brand-sub {
   font-weight: 600;
   opacity: 0.8;
+  letter-spacing: 0.02em;
 }
 
 .side-nav nav {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  min-height: 0;
 }
 .nav-category-switch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .nav-category-button {
   border: 1px solid var(--line-inverse);
   background: transparent;
   color: inherit;
   border-radius: 999px;
-  padding: 10px 12px;
+  min-height: 52px;
+  padding: 12px 12px;
   font: inherit;
   font-weight: 700;
+  font-size: 0.94rem;
+  line-height: 1.2;
+  text-align: center;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .nav-category-button.active,
 .nav-category-button:hover {
   background: var(--line-inverse);
   border-color: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nav-ink) 10%, transparent);
 }
 .nav-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .nav-section + .nav-section {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 12px;
   border-top: 1px solid var(--line-inverse);
 }
 .nav-section-label {
   margin: 0;
-  padding: 0 4px;
+  padding: 0 4px 2px;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -537,12 +545,30 @@ textarea::placeholder {
   opacity: 0.74;
 }
 .side-nav nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 14px;
   color: var(--nav-ink);
   font-weight: 600;
+  transition: background 0.18s ease, transform 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 .side-nav nav a.active,
 .side-nav nav a:hover {
   background: var(--line-inverse);
+  transform: translateX(2px);
+}
+.side-nav nav a.active {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 75%, white 25%);
+}
+.side-nav nav a .mini-badge {
+  flex: 0 0 auto;
+  margin-left: auto;
+  background: color-mix(in srgb, var(--accent) 84%, white 16%);
+  color: color-mix(in srgb, var(--nav-bg) 24%, black 76%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nav-bg) 22%, transparent);
 }

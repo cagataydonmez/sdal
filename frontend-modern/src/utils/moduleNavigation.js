@@ -12,21 +12,21 @@ export const MODULE_CONTROL_ITEMS = [
   { key: 'jobs', path: '/new/jobs', labelKey: 'nav_jobs', defaultLabel: 'İş İlanları', menu: true, category: 'network' },
   { key: 'opportunities', path: '/new/opportunities', labelKey: 'nav_opportunities', defaultLabel: 'Fırsatlar', menu: true, category: 'network' },
   { key: 'teachers_network', path: '/new/network/teachers', labelKey: 'nav_teacher_network', defaultLabel: 'Öğretmen Ağı', menu: true, category: 'network' },
-  { key: 'messenger', path: '/new/messenger', labelKey: 'nav_messenger', defaultLabel: 'Canlı Mesajlaşma', menu: true, category: 'network' },
+  { key: 'messenger', path: '/new/messenger', labelKey: 'nav_messenger', defaultLabel: 'SDAL Mesajlaşma', menu: true, category: 'network' },
   { key: 'notifications', path: '/new/notifications', labelKey: 'nav_notifications', defaultLabel: 'Bildirimler', menu: true, category: 'global' },
-  { key: 'messages', path: '/new/messages', labelKey: 'nav_messages', defaultLabel: 'Mesajlar', menu: true, category: 'global' },
+  { key: 'messages', path: '/new/messages', labelKey: 'nav_messages', defaultLabel: 'SDAL Gelen Kutusu', menu: true, category: 'global' },
   { key: 'profile', path: '/new/profile', labelKey: 'nav_profile', defaultLabel: 'Profil', menu: true, category: 'global' },
   { key: 'help', path: '/new/help', labelKey: 'nav_help', defaultLabel: 'Yardım', menu: true, category: 'global' },
-  { key: 'requests', path: '/new/requests', labelKey: 'requests_title', defaultLabel: 'Üye Talepleri', menu: true, category: 'global' },
+  { key: 'requests', path: '/new/requests', labelKey: 'requests_title', defaultLabel: 'Yönetim Talepleri', menu: true, category: 'global' },
   { key: 'games', path: '/new/games', labelKey: 'nav_games', defaultLabel: 'Oyunlar', menu: true, category: 'global' }
 ];
 
 export const PRIMARY_NAV_CATEGORIES = [
-  { key: 'feed', defaultLabel: 'Feed' },
-  { key: 'network', defaultLabel: 'Network & Opportunities' }
+  { key: 'feed', labelKey: 'nav_feed_category', defaultLabel: 'Akış' },
+  { key: 'network', labelKey: 'nav_network_category', defaultLabel: 'Ağ ve Fırsatlar' }
 ];
 
-export const GLOBAL_NAV_CATEGORY = { key: 'global', defaultLabel: 'Global' };
+export const GLOBAL_NAV_CATEGORY = { key: 'global', labelKey: 'nav_global_category', defaultLabel: 'Genel' };
 
 export const MODULE_MENU_ITEMS = MODULE_CONTROL_ITEMS.filter((item) => item.menu && item.path);
 

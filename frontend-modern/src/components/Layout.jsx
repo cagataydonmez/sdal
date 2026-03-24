@@ -281,6 +281,13 @@ export default function Layout({ children, title, right }) {
   const selectedPrimaryCategory = navItemsByCategory[navCategory]?.length ? navCategory : activePrimaryCategory;
   const primaryNavItems = navItemsByCategory[selectedPrimaryCategory] || [];
   const globalNavItems = navItemsByCategory.global || [];
+  const primaryCategoryLabel = useCallback((category) => (
+    category?.labelKey ? t(category.labelKey) : category?.defaultLabel || ''
+  ), [t]);
+  const selectedPrimaryCategoryLabel = primaryCategoryLabel(
+    PRIMARY_NAV_CATEGORIES.find((item) => item.key === selectedPrimaryCategory) || PRIMARY_NAV_CATEGORIES[0]
+  );
+  const globalCategoryLabel = primaryCategoryLabel(GLOBAL_NAV_CATEGORY);
 
   useEffect(() => {
     if (activePrimaryCategory === 'feed' || activePrimaryCategory === 'network') {
@@ -386,20 +393,20 @@ export default function Layout({ children, title, right }) {
                   aria-pressed={isActive}
                   onClick={() => setNavCategory(category.key)}
                 >
-                  {category.defaultLabel}
+                  {primaryCategoryLabel(category)}
                 </button>
               );
             })}
           </div>
           <div className="nav-section">
             <p className="nav-section-label">
-              {PRIMARY_NAV_CATEGORIES.find((item) => item.key === selectedPrimaryCategory)?.defaultLabel || PRIMARY_NAV_CATEGORIES[0].defaultLabel}
+              {selectedPrimaryCategoryLabel}
             </p>
             {renderNavLinks(primaryNavItems)}
           </div>
           {globalNavItems.length > 0 ? (
             <div className="nav-section nav-section-global">
-              <p className="nav-section-label">{GLOBAL_NAV_CATEGORY.defaultLabel}</p>
+              <p className="nav-section-label">{globalCategoryLabel}</p>
               {renderNavLinks(globalNavItems)}
             </div>
           ) : null}
@@ -535,20 +542,20 @@ export default function Layout({ children, title, right }) {
                   aria-pressed={isActive}
                   onClick={() => setNavCategory(category.key)}
                 >
-                  {category.defaultLabel}
+                  {primaryCategoryLabel(category)}
                 </button>
               );
             })}
           </div>
           <div className="nav-section">
             <p className="nav-section-label">
-              {PRIMARY_NAV_CATEGORIES.find((item) => item.key === selectedPrimaryCategory)?.defaultLabel || PRIMARY_NAV_CATEGORIES[0].defaultLabel}
+              {selectedPrimaryCategoryLabel}
             </p>
             {renderNavLinks(primaryNavItems)}
           </div>
           {globalNavItems.length > 0 ? (
             <div className="nav-section nav-section-global">
-              <p className="nav-section-label">{GLOBAL_NAV_CATEGORY.defaultLabel}</p>
+              <p className="nav-section-label">{globalCategoryLabel}</p>
               {renderNavLinks(globalNavItems)}
             </div>
           ) : null}
