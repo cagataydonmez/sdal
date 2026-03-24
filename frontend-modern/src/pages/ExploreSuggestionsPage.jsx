@@ -90,6 +90,20 @@ export default function ExploreSuggestionsPage() {
 
   return (
     <Layout title={t('explore_suggestions_title')}>
+      <section className="panel category-map-panel">
+        <div className="category-map-head">
+          <div>
+            <span className="category-map-kicker">{t('nav_explore')}</span>
+            <h3>{t('explore_suggestions_title')}</h3>
+            <p>{t('explore_connections_note')}</p>
+          </div>
+          <div className="network-hero-actions">
+            <Link className="btn ghost" to="/new/explore">{t('nav_explore')}</Link>
+            <Link className="btn ghost" to="/new/following">{t('nav_following')}</Link>
+          </div>
+        </div>
+      </section>
+
       <section className="suggestions-directory">
         {featuredMember ? (
           <article className="suggestions-directory-feature">

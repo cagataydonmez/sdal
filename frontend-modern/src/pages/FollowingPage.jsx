@@ -65,6 +65,20 @@ export default function FollowingPage() {
 
   return (
     <Layout title={t('nav_following')}>
+      <section className="panel category-map-panel">
+        <div className="category-map-head">
+          <div>
+            <span className="category-map-kicker">{t('nav_following')}</span>
+            <h3>{t('nav_following')}</h3>
+            <p>{t('following_connections_note')}</p>
+          </div>
+          <div className="network-hero-actions">
+            <Link className="btn ghost" to="/new/explore">{t('nav_explore')}</Link>
+            <Link className="btn ghost" to="/new/network/hub">{t('network_hub_title')}</Link>
+          </div>
+        </div>
+      </section>
+
       <div className="list">
         {items.map((m) => (
           <div key={m.following_id} className="list-item">

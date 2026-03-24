@@ -93,6 +93,12 @@ export default function ExplorePage({ fullMode = false }) {
     const raw = String(user?.mezuniyetyili || '').trim();
     return /^\d{4}$/.test(raw) ? raw : '';
   }, [user?.mezuniyetyili]);
+  const discoveryLinks = useMemo(() => ([
+    { to: '/new/network/hub', label: t('network_hub_title'), note: t('hub_section_priority_desc') },
+    { to: '/new/following', label: t('nav_following'), note: t('following_connections_note') },
+    { to: '/new/network/teachers', label: t('nav_teacher_network'), note: t('trust_badge_teacher_network') },
+    { to: '/new/messenger', label: t('nav_messenger'), note: t('messenger_private_note') }
+  ]), [t]);
 
   const load = useCallback(async (term = '', nextPage = 1, activeFilters = filters) => {
     setLoading(true);
@@ -548,8 +554,8 @@ export default function ExplorePage({ fullMode = false }) {
             </div>
             <div className="explore-hero-heading">
               <div>
-                <h2 className="explore-hero-title">{t('nav_explore')}</h2>
-                <p className="explore-hero-subtitle">{t('explore_filtered_hint')}</p>
+                <h2 className="explore-hero-title">{t('explore_connections_title')}</h2>
+                <p className="explore-hero-subtitle">{t('explore_connections_note')}</p>
               </div>
               <div className="explore-hero-tags">
                 {(activeFilterTags.length ? activeFilterTags : [t('everyone'), t('sort_recommended')]).slice(0, 4).map((tag) => (
@@ -557,6 +563,29 @@ export default function ExplorePage({ fullMode = false }) {
                 ))}
               </div>
             </div>
+          </div>
+          <div className="network-hero-actions">
+            <Link className="btn ghost" to="/new/network/hub">{t('network_hub_title')}</Link>
+            <Link className="btn ghost" to="/new/following">{t('nav_following')}</Link>
+          </div>
+        </section>
+
+        <section className="panel category-map-panel">
+          <div className="category-map-head">
+            <div>
+              <span className="category-map-kicker">{t('network_category_title')}</span>
+              <h3>{t('explore_connections_title')}</h3>
+              <p>{t('explore_connections_note')}</p>
+            </div>
+            <span className="chip">{t('connection_request')}</span>
+          </div>
+          <div className="category-map-grid">
+            {discoveryLinks.map((item) => (
+              <Link key={item.to} className="category-map-card" to={item.to}>
+                <strong>{item.label}</strong>
+                <span>{item.note}</span>
+              </Link>
+            ))}
           </div>
         </section>
 

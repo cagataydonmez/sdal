@@ -3,7 +3,13 @@
   gap: 14px;
   margin-top: 18px;
 }
+.member-detail-actions-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
 .member-detail-action-group {
+  display: grid;
+  gap: 10px;
   padding: 14px;
   border-radius: calc(var(--radius) - 2px);
   border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
@@ -30,6 +36,86 @@
   margin-top: 6px;
   color: var(--muted);
   font-size: 0.95rem;
+}
+.member-profile-shell-body {
+  display: grid;
+  gap: clamp(18px, 3vw, 28px);
+}
+.member-profile-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: clamp(18px, 3vw, 30px);
+  align-items: start;
+}
+.member-profile-summary {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: clamp(16px, 2.6vw, 24px);
+  align-items: start;
+}
+.member-profile-avatar {
+  background: color-mix(in srgb, var(--card) 82%, var(--surface-side) 18%);
+  box-shadow: 0 18px 42px rgba(25, 24, 32, 0.1);
+}
+.member-profile-copy {
+  display: grid;
+  gap: 12px;
+}
+.member-profile-name {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(1.9rem, 3.4vw, 2.8rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+.member-profile-handle {
+  font-size: 1rem;
+}
+.member-profile-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.member-profile-meta-list {
+  display: grid;
+  gap: 6px;
+}
+.member-profile-meta {
+  font-size: 0.95rem;
+}
+.member-profile-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.member-profile-links .btn {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.member-profile-signature {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--soft-panel) 82%, transparent);
+  color: color-mix(in srgb, var(--text) 78%, var(--muted) 22%);
+  line-height: 1.55;
+}
+.member-profile-sidecar {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.member-profile-sidecard {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--line) 68%, var(--accent) 32%);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 44%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-side) 92%, white 8%) 0%, color-mix(in srgb, var(--card) 92%, transparent) 100%);
 }
 .network-hero {
   display: grid;
@@ -79,6 +165,31 @@
   justify-content: flex-end;
   align-items: stretch;
   gap: 10px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .member-detail-action-group,
+  .member-profile-sidecard {
+    transition: transform 180ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .member-detail-action-group:hover,
+  .member-profile-sidecard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(25, 24, 32, 0.08);
+  }
+}
+
+@media (max-width: 960px) {
+  .member-profile-hero,
+  .member-detail-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .member-profile-summary {
+    grid-template-columns: 1fr;
+  }
 }
 .network-hero.is-mobile-condensed {
   gap: 14px;
@@ -238,10 +349,54 @@
   align-items: start;
   margin-bottom: 16px;
 }
+.teacher-crossover-panel {
+  margin-bottom: 16px;
+}
+.teacher-crossover-panel.is-prefilled {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, transparent) 0%, color-mix(in srgb, var(--surface-main) 90%, transparent) 100%);
+}
+.teacher-crossover-panel.is-prefilled::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 84%, white 16%) 0%, color-mix(in srgb, var(--accent-2) 74%, transparent) 100%);
+}
+.teacher-prefill-chip {
+  background: color-mix(in srgb, var(--accent-soft-bg) 76%, white 24%);
+  border-color: color-mix(in srgb, var(--accent-soft-line) 78%, transparent);
+}
+.member-teacher-link {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent-soft-line) 80%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft-bg) 84%, transparent) 0%, color-mix(in srgb, var(--card) 96%, transparent) 100%);
+}
+.member-teacher-link::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(120deg, transparent 20%, color-mix(in srgb, var(--accent) 12%, transparent) 50%, transparent 82%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+.member-teacher-link:hover::after,
+.member-teacher-link:focus-visible::after {
+  opacity: 1;
+}
 .network-column {
   display: grid;
   gap: 16px;
   align-content: start;
+}
+.teacher-network-side-column {
+  gap: clamp(14px, 2.5vw, 20px);
 }
 .network-list,
 .network-history-list,
@@ -884,6 +1039,20 @@
   .explore-filter-chip {
     transition: none;
   }
+  .member-teacher-link,
+  .teacher-crossover-panel,
+  .teacher-preview-panel,
+  .teacher-history-panel,
+  .teacher-form-panel,
+  .teacher-prefill-chip,
+  .teacher-preview-card-active,
+  .network-value-card,
+  .teacher-form-panel.is-prefilled .network-form-grid > * {
+    transition: none;
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
   .explore-member-card:hover,
   .explore-filter-chip:hover,
   .explore-filter-chip.is-active {
@@ -916,14 +1085,106 @@
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, transparent) 0%, color-mix(in srgb, var(--surface-main) 90%, transparent) 100%);
 }
+.teacher-form-panel .panel-body,
+.teacher-preview-panel .panel-body,
+.teacher-value-panel .panel-body {
+  display: grid;
+  gap: 16px;
+}
+.teacher-form-panel.is-prefilled {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-soft-bg) 24%, transparent) 0%, transparent 44%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--surface-main) 90%, transparent) 100%);
+}
+.teacher-form-panel.is-prefilled::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--accent-soft-line) 48%, transparent);
+  pointer-events: none;
+}
+.teacher-form-panel.is-prefilled .network-section-head,
+.teacher-form-panel.is-prefilled .network-soft-alert,
+.teacher-form-panel.is-prefilled .ok,
+.teacher-form-panel.is-prefilled .error,
+.teacher-form-panel.is-prefilled .network-form-grid {
+  position: relative;
+  z-index: 1;
+}
+.teacher-form-panel.is-prefilled .network-form-grid > * {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.teacher-form-panel.is-handoff-ready .network-form-grid > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+.teacher-form-panel.is-handoff-ready .network-form-grid > :nth-child(1) { transition-delay: 40ms; }
+.teacher-form-panel.is-handoff-ready .network-form-grid > :nth-child(2) { transition-delay: 85ms; }
+.teacher-form-panel.is-handoff-ready .network-form-grid > :nth-child(3) { transition-delay: 130ms; }
+.teacher-form-panel.is-handoff-ready .network-form-grid > :nth-child(4) { transition-delay: 175ms; }
+.teacher-form-panel.is-handoff-ready .network-form-grid > :nth-child(5) { transition-delay: 220ms; }
+.teacher-form-panel.is-handoff-ready .network-form-grid > :nth-child(6) { transition-delay: 265ms; }
 .network-highlight-card,
 .network-guidance-item,
 .network-history-card {
   padding: 14px;
 }
+.teacher-preview-panel.is-prefilled,
+.teacher-history-panel.is-prefilled,
+.teacher-value-panel.is-prefilled {
+  position: relative;
+  overflow: hidden;
+}
+.teacher-preview-panel.is-prefilled {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, transparent) 0%, color-mix(in srgb, var(--surface-side) 90%, transparent) 100%);
+}
+.teacher-preview-panel.is-prefilled.has-selection {
+  border-color: color-mix(in srgb, var(--accent-soft-line) 78%, transparent);
+  box-shadow: 0 18px 50px rgba(25, 24, 32, 0.08);
+}
+.teacher-preview-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-soft-bg) 78%, white 22%);
+  border: 1px solid color-mix(in srgb, var(--accent-soft-line) 72%, transparent);
+}
+.teacher-history-panel.is-prefilled {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--surface-side) 88%, transparent) 100%);
+}
+.teacher-preview-card-active {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--surface-side) 88%, transparent) 100%);
+}
+.teacher-preview-card-active::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, white 18%) 0%, color-mix(in srgb, var(--accent-2) 76%, transparent) 100%);
+}
 .network-highlight-title {
   font-size: 1.05rem;
   font-weight: 700;
+}
+.teacher-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .network-history-main {
   display: flex;
@@ -951,19 +1212,67 @@
 }
 .network-value-list {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 .network-value-card {
   display: grid;
-  gap: 6px;
-  padding: 14px;
-  border-radius: 16px;
+  gap: 8px;
+  min-height: 132px;
+  padding: 16px;
+  border-radius: 18px;
   border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 82%, transparent) 100%);
 }
+.network-value-card:first-child {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-soft-bg) 24%, transparent) 0%, transparent 44%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 82%, transparent) 100%);
+}
 .network-value-card span {
   color: var(--muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .member-teacher-link,
+  .teacher-crossover-panel,
+  .teacher-preview-panel,
+  .teacher-history-panel,
+  .teacher-form-panel,
+  .teacher-prefill-chip,
+  .teacher-preview-card-active,
+  .network-value-card {
+    transition: transform 180ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+  .teacher-form-panel.is-handoff-ready .network-form-grid > * {
+    transition:
+      opacity 260ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .teacher-preview-panel.is-handoff-ready .teacher-preview-card-active,
+  .teacher-value-panel.is-handoff-ready .network-value-card,
+  .teacher-history-panel.is-handoff-ready .network-history-card,
+  .teacher-crossover-panel.is-handoff-ready .category-map-card {
+    animation: teacherComposerRise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .teacher-crossover-panel.is-handoff-ready .category-map-card:nth-child(2) { animation-delay: 45ms; }
+  .teacher-crossover-panel.is-handoff-ready .category-map-card:nth-child(3) { animation-delay: 90ms; }
+  .teacher-crossover-panel.is-handoff-ready .category-map-card:nth-child(4) { animation-delay: 135ms; }
+  .teacher-value-panel.is-handoff-ready .network-value-card:nth-child(2) { animation-delay: 60ms; }
+  .teacher-value-panel.is-handoff-ready .network-value-card:nth-child(3) { animation-delay: 120ms; }
+  .teacher-history-panel.is-handoff-ready .network-history-card:nth-child(2) { animation-delay: 60ms; }
+  .teacher-preview-card-active:hover,
+  .network-value-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(25, 24, 32, 0.08);
+  }
+  .member-teacher-link:hover,
+  .member-teacher-link:focus-visible,
+  .teacher-preview-panel.has-selection:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px rgba(25, 24, 32, 0.08);
+  }
 }
 
 @media (max-width: 980px) {
@@ -973,7 +1282,8 @@
   }
   .network-priority-grid,
   .network-metric-grid,
-  .network-form-grid {
+  .network-form-grid,
+  .network-value-list {
     grid-template-columns: 1fr;
   }
   .network-form-footer,
@@ -1011,6 +1321,17 @@
   .network-avatar-link img {
     width: 56px;
     height: 56px;
+  }
+}
+
+@keyframes teacherComposerRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

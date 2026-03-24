@@ -106,37 +106,69 @@ export default function MemberDetailPage() {
       : arrivalContext === 'follow'
         ? t('member_arrival_follow')
         : '';
+  const profileSignals = [
+    Boolean(member.verified) ? t('trust_badge_verified_alumni') : '',
+    Number(member.mentor_opt_in || 0) === 1 ? t('profile_mentor_opt_in') : '',
+    canLinkToTeacherNetwork(member) ? t('trust_badge_teacher_network') : '',
+    Number(member.online || 0) === 1 ? t('status_online') : ''
+  ].filter(Boolean);
+  const profileMeta = [
+    member.mezuniyetyili || '',
+    member.sehir || '',
+    member.meslek || '',
+    [member.unvan, member.sirket].filter(Boolean).join(' @ '),
+    member.uzmanlik || '',
+    member.universite || '',
+    member.universite_bolum || ''
+  ].filter(Boolean);
 
   return (
     <Layout title={`${member.isim} ${member.soyisim}`}>
-      <div className="panel">
-        <div className="panel-body">
-          <img className="profile-avatar-xl" src={member.resim ? `/api/media/vesikalik/${member.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(member)} />
-          <div className="name">@{member.kadi}</div>
-          <div className="meta">{member.mezuniyetyili || ''}</div>
-          <div className="meta">{member.sehir || ''}</div>
-          <div className="meta">{member.meslek || ''}</div>
-          {member.unvan || member.sirket ? <div className="meta">{[member.unvan, member.sirket].filter(Boolean).join(' @ ')}</div> : null}
-          {member.uzmanlik ? <div className="meta">{member.uzmanlik}</div> : null}
-          {Number(member.mentor_opt_in || 0) === 1 ? <div className="meta">{t('profile_mentor_opt_in')}</div> : null}
-          <div className="meta">{member.universite || ''}</div>
-          {member.universite_bolum ? <div className="meta">{member.universite_bolum}</div> : null}
-          <div className="meta">{member.websitesi || ''}</div>
-          {member.linkedin_url ? (
-            <div className="meta">
-              <a href={member.linkedin_url} target="_blank" rel="noreferrer">{t('profile_linkedin')}</a>
+      <div className="panel member-profile-shell">
+        <div className="panel-body member-profile-shell-body">
+          <section className="member-profile-hero">
+            <div className="member-profile-summary">
+              <img className="profile-avatar-xl member-profile-avatar" src={member.resim ? `/api/media/vesikalik/${member.resim}` : '/legacy/vesikalik/nophoto.jpg'} alt={avatarAlt(member)} />
+              <div className="member-profile-copy">
+                <span className="network-eyebrow">{t('nav_profile')}</span>
+                <h2 className="member-profile-name">{member.isim} {member.soyisim}</h2>
+                <div className="handle member-profile-handle">@{member.kadi}</div>
+                {profileSignals.length ? (
+                  <div className="member-profile-chip-row">
+                    {profileSignals.map((item) => <span className="chip" key={item}>{item}</span>)}
+                  </div>
+                ) : null}
+                <div className="member-profile-meta-list">
+                  {profileMeta.map((item) => <div className="meta member-profile-meta" key={item}>{item}</div>)}
+                </div>
+                <div className="member-profile-links">
+                  {member.websitesi ? <a className="btn ghost" href={member.websitesi} target="_blank" rel="noreferrer">{member.websitesi}</a> : null}
+                  {member.linkedin_url ? (
+                    <a className="btn ghost" href={member.linkedin_url} target="_blank" rel="noreferrer">{t('profile_linkedin')}</a>
+                  ) : null}
+                </div>
+                {member.imza ? <div className="member-profile-signature">{member.imza}</div> : null}
+              </div>
             </div>
-          ) : null}
-          <div>{member.imza}</div>
-          {arrivalMessage ? (
-            <div className="notification-focus-inline-panel">
-              <strong>{t('member_arrival_context_label')}</strong>
-              <div className="muted">{arrivalMessage}</div>
-            </div>
-          ) : null}
-          {status ? <div className="ok">{status}</div> : null}
-          {error ? <div className="error">{error}</div> : null}
-          <div className="member-detail-actions">
+
+            <aside className="member-profile-sidecar">
+              {arrivalMessage ? (
+                <div className="notification-focus-inline-panel">
+                  <strong>{t('member_arrival_context_label')}</strong>
+                  <div className="muted">{arrivalMessage}</div>
+                </div>
+              ) : null}
+              <div className="member-profile-sidecard">
+                <div className="member-detail-action-heading">{t('network_category_title')}</div>
+                <div className="member-detail-action-title">{networkingHeading}</div>
+                <div className="member-detail-action-copy">{networkingHint}</div>
+              </div>
+              {status ? <div className="ok">{status}</div> : null}
+              {error ? <div className="error">{error}</div> : null}
+            </aside>
+          </section>
+
+          <div className="member-detail-actions member-detail-actions-grid">
             <div className="member-detail-action-group">
               <div className="member-detail-action-heading">{t('member_section_communication')}</div>
               <div className="member-detail-action-copy">
@@ -169,7 +201,7 @@ export default function MemberDetailPage() {
 
             {!isSelf ? (
               <div className="member-detail-action-group member-detail-action-group-networking">
-                <div className="member-detail-action-heading">Networking</div>
+                <div className="member-detail-action-heading">{t('network_category_title')}</div>
                 <div className="member-detail-action-title">{networkingHeading}</div>
                 <div className="member-detail-action-copy">{networkingHint}</div>
                 <div className="composer-actions">
@@ -271,8 +303,8 @@ export default function MemberDetailPage() {
                     </button>
                   ) : null}
                   {canAddTeacherLink ? (
-                    <Link className="btn ghost" to={`/new/network/teachers?teacherId=${member.id}`}>
-                      Öğretmen Ağına Ekle
+                    <Link className="btn ghost member-teacher-link" to={`/new/network/teachers?teacherId=${member.id}&source=member-detail`} viewTransition>
+                      {t('hub_action_teacher_network')}
                     </Link>
                   ) : null}
                 </div>

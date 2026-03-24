@@ -1126,13 +1126,38 @@
   display: grid;
   gap: 10px;
 }
+.profile-editor-title {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(1.9rem, 3.2vw, 2.8rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+.profile-editor-subtitle {
+  margin: 0;
+  max-width: 60ch;
+  color: color-mix(in srgb, var(--text) 64%, var(--muted) 36%);
+  line-height: 1.55;
+}
+.profile-editor-hero-signals,
+.profile-editor-preview-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.profile-editor-hero-chip {
+  background: color-mix(in srgb, var(--card) 72%, var(--surface-side) 28%);
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line) 82%);
+}
 .profile-editor-progress {
   display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 20px;
   border: 1px solid color-mix(in srgb, var(--accent-soft-line) 62%, var(--line) 38%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--soft-panel) 90%, transparent) 0%, color-mix(in srgb, var(--card) 92%, transparent) 100%);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--soft-panel) 90%, transparent) 0%, color-mix(in srgb, var(--card) 92%, transparent) 100%);
 }
 .profile-editor-progress-label {
   font-size: 0.78rem;
@@ -1146,16 +1171,33 @@
   font-weight: 700;
   line-height: 1;
 }
+.profile-editor-progress-track {
+  position: relative;
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--soft-panel) 76%, var(--line) 24%);
+}
+.profile-editor-progress-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left center;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 82%, white 18%) 0%, color-mix(in srgb, var(--accent-2) 68%, var(--accent) 32%) 100%);
+}
 .profile-editor-checklist {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 .profile-editor-check {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 999px;
+  padding: 12px 14px;
+  min-height: 52px;
+  border-radius: 18px;
   border: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
   background: color-mix(in srgb, var(--input-bg) 90%, transparent);
 }
@@ -1193,6 +1235,13 @@
   font-size: 1.08rem;
   letter-spacing: -0.02em;
 }
+.profile-editor-section-hint {
+  margin: 6px 0 0;
+  max-width: 54ch;
+  color: color-mix(in srgb, var(--text) 62%, var(--muted) 38%);
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
 .profile-editor-section-kicker {
   display: inline-flex;
   align-items: center;
@@ -1229,6 +1278,10 @@
   display: grid;
   gap: 12px;
 }
+.profile-editor-sidebar-head {
+  display: grid;
+  gap: 6px;
+}
 .profile-editor-preview-name {
   margin: 0;
   font-size: 1.2rem;
@@ -1253,6 +1306,27 @@
   border-color: color-mix(in srgb, var(--ok-line) 70%, transparent);
   background: color-mix(in srgb, var(--ok-bg) 82%, white 18%);
 }
+.profile-stories-shell > h3 {
+  margin-bottom: 2px;
+}
+.profile-stories-body {
+  display: grid;
+  gap: clamp(20px, 3vw, 28px);
+}
+.profile-story-stage {
+  display: grid;
+  gap: 14px;
+}
+.profile-story-stage-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.profile-story-stage-head p {
+  margin: 4px 0 0;
+  max-width: 56ch;
+}
 .profile-story-empty {
   display: grid;
   align-content: center;
@@ -1274,6 +1348,22 @@
   line-height: 1.45;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .profile-editor-progress-bar {
+    transition: transform 220ms cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .story-mini-card,
+  .profile-editor-sidebar,
+  .profile-editor-progress {
+    transition: transform 180ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .story-mini-card:hover,
+  .profile-editor-sidebar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 34px rgba(25, 24, 32, 0.08);
+  }
+}
+
 @media (max-width: 960px) {
   .auth-entry-shell,
   .profile-editor-shell,
@@ -1283,6 +1373,12 @@
 }
 
 @media (max-width: 680px) {
+  .profile-editor-checklist {
+    grid-template-columns: 1fr;
+  }
+  .profile-story-stage-head {
+    flex-direction: column;
+  }
   .auth-entry-shell {
     gap: 12px;
   }

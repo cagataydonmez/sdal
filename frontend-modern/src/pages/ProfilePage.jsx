@@ -121,6 +121,12 @@ export default function ProfilePage() {
   const summaryLine = [profile.meslek, profile.sirket || profile.unvan].filter(Boolean).join(' · ') || t('profile_editor_work_empty');
   const summaryLocation = profile.sehir || t('profile_editor_city_empty');
   const needsProfileCompletion = String(user?.state || '').toLowerCase() === 'incomplete';
+  const heroSignals = [
+    String(profile.mezuniyetyili || '').trim(),
+    profile.sehir || '',
+    profile.meslek || profile.unvan || '',
+    Number(profile.mentor_opt_in || 0) === 1 ? t('profile_mentor_opt_in') : ''
+  ].filter(Boolean);
 
   async function refreshStories() {
     try {
@@ -213,12 +219,21 @@ export default function ProfilePage() {
           <div className="panel-body profile-editor-main-body">
             <section className="profile-editor-hero">
               <div className="profile-editor-hero-copy">
+                <span className="network-eyebrow">{t('nav_profile')}</span>
                 <h2 className="profile-editor-title">{t('profile_editor_title')}</h2>
                 <p className="profile-editor-subtitle">{t('profile_editor_subtitle')}</p>
+                {heroSignals.length ? (
+                  <div className="profile-editor-hero-signals">
+                    {heroSignals.map((item) => <span className="chip profile-editor-hero-chip" key={item}>{item}</span>)}
+                  </div>
+                ) : null}
               </div>
               <div className="profile-editor-progress">
                 <div className="profile-editor-progress-label">{t('profile_editor_progress_label')}</div>
                 <div className="profile-editor-progress-value">{completionPercent}%</div>
+                <div className="profile-editor-progress-track" aria-hidden="true">
+                  <span className="profile-editor-progress-bar" style={{ transform: `scaleX(${completionPercent / 100})` }} />
+                </div>
                 <div className="muted">
                   {needsProfileCompletion ? t('profile_completion_required') : t('profile_editor_progress_ready')}
                 </div>
@@ -245,6 +260,7 @@ export default function ProfilePage() {
                 <div className="profile-editor-section-kicker">01</div>
                 <div>
                   <h3>{t('profile_editor_identity_title')}</h3>
+                  <p className="profile-editor-section-hint">{t('profile_editor_identity_hint')}</p>
                 </div>
               </div>
               <div className="profile-editor-grid">
@@ -281,6 +297,7 @@ export default function ProfilePage() {
                 <div className="profile-editor-section-kicker">02</div>
                 <div>
                   <h3>{t('profile_editor_presence_title')}</h3>
+                  <p className="profile-editor-section-hint">{t('profile_editor_presence_hint')}</p>
                 </div>
               </div>
               <div className="profile-editor-grid">
@@ -316,6 +333,7 @@ export default function ProfilePage() {
                 <div className="profile-editor-section-kicker">03</div>
                 <div>
                   <h3>{t('profile_editor_community_title')}</h3>
+                  <p className="profile-editor-section-hint">{t('profile_editor_community_hint')}</p>
                 </div>
               </div>
               <div className="profile-editor-grid">
@@ -365,7 +383,7 @@ export default function ProfilePage() {
               {Number(user?.verified || 0) === 1 ? <Link className="btn ghost" to="/new/requests?category=graduation_year_change">{t('profile_graduation_change_request_cta')}</Link> : null}
               <Link className="btn ghost" to="/new/profile/photo">{t('profile_photo_title')}</Link>
               {profile?.id ? <Link className="btn ghost" to={`/new/members/${profile.id}`}>{t('profile_preview_members')}</Link> : null}
-              {String(profile?.mezuniyetyili || '').toLowerCase() === 'teacher' ? <Link className="btn ghost" to="/new/network/teachers">Öğretmen Ağı Yönetimi</Link> : null}
+              {String(profile?.mezuniyetyili || '').toLowerCase() === 'teacher' ? <Link className="btn ghost" to="/new/network/teachers">{t('nav_teacher_network')}</Link> : null}
               {Number(user?.verified || 0) !== 1 ? <Link className="btn ghost" to="/new/profile/verification">{t('profile_verification_page_cta')}</Link> : null}
             </div>
 
@@ -376,10 +394,19 @@ export default function ProfilePage() {
 
         <aside className="panel profile-editor-sidebar">
           <div className="panel-body profile-editor-sidebar-body">
+            <div className="profile-editor-sidebar-head">
+              <div className="profile-editor-actions-title">{t('profile_editor_sidebar_title')}</div>
+              <p className="muted">{t('profile_editor_sidebar_hint')}</p>
+            </div>
             <div>
               <h3 className="profile-editor-preview-name">{displayName}</h3>
               <div className="profile-editor-preview-meta">{summaryLocation}</div>
               <div className="profile-editor-preview-meta">{summaryLine}</div>
+              {heroSignals.length ? (
+                <div className="profile-editor-preview-chip-row">
+                  {heroSignals.slice(0, 3).map((item) => <span className="chip" key={`preview-${item}`}>{item}</span>)}
+                </div>
+              ) : null}
             </div>
             <div className={`profile-editor-visibility ${needsProfileCompletion ? '' : 'is-ready'}`}>
               {needsProfileCompletion ? t('profile_editor_visibility_incomplete') : t('profile_editor_visibility_ready')}
@@ -394,10 +421,17 @@ export default function ProfilePage() {
         </aside>
       </section>
 
-      <div className="panel">
+      <div className="panel profile-stories-shell">
         <h3>{t('my_stories')}</h3>
-        <div className="panel-body">
-          <div className="muted">{t('active_stories')}</div>
+        <div className="panel-body profile-stories-body">
+          <section className="profile-story-stage">
+          <div className="profile-story-stage-head">
+            <div>
+              <div className="profile-editor-actions-title">{t('active_stories')}</div>
+              <p className="muted">{t('profile_editor_story_active_hint')}</p>
+            </div>
+            <span className="chip">{activeStories.length}</span>
+          </div>
           <div className="story-profile-grid">
             {activeStories.map((s) => (
               <article key={s.id} className="story-mini-card">
@@ -422,8 +456,16 @@ export default function ProfilePage() {
               </div>
             ) : null}
           </div>
+          </section>
 
-          <div className="muted">{t('expired_stories')}</div>
+          <section className="profile-story-stage">
+          <div className="profile-story-stage-head">
+            <div>
+              <div className="profile-editor-actions-title">{t('expired_stories')}</div>
+              <p className="muted">{t('profile_editor_story_expired_hint')}</p>
+            </div>
+            <span className="chip">{expiredStories.length}</span>
+          </div>
           <div className="story-profile-grid">
             {expiredStories.map((s) => (
               <article key={s.id} className="story-mini-card expired">
@@ -450,6 +492,7 @@ export default function ProfilePage() {
               </div>
             ) : null}
           </div>
+          </section>
         </div>
       </div>
     </Layout>
