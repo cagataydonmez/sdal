@@ -7,6 +7,11 @@ function mergeClassName(...parts) {
 
 function iconPrimitives(name, active) {
   switch (name) {
+    case 'chevron-down':
+      return [
+        { key: 'left', type: 'line', x1: 6, y1: 9, x2: 12, y2: 15, variant: 'draw', animate: { pathLength: [0.2, 1], opacity: [0.35, 1] } },
+        { key: 'right', type: 'line', x1: 12, y1: 15, x2: 18, y2: 9, variant: 'draw', animate: { pathLength: [0.2, 1], opacity: [0.35, 1], transition: { delay: 0.04 } } }
+      ];
     case 'menu':
       return [
         { key: 'top', type: 'line', x1: 4, y1: 7, x2: 20, y2: 7, variant: 'line-slide', animate: { x1: [6, 4], x2: [18, 20] } },

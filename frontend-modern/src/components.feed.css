@@ -201,6 +201,12 @@
 .feed-mobile-scope-card .scope-btn-icon {
   flex: 0 0 auto;
 }
+.feed-mobile-tabs-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
 .feed-composer-shell {
   position: relative;
   overflow: hidden;
