@@ -527,6 +527,10 @@ export default function FeedPage() {
                         </button>
                       ))}
                     </div>
+                    <div className="scope-mobile-selected-title" aria-live="polite">
+                      <span>{t('feed_filter_selected')}</span>
+                      <strong>{activeFilterLabel}</strong>
+                    </div>
                   </div>
                 </div>
               </div>

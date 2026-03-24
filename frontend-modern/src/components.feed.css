@@ -4,12 +4,14 @@
   background: color-mix(in srgb, #ffffff 20%, transparent);
   border-color: color-mix(in srgb, #ffffff 38%, transparent);
 }
+.scope-mobile-selected-title,
 .feed-mobile-selected-title {
   display: none;
   margin-top: 8px;
   text-align: center;
   color: color-mix(in srgb, var(--text) 62%, var(--muted) 38%);
 }
+.scope-mobile-selected-title span,
 .feed-mobile-selected-title span {
   display: block;
   font-size: 0.72rem;
@@ -17,6 +19,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+.scope-mobile-selected-title strong,
 .feed-mobile-selected-title strong {
   display: block;
   margin-top: 4px;

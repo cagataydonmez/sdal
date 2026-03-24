@@ -603,6 +603,11 @@ body.story-view-open .global-feedback {
   .feed-mobile-scope-card .scope-btn-label {
     display: none;
   }
+  .scope-mobile-selected-title {
+    display: grid;
+    gap: 2px;
+    padding-top: 2px;
+  }
   .feed-mobile-selected-title {
     display: none;
   }
