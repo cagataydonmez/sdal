@@ -335,7 +335,65 @@ export default function TeachersNetworkPage() {
         </div>
       </section>
 
-      <div className="network-dashboard network-dashboard-tight">
+      <div className="network-dashboard network-dashboard-tight teacher-composer-layout">
+        <div className={`panel teacher-preview-panel${prefilledExperience ? ' is-prefilled' : ''}${handoffReady ? ' is-handoff-ready' : ''}${selectedTeacher ? ' has-selection' : ''}`} id="teacher-preview" ref={previewPanelRef}>
+          <div className="network-section-head">
+            <div>
+              <span className="network-section-kicker">{t('teacher_preview_section_title')}</span>
+              <h3>{t('teacher_preview_title')}</h3>
+              <p>{t('teacher_preview_description')}</p>
+            </div>
+          </div>
+          <div className="panel-body stack">
+            {selectedTeacher ? (
+              <div className="network-highlight-card teacher-preview-card-active">
+                {sourceSurface === 'member-detail' ? <span className="network-eyebrow teacher-preview-eyebrow">{t('teacher_crossover_ready_note')}</span> : null}
+                <div className="network-highlight-title">{teacherOptionLabel(selectedTeacher)}</div>
+                <div className="network-highlight-meta">
+                  <span className="chip">{t('teacher_preview_student_count', { count: selectedTeacher.student_count || 0 })}</span>
+                  {selectedTeacher.mezuniyetyili ? <span className="chip">{t('teacher_preview_cohort', { year: selectedTeacher.mezuniyetyili })}</span> : null}
+                  {Number(selectedTeacher.existing_link_count || 0) > 0 ? <span className="chip">{t('teacher_preview_existing_link', { count: selectedTeacher.existing_link_count })}</span> : null}
+                </div>
+                <p className="muted">{t('teacher_preview_notification')}</p>
+                <div className="teacher-preview-actions">
+                  <Link className="btn ghost" to={`/new/members/${selectedTeacher.id}`}>{t('teacher_preview_open_profile')}</Link>
+                </div>
+                {Number(selectedTeacher.existing_link_count || 0) > 0 ? (
+                  <div className="network-guidance-list">
+                    {selectedTeacherExistingTypes.length ? (
+                      <div className="network-guidance-item">
+                        <strong>{t('teacher_preview_existing_types')}</strong>
+                        <span>{selectedTeacherExistingTypes.join(', ')}</span>
+                      </div>
+                    ) : null}
+                    {selectedTeacherExistingYears.length ? (
+                      <div className="network-guidance-item">
+                        <strong>{t('teacher_preview_existing_years')}</strong>
+                        <span>{selectedTeacherExistingYears.join(', ')}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="network-empty-state">
+                <strong>{t('teacher_preview_empty_title')}</strong>
+                <span>{t('teacher_preview_empty_description')}</span>
+              </div>
+            )}
+            <div className="network-guidance-list">
+              <div className="network-guidance-item">
+                <strong>{t('teacher_guidance_deep_link_title')}</strong>
+                <span>{t('teacher_guidance_deep_link_description')}</span>
+              </div>
+              <div className="network-guidance-item">
+                <strong>{t('teacher_guidance_safe_select_title')}</strong>
+                <span>{t('teacher_guidance_safe_select_description')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className={`panel network-panel-emphasis teacher-form-panel${prefilledExperience ? ' is-prefilled' : ''}${handoffReady ? ' is-handoff-ready' : ''}`}>
           <div className="network-section-head">
             <div>
@@ -446,101 +504,41 @@ export default function TeachersNetworkPage() {
           </div>
         </div>
 
-        <div className="network-column teacher-network-side-column">
-          <div className={`panel teacher-preview-panel${prefilledExperience ? ' is-prefilled' : ''}${handoffReady ? ' is-handoff-ready' : ''}${selectedTeacher ? ' has-selection' : ''}`} id="teacher-preview" ref={previewPanelRef}>
-            <div className="network-section-head">
-              <div>
-                <span className="network-section-kicker">{t('teacher_preview_section_title')}</span>
-                <h3>{t('teacher_preview_title')}</h3>
-                <p>{t('teacher_preview_description')}</p>
-              </div>
-            </div>
-            <div className="panel-body stack">
-              {selectedTeacher ? (
-                <div className="network-highlight-card teacher-preview-card-active">
-                  {sourceSurface === 'member-detail' ? <span className="network-eyebrow teacher-preview-eyebrow">{t('teacher_crossover_ready_note')}</span> : null}
-                  <div className="network-highlight-title">{teacherOptionLabel(selectedTeacher)}</div>
-                  <div className="network-highlight-meta">
-                    <span className="chip">{t('teacher_preview_student_count', { count: selectedTeacher.student_count || 0 })}</span>
-                    {selectedTeacher.mezuniyetyili ? <span className="chip">{t('teacher_preview_cohort', { year: selectedTeacher.mezuniyetyili })}</span> : null}
-                    {Number(selectedTeacher.existing_link_count || 0) > 0 ? <span className="chip">{t('teacher_preview_existing_link', { count: selectedTeacher.existing_link_count })}</span> : null}
-                  </div>
-                  <p className="muted">{t('teacher_preview_notification')}</p>
-                  <div className="teacher-preview-actions">
-                    <Link className="btn ghost" to={`/new/members/${selectedTeacher.id}`}>{t('teacher_preview_open_profile')}</Link>
-                  </div>
-                  {Number(selectedTeacher.existing_link_count || 0) > 0 ? (
-                    <div className="network-guidance-list">
-                      {selectedTeacherExistingTypes.length ? (
-                        <div className="network-guidance-item">
-                          <strong>{t('teacher_preview_existing_types')}</strong>
-                          <span>{selectedTeacherExistingTypes.join(', ')}</span>
-                        </div>
-                      ) : null}
-                      {selectedTeacherExistingYears.length ? (
-                        <div className="network-guidance-item">
-                          <strong>{t('teacher_preview_existing_years')}</strong>
-                          <span>{selectedTeacherExistingYears.join(', ')}</span>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="network-empty-state">
-                  <strong>{t('teacher_preview_empty_title')}</strong>
-                  <span>{t('teacher_preview_empty_description')}</span>
-                </div>
-              )}
-              <div className="network-guidance-list">
-                <div className="network-guidance-item">
-                  <strong>{t('teacher_guidance_deep_link_title')}</strong>
-                  <span>{t('teacher_guidance_deep_link_description')}</span>
-                </div>
-                <div className="network-guidance-item">
-                  <strong>{t('teacher_guidance_safe_select_title')}</strong>
-                  <span>{t('teacher_guidance_safe_select_description')}</span>
-                </div>
-              </div>
+        <div className={`panel teacher-value-panel${prefilledExperience ? ' is-prefilled' : ''}${handoffReady ? ' is-handoff-ready' : ''}`}>
+          <div className="network-section-head">
+            <div>
+              <span className="network-section-kicker">{t('teacher_value_panel_kicker')}</span>
+              <h3>{t('teacher_value_panel_title')}</h3>
+              <p>{t('teacher_value_panel_description')}</p>
             </div>
           </div>
-
-          <div className={`panel teacher-value-panel${prefilledExperience ? ' is-prefilled' : ''}${handoffReady ? ' is-handoff-ready' : ''}`}>
-            <div className="network-section-head">
-              <div>
-                <span className="network-section-kicker">{t('teacher_value_panel_kicker')}</span>
-                <h3>{t('teacher_value_panel_title')}</h3>
-                <p>{t('teacher_value_panel_description')}</p>
+          <div className="panel-body stack">
+            <div className="network-value-list">
+              <div className="network-value-card">
+                <strong>{t('teacher_value_1_title')}</strong>
+                <span>{t('teacher_value_1_description')}</span>
+              </div>
+              <div className="network-value-card">
+                <strong>{t('teacher_value_2_title')}</strong>
+                <span>{t('teacher_value_2_description')}</span>
+              </div>
+              <div className="network-value-card">
+                <strong>{t('teacher_value_3_title')}</strong>
+                <span>{t('teacher_value_3_description')}</span>
+              </div>
+              <div className="network-value-card">
+                <strong>{t('teacher_value_4_title')}</strong>
+                <span>{t('teacher_value_4_description')}</span>
               </div>
             </div>
-            <div className="panel-body stack">
-              <div className="network-value-list">
-                <div className="network-value-card">
-                  <strong>{t('teacher_value_1_title')}</strong>
-                  <span>{t('teacher_value_1_description')}</span>
-                </div>
-                <div className="network-value-card">
-                  <strong>{t('teacher_value_2_title')}</strong>
-                  <span>{t('teacher_value_2_description')}</span>
-                </div>
-                <div className="network-value-card">
-                  <strong>{t('teacher_value_3_title')}</strong>
-                  <span>{t('teacher_value_3_description')}</span>
-                </div>
-                <div className="network-value-card">
-                  <strong>{t('teacher_value_4_title')}</strong>
-                  <span>{t('teacher_value_4_description')}</span>
-                </div>
+            <div className="network-guidance-list">
+              <div className="network-guidance-item">
+                <strong>{t('teacher_guidance_when_title')}</strong>
+                <span>{t('teacher_guidance_when_description')}</span>
               </div>
-              <div className="network-guidance-list">
-                <div className="network-guidance-item">
-                  <strong>{t('teacher_guidance_when_title')}</strong>
-                  <span>{t('teacher_guidance_when_description')}</span>
-                </div>
-                <div className="network-guidance-item">
-                  <strong>{t('teacher_guidance_for_title')}</strong>
-                  <span>{t('teacher_guidance_for_description')}</span>
-                </div>
+              <div className="network-guidance-item">
+                <strong>{t('teacher_guidance_for_title')}</strong>
+                <span>{t('teacher_guidance_for_description')}</span>
               </div>
             </div>
           </div>

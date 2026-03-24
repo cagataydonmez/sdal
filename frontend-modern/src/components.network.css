@@ -398,6 +398,58 @@
 .teacher-network-side-column {
   gap: clamp(14px, 2.5vw, 20px);
 }
+.teacher-composer-layout {
+  grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+  grid-template-areas:
+    "form preview"
+    "form value";
+}
+.teacher-composer-layout .teacher-preview-panel { grid-area: preview; }
+.teacher-composer-layout .teacher-form-panel { grid-area: form; }
+.teacher-composer-layout .teacher-value-panel { grid-area: value; }
+
+@media (min-width: 981px) and (max-width: 1240px) {
+  .teacher-composer-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(292px, 0.82fr);
+    gap: 14px;
+  }
+  .teacher-composer-layout .teacher-form-panel .network-form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .teacher-composer-layout .teacher-form-panel .network-form-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .teacher-composer-layout .teacher-form-panel .network-form-footer .btn {
+    width: 100%;
+  }
+  .teacher-composer-layout .teacher-form-panel .network-form-footer .muted {
+    max-width: 40ch;
+  }
+  .teacher-composer-layout .teacher-preview-panel,
+  .teacher-composer-layout .teacher-value-panel {
+    align-self: start;
+  }
+  .teacher-composer-layout .teacher-preview-panel .panel-body,
+  .teacher-composer-layout .teacher-value-panel .panel-body {
+    gap: 12px;
+  }
+  .teacher-composer-layout .teacher-preview-card-active {
+    padding: 16px;
+  }
+  .teacher-composer-layout .network-highlight-meta,
+  .teacher-composer-layout .network-history-meta {
+    flex-wrap: wrap;
+  }
+  .teacher-composer-layout .network-value-list {
+    grid-template-columns: 1fr;
+  }
+  .teacher-crossover-panel .category-map-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .network-list,
 .network-history-list,
 .network-guidance-list {
@@ -1291,6 +1343,41 @@
     flex-direction: column;
     align-items: flex-start;
   }
+  .teacher-composer-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "preview"
+      "form"
+      "value";
+  }
+  .teacher-composer-layout .teacher-preview-panel .panel-body,
+  .teacher-composer-layout .teacher-value-panel .panel-body {
+    gap: 12px;
+  }
+  .teacher-composer-layout .teacher-preview-card-active {
+    padding: 16px;
+  }
+  .teacher-composer-layout .teacher-preview-actions .btn,
+  .teacher-composer-layout .teacher-form-footer .btn {
+    width: 100%;
+  }
+  .teacher-composer-layout .teacher-form-footer {
+    gap: 10px;
+  }
+  .teacher-composer-layout .teacher-form-footer .muted {
+    display: block;
+    max-width: 42ch;
+  }
+  .teacher-composer-layout .network-guidance-list {
+    gap: 10px;
+  }
+  .teacher-composer-layout .network-value-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .teacher-crossover-panel .category-map-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1312,6 +1399,44 @@
   .network-window-tabs .btn {
     width: 100%;
   }
+  .teacher-composer-layout .teacher-form-panel,
+  .teacher-composer-layout .teacher-preview-panel,
+  .teacher-composer-layout .teacher-value-panel,
+  .teacher-history-panel {
+    border-radius: 20px;
+  }
+  .teacher-composer-layout .teacher-form-panel .network-section-head,
+  .teacher-composer-layout .teacher-preview-panel .network-section-head,
+  .teacher-composer-layout .teacher-value-panel .network-section-head,
+  .teacher-history-panel .network-section-head {
+    gap: 10px;
+  }
+  .teacher-composer-layout .teacher-preview-card-active {
+    gap: 10px;
+  }
+  .teacher-composer-layout .teacher-preview-actions {
+    flex-direction: column;
+  }
+  .teacher-composer-layout .teacher-preview-actions .btn {
+    width: 100%;
+  }
+  .teacher-composer-layout .network-highlight-meta,
+  .teacher-composer-layout .network-history-meta,
+  .teacher-history-panel .network-filter-bar {
+    flex-wrap: wrap;
+  }
+  .teacher-composer-layout .network-value-list {
+    grid-template-columns: 1fr;
+  }
+  .teacher-composer-layout .network-value-card {
+    min-height: 0;
+  }
+  .teacher-crossover-panel .category-map-grid {
+    grid-template-columns: 1fr;
+  }
+  .teacher-crossover-panel .category-map-card {
+    min-height: 0;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1321,6 +1446,25 @@
   .network-avatar-link img {
     width: 56px;
     height: 56px;
+  }
+  .teacher-composer-layout .teacher-form-panel .panel-body,
+  .teacher-composer-layout .teacher-preview-panel .panel-body,
+  .teacher-composer-layout .teacher-value-panel .panel-body,
+  .teacher-history-panel .panel-body {
+    gap: 12px;
+  }
+  .teacher-composer-layout .teacher-preview-card-active,
+  .teacher-composer-layout .network-guidance-item,
+  .teacher-composer-layout .network-history-card,
+  .teacher-composer-layout .network-value-card {
+    padding: 13px;
+  }
+  .teacher-composer-layout .network-highlight-title {
+    font-size: 1rem;
+  }
+  .teacher-history-panel .network-filter-bar .btn,
+  .teacher-history-panel .network-filter-bar .input {
+    width: 100%;
   }
 }
 
