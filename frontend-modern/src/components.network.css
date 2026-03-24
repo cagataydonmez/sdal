@@ -424,6 +424,10 @@
   background: linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 92%, transparent) 100%);
   border-color: color-mix(in srgb, var(--line) 82%, white 18%);
 }
+.explore-filter-panel {
+  display: grid;
+  gap: 12px;
+}
 .explore-panel-suggestions .panel-body {
   display: grid;
   gap: 14px;
@@ -460,6 +464,42 @@
   border: 1px solid color-mix(in srgb, var(--accent-soft-line) 74%, transparent);
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
+}
+.explore-panel-toggle {
+  width: calc(100% - 18px);
+  margin: 0 9px 9px;
+  min-height: 48px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 16px;
+}
+.explore-panel-toggle-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+.explore-panel-toggle-copy strong {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.explore-panel-toggle-copy span {
+  color: color-mix(in srgb, var(--ink) 74%, var(--muted) 26%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.explore-panel-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.18s ease;
+}
+.explore-panel-toggle-icon.is-open {
+  transform: rotate(180deg);
 }
 .explore-search-shell {
   display: flex;
@@ -561,6 +601,19 @@
 .explore-results-stage {
   padding: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--card) 95%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 92%, transparent) 100%);
+}
+.explore-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+}
+.explore-pagination-status {
+  min-width: 76px;
+  justify-content: center;
 }
 .explore-member-card {
   display: grid;
@@ -757,6 +810,23 @@
 }
 
 @media (max-width: 680px) {
+  .explore-page-shell {
+    gap: 14px;
+  }
+  .explore-panel {
+    padding: 0;
+  }
+  .explore-panel-heading,
+  .explore-results-head {
+    padding: 16px 16px 0;
+  }
+  .explore-panel .panel-body,
+  .explore-results-stage {
+    padding: 16px;
+  }
+  .explore-panel-toggle {
+    display: flex;
+  }
   .explore-filter-row {
     grid-template-columns: 1fr;
   }
@@ -799,6 +869,13 @@
     flex-wrap: wrap;
     justify-content: flex-start;
     gap: 8px;
+  }
+  .explore-pagination {
+    flex-wrap: wrap;
+  }
+  .explore-pagination .btn,
+  .explore-pagination-status {
+    width: 100%;
   }
 }
 

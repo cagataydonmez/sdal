@@ -4,6 +4,7 @@ import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { readApiPayload, unwrapApiData } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useAuth } from '../utils/auth.jsx';
 import { NETWORKING_TELEMETRY_EVENTS, sendNetworkingTelemetry } from '../utils/networkingTelemetry.js';
 import {
   getConnectionActionEvent,
@@ -33,8 +34,14 @@ function ExploreIcon({ name }) {
   }
 }
 
+function getExploreMobileMatch() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(max-width: 680px)').matches;
+}
+
 export default function ExplorePage({ fullMode = false }) {
   const { t, lang } = useI18n();
+  const { user, loading: authLoading } = useAuth();
   const [members, setMembers] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [followingIds, setFollowingIds] = useState(() => new Set());
@@ -42,6 +49,8 @@ export default function ExplorePage({ fullMode = false }) {
   const [outgoingConnectionMap, setOutgoingConnectionMap] = useState({});
   const [pendingFollow, setPendingFollow] = useState({});
   const [pendingConnection, setPendingConnection] = useState({});
+  const [isMobile, setIsMobile] = useState(getExploreMobileMatch);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({
     relation: 'all',
@@ -60,8 +69,8 @@ export default function ExplorePage({ fullMode = false }) {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
-  const sentinelRef = useRef(null);
   const suggestionTelemetrySentRef = useRef(false);
+  const defaultGradYearAppliedRef = useRef(false);
 
   const yearNow = new Date().getFullYear();
   const yearOptions = useMemo(() => {
@@ -80,8 +89,12 @@ export default function ExplorePage({ fullMode = false }) {
       return '';
     }
   }, [lang]);
+  const defaultGradYear = useMemo(() => {
+    const raw = String(user?.mezuniyetyili || '').trim();
+    return /^\d{4}$/.test(raw) ? raw : '';
+  }, [user?.mezuniyetyili]);
 
-  const load = useCallback(async (term = '', nextPage = 1, append = false, activeFilters = filters) => {
+  const load = useCallback(async (term = '', nextPage = 1, activeFilters = filters) => {
     setLoading(true);
     const params = new URLSearchParams();
     params.set('page', String(nextPage));
@@ -102,17 +115,7 @@ export default function ExplorePage({ fullMode = false }) {
 
     const res = await fetch(`/api/members?${params.toString()}`, { credentials: 'include' });
     const payload = await res.json();
-    setMembers((prev) => {
-      const rows = payload.rows || [];
-      if (!append) return rows;
-      const ids = new Set(prev.map((x) => Number(x.id)));
-      const merged = [...prev];
-      for (const row of rows) {
-        const key = Number(row.id);
-        if (!ids.has(key)) merged.push(row);
-      }
-      return merged;
-    });
+    setMembers(payload.rows || []);
     setPage(payload.page || nextPage);
     setPages(payload.pages || 1);
     setLoading(false);
@@ -178,6 +181,31 @@ export default function ExplorePage({ fullMode = false }) {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(max-width: 680px)');
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      return () => mq.removeEventListener('change', sync);
+    }
+    mq.addListener(sync);
+    return () => mq.removeListener(sync);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    setMobileFiltersOpen(false);
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (authLoading || defaultGradYearAppliedRef.current) return;
+    defaultGradYearAppliedRef.current = true;
+    if (!defaultGradYear) return;
+    setFilters((prev) => (prev.gradYear ? prev : { ...prev, gradYear: defaultGradYear }));
+  }, [authLoading, defaultGradYear]);
+
+  useEffect(() => {
     void sendNetworkingTelemetry({
       eventName: NETWORKING_TELEMETRY_EVENTS.exploreViewed,
       sourceSurface: 'explore_page',
@@ -189,27 +217,12 @@ export default function ExplorePage({ fullMode = false }) {
   }, [fullMode, loadFollows, loadSuggestions, loadConnectionRequests]);
 
   useEffect(() => {
+    if (authLoading) return undefined;
     const timer = setTimeout(() => {
-      load(query, 1, false, filters);
+      load(query, 1, filters);
     }, 280);
     return () => clearTimeout(timer);
-  }, [query, filters, load]);
-
-  const loadMore = useCallback(() => {
-    if (!fullMode || loading || page >= pages) return;
-    load(query, page + 1, true, filters);
-  }, [fullMode, loading, page, pages, load, query, filters]);
-
-  useEffect(() => {
-    if (!fullMode) return undefined;
-    const node = sentinelRef.current;
-    if (!node) return undefined;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) loadMore();
-    }, { rootMargin: '300px 0px' });
-    io.observe(node);
-    return () => io.disconnect();
-  }, [loadMore, fullMode]);
+  }, [authLoading, query, filters, load]);
 
   async function toggleFollow(id) {
     const key = Number(id);
@@ -395,6 +408,135 @@ export default function ExplorePage({ fullMode = false }) {
     }
     return items;
   }, [filters, query, t]);
+  const mobileFilterSummary = activeFilterTags.length ? activeFilterTags.slice(0, 2).join(' · ') : t('explore_filtered_hint');
+  const showFilterBody = !isMobile || mobileFiltersOpen;
+  const goToPage = useCallback((nextPage) => {
+    if (!fullMode || loading || nextPage < 1 || nextPage > pages || nextPage === page) return;
+    load(query, nextPage, filters);
+  }, [filters, fullMode, load, loading, page, pages, query]);
+  const suggestionsPanel = (
+    <div className="panel explore-panel explore-panel-suggestions">
+      <div className="explore-panel-heading">
+        <div>
+          <span className="explore-panel-eyebrow">{t('explore_suggestions_title')}</span>
+          <h3>{t('explore_suggestions_title')}</h3>
+        </div>
+        <span className="explore-panel-count">{suggestions.length}</span>
+      </div>
+      <div className="panel-body">
+        {loadingSuggestions ? <div className="explore-inline-state">{t('explore_suggestions_loading')}</div> : null}
+        {!loadingSuggestions && suggestions.length === 0 ? (
+          <div className="network-empty-state">
+            <strong>{t('explore_suggestions_empty')}</strong>
+            <span>{t('explore_filtered_hint')}</span>
+          </div>
+        ) : null}
+        {spotlightSuggestion ? (
+          <div className="explore-suggestion-layout">
+            <div className="explore-suggestion-spotlight">
+              {renderMemberCard(spotlightSuggestion, true)}
+            </div>
+            <div className="explore-suggestion-rail">
+              {suggestionRailItems.map((m) => (
+                <div key={`suggestion-rail-${m.id}`} className="explore-suggestion-rail-item">
+                  {renderMemberCard(m, true)}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {!fullMode ? <Link className="btn ghost explore-panel-link" to="/new/explore/suggestions">{t('see_all')}</Link> : null}
+      </div>
+    </div>
+  );
+  const filterPanel = (
+    <div className="panel explore-panel explore-filter-panel">
+      <div className="explore-panel-heading">
+        <div>
+          <span className="explore-panel-eyebrow">{t('explore_filtered_title')}</span>
+          <h3>{t('explore_filtered_title')}</h3>
+        </div>
+        <span className="explore-panel-count">{activeFilterTags.length}</span>
+      </div>
+      {isMobile ? (
+        <button
+          type="button"
+          className={`btn ghost explore-panel-toggle ${mobileFiltersOpen ? 'is-open' : ''}`}
+          onClick={() => setMobileFiltersOpen((prev) => !prev)}
+          aria-expanded={mobileFiltersOpen}
+        >
+          <span className="explore-panel-toggle-copy">
+            <strong>{mobileFiltersOpen ? t('close') : t('open')}</strong>
+            <span>{mobileFilterSummary}</span>
+          </span>
+          <span className={`explore-panel-toggle-icon ${mobileFiltersOpen ? 'is-open' : ''}`} aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </span>
+        </button>
+      ) : null}
+      {showFilterBody ? (
+        <div className="panel-body stack">
+          <div className="muted">{t('explore_filtered_hint')}</div>
+          <label className="explore-search-shell">
+            <span className="explore-search-icon" aria-hidden="true"><ExploreIcon name="search" /></span>
+            <input className="search explore-search-input" placeholder={t('member_search_short')} value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <div className="explore-filter-row">
+            <select className="input explore-filter-input" value={filters.relation} onChange={(e) => setFilter('relation', e.target.value)}>
+              <option value="all">{t('everyone')}</option>
+              <option value="not_following">{t('explore_relation_not_following')}</option>
+              <option value="following">{t('nav_following')}</option>
+            </select>
+            <select className="input explore-filter-input" value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
+              <option value="recommended">{t('sort_recommended')}</option>
+              <option value="engagement">{t('sort_engagement')}</option>
+              <option value="name">{t('sort_name')}</option>
+              <option value="recent">{t('sort_recent_members')}</option>
+              <option value="online">{t('sort_online_first')}</option>
+              <option value="year">{t('sort_graduation_year')}</option>
+            </select>
+            <select className="input explore-filter-input" value={filters.gradYear} onChange={(e) => setFilter('gradYear', e.target.value)}>
+              <option value="">{t('all_years')}</option>
+              {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div className="explore-chip-row">
+            <label className={`chip explore-filter-chip ${filters.verified ? 'is-active' : ''}`}>
+              <input type="checkbox" checked={filters.verified} onChange={(e) => setFilter('verified', e.target.checked)} />
+              {t('verified')}
+            </label>
+            <label className={`chip explore-filter-chip ${filters.withPhoto ? 'is-active' : ''}`}>
+              <input type="checkbox" checked={filters.withPhoto} onChange={(e) => setFilter('withPhoto', e.target.checked)} />
+              {t('with_photo')}
+            </label>
+            <label className={`chip explore-filter-chip ${filters.online ? 'is-active' : ''}`}>
+              <input type="checkbox" checked={filters.online} onChange={(e) => setFilter('online', e.target.checked)} />
+              {t('status_online')}
+            </label>
+            <label className={`chip explore-filter-chip ${filters.mentors ? 'is-active' : ''}`}>
+              <input type="checkbox" checked={filters.mentors} onChange={(e) => setFilter('mentors', e.target.checked)} />
+              {t('mentors')}
+            </label>
+          </div>
+          <div className="explore-filter-row">
+            <input className="input explore-filter-input" placeholder={t('location')} value={filters.location} onChange={(e) => setFilter('location', e.target.value)} />
+            <input className="input explore-filter-input" placeholder={t('profession')} value={filters.profession} onChange={(e) => setFilter('profession', e.target.value)} />
+            <input className="input explore-filter-input" placeholder={t('profile_expertise')} value={filters.expertise} onChange={(e) => setFilter('expertise', e.target.value)} />
+            <input className="input explore-filter-input" placeholder={t('profile_title')} value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
+          </div>
+          {activeFilterTags.length ? (
+            <div className="explore-active-filter-list">
+              {activeFilterTags.slice(0, 8).map((tag) => <span key={`active-filter-${tag}`} className="explore-active-filter">{tag}</span>)}
+            </div>
+          ) : null}
+          {loading ? <div className="explore-inline-state">{t('searching')}</div> : null}
+          {!fullMode ? <Link className="btn ghost explore-panel-link" to="/new/explore/members">{t('see_all')}</Link> : null}
+        </div>
+      ) : null}
+    </div>
+  );
   return (
     <Layout title={t('nav_explore')}>
       <div className="explore-page-shell">
@@ -419,106 +561,8 @@ export default function ExplorePage({ fullMode = false }) {
         </section>
 
         <div className="explore-discovery-grid">
-          <div className="panel explore-panel explore-panel-suggestions">
-            <div className="explore-panel-heading">
-              <div>
-                <span className="explore-panel-eyebrow">{t('explore_suggestions_title')}</span>
-                <h3>{t('explore_suggestions_title')}</h3>
-              </div>
-              <span className="explore-panel-count">{suggestions.length}</span>
-            </div>
-            <div className="panel-body">
-              {loadingSuggestions ? <div className="explore-inline-state">{t('explore_suggestions_loading')}</div> : null}
-              {!loadingSuggestions && suggestions.length === 0 ? (
-                <div className="network-empty-state">
-                  <strong>{t('explore_suggestions_empty')}</strong>
-                  <span>{t('explore_filtered_hint')}</span>
-                </div>
-              ) : null}
-              {spotlightSuggestion ? (
-                <div className="explore-suggestion-layout">
-                  <div className="explore-suggestion-spotlight">
-                    {renderMemberCard(spotlightSuggestion, true)}
-                  </div>
-                  <div className="explore-suggestion-rail">
-                    {suggestionRailItems.map((m) => (
-                      <div key={`suggestion-rail-${m.id}`} className="explore-suggestion-rail-item">
-                        {renderMemberCard(m, true)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {!fullMode ? <Link className="btn ghost explore-panel-link" to="/new/explore/suggestions">{t('see_all')}</Link> : null}
-            </div>
-          </div>
-
-          <div className="panel explore-panel explore-filter-panel">
-            <div className="explore-panel-heading">
-              <div>
-                <span className="explore-panel-eyebrow">{t('explore_filtered_title')}</span>
-                <h3>{t('explore_filtered_title')}</h3>
-              </div>
-              <span className="explore-panel-count">{activeFilterTags.length}</span>
-            </div>
-            <div className="panel-body stack">
-              <div className="muted">{t('explore_filtered_hint')}</div>
-              <label className="explore-search-shell">
-                <span className="explore-search-icon" aria-hidden="true"><ExploreIcon name="search" /></span>
-                <input className="search explore-search-input" placeholder={t('member_search_short')} value={query} onChange={(e) => setQuery(e.target.value)} />
-              </label>
-              <div className="explore-filter-row">
-                <select className="input explore-filter-input" value={filters.relation} onChange={(e) => setFilter('relation', e.target.value)}>
-                  <option value="all">{t('everyone')}</option>
-                  <option value="not_following">{t('explore_relation_not_following')}</option>
-                  <option value="following">{t('nav_following')}</option>
-                </select>
-                <select className="input explore-filter-input" value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
-                  <option value="recommended">{t('sort_recommended')}</option>
-                  <option value="engagement">{t('sort_engagement')}</option>
-                  <option value="name">{t('sort_name')}</option>
-                  <option value="recent">{t('sort_recent_members')}</option>
-                  <option value="online">{t('sort_online_first')}</option>
-                  <option value="year">{t('sort_graduation_year')}</option>
-                </select>
-                <select className="input explore-filter-input" value={filters.gradYear} onChange={(e) => setFilter('gradYear', e.target.value)}>
-                  <option value="">{t('all_years')}</option>
-                  {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div className="explore-chip-row">
-                <label className={`chip explore-filter-chip ${filters.verified ? 'is-active' : ''}`}>
-                  <input type="checkbox" checked={filters.verified} onChange={(e) => setFilter('verified', e.target.checked)} />
-                  {t('verified')}
-                </label>
-                <label className={`chip explore-filter-chip ${filters.withPhoto ? 'is-active' : ''}`}>
-                  <input type="checkbox" checked={filters.withPhoto} onChange={(e) => setFilter('withPhoto', e.target.checked)} />
-                  {t('with_photo')}
-                </label>
-                <label className={`chip explore-filter-chip ${filters.online ? 'is-active' : ''}`}>
-                  <input type="checkbox" checked={filters.online} onChange={(e) => setFilter('online', e.target.checked)} />
-                  {t('status_online')}
-                </label>
-                <label className={`chip explore-filter-chip ${filters.mentors ? 'is-active' : ''}`}>
-                  <input type="checkbox" checked={filters.mentors} onChange={(e) => setFilter('mentors', e.target.checked)} />
-                  {t('mentors')}
-                </label>
-              </div>
-              <div className="explore-filter-row">
-                <input className="input explore-filter-input" placeholder={t('location')} value={filters.location} onChange={(e) => setFilter('location', e.target.value)} />
-                <input className="input explore-filter-input" placeholder={t('profession')} value={filters.profession} onChange={(e) => setFilter('profession', e.target.value)} />
-                <input className="input explore-filter-input" placeholder={t('profile_expertise')} value={filters.expertise} onChange={(e) => setFilter('expertise', e.target.value)} />
-                <input className="input explore-filter-input" placeholder={t('profile_title')} value={filters.title} onChange={(e) => setFilter('title', e.target.value)} />
-              </div>
-              {activeFilterTags.length ? (
-                <div className="explore-active-filter-list">
-                  {activeFilterTags.slice(0, 8).map((tag) => <span key={`active-filter-${tag}`} className="explore-active-filter">{tag}</span>)}
-                </div>
-              ) : null}
-              {loading ? <div className="explore-inline-state">{t('searching')}</div> : null}
-              {!fullMode ? <Link className="btn ghost explore-panel-link" to="/new/explore/members">{t('see_all')}</Link> : null}
-            </div>
-          </div>
+          {!isMobile ? suggestionsPanel : null}
+          {filterPanel}
         </div>
 
         <section className="panel explore-results-stage">
@@ -541,10 +585,16 @@ export default function ExplorePage({ fullMode = false }) {
               <span>{t('explore_filtered_hint')}</span>
             </div>
           ) : null}
+          {fullMode && pages > 1 ? (
+            <div className="explore-pagination">
+              <button className="btn ghost" onClick={() => goToPage(page - 1)} disabled={loading || page <= 1}>{t('back')}</button>
+              <span className="chip explore-pagination-status">{page} / {pages}</span>
+              <button className="btn ghost" onClick={() => goToPage(page + 1)} disabled={loading || page >= pages}>{t('next')}</button>
+            </div>
+          ) : null}
         </section>
-        {fullMode ? <div ref={sentinelRef} /> : null}
+        {isMobile ? suggestionsPanel : null}
         {fullMode && loading ? <div className="explore-inline-state">{t('loading')}</div> : null}
-        {fullMode && !loading && page >= pages && members.length > 0 ? <div className="explore-inline-state">{t('results_end')}</div> : null}
       </div>
     </Layout>
   );
