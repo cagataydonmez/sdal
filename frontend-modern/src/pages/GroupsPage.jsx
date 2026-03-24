@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { LazyMotion, domAnimation, m, useReducedMotion } from 'motion/react';
 import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
@@ -29,7 +28,6 @@ function mergeUniqueById(prev, next) {
 
 export default function GroupsPage() {
   const { t } = useI18n();
-  const shouldReduceMotion = useReducedMotion();
   const PAGE_SIZE = 100;
   const [groups, setGroups] = useState([]);
   const [form, setForm] = useState({ name: '', description: '' });
@@ -98,48 +96,6 @@ export default function GroupsPage() {
   const communityGroups = leadGroup ? groups.slice(1) : groups;
   const totalMembers = groups.reduce((sum, group) => sum + Number(group.members || 0), 0);
 
-  const shellVariants = shouldReduceMotion ? {
-    hidden: { opacity: 1 },
-    show: { opacity: 1 }
-  } : {
-    hidden: { opacity: 0, y: 12 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.45,
-        ease: [0.22, 1, 0.36, 1],
-        staggerChildren: 0.08,
-        delayChildren: 0.04
-      }
-    }
-  };
-
-  const sectionVariants = shouldReduceMotion ? {
-    hidden: { opacity: 1 },
-    show: { opacity: 1 }
-  } : {
-    hidden: { opacity: 0, y: 22 },
-    show: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
-    }
-  };
-
-  const cardVariants = shouldReduceMotion ? {
-    hidden: { opacity: 1 },
-    show: { opacity: 1 }
-  } : {
-    hidden: { opacity: 0, y: 18, scale: 0.985 },
-    show: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] }
-    }
-  };
-
   function groupActionLabel(group) {
     if (group.joined) return t('leave');
     if (group.invited) return t('group_invite_accept');
@@ -149,14 +105,8 @@ export default function GroupsPage() {
 
   return (
     <Layout title={t('nav_groups')}>
-      <LazyMotion features={domAnimation}>
-        <m.section
-          className="groups-page-shell"
-          initial="hidden"
-          animate="show"
-          variants={shellVariants}
-        >
-          <m.div className="panel groups-composer-panel" variants={sectionVariants}>
+      <section className="groups-page-shell">
+          <div className="panel groups-composer-panel">
             <div className="groups-panel-heading">
               <div>
                 <h3>{t('groups_new')}</h3>
@@ -180,27 +130,19 @@ export default function GroupsPage() {
               <button className="btn primary" onClick={create}>{t('create')}</button>
               {error ? <div className="error">{error}</div> : null}
             </div>
-          </m.div>
+          </div>
 
           {leadGroup ? (
-            <m.article
-              className="group-feature"
-              variants={sectionVariants}
-              whileHover={shouldReduceMotion ? undefined : { y: -4, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } }}
-            >
+            <article className="group-feature">
               <div className="group-feature-media-wrap">
                 <div className="group-feature-glow" aria-hidden="true" />
-                <m.div
-                  className="group-feature-media"
-                  whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
-                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                >
+                <div className="group-feature-media">
                   {leadGroup.cover_image ? (
                     <img src={leadGroup.cover_image} alt={contentImageAlt(leadGroup.name || t('nav_groups'), leadGroup.description || '')} />
                   ) : (
                     <div className="group-cover-empty">{t('cover')}</div>
                   )}
-                </m.div>
+                </div>
               </div>
               <div className="group-feature-body">
                 <div className="group-story-kicker">
@@ -216,32 +158,24 @@ export default function GroupsPage() {
                   {groupActionLabel(leadGroup)}
                 </button>
               </div>
-            </m.article>
+            </article>
           ) : null}
 
-          <m.div className="group-story-list" role="list" variants={sectionVariants}>
-            {communityGroups.map((g, index) => (
-              <m.article
+          <div className="group-story-list" role="list">
+            {communityGroups.map((g) => (
+              <article
                 className="group-story-card"
                 key={g.id}
                 role="listitem"
-                layout={!shouldReduceMotion}
-                variants={cardVariants}
-                whileHover={shouldReduceMotion ? undefined : { y: -3 }}
-                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: shouldReduceMotion ? 0 : Math.min(index, 6) * 0.03 }}
               >
                 <Link className="group-story-cover" to={`/new/groups/${g.id}`}>
-                  <m.div
-                    className="group-story-cover-media"
-                    whileHover={shouldReduceMotion ? undefined : { scale: 1.03 }}
-                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                  >
+                  <div className="group-story-cover-media">
                     {g.cover_image ? (
                       <img src={g.cover_image} alt={contentImageAlt(g.name || t('nav_groups'), g.description || '')} />
                     ) : (
                       <div className="group-cover-empty">{t('cover')}</div>
                     )}
-                  </m.div>
+                  </div>
                 </Link>
                 <div className="group-story-main">
                   <Link className="group-story-title" to={`/new/groups/${g.id}`}>{g.name}</Link>
@@ -257,24 +191,21 @@ export default function GroupsPage() {
                     {groupActionLabel(g)}
                   </button>
                 </div>
-              </m.article>
+              </article>
             ))}
-          </m.div>
+          </div>
 
           <div ref={sentinelRef} />
           {loadingMore ? <div className="muted">{t('groups_loading_more')}</div> : null}
           {!loadingMore && hasMore ? (
-            <m.button
+            <button
               className="btn ghost group-story-more"
               onClick={loadMore}
-              whileHover={shouldReduceMotion ? undefined : { y: -2 }}
-              whileTap={shouldReduceMotion ? undefined : { scale: 0.985 }}
             >
               {t('show_more')}
-            </m.button>
+            </button>
           ) : null}
-        </m.section>
-      </LazyMotion>
+      </section>
     </Layout>
   );
 }
