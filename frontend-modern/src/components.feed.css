@@ -56,35 +56,6 @@
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 88%, transparent) 100%);
 }
-.feed-story-scope-copy {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.feed-story-scope-summary {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.feed-story-scope-kicker {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--text) 56%, var(--muted) 44%);
-}
-.feed-story-scope-title {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 1rem;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-}
-.feed-story-scope-note {
-  color: color-mix(in srgb, var(--text) 66%, var(--muted) 34%);
-  font-size: 0.84rem;
-  line-height: 1.35;
-}
 .feed-story-scope-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -157,14 +128,6 @@
   display: grid;
   gap: 8px;
 }
-.feed-scope-group-label {
-  padding: 12px 14px 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--text) 56%, var(--muted) 44%);
-}
 .feed-mobile-scope-card .scope-tabs-feedtype,
 .feed-mobile-scope-card .scope-tabs-filter {
   display: grid;
@@ -223,40 +186,6 @@
   height: 180px;
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--accent-soft-bg) 54%, transparent) 0%, transparent 70%);
-}
-.feed-composer-head {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 16px 0;
-}
-.feed-composer-badge {
-  width: 42px;
-  height: 42px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft-bg) 84%, white 16%) 0%, color-mix(in srgb, var(--accent-soft-bg) 56%, white 44%) 100%);
-  color: color-mix(in srgb, var(--accent) 78%, var(--ink) 22%);
-  box-shadow: 0 12px 24px rgba(255, 107, 74, 0.16);
-}
-.feed-composer-copy {
-  display: grid;
-  gap: 2px;
-}
-.feed-composer-title {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.12rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.feed-composer-meta {
-  color: color-mix(in srgb, var(--text) 64%, var(--muted) 36%);
-  font-size: 0.86rem;
-  line-height: 1.4;
 }
 .feed-composer-shell .composer {
   position: relative;
