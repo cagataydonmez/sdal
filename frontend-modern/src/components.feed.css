@@ -35,10 +35,6 @@
   line-height: 1.45;
   color: color-mix(in srgb, var(--text) 68%, var(--muted) 32%);
 }
-.feed-mobile-controls {
-  display: grid;
-  gap: 12px;
-}
 .feed-primary-stack {
   display: grid;
   gap: clamp(12px, 2.4vw, 18px);
@@ -48,35 +44,53 @@
   display: grid;
   gap: 14px;
 }
-.feed-story-scope-card {
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px;
+.feed-control-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
   border-color: color-mix(in srgb, var(--accent-soft-line) 52%, var(--line) 48%);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 88%, transparent) 100%);
 }
-.feed-story-scope-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+.feed-control-scope,
+.feed-control-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
-.feed-story-scope-card .scope-btn {
-  width: 100%;
-  min-height: 46px;
-  justify-content: center;
-  padding: 10px 12px;
-  border-radius: 14px;
+.feed-control-divider {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+  margin: 0 4px;
+  align-self: center;
 }
-.feed-story-scope-card .scope-btn-icon {
-  display: none;
+.feed-control-scope .scope-btn {
+  min-height: 34px;
+  padding: 6px 14px;
+  border-radius: 10px;
 }
-.feed-story-scope-card .scope-btn-label {
+.feed-control-scope .scope-btn-icon { display: none; }
+.feed-control-scope .scope-btn-label {
   display: inline;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
+  font-size: 0.88rem;
+}
+.feed-control-filter .scope-btn {
+  min-height: 34px;
+  min-width: 34px;
+  width: 34px;
+  padding: 6px;
+  border-radius: 10px;
+  justify-content: center;
+}
+.feed-control-filter .scope-btn-label { display: none; }
+.feed-control-filter .scope-btn-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
 }
 .feed-mobile-stories-wrap {
   overflow: hidden;
@@ -100,69 +114,6 @@
   height: 10px;
   border-radius: 50%;
   background: currentColor;
-}
-.feed-intent-band {
-  display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(240px, 0.82fr);
-  gap: 16px;
-  align-items: start;
-}
-.feed-mobile-scope-card {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 92%, transparent) 100%);
-}
-.feed-mobile-scope-card-subtle {
-  border-color: color-mix(in srgb, var(--line) 88%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 90%, transparent) 0%, color-mix(in srgb, var(--soft-panel) 82%, transparent) 100%);
-  box-shadow: none;
-}
-.feed-mobile-scope-card::before {
-  content: '';
-  position: absolute;
-  inset: auto 16px 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-soft-line) 64%, transparent), transparent);
-}
-.feed-scope-group {
-  display: grid;
-  gap: 8px;
-}
-.feed-mobile-scope-card .scope-tabs-feedtype,
-.feed-mobile-scope-card .scope-tabs-filter {
-  display: grid;
-  justify-content: stretch;
-  align-items: stretch;
-  gap: 8px;
-  overflow: visible;
-}
-.feed-mobile-scope-card .scope-tabs-feedtype {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.feed-mobile-scope-card .scope-tabs-filter {
-  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
-  margin-top: 0;
-}
-.feed-mobile-scope-card .scope-tabs .scope-btn,
-.feed-mobile-scope-card .scope-tabs-feedtype .scope-btn,
-.feed-mobile-scope-card .scope-tabs-filter .scope-btn {
-  width: 100%;
-  min-width: 0;
-  min-height: 48px;
-  padding: 10px 12px;
-  border-radius: 16px;
-  justify-content: flex-start;
-  gap: 8px;
-}
-.feed-mobile-scope-card .scope-btn-label {
-  display: inline;
-  min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-.feed-mobile-scope-card .scope-btn-icon {
-  flex: 0 0 auto;
 }
 .feed-mobile-tabs-toggle-icon {
   display: inline-flex;
@@ -834,12 +785,6 @@
   animation: feed-pulse-dot 1.3s ease-in-out infinite;
 }
 
-@media (max-width: 1024px) {
-  .feed-intent-band {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 680px) {
   .feed-primary-stack {
     gap: 10px;
@@ -852,22 +797,22 @@
     padding: 10px 10px 8px;
     border-radius: 18px;
   }
-  .feed-story-scope-card {
-    padding: 10px 12px;
+  .feed-control-strip {
+    padding: 4px 6px;
     border-radius: 18px;
+    gap: 4px;
   }
-  .feed-story-scope-tabs {
-    gap: 6px;
+  .feed-control-scope .scope-btn {
+    min-height: 32px;
+    padding: 5px 10px;
   }
-  .feed-story-scope-card .scope-btn {
-    min-height: 42px;
-    padding-inline: 8px;
+  .feed-control-filter .scope-btn {
+    min-height: 32px;
+    min-width: 32px;
+    width: 32px;
   }
   .feed-composer-shell {
     border-radius: 18px;
-  }
-  .feed-mobile-scope-card .scope-tabs-filter {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

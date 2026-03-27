@@ -568,46 +568,6 @@ body.story-view-open .global-feedback {
   .scope-btn-label {
     display: none;
   }
-  .feed-story-scope-card .scope-btn {
-    min-width: 0;
-    flex: 1 1 0;
-  }
-  .feed-story-scope-card .scope-btn-label {
-    display: inline;
-    text-align: center;
-  }
-  .feed-mobile-scope-card .scope-btn {
-    width: 100%;
-    min-width: 0;
-    height: auto;
-    padding: 10px 12px;
-    gap: 8px;
-    border-radius: 16px;
-  }
-  .feed-mobile-scope-card .scope-tabs,
-  .feed-mobile-scope-card .scope-tabs-feedtype,
-  .feed-mobile-scope-card .scope-tabs-filter {
-    display: grid;
-    overflow: visible;
-  }
-  .feed-mobile-scope-card .scope-tabs-feedtype {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .feed-mobile-scope-card .scope-tabs-filter {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .feed-mobile-scope-card .scope-tabs-filter .scope-btn {
-    justify-content: center;
-    padding: 10px;
-  }
-  .feed-mobile-scope-card .scope-btn-label {
-    display: none;
-  }
-  .scope-mobile-selected-title {
-    display: grid;
-    gap: 2px;
-    padding-top: 2px;
-  }
   .feed-mobile-selected-title {
     display: none;
   }

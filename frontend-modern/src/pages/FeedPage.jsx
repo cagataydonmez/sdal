@@ -114,7 +114,6 @@ export default function FeedPage() {
               : 0
     }))
   ]), [t, unreadNotifications, onlineMembers.length, unreadMessages]);
-  const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || t('latest');
   const activeFeedTabLabel = feedTabOptions.find((item) => item.key === mobileTab)?.label || t('nav_feed');
   const quickLinks = useMemo(() => ([
     { to: '/new/explore', icon: 'community', label: t('feed_discover_members') },
@@ -388,11 +387,11 @@ export default function FeedPage() {
   return (
     <Layout title={t('nav_feed')}>
       <div className="feed-mobile-sticky-stack">
-        <div className="panel feed-story-scope-card">
-          <div className="scope-tabs feed-story-scope-tabs" aria-label={t('feed_scope_prompt')}>
+        <div className="panel feed-control-strip">
+          <div className="scope-tabs feed-control-scope" aria-label={t('feed_scope_prompt')}>
             {scopeOptions.map((scopeItem) => (
               <button
-                key={`story-scope-${scopeItem.key}`}
+                key={`scope-${scopeItem.key}`}
                 className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
                 onClick={() => setFeedType(scopeItem.key)}
                 title={scopeItem.label}
@@ -401,6 +400,22 @@ export default function FeedPage() {
               >
                 <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[scopeItem.icon] || 'home'} size={16} /></span>
                 <span className="scope-btn-label">{scopeItem.label}</span>
+              </button>
+            ))}
+          </div>
+          <span className="feed-control-divider" aria-hidden="true" />
+          <div className="scope-tabs feed-control-filter" aria-label={t('feed_filter_prompt')}>
+            {filterOptions.map((filterItem) => (
+              <button
+                key={`filter-${filterItem.key}`}
+                className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
+                onClick={() => setFilter(filterItem.key)}
+                title={filterItem.label}
+                aria-label={filterItem.label}
+                aria-pressed={filter === filterItem.key}
+              >
+                <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[filterItem.icon] || 'home'} size={16} /></span>
+                <span className="scope-btn-label">{filterItem.label}</span>
               </button>
             ))}
           </div>
@@ -455,49 +470,21 @@ export default function FeedPage() {
       <div className="grid">
         <div className={`col-main feed-main feed-tab-panel ${mobileTab === 'posts' ? 'is-active' : ''}`}>
           <div className="feed-primary-stack">
-            <div className="feed-intent-band">
-              <div className="feed-composer-shell">
-                {pendingPostsCount > 0 ? (
-                  <button
-                    className="btn primary feed-refresh-banner"
-                    onClick={() => {
-                      if (pendingItems) setPosts(pendingItems);
-                      setPendingItems(null);
-                      setPendingPostsCount(0);
-                    }}
-                  >
-                    <span className="feed-refresh-banner-dot" aria-hidden="true" />
-                    {t('feed_new_posts_refresh', { count: pendingPostsCount })}
-                  </button>
-                ) : null}
-                <PostComposer feedType={feedType} onPost={() => load({ silent: true, force: true })} />
-              </div>
-
-              <div className="feed-mobile-controls">
-                <div className="panel feed-mobile-scope-card feed-mobile-scope-card-subtle">
-                  <div className="feed-scope-group">
-                    <div className="panel-body scope-tabs scope-tabs-filter" aria-label={t('feed_filter_prompt')}>
-                      {filterOptions.map((filterItem) => (
-                        <button
-                          key={`filter-${filterItem.key}`}
-                          className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
-                          onClick={() => setFilter(filterItem.key)}
-                          title={filterItem.label}
-                          aria-label={filterItem.label}
-                          aria-pressed={filter === filterItem.key}
-                        >
-                          <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[filterItem.icon] || 'home'} size={16} /></span>
-                          <span className="scope-btn-label">{filterItem.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="scope-mobile-selected-title" aria-live="polite">
-                      <span>{t('feed_filter_selected')}</span>
-                      <strong>{activeFilterLabel}</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="feed-composer-shell">
+              {pendingPostsCount > 0 ? (
+                <button
+                  className="btn primary feed-refresh-banner"
+                  onClick={() => {
+                    if (pendingItems) setPosts(pendingItems);
+                    setPendingItems(null);
+                    setPendingPostsCount(0);
+                  }}
+                >
+                  <span className="feed-refresh-banner-dot" aria-hidden="true" />
+                  {t('feed_new_posts_refresh', { count: pendingPostsCount })}
+                </button>
+              ) : null}
+              <PostComposer feedType={feedType} onPost={() => load({ silent: true, force: true })} />
             </div>
           </div>
 
