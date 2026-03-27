@@ -25,7 +25,7 @@ html {
   --surface-success-strong: color-mix(in srgb, var(--accent-2) 84%, var(--nav-bg) 16%);
   --surface-overlay-soft: color-mix(in srgb, var(--overlay) 72%, transparent);
   --line-inverse: color-mix(in srgb, var(--nav-ink) 28%, transparent);
-  --avatar-rounded-pentagon: polygon(50% 3%, 64% 10%, 79% 20%, 88% 38%, 84% 56%, 76% 74%, 62% 88%, 50% 95%, 38% 88%, 24% 74%, 16% 56%, 12% 38%, 21% 20%, 36% 10%);
+  --avatar-rounded-pentagon: polygon(50% 4%, 90% 34%, 74% 92%, 26% 92%, 10% 34%);
 }
 
 :where(
