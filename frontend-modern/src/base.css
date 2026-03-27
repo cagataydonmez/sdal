@@ -25,7 +25,6 @@ html {
   --surface-success-strong: color-mix(in srgb, var(--accent-2) 84%, var(--nav-bg) 16%);
   --surface-overlay-soft: color-mix(in srgb, var(--overlay) 72%, transparent);
   --line-inverse: color-mix(in srgb, var(--nav-ink) 28%, transparent);
-  --avatar-rounded-pentagon: polygon(50% 4%, 90% 34%, 74% 92%, 26% 92%, 10% 34%);
 }
 
 :where(
@@ -37,9 +36,9 @@ html {
   .events-avatar-stack-item,
   .profile-avatar-xl
 ) {
-  -webkit-clip-path: var(--avatar-rounded-pentagon);
-  clip-path: var(--avatar-rounded-pentagon);
-  border-radius: 14px;
+  -webkit-clip-path: none;
+  clip-path: none;
+  border-radius: 50%;
 }
 
 :where(a, button, input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {

@@ -489,7 +489,7 @@
 .network-avatar-link img {
   width: 60px;
   height: 60px;
-  border-radius: 18px;
+  border-radius: 50%;
   object-fit: cover;
   border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
 }
@@ -926,7 +926,7 @@
 .suggestions-directory-feature-avatar img {
   width: 112px;
   height: 112px;
-  border-radius: 28px;
+  border-radius: 50%;
   object-fit: cover;
   border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
 }
@@ -1052,7 +1052,7 @@
   .suggestions-directory-feature-avatar img {
     width: 88px;
     height: 88px;
-    border-radius: 22px;
+    border-radius: 50%;
   }
   .suggestions-directory-row {
     grid-template-columns: 1fr;
