@@ -99,6 +99,8 @@ export default function FeedPage() {
   const filterOptions = useMemo(() => ([
     ...FEED_FILTER_CONTRACT.map((item) => ({ ...item, label: t(item.labelKey) }))
   ]), [t]);
+  const activeScopeLabel = scopeOptions.find((item) => item.key === feedType)?.label || '';
+  const activeFilterLabel = filterOptions.find((item) => item.key === filter)?.label || '';
 
   const feedTabOptions = useMemo(() => ([
     ...FEED_TAB_CONTRACT.map((item) => ({
@@ -388,36 +390,48 @@ export default function FeedPage() {
     <Layout title={t('nav_feed')}>
       <div className="feed-mobile-sticky-stack">
         <div className="panel feed-control-strip">
-          <div className="scope-tabs feed-control-scope" aria-label={t('feed_scope_prompt')}>
-            {scopeOptions.map((scopeItem) => (
-              <button
-                key={`scope-${scopeItem.key}`}
-                className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
-                onClick={() => setFeedType(scopeItem.key)}
-                title={scopeItem.label}
-                aria-label={scopeItem.label}
-                aria-pressed={feedType === scopeItem.key}
-              >
-                <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[scopeItem.icon] || 'home'} size={16} /></span>
-                <span className="scope-btn-label">{scopeItem.label}</span>
-              </button>
-            ))}
+          <div className="feed-control-group">
+            <div className="scope-tabs feed-control-scope" aria-label={t('feed_scope_prompt')}>
+              {scopeOptions.map((scopeItem) => (
+                <button
+                  key={`scope-${scopeItem.key}`}
+                  className={`btn scope-btn ${feedType === scopeItem.key ? 'primary' : 'ghost'}`}
+                  onClick={() => setFeedType(scopeItem.key)}
+                  title={scopeItem.label}
+                  aria-label={scopeItem.label}
+                  aria-pressed={feedType === scopeItem.key}
+                >
+                  <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[scopeItem.icon] || 'home'} size={16} /></span>
+                  <span className="scope-btn-label">{scopeItem.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="feed-control-selected" aria-live="polite">
+              <span>{t('feed_scope_selected')}</span>
+              <strong>{activeScopeLabel}</strong>
+            </div>
           </div>
           <span className="feed-control-divider" aria-hidden="true" />
-          <div className="scope-tabs feed-control-filter" aria-label={t('feed_filter_prompt')}>
-            {filterOptions.map((filterItem) => (
-              <button
-                key={`filter-${filterItem.key}`}
-                className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
-                onClick={() => setFilter(filterItem.key)}
-                title={filterItem.label}
-                aria-label={filterItem.label}
-                aria-pressed={filter === filterItem.key}
-              >
-                <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[filterItem.icon] || 'home'} size={16} /></span>
-                <span className="scope-btn-label">{filterItem.label}</span>
-              </button>
-            ))}
+          <div className="feed-control-group">
+            <div className="scope-tabs feed-control-filter" aria-label={t('feed_filter_prompt')}>
+              {filterOptions.map((filterItem) => (
+                <button
+                  key={`filter-${filterItem.key}`}
+                  className={`btn scope-btn ${filter === filterItem.key ? 'primary' : 'ghost'}`}
+                  onClick={() => setFilter(filterItem.key)}
+                  title={filterItem.label}
+                  aria-label={filterItem.label}
+                  aria-pressed={filter === filterItem.key}
+                >
+                  <span className="scope-btn-icon" aria-hidden="true"><AnimatedIcon name={FEED_ICON_MAP[filterItem.icon] || 'home'} size={16} /></span>
+                  <span className="scope-btn-label">{filterItem.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="feed-control-selected" aria-live="polite">
+              <span>{t('feed_filter_selected')}</span>
+              <strong>{activeFilterLabel}</strong>
+            </div>
           </div>
         </div>
         <div className="panel feed-mobile-stories-wrap">
