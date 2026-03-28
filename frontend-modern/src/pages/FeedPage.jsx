@@ -407,7 +407,6 @@ export default function FeedPage() {
               ))}
             </div>
             <div className="feed-control-selected" aria-live="polite">
-              <span>{t('feed_scope_selected')}</span>
               <strong>{activeScopeLabel}</strong>
             </div>
           </div>
@@ -429,7 +428,6 @@ export default function FeedPage() {
               ))}
             </div>
             <div className="feed-control-selected" aria-live="polite">
-              <span>{t('feed_filter_selected')}</span>
               <strong>{activeFilterLabel}</strong>
             </div>
           </div>
