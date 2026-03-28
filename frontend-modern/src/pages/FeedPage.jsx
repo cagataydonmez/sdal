@@ -124,7 +124,7 @@ export default function FeedPage() {
   ]), [t]);
 
   const mobileTabToggleLabel = mobileTabsExpanded
-    ? `${t('close')} • ${activeFeedTabLabel}`
+    ? `${t('close')} ${activeFeedTabLabel}`
     : activeFeedTabLabel;
 
   useEffect(() => {

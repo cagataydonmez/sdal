@@ -465,10 +465,13 @@ body.story-view-open .global-feedback {
   }
   .feed-mobile-tabs-toggle-label {
     display: inline;
-    max-width: 22vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    max-width: 20vw;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.15;
   }
   .feed-mobile-tabs-toggle-icon {
     transition: transform 0.2s ease;
