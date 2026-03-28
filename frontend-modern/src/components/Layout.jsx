@@ -530,7 +530,7 @@ export default function Layout({ children, title, right }) {
             <span className="brand-text">SDAL</span>
             <span className="brand-sub">{t('Yeni')}</span>
           </Link>
-          <button className="btn ghost" onClick={() => setMobileNavOpen(false)}>{t('close')}</button>
+          <button className="btn ghost" onClick={() => setMobileNavOpen(false)}>Kapat</button>
         </div>
         <nav className="mobile-nav-links">
           <div className="nav-category-switch" role="tablist" aria-label="Primary navigation">
