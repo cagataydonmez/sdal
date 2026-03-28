@@ -8,14 +8,17 @@ export default function RichTextEditor({
   placeholder = '',
   minHeight = 120,
   compact = false,
-  className = ''
+  className = '',
+  toolbarOpen: toolbarOpenProp,
+  onToolbarToggle,
+  showToolbarToggle = true
 }) {
   const { t } = useI18n();
   const editorRef = useRef(null);
   const [fontSize, setFontSize] = useState('14');
   const [color, setColor] = useState('#1b7f6b');
   const [focused, setFocused] = useState(false);
-  const [toolbarOpen, setToolbarOpen] = useState(false);
+  const [toolbarOpenInternal, setToolbarOpenInternal] = useState(false);
   const [active, setActive] = useState({
     bold: false,
     italic: false,
@@ -30,6 +33,15 @@ export default function RichTextEditor({
   });
 
   const normalizedValue = useMemo(() => toEditorHtml(value || ''), [value]);
+  const toolbarOpen = typeof toolbarOpenProp === 'boolean' ? toolbarOpenProp : toolbarOpenInternal;
+
+  function setToolbarOpen(next) {
+    const nextValue = typeof next === 'function' ? next(toolbarOpen) : next;
+    onToolbarToggle?.(nextValue);
+    if (typeof toolbarOpenProp !== 'boolean') {
+      setToolbarOpenInternal(nextValue);
+    }
+  }
 
   function emitChange() {
     const editor = editorRef.current;
@@ -146,17 +158,19 @@ export default function RichTextEditor({
 
   return (
     <div className={`rich-editor ${compact ? 'rich-editor-compact' : ''} ${className}`.trim()}>
-      <div className="rich-toolbar-toggle">
-        <button
-          type="button"
-          className={`chip rich-toolbar-toggle-btn ${toolbarOpen ? 'chip-active' : ''}`}
-          onClick={() => setToolbarOpen((v) => !v)}
-          title={t('advanced_format')}
-          aria-label={t('advanced_format')}
-        >
-          A+
-        </button>
-      </div>
+      {showToolbarToggle ? (
+        <div className="rich-toolbar-toggle">
+          <button
+            type="button"
+            className={`chip rich-toolbar-toggle-btn ${toolbarOpen ? 'chip-active' : ''}`}
+            onClick={() => setToolbarOpen((v) => !v)}
+            title={t('advanced_format')}
+            aria-label={t('advanced_format')}
+          >
+            A+
+          </button>
+        </div>
+      ) : null}
       {toolbarOpen ? (
         <div className="rich-toolbar">
           <button type="button" className="chip" onClick={() => run('undo')} title={t('rt_undo')}>↶</button>

@@ -22,6 +22,7 @@ export default function PostComposer({ onPost, feedType = 'main' }) {
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [toolbarOpen, setToolbarOpen] = useState(false);
   const fileInputRef = useRef(null);
   const localizedFilters = useMemo(
     () => FILTERS.map((item) => ({
@@ -76,10 +77,22 @@ export default function PostComposer({ onPost, feedType = 'main' }) {
         value={content}
         onChange={setContent}
         placeholder={t('post_placeholder')}
-        minHeight={130}
+        minHeight={65}
+        toolbarOpen={toolbarOpen}
+        onToolbarToggle={setToolbarOpen}
+        showToolbarToggle={false}
       />
       <div className="composer-actions">
         <NativeImageButtons onPick={setImage} onError={setError} />
+        <button
+          type="button"
+          className={`btn ghost rich-toolbar-toggle-btn ${toolbarOpen ? 'chip-active' : ''}`}
+          onClick={() => setToolbarOpen((v) => !v)}
+          title={t('advanced_format')}
+          aria-label={t('advanced_format')}
+        >
+          A+
+        </button>
 
         <button
           type="button"
