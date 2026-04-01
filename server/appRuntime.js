@@ -3823,6 +3823,7 @@ registerProfileSelfServiceRoutes(app, {
   sqlGet,
   sqlGetAsync,
   sqlAll,
+  sqlAllAsync,
   sqlRun,
   sqlRunAsync,
   buildVersionedCacheKey,
