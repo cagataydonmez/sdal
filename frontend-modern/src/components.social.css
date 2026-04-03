@@ -1042,6 +1042,16 @@
   }
 }
 
+@media (min-width: 761px) and (max-width: 1024px) {
+  .notification-page-summary,
+  .notification-preferences-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .notification-admin-experiment-row {
+    grid-template-columns: minmax(0, 1.4fr) 120px minmax(0, 1fr);
+  }
+}
+
 .events-pulse-board {
   display: flex;
   flex-direction: column;
@@ -1581,6 +1591,20 @@
   }
 }
 
+@media (min-width: 761px) and (max-width: 1100px) {
+  .events-pulse-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr);
+  }
+  .events-pulse-stat-row,
+  .events-compose-grid,
+  .events-pulse-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .events-stream-card-shell {
+    grid-template-columns: minmax(0, 1.08fr) minmax(260px, 0.92fr);
+  }
+}
+
 @media (max-width: 760px) {
   .events-pulse-hero,
   .events-pulse-grid,
@@ -1617,5 +1641,19 @@
     animation: none !important;
     transition-duration: 1ms !important;
     transform: none !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 920px) {
+  .group-feature {
+    grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.1fr);
+  }
+  .group-feature-actions {
+    grid-column: 1 / -1;
+    justify-items: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .group-story-card {
+    grid-template-columns: 124px minmax(0, 1fr);
   }
 }

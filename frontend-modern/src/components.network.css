@@ -1383,6 +1383,44 @@
   }
 }
 
+@media (min-width: 761px) and (max-width: 1120px) {
+  .message-mailbox {
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  }
+  .mailbox-sidebar {
+    position: static;
+    grid-column: 1 / -1;
+  }
+  .mailbox-list .panel-body,
+  .mailbox-preview .panel-body {
+    min-height: 480px;
+  }
+  .mailbox-items {
+    max-height: 420px;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 980px) {
+  .network-hero {
+    grid-template-columns: minmax(0, 1.08fr) minmax(260px, 0.92fr);
+  }
+  .network-priority-grid,
+  .network-metric-grid,
+  .network-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .network-dashboard,
+  .network-value-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .network-section-head {
+    align-items: flex-start;
+  }
+  .network-window-tabs {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 720px) {
   .network-mobile-lead {
     gap: 12px;
@@ -1396,6 +1434,10 @@
   }
   .network-section-head {
     flex-direction: column;
+  }
+  .network-section-tools {
+    width: 100%;
+    justify-content: flex-start;
   }
   .network-card-actions .btn,
   .network-hero-actions .btn,

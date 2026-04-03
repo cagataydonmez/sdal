@@ -1249,6 +1249,10 @@
   .ops-mobile-nav {
     display: block;
   }
+  .ops-mobile-nav-menu {
+    max-height: min(60vh, 480px);
+    overflow: auto;
+  }
   .ops-sidebar {
     position: static;
   }
@@ -1411,6 +1415,10 @@
   .admin-page-top {
     gap: 10px;
   }
+  .ops-kpi-grid-featured,
+  .ops-dashboard-overview-secondary .ops-kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .admin-live-actions,
   .db-toolbar {
     width: 100%;
@@ -1479,5 +1487,10 @@
   .content-preview-modal {
     width: min(100%, calc(100vw - 20px));
     max-height: 92vh;
+  }
+  .ops-drawer {
+    width: 100vw;
+    max-width: 100vw;
+    border-left: 0;
   }
 }
