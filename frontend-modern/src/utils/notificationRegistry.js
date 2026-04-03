@@ -101,7 +101,7 @@ function buildFallbackTarget(notification) {
   const notificationId = Number(notification?.id || 0);
 
   if ((type === 'like' || type === 'comment' || type === 'mention_post') && entityId) {
-    return { href: `/new?post=${entityId}&notification=${notificationId}` };
+    return { href: `/new/posts/${entityId}?notification=${notificationId}` };
   }
   if ((type === 'mention_event' || type === 'event_comment') && entityId) {
     return { href: `/new/events?event=${entityId}&focus=comments&notification=${notificationId}` };

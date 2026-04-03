@@ -3992,6 +3992,78 @@ app.post('/api/new/posts/upload', requireAuth, uploadRateLimit, postUpload.singl
   }
 });
 
+app.get('/api/new/posts/:id', requireAuth, async (req, res) => {
+  try {
+    const postId = Number(req.params.id || 0);
+    if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
+    const currentUser = getCurrentUser(req);
+    const post = sqlGet(
+      `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.group_id,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified,
+              COALESCE(plc.like_count, 0) AS like_count,
+              COALESCE(pcc.comment_count, 0) AS comment_count,
+              CASE WHEN vl.post_id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+       FROM posts p
+       LEFT JOIN uyeler u ON u.id = p.user_id
+       LEFT JOIN (
+         SELECT post_id, COUNT(*) AS like_count
+         FROM post_likes
+         GROUP BY post_id
+       ) plc ON plc.post_id = p.id
+       LEFT JOIN (
+         SELECT post_id, COUNT(*) AS comment_count
+         FROM post_comments
+         GROUP BY post_id
+       ) pcc ON pcc.post_id = p.id
+       LEFT JOIN (
+         SELECT DISTINCT post_id
+         FROM post_likes
+         WHERE user_id = ?
+       ) vl ON vl.post_id = p.id
+       WHERE p.id = ?`,
+      [req.session.userId, postId]
+    );
+    if (!post) return res.status(404).send('Gönderi bulunamadı.');
+    const groupId = Number(post.group_id || 0);
+    if (groupId && !hasAdminSession(req, currentUser)) {
+      const member = sqlGet('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, req.session.userId]);
+      if (!member) return res.status(403).send('Bu grup içeriğine erişim için üyelik gerekli.');
+    }
+    const item = {
+      id: Number(post.id || 0),
+      content: post.content || '',
+      image: post.image || null,
+      createdAt: post.created_at,
+      author: {
+        id: Number(post.user_id || 0),
+        kadi: post.kadi || '',
+        isim: post.isim || '',
+        soyisim: post.soyisim || '',
+        resim: post.resim || null,
+        verified: Number(post.verified || 0) ? 1 : 0
+      },
+      groupId: groupId || null,
+      likeCount: Number(post.like_count || 0),
+      commentCount: Number(post.comment_count || 0),
+      liked: Number(post.liked_by_viewer || 0) === 1
+    };
+    if (post.image_record_id) {
+      const variants = getImageVariants(post.image_record_id, sqlGet, uploadsDir);
+      if (variants) {
+        item.variants = {
+          thumbUrl: variants.thumbUrl,
+          feedUrl: variants.feedUrl,
+          fullUrl: variants.fullUrl
+        };
+      }
+    }
+    return res.json({ ok: true, item });
+  } catch (err) {
+    console.error('posts.getOne failed:', err);
+    return res.status(500).send('Beklenmeyen bir hata oluştu.');
+  }
+});
+
 
 function canManagePost(req, postRow) {
   if (!postRow) return false;

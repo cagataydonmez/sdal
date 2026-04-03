@@ -17,6 +17,7 @@ const ModuleInactivePage = React.lazy(() => import('./pages/ModuleInactivePage.j
 
 const ExplorePage = React.lazy(() => import('./pages/ExplorePage.jsx'));
 const FeedPage = React.lazy(() => import('./pages/FeedPage.jsx'));
+const PostPage = React.lazy(() => import('./pages/PostPage.jsx'));
 const ExploreSuggestionsPage = React.lazy(() => import('./pages/ExploreSuggestionsPage.jsx'));
 const GroupsPage = React.lazy(() => import('./pages/GroupsPage.jsx'));
 const GroupDetailPage = React.lazy(() => import('./pages/GroupDetailPage.jsx'));
@@ -205,6 +206,7 @@ export const appRoutes = createRoutesFromElements(
     <Route path="/new/activation/resend" element={<ActivationResendPage />} />
     <Route path="/new/password-reset" element={<PasswordResetPage />} />
     <Route path="/new" element={<RequireAuth><DefaultLandingRoute /></RequireAuth>} />
+    <Route path="/new/posts/:id" element={<RequireAuth><RequireModuleAccess moduleKey="feed" accessPath="/new"><PostPage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/explore" element={<RequireAuth><RequireModuleAccess moduleKey="explore" accessPath="/new/explore"><ExplorePage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/explore/members" element={<RequireAuth><RequireModuleAccess moduleKey="explore" accessPath="/new/explore"><ExplorePage fullMode /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/explore/suggestions" element={<RequireAuth><RequireModuleAccess moduleKey="explore" accessPath="/new/explore"><ExploreSuggestionsPage /></RequireModuleAccess></RequireAuth>} />
