@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from '../router.jsx';
+import { Link, useNavigate, useParams, useSearchParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { formatDateTime } from '../utils/date.js';
@@ -8,11 +8,13 @@ import RichTextEditor from '../components/RichTextEditor.jsx';
 import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 export default function MessageDetailPage() {
   const { t } = useI18n();
   const { user } = useAuth();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [message, setMessage] = useState(null);
   const [sender, setSender] = useState(null);
@@ -20,6 +22,13 @@ export default function MessageDetailPage() {
   const [error, setError] = useState('');
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  const notificationId = Number(searchParams.get('notification') || 0);
+  const [showNotificationFocus, setShowNotificationFocus] = useState(Boolean(notificationId));
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'message_detail_page',
+    resolved: Boolean(message)
+  });
 
   useEffect(() => {
     fetch(`/api/messages/${id}`, { credentials: 'include' })
@@ -34,6 +43,16 @@ export default function MessageDetailPage() {
       })
       .catch((err) => setError(err.message));
   }, [id]);
+
+  useEffect(() => {
+    setShowNotificationFocus(Boolean(notificationId));
+  }, [notificationId]);
+
+  useEffect(() => {
+    if (!showNotificationFocus) return undefined;
+    const timer = window.setTimeout(() => setShowNotificationFocus(false), 3200);
+    return () => window.clearTimeout(timer);
+  }, [showNotificationFocus]);
 
   async function remove() {
     setError('');
@@ -86,10 +105,16 @@ export default function MessageDetailPage() {
             <Link className="btn ghost" to="/new/messages">{t('back_to_list')}</Link>
             <Link className="btn primary" to={`/new/messages/compose?replyTo=${message.id}`}>{t('reply')}</Link>
           </div>
+          {notificationId ? (
+            <div className="notification-focus-inline-panel">
+              <strong>{t('notification_toast_default')}</strong>
+              <div className="muted">Bildirimden açılan mesaj konuşması kısa süreli olarak vurgulandı.</div>
+            </div>
+          ) : null}
           <div className="meta">{t('sender')}: {sender?.kadi}</div>
           <div className="meta">{t('recipient')}: {receiver?.kadi}</div>
           <div className="meta">{t('date')}: {formatDateTime(message.tarih)}</div>
-          <TranslatableHtml html={message.mesaj || ''} className="message-bubble" />
+          <TranslatableHtml html={message.mesaj || ''} className={`message-bubble${showNotificationFocus ? ' notification-focus-card' : ''}`} />
           <div className="stack">
             <RichTextEditor value={reply} onChange={setReply} placeholder={t('message_quick_reply_placeholder')} minHeight={100} compact />
             <div className="composer-actions">

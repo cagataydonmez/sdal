@@ -123,6 +123,10 @@ export default function GroupDetailPage() {
           ? 'events'
           : focusedTab === 'announcements'
             ? 'announcements'
+            : focusedTab === 'members'
+              ? 'members'
+              : focusedTab === 'posts'
+                ? 'posts'
             : '';
     if (!refKey) return;
     const timer = window.setTimeout(() => {
@@ -526,25 +530,39 @@ export default function GroupDetailPage() {
             </div>
           </div>
 
-          {posts.map((p) => (
-            <PostCard key={p.id} post={{
-              ...p,
-              author: {
-                id: p.user_id,
-                kadi: p.kadi,
-                isim: p.isim,
-                soyisim: p.soyisim,
-                resim: p.resim,
-                verified: p.verified
-              },
-              likeCount: Number(p.likeCount || 0),
-              commentCount: Number(p.commentCount || 0),
-              liked: Boolean(p.liked)
-            }} onRefresh={load} />
-          ))}
+          <div
+            className={focusedTab === 'posts' ? 'notification-focus-card' : ''}
+            ref={(node) => {
+              if (node) sectionRefs.current.set('posts', node);
+              else sectionRefs.current.delete('posts');
+            }}
+          >
+            {posts.map((p) => (
+              <PostCard key={p.id} post={{
+                ...p,
+                author: {
+                  id: p.user_id,
+                  kadi: p.kadi,
+                  isim: p.isim,
+                  soyisim: p.soyisim,
+                  resim: p.resim,
+                  verified: p.verified
+                },
+                likeCount: Number(p.likeCount || 0),
+                commentCount: Number(p.commentCount || 0),
+                liked: Boolean(p.liked)
+              }} onRefresh={load} />
+            ))}
+          </div>
         </div>
         <div className="col-side">
-          <div className="panel">
+          <div
+            className={`panel${focusedTab === 'members' ? ' notification-focus-card' : ''}`}
+            ref={(node) => {
+              if (node) sectionRefs.current.set('members', node);
+              else sectionRefs.current.delete('members');
+            }}
+          >
             <h3>{t('members')}</h3>
             <div className="panel-body">
               {members.map((m) => (

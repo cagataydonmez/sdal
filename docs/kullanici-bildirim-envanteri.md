@@ -80,3 +80,44 @@ Bu doküman, sistemde kullanıcıya giden bildirim tiplerini, bildirim kartında
 ## 5) Not
 
 - Bu tablo, notification sunum ve yönetişim katmanındaki **aktif inventory** üzerinden hazırlanmıştır; yeni tip eklenirse bu dosya da güncellenmelidir.
+
+## 6) 2026-04-03 doğrulama/audit ve uygulanan düzenlemeler
+
+Bu turda `docs` altındaki envanter dışı bildirim dokümanları yerine doğrudan canlı akışlar kontrol edilerek kart aksiyonlarının etkisi ve yönlendirme doğruluğu doğrulandı.
+
+### 6.1 Kontrol özeti (kart aksiyonu → hedef ekran etkisi)
+
+- `like`, `comment`, `mention_post`:
+  - Hedef `/new?post=:id&notification=:id` doğru.
+  - İyileştirme: Feed ekranında hedef post için **otomatik scroll + kısa süreli fokus rengi** eklendi.
+- `mention_photo`, `photo_comment`:
+  - Hedef `/new/albums/photo/:id?notification=:id` doğru.
+  - İyileştirme: Fotoğraf detayında **bildirim bağlam paneli + kısa süreli fokus vurgusu** eklendi.
+- `mention_message`:
+  - Hedef `/new/messages/:id?notification=:id` doğru.
+  - İyileştirme: Mesaj detayında **bildirim bağlam paneli + kısa süreli fokus vurgusu** eklendi.
+- `group_*` akışları:
+  - Hedef tab yönlendirmeleri doğru.
+  - İyileştirme: Grup detayında `tab=posts` ve `tab=members` için eksik olan **scroll/hedef panel vurgusu** eklendi.
+- `events`, `jobs`, `member_request_*`, `announcement_*`, `teacher_link_review_*`, `networking`:
+  - Mevcut durumda hedef scroll/vurgu davranışları ve sonuç geri bildirimi zaten mevcut ve çalışır durumda doğrulandı.
+
+### 6.2 Ek bildirim ihtiyacı analizi
+
+- Bu turda yeni bir **notification type** ekleme ihtiyacı doğuracak kritik boşluk tespit edilmedi.
+- Ancak mevcut tiplerin hedefte kullanıcıya “hangi kayda geldiğini” gösteren etki tutarlılığında boşluk vardı (Feed, Mesaj detay, Fotoğraf detay, Grup posts/members). Bu boşluklar kapatıldı.
+
+### 6.3 Kod seviyesinde yapılan düzeltmeler
+
+- Feed:
+  - Bildirim parametresinden gelen post id için hedef karta scroll.
+  - Bildirim kaynağından gelen post için zaman kontrollü fokus (`~3.2s`) ve navigation telemetry izleme.
+- Mesaj detay:
+  - Bildirimden iniş telemetry takibi.
+  - Mesaj gövdesinde kısa süreli bildirim fokus vurgusu ve bağlam paneli.
+- Fotoğraf detay:
+  - Bildirimden iniş telemetry takibi.
+  - Fotoğrafta kısa süreli bildirim fokus vurgusu ve bağlam paneli.
+- Grup detay:
+  - `tab=posts` ve `tab=members` için section ref/scroll desteği.
+  - İlgili panellerde notification-focus vurgusu.
