@@ -559,7 +559,12 @@ export default function FeedPage() {
                   else postCardRefs.current.delete(Number(p.id || 0));
                 }}
               >
-                <PostCard post={p} onRefresh={() => load({ silent: true, force: true })} focused={flashFocusPostId === p.id} />
+                <PostCard
+                  post={p}
+                  onRefresh={() => load({ silent: true, force: true })}
+                  focused={flashFocusPostId === p.id}
+                  postHref={`/new/posts/${p.id}`}
+                />
               </div>
             ))}
             <div ref={sentinelRef} />

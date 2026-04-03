@@ -189,8 +189,8 @@ export function createNotificationPresentationRuntime({
 
     if ((type === 'like' || type === 'comment' || type === 'mention_post') && entityId) {
       return {
-        href: `/new?post=${entityId}&notification=${notificationId}`,
-        route: '/new',
+        href: `/new/posts/${entityId}?notification=${notificationId}`,
+        route: `/new/posts/${entityId}`,
         entity_type: 'post',
         entity_id: entityId,
         context: { post: entityId, notification: notificationId }

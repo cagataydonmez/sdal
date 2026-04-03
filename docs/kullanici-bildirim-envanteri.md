@@ -14,9 +14,9 @@ Bu doküman, sistemde kullanıcıya giden bildirim tiplerini, bildirim kartında
 
 | Tip | Kategori | Öncelik | Kullanıcıya neden gider? | Varsayılan hedef / odak | Kartta ek aksiyon | Etkisi |
 |---|---|---|---|---|---|---|
-| `like` | social | informational | Paylaşıma beğeni geldiğinde | `/new?post=:entityId&notification=:id` | - | İlgili postu açar |
-| `comment` | social | important | Paylaşıma yorum geldiğinde | `/new?post=:entityId&notification=:id` | - | İlgili postu açar |
-| `mention_post` | social | important | Post içinde etiketlenince | `/new?post=:entityId&notification=:id` | - | İlgili postu açar |
+| `like` | social | informational | Paylaşıma beğeni geldiğinde | `/new/posts/:entityId?notification=:id` | - | İlgili post detay sayfasını açar (yorumlar açık) |
+| `comment` | social | important | Paylaşıma yorum geldiğinde | `/new/posts/:entityId?notification=:id` | - | İlgili post detay sayfasını açar (yorumlar açık) |
+| `mention_post` | social | important | Post içinde etiketlenince | `/new/posts/:entityId?notification=:id` | - | İlgili post detay sayfasını açar (yorumlar açık) |
 | `mention_photo` | social | important | Fotoğraf akışında etiketlenince | `/new/albums/photo/:entityId?notification=:id` | - | İlgili fotoğrafı açar |
 | `photo_comment` | social | important | Fotoğrafa yorum geldiğinde | `/new/albums/photo/:entityId?notification=:id` | - | İlgili fotoğrafı açar |
 | `follow` | social | informational | Biri kullanıcıyı takip ettiğinde | `/new/members/:sourceUserId?notification=:id&context=follow` | - | Takip eden profiline götürür |
@@ -88,8 +88,8 @@ Bu turda `docs` altındaki envanter dışı bildirim dokümanları yerine doğru
 ### 6.1 Kontrol özeti (kart aksiyonu → hedef ekran etkisi)
 
 - `like`, `comment`, `mention_post`:
-  - Hedef `/new?post=:id&notification=:id` doğru.
-  - İyileştirme: Feed ekranında hedef post için **otomatik scroll + kısa süreli fokus rengi** eklendi.
+  - Hedef `/new/posts/:id?notification=:id` olacak şekilde post özel sayfasına taşındı.
+  - İyileştirme: Post sayfasında yorumlar varsayılan açık; bildirim aksiyonları bu sayfaya yönlenir.
 - `mention_photo`, `photo_comment`:
   - Hedef `/new/albums/photo/:id?notification=:id` doğru.
   - İyileştirme: Fotoğraf detayında **bildirim bağlam paneli + kısa süreli fokus vurgusu** eklendi.
@@ -110,8 +110,12 @@ Bu turda `docs` altındaki envanter dışı bildirim dokümanları yerine doğru
 ### 6.3 Kod seviyesinde yapılan düzeltmeler
 
 - Feed:
-  - Bildirim parametresinden gelen post id için hedef karta scroll.
-  - Bildirim kaynağından gelen post için zaman kontrollü fokus (`~3.2s`) ve navigation telemetry izleme.
+  - Post kartı gövdesi tıklanınca `/new/posts/:id` detayına yönlenir.
+  - Feed içindeki bildirim fokus/scroll davranışları korunur.
+- Post detay:
+  - Yeni `/new/posts/:id` sayfası eklendi.
+  - Post detayında yorum paneli varsayılan açık gelir.
+  - Bildirim iniş telemetry takibi `post_page` surface ile çalışır.
 - Mesaj detay:
   - Bildirimden iniş telemetry takibi.
   - Mesaj gövdesinde kısa süreli bildirim fokus vurgusu ve bağlam paneli.

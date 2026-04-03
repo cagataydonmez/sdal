@@ -420,6 +420,11 @@
   gap: 8px;
 }
 .post-body p { margin: 12px 0; }
+.post-body-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
 .post-image {
   width: 100%;
   max-height: min(70vh, 560px);

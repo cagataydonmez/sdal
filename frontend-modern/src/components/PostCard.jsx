@@ -15,13 +15,13 @@ function PostActionIcon({ type, active = false }) {
   return <AnimatedIcon name={type === 'comment' ? 'message-square' : 'heart'} size={16} active={active} />;
 }
 
-export default function PostCard({ post, onRefresh, focused = false }) {
+export default function PostCard({ post, onRefresh, focused = false, postHref = '', defaultCommentsOpen = false }) {
   const { t } = useI18n();
   const { user } = useAuth();
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState([]);
-  const [showComments, setShowComments] = useState(false);
-  const [showCommentForm, setShowCommentForm] = useState(false);
+  const [showComments, setShowComments] = useState(Boolean(defaultCommentsOpen));
+  const [showCommentForm, setShowCommentForm] = useState(Boolean(defaultCommentsOpen));
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content || '');
   const [postBusy, setPostBusy] = useState(false);
@@ -44,6 +44,11 @@ export default function PostCard({ post, onRefresh, focused = false }) {
     setShowComments(true);
     loadComments();
   }, [focused, post.id]);
+
+  useEffect(() => {
+    setShowComments(Boolean(defaultCommentsOpen));
+    setShowCommentForm(Boolean(defaultCommentsOpen));
+  }, [defaultCommentsOpen, post.id]);
 
   useEffect(() => {
     if (!showComments) return;
@@ -220,19 +225,40 @@ export default function PostCard({ post, onRefresh, focused = false }) {
             </div>
           </div>
         ) : (
-          <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
+          <>
+            {postHref ? (
+              <Link className="post-body-link" to={postHref} aria-label={`Post #${post.id} detayını aç`}>
+                <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
+                {post.image || post.variants ? (
+                  post.variants ? (
+                    <img className="post-image"
+                      src={post.variants.feedUrl}
+                      srcSet={`${post.variants.thumbUrl} 200w, ${post.variants.feedUrl} 800w, ${post.variants.fullUrl} 1600w`}
+                      sizes="(max-width: 600px) 200px, (max-width: 1200px) 800px, 1600px"
+                      loading="lazy" alt={postImageAlt(post)} />
+                  ) : (
+                    <img className="post-image" src={post.image} loading="lazy" alt={postImageAlt(post)} />
+                  )
+                ) : null}
+              </Link>
+            ) : (
+              <>
+                <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
+                {post.image || post.variants ? (
+                  post.variants ? (
+                    <img className="post-image"
+                      src={post.variants.feedUrl}
+                      srcSet={`${post.variants.thumbUrl} 200w, ${post.variants.feedUrl} 800w, ${post.variants.fullUrl} 1600w`}
+                      sizes="(max-width: 600px) 200px, (max-width: 1200px) 800px, 1600px"
+                      loading="lazy" alt={postImageAlt(post)} />
+                  ) : (
+                    <img className="post-image" src={post.image} loading="lazy" alt={postImageAlt(post)} />
+                  )
+                ) : null}
+              </>
+            )}
+          </>
         )}
-        {post.image || post.variants ? (
-          post.variants ? (
-            <img className="post-image"
-              src={post.variants.feedUrl}
-              srcSet={`${post.variants.thumbUrl} 200w, ${post.variants.feedUrl} 800w, ${post.variants.fullUrl} 1600w`}
-              sizes="(max-width: 600px) 200px, (max-width: 1200px) 800px, 1600px"
-              loading="lazy" alt={postImageAlt(post)} />
-          ) : (
-            <img className="post-image" src={post.image} loading="lazy" alt={postImageAlt(post)} />
-          )
-        ) : null}
       </div>
       <div className="post-actions">
         <button
