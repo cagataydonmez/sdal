@@ -14,6 +14,7 @@ export function registerOAuthRoutes(app, {
   oauthFetchToken,
   oauthFetchProfile,
   findOrCreateOAuthUser,
+  buildMobileOAuthCallbackUrl,
   issueMobileOAuthToken,
   consumeMobileOAuthToken,
   applyUserSession,
@@ -63,14 +64,15 @@ export function registerOAuthRoutes(app, {
     const config = getOAuthProviderConfig(req.params.provider, req);
     const isNative = Number(req.session.oauthNative || 0) === 1;
     const loginRedirectPath = sanitizeOAuthReturnTo(req.session.oauthReturnTo, '/new/login');
+    const nativeRedirect = (params) => buildMobileOAuthCallbackUrl(params);
     if (!config || !config.enabled) {
-      return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=disabled' : withOAuthError(loginRedirectPath, 'disabled'));
+      return res.redirect(isNative ? nativeRedirect({ oauth: 'disabled' }) : withOAuthError(loginRedirectPath, 'disabled'));
     }
     const state = String(req.query.state || '');
     const code = String(req.query.code || '');
-    if (!code || !state) return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=invalid' : withOAuthError(loginRedirectPath, 'invalid'));
+    if (!code || !state) return res.redirect(isNative ? nativeRedirect({ oauth: 'invalid' }) : withOAuthError(loginRedirectPath, 'invalid'));
     if (state !== String(req.session.oauthState || '') || config.provider !== String(req.session.oauthProvider || '')) {
-      return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=state' : withOAuthError(loginRedirectPath, 'state'));
+      return res.redirect(isNative ? nativeRedirect({ oauth: 'state' }) : withOAuthError(loginRedirectPath, 'state'));
     }
 
     try {
@@ -78,15 +80,15 @@ export function registerOAuthRoutes(app, {
       const profile = await oauthFetchProfile(config, accessToken);
       const user = findOrCreateOAuthUser({ provider: config.provider, profile });
       if (!user || user.yasak === 1) {
-        return res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=blocked' : withOAuthError(loginRedirectPath, 'blocked'));
+        return res.redirect(isNative ? nativeRedirect({ oauth: 'blocked' }) : withOAuthError(loginRedirectPath, 'blocked'));
       }
       if (user.aktiv === 0) {
         await sqlRunAsync('UPDATE uyeler SET aktiv = 1 WHERE id = ?', [user.id]);
         user.aktiv = 1;
       }
       if (isNative) {
-        const token = issueMobileOAuthToken(user.id);
-        res.redirect(`sdalnative://oauth-callback?token=${encodeURIComponent(token)}`);
+        const token = await issueMobileOAuthToken(user.id);
+        res.redirect(nativeRedirect({ token }));
       } else {
         applyUserSession(req, user);
         res.cookie('uyegiris', 'evet');
@@ -96,7 +98,7 @@ export function registerOAuthRoutes(app, {
       }
     } catch (err) {
       console.error('OAuth callback error:', config.provider, err);
-      res.redirect(isNative ? 'sdalnative://oauth-callback?oauth=failed' : withOAuthError(loginRedirectPath, 'failed'));
+      res.redirect(isNative ? nativeRedirect({ oauth: 'failed' }) : withOAuthError(loginRedirectPath, 'failed'));
     } finally {
       req.session.oauthState = null;
       req.session.oauthProvider = null;
@@ -109,7 +111,7 @@ export function registerOAuthRoutes(app, {
   app.post('/api/auth/oauth/mobile/exchange', async (req, res) => {
     try {
       const token = String(req.body?.token || '').trim();
-      const userId = consumeMobileOAuthToken(token);
+      const userId = await consumeMobileOAuthToken(token);
       if (!userId) return res.status(400).send('OAuth token gecersiz veya suresi dolmus.');
       const user = await sqlGetAsync('SELECT * FROM uyeler WHERE id = ?', [userId]);
       if (!user || user.yasak === 1) return res.status(400).send('Kullanici gecersiz.');

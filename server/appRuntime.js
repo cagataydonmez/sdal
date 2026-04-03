@@ -52,9 +52,11 @@ import { createWebSocketRuntime } from './src/realtime/createWebSocketRuntime.js
 import { createEventChatRuntime } from './src/events/createEventChatRuntime.js';
 import { createAuthRuntime } from './src/auth/createAuthRuntime.js';
 import { createAuthHelpers } from './src/auth/createAuthHelpers.js';
+import { buildMobileOAuthCallbackUrl } from './src/auth/mobileOAuthCallback.js';
 import { checkPostgresHealth, closePostgresPool, getPostgresPoolState, isPostgresConfigured } from './src/infra/postgresPool.js';
 import { checkRedisHealth, closeRedisClient, getRedisState, isRedisConfigured } from './src/infra/redisClient.js';
 import { buildVersionedCacheKey, bumpCacheNamespaceVersion, getCacheJson, setCacheJson } from './src/infra/performanceCache.js';
+import { consumeMobileOAuthToken, issueMobileOAuthToken } from './src/infra/mobileOAuthTokenStore.js';
 import { createRealtimeBus } from './src/infra/realtimeBus.js';
 import { createJobQueue } from './src/infra/jobQueue.js';
 import { createMailSender } from './src/infra/mailSender.js';
@@ -2649,25 +2651,6 @@ function randomState(size = 32) {
   return base64Url(crypto.randomBytes(size));
 }
 
-const mobileOAuthTokens = new Map();
-
-function issueMobileOAuthToken(userId) {
-  const token = randomState(36);
-  const expiresAt = Date.now() + 5 * 60 * 1000;
-  mobileOAuthTokens.set(token, { userId: Number(userId || 0), expiresAt });
-  return token;
-}
-
-function consumeMobileOAuthToken(token) {
-  const key = String(token || '').trim();
-  if (!key) return null;
-  const row = mobileOAuthTokens.get(key);
-  if (!row) return null;
-  mobileOAuthTokens.delete(key);
-  if (!row.userId || row.expiresAt < Date.now()) return null;
-  return Number(row.userId);
-}
-
 function normalizeHandleSeed(value) {
   return String(value || '')
     .normalize('NFKD')
@@ -3634,6 +3617,7 @@ registerOAuthRoutes(app, {
   oauthFetchToken,
   oauthFetchProfile,
   findOrCreateOAuthUser,
+  buildMobileOAuthCallbackUrl,
   issueMobileOAuthToken,
   consumeMobileOAuthToken,
   applyUserSession,
