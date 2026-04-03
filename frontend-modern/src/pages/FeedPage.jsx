@@ -14,6 +14,7 @@ import { useAuth } from '../utils/auth.jsx';
 import { FEED_FILTER_CONTRACT, FEED_SCOPE_CONTRACT, FEED_TAB_CONTRACT } from '../contracts/feedUiContract.js';
 import { avatarAlt } from '../utils/a11y.js';
 import { fetchSiteAccess, getCachedSiteAccess } from '../utils/siteAccess.js';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 const FEED_ICON_MAP = {
   feed: 'home',
@@ -81,7 +82,10 @@ export default function FeedPage() {
   const [unreadMessagesError, setUnreadMessagesError] = useState('');
   const [searchParams] = useSearchParams();
   const focusPostId = Number(searchParams.get('post') || 0) || null;
+  const notificationId = Number(searchParams.get('notification') || 0);
+  const [flashFocusPostId, setFlashFocusPostId] = useState(focusPostId);
   const postsRef = useRef([]);
+  const postCardRefs = useRef(new Map());
   const loadingRef = useRef(false);
   const requestSeqRef = useRef(0);
   const sentinelRef = useRef(null);
@@ -126,10 +130,37 @@ export default function FeedPage() {
   const mobileTabToggleLabel = mobileTabsExpanded
     ? `${t('close')} ${activeFeedTabLabel}`
     : activeFeedTabLabel;
+  const notificationLandingResolved = !notificationId || !focusPostId || posts.some((item) => Number(item.id || 0) === focusPostId);
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'feed_page',
+    resolved: notificationLandingResolved
+  });
 
   useEffect(() => {
     postsRef.current = posts;
   }, [posts]);
+
+  useEffect(() => {
+    setFlashFocusPostId(focusPostId);
+  }, [focusPostId]);
+
+  useEffect(() => {
+    if (!focusPostId || !posts.length) return undefined;
+    const timer = window.setTimeout(() => {
+      const node = postCardRefs.current.get(focusPostId);
+      node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [focusPostId, posts]);
+
+  useEffect(() => {
+    if (!flashFocusPostId) return undefined;
+    const timer = window.setTimeout(() => {
+      setFlashFocusPostId((current) => (current === flashFocusPostId ? null : current));
+    }, 3200);
+    return () => window.clearTimeout(timer);
+  }, [flashFocusPostId]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
@@ -521,7 +552,15 @@ export default function FeedPage() {
             ) : null}
 
             {posts.map((p) => (
-              <PostCard key={p.id} post={p} onRefresh={() => load({ silent: true, force: true })} focused={focusPostId === p.id} />
+              <div
+                key={p.id}
+                ref={(node) => {
+                  if (node) postCardRefs.current.set(Number(p.id || 0), node);
+                  else postCardRefs.current.delete(Number(p.id || 0));
+                }}
+              >
+                <PostCard post={p} onRefresh={() => load({ silent: true, force: true })} focused={flashFocusPostId === p.id} />
+              </div>
             ))}
             <div ref={sentinelRef} />
             {loadingMore ? <div className="muted">{t('feed_loading_more')}</div> : null}

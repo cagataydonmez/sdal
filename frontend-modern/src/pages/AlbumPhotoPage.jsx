@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useParams } from '../router.jsx';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useParams } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import { formatDateTime } from '../utils/date.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
@@ -7,15 +7,25 @@ import TranslatableHtml from '../components/TranslatableHtml.jsx';
 import { isRichTextEmpty } from '../utils/richText.js';
 import { useI18n } from '../utils/i18n.jsx';
 import { contentImageAlt } from '../utils/a11y.js';
+import { useNotificationNavigationTracking } from '../utils/notificationNavigation.js';
 
 export default function AlbumPhotoPage() {
   const { t } = useI18n();
   const { id } = useParams();
+  const location = useLocation();
   const [photo, setPhoto] = useState(null);
   const [comments, setComments] = useState([]);
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showNotificationFocus, setShowNotificationFocus] = useState(false);
+  const searchParams = useMemo(() => new URLSearchParams(location.search || ''), [location.search]);
+  const notificationId = Number(searchParams.get('notification') || 0);
+
+  useNotificationNavigationTracking(notificationId, {
+    surface: 'album_photo_page',
+    resolved: Boolean(photo)
+  });
 
   async function load() {
     const res = await fetch(`/api/photos/${id}`, { credentials: 'include' });
@@ -28,6 +38,16 @@ export default function AlbumPhotoPage() {
   useEffect(() => {
     load();
   }, [id]);
+
+  useEffect(() => {
+    setShowNotificationFocus(Boolean(notificationId));
+  }, [notificationId]);
+
+  useEffect(() => {
+    if (!showNotificationFocus) return undefined;
+    const timer = window.setTimeout(() => setShowNotificationFocus(false), 3200);
+    return () => window.clearTimeout(timer);
+  }, [showNotificationFocus]);
 
   async function submit(e) {
     e.preventDefault();
@@ -58,8 +78,14 @@ export default function AlbumPhotoPage() {
   return (
     <Layout title={photo.baslik || t('photo_title')}>
       <div className="panel">
-        <img className="photo-view-image" src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(photo.dosyaadi)}`} alt={contentImageAlt(photo.baslik || t('photo_title'), photo.aciklama || '')} />
+        <img className={`photo-view-image${showNotificationFocus ? ' notification-focus-card' : ''}`} src={`/api/media/kucukresim?width=1200&file=${encodeURIComponent(photo.dosyaadi)}`} alt={contentImageAlt(photo.baslik || t('photo_title'), photo.aciklama || '')} />
           <div className="panel-body">
+          {notificationId ? (
+            <div className="notification-focus-inline-panel">
+              <strong>{t('notification_toast_default')}</strong>
+              <div className="muted">Bildirimden açılan fotoğraf kısa süreli olarak vurgulandı.</div>
+            </div>
+          ) : null}
           <div className="meta">{formatDateTime(photo.tarih)}</div>
           <TranslatableHtml html={photo.aciklama || ''} />
         </div>
