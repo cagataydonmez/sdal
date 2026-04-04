@@ -63,9 +63,8 @@ class ApiClient {
     final raw = path.startsWith('http://') || path.startsWith('https://')
         ? Uri.parse(path)
         : config.siteBaseUri.resolve(path.startsWith('/') ? path : '/$path');
-    return raw.replace(
-      queryParameters: {...raw.queryParameters, ..._normalizeQuery(query)},
-    );
+    final mergedQuery = {...raw.queryParameters, ..._normalizeQuery(query)};
+    return mergedQuery.isEmpty ? raw : raw.replace(queryParameters: mergedQuery);
   }
 
   Uri buildWebSocketUri(String path, {Map<String, dynamic>? query}) {
@@ -74,7 +73,13 @@ class ApiClient {
   }
 
   Future<String?> cookieHeaderForUri(Uri uri) async {
-    final cookies = await _cookieJar.loadForRequest(uri);
+    // Cookie jar stores cookies keyed by http/https scheme; remap ws/wss.
+    final cookieUri = switch (uri.scheme) {
+      'wss' => uri.replace(scheme: 'https'),
+      'ws' => uri.replace(scheme: 'http'),
+      _ => uri,
+    };
+    final cookies = await _cookieJar.loadForRequest(cookieUri);
     if (cookies.isEmpty) return null;
     return cookies.map((cookie) => '${cookie.name}=${cookie.value}').join('; ');
   }

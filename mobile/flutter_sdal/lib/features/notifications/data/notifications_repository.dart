@@ -173,6 +173,16 @@ class NotificationsRepository {
   }
 
   Future<ApiResult<dynamic>> runAction(NotificationActionItem action) {
+    if (action.endpoint.trim().isEmpty) {
+      return Future.value(const ApiResult<dynamic>(
+        ok: false,
+        statusCode: 0,
+        message: 'İşlem adresi eksik.',
+        code: '',
+        data: null,
+        rawData: null,
+      ));
+    }
     final method = action.method.toUpperCase();
     if (method == 'PUT') {
       return _apiClient.put<dynamic>(action.endpoint);

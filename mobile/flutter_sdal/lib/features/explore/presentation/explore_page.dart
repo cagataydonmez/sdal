@@ -38,7 +38,7 @@ class ExplorePage extends ConsumerWidget {
             data: (items) => items.isEmpty
                 ? const SurfaceCard(child: Text('Şu anda öneri yok.'))
                 : SizedBox(
-                    height: 168,
+                    height: 208,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: items.length,

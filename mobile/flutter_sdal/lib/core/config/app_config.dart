@@ -16,9 +16,15 @@ class AppConfig {
 
   Uri resolveUrl(String raw) {
     final trimmed = raw.trim();
-    if (trimmed.isEmpty) return siteBaseUri;
+    if (trimmed.isEmpty) return Uri();
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return Uri.parse(trimmed);
+    }
+    // Bare filename (no path separator) = profile photo stored in vesikalik directory.
+    // The backend stores only the filename in the `resim` column; the web frontend
+    // consistently resolves these via /api/media/vesikalik/<filename>.
+    if (!trimmed.contains('/')) {
+      return siteBaseUri.resolve('/api/media/vesikalik/$trimmed');
     }
     return siteBaseUri.resolve(trimmed.startsWith('/') ? trimmed : '/$trimmed');
   }

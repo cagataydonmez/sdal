@@ -190,126 +190,125 @@ class _MetricPill extends StatelessWidget {
   }
 }
 
-Future<void> _openComposer(BuildContext context, WidgetRef ref) async {
-  final l10n = context.l10n;
-  final contentController = TextEditingController();
-  final picker = ImagePicker();
-  XFile? selectedImage;
+Future<void> _openComposer(BuildContext context, WidgetRef ref) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => const _ComposerSheet(),
+  );
+}
 
-  try {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          final actionState = ref.watch(feedActionControllerProvider);
-          final submitting =
-              actionState.isLoading && actionState.scope == 'createPost';
-          return StatefulBuilder(
-            builder: (context, setSheetState) => Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.feedComposerTitle,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: contentController,
-                      minLines: 4,
-                      maxLines: 8,
-                      decoration: InputDecoration(
-                        labelText: l10n.feedComposerHint,
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (selectedImage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text('Seçilen görsel: ${selectedImage!.name}'),
-                      ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: submitting
-                                ? null
-                                : () async {
-                                    final file = await picker.pickImage(
-                                      source: ImageSource.gallery,
-                                      imageQuality: 92,
-                                      maxWidth: 1800,
-                                    );
-                                    if (!context.mounted) return;
-                                    setSheetState(() => selectedImage = file);
-                                  },
-                            icon: const Icon(Icons.photo_library_outlined),
-                            label: Text(l10n.pickFromGallery),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: submitting
-                                ? null
-                                : () async {
-                                    final content = contentController.text
-                                        .trim();
-                                    final ok = await ref
-                                        .read(
-                                          feedActionControllerProvider.notifier,
-                                        )
-                                        .createPost(
-                                          content: content,
-                                          feedType: 'main',
-                                          imageFile: selectedImage == null
-                                              ? null
-                                              : File(selectedImage!.path),
-                                        );
-                                    if (!context.mounted) return;
-                                    final nextState = ref.read(
-                                      feedActionControllerProvider,
-                                    );
-                                    Navigator.of(context).pop();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          nextState.message ??
-                                              (ok
-                                                  ? l10n.postShared
-                                                  : l10n.postShareFailed),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                            child: Text(
-                              submitting
-                                  ? l10n.shareInProgress
-                                  : l10n.shareAction,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+class _ComposerSheet extends ConsumerStatefulWidget {
+  const _ComposerSheet();
+
+  @override
+  ConsumerState<_ComposerSheet> createState() => _ComposerSheetState();
+}
+
+class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
+  final _contentController = TextEditingController();
+  final _picker = ImagePicker();
+  XFile? _selectedImage;
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actionState = ref.watch(feedActionControllerProvider);
+    final l10n = context.l10n;
+    final submitting = actionState.isLoading && actionState.scope == 'createPost';
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.feedComposerTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _contentController,
+              minLines: 4,
+              maxLines: 8,
+              decoration: InputDecoration(
+                labelText: l10n.feedComposerHint,
+                alignLabelWithHint: true,
               ),
             ),
-          );
-        },
+            const SizedBox(height: 12),
+            if (_selectedImage != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text('Seçilen görsel: ${_selectedImage!.name}'),
+              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: submitting ? null : _pickImage,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text(l10n.pickFromGallery),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: submitting ? null : _submit,
+                    child: Text(
+                      submitting ? l10n.shareInProgress : l10n.shareAction,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
-  } finally {
-    contentController.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 92,
+      maxWidth: 1800,
+    );
+    if (!mounted) return;
+    setState(() => _selectedImage = file);
+  }
+
+  Future<void> _submit() async {
+    final content = _contentController.text.trim();
+    final l10n = context.l10n;
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
+        .createPost(
+          content: content,
+          feedType: 'main',
+          imageFile: _selectedImage == null ? null : File(_selectedImage!.path),
+        );
+    if (!mounted) return;
+    final nextState = ref.read(feedActionControllerProvider);
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          nextState.message ?? (ok ? l10n.postShared : l10n.postShareFailed),
+        ),
+      ),
+    );
   }
 }

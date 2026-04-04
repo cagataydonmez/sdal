@@ -22,15 +22,14 @@ class RemoteAvatar extends StatelessWidget {
       foregroundImage: normalizedUrl.isNotEmpty
           ? NetworkImage(normalizedUrl)
           : null,
-      child: normalizedUrl.isEmpty
-          ? Text(
-              initials,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: const Color(0xFF0D2238),
-                fontWeight: FontWeight.w700,
-              ),
-            )
-          : null,
+      onForegroundImageError: normalizedUrl.isNotEmpty ? (_, _) {} : null,
+      child: Text(
+        initials,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: const Color(0xFF0D2238),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

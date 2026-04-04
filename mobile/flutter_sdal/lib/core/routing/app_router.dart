@@ -21,20 +21,41 @@ import '../widgets/status_views.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
+// Bridges Riverpod session state into a ChangeNotifier so GoRouter can
+// refresh its redirect logic without recreating the router instance.
+class _SessionListenable extends ChangeNotifier {
+  _SessionListenable(Ref ref) {
+    ref.listen(sessionControllerProvider, (_, _) => notifyListeners());
+  }
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final snapshot = ref.watch(sessionControllerProvider).value!;
+  final listenable = _SessionListenable(ref);
+  ref.onDispose(listenable.dispose);
+
+  // Read once for the initial location — the provider is only created after
+  // the session has resolved (SdalFlutterApp only watches this in the data
+  // branch), so .value! is safe here.
+  final initialSnapshot = ref.read(sessionControllerProvider).value!;
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: snapshot.isAuthenticated
-        ? snapshot.defaultHomePath
+    initialLocation: initialSnapshot.isAuthenticated
+        ? initialSnapshot.defaultHomePath
         : '/login',
-    redirect: (context, state) => redirectForSessionState(snapshot, state.uri),
+    refreshListenable: listenable,
+    redirect: (context, state) {
+      final snapshot = ref.read(sessionControllerProvider).value;
+      if (snapshot == null) return null;
+      return redirectForSessionState(snapshot, state.uri);
+    },
     routes: [
       GoRoute(
         path: '/',
-        redirect: (context, state) =>
-            snapshot.isAuthenticated ? snapshot.defaultHomePath : '/login',
+        redirect: (context, state) {
+          final s = ref.read(sessionControllerProvider).value;
+          return (s != null && s.isAuthenticated) ? s.defaultHomePath : '/login';
+        },
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(
@@ -62,12 +83,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/site-closed',
-        builder: (context, state) => StatusScaffold(
-          title: AppLocalizations.of(context)!.siteClosedTitle,
-          message: snapshot.siteAccess.maintenanceMessage.isNotEmpty
-              ? snapshot.siteAccess.maintenanceMessage
-              : AppLocalizations.of(context)!.siteClosedFallbackMessage,
-        ),
+        builder: (context, state) {
+          final s = ref.read(sessionControllerProvider).value;
+          final maintenanceMessage = s?.siteAccess.maintenanceMessage ?? '';
+          return StatusScaffold(
+            title: AppLocalizations.of(context)!.siteClosedTitle,
+            message: maintenanceMessage.isNotEmpty
+                ? maintenanceMessage
+                : AppLocalizations.of(context)!.siteClosedFallbackMessage,
+          );
+        },
       ),
       GoRoute(
         path: '/module-closed',
