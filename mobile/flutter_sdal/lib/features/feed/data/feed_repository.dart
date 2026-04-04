@@ -1,93 +1,99 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/network/paged_response.dart';
 
-class FeedItem {
-  const FeedItem({
-    required this.id,
-    required this.content,
-    required this.createdAt,
-    required this.authorName,
-    required this.authorHandle,
-    required this.authorPhoto,
-    required this.imageUrl,
-    required this.likeCount,
-    required this.commentCount,
-    required this.liked,
-  });
+part 'feed_repository.freezed.dart';
+part 'feed_repository.g.dart';
 
-  final int id;
-  final String content;
-  final String createdAt;
-  final String authorName;
-  final String authorHandle;
-  final String authorPhoto;
-  final String imageUrl;
-  final int likeCount;
-  final int commentCount;
-  final bool liked;
+@freezed
+class FeedAuthor with _$FeedAuthor {
+  const factory FeedAuthor({
+    @JsonKey(fromJson: readRequiredText) required String isim,
+    @JsonKey(fromJson: readRequiredText) required String kadi,
+    @JsonKey(fromJson: readRequiredText) required String resim,
+  }) = _FeedAuthor;
 
-  factory FeedItem.fromMap(JsonMap map) {
-    final author = asJsonMap(map['author']);
-    return FeedItem(
-      id: asInt(map['id']) ?? 0,
-      content: coalesceText([map['content']], fallback: ''),
-      createdAt: coalesceText([
-        map['createdAt'],
-        map['created_at'],
-      ], fallback: ''),
-      authorName: coalesceText([
-        author['isim'],
-        author['name'],
-        author['kadi'],
-      ], fallback: 'SDAL Üyesi'),
-      authorHandle: coalesceText([author['kadi']], fallback: ''),
-      authorPhoto: coalesceText([
-        author['resim'],
-        author['photo'],
-      ], fallback: ''),
-      imageUrl: coalesceText([
-        map['image'],
-        asJsonMap(map['variants'])['feedUrl'],
-      ], fallback: ''),
-      likeCount: asInt(map['likeCount']) ?? 0,
-      commentCount: asInt(map['commentCount']) ?? 0,
-      liked: asBool(map['liked']) ?? false,
-    );
-  }
+  factory FeedAuthor.fromJson(Map<String, dynamic> json) =>
+      _$FeedAuthorFromJson(
+        normalizeJsonAliases(json, {
+          'isim': ['name', 'kadi'],
+          'resim': ['photo'],
+        }),
+      );
 }
 
-class FeedComment {
-  const FeedComment({
-    required this.id,
-    required this.text,
-    required this.authorName,
-    required this.createdAt,
-  });
+@freezed
+class FeedVariants with _$FeedVariants {
+  const factory FeedVariants({
+    @JsonKey(fromJson: readRequiredText) required String feedUrl,
+  }) = _FeedVariants;
 
-  final int id;
-  final String text;
-  final String authorName;
-  final String createdAt;
+  factory FeedVariants.fromJson(Map<String, dynamic> json) =>
+      _$FeedVariantsFromJson(json);
+}
 
-  factory FeedComment.fromMap(JsonMap map) {
-    return FeedComment(
-      id: asInt(map['id']) ?? 0,
-      text: coalesceText([map['comment'], map['body']], fallback: ''),
-      authorName: coalesceText([
-        map['isim'],
-        map['kadi'],
-      ], fallback: 'SDAL Üyesi'),
-      createdAt: coalesceText([
-        map['created_at'],
-        map['createdAt'],
-      ], fallback: ''),
-    );
-  }
+@freezed
+class FeedItem with _$FeedItem {
+  const FeedItem._();
+
+  const factory FeedItem({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    @JsonKey(fromJson: readRequiredText) required String content,
+    @JsonKey(fromJson: readRequiredText) required String createdAt,
+    required FeedAuthor author,
+    @JsonKey(fromJson: readRequiredText) required String image,
+    FeedVariants? variants,
+    @JsonKey(fromJson: readRequiredInt) required int likeCount,
+    @JsonKey(fromJson: readRequiredInt) required int commentCount,
+    @JsonKey(fromJson: readRequiredBool) required bool liked,
+  }) = _FeedItem;
+
+  String get authorName => author.isim.isNotEmpty ? author.isim : 'SDAL Üyesi';
+  String get authorHandle => author.kadi;
+  String get authorPhoto => author.resim;
+  String get imageUrl => image.isNotEmpty ? image : (variants?.feedUrl ?? '');
+
+  factory FeedItem.fromJson(Map<String, dynamic> json) => _$FeedItemFromJson(
+    normalizeJsonAliases(json, {
+      'createdAt': ['created_at'],
+      'image': const [],
+      'likeCount': const [],
+      'commentCount': const [],
+    }),
+  );
+
+  factory FeedItem.fromMap(JsonMap map) => FeedItem.fromJson(map);
+}
+
+@freezed
+class FeedComment with _$FeedComment {
+  const FeedComment._();
+
+  const factory FeedComment({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    @JsonKey(fromJson: readRequiredText) required String comment,
+    @JsonKey(fromJson: readRequiredText) required String isim,
+    @JsonKey(fromJson: readRequiredText) required String createdAt,
+  }) = _FeedComment;
+
+  String get text => comment;
+  String get authorName => isim.isNotEmpty ? isim : 'SDAL Üyesi';
+
+  factory FeedComment.fromJson(Map<String, dynamic> json) =>
+      _$FeedCommentFromJson(
+        normalizeJsonAliases(json, {
+          'comment': ['body'],
+          'isim': ['kadi'],
+          'createdAt': ['created_at'],
+        }),
+      );
+
+  factory FeedComment.fromMap(JsonMap map) => FeedComment.fromJson(map);
 }
 
 class FeedRepository {

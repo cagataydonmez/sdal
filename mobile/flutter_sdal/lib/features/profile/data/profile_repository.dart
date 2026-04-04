@@ -1,87 +1,70 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
 
-class ProfileData {
-  const ProfileData({
-    required this.id,
-    required this.username,
-    required this.firstName,
-    required this.lastName,
-    required this.email,
-    required this.graduationYear,
-    required this.city,
-    required this.profession,
-    required this.website,
-    required this.university,
-    required this.signature,
-    required this.photo,
-    required this.company,
-    required this.title,
-    required this.expertise,
-    required this.linkedinUrl,
-    required this.universityDepartment,
-    required this.mentorOptIn,
-    required this.mentorTopics,
-    required this.kvkkConsent,
-    required this.directoryConsent,
-    required this.emailHidden,
-  });
+part 'profile_repository.freezed.dart';
+part 'profile_repository.g.dart';
 
-  final int id;
-  final String username;
-  final String firstName;
-  final String lastName;
-  final String email;
-  final String graduationYear;
-  final String city;
-  final String profession;
-  final String website;
-  final String university;
-  final String signature;
-  final String photo;
-  final String company;
-  final String title;
-  final String expertise;
-  final String linkedinUrl;
-  final String universityDepartment;
-  final bool mentorOptIn;
-  final String mentorTopics;
-  final bool kvkkConsent;
-  final bool directoryConsent;
-  final bool emailHidden;
+@freezed
+class ProfileData with _$ProfileData {
+  const ProfileData._();
 
-  factory ProfileData.fromMap(JsonMap map) {
-    return ProfileData(
-      id: asInt(map['id']) ?? 0,
-      username: coalesceText([map['kadi']], fallback: ''),
-      firstName: coalesceText([map['isim']], fallback: ''),
-      lastName: coalesceText([map['soyisim']], fallback: ''),
-      email: coalesceText([map['email']], fallback: ''),
-      graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
-      city: coalesceText([map['sehir']], fallback: ''),
-      profession: coalesceText([map['meslek']], fallback: ''),
-      website: coalesceText([map['websitesi']], fallback: ''),
-      university: coalesceText([map['universite']], fallback: ''),
-      signature: coalesceText([map['imza']], fallback: ''),
-      photo: coalesceText([map['resim']], fallback: ''),
-      company: coalesceText([map['sirket']], fallback: ''),
-      title: coalesceText([map['unvan']], fallback: ''),
-      expertise: coalesceText([map['uzmanlik']], fallback: ''),
-      linkedinUrl: coalesceText([map['linkedin_url']], fallback: ''),
-      universityDepartment: coalesceText([
-        map['universite_bolum'],
-      ], fallback: ''),
-      mentorOptIn: asBool(map['mentor_opt_in']) ?? false,
-      mentorTopics: coalesceText([map['mentor_konulari']], fallback: ''),
-      kvkkConsent: asBool(map['kvkk_consent']) ?? false,
-      directoryConsent: asBool(map['directory_consent']) ?? false,
-      emailHidden: asBool(map['mailkapali']) ?? false,
-    );
-  }
+  const factory ProfileData({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    @JsonKey(fromJson: readRequiredText) required String username,
+    @JsonKey(fromJson: readRequiredText) required String firstName,
+    @JsonKey(fromJson: readRequiredText) required String lastName,
+    @JsonKey(fromJson: readRequiredText) required String email,
+    @JsonKey(fromJson: readRequiredText) required String graduationYear,
+    @JsonKey(fromJson: readRequiredText) required String city,
+    @JsonKey(fromJson: readRequiredText) required String profession,
+    @JsonKey(fromJson: readRequiredText) required String website,
+    @JsonKey(fromJson: readRequiredText) required String university,
+    @JsonKey(fromJson: readRequiredText) required String signature,
+    @JsonKey(fromJson: readRequiredText) required String photo,
+    @JsonKey(fromJson: readRequiredText) required String company,
+    @JsonKey(fromJson: readRequiredText) required String title,
+    @JsonKey(fromJson: readRequiredText) required String expertise,
+    @JsonKey(fromJson: readRequiredText) required String linkedinUrl,
+    @JsonKey(fromJson: readRequiredText) required String universityDepartment,
+    @JsonKey(fromJson: readRequiredBool) required bool mentorOptIn,
+    @JsonKey(fromJson: readRequiredText) required String mentorTopics,
+    @JsonKey(fromJson: readRequiredBool) required bool kvkkConsent,
+    @JsonKey(fromJson: readRequiredBool) required bool directoryConsent,
+    @JsonKey(fromJson: readRequiredBool) required bool emailHidden,
+  }) = _ProfileData;
+
+  factory ProfileData.fromJson(Map<String, dynamic> json) =>
+      _$ProfileDataFromJson(
+        normalizeJsonAliases(json, {
+          'username': ['kadi'],
+          'firstName': ['isim'],
+          'lastName': ['soyisim'],
+          'graduationYear': ['mezuniyetyili'],
+          'city': ['sehir'],
+          'profession': ['meslek'],
+          'website': ['websitesi'],
+          'university': ['universite'],
+          'signature': ['imza'],
+          'photo': ['resim'],
+          'company': ['sirket'],
+          'title': ['unvan'],
+          'expertise': ['uzmanlik'],
+          'linkedinUrl': ['linkedin_url'],
+          'universityDepartment': ['universite_bolum'],
+          'mentorOptIn': ['mentor_opt_in'],
+          'mentorTopics': ['mentor_konulari'],
+          'kvkkConsent': ['kvkk_consent'],
+          'directoryConsent': ['directory_consent'],
+          'emailHidden': ['mailkapali'],
+        }),
+      );
+
+  factory ProfileData.fromMap(JsonMap map) => ProfileData.fromJson(map);
 
   Map<String, dynamic> toUpdateBody() {
     return {
@@ -105,73 +88,25 @@ class ProfileData {
       'mailkapali': emailHidden ? '1' : '0',
     };
   }
-
-  ProfileData copyWith({
-    String? firstName,
-    String? lastName,
-    String? email,
-    String? graduationYear,
-    String? city,
-    String? profession,
-    String? website,
-    String? university,
-    String? signature,
-    String? photo,
-    String? company,
-    String? title,
-    String? expertise,
-    String? linkedinUrl,
-    String? universityDepartment,
-    bool? mentorOptIn,
-    String? mentorTopics,
-    bool? kvkkConsent,
-    bool? directoryConsent,
-    bool? emailHidden,
-  }) {
-    return ProfileData(
-      id: id,
-      username: username,
-      firstName: firstName ?? this.firstName,
-      lastName: lastName ?? this.lastName,
-      email: email ?? this.email,
-      graduationYear: graduationYear ?? this.graduationYear,
-      city: city ?? this.city,
-      profession: profession ?? this.profession,
-      website: website ?? this.website,
-      university: university ?? this.university,
-      signature: signature ?? this.signature,
-      photo: photo ?? this.photo,
-      company: company ?? this.company,
-      title: title ?? this.title,
-      expertise: expertise ?? this.expertise,
-      linkedinUrl: linkedinUrl ?? this.linkedinUrl,
-      universityDepartment: universityDepartment ?? this.universityDepartment,
-      mentorOptIn: mentorOptIn ?? this.mentorOptIn,
-      mentorTopics: mentorTopics ?? this.mentorTopics,
-      kvkkConsent: kvkkConsent ?? this.kvkkConsent,
-      directoryConsent: directoryConsent ?? this.directoryConsent,
-      emailHidden: emailHidden ?? this.emailHidden,
-    );
-  }
 }
 
-class VerificationUploadResult {
-  const VerificationUploadResult({
-    required this.proofPath,
-    required this.proofImageRecordId,
-  });
+@freezed
+class VerificationUploadResult with _$VerificationUploadResult {
+  const factory VerificationUploadResult({
+    @JsonKey(fromJson: readRequiredText) required String proofPath,
+    @JsonKey(fromJson: readRequiredText) required String proofImageRecordId,
+  }) = _VerificationUploadResult;
 
-  final String proofPath;
-  final String proofImageRecordId;
+  factory VerificationUploadResult.fromJson(Map<String, dynamic> json) =>
+      _$VerificationUploadResultFromJson(
+        normalizeJsonAliases(json, {
+          'proofPath': ['proof_path'],
+          'proofImageRecordId': ['proof_image_record_id'],
+        }),
+      );
 
-  factory VerificationUploadResult.fromMap(JsonMap map) {
-    return VerificationUploadResult(
-      proofPath: coalesceText([map['proof_path']], fallback: ''),
-      proofImageRecordId: coalesceText([
-        map['proof_image_record_id'],
-      ], fallback: ''),
-    );
-  }
+  factory VerificationUploadResult.fromMap(JsonMap map) =>
+      VerificationUploadResult.fromJson(map);
 }
 
 class ProfileRepository {

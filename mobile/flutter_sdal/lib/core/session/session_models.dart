@@ -1,57 +1,50 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 import '../config/app_config.dart';
 import '../network/json_utils.dart';
 
-class OAuthProviderLink {
-  const OAuthProviderLink({
-    required this.provider,
-    required this.title,
-    required this.startUrl,
-    required this.enabled,
-  });
+part 'session_models.freezed.dart';
+part 'session_models.g.dart';
 
-  final String provider;
-  final String title;
-  final String startUrl;
-  final bool enabled;
+@freezed
+class OAuthProviderLink with _$OAuthProviderLink {
+  const factory OAuthProviderLink({
+    @JsonKey(fromJson: readRequiredText) required String provider,
+    @JsonKey(fromJson: readRequiredText) required String title,
+    @JsonKey(fromJson: readRequiredText) required String startUrl,
+    @JsonKey(fromJson: readRequiredBool) required bool enabled,
+  }) = _OAuthProviderLink;
 
-  factory OAuthProviderLink.fromMap(JsonMap map) {
-    return OAuthProviderLink(
-      provider: coalesceText([map['provider']], fallback: ''),
-      title: coalesceText([map['title'], map['provider']], fallback: ''),
-      startUrl: coalesceText([map['startUrl']], fallback: ''),
-      enabled: asBool(map['enabled']) ?? true,
-    );
-  }
+  factory OAuthProviderLink.fromJson(Map<String, dynamic> json) =>
+      _$OAuthProviderLinkFromJson(
+        normalizeJsonAliases(json, {
+          'title': ['provider'],
+          'enabled': const [],
+        }),
+      );
+
+  factory OAuthProviderLink.fromMap(JsonMap map) =>
+      OAuthProviderLink.fromJson(map);
 }
 
-class SessionUser {
-  const SessionUser({
-    required this.id,
-    required this.kadi,
-    required this.isim,
-    required this.soyisim,
-    required this.photo,
-    required this.role,
-    required this.isAdmin,
-    required this.isVerified,
-    required this.isBanned,
-    required this.state,
-    this.graduationYear,
-    this.oauthProvider,
-  });
+@freezed
+class SessionUser with _$SessionUser {
+  const SessionUser._();
 
-  final int id;
-  final String kadi;
-  final String isim;
-  final String soyisim;
-  final String photo;
-  final String role;
-  final bool isAdmin;
-  final bool isVerified;
-  final bool isBanned;
-  final String state;
-  final String? graduationYear;
-  final String? oauthProvider;
+  const factory SessionUser({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    @JsonKey(fromJson: readRequiredText) required String kadi,
+    @JsonKey(fromJson: readRequiredText) required String isim,
+    @JsonKey(fromJson: readRequiredText) required String soyisim,
+    @JsonKey(fromJson: readRequiredText) required String photo,
+    @JsonKey(fromJson: readRequiredText) required String role,
+    @JsonKey(name: 'admin', fromJson: readRequiredBool) required bool isAdmin,
+    @JsonKey(name: 'verified', fromJson: readRequiredBool)
+    required bool isVerified,
+    @JsonKey(name: 'banned', fromJson: readRequiredBool) required bool isBanned,
+    @JsonKey(fromJson: readRequiredText) required String state,
+    @JsonKey(fromJson: readOptionalText) String? graduationYear,
+    @JsonKey(fromJson: readOptionalText) String? oauthProvider,
+  }) = _SessionUser;
 
   String get displayName {
     final fullName = '${isim.trim()} ${soyisim.trim()}'.trim();
@@ -60,55 +53,59 @@ class SessionUser {
     return 'SDAL Üyesi';
   }
 
-  factory SessionUser.fromMap(JsonMap map) {
-    return SessionUser(
-      id: asInt(map['id']) ?? 0,
-      kadi: coalesceText([map['kadi']], fallback: ''),
-      isim: coalesceText([map['isim']], fallback: ''),
-      soyisim: coalesceText([map['soyisim']], fallback: ''),
-      photo: coalesceText([map['photo'], map['resim']], fallback: ''),
-      role: coalesceText([map['role']], fallback: 'user'),
-      isAdmin: asBool(map['admin']) ?? false,
-      isVerified: asBool(map['verified']) ?? false,
-      isBanned: asBool(map['banned']) ?? asBool(map['yasak']) ?? false,
-      state: coalesceText([map['state']], fallback: 'active'),
-      graduationYear: asString(map['mezuniyetyili']),
-      oauthProvider: asString(map['oauth_provider']),
-    );
-  }
+  factory SessionUser.fromJson(Map<String, dynamic> json) =>
+      _$SessionUserFromJson(
+        normalizeJsonAliases(json, {
+          'photo': ['resim'],
+          'banned': ['yasak'],
+          'graduationYear': ['mezuniyetyili'],
+          'oauthProvider': ['oauth_provider'],
+        }),
+      );
+
+  factory SessionUser.fromMap(JsonMap map) => SessionUser.fromJson(map);
 }
 
-class SiteAccessSnapshot {
-  const SiteAccessSnapshot({
-    required this.siteOpen,
-    required this.maintenanceMessage,
-    required this.modules,
-    required this.defaultLandingPage,
-  });
+@freezed
+class SiteAccessSnapshot with _$SiteAccessSnapshot {
+  const SiteAccessSnapshot._();
 
-  final bool siteOpen;
-  final String maintenanceMessage;
-  final Map<String, bool> modules;
-  final String defaultLandingPage;
+  const factory SiteAccessSnapshot({
+    @JsonKey(fromJson: readRequiredBool) required bool siteOpen,
+    @JsonKey(fromJson: readRequiredText) required String maintenanceMessage,
+    @SiteModulesConverter() required Map<String, bool> modules,
+    @JsonKey(fromJson: readRequiredText) required String defaultLandingPage,
+  }) = _SiteAccessSnapshot;
 
   bool isModuleOpen(String key) => modules[key] ?? true;
 
-  factory SiteAccessSnapshot.fromMap(JsonMap map) {
-    final modulesRaw = asJsonMap(map['modules']);
-    return SiteAccessSnapshot(
-      siteOpen: asBool(map['siteOpen']) ?? true,
-      maintenanceMessage: coalesceText([
-        map['maintenanceMessage'],
-        map['message'],
-      ], fallback: ''),
-      modules: modulesRaw.map(
-        (key, value) => MapEntry(key, asBool(value) ?? true),
-      ),
-      defaultLandingPage: coalesceText([
-        map['defaultLandingPage'],
-      ], fallback: '/new'),
-    );
+  factory SiteAccessSnapshot.fromJson(Map<String, dynamic> json) =>
+      _$SiteAccessSnapshotFromJson(
+        normalizeJsonAliases(json, {
+          'maintenanceMessage': ['message'],
+          'defaultLandingPage': const [],
+        }),
+      );
+
+  factory SiteAccessSnapshot.fromMap(JsonMap map) =>
+      SiteAccessSnapshot.fromJson(map);
+}
+
+class SiteModulesConverter
+    implements JsonConverter<Map<String, bool>, Map<String, dynamic>?> {
+  const SiteModulesConverter();
+
+  @override
+  Map<String, bool> fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const <String, bool>{};
+    return asJsonMap(
+      json,
+    ).map((key, value) => MapEntry(key, asBool(value) ?? true));
   }
+
+  @override
+  Map<String, dynamic> toJson(Map<String, bool> object) =>
+      Map<String, dynamic>.from(object);
 }
 
 class SessionSnapshot {

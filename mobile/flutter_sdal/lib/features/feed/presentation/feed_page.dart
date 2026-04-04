@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
 
 class FeedPage extends ConsumerWidget {
@@ -16,9 +18,10 @@ class FeedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final feedState = ref.watch(feedItemsProvider);
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
 
     return FeatureScaffold(
-      title: 'Ana Akış',
+      title: l10n.feedTitle,
       actions: [
         IconButton(
           onPressed: () => ref.invalidate(feedItemsProvider),
@@ -28,7 +31,7 @@ class FeedPage extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openComposer(context, ref),
         icon: const Icon(Icons.edit_outlined),
-        label: const Text('Gönderi'),
+        label: Text(l10n.feedPostAction),
       ),
       child: feedState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -90,7 +93,7 @@ class FeedPage extends ConsumerWidget {
                       const SizedBox(height: 12),
                       Text(
                         item.content.isEmpty
-                            ? 'Bu gönderi içerik taşımıyor.'
+                            ? l10n.feedEmptyContent
                             : item.content,
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
@@ -117,9 +120,8 @@ class FeedPage extends ConsumerWidget {
                             active: item.liked,
                             onTap: () async {
                               await ref
-                                  .read(feedRepositoryProvider)
+                                  .read(feedActionControllerProvider.notifier)
                                   .toggleLike(item.id);
-                              ref.invalidate(feedItemsProvider);
                             },
                           ),
                           const SizedBox(width: 10),
@@ -189,110 +191,122 @@ class _MetricPill extends StatelessWidget {
 }
 
 Future<void> _openComposer(BuildContext context, WidgetRef ref) async {
+  final l10n = context.l10n;
   final contentController = TextEditingController();
   final picker = ImagePicker();
   XFile? selectedImage;
-  bool submitting = false;
 
   try {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Yeni gönderi',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: contentController,
-                  minLines: 4,
-                  maxLines: 8,
-                  decoration: const InputDecoration(
-                    labelText: 'Ne paylaşmak istiyorsun?',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (selectedImage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text('Seçilen görsel: ${selectedImage!.name}'),
-                  ),
-                Row(
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final actionState = ref.watch(feedActionControllerProvider);
+          final submitting =
+              actionState.isLoading && actionState.scope == 'createPost';
+          return StatefulBuilder(
+            builder: (context, setSheetState) => Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: submitting
-                            ? null
-                            : () async {
-                                final file = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                  imageQuality: 92,
-                                  maxWidth: 1800,
-                                );
-                                if (!context.mounted) return;
-                                setSheetState(() => selectedImage = file);
-                              },
-                        icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text('Galeriden seç'),
+                    Text(
+                      l10n.feedComposerTitle,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: contentController,
+                      minLines: 4,
+                      maxLines: 8,
+                      decoration: InputDecoration(
+                        labelText: l10n.feedComposerHint,
+                        alignLabelWithHint: true,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: submitting
-                            ? null
-                            : () async {
-                                setSheetState(() => submitting = true);
-                                final content = contentController.text.trim();
-                                final repo = ref.read(feedRepositoryProvider);
-                                final result = selectedImage == null
-                                    ? await repo.createPost(content: content)
-                                    : await repo.createPostWithImage(
-                                        content: content,
-                                        feedType: 'main',
-                                        imageFile: File(selectedImage!.path),
-                                      );
-                                if (!context.mounted) return;
-                                setSheetState(() => submitting = false);
-                                Navigator.of(context).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      result.message.isNotEmpty
-                                          ? result.message
-                                          : (result.ok
-                                                ? 'Gönderi paylaşıldı.'
-                                                : 'Gönderi paylaşılamadı.'),
-                                    ),
-                                  ),
-                                );
-                                if (result.ok) {
-                                  ref.invalidate(feedItemsProvider);
-                                }
-                              },
-                        child: Text(submitting ? 'Paylaşılıyor...' : 'Paylaş'),
+                    const SizedBox(height: 12),
+                    if (selectedImage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text('Seçilen görsel: ${selectedImage!.name}'),
                       ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: submitting
+                                ? null
+                                : () async {
+                                    final file = await picker.pickImage(
+                                      source: ImageSource.gallery,
+                                      imageQuality: 92,
+                                      maxWidth: 1800,
+                                    );
+                                    if (!context.mounted) return;
+                                    setSheetState(() => selectedImage = file);
+                                  },
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: Text(l10n.pickFromGallery),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: submitting
+                                ? null
+                                : () async {
+                                    final content = contentController.text
+                                        .trim();
+                                    final ok = await ref
+                                        .read(
+                                          feedActionControllerProvider.notifier,
+                                        )
+                                        .createPost(
+                                          content: content,
+                                          feedType: 'main',
+                                          imageFile: selectedImage == null
+                                              ? null
+                                              : File(selectedImage!.path),
+                                        );
+                                    if (!context.mounted) return;
+                                    final nextState = ref.read(
+                                      feedActionControllerProvider,
+                                    );
+                                    Navigator.of(context).pop();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          nextState.message ??
+                                              (ok
+                                                  ? l10n.postShared
+                                                  : l10n.postShareFailed),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                            child: Text(
+                              submitting
+                                  ? l10n.shareInProgress
+                                  : l10n.shareAction,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   } finally {

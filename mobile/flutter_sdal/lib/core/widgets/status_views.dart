@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import '../l10n/context_l10n.dart';
 
 class AppSplashScreen extends StatelessWidget {
   const AppSplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       body: DecoratedBox(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -20,11 +21,11 @@ class AppSplashScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: 18),
+                const CircularProgressIndicator(color: Colors.white),
+                const SizedBox(height: 18),
                 Text(
-                  'SDAL hazırlanıyor',
-                  style: TextStyle(
+                  context.l10n.splashPreparing,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,

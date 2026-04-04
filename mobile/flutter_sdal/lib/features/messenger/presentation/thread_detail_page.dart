@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/messenger_action_controller.dart';
 import '../data/messenger_repository.dart';
 
 class ThreadDetailPage extends ConsumerStatefulWidget {
@@ -20,7 +22,6 @@ class ThreadDetailPage extends ConsumerStatefulWidget {
 class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   final _messageController = TextEditingController();
   StreamSubscription<MessengerRealtimeEvent>? _eventsSubscription;
-  bool _sending = false;
   bool _markedRead = false;
 
   @override
@@ -49,6 +50,11 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
     final threadsState = ref.watch(messengerThreadsProvider(''));
     final realtime = ref.watch(messengerRealtimeServiceProvider);
     final config = ref.watch(appConfigProvider);
+    final actionState = ref.watch(messengerActionControllerProvider);
+    final l10n = context.l10n;
+    final sending =
+        actionState.isLoading &&
+        actionState.scope == 'messenger:send:${widget.threadId}';
 
     MessengerThreadSummary? thread;
     final threadItems =
@@ -59,7 +65,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
         break;
       }
     }
-    final title = thread?.peer.name ?? 'Sohbet';
+    final title = thread?.peer.name ?? l10n.threadFallbackTitle;
 
     return FeatureScaffold(
       title: title,
@@ -70,11 +76,13 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
             final state =
                 snapshot.data ?? const RealtimeConnectionState.disconnected();
             final label = switch (state.status) {
-              RealtimeConnectionStatus.connected => 'Canlı',
-              RealtimeConnectionStatus.reconnecting => 'Yeniden bağlanıyor',
-              RealtimeConnectionStatus.failed => 'Bağlantı yok',
-              RealtimeConnectionStatus.connecting => 'Bağlanıyor',
-              RealtimeConnectionStatus.disconnected => 'Kapalı',
+              RealtimeConnectionStatus.connected => l10n.realtimeConnected,
+              RealtimeConnectionStatus.reconnecting =>
+                l10n.realtimeReconnecting,
+              RealtimeConnectionStatus.failed => l10n.realtimeFailed,
+              RealtimeConnectionStatus.connecting => l10n.realtimeConnecting,
+              RealtimeConnectionStatus.disconnected =>
+                l10n.realtimeDisconnected,
             };
             return Padding(
               padding: const EdgeInsets.only(right: 16),
@@ -137,10 +145,10 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                   });
                 }
                 if (messages.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('Henüz mesaj yok. İlk mesajı sen gönder.'),
+                      padding: const EdgeInsets.all(24),
+                      child: Text(l10n.threadEmpty),
                     ),
                   );
                 }
@@ -219,16 +227,20 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                       controller: _messageController,
                       minLines: 1,
                       maxLines: 5,
-                      decoration: const InputDecoration(
-                        labelText: 'Mesaj',
+                      decoration: InputDecoration(
+                        labelText: l10n.messageFieldLabel,
                         alignLabelWithHint: true,
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   FilledButton(
-                    onPressed: _sending ? null : _sendMessage,
-                    child: Text(_sending ? '...' : 'Gönder'),
+                    onPressed: sending ? null : _sendMessage,
+                    child: Text(
+                      sending
+                          ? l10n.messageSendInProgress
+                          : l10n.messageSendAction,
+                    ),
                   ),
                 ],
               ),
@@ -242,24 +254,24 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
-    setState(() => _sending = true);
-    final result = await ref
-        .read(messengerRepositoryProvider)
+    final ok = await ref
+        .read(messengerActionControllerProvider.notifier)
         .sendMessage(threadId: widget.threadId, text: text);
     if (!mounted) return;
-    setState(() => _sending = false);
 
-    if (result.ok) {
+    if (ok) {
       _messageController.clear();
-      ref.invalidate(messengerMessagesProvider(widget.threadId));
-      ref.invalidate(messengerThreadsProvider(''));
       return;
     }
 
+    final actionState = ref.read(messengerActionControllerProvider);
+    final actionMessage = actionState.message ?? '';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          result.message.isNotEmpty ? result.message : 'Mesaj gönderilemedi.',
+          actionMessage.isNotEmpty
+              ? actionMessage
+              : context.l10n.messageSendFailed,
         ),
       ),
     );

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
-import '../../../core/network/json_utils.dart';
-import '../../../core/session/session_controller.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/auth_action_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -18,8 +17,6 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _submitting = false;
-  String? _error;
 
   @override
   void dispose() {
@@ -29,88 +26,45 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-    final message = await ref
-        .read(sessionControllerProvider.notifier)
+    await ref
+        .read(authActionControllerProvider.notifier)
         .login(
           username: _usernameController.text.trim(),
           password: _passwordController.text,
         );
-    if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _error = message;
-    });
   }
 
   Future<void> _startOAuth(String provider) async {
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-
-    try {
-      final providers = await ref
-          .read(sessionControllerProvider.notifier)
-          .fetchOAuthProviders();
-      final target = providers.firstWhere((item) => item.provider == provider);
-      final config = ref.read(appConfigProvider);
-      final apiClient = ref.read(apiClientProvider);
-      final authUri = apiClient.buildApiUri(
-        target.startUrl,
-        query: const {'native': '1'},
-      );
-      final callbackUrl = await FlutterWebAuth2.authenticate(
-        url: authUri.toString(),
-        callbackUrlScheme: config.oauthCallbackScheme,
-      );
-      final callback = Uri.parse(callbackUrl);
-      final token = callback.queryParameters['token'];
-      final oauthError = callback.queryParameters['oauth'];
-      if (oauthError != null && oauthError.isNotEmpty) {
-        throw StateError('OAuth akışı tamamlanamadı: $oauthError');
-      }
-      if (token == null || token.isEmpty) {
-        throw StateError('OAuth dönüşünde oturum jetonu bulunamadı.');
-      }
-      final message = await ref
-          .read(sessionControllerProvider.notifier)
-          .exchangeMobileOAuthToken(token);
-      if (!mounted) return;
-      setState(() => _error = message);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _submitting = false);
-      }
-    }
+    await ref.read(authActionControllerProvider.notifier).startOAuth(provider);
   }
 
   @override
   Widget build(BuildContext context) {
+    final actionState = ref.watch(authActionControllerProvider);
+    final l10n = context.l10n;
+    final submitting =
+        actionState.isLoading &&
+        (actionState.scope == 'login' || actionState.scope == 'oauth');
+    final error = actionState.isError ? actionState.message : null;
+
     return _AuthFrame(
-      title: 'SDAL',
-      subtitle: 'Yeni Flutter iOS istemcisine giriş yapın.',
+      title: l10n.loginTitle,
+      subtitle: l10n.loginSubtitle,
       footer: Wrap(
         spacing: 12,
         runSpacing: 12,
         children: [
           TextButton(
             onPressed: () => context.go('/register'),
-            child: const Text('Kayıt ol'),
+            child: Text(l10n.register),
           ),
           TextButton(
             onPressed: () => context.go('/activation/resend'),
-            child: const Text('Aktivasyon tekrar gönder'),
+            child: Text(l10n.resendActivation),
           ),
           TextButton(
             onPressed: () => context.go('/password-reset'),
-            child: const Text('Şifre sıfırla'),
+            child: Text(l10n.resetPassword),
           ),
         ],
       ),
@@ -120,8 +74,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           TextField(
             controller: _usernameController,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Kullanıcı adı',
+            decoration: InputDecoration(
+              labelText: l10n.username,
               prefixIcon: Icon(Icons.alternate_email),
             ),
           ),
@@ -130,34 +84,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             controller: _passwordController,
             obscureText: true,
             onSubmitted: (_) => _submit(),
-            decoration: const InputDecoration(
-              labelText: 'Şifre',
+            decoration: InputDecoration(
+              labelText: l10n.password,
               prefixIcon: Icon(Icons.lock_outline),
             ),
           ),
-          if (_error != null) ...[
+          if (error != null) ...[
             const SizedBox(height: 12),
             Text(
-              _error!,
+              error,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
           const SizedBox(height: 18),
           FilledButton(
-            onPressed: _submitting ? null : _submit,
-            child: Text(_submitting ? 'Giriş yapılıyor...' : 'Giriş yap'),
+            onPressed: submitting ? null : _submit,
+            child: Text(submitting ? l10n.loginInProgress : l10n.loginAction),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _submitting ? null : () => _startOAuth('google'),
+            onPressed: submitting ? null : () => _startOAuth('google'),
             icon: const Icon(Icons.g_mobiledata),
-            label: const Text('Google ile devam et'),
+            label: Text(l10n.continueWithGoogle),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: _submitting ? null : () => _startOAuth('x'),
+            onPressed: submitting ? null : () => _startOAuth('x'),
             icon: const Icon(Icons.alternate_email),
-            label: const Text('X ile devam et'),
+            label: Text(l10n.continueWithX),
           ),
         ],
       ),
@@ -181,9 +135,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _lastNameController = TextEditingController();
   final _yearController = TextEditingController(text: '2011');
   final _captchaController = TextEditingController();
-  bool _submitting = false;
   String? _captchaSvg;
-  String? _status;
 
   @override
   void initState() {
@@ -215,85 +167,73 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submitting = true;
-      _status = null;
-    });
-    final result = await ref
-        .read(apiClientProvider)
-        .post<JsonMap>(
-          '/api/register',
-          body: {
-            'kadi': _usernameController.text.trim(),
-            'sifre': _passwordController.text,
-            'sifre2': _repeatPasswordController.text,
-            'email': _emailController.text.trim(),
-            'isim': _firstNameController.text.trim(),
-            'soyisim': _lastNameController.text.trim(),
-            'mezuniyetyili': _yearController.text.trim(),
-            'gkodu': _captchaController.text.trim(),
-          },
-          decoder: (raw) => asJsonMap(raw),
+    await ref
+        .read(authActionControllerProvider.notifier)
+        .register(
+          username: _usernameController.text.trim(),
+          password: _passwordController.text,
+          repeatPassword: _repeatPasswordController.text,
+          email: _emailController.text.trim(),
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
+          graduationYear: _yearController.text.trim(),
+          captcha: _captchaController.text.trim(),
         );
-    if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _status = result.ok
-          ? 'Kayıt isteği gönderildi. Aktivasyon e-postasını kontrol edin.'
-          : result.message;
-    });
     await _loadCaptcha();
   }
 
   @override
   Widget build(BuildContext context) {
+    final actionState = ref.watch(authActionControllerProvider);
+    final l10n = context.l10n;
+    final submitting = actionState.isLoading && actionState.scope == 'register';
+    final status = actionState.scope == 'register' ? actionState.message : null;
+
     return _AuthFrame(
-      title: 'Kayıt ol',
-      subtitle: 'V1 için yeni Flutter istemcisinden hesap oluşturun.',
+      title: l10n.registerTitle,
+      subtitle: l10n.registerSubtitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _twoColumn(
             TextField(
               controller: _firstNameController,
-              decoration: const InputDecoration(labelText: 'Ad'),
+              decoration: InputDecoration(labelText: l10n.firstName),
             ),
             TextField(
               controller: _lastNameController,
-              decoration: const InputDecoration(labelText: 'Soyad'),
+              decoration: InputDecoration(labelText: l10n.lastName),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _usernameController,
-            decoration: const InputDecoration(labelText: 'Kullanıcı adı'),
+            decoration: InputDecoration(labelText: l10n.username),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(labelText: 'E-posta'),
+            decoration: InputDecoration(labelText: l10n.email),
           ),
           const SizedBox(height: 12),
           _twoColumn(
             TextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Şifre'),
+              decoration: InputDecoration(labelText: l10n.password),
             ),
             TextField(
               controller: _repeatPasswordController,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Şifre tekrar'),
+              decoration: InputDecoration(labelText: l10n.passwordRepeat),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _yearController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Mezuniyet yılı / Teacher',
-            ),
+            decoration: InputDecoration(labelText: l10n.graduationYear),
           ),
           const SizedBox(height: 16),
           if (_captchaSvg != null) ...[
@@ -305,14 +245,14 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ],
           TextField(
             controller: _captchaController,
-            decoration: const InputDecoration(labelText: 'Captcha kodu'),
+            decoration: InputDecoration(labelText: l10n.captchaCode),
           ),
-          if (_status != null) ...[
+          if (status != null) ...[
             const SizedBox(height: 12),
             Text(
-              _status!,
+              status,
               style: TextStyle(
-                color: _status!.contains('gönderildi')
+                color: actionState.isSuccess
                     ? Colors.green.shade700
                     : Theme.of(context).colorScheme.error,
               ),
@@ -320,9 +260,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ],
           const SizedBox(height: 18),
           FilledButton(
-            onPressed: _submitting ? null : _submit,
+            onPressed: submitting ? null : _submit,
             child: Text(
-              _submitting ? 'Gönderiliyor...' : 'Kayıt isteği gönder',
+              submitting ? l10n.submitInProgress : l10n.registerSubmitAction,
             ),
           ),
         ],
@@ -344,8 +284,6 @@ class ActivationPage extends ConsumerStatefulWidget {
 class _ActivationPageState extends ConsumerState<ActivationPage> {
   late final TextEditingController _memberIdController;
   late final TextEditingController _codeController;
-  bool _submitting = false;
-  String? _status;
 
   @override
   void initState() {
@@ -365,53 +303,44 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submitting = true;
-      _status = null;
-    });
-    final result = await ref
-        .read(apiClientProvider)
-        .get<JsonMap>(
-          '/api/activate',
-          query: {
-            'id': _memberIdController.text.trim(),
-            'akt': _codeController.text.trim(),
-          },
-          decoder: (raw) => asJsonMap(raw),
+    await ref
+        .read(authActionControllerProvider.notifier)
+        .activate(
+          memberId: _memberIdController.text.trim(),
+          code: _codeController.text.trim(),
         );
-    if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _status = result.message.isNotEmpty
-          ? result.message
-          : (result.ok ? 'Aktivasyon tamamlandı.' : 'Aktivasyon başarısız.');
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final actionState = ref.watch(authActionControllerProvider);
+    final l10n = context.l10n;
+    final submitting = actionState.isLoading && actionState.scope == 'activate';
+    final status = actionState.scope == 'activate' ? actionState.message : null;
+
     return _AuthFrame(
-      title: 'Aktivasyon',
-      subtitle:
-          'E-posta bağlantınız iOS uygulamasını açtıysa burada tamamlayın.',
+      title: l10n.activationTitle,
+      subtitle: l10n.activationSubtitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
             controller: _memberIdController,
-            decoration: const InputDecoration(labelText: 'Üye kimliği'),
+            decoration: InputDecoration(labelText: l10n.memberId),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _codeController,
-            decoration: const InputDecoration(labelText: 'Aktivasyon kodu'),
+            decoration: InputDecoration(labelText: l10n.activationCode),
           ),
-          if (_status != null) ...[const SizedBox(height: 12), Text(_status!)],
+          if (status != null) ...[const SizedBox(height: 12), Text(status)],
           const SizedBox(height: 18),
           FilledButton(
-            onPressed: _submitting ? null : _submit,
+            onPressed: submitting ? null : _submit,
             child: Text(
-              _submitting ? 'Kontrol ediliyor...' : 'Aktivasyonu tamamla',
+              submitting
+                  ? l10n.activationChecking
+                  : l10n.activationSubmitAction,
             ),
           ),
         ],
@@ -431,8 +360,6 @@ class ActivationResendPage extends ConsumerStatefulWidget {
 class _ActivationResendPageState extends ConsumerState<ActivationResendPage> {
   final _memberIdController = TextEditingController();
   final _emailController = TextEditingController();
-  bool _submitting = false;
-  String? _status;
 
   @override
   void dispose() {
@@ -442,53 +369,44 @@ class _ActivationResendPageState extends ConsumerState<ActivationResendPage> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submitting = true;
-      _status = null;
-    });
-    final result = await ref
-        .read(apiClientProvider)
-        .post<JsonMap>(
-          '/api/activation/resend',
-          body: {
-            'id': _memberIdController.text.trim(),
-            'email': _emailController.text.trim(),
-          },
-          decoder: (raw) => asJsonMap(raw),
+    await ref
+        .read(authActionControllerProvider.notifier)
+        .resendActivation(
+          memberId: _memberIdController.text.trim(),
+          email: _emailController.text.trim(),
         );
-    if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _status = result.message.isNotEmpty
-          ? result.message
-          : (result.ok
-                ? 'Aktivasyon e-postası yeniden gönderildi.'
-                : 'İşlem başarısız.');
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final actionState = ref.watch(authActionControllerProvider);
+    final l10n = context.l10n;
+    final submitting =
+        actionState.isLoading && actionState.scope == 'resendActivation';
+    final status = actionState.scope == 'resendActivation'
+        ? actionState.message
+        : null;
+
     return _AuthFrame(
-      title: 'Aktivasyon tekrar gönder',
-      subtitle: 'Eski üyelik aktivasyon akışı için destek ekranı.',
+      title: l10n.resendActivationTitle,
+      subtitle: l10n.resendActivationSubtitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
             controller: _memberIdController,
-            decoration: const InputDecoration(labelText: 'Üye kimliği'),
+            decoration: InputDecoration(labelText: l10n.memberId),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _emailController,
-            decoration: const InputDecoration(labelText: 'E-posta'),
+            decoration: InputDecoration(labelText: l10n.email),
           ),
-          if (_status != null) ...[const SizedBox(height: 12), Text(_status!)],
+          if (status != null) ...[const SizedBox(height: 12), Text(status)],
           const SizedBox(height: 18),
           FilledButton(
-            onPressed: _submitting ? null : _submit,
-            child: Text(_submitting ? 'Gönderiliyor...' : 'Tekrar gönder'),
+            onPressed: submitting ? null : _submit,
+            child: Text(submitting ? l10n.submitInProgress : l10n.resendAction),
           ),
         ],
       ),
@@ -506,8 +424,6 @@ class PasswordResetPage extends ConsumerStatefulWidget {
 class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
-  bool _submitting = false;
-  String? _status;
 
   @override
   void dispose() {
@@ -517,54 +433,47 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submitting = true;
-      _status = null;
-    });
-    final result = await ref
-        .read(apiClientProvider)
-        .post<JsonMap>(
-          '/api/password-reset',
-          body: {
-            'kadi': _usernameController.text.trim(),
-            'email': _emailController.text.trim(),
-          },
-          decoder: (raw) => asJsonMap(raw),
+    await ref
+        .read(authActionControllerProvider.notifier)
+        .requestPasswordReset(
+          username: _usernameController.text.trim(),
+          email: _emailController.text.trim(),
         );
-    if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _status = result.message.isNotEmpty
-          ? result.message
-          : (result.ok
-                ? 'Şifre sıfırlama e-postası gönderildi.'
-                : 'İşlem başarısız.');
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final actionState = ref.watch(authActionControllerProvider);
+    final l10n = context.l10n;
+    final submitting =
+        actionState.isLoading && actionState.scope == 'passwordReset';
+    final status = actionState.scope == 'passwordReset'
+        ? actionState.message
+        : null;
+
     return _AuthFrame(
-      title: 'Şifre sıfırla',
-      subtitle: 'Eski SDAL hesap kurtarma uç noktasını kullanır.',
+      title: l10n.resetPasswordTitle,
+      subtitle: l10n.resetPasswordSubtitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
             controller: _usernameController,
-            decoration: const InputDecoration(labelText: 'Kullanıcı adı'),
+            decoration: InputDecoration(labelText: l10n.username),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _emailController,
-            decoration: const InputDecoration(labelText: 'E-posta'),
+            decoration: InputDecoration(labelText: l10n.email),
           ),
-          if (_status != null) ...[const SizedBox(height: 12), Text(_status!)],
+          if (status != null) ...[const SizedBox(height: 12), Text(status)],
           const SizedBox(height: 18),
           FilledButton(
-            onPressed: _submitting ? null : _submit,
+            onPressed: submitting ? null : _submit,
             child: Text(
-              _submitting ? 'Gönderiliyor...' : 'Sıfırlama isteği gönder',
+              submitting
+                  ? l10n.submitInProgress
+                  : l10n.passwordResetSubmitAction,
             ),
           ),
         ],
@@ -578,12 +487,11 @@ class OAuthCallbackPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _AuthFrame(
-      title: 'OAuth',
-      subtitle: 'Bu ekran genellikle kısa süreliğine görünür.',
-      child: Text(
-        'Tarayıcı akışı uygulamaya geri döndüğünde oturum otomatik açılır.',
-      ),
+    final l10n = context.l10n;
+    return _AuthFrame(
+      title: l10n.oauthTitle,
+      subtitle: l10n.oauthSubtitle,
+      child: Text(l10n.oauthInfoMessage),
     );
   }
 }

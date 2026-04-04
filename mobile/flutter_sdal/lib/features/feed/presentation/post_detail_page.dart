@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
 
 class PostDetailPage extends ConsumerStatefulWidget {
@@ -16,7 +18,6 @@ class PostDetailPage extends ConsumerStatefulWidget {
 
 class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   final _commentController = TextEditingController();
-  bool _submittingComment = false;
 
   @override
   void dispose() {
@@ -28,10 +29,15 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   Widget build(BuildContext context) {
     final postState = ref.watch(postDetailProvider(widget.postId));
     final commentsState = ref.watch(postCommentsProvider(widget.postId));
+    final actionState = ref.watch(feedActionControllerProvider);
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
+    final submittingComment =
+        actionState.isLoading &&
+        actionState.scope == 'comment:${widget.postId}';
 
     return FeatureScaffold(
-      title: 'Gönderi',
+      title: l10n.feedPostAction,
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -118,9 +124,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton(
-                    onPressed: _submittingComment ? null : _submitComment,
+                    onPressed: submittingComment ? null : _submitComment,
                     child: Text(
-                      _submittingComment ? 'Gönderiliyor...' : 'Yorumu gönder',
+                      submittingComment ? 'Gönderiliyor...' : 'Yorumu gönder',
                     ),
                   ),
                 ),
@@ -176,25 +182,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   Future<void> _submitComment() async {
     final comment = _commentController.text.trim();
     if (comment.isEmpty) return;
-    setState(() => _submittingComment = true);
-    final result = await ref
-        .read(feedRepositoryProvider)
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
         .createComment(postId: widget.postId, comment: comment);
     if (!mounted) return;
-    setState(() => _submittingComment = false);
-    if (result.ok) {
+    if (ok) {
       _commentController.clear();
-      ref.invalidate(postCommentsProvider(widget.postId));
-      ref.invalidate(postDetailProvider(widget.postId));
-      ref.invalidate(feedItemsProvider);
       return;
     }
+    final actionState = ref.read(feedActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result.message.isNotEmpty ? result.message : 'Yorum gönderilemedi.',
-        ),
-      ),
+      SnackBar(content: Text(actionState.message ?? 'Yorum gönderilemedi.')),
     );
   }
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/notifications_action_controller.dart';
 import '../data/notifications_repository.dart';
 
 class NotificationsPage extends ConsumerStatefulWidget {
@@ -13,16 +15,18 @@ class NotificationsPage extends ConsumerStatefulWidget {
 }
 
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
-  bool _savingPreferences = false;
-
   @override
   Widget build(BuildContext context) {
     final notificationsState = ref.watch(notificationsProvider);
     final preferencesState = ref.watch(notificationPreferencesProvider);
     final unreadCountState = ref.watch(notificationUnreadCountProvider);
+    final actionState = ref.watch(notificationsActionControllerProvider);
+    final l10n = context.l10n;
+    final savingPreferences =
+        actionState.isLoading && actionState.scope == 'preferences';
 
     return FeatureScaffold(
-      title: 'Bildirimler',
+      title: l10n.notificationsTitle,
       actions: [
         IconButton(
           onPressed: () {
@@ -41,38 +45,35 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               children: [
                 Expanded(
                   child: unreadCountState.when(
-                    loading: () => const Text('Okunmamış sayısı yükleniyor...'),
+                    loading: () => Text(l10n.notificationsUnreadLoading),
                     error: (error, _) => Text(error.toString()),
                     data: (count) => Text(
-                      'Okunmamış bildirim: $count',
+                      l10n.notificationsUnreadCount(count),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
                 ),
                 FilledButton.tonal(
                   onPressed: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    final result = await ref
-                        .read(notificationsRepositoryProvider)
+                    final ok = await ref
+                        .read(notificationsActionControllerProvider.notifier)
                         .markAllRead();
                     if (!context.mounted) return;
-                    messenger.showSnackBar(
+                    final nextState = ref.read(
+                      notificationsActionControllerProvider,
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          result.message.isNotEmpty
-                              ? result.message
-                              : (result.ok
-                                    ? 'Bildirimler okundu olarak işaretlendi.'
-                                    : 'İşlem başarısız oldu.'),
+                          nextState.message ??
+                              (ok
+                                  ? l10n.notificationsUpdatedAllRead
+                                  : l10n.notificationsActionFailed),
                         ),
                       ),
                     );
-                    if (result.ok) {
-                      ref.invalidate(notificationsProvider);
-                      ref.invalidate(notificationUnreadCountProvider);
-                    }
                   },
-                  child: const Text('Tümünü oku'),
+                  child: Text(l10n.notificationsMarkAllRead),
                 ),
               ],
             ),
@@ -85,41 +86,40 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             error: (error, _) => SurfaceCard(child: Text(error.toString())),
             data: (preferences) => _PreferencesCard(
               preferences: preferences,
-              saving: _savingPreferences,
+              saving: savingPreferences,
               onChanged: (next) async {
-                setState(() => _savingPreferences = true);
-                final messenger = ScaffoldMessenger.of(context);
-                final result = await ref
-                    .read(notificationsRepositoryProvider)
+                final ok = await ref
+                    .read(notificationsActionControllerProvider.notifier)
                     .savePreferences(next);
                 if (!context.mounted) return;
-                setState(() => _savingPreferences = false);
-                messenger.showSnackBar(
+                final nextState = ref.read(
+                  notificationsActionControllerProvider,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      result.message.isNotEmpty
-                          ? result.message
-                          : (result.ok
-                                ? 'Bildirim tercihleri güncellendi.'
-                                : 'Tercihler kaydedilemedi.'),
+                      nextState.message ??
+                          (ok
+                              ? l10n.notificationsPreferencesUpdated
+                              : l10n.notificationsPreferencesFailed),
                     ),
                   ),
                 );
-                if (result.ok) {
-                  ref.invalidate(notificationPreferencesProvider);
-                }
               },
             ),
           ),
           const SizedBox(height: 20),
-          Text('Gelenler', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            l10n.notificationsInboxTitle,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 12),
           notificationsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => Text(error.toString()),
             data: (items) {
               if (items.isEmpty) {
-                return const SurfaceCard(child: Text('Henüz bildirim yok.'));
+                return SurfaceCard(child: Text(l10n.notificationsEmpty));
               }
               return Column(
                 children: items
@@ -182,31 +182,26 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                           onPressed: () async {
                                             final messenger =
                                                 ScaffoldMessenger.of(context);
-                                            final result = await ref
+                                            final ok = await ref
                                                 .read(
-                                                  notificationsRepositoryProvider,
+                                                  notificationsActionControllerProvider
+                                                      .notifier,
                                                 )
                                                 .runAction(action);
                                             if (!context.mounted) return;
+                                            final nextState = ref.read(
+                                              notificationsActionControllerProvider,
+                                            );
                                             messenger.showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                  result.message.isNotEmpty
-                                                      ? result.message
-                                                      : (result.ok
-                                                            ? '${action.label} tamamlandı.'
-                                                            : 'İşlem başarısız oldu.'),
+                                                  nextState.message ??
+                                                      (ok
+                                                          ? '${action.label} tamamlandı.'
+                                                          : l10n.notificationsActionFailed),
                                                 ),
                                               ),
                                             );
-                                            if (result.ok) {
-                                              ref.invalidate(
-                                                notificationsProvider,
-                                              );
-                                              ref.invalidate(
-                                                notificationUnreadCountProvider,
-                                              );
-                                            }
                                           },
                                           child: Text(action.label),
                                         ),
@@ -222,34 +217,29 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                         ? () async {
                                             final messenger =
                                                 ScaffoldMessenger.of(context);
-                                            final result = await ref
+                                            final ok = await ref
                                                 .read(
-                                                  notificationsRepositoryProvider,
+                                                  notificationsActionControllerProvider
+                                                      .notifier,
                                                 )
                                                 .markRead(item.id);
                                             if (!context.mounted) return;
+                                            final nextState = ref.read(
+                                              notificationsActionControllerProvider,
+                                            );
                                             messenger.showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                  result.message.isNotEmpty
-                                                      ? result.message
-                                                      : (result.ok
-                                                            ? 'Bildirim okundu.'
-                                                            : 'İşlem başarısız oldu.'),
+                                                  nextState.message ??
+                                                      (ok
+                                                          ? 'Bildirim okundu.'
+                                                          : l10n.notificationsActionFailed),
                                                 ),
                                               ),
                                             );
-                                            if (result.ok) {
-                                              ref.invalidate(
-                                                notificationsProvider,
-                                              );
-                                              ref.invalidate(
-                                                notificationUnreadCountProvider,
-                                              );
-                                            }
                                           }
                                         : null,
-                                    child: const Text('Okundu'),
+                                    child: Text(l10n.notificationsReadAction),
                                   ),
                                   const Spacer(),
                                   FilledButton.tonal(
@@ -258,7 +248,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                       ref,
                                       item.id,
                                     ),
-                                    child: const Text('Aç'),
+                                    child: Text(l10n.openAction),
                                   ),
                                 ],
                               ),
@@ -281,30 +271,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     WidgetRef ref,
     int notificationId,
   ) async {
-    final result = await ref
-        .read(notificationsRepositoryProvider)
-        .openNotification(notificationId);
+    final target = await ref
+        .read(notificationsActionControllerProvider.notifier)
+        .open(notificationId);
     if (!context.mounted) return;
-
-    final payload = result.rawData is Map<String, dynamic>
-        ? result.rawData as Map<String, dynamic>
-        : <String, dynamic>{};
-    final data = payload['data'] is Map<String, dynamic>
-        ? payload['data'] as Map<String, dynamic>
-        : <String, dynamic>{};
-    final targetRaw = data['target'] is Map<String, dynamic>
-        ? data['target'] as Map<String, dynamic>
-        : <String, dynamic>{};
-    final target = NotificationTarget.fromMap(targetRaw);
-
-    ref.invalidate(notificationsProvider);
-    ref.invalidate(notificationUnreadCountProvider);
-
-    if (!result.ok) {
+    if (target == null) {
+      final actionState = ref.read(notificationsActionControllerProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            result.message.isNotEmpty ? result.message : 'Bildirim açılamadı.',
+            actionState.message ?? context.l10n.notificationOpenedFailed,
           ),
         ),
       );
@@ -322,9 +298,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          result.message.isNotEmpty
-              ? result.message
-              : (target.label.isNotEmpty ? target.label : 'Bildirim açıldı.'),
+          target.label.isNotEmpty ? target.label : 'Bildirim açıldı.',
         ),
       ),
     );

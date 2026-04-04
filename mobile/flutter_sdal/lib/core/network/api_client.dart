@@ -8,9 +8,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import '../config/app_config.dart';
 import 'api_result.dart';
-import 'json_utils.dart';
-
-typedef ApiDecoder<T> = T Function(dynamic raw);
+import 'api_result_parser.dart';
 
 class ApiClient {
   ApiClient._({
@@ -204,52 +202,12 @@ class ApiClient {
     ApiDecoder<T>? decoder,
     bool? okOverride,
   }) {
-    final parsedBody = _parseBody(rawBody);
-    final payload = parsedBody is Map<String, dynamic>
-        ? parsedBody
-        : parsedBody;
-    final envelope = payload is Map<String, dynamic> ? payload : null;
-    final dataNode = envelope != null && envelope.containsKey('data')
-        ? envelope['data']
-        : payload;
-    final ok =
-        okOverride ??
-        (envelope != null && envelope['ok'] is bool
-            ? envelope['ok'] as bool
-            : statusCode >= 200 && statusCode < 300);
-    final message = envelope != null
-        ? coalesceText([envelope['message'], envelope['error']], fallback: '')
-        : parsedBody is String
-        ? parsedBody
-        : '';
-    final code = envelope != null
-        ? coalesceText([envelope['code']], fallback: '')
-        : '';
-    final data = decoder != null
-        ? decoder(dataNode)
-        : (dataNode is T ? dataNode : null);
-
-    return ApiResult<T>(
-      ok: ok,
-      statusCode: statusCode,
-      message: message,
-      code: code,
-      data: data,
-      rawData: dataNode,
+    return parseApiResult<T>(
+      statusCode,
+      rawBody,
+      decoder: decoder,
+      okOverride: okOverride,
     );
-  }
-
-  dynamic _parseBody(dynamic rawBody) {
-    if (rawBody == null) return null;
-    if (rawBody is Map || rawBody is List) return rawBody;
-    if (rawBody is! String) return rawBody;
-    final trimmed = rawBody.trim();
-    if (trimmed.isEmpty) return null;
-    try {
-      return jsonDecode(trimmed);
-    } catch (_) {
-      return trimmed;
-    }
   }
 
   Map<String, String> _normalizeQuery(Map<String, dynamic>? query) {

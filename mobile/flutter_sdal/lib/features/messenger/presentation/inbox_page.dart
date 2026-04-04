@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/messenger_action_controller.dart';
 import '../data/messenger_repository.dart';
 
 class InboxPage extends ConsumerStatefulWidget {
@@ -44,9 +46,10 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     );
     final realtime = ref.watch(messengerRealtimeServiceProvider);
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
 
     return FeatureScaffold(
-      title: 'Mesajlar',
+      title: l10n.messagesTitle,
       actions: [
         StreamBuilder(
           stream: realtime.states,
@@ -76,7 +79,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openComposeSheet(context, ref),
         icon: const Icon(Icons.edit_outlined),
-        label: const Text('Yeni sohbet'),
+        label: Text(l10n.newChatAction),
       ),
       child: Column(
         children: [
@@ -84,8 +87,8 @@ class _InboxPageState extends ConsumerState<InboxPage> {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
             child: TextField(
               controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: 'Kişi veya kullanıcı adı ara',
+              decoration: InputDecoration(
+                labelText: l10n.searchPeopleHint,
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (_) => setState(() {}),
@@ -97,12 +100,10 @@ class _InboxPageState extends ConsumerState<InboxPage> {
               error: (error, _) => Center(child: Text(error.toString())),
               data: (threads) {
                 if (threads.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Henüz konuşma yok. Yeni bir mesaj başlatmak için sağ alttaki düğmeyi kullan.',
-                      ),
+                      padding: const EdgeInsets.all(24),
+                      child: Text(l10n.noThreads),
                     ),
                   );
                 }
@@ -164,7 +165,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                                   const SizedBox(height: 4),
                                   Text(
                                     thread.lastMessage?.body ??
-                                        'Yeni sohbete başla',
+                                        l10n.startNewChat,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     style: Theme.of(
@@ -200,6 +201,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
 }
 
 Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
+  final l10n = context.l10n;
   final controller = TextEditingController();
 
   try {
@@ -225,15 +227,15 @@ Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Yeni sohbet',
+                  l10n.newChatTitle,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: controller,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Kişi ara',
+                  decoration: InputDecoration(
+                    labelText: l10n.searchPersonHint,
                     prefixIcon: Icon(Icons.search),
                   ),
                   onChanged: (_) => (context as Element).markNeedsBuild(),
@@ -243,21 +245,15 @@ Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
                   height: 320,
                   child: contactsState.when(
                     loading: () => controller.text.trim().isEmpty
-                        ? const Center(
-                            child: Text('Kullanıcı adı veya isim gir.'),
-                          )
+                        ? Center(child: Text(l10n.searchPrompt))
                         : const Center(child: CircularProgressIndicator()),
                     error: (error, _) => Center(child: Text(error.toString())),
                     data: (contacts) {
                       if (controller.text.trim().isEmpty) {
-                        return const Center(
-                          child: Text('Kullanıcı adı veya isim gir.'),
-                        );
+                        return Center(child: Text(l10n.searchPrompt));
                       }
                       if (contacts.isEmpty) {
-                        return const Center(
-                          child: Text('Eşleşen kişi bulunamadı.'),
-                        );
+                        return Center(child: Text(l10n.searchNoResults));
                       }
                       return ListView.separated(
                         itemCount: contacts.length,
@@ -280,16 +276,24 @@ Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
                             ),
                             onTap: () async {
                               final threadId = await ref
-                                  .read(messengerRepositoryProvider)
+                                  .read(
+                                    messengerActionControllerProvider.notifier,
+                                  )
                                   .createThread(contact.id);
                               if (!context.mounted) return;
                               Navigator.of(context).pop();
                               if (threadId != null) {
                                 context.push('/messages/$threadId');
                               } else {
+                                final actionState = ref.read(
+                                  messengerActionControllerProvider,
+                                );
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Sohbet başlatılamadı.'),
+                                  SnackBar(
+                                    content: Text(
+                                      actionState.message ??
+                                          'Sohbet başlatılamadı.',
+                                    ),
                                   ),
                                 );
                               }

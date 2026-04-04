@@ -55,3 +55,35 @@ String coalesceText(Iterable<dynamic> values, {String fallback = ''}) {
   }
   return fallback;
 }
+
+JsonMap normalizeJsonAliases(
+  Map<String, dynamic> input,
+  Map<String, List<String>> aliases,
+) {
+  final normalized = asJsonMap(input);
+  for (final entry in aliases.entries) {
+    if (normalized.containsKey(entry.key) && normalized[entry.key] != null) {
+      continue;
+    }
+    for (final alias in entry.value) {
+      if (!normalized.containsKey(alias)) continue;
+      final candidate = normalized[alias];
+      if (candidate == null) continue;
+      normalized[entry.key] = candidate;
+      break;
+    }
+  }
+  return normalized;
+}
+
+String readRequiredText(dynamic value) => asString(value) ?? '';
+
+String? readOptionalText(dynamic value) => asString(value);
+
+int readRequiredInt(dynamic value) => asInt(value) ?? 0;
+
+int? readOptionalInt(dynamic value) => asInt(value);
+
+bool readRequiredBool(dynamic value) => asBool(value) ?? false;
+
+bool? readOptionalBool(dynamic value) => asBool(value);

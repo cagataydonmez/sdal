@@ -13,6 +13,7 @@ import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
 import '../../features/profile/presentation/profile_verification_page.dart';
+import '../../l10n/generated/app_localizations.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../widgets/app_tab_shell.dart';
@@ -28,7 +29,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: snapshot.isAuthenticated
         ? snapshot.defaultHomePath
         : '/login',
-    redirect: (context, state) => _redirectForState(snapshot, state.uri),
+    redirect: (context, state) => redirectForSessionState(snapshot, state.uri),
     routes: [
       GoRoute(
         path: '/',
@@ -62,40 +63,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/site-closed',
         builder: (context, state) => StatusScaffold(
-          title: 'SDAL şu anda kapalı',
+          title: AppLocalizations.of(context)!.siteClosedTitle,
           message: snapshot.siteAccess.maintenanceMessage.isNotEmpty
               ? snapshot.siteAccess.maintenanceMessage
-              : 'Bakım çalışması nedeniyle uygulama geçici olarak kullanılamıyor.',
+              : AppLocalizations.of(context)!.siteClosedFallbackMessage,
         ),
       ),
       GoRoute(
         path: '/module-closed',
         builder: (context, state) {
           final moduleKey = state.uri.queryParameters['module'] ?? '';
+          final l10n = AppLocalizations.of(context)!;
           return StatusScaffold(
-            title: 'Modül kapalı',
+            title: l10n.moduleClosedTitle,
             message: moduleKey.isEmpty
-                ? 'Bu özellik şu anda kullanılamıyor.'
-                : '$moduleKey modülü geçici olarak kapatıldı.',
+                ? l10n.moduleClosedDefaultMessage
+                : l10n.moduleClosedWithName(moduleKey),
           );
         },
       ),
       GoRoute(
         path: '/account-banned',
-        builder: (context, state) => const StatusScaffold(
-          title: 'Hesap erişime kapatıldı',
-          message:
-              'Bu hesap yasaklandığı için uygulama içinde işlem yapılamıyor. Destek için SDAL yönetimiyle iletişime geçin.',
+        builder: (context, state) => StatusScaffold(
+          title: AppLocalizations.of(context)!.accountBannedTitle,
+          message: AppLocalizations.of(context)!.accountBannedMessage,
         ),
       ),
       GoRoute(
         path: '/verification-required',
         builder: (context, state) {
           final feature = state.uri.queryParameters['feature'] ?? 'networking';
+          final l10n = AppLocalizations.of(context)!;
           return StatusScaffold(
-            title: 'Doğrulama gerekli',
-            message:
-                '$feature özellikleri için profil doğrulaması gerekiyor. Profil ekranından doğrulama talebi gönderebilirsiniz.',
+            title: l10n.verificationRequiredTitle,
+            message: l10n.verificationRequiredMessage(feature),
           );
         },
       ),
@@ -192,7 +193,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-String? _redirectForState(SessionSnapshot snapshot, Uri uri) {
+String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
   final location = uri.path;
   final publicRoutes = <String>{
     '/login',
@@ -221,7 +222,7 @@ String? _redirectForState(SessionSnapshot snapshot, Uri uri) {
     return snapshot.defaultHomePath;
   }
 
-  final moduleKey = _moduleKeyForLocation(location);
+  final moduleKey = moduleKeyForLocation(location);
   if (moduleKey != null && !snapshot.isModuleOpen(moduleKey)) {
     return location == '/module-closed'
         ? null
@@ -234,7 +235,7 @@ String? _redirectForState(SessionSnapshot snapshot, Uri uri) {
     return '/profile';
   }
 
-  if (_requiresVerificationGate(location) && snapshot.requiresVerification) {
+  if (requiresVerificationGate(location) && snapshot.requiresVerification) {
     return location == '/verification-required'
         ? null
         : '/verification-required?feature=networking';
@@ -243,7 +244,7 @@ String? _redirectForState(SessionSnapshot snapshot, Uri uri) {
   return null;
 }
 
-String? _moduleKeyForLocation(String location) {
+String? moduleKeyForLocation(String location) {
   if (location == '/feed' || location.startsWith('/posts/')) return 'feed';
   if (location == '/explore' || location.startsWith('/members/')) {
     return 'explore';
@@ -264,7 +265,7 @@ String? _moduleKeyForLocation(String location) {
   return null;
 }
 
-bool _requiresVerificationGate(String location) {
+bool requiresVerificationGate(String location) {
   if (location == '/inbox' || location.startsWith('/messages/')) return false;
   return location.startsWith('/network/');
 }

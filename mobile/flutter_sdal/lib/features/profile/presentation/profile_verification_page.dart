@@ -2,10 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
-import '../data/profile_repository.dart';
+import '../application/profile_action_controller.dart';
 
 class ProfileVerificationPage extends ConsumerStatefulWidget {
   const ProfileVerificationPage({super.key});
@@ -21,16 +22,20 @@ class _ProfileVerificationPageState
   File? _proofFile;
   String _proofPath = '';
   String _proofImageRecordId = '';
-  bool _uploading = false;
-  bool _submitting = false;
 
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final actionState = ref.watch(profileActionControllerProvider);
     final user = session?.user;
+    final l10n = context.l10n;
+    final uploading =
+        actionState.isLoading && actionState.scope == 'profile:proof';
+    final submitting =
+        actionState.isLoading && actionState.scope == 'profile:verification';
 
     return FeatureScaffold(
-      title: 'Profil doğrulama',
+      title: l10n.profileVerificationPageTitle,
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -38,12 +43,15 @@ class _ProfileVerificationPageState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Durum', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  l10n.statusLabel,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   user?.isVerified == true
-                      ? 'Profilin doğrulanmış görünüyor.'
-                      : 'Networking ve bazı sosyal akışlar için doğrulama gerekiyor. Kimlik veya okul bağlantısını gösteren bir görsel yükleyebilirsin.',
+                      ? l10n.profileVerifiedMessage
+                      : l10n.profileVerificationHint,
                 ),
               ],
             ),
@@ -54,19 +62,21 @@ class _ProfileVerificationPageState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Kanıt yükle',
+                  l10n.proofUploadTitle,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _proofFile == null
-                      ? 'Fotoğraf galerinden veya kameradan bir görsel seç.'
-                      : 'Seçilen dosya: ${_proofFile!.path.split('/').last}',
+                      ? l10n.proofUploadHint
+                      : l10n.proofSelectedFile(
+                          _proofFile!.path.split('/').last,
+                        ),
                 ),
                 if (_proofPath.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Yüklenen kanıt hazır.',
+                    l10n.proofReady,
                     style: TextStyle(color: Colors.green.shade700),
                   ),
                 ],
@@ -75,21 +85,21 @@ class _ProfileVerificationPageState
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _uploading || _submitting
+                        onPressed: uploading || submitting
                             ? null
                             : () => _pick(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text('Galeriden seç'),
+                        label: Text(l10n.pickFromGallery),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _uploading || _submitting
+                        onPressed: uploading || submitting
                             ? null
                             : () => _pick(ImageSource.camera),
                         icon: const Icon(Icons.photo_camera_outlined),
-                        label: const Text('Kamera'),
+                        label: Text(l10n.cameraAction),
                       ),
                     ),
                   ],
@@ -98,11 +108,13 @@ class _ProfileVerificationPageState
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.tonal(
-                    onPressed: _uploading || _submitting || _proofFile == null
+                    onPressed: uploading || submitting || _proofFile == null
                         ? null
                         : _uploadProof,
                     child: Text(
-                      _uploading ? 'Kanıt yükleniyor...' : 'Kanıtı yükle',
+                      uploading
+                          ? l10n.proofUploadInProgress
+                          : l10n.proofUploadAction,
                     ),
                   ),
                 ),
@@ -115,24 +127,22 @@ class _ProfileVerificationPageState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Talebi gönder',
+                  l10n.proofRequestTitle,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'İstersen önce kanıt yükle, istersen sadece doğrulama talebini gönder.',
-                ),
+                Text(l10n.proofRequestHint),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: _submitting || user?.isVerified == true
+                    onPressed: submitting || user?.isVerified == true
                         ? null
                         : _submitRequest,
                     child: Text(
-                      _submitting
-                          ? 'Gönderiliyor...'
-                          : 'Doğrulama talebini gönder',
+                      submitting
+                          ? l10n.verificationSubmitInProgress
+                          : l10n.verificationSubmitAction,
                     ),
                   ),
                 ),
@@ -157,57 +167,48 @@ class _ProfileVerificationPageState
   Future<void> _uploadProof() async {
     final file = _proofFile;
     if (file == null) return;
-    setState(() => _uploading = true);
     final result = await ref
-        .read(profileRepositoryProvider)
+        .read(profileActionControllerProvider.notifier)
         .uploadVerificationProof(file);
     if (!mounted) return;
-    setState(() => _uploading = false);
 
-    if (!result.ok) {
+    if (result == null) {
+      final actionState = ref.read(profileActionControllerProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            result.message.isNotEmpty ? result.message : 'Kanıt yüklenemedi.',
-          ),
+          content: Text(actionState.message ?? context.l10n.proofUploadFailed),
         ),
       );
       return;
     }
 
-    final upload = VerificationUploadResult.fromMap(result.rawData);
     setState(() {
-      _proofPath = upload.proofPath;
-      _proofImageRecordId = upload.proofImageRecordId;
+      _proofPath = result.proofPath;
+      _proofImageRecordId = result.proofImageRecordId;
     });
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Kanıt dosyası yüklendi.')));
+    ).showSnackBar(SnackBar(content: Text(context.l10n.proofUploaded)));
   }
 
   Future<void> _submitRequest() async {
-    setState(() => _submitting = true);
-    final result = await ref
-        .read(profileRepositoryProvider)
+    final ok = await ref
+        .read(profileActionControllerProvider.notifier)
         .submitVerificationRequest(
           proofPath: _proofPath,
           proofImageRecordId: _proofImageRecordId,
         );
     if (!mounted) return;
-    setState(() => _submitting = false);
+    final actionState = ref.read(profileActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          result.message.isNotEmpty
-              ? result.message
-              : (result.ok
-                    ? 'Doğrulama talebi gönderildi.'
-                    : 'Talep gönderilemedi.'),
+          actionState.message ??
+              (ok
+                  ? context.l10n.verificationSubmitted
+                  : context.l10n.verificationSubmitFailed),
         ),
       ),
     );
-    if (result.ok) {
-      ref.invalidate(sessionControllerProvider);
-    }
   }
 }

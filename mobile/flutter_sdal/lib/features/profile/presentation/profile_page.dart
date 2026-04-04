@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
 
 class ProfilePage extends ConsumerWidget {
@@ -16,9 +18,10 @@ class ProfilePage extends ConsumerWidget {
     final profileState = ref.watch(profileProvider);
     final session = ref.watch(sessionControllerProvider).valueOrNull;
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
 
     return FeatureScaffold(
-      title: 'Profil',
+      title: l10n.profileTitle,
       actions: [
         IconButton(
           onPressed: () => ref.invalidate(profileProvider),
@@ -36,7 +39,7 @@ class ProfilePage extends ConsumerWidget {
         data: (profile) {
           final user = session?.user;
           if (profile == null || user == null) {
-            return const Center(child: Text('Profil verisi bulunamadı.'));
+            return Center(child: Text(l10n.profileMissing));
           }
 
           return ListView(
@@ -72,8 +75,8 @@ class ProfilePage extends ConsumerWidget {
                             children: [
                               _StatusChip(
                                 label: user.isVerified
-                                    ? 'Doğrulandı'
-                                    : 'Doğrulama bekliyor',
+                                    ? l10n.profileVerified
+                                    : l10n.profilePendingVerification,
                                 color: user.isVerified
                                     ? const Color(0xFF0D7A4B)
                                     : const Color(0xFF9A6700),
@@ -97,7 +100,7 @@ class ProfilePage extends ConsumerWidget {
                     child: FilledButton.tonalIcon(
                       onPressed: () => context.push('/profile/photo'),
                       icon: const Icon(Icons.photo_camera_outlined),
-                      label: const Text('Fotoğraf'),
+                      label: Text(l10n.profilePhotoAction),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -105,7 +108,7 @@ class ProfilePage extends ConsumerWidget {
                     child: FilledButton.tonalIcon(
                       onPressed: () => context.push('/profile/verification'),
                       icon: const Icon(Icons.verified_user_outlined),
-                      label: const Text('Doğrulama'),
+                      label: Text(l10n.profileVerificationAction),
                     ),
                   ),
                 ],
@@ -119,14 +122,14 @@ class ProfilePage extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            'Hesap bilgileri',
+                            l10n.profileAccountDetailsTitle,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ),
                         FilledButton.tonal(
                           onPressed: () =>
                               _openEditProfileDialog(context, ref, profile),
-                          child: const Text('Düzenle'),
+                          child: Text(l10n.editAction),
                         ),
                       ],
                     ),
@@ -163,7 +166,7 @@ class ProfilePage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hesap işlemleri',
+                      l10n.profileAccountActionsTitle,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
@@ -173,11 +176,11 @@ class ProfilePage extends ConsumerWidget {
                       children: [
                         OutlinedButton(
                           onPressed: () => _openEmailChangeDialog(context, ref),
-                          child: const Text('E-posta değiştir'),
+                          child: Text(l10n.changeEmailAction),
                         ),
                         OutlinedButton(
                           onPressed: () => _openPasswordDialog(context, ref),
-                          child: const Text('Şifre değiştir'),
+                          child: Text(l10n.changePasswordAction),
                         ),
                         FilledButton(
                           onPressed: () async {
@@ -193,7 +196,7 @@ class ProfilePage extends ConsumerWidget {
                               context,
                             ).showSnackBar(SnackBar(content: Text(message)));
                           },
-                          child: const Text('Çıkış yap'),
+                          child: Text(l10n.logoutAction),
                         ),
                       ],
                     ),
@@ -370,26 +373,22 @@ Future<void> _openEditProfileDialog(
                   directoryConsent: directoryConsent,
                   emailHidden: emailHidden,
                 );
-                final result = await ref
-                    .read(profileRepositoryProvider)
+                final ok = await ref
+                    .read(profileActionControllerProvider.notifier)
                     .updateProfile(nextProfile);
                 if (!context.mounted) return;
                 Navigator.of(context).pop();
+                final actionState = ref.read(profileActionControllerProvider);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      result.message.isNotEmpty
-                          ? result.message
-                          : (result.ok
-                                ? 'Profil güncellendi.'
-                                : 'Profil güncellenemedi.'),
+                      actionState.message ??
+                          (ok
+                              ? 'Profil güncellendi.'
+                              : 'Profil güncellenemedi.'),
                     ),
                   ),
                 );
-                if (result.ok) {
-                  ref.invalidate(profileProvider);
-                  ref.invalidate(sessionControllerProvider);
-                }
               },
               child: const Text('Kaydet'),
             ),
@@ -434,19 +433,19 @@ Future<void> _openEmailChangeDialog(BuildContext context, WidgetRef ref) async {
           ),
           FilledButton(
             onPressed: () async {
-              final result = await ref
-                  .read(profileRepositoryProvider)
+              final ok = await ref
+                  .read(profileActionControllerProvider.notifier)
                   .requestEmailChange(controller.text.trim());
               if (!context.mounted) return;
               Navigator.of(context).pop();
+              final actionState = ref.read(profileActionControllerProvider);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    result.message.isNotEmpty
-                        ? result.message
-                        : (result.ok
-                              ? 'Doğrulama e-postası gönderildi.'
-                              : 'İstek başarısız oldu.'),
+                    actionState.message ??
+                        (ok
+                            ? 'Doğrulama e-postası gönderildi.'
+                            : 'İstek başarısız oldu.'),
                   ),
                 ),
               );
@@ -489,8 +488,8 @@ Future<void> _openPasswordDialog(BuildContext context, WidgetRef ref) async {
           ),
           FilledButton(
             onPressed: () async {
-              final result = await ref
-                  .read(profileRepositoryProvider)
+              final ok = await ref
+                  .read(profileActionControllerProvider.notifier)
                   .changePassword(
                     currentPassword: currentController.text,
                     nextPassword: nextController.text,
@@ -498,14 +497,12 @@ Future<void> _openPasswordDialog(BuildContext context, WidgetRef ref) async {
                   );
               if (!context.mounted) return;
               Navigator.of(context).pop();
+              final actionState = ref.read(profileActionControllerProvider);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    result.message.isNotEmpty
-                        ? result.message
-                        : (result.ok
-                              ? 'Şifre güncellendi.'
-                              : 'Şifre güncellenemedi.'),
+                    actionState.message ??
+                        (ok ? 'Şifre güncellendi.' : 'Şifre güncellenemedi.'),
                   ),
                 ),
               );

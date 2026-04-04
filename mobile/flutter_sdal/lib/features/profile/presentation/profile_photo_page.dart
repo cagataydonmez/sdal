@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
 
 class ProfilePhotoPage extends ConsumerStatefulWidget {
@@ -18,15 +20,18 @@ class ProfilePhotoPage extends ConsumerStatefulWidget {
 class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
   final ImagePicker _picker = ImagePicker();
   File? _selectedFile;
-  bool _uploading = false;
 
   @override
   Widget build(BuildContext context) {
     final profileState = ref.watch(profileProvider);
+    final actionState = ref.watch(profileActionControllerProvider);
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
+    final uploading =
+        actionState.isLoading && actionState.scope == 'profile:photo';
 
     return FeatureScaffold(
-      title: 'Profil fotoğrafı',
+      title: l10n.profilePhotoAction,
       child: profileState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text(error.toString())),
@@ -65,21 +70,21 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: _uploading
+                            onPressed: uploading
                                 ? null
                                 : () => _pick(ImageSource.gallery),
                             icon: const Icon(Icons.photo_library_outlined),
-                            label: const Text('Galeriden seç'),
+                            label: Text(l10n.pickFromGallery),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: _uploading
+                            onPressed: uploading
                                 ? null
                                 : () => _pick(ImageSource.camera),
                             icon: const Icon(Icons.photo_camera_outlined),
-                            label: const Text('Kamera'),
+                            label: Text(l10n.cameraAction),
                           ),
                         ),
                       ],
@@ -88,11 +93,13 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: _uploading || _selectedFile == null
+                        onPressed: uploading || _selectedFile == null
                             ? null
                             : _upload,
                         child: Text(
-                          _uploading ? 'Yükleniyor...' : 'Fotoğrafı yükle',
+                          uploading
+                              ? l10n.submitInProgress
+                              : l10n.proofUploadAction,
                         ),
                       ),
                     ),
@@ -121,23 +128,20 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
   Future<void> _upload() async {
     final file = _selectedFile;
     if (file == null) return;
-    setState(() => _uploading = true);
-    final result = await ref.read(profileRepositoryProvider).uploadPhoto(file);
+    final ok = await ref
+        .read(profileActionControllerProvider.notifier)
+        .uploadPhoto(file);
     if (!mounted) return;
-    setState(() => _uploading = false);
+    final actionState = ref.read(profileActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          result.message.isNotEmpty
-              ? result.message
-              : (result.ok
-                    ? 'Profil fotoğrafı güncellendi.'
-                    : 'Fotoğraf yüklenemedi.'),
+          actionState.message ??
+              (ok ? 'Profil fotoğrafı güncellendi.' : 'Fotoğraf yüklenemedi.'),
         ),
       ),
     );
-    if (result.ok) {
-      ref.invalidate(profileProvider);
+    if (ok) {
       setState(() => _selectedFile = null);
     }
   }

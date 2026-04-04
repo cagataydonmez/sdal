@@ -1,17 +1,48 @@
 # flutter_sdal
 
-A new Flutter project.
+Flutter iOS client for SDAL, built directly against the existing SDAL backend.
 
-## Getting Started
+## Local iOS Run Flow
 
-This project is a starting point for a Flutter application.
+1. Start the SDAL backend separately.
+2. Make sure CocoaPods is installed and the target simulator exists.
+3. Run the tracked helper:
 
-A few resources to get you started if this is your first Flutter project:
+```sh
+./tool/run_ios_local.sh "iPhone 16 Pro 26.4"
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+The helper performs:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- `flutter pub get`
+- `pod install`
+- `flutter run`
+
+It also exports `COPYFILE_DISABLE=1`, which avoids macOS metadata being copied into generated iOS frameworks during local simulator runs.
+
+## Local iOS Release Build Flow
+
+Use the tracked helper for a reproducible local release package without device signing:
+
+```sh
+./tool/build_ios_local.sh
+```
+
+The helper performs:
+
+- `flutter pub get`
+- `pod install`
+- `flutter build ios --release --no-codesign`
+
+It also exports `COPYFILE_DISABLE=1` so the same metadata-safe build path is used for release packaging.
+
+## Environment overrides
+
+You can override runtime configuration with `--dart-define`:
+
+```sh
+/Users/cagataydonmez/flutter/bin/flutter run \
+  -d "iPhone 16 Pro 26.4" \
+  --dart-define=SDAL_API_BASE_URL=https://example.com/api \
+  --dart-define=SDAL_OAUTH_CALLBACK_SCHEME=sdalnative
+```

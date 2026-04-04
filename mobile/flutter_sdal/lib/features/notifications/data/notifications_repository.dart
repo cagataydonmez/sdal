@@ -1,126 +1,125 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
 
-class NotificationTarget {
-  const NotificationTarget({
-    required this.route,
-    required this.href,
-    required this.label,
-  });
+part 'notifications_repository.freezed.dart';
+part 'notifications_repository.g.dart';
 
-  final String route;
-  final String href;
-  final String label;
+@freezed
+class NotificationTarget with _$NotificationTarget {
+  const factory NotificationTarget({
+    @JsonKey(fromJson: readRequiredText) required String route,
+    @JsonKey(fromJson: readRequiredText) required String href,
+    @JsonKey(fromJson: readRequiredText) required String label,
+  }) = _NotificationTarget;
 
-  factory NotificationTarget.fromMap(JsonMap map) {
-    return NotificationTarget(
-      route: coalesceText([map['route']], fallback: ''),
-      href: coalesceText([map['href']], fallback: ''),
-      label: coalesceText([map['label']], fallback: ''),
-    );
-  }
+  factory NotificationTarget.fromJson(Map<String, dynamic> json) =>
+      _$NotificationTargetFromJson(json);
+
+  factory NotificationTarget.fromMap(JsonMap map) =>
+      NotificationTarget.fromJson(map);
 }
 
-class NotificationActionItem {
-  const NotificationActionItem({
-    required this.kind,
-    required this.label,
-    required this.endpoint,
-    required this.method,
-  });
+@freezed
+class NotificationActionItem with _$NotificationActionItem {
+  const factory NotificationActionItem({
+    @JsonKey(fromJson: readRequiredText) required String kind,
+    @JsonKey(fromJson: _readActionLabel) required String label,
+    @JsonKey(fromJson: readRequiredText) required String endpoint,
+    @JsonKey(fromJson: _readActionMethod) required String method,
+  }) = _NotificationActionItem;
 
-  final String kind;
-  final String label;
-  final String endpoint;
-  final String method;
+  factory NotificationActionItem.fromJson(Map<String, dynamic> json) =>
+      _$NotificationActionItemFromJson(
+        normalizeJsonAliases(json, {'label': const [], 'method': const []}),
+      );
 
-  factory NotificationActionItem.fromMap(JsonMap map) {
-    return NotificationActionItem(
-      kind: coalesceText([map['kind']], fallback: ''),
-      label: coalesceText([map['label']], fallback: 'İşlem'),
-      endpoint: coalesceText([map['endpoint']], fallback: ''),
-      method: coalesceText([map['method']], fallback: 'POST'),
-    );
-  }
+  factory NotificationActionItem.fromMap(JsonMap map) =>
+      NotificationActionItem.fromJson(
+        normalizeJsonAliases(map, {'label': const [], 'method': const []}),
+      );
 }
 
-class AppNotification {
-  const AppNotification({
-    required this.id,
-    required this.type,
-    required this.message,
-    required this.createdAt,
-    required this.readAt,
-    required this.category,
-    required this.priority,
-    required this.target,
-    required this.actions,
-    required this.sourceName,
-  });
+@freezed
+class AppNotification with _$AppNotification {
+  const AppNotification._();
 
-  final int id;
-  final String type;
-  final String message;
-  final String createdAt;
-  final String readAt;
-  final String category;
-  final String priority;
-  final NotificationTarget? target;
-  final List<NotificationActionItem> actions;
-  final String sourceName;
+  const factory AppNotification({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    @JsonKey(fromJson: readRequiredText) required String type,
+    @JsonKey(fromJson: readRequiredText) required String message,
+    @JsonKey(fromJson: readRequiredText) required String createdAt,
+    @JsonKey(fromJson: readRequiredText) required String readAt,
+    @JsonKey(fromJson: readRequiredText) required String category,
+    @JsonKey(fromJson: readRequiredText) required String priority,
+    NotificationTarget? target,
+    @Default(<NotificationActionItem>[]) List<NotificationActionItem> actions,
+    @JsonKey(fromJson: readRequiredText) required String sourceName,
+  }) = _AppNotification;
 
   bool get isUnread => readAt.isEmpty;
 
-  factory AppNotification.fromMap(JsonMap map) {
-    return AppNotification(
-      id: asInt(map['id']) ?? 0,
-      type: coalesceText([map['type']], fallback: ''),
-      message: coalesceText([map['message']], fallback: 'Bildirim'),
-      createdAt: coalesceText([map['created_at']], fallback: ''),
-      readAt: coalesceText([map['read_at']], fallback: ''),
-      category: coalesceText([map['category']], fallback: ''),
-      priority: coalesceText([map['priority']], fallback: ''),
-      target: asJsonMap(map['target']).isEmpty
-          ? null
-          : NotificationTarget.fromMap(asJsonMap(map['target'])),
-      actions: asJsonMapList(
-        map['actions'],
-      ).map(NotificationActionItem.fromMap).toList(growable: false),
-      sourceName: coalesceText([map['isim'], map['kadi']], fallback: ''),
-    );
-  }
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      _$AppNotificationFromJson(
+        normalizeJsonAliases(json, {
+          'createdAt': ['created_at'],
+          'readAt': ['read_at'],
+          'sourceName': ['isim', 'kadi'],
+        }),
+      );
+
+  factory AppNotification.fromMap(JsonMap map) => AppNotification.fromJson(map);
 }
 
-class NotificationPreferences {
-  const NotificationPreferences({
-    required this.categories,
-    required this.quietModeEnabled,
-    required this.quietModeStart,
-    required this.quietModeEnd,
-  });
+@freezed
+class NotificationPreferences with _$NotificationPreferences {
+  const factory NotificationPreferences({
+    @NotificationCategoryConverter() required Map<String, bool> categories,
+    @JsonKey(fromJson: readRequiredBool) required bool quietModeEnabled,
+    @JsonKey(fromJson: readRequiredText) required String quietModeStart,
+    @JsonKey(fromJson: readRequiredText) required String quietModeEnd,
+  }) = _NotificationPreferences;
 
-  final Map<String, bool> categories;
-  final bool quietModeEnabled;
-  final String quietModeStart;
-  final String quietModeEnd;
+  factory NotificationPreferences.fromJson(Map<String, dynamic> json) =>
+      _$NotificationPreferencesFromJson(json);
 
   factory NotificationPreferences.fromMap(JsonMap map) {
-    final preferences = asJsonMap(map['preferences']);
-    final categories = asJsonMap(
-      preferences['categories'],
-    ).map((key, value) => MapEntry(key, asBool(value) ?? true));
+    final preferences = asJsonMap(map['preferences']).isEmpty
+        ? map
+        : asJsonMap(map['preferences']);
     final quietMode = asJsonMap(preferences['quiet_mode']);
-    return NotificationPreferences(
-      categories: categories,
-      quietModeEnabled: asBool(quietMode['enabled']) ?? false,
-      quietModeStart: coalesceText([quietMode['start']], fallback: ''),
-      quietModeEnd: coalesceText([quietMode['end']], fallback: ''),
-    );
+    return NotificationPreferences.fromJson({
+      'categories': preferences['categories'],
+      'quietModeEnabled': quietMode['enabled'],
+      'quietModeStart': quietMode['start'],
+      'quietModeEnd': quietMode['end'],
+    });
   }
 }
+
+class NotificationCategoryConverter
+    implements JsonConverter<Map<String, bool>, Map<String, dynamic>?> {
+  const NotificationCategoryConverter();
+
+  @override
+  Map<String, bool> fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const <String, bool>{};
+    return asJsonMap(
+      json,
+    ).map((key, value) => MapEntry(key, asBool(value) ?? true));
+  }
+
+  @override
+  Map<String, dynamic> toJson(Map<String, bool> object) =>
+      Map<String, dynamic>.from(object);
+}
+
+String _readActionLabel(dynamic value) => asString(value) ?? 'İşlem';
+
+String _readActionMethod(dynamic value) => asString(value) ?? 'POST';
 
 class NotificationsRepository {
   const NotificationsRepository(this._apiClient);
@@ -132,8 +131,10 @@ class NotificationsRepository {
       '/api/new/notifications',
       decoder: asJsonMap,
     );
+    final payload = asJsonMap(result.rawData);
+    final container = asJsonMap(payload['data']);
     final items = asJsonMapList(
-      asJsonMap(asJsonMap(result.rawData)['data'])['items'],
+      (container.isEmpty ? payload : container)['items'],
     );
     return items.map(AppNotification.fromMap).toList(growable: false);
   }

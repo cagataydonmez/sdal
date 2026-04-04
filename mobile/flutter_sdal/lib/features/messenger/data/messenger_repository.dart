@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:web_socket_channel/io.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
@@ -8,133 +9,95 @@ import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/network/realtime_connection_state.dart';
 
-class MessengerContact {
-  const MessengerContact({
-    required this.id,
-    required this.name,
-    required this.handle,
-    required this.photo,
-    required this.verified,
-  });
+part 'messenger_repository.freezed.dart';
+part 'messenger_repository.g.dart';
 
-  final int id;
-  final String name;
-  final String handle;
-  final String photo;
-  final bool verified;
+@freezed
+class MessengerContact with _$MessengerContact {
+  const MessengerContact._();
 
-  factory MessengerContact.fromMap(JsonMap map) {
-    return MessengerContact(
-      id: asInt(map['id']) ?? 0,
-      name: coalesceText([map['isim'], map['kadi']], fallback: 'SDAL Üyesi'),
-      handle: coalesceText([map['kadi']], fallback: ''),
-      photo: coalesceText([map['resim']], fallback: ''),
-      verified: asBool(map['verified']) ?? false,
-    );
-  }
+  const factory MessengerContact({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    @JsonKey(fromJson: readRequiredText) required String name,
+    @JsonKey(fromJson: readRequiredText) required String handle,
+    @JsonKey(fromJson: readRequiredText) required String photo,
+    @JsonKey(fromJson: readRequiredBool) required bool verified,
+  }) = _MessengerContact;
+
+  factory MessengerContact.fromJson(Map<String, dynamic> json) =>
+      _$MessengerContactFromJson(
+        normalizeJsonAliases(json, {
+          'name': ['isim', 'kadi'],
+          'handle': ['kadi'],
+          'photo': ['resim'],
+        }),
+      );
+
+  factory MessengerContact.fromMap(JsonMap map) =>
+      MessengerContact.fromJson(map);
 }
 
-class MessengerThreadSummary {
-  const MessengerThreadSummary({
-    required this.id,
-    required this.peer,
-    required this.unreadCount,
-    this.lastMessage,
-  });
+@freezed
+class MessengerMessage with _$MessengerMessage {
+  const MessengerMessage._();
 
-  final int id;
-  final MessengerContact peer;
-  final int unreadCount;
-  final MessengerMessage? lastMessage;
+  const factory MessengerMessage({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    @JsonKey(fromJson: readRequiredInt) required int threadId,
+    @JsonKey(fromJson: readRequiredInt) required int senderId,
+    @JsonKey(fromJson: readRequiredInt) required int receiverId,
+    @JsonKey(fromJson: readRequiredText) required String body,
+    @JsonKey(fromJson: readRequiredText) required String createdAt,
+    @JsonKey(fromJson: readRequiredText) required String clientWrittenAt,
+    @JsonKey(fromJson: readRequiredText) required String serverReceivedAt,
+    @JsonKey(fromJson: readRequiredText) required String deliveredAt,
+    @JsonKey(fromJson: readRequiredText) required String readAt,
+    @JsonKey(fromJson: readRequiredBool) required bool isMine,
+    @JsonKey(fromJson: readRequiredText) required String senderName,
+  }) = _MessengerMessage;
 
-  factory MessengerThreadSummary.fromMap(JsonMap map) {
-    return MessengerThreadSummary(
-      id: asInt(map['id']) ?? 0,
-      peer: MessengerContact.fromMap(asJsonMap(map['peer'])),
-      unreadCount: asInt(map['unreadCount']) ?? 0,
-      lastMessage: asJsonMap(map['lastMessage']).isEmpty
-          ? null
-          : MessengerMessage.fromMap(asJsonMap(map['lastMessage'])),
-    );
-  }
+  factory MessengerMessage.fromJson(Map<String, dynamic> json) =>
+      _$MessengerMessageFromJson(
+        normalizeJsonAliases(json, {
+          'createdAt': ['created_at'],
+          'senderName': ['isim', 'kadi'],
+        }),
+      );
+
+  factory MessengerMessage.fromMap(JsonMap map) =>
+      MessengerMessage.fromJson(map);
 }
 
-class MessengerMessage {
-  const MessengerMessage({
-    required this.id,
-    required this.threadId,
-    required this.senderId,
-    required this.receiverId,
-    required this.body,
-    required this.createdAt,
-    required this.clientWrittenAt,
-    required this.serverReceivedAt,
-    required this.deliveredAt,
-    required this.readAt,
-    required this.isMine,
-    required this.senderName,
-  });
+@freezed
+class MessengerThreadSummary with _$MessengerThreadSummary {
+  const factory MessengerThreadSummary({
+    @JsonKey(fromJson: readRequiredInt) required int id,
+    required MessengerContact peer,
+    @JsonKey(fromJson: readRequiredInt) required int unreadCount,
+    MessengerMessage? lastMessage,
+  }) = _MessengerThreadSummary;
 
-  final int id;
-  final int threadId;
-  final int senderId;
-  final int receiverId;
-  final String body;
-  final String createdAt;
-  final String clientWrittenAt;
-  final String serverReceivedAt;
-  final String deliveredAt;
-  final String readAt;
-  final bool isMine;
-  final String senderName;
+  factory MessengerThreadSummary.fromJson(Map<String, dynamic> json) =>
+      _$MessengerThreadSummaryFromJson(json);
 
-  factory MessengerMessage.fromMap(JsonMap map) {
-    return MessengerMessage(
-      id: asInt(map['id']) ?? 0,
-      threadId: asInt(map['threadId']) ?? 0,
-      senderId: asInt(map['senderId']) ?? 0,
-      receiverId: asInt(map['receiverId']) ?? 0,
-      body: coalesceText([map['body']], fallback: ''),
-      createdAt: coalesceText([
-        map['createdAt'],
-        map['created_at'],
-      ], fallback: ''),
-      clientWrittenAt: coalesceText([map['clientWrittenAt']], fallback: ''),
-      serverReceivedAt: coalesceText([map['serverReceivedAt']], fallback: ''),
-      deliveredAt: coalesceText([map['deliveredAt']], fallback: ''),
-      readAt: coalesceText([map['readAt']], fallback: ''),
-      isMine: asBool(map['isMine']) ?? false,
-      senderName: coalesceText([
-        map['isim'],
-        map['kadi'],
-      ], fallback: 'SDAL Üyesi'),
-    );
-  }
+  factory MessengerThreadSummary.fromMap(JsonMap map) =>
+      MessengerThreadSummary.fromJson(map);
 }
 
-class MessengerRealtimeEvent {
-  const MessengerRealtimeEvent({
-    required this.type,
-    required this.threadId,
-    this.byUserId,
-    this.item,
-  });
+@freezed
+class MessengerRealtimeEvent with _$MessengerRealtimeEvent {
+  const factory MessengerRealtimeEvent({
+    @JsonKey(fromJson: readRequiredText) required String type,
+    @JsonKey(fromJson: readRequiredInt) required int threadId,
+    @JsonKey(fromJson: readOptionalInt) int? byUserId,
+    MessengerMessage? item,
+  }) = _MessengerRealtimeEvent;
 
-  final String type;
-  final int threadId;
-  final int? byUserId;
-  final MessengerMessage? item;
+  factory MessengerRealtimeEvent.fromJson(Map<String, dynamic> json) =>
+      _$MessengerRealtimeEventFromJson(json);
 
-  factory MessengerRealtimeEvent.fromMap(JsonMap map) {
-    return MessengerRealtimeEvent(
-      type: coalesceText([map['type']], fallback: ''),
-      threadId: asInt(map['threadId']) ?? 0,
-      byUserId: asInt(map['byUserId']),
-      item: asJsonMap(map['item']).isEmpty
-          ? null
-          : MessengerMessage.fromMap(asJsonMap(map['item'])),
-    );
-  }
+  factory MessengerRealtimeEvent.fromMap(JsonMap map) =>
+      MessengerRealtimeEvent.fromJson(map);
 }
 
 class MessengerRepository {
