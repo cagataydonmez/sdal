@@ -8,6 +8,7 @@ import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../stories/presentation/stories_rail.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
 
@@ -45,10 +46,16 @@ class FeedPage extends ConsumerWidget {
           onRefresh: () => ref.refresh(feedItemsProvider.future),
           child: ListView.separated(
             padding: const EdgeInsets.all(20),
-            itemCount: items.length,
+            itemCount: items.length + 1,
             separatorBuilder: (_, index) => const SizedBox(height: 14),
             itemBuilder: (context, index) {
-              final item = items[index];
+              if (index == 0) {
+                return const StoriesRail(
+                  mode: StoryRailMode.feed,
+                  title: 'Topluluktan hikayeler',
+                );
+              }
+              final item = items[index - 1];
               return InkWell(
                 borderRadius: BorderRadius.circular(24),
                 onTap: () => context.push('/posts/${item.id}'),
@@ -220,7 +227,8 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
   Widget build(BuildContext context) {
     final actionState = ref.watch(feedActionControllerProvider);
     final l10n = context.l10n;
-    final submitting = actionState.isLoading && actionState.scope == 'createPost';
+    final submitting =
+        actionState.isLoading && actionState.scope == 'createPost';
 
     return Padding(
       padding: EdgeInsets.only(

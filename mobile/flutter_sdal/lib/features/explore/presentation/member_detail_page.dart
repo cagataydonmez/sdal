@@ -4,6 +4,7 @@ import '../../../app/providers.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../stories/presentation/stories_rail.dart';
 import '../data/explore_repository.dart';
 
 class MemberDetailPage extends ConsumerWidget {
@@ -77,6 +78,12 @@ class MemberDetailPage extends ConsumerWidget {
                     ],
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              StoriesRail(
+                mode: StoryRailMode.member,
+                memberId: memberId,
+                title: 'Uyenin hikayeleri',
               ),
             ],
           );

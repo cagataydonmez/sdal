@@ -7,6 +7,7 @@ import '../../../core/session/session_controller.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../stories/presentation/stories_rail.dart';
 import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
 
@@ -92,6 +93,12 @@ class ProfilePage extends ConsumerWidget {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              const StoriesRail(
+                mode: StoryRailMode.mine,
+                showUpload: true,
+                title: 'Benim hikayelerim',
               ),
               const SizedBox(height: 16),
               Row(

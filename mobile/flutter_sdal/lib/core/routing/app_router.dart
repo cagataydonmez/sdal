@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/auth_pages.dart';
+import '../../features/albums/presentation/album_category_page.dart';
+import '../../features/albums/presentation/album_photo_page.dart';
+import '../../features/albums/presentation/album_upload_page.dart';
+import '../../features/albums/presentation/albums_page.dart';
+import '../../features/community/presentation/announcements_page.dart';
+import '../../features/community/presentation/events_page.dart';
 import '../../features/explore/presentation/explore_page.dart';
 import '../../features/explore/presentation/member_detail_page.dart';
 import '../../features/feed/presentation/feed_page.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
+import '../../features/following/presentation/following_page.dart';
+import '../../features/groups/presentation/group_detail_page.dart';
+import '../../features/groups/presentation/groups_page.dart';
+import '../../features/live_chat/presentation/live_chat_page.dart';
 import '../../features/messenger/presentation/inbox_page.dart';
 import '../../features/messenger/presentation/thread_detail_page.dart';
 import '../../features/networking/presentation/networking_pages.dart';
@@ -13,6 +23,9 @@ import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
 import '../../features/profile/presentation/profile_verification_page.dart';
+import '../../features/opportunities/presentation/jobs_page.dart';
+import '../../features/opportunities/presentation/opportunities_page.dart';
+import '../../features/requests/presentation/requests_page.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
@@ -54,7 +67,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/',
         redirect: (context, state) {
           final s = ref.read(sessionControllerProvider).value;
-          return (s != null && s.isAuthenticated) ? s.defaultHomePath : '/login';
+          return (s != null && s.isAuthenticated)
+              ? s.defaultHomePath
+              : '/login';
         },
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
@@ -214,6 +229,61 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/profile/verification',
         builder: (context, state) => const ProfileVerificationPage(),
       ),
+      GoRoute(
+        path: '/feed/live-chat',
+        builder: (context, state) => const LiveChatPage(),
+      ),
+      GoRoute(
+        path: '/following',
+        builder: (context, state) => const FollowingPage(),
+      ),
+      GoRoute(path: '/groups', builder: (context, state) => const GroupsPage()),
+      GoRoute(
+        path: '/groups/:groupId',
+        builder: (context, state) => GroupDetailPage(
+          groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(path: '/events', builder: (context, state) => const EventsPage()),
+      GoRoute(
+        path: '/announcements',
+        builder: (context, state) => const AnnouncementsPage(),
+      ),
+      GoRoute(path: '/jobs', builder: (context, state) => const JobsPage()),
+      GoRoute(
+        path: '/opportunities',
+        builder: (context, state) => const OpportunitiesPage(),
+      ),
+      GoRoute(path: '/albums', builder: (context, state) => const AlbumsPage()),
+      GoRoute(
+        path: '/albums/:categoryId',
+        builder: (context, state) => AlbumCategoryPage(
+          categoryId:
+              int.tryParse(state.pathParameters['categoryId'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        path: '/albums/photo/:photoId',
+        builder: (context, state) => AlbumPhotoPage(
+          photoId: int.tryParse(state.pathParameters['photoId'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        path: '/albums/upload',
+        builder: (context, state) => const AlbumUploadPage(),
+      ),
+      GoRoute(
+        path: '/requests',
+        builder: (context, state) => RequestsPage(
+          initialCategoryKey: state.uri.queryParameters['category'] ?? '',
+          highlightedRequestId:
+              int.tryParse(state.uri.queryParameters['request'] ?? '') ?? 0,
+          notificationId:
+              int.tryParse(state.uri.queryParameters['notification'] ?? '') ??
+              0,
+          notificationStatus: state.uri.queryParameters['status'] ?? '',
+        ),
+      ),
     ],
   );
 });
@@ -282,6 +352,15 @@ String? moduleKeyForLocation(String location) {
   if (location == '/profile/photo' || location == '/profile/verification') {
     return 'profile';
   }
+  if (location == '/feed/live-chat') return 'feed';
+  if (location == '/following') return 'following';
+  if (location == '/requests') return 'requests';
+  if (location == '/announcements') return 'announcements';
+  if (location == '/events') return 'events';
+  if (location == '/jobs') return 'jobs';
+  if (location == '/opportunities') return 'opportunities';
+  if (location == '/groups' || location.startsWith('/groups/')) return 'groups';
+  if (location == '/albums' || location.startsWith('/albums/')) return 'albums';
   if (location.startsWith('/network/hub') ||
       location.startsWith('/network/inbox')) {
     return 'networking';

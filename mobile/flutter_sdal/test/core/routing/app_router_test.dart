@@ -80,6 +80,10 @@ void main() {
       expect(moduleKeyForLocation('/feed'), 'feed');
       expect(moduleKeyForLocation('/members/42'), 'explore');
       expect(moduleKeyForLocation('/messages/2'), 'messenger');
+      expect(moduleKeyForLocation('/following'), 'following');
+      expect(moduleKeyForLocation('/requests'), 'requests');
+      expect(moduleKeyForLocation('/groups/12'), 'groups');
+      expect(moduleKeyForLocation('/albums/photo/9'), 'albums');
       expect(moduleKeyForLocation('/network/teachers'), 'teachers_network');
     });
 
