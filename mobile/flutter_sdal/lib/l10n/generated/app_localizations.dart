@@ -338,6 +338,12 @@ abstract class AppLocalizations {
   /// **'Soyad'**
   String get lastName;
 
+  /// No description provided for @captionLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açıklama'**
+  String get captionLabel;
+
   /// No description provided for @memberId.
   ///
   /// In tr, this message translates to:
@@ -878,6 +884,702 @@ abstract class AppLocalizations {
   /// **'Mesaj gönderilemedi.'**
   String get messageSendFailed;
 
+  /// No description provided for @themeModeTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Görünüm'**
+  String get themeModeTitle;
+
+  /// No description provided for @themeModeHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sistem ayarını izleyin veya uygulama için kalıcı bir görünüm seçin.'**
+  String get themeModeHelper;
+
+  /// No description provided for @themeModeSystem.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sistem'**
+  String get themeModeSystem;
+
+  /// No description provided for @themeModeLight.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açık'**
+  String get themeModeLight;
+
+  /// No description provided for @themeModeDark.
+  ///
+  /// In tr, this message translates to:
+  /// **'Koyu'**
+  String get themeModeDark;
+
+  /// No description provided for @cancelAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Vazgeç'**
+  String get cancelAction;
+
+  /// No description provided for @saveAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kaydet'**
+  String get saveAction;
+
+  /// No description provided for @createAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Oluştur'**
+  String get createAction;
+
+  /// No description provided for @deleteAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sil'**
+  String get deleteAction;
+
+  /// No description provided for @groupsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gruplar'**
+  String get groupsTitle;
+
+  /// No description provided for @groupsNewGroupAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni grup'**
+  String get groupsNewGroupAction;
+
+  /// No description provided for @groupsOpenAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Aç'**
+  String get groupsOpenAction;
+
+  /// No description provided for @groupsLeaveAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ayrıl'**
+  String get groupsLeaveAction;
+
+  /// No description provided for @groupsWithdrawRequestAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talebi çek'**
+  String get groupsWithdrawRequestAction;
+
+  /// No description provided for @groupsAcceptInviteAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Daveti kabul et'**
+  String get groupsAcceptInviteAction;
+
+  /// No description provided for @groupsJoinAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katıl'**
+  String get groupsJoinAction;
+
+  /// No description provided for @groupsPendingApproval.
+  ///
+  /// In tr, this message translates to:
+  /// **'Onay bekliyor'**
+  String get groupsPendingApproval;
+
+  /// No description provided for @groupsInvitePending.
+  ///
+  /// In tr, this message translates to:
+  /// **'Davet bekliyor'**
+  String get groupsInvitePending;
+
+  /// No description provided for @groupsNewGroupTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni grup'**
+  String get groupsNewGroupTitle;
+
+  /// No description provided for @groupsNameLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Grup adı'**
+  String get groupsNameLabel;
+
+  /// No description provided for @groupsDescriptionLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açıklama'**
+  String get groupsDescriptionLabel;
+
+  /// No description provided for @groupsCreating.
+  ///
+  /// In tr, this message translates to:
+  /// **'Oluşturuluyor...'**
+  String get groupsCreating;
+
+  /// No description provided for @groupsMembersCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} üye'**
+  String groupsMembersCount(Object count);
+
+  /// No description provided for @storiesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hikayeler'**
+  String get storiesTitle;
+
+  /// No description provided for @storiesEmpty.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz aktif hikaye yok.'**
+  String get storiesEmpty;
+
+  /// No description provided for @storiesUploadAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hikaye ekle'**
+  String get storiesUploadAction;
+
+  /// No description provided for @storiesUploadHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'24 saat görünür'**
+  String get storiesUploadHint;
+
+  /// No description provided for @storiesPublishAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hikayeyi paylaş'**
+  String get storiesPublishAction;
+
+  /// No description provided for @storiesViewed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Görüldü'**
+  String get storiesViewed;
+
+  /// No description provided for @storiesNewCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} yeni'**
+  String storiesNewCount(Object count);
+
+  /// No description provided for @storiesNewStoryTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni hikaye'**
+  String get storiesNewStoryTitle;
+
+  /// No description provided for @storiesEditTitleAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başlığı düzenle'**
+  String get storiesEditTitleAction;
+
+  /// No description provided for @storiesDeleteAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hikayeyi sil'**
+  String get storiesDeleteAction;
+
+  /// No description provided for @storiesRepostAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeniden paylaş'**
+  String get storiesRepostAction;
+
+  /// No description provided for @storiesCaptionDialogTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hikaye başlığı'**
+  String get storiesCaptionDialogTitle;
+
+  /// No description provided for @storiesCaptionHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kısa bir açıklama ekle'**
+  String get storiesCaptionHint;
+
+  /// No description provided for @storiesDeleteConfirmTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hikaye silinsin mi?'**
+  String get storiesDeleteConfirmTitle;
+
+  /// No description provided for @storiesViewStorySemantic.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} hikayesini aç'**
+  String storiesViewStorySemantic(Object name);
+
+  /// No description provided for @storiesPreviousStoryHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Önceki hikayeyi aç'**
+  String get storiesPreviousStoryHint;
+
+  /// No description provided for @storiesNextStoryHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sonraki hikayeyi aç'**
+  String get storiesNextStoryHint;
+
+  /// No description provided for @liveChatTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Canlı sohbet'**
+  String get liveChatTitle;
+
+  /// No description provided for @liveChatConnected.
+  ///
+  /// In tr, this message translates to:
+  /// **'Canlı bağlantı aktif'**
+  String get liveChatConnected;
+
+  /// No description provided for @liveChatReconnecting.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bağlantı yeniden kuruluyor...'**
+  String get liveChatReconnecting;
+
+  /// No description provided for @liveChatComposerHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mesajını yaz'**
+  String get liveChatComposerHint;
+
+  /// No description provided for @liveChatEditMessageAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mesajı düzenle'**
+  String get liveChatEditMessageAction;
+
+  /// No description provided for @liveChatDeleteMessageAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mesajı sil'**
+  String get liveChatDeleteMessageAction;
+
+  /// No description provided for @liveChatEditDialogTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mesajı düzenle'**
+  String get liveChatEditDialogTitle;
+
+  /// No description provided for @groupDetailTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Grup detayları'**
+  String get groupDetailTitle;
+
+  /// No description provided for @groupNotFound.
+  ///
+  /// In tr, this message translates to:
+  /// **'Grup bulunamadı.'**
+  String get groupNotFound;
+
+  /// No description provided for @groupVisibilityPrivate.
+  ///
+  /// In tr, this message translates to:
+  /// **'Özel'**
+  String get groupVisibilityPrivate;
+
+  /// No description provided for @groupVisibilityPublic.
+  ///
+  /// In tr, this message translates to:
+  /// **'Herkese açık'**
+  String get groupVisibilityPublic;
+
+  /// No description provided for @groupManagersVisible.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yöneticiler görünür'**
+  String get groupManagersVisible;
+
+  /// No description provided for @groupRejectInviteAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Daveti reddet'**
+  String get groupRejectInviteAction;
+
+  /// No description provided for @groupSettingsAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ayarlar'**
+  String get groupSettingsAction;
+
+  /// No description provided for @groupInviteMembersAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üye davet et'**
+  String get groupInviteMembersAction;
+
+  /// No description provided for @groupUpdateCoverAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kapak güncelle'**
+  String get groupUpdateCoverAction;
+
+  /// No description provided for @groupManagersTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yöneticiler'**
+  String get groupManagersTitle;
+
+  /// No description provided for @groupJoinRequestsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katılım istekleri'**
+  String get groupJoinRequestsTitle;
+
+  /// No description provided for @groupPendingInvitesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bekleyen davetler'**
+  String get groupPendingInvitesTitle;
+
+  /// No description provided for @groupPostsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Paylaşımlar'**
+  String get groupPostsTitle;
+
+  /// No description provided for @groupNoPosts.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz grup paylaşımı yok.'**
+  String get groupNoPosts;
+
+  /// No description provided for @groupEventsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinlikler'**
+  String get groupEventsTitle;
+
+  /// No description provided for @groupAddEventAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinlik ekle'**
+  String get groupAddEventAction;
+
+  /// No description provided for @groupNoEvents.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu grup için planlanmış etkinlik yok.'**
+  String get groupNoEvents;
+
+  /// No description provided for @groupAnnouncementsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Duyurular'**
+  String get groupAnnouncementsTitle;
+
+  /// No description provided for @groupAddAnnouncementAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Duyuru ekle'**
+  String get groupAddAnnouncementAction;
+
+  /// No description provided for @groupNoAnnouncements.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu grup için duyuru yok.'**
+  String get groupNoAnnouncements;
+
+  /// No description provided for @groupMembersTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üyeler'**
+  String get groupMembersTitle;
+
+  /// No description provided for @groupContentMembersOnlyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'İçerik üyeler için açık'**
+  String get groupContentMembersOnlyTitle;
+
+  /// No description provided for @groupContentMembersOnlyBody.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu grubun içeriğini görmek için üyelik onayı gerekli.'**
+  String get groupContentMembersOnlyBody;
+
+  /// No description provided for @groupDetailLeaveAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gruptan ayrıl'**
+  String get groupDetailLeaveAction;
+
+  /// No description provided for @groupDetailWithdrawRequestAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talebi geri çek'**
+  String get groupDetailWithdrawRequestAction;
+
+  /// No description provided for @groupDetailAcceptInviteAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Daveti kabul et'**
+  String get groupDetailAcceptInviteAction;
+
+  /// No description provided for @groupDetailJoinAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katılım isteği gönder'**
+  String get groupDetailJoinAction;
+
+  /// No description provided for @groupAdminPanelTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yönetim araçları'**
+  String get groupAdminPanelTitle;
+
+  /// No description provided for @groupAdminPanelHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katılım isteklerini incele, yeni üyeler davet et ve grubun görünürlüğünü tek yerden düzenle.'**
+  String get groupAdminPanelHelper;
+
+  /// No description provided for @groupTimelineTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Grup akışı'**
+  String get groupTimelineTitle;
+
+  /// No description provided for @groupPostsHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Duyuru açmadan gruba kısa güncellemeler paylaş.'**
+  String get groupPostsHelper;
+
+  /// No description provided for @groupTimelineHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yaklaşan etkinlikleri ve önemli duyuruları daha rahat taranır halde tut.'**
+  String get groupTimelineHelper;
+
+  /// No description provided for @groupMembersHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yöneticiler önce gösterilir. Rol değişiklikleri moderasyon yetkilerini etkilediği için dikkatli kullanılmalıdır.'**
+  String get groupMembersHelper;
+
+  /// No description provided for @groupInviteSearchHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ad veya kullanıcı adı ile ara'**
+  String get groupInviteSearchHint;
+
+  /// No description provided for @groupSelectedCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} kişi seçildi'**
+  String groupSelectedCount(Object count);
+
+  /// No description provided for @groupInvitesSent.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} davet gönderildi.'**
+  String groupInvitesSent(Object count);
+
+  /// No description provided for @groupRoleMakeMember.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üye yap'**
+  String get groupRoleMakeMember;
+
+  /// No description provided for @groupRoleMakeModerator.
+  ///
+  /// In tr, this message translates to:
+  /// **'Moderatör yap'**
+  String get groupRoleMakeModerator;
+
+  /// No description provided for @groupRoleMakeOwner.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sahipliği devret'**
+  String get groupRoleMakeOwner;
+
+  /// No description provided for @groupSettingsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Grup ayarları'**
+  String get groupSettingsTitle;
+
+  /// No description provided for @groupVisibilityLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Görünürlük'**
+  String get groupVisibilityLabel;
+
+  /// No description provided for @groupVisibilityPublicOption.
+  ///
+  /// In tr, this message translates to:
+  /// **'Herkese açık'**
+  String get groupVisibilityPublicOption;
+
+  /// No description provided for @groupVisibilityMembersOnlyOption.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yalnızca üyeler'**
+  String get groupVisibilityMembersOnlyOption;
+
+  /// No description provided for @groupVisibilityHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yalnızca üyeler seçildiğinde paylaşımlar, etkinlikler, duyurular ve üye listesi katılım isteği onaylanana kadar gizlenir.'**
+  String get groupVisibilityHint;
+
+  /// No description provided for @groupManagersVisibilityTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yöneticileri üye olmayanlara da göster'**
+  String get groupManagersVisibilityTitle;
+
+  /// No description provided for @groupManagersVisibilityHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bunu yalnızca katılmadan önce kiminle iletişim kurulacağını ziyaretçilere göstermek istiyorsan aç.'**
+  String get groupManagersVisibilityHint;
+
+  /// No description provided for @groupNewPostTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni paylaşım'**
+  String get groupNewPostTitle;
+
+  /// No description provided for @groupPostHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Grup için kısa bir güncelleme yaz'**
+  String get groupPostHint;
+
+  /// No description provided for @groupAddImageAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Görsel ekle'**
+  String get groupAddImageAction;
+
+  /// No description provided for @groupCreatePostAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Paylaşımı gönder'**
+  String get groupCreatePostAction;
+
+  /// No description provided for @groupNewEventTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni etkinlik'**
+  String get groupNewEventTitle;
+
+  /// No description provided for @groupEventTitleLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başlık'**
+  String get groupEventTitleLabel;
+
+  /// No description provided for @groupEventDescriptionLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açıklama'**
+  String get groupEventDescriptionLabel;
+
+  /// No description provided for @groupEventLocationLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Konum'**
+  String get groupEventLocationLabel;
+
+  /// No description provided for @groupEventStartsAtLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başlangıç tarihi'**
+  String get groupEventStartsAtLabel;
+
+  /// No description provided for @groupEventEndsAtLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bitiş tarihi'**
+  String get groupEventEndsAtLabel;
+
+  /// No description provided for @groupEventScheduleHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Tarihler üyelere girildiği biçimde gösterilir; gerekiyorsa saat dilimi veya format bilgisini ekle.'**
+  String get groupEventScheduleHint;
+
+  /// No description provided for @groupCreateEventAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinlik ekle'**
+  String get groupCreateEventAction;
+
+  /// No description provided for @groupNewAnnouncementTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni duyuru'**
+  String get groupNewAnnouncementTitle;
+
+  /// No description provided for @groupAnnouncementTitleLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başlık'**
+  String get groupAnnouncementTitleLabel;
+
+  /// No description provided for @groupAnnouncementBodyLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'İçerik'**
+  String get groupAnnouncementBodyLabel;
+
+  /// No description provided for @groupCreateAnnouncementAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Duyuru ekle'**
+  String get groupCreateAnnouncementAction;
+
+  /// No description provided for @groupEventLocationValue.
+  ///
+  /// In tr, this message translates to:
+  /// **'Konum: {value}'**
+  String groupEventLocationValue(Object value);
+
+  /// No description provided for @groupEventStartsAtValue.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başlangıç: {value}'**
+  String groupEventStartsAtValue(Object value);
+
+  /// No description provided for @groupEventEndsAtValue.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bitiş: {value}'**
+  String groupEventEndsAtValue(Object value);
+
+  /// No description provided for @groupLikesCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} beğeni'**
+  String groupLikesCount(Object count);
+
+  /// No description provided for @groupCommentsCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} yorum'**
+  String groupCommentsCount(Object count);
+
+  /// No description provided for @approveAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Onayla'**
+  String get approveAction;
+
+  /// No description provided for @rejectAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Reddet'**
+  String get rejectAction;
+
   /// No description provided for @genericMemberLabel.
   ///
   /// In tr, this message translates to:
@@ -889,6 +1591,528 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'İstek tamamlanamadı.'**
   String get genericRequestFailed;
+
+  /// No description provided for @feedStoriesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Topluluktan hikayeler'**
+  String get feedStoriesTitle;
+
+  /// No description provided for @exploreTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Keşfet'**
+  String get exploreTitle;
+
+  /// No description provided for @exploreSuggestionsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Öneriler'**
+  String get exploreSuggestionsTitle;
+
+  /// No description provided for @exploreNoSuggestions.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu anda öneri yok.'**
+  String get exploreNoSuggestions;
+
+  /// No description provided for @exploreDirectoryTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üye rehberi'**
+  String get exploreDirectoryTitle;
+
+  /// No description provided for @followAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Takip et'**
+  String get followAction;
+
+  /// No description provided for @albumsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Albümler'**
+  String get albumsTitle;
+
+  /// No description provided for @albumsUploadAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yükle'**
+  String get albumsUploadAction;
+
+  /// No description provided for @albumsEmpty.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz albüm fotoğrafı yok.'**
+  String get albumsEmpty;
+
+  /// No description provided for @albumsLoadMore.
+  ///
+  /// In tr, this message translates to:
+  /// **'Daha fazla fotoğraf'**
+  String get albumsLoadMore;
+
+  /// No description provided for @albumTitleFallback.
+  ///
+  /// In tr, this message translates to:
+  /// **'Albüm'**
+  String get albumTitleFallback;
+
+  /// No description provided for @albumsCategoryMissing.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kategori bulunamadı.'**
+  String get albumsCategoryMissing;
+
+  /// No description provided for @albumsOpenPhotoSemantic.
+  ///
+  /// In tr, this message translates to:
+  /// **'{label} fotoğrafını aç'**
+  String albumsOpenPhotoSemantic(Object label);
+
+  /// No description provided for @profileStoriesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Benim hikayelerim'**
+  String get profileStoriesTitle;
+
+  /// No description provided for @retryAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Tekrar dene'**
+  String get retryAction;
+
+  /// No description provided for @statusApproved.
+  ///
+  /// In tr, this message translates to:
+  /// **'Onaylandı'**
+  String get statusApproved;
+
+  /// No description provided for @statusRejected.
+  ///
+  /// In tr, this message translates to:
+  /// **'Reddedildi'**
+  String get statusRejected;
+
+  /// No description provided for @statusReviewed.
+  ///
+  /// In tr, this message translates to:
+  /// **'İncelendi'**
+  String get statusReviewed;
+
+  /// No description provided for @statusPending.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bekliyor'**
+  String get statusPending;
+
+  /// No description provided for @requestsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üye talepleri'**
+  String get requestsTitle;
+
+  /// No description provided for @requestsCreateTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni talep oluştur'**
+  String get requestsCreateTitle;
+
+  /// No description provided for @requestsCreateHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Profil ve üyelik işlemleri için talep oluşturabilir, destekleyici dosyalar ekleyebilir ve son durumu aşağıdan takip edebilirsin.'**
+  String get requestsCreateHelper;
+
+  /// No description provided for @requestsCategoryLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talep kategorisi'**
+  String get requestsCategoryLabel;
+
+  /// No description provided for @requestsGraduationYearLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'İstenen mezuniyet yılı'**
+  String get requestsGraduationYearLabel;
+
+  /// No description provided for @requestsTeacherOption.
+  ///
+  /// In tr, this message translates to:
+  /// **'Öğretmen'**
+  String get requestsTeacherOption;
+
+  /// No description provided for @requestsDescriptionLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açıklama'**
+  String get requestsDescriptionLabel;
+
+  /// No description provided for @requestsPickFromGallery.
+  ///
+  /// In tr, this message translates to:
+  /// **'Galeriden ekle'**
+  String get requestsPickFromGallery;
+
+  /// No description provided for @requestsUseCamera.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kamera'**
+  String get requestsUseCamera;
+
+  /// No description provided for @requestsSendAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talebi gönder'**
+  String get requestsSendAction;
+
+  /// No description provided for @requestsListTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Taleplerim'**
+  String get requestsListTitle;
+
+  /// No description provided for @requestsNotificationApproved.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talep sonucu güncellendi. Onaylanan kayıt aşağıda vurgulandı.'**
+  String get requestsNotificationApproved;
+
+  /// No description provided for @requestsNotificationUpdated.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talep sonucu güncellendi. İlgili kayıt aşağıda vurgulandı.'**
+  String get requestsNotificationUpdated;
+
+  /// No description provided for @requestsEmpty.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz gönderilmiş talep yok.'**
+  String get requestsEmpty;
+
+  /// No description provided for @requestsAttachmentUploadFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ek dosya yüklenemedi.'**
+  String get requestsAttachmentUploadFailed;
+
+  /// No description provided for @requestsAttachmentUploaded.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ek dosya yüklendi.'**
+  String get requestsAttachmentUploaded;
+
+  /// No description provided for @requestsSelectCategoryError.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bir talep kategorisi seç.'**
+  String get requestsSelectCategoryError;
+
+  /// No description provided for @requestsSelectGraduationYearError.
+  ///
+  /// In tr, this message translates to:
+  /// **'İstenen mezuniyet yılını seç.'**
+  String get requestsSelectGraduationYearError;
+
+  /// No description provided for @requestsSubmitSuccess.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talep gönderildi.'**
+  String get requestsSubmitSuccess;
+
+  /// No description provided for @requestsSubmitFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Talep gönderilemedi.'**
+  String get requestsSubmitFailed;
+
+  /// No description provided for @requestsGraduationYearValue.
+  ///
+  /// In tr, this message translates to:
+  /// **'İstenen mezuniyet yılı: {value}'**
+  String requestsGraduationYearValue(Object value);
+
+  /// No description provided for @requestsResolutionNote.
+  ///
+  /// In tr, this message translates to:
+  /// **'Not: {note}'**
+  String requestsResolutionNote(Object note);
+
+  /// No description provided for @jobsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'İş ilanları'**
+  String get jobsTitle;
+
+  /// No description provided for @jobsCreateTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni iş ilanı'**
+  String get jobsCreateTitle;
+
+  /// No description provided for @jobsCreateHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üyelerin hızlı karar verebilmesi için ilanı kısa, net ve uygulanabilir tut.'**
+  String get jobsCreateHelper;
+
+  /// No description provided for @jobsCompanyLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şirket'**
+  String get jobsCompanyLabel;
+
+  /// No description provided for @jobsPositionLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Pozisyon'**
+  String get jobsPositionLabel;
+
+  /// No description provided for @jobsDescriptionLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açıklama'**
+  String get jobsDescriptionLabel;
+
+  /// No description provided for @jobsLocationLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Konum'**
+  String get jobsLocationLabel;
+
+  /// No description provided for @jobsTypeLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'İş tipi'**
+  String get jobsTypeLabel;
+
+  /// No description provided for @jobsLinkLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuru linki'**
+  String get jobsLinkLabel;
+
+  /// No description provided for @jobsLinkHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'https://...'**
+  String get jobsLinkHint;
+
+  /// No description provided for @jobsCreateAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlanı yayınla'**
+  String get jobsCreateAction;
+
+  /// No description provided for @jobsCreateInProgress.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yayınlanıyor...'**
+  String get jobsCreateInProgress;
+
+  /// No description provided for @jobsSearchTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlanları filtrele'**
+  String get jobsSearchTitle;
+
+  /// No description provided for @jobsSearchHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mevcut ilanları pozisyon, konum veya iş tipine göre daralt.'**
+  String get jobsSearchHelper;
+
+  /// No description provided for @jobsSearchLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Arama'**
+  String get jobsSearchLabel;
+
+  /// No description provided for @jobsLocationFilterLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Konum filtresi'**
+  String get jobsLocationFilterLabel;
+
+  /// No description provided for @jobsTypeFilterLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'İş tipi filtresi'**
+  String get jobsTypeFilterLabel;
+
+  /// No description provided for @jobsApplyFiltersAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Filtreleri uygula'**
+  String get jobsApplyFiltersAction;
+
+  /// No description provided for @jobsEmpty.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz iş ilanı yok.'**
+  String get jobsEmpty;
+
+  /// No description provided for @jobsApplicationStatus.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuru durumu: {status}'**
+  String jobsApplicationStatus(Object status);
+
+  /// No description provided for @jobsShortNoteLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kısa başvuru notu'**
+  String get jobsShortNoteLabel;
+
+  /// No description provided for @jobsApplyAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvur'**
+  String get jobsApplyAction;
+
+  /// No description provided for @jobsLoadApplicationsAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuruları yükle'**
+  String get jobsLoadApplicationsAction;
+
+  /// No description provided for @jobsRefreshApplicationsAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuruları yenile'**
+  String get jobsRefreshApplicationsAction;
+
+  /// No description provided for @jobsReviewNoteLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Karar notu'**
+  String get jobsReviewNoteLabel;
+
+  /// No description provided for @jobsMarkReviewedAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'İncelemede'**
+  String get jobsMarkReviewedAction;
+
+  /// No description provided for @jobsAcceptAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kabul et'**
+  String get jobsAcceptAction;
+
+  /// No description provided for @jobsApplicationsStatus.
+  ///
+  /// In tr, this message translates to:
+  /// **'Durum: {status}'**
+  String jobsApplicationsStatus(Object status);
+
+  /// No description provided for @jobsCreateSuccess.
+  ///
+  /// In tr, this message translates to:
+  /// **'İş ilanı yayınlandı.'**
+  String get jobsCreateSuccess;
+
+  /// No description provided for @jobsCreateFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlan oluşturulamadı.'**
+  String get jobsCreateFailed;
+
+  /// No description provided for @jobsApplySuccess.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuru gönderildi.'**
+  String get jobsApplySuccess;
+
+  /// No description provided for @jobsApplyFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuru gönderilemedi.'**
+  String get jobsApplyFailed;
+
+  /// No description provided for @jobsDeleteSuccess.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlan silindi.'**
+  String get jobsDeleteSuccess;
+
+  /// No description provided for @jobsDeleteFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlan silinemedi.'**
+  String get jobsDeleteFailed;
+
+  /// No description provided for @jobsReviewSuccess.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuru güncellendi.'**
+  String get jobsReviewSuccess;
+
+  /// No description provided for @jobsReviewFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Başvuru güncellenemedi.'**
+  String get jobsReviewFailed;
+
+  /// No description provided for @jobsPosterPendingApproval.
+  ///
+  /// In tr, this message translates to:
+  /// **'Onay bekliyor'**
+  String get jobsPosterPendingApproval;
+
+  /// No description provided for @eventVisibilityTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katılım görünürlüğü'**
+  String get eventVisibilityTitle;
+
+  /// No description provided for @eventVisibilityHelper.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu ayarlar etkinliği gören üyelerin hangi katılım bilgilerine erişebileceğini belirler.'**
+  String get eventVisibilityHelper;
+
+  /// No description provided for @eventVisibilityShowCounts.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sayıları göster'**
+  String get eventVisibilityShowCounts;
+
+  /// No description provided for @eventVisibilityShowCountsHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katılan ve katılamayan kişi sayıları görünür olur.'**
+  String get eventVisibilityShowCountsHint;
+
+  /// No description provided for @eventVisibilityShowAttendees.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katılan isimlerini göster'**
+  String get eventVisibilityShowAttendees;
+
+  /// No description provided for @eventVisibilityShowAttendeesHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinliği görebilen herkes katılan listesini de görebilir.'**
+  String get eventVisibilityShowAttendeesHint;
+
+  /// No description provided for @eventVisibilityShowDecliners.
+  ///
+  /// In tr, this message translates to:
+  /// **'Katılamayan isimlerini göster'**
+  String get eventVisibilityShowDecliners;
+
+  /// No description provided for @eventVisibilityShowDeclinersHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinliği görebilen herkes katılamayanları da görür.'**
+  String get eventVisibilityShowDeclinersHint;
+
+  /// No description provided for @eventVisibilitySaveAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Görünürlük ayarlarını kaydet'**
+  String get eventVisibilitySaveAction;
 
   /// No description provided for @oauthFailedWithReason.
   ///

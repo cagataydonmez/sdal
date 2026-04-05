@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../application/feed_action_controller.dart';
@@ -23,6 +25,7 @@ class FeedPage extends ConsumerWidget {
 
     return FeatureScaffold(
       title: l10n.feedTitle,
+      background: FeatureScaffoldBackground.editorial,
       actions: [
         IconButton(
           onPressed: () => ref.invalidate(feedItemsProvider),
@@ -50,9 +53,9 @@ class FeedPage extends ConsumerWidget {
             separatorBuilder: (_, index) => const SizedBox(height: 14),
             itemBuilder: (context, index) {
               if (index == 0) {
-                return const StoriesRail(
+                return StoriesRail(
                   mode: StoryRailMode.feed,
-                  title: 'Topluluktan hikayeler',
+                  title: l10n.feedStoriesTitle,
                 );
               }
               final item = items[index - 1];
@@ -106,14 +109,12 @@ class FeedPage extends ConsumerWidget {
                       ),
                       if (item.imageUrl.isNotEmpty) ...[
                         const SizedBox(height: 14),
-                        ClipRRect(
+                        SdalNetworkImage(
+                          imageUrl: config.resolveUrl(item.imageUrl).toString(),
                           borderRadius: BorderRadius.circular(18),
-                          child: Image.network(
-                            config.resolveUrl(item.imageUrl).toString(),
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, error, stackTrace) =>
-                                const SizedBox.shrink(),
-                          ),
+                          semanticLabel: item.authorName,
+                          cacheWidth: (MediaQuery.sizeOf(context).width * 2)
+                              .round(),
                         ),
                       ],
                       const SizedBox(height: 14),
@@ -177,7 +178,9 @@ class _MetricPill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? const Color(0xFFFFE7EA) : const Color(0xFFF4F7FB),
+          color: active
+              ? Theme.of(context).sdal.accentMuted
+              : Theme.of(context).sdal.panelMuted,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
@@ -186,7 +189,7 @@ class _MetricPill extends StatelessWidget {
             Icon(
               icon,
               size: 16,
-              color: active ? const Color(0xFFB42318) : null,
+              color: active ? Theme.of(context).sdal.accent : null,
             ),
             const SizedBox(width: 6),
             Text(label),

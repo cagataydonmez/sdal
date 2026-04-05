@@ -6,6 +6,8 @@ import '../l10n/generated/app_localizations.dart';
 import '../core/routing/app_router.dart';
 import '../core/session/session_controller.dart';
 import '../core/theme/app_theme.dart';
+import '../core/theme/theme_mode_controller.dart';
+import '../core/theme/theme_mode_store.dart';
 import '../core/widgets/status_views.dart';
 
 class SdalFlutterApp extends ConsumerWidget {
@@ -14,12 +16,16 @@ class SdalFlutterApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionControllerProvider);
-    final theme = buildSdalTheme();
+    final lightTheme = buildSdalLightTheme();
+    final darkTheme = buildSdalDarkTheme();
+    final themeMode = ref.watch(themeModeControllerProvider).themeMode;
 
     return sessionState.when(
       loading: () => MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: theme,
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: themeMode,
         supportedLocales: const [Locale('tr'), Locale('en')],
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -31,7 +37,9 @@ class SdalFlutterApp extends ConsumerWidget {
       ),
       error: (error, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: theme,
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: themeMode,
         supportedLocales: const [Locale('tr'), Locale('en')],
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -53,7 +61,9 @@ class SdalFlutterApp extends ConsumerWidget {
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
           onGenerateTitle: (context) => AppLocalizations.of(context)!.appName,
-          theme: theme,
+          theme: lightTheme,
+          darkTheme: darkTheme,
+          themeMode: themeMode,
           supportedLocales: const [Locale('tr'), Locale('en')],
           localizationsDelegates: const [
             AppLocalizations.delegate,

@@ -1,31 +1,40 @@
 import 'package:flutter/material.dart';
+import 'sdal_theme_tokens.dart';
 
-ThemeData buildSdalTheme() {
-  const ink = Color(0xFF0D2238);
-  const accent = Color(0xFFE66A3D);
-  const surface = Color(0xFFF4F7FB);
-  const card = Color(0xFFFFFFFF);
-  const muted = Color(0xFF6B7A8C);
+ThemeData buildSdalLightTheme() => _buildSdalTheme(
+  brightness: Brightness.light,
+  tokens: SdalThemeTokens.light,
+);
 
+ThemeData buildSdalDarkTheme() =>
+    _buildSdalTheme(brightness: Brightness.dark, tokens: SdalThemeTokens.dark);
+
+ThemeData _buildSdalTheme({
+  required Brightness brightness,
+  required SdalThemeTokens tokens,
+}) {
   final colorScheme =
       ColorScheme.fromSeed(
-        seedColor: accent,
-        brightness: Brightness.light,
+        seedColor: tokens.accent,
+        brightness: brightness,
       ).copyWith(
-        primary: ink,
-        secondary: accent,
-        surface: card,
-        surfaceContainerHighest: const Color(0xFFE8EEF6),
-        onSurface: ink,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
-        outline: const Color(0xFFD9E2EC),
+        primary: tokens.accent,
+        secondary: tokens.info,
+        surface: tokens.panel,
+        onSurface: tokens.foreground,
+        onPrimary: tokens.foregroundOnAccent,
+        onSecondary: tokens.foregroundOnAccent,
+        outline: tokens.panelBorder,
+        error: tokens.danger,
+        onError: tokens.foregroundOnAccent,
       );
 
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: colorScheme,
-    scaffoldBackgroundColor: surface,
+    scaffoldBackgroundColor: tokens.canvas,
+    brightness: brightness,
+    extensions: <ThemeExtension<dynamic>>[tokens],
   );
 
   return base.copyWith(
@@ -33,78 +42,142 @@ ThemeData buildSdalTheme() {
       headlineMedium: base.textTheme.headlineMedium?.copyWith(
         fontWeight: FontWeight.w800,
         letterSpacing: -0.8,
+        color: tokens.foreground,
+      ),
+      headlineSmall: base.textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.4,
+        color: tokens.foreground,
       ),
       titleLarge: base.textTheme.titleLarge?.copyWith(
         fontWeight: FontWeight.w700,
+        color: tokens.foreground,
       ),
       titleMedium: base.textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.w700,
+        color: tokens.foreground,
       ),
-      bodyLarge: base.textTheme.bodyLarge?.copyWith(color: ink),
-      bodyMedium: base.textTheme.bodyMedium?.copyWith(color: ink),
-      bodySmall: base.textTheme.bodySmall?.copyWith(color: muted),
+      labelLarge: base.textTheme.labelLarge?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: tokens.foreground,
+      ),
+      bodyLarge: base.textTheme.bodyLarge?.copyWith(color: tokens.foreground),
+      bodyMedium: base.textTheme.bodyMedium?.copyWith(color: tokens.foreground),
+      bodySmall: base.textTheme.bodySmall?.copyWith(
+        color: tokens.foregroundMuted,
+      ),
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
-      foregroundColor: ink,
+      foregroundColor: tokens.foreground,
       elevation: 0,
       centerTitle: false,
       scrolledUnderElevation: 0,
     ),
     cardTheme: CardThemeData(
-      color: card,
+      color: tokens.panel,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        side: const BorderSide(color: Color(0xFFD9E2EC)),
+        side: BorderSide(color: tokens.panelBorder),
       ),
       margin: EdgeInsets.zero,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: Colors.white.withValues(alpha: 0.96),
-      indicatorColor: const Color(0xFFFFE3D8),
+      backgroundColor: tokens.panel.withValues(alpha: 0.96),
+      indicatorColor: tokens.accentMuted,
       surfaceTintColor: Colors.transparent,
       labelTextStyle: WidgetStateProperty.resolveWith(
         (states) => TextStyle(
           fontWeight: states.contains(WidgetState.selected)
               ? FontWeight.w700
               : FontWeight.w600,
-          color: states.contains(WidgetState.selected) ? ink : muted,
+          color: states.contains(WidgetState.selected)
+              ? tokens.foreground
+              : tokens.foregroundMuted,
         ),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white,
+      fillColor: tokens.panel,
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: Color(0xFFD9E2EC)),
+        borderSide: BorderSide(color: tokens.panelBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: Color(0xFFD9E2EC)),
+        borderSide: BorderSide(color: tokens.panelBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: accent, width: 1.5),
+        borderSide: BorderSide(color: tokens.accent, width: 1.5),
+      ),
+      labelStyle: TextStyle(color: tokens.foregroundMuted),
+      hintStyle: TextStyle(color: tokens.foregroundMuted),
+      helperStyle: TextStyle(color: tokens.foregroundMuted),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: tokens.panelRaised,
+      contentTextStyle: TextStyle(color: tokens.foreground),
+      actionTextColor: tokens.accent,
+      behavior: SnackBarBehavior.floating,
+    ),
+    dividerTheme: DividerThemeData(
+      color: tokens.panelBorder,
+      space: 1,
+      thickness: 1,
+    ),
+    chipTheme: base.chipTheme.copyWith(
+      backgroundColor: tokens.panelMuted,
+      side: BorderSide(color: tokens.panelBorder),
+      selectedColor: tokens.accentMuted,
+      labelStyle: TextStyle(color: tokens.foreground),
+      secondaryLabelStyle: TextStyle(color: tokens.foreground),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    ),
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: tokens.accent,
+      linearTrackColor: tokens.panelMuted,
+      circularTrackColor: tokens.panelMuted,
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: tokens.accent,
+      foregroundColor: tokens.foregroundOnAccent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return tokens.accentMuted;
+          return tokens.panel;
+        }),
+        foregroundColor: WidgetStateProperty.all(tokens.foreground),
+        side: WidgetStateProperty.all(BorderSide(color: tokens.panelBorder)),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: ink,
-        foregroundColor: Colors.white,
+        backgroundColor: tokens.accent,
+        foregroundColor: tokens.foregroundOnAccent,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: ink,
-        side: const BorderSide(color: Color(0xFFD9E2EC)),
+        foregroundColor: tokens.foreground,
+        side: BorderSide(color: tokens.panelBorder),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: tokens.accent),
     ),
   );
 }

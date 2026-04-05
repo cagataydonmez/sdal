@@ -149,6 +149,7 @@ class LiveChatRealtimeService {
       StreamController<RealtimeConnectionState>.broadcast();
 
   IOWebSocketChannel? _channel;
+  StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
   bool _connecting = false;
   bool _disposed = false;
@@ -197,7 +198,7 @@ class LiveChatRealtimeService {
           status: RealtimeConnectionStatus.connected,
         ),
       );
-      channel.stream.listen(
+      _subscription = channel.stream.listen(
         _handleMessage,
         onDone: _handleDisconnect,
         onError: (_) => _handleDisconnect(),
@@ -221,6 +222,8 @@ class LiveChatRealtimeService {
   }
 
   void _handleDisconnect() {
+    _subscription?.cancel();
+    _subscription = null;
     _channel = null;
     if (_disposed) return;
     _attempt += 1;
@@ -237,6 +240,8 @@ class LiveChatRealtimeService {
   void dispose() {
     _disposed = true;
     _reconnectTimer?.cancel();
+    _subscription?.cancel();
+    _subscription = null;
     _channel?.sink.close();
     _eventsController.close();
     _statesController.close();

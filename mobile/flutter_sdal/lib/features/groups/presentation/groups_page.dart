@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/groups_action_controller.dart';
 import '../data/groups_repository.dart';
@@ -14,8 +17,9 @@ class GroupsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groupsState = ref.watch(groupsListProvider);
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
     return FeatureScaffold(
-      title: 'Gruplar',
+      title: l10n.groupsTitle,
       actions: [
         IconButton(
           onPressed: () => ref.invalidate(groupsListProvider),
@@ -25,7 +29,7 @@ class GroupsPage extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateSheet(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('Yeni grup'),
+        label: Text(l10n.groupsNewGroupAction),
       ),
       child: groupsState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -46,16 +50,13 @@ class GroupsPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (group.coverImage.isNotEmpty) ...[
-                        ClipRRect(
+                        SdalNetworkImage(
+                          imageUrl: config.resolveUrl(group.coverImage).toString(),
+                          height: 164,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
                           borderRadius: BorderRadius.circular(18),
-                          child: Image.network(
-                            config.resolveUrl(group.coverImage).toString(),
-                            height: 164,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const SizedBox.shrink(),
-                          ),
+                          errorFallback: const SizedBox.shrink(),
                         ),
                         const SizedBox(height: 14),
                       ],
@@ -79,11 +80,13 @@ class GroupsPage extends ConsumerWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          _MetaChip(label: '${group.membersCount} uye'),
+                          _MetaChip(
+                            label: l10n.groupsMembersCount(group.membersCount),
+                          ),
                           if (group.membershipStatus == 'pending')
-                            const _MetaChip(label: 'Onay bekliyor'),
+                            _MetaChip(label: l10n.groupsPendingApproval),
                           if (group.membershipStatus == 'invited')
-                            const _MetaChip(label: 'Davet bekliyor'),
+                            _MetaChip(label: l10n.groupsInvitePending),
                           if (group.myRole.isNotEmpty)
                             _MetaChip(label: group.myRole),
                         ],
@@ -94,13 +97,15 @@ class GroupsPage extends ConsumerWidget {
                           FilledButton.tonal(
                             onPressed: () =>
                                 context.push('/groups/${group.id}'),
-                            child: const Text('Ac'),
+                            child: Text(l10n.groupsOpenAction),
                           ),
                           const SizedBox(width: 12),
                           FilledButton(
                             onPressed: () =>
                                 _toggleJoin(context, ref, group.id),
-                            child: Text(_joinLabel(group.membershipStatus)),
+                            child: Text(
+                              _joinLabel(context, group.membershipStatus),
+                            ),
                           ),
                         ],
                       ),
@@ -136,16 +141,17 @@ Future<void> _toggleJoin(
   }
 }
 
-String _joinLabel(String membershipStatus) {
+String _joinLabel(BuildContext context, String membershipStatus) {
+  final l10n = context.l10n;
   switch (membershipStatus) {
     case 'member':
-      return 'Ayril';
+      return l10n.groupsLeaveAction;
     case 'pending':
-      return 'Talebi cek';
+      return l10n.groupsWithdrawRequestAction;
     case 'invited':
-      return 'Daveti kabul et';
+      return l10n.groupsAcceptInviteAction;
     default:
-      return 'Katil';
+      return l10n.groupsJoinAction;
   }
 }
 
@@ -179,23 +185,27 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
   Widget build(BuildContext context) {
     final state = ref.watch(groupsActionControllerProvider);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final l10n = context.l10n;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, bottomInset + 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Yeni grup', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            l10n.groupsNewGroupTitle,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Grup adi'),
+            decoration: InputDecoration(labelText: l10n.groupsNameLabel),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _descriptionController,
             maxLines: 4,
-            decoration: const InputDecoration(labelText: 'Aciklama'),
+            decoration: InputDecoration(labelText: l10n.groupsDescriptionLabel),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -214,7 +224,9 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
                       ref.invalidate(groupsListProvider);
                       Navigator.of(context).pop();
                     },
-              child: Text(state.isLoading ? 'Olusturuluyor...' : 'Olustur'),
+              child: Text(
+                state.isLoading ? l10n.groupsCreating : l10n.createAction,
+              ),
             ),
           ),
           if ((state.message ?? '').isNotEmpty) ...[
@@ -261,15 +273,23 @@ class _VisibilityBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     final membersOnly = visibility == 'members_only';
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: membersOnly ? const Color(0xFFFFF0D5) : const Color(0xFFE5F7ED),
+        color: membersOnly ? tokens.warningMuted : tokens.successMuted,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Text(membersOnly ? 'Ozel' : 'Herkese acik'),
+        child: Text(
+          membersOnly ? 'Özel' : 'Herkese açık',
+          style: TextStyle(
+            color: membersOnly ? tokens.warning : tokens.success,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }

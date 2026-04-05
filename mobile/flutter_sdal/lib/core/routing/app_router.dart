@@ -8,6 +8,7 @@ import '../../features/albums/presentation/album_upload_page.dart';
 import '../../features/albums/presentation/albums_page.dart';
 import '../../features/community/presentation/announcements_page.dart';
 import '../../features/community/presentation/events_page.dart';
+import '../../features/admin/presentation/admin_pages.dart';
 import '../../features/explore/presentation/explore_page.dart';
 import '../../features/explore/presentation/member_detail_page.dart';
 import '../../features/feed/presentation/feed_page.dart';
@@ -249,6 +250,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/announcements',
         builder: (context, state) => const AnnouncementsPage(),
       ),
+      GoRoute(
+        path: '/admin',
+        builder: (context, state) => const AdminHubPage(),
+      ),
+      GoRoute(
+        path: '/admin/:section',
+        builder: (context, state) =>
+            AdminSectionPage(sectionKey: state.pathParameters['section'] ?? ''),
+      ),
       GoRoute(path: '/jobs', builder: (context, state) => const JobsPage()),
       GoRoute(
         path: '/opportunities',
@@ -314,6 +324,11 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
   if (publicRoutes.contains(location) ||
       location == '/site-closed' ||
       location == '/account-banned') {
+    return snapshot.defaultHomePath;
+  }
+
+  if ((location == '/admin' || location.startsWith('/admin/')) &&
+      !(snapshot.user?.isAdmin ?? false)) {
     return snapshot.defaultHomePath;
   }
 

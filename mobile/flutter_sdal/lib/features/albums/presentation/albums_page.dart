@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../data/albums_repository.dart';
 
@@ -28,8 +31,11 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
     return FeatureScaffold(
-      title: 'Albümler',
+      title: l10n.albumsTitle,
+      background: FeatureScaffoldBackground.immersive,
       actions: [
         IconButton(
           onPressed: _isLoading ? null : () => _load(reset: true),
@@ -38,7 +44,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/albums/upload'),
-        label: const Text('Yükle'),
+        label: Text(l10n.albumsUploadAction),
         icon: const Icon(Icons.upload_rounded),
       ),
       child: ListView(
@@ -65,30 +71,54 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
             ),
             const SizedBox(height: 16),
             if (_latest.isEmpty)
-              const SurfaceCard(child: Text('Henüz albüm fotoğrafı yok.'))
+              SurfaceCard(child: Text(l10n.albumsEmpty))
             else
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: _latest
-                    .map(
-                      (photo) => GestureDetector(
-                        onTap: () => context.push('/albums/photo/${photo.id}'),
-                        child: Container(
-                          width: 104,
-                          height: 104,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            image: DecorationImage(
-                              image: NetworkImage(_thumbUrl(photo.fileName)),
-                              fit: BoxFit.cover,
-                              onError: (_, _) {},
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth > 720
+                      ? 4
+                      : constraints.maxWidth > 520
+                      ? 3
+                      : 2;
+                  final spacing = 10.0;
+                  final itemWidth =
+                      (constraints.maxWidth - (spacing * (columns - 1))) /
+                      columns;
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: [
+                      for (var index = 0; index < _latest.length; index++)
+                        SizedBox(
+                          width: itemWidth,
+                          height: itemWidth,
+                          child: Semantics(
+                            button: true,
+                            label: l10n.albumsOpenPhotoSemantic('${index + 1}'),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () => context.push(
+                                '/albums/photo/${_latest[index].id}',
+                              ),
+                              child: SdalNetworkImage(
+                                imageUrl: config.siteBaseUri
+                                    .resolve(
+                                      _thumbPath(_latest[index].fileName),
+                                    )
+                                    .toString(),
+                                borderRadius: BorderRadius.circular(18),
+                                cacheWidth: (itemWidth * 2).round(),
+                                cacheHeight: (itemWidth * 2).round(),
+                                semanticLabel: l10n.albumsOpenPhotoSemantic(
+                                  '${index + 1}',
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    )
-                    .toList(growable: false),
+                    ],
+                  );
+                },
               ),
             if (_hasMore) ...[
               const SizedBox(height: 16),
@@ -97,7 +127,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                 child: FilledButton.tonal(
                   onPressed: _isLoadingMore ? null : () => _load(reset: false),
                   child: Text(
-                    _isLoadingMore ? 'Yükleniyor...' : 'Daha fazla fotoğraf',
+                    _isLoadingMore
+                        ? l10n.submitInProgress
+                        : l10n.albumsLoadMore,
                   ),
                 ),
               ),
@@ -150,5 +182,5 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   }
 }
 
-String _thumbUrl(String fileName) =>
+String _thumbPath(String fileName) =>
     '/api/media/kucukresim?width=240&file=${Uri.encodeComponent(fileName)}';

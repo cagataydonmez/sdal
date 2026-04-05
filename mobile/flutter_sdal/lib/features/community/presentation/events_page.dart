@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/l10n/context_l10n.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
 import '../data/community_repository.dart';
@@ -207,13 +210,12 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             Text(item.title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             if (item.image.isNotEmpty) ...[
-              ClipRRect(
+              SdalNetworkImage(
+                imageUrl: item.image,
+                fit: BoxFit.cover,
+                width: double.infinity,
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  item.image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                ),
+                errorFallback: const SizedBox.shrink(),
               ),
               const SizedBox(height: 12),
             ],
@@ -223,7 +225,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               _eventMeta(item),
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+              ).textTheme.bodySmall?.copyWith(color: Theme.of(context).sdal.foregroundMuted),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -340,17 +342,17 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                                   ),
                                 ),
                                 if (comment.verified)
-                                  const Icon(
+                                  Icon(
                                     Icons.verified_rounded,
                                     size: 16,
-                                    color: Colors.blue,
+                                    color: Theme.of(context).sdal.info,
                                   ),
                               ],
                             ),
                             Text(
                               _formatDate(comment.createdAt),
                               style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: Colors.black54),
+                                  ?.copyWith(color: Theme.of(context).sdal.foregroundMuted),
                             ),
                             const SizedBox(height: 4),
                             Text(_plainText(comment.comment)),
@@ -603,22 +605,33 @@ class _VisibilityCardState extends State<_VisibilityCard> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F7FB),
+        color: tokens.panelMuted,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tokens.panelBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Katılım görünürlüğü',
+            l10n.eventVisibilityTitle,
             style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.eventVisibilityHelper,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Sayaçları göster'),
+            title: Text(l10n.eventVisibilityShowCounts),
+            subtitle: Text(l10n.eventVisibilityShowCountsHint),
             value: showCounts,
             onChanged: widget.saving
                 ? null
@@ -626,7 +639,8 @@ class _VisibilityCardState extends State<_VisibilityCard> {
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Katılan isimlerini göster'),
+            title: Text(l10n.eventVisibilityShowAttendees),
+            subtitle: Text(l10n.eventVisibilityShowAttendeesHint),
             value: showAttendees,
             onChanged: widget.saving
                 ? null
@@ -634,7 +648,8 @@ class _VisibilityCardState extends State<_VisibilityCard> {
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Katılamayan isimlerini göster'),
+            title: Text(l10n.eventVisibilityShowDecliners),
+            subtitle: Text(l10n.eventVisibilityShowDeclinersHint),
             value: showDecliners,
             onChanged: widget.saving
                 ? null
@@ -648,7 +663,9 @@ class _VisibilityCardState extends State<_VisibilityCard> {
                   : () =>
                         widget.onSave(showCounts, showAttendees, showDecliners),
               child: Text(
-                widget.saving ? 'Kaydediliyor...' : 'Ayarları kaydet',
+                widget.saving
+                    ? l10n.submitInProgress
+                    : l10n.eventVisibilitySaveAction,
               ),
             ),
           ),

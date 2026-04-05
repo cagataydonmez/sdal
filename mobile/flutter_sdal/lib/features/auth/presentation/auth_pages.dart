@@ -55,15 +55,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         runSpacing: 12,
         children: [
           TextButton(
-            onPressed: () => context.go('/register'),
+            onPressed: () => context.push('/register'),
             child: Text(l10n.register),
           ),
           TextButton(
-            onPressed: () => context.go('/activation/resend'),
+            onPressed: () => context.push('/activation/resend'),
             child: Text(l10n.resendActivation),
           ),
           TextButton(
-            onPressed: () => context.go('/password-reset'),
+            onPressed: () => context.push('/password-reset'),
             child: Text(l10n.resetPassword),
           ),
         ],
@@ -511,7 +511,15 @@ class _AuthFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
     return Scaffold(
+      appBar: canPop
+          ? AppBar(
+              backgroundColor: const Color(0xFF0D2238),
+              foregroundColor: Colors.white,
+              elevation: 0,
+            )
+          : null,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

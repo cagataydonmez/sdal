@@ -50,6 +50,7 @@
   "email": "E-posta",
   "firstName": "Ad",
   "lastName": "Soyad",
+  "captionLabel": "Açıklama",
   "memberId": "Üye kimliği",
   "activationCode": "Aktivasyon kodu",
   "captchaCode": "Captcha kodu",
@@ -150,8 +151,286 @@
   "messageSendAction": "Gönder",
   "messageSendInProgress": "Gönderiliyor...",
   "messageSendFailed": "Mesaj gönderilemedi.",
+  "themeModeTitle": "Görünüm",
+  "themeModeHelper": "Sistem ayarını izleyin veya uygulama için kalıcı bir görünüm seçin.",
+  "themeModeSystem": "Sistem",
+  "themeModeLight": "Açık",
+  "themeModeDark": "Koyu",
+  "cancelAction": "Vazgeç",
+  "saveAction": "Kaydet",
+  "createAction": "Oluştur",
+  "deleteAction": "Sil",
+  "groupsTitle": "Gruplar",
+  "groupsNewGroupAction": "Yeni grup",
+  "groupsOpenAction": "Aç",
+  "groupsLeaveAction": "Ayrıl",
+  "groupsWithdrawRequestAction": "Talebi çek",
+  "groupsAcceptInviteAction": "Daveti kabul et",
+  "groupsJoinAction": "Katıl",
+  "groupsPendingApproval": "Onay bekliyor",
+  "groupsInvitePending": "Davet bekliyor",
+  "groupsNewGroupTitle": "Yeni grup",
+  "groupsNameLabel": "Grup adı",
+  "groupsDescriptionLabel": "Açıklama",
+  "groupsCreating": "Oluşturuluyor...",
+  "groupsMembersCount": "{count} üye",
+  "@groupsMembersCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "storiesTitle": "Hikayeler",
+  "storiesEmpty": "Henüz aktif hikaye yok.",
+  "storiesUploadAction": "Hikaye ekle",
+  "storiesUploadHint": "24 saat görünür",
+  "storiesPublishAction": "Hikayeyi paylaş",
+  "storiesViewed": "Görüldü",
+  "storiesNewCount": "{count} yeni",
+  "@storiesNewCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "storiesNewStoryTitle": "Yeni hikaye",
+  "storiesEditTitleAction": "Başlığı düzenle",
+  "storiesDeleteAction": "Hikayeyi sil",
+  "storiesRepostAction": "Yeniden paylaş",
+  "storiesCaptionDialogTitle": "Hikaye başlığı",
+  "storiesCaptionHint": "Kısa bir açıklama ekle",
+  "storiesDeleteConfirmTitle": "Hikaye silinsin mi?",
+  "storiesViewStorySemantic": "{name} hikayesini aç",
+  "@storiesViewStorySemantic": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "storiesPreviousStoryHint": "Önceki hikayeyi aç",
+  "storiesNextStoryHint": "Sonraki hikayeyi aç",
+  "liveChatTitle": "Canlı sohbet",
+  "liveChatConnected": "Canlı bağlantı aktif",
+  "liveChatReconnecting": "Bağlantı yeniden kuruluyor...",
+  "liveChatComposerHint": "Mesajını yaz",
+  "liveChatEditMessageAction": "Mesajı düzenle",
+  "liveChatDeleteMessageAction": "Mesajı sil",
+  "liveChatEditDialogTitle": "Mesajı düzenle",
+  "groupDetailTitle": "Grup detayları",
+  "groupNotFound": "Grup bulunamadı.",
+  "groupVisibilityPrivate": "Özel",
+  "groupVisibilityPublic": "Herkese açık",
+  "groupManagersVisible": "Yöneticiler görünür",
+  "groupRejectInviteAction": "Daveti reddet",
+  "groupSettingsAction": "Ayarlar",
+  "groupInviteMembersAction": "Üye davet et",
+  "groupUpdateCoverAction": "Kapak güncelle",
+  "groupManagersTitle": "Yöneticiler",
+  "groupJoinRequestsTitle": "Katılım istekleri",
+  "groupPendingInvitesTitle": "Bekleyen davetler",
+  "groupPostsTitle": "Paylaşımlar",
+  "groupNoPosts": "Henüz grup paylaşımı yok.",
+  "groupEventsTitle": "Etkinlikler",
+  "groupAddEventAction": "Etkinlik ekle",
+  "groupNoEvents": "Bu grup için planlanmış etkinlik yok.",
+  "groupAnnouncementsTitle": "Duyurular",
+  "groupAddAnnouncementAction": "Duyuru ekle",
+  "groupNoAnnouncements": "Bu grup için duyuru yok.",
+  "groupMembersTitle": "Üyeler",
+  "groupContentMembersOnlyTitle": "İçerik üyeler için açık",
+  "groupContentMembersOnlyBody": "Bu grubun içeriğini görmek için üyelik onayı gerekli.",
+  "groupDetailLeaveAction": "Gruptan ayrıl",
+  "groupDetailWithdrawRequestAction": "Talebi geri çek",
+  "groupDetailAcceptInviteAction": "Daveti kabul et",
+  "groupDetailJoinAction": "Katılım isteği gönder",
+  "groupAdminPanelTitle": "Yönetim araçları",
+  "groupAdminPanelHelper": "Katılım isteklerini incele, yeni üyeler davet et ve grubun görünürlüğünü tek yerden düzenle.",
+  "groupTimelineTitle": "Grup akışı",
+  "groupPostsHelper": "Duyuru açmadan gruba kısa güncellemeler paylaş.",
+  "groupTimelineHelper": "Yaklaşan etkinlikleri ve önemli duyuruları daha rahat taranır halde tut.",
+  "groupMembersHelper": "Yöneticiler önce gösterilir. Rol değişiklikleri moderasyon yetkilerini etkilediği için dikkatli kullanılmalıdır.",
+  "groupInviteSearchHint": "Ad veya kullanıcı adı ile ara",
+  "groupSelectedCount": "{count} kişi seçildi",
+  "@groupSelectedCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "groupInvitesSent": "{count} davet gönderildi.",
+  "@groupInvitesSent": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "groupRoleMakeMember": "Üye yap",
+  "groupRoleMakeModerator": "Moderatör yap",
+  "groupRoleMakeOwner": "Sahipliği devret",
+  "groupSettingsTitle": "Grup ayarları",
+  "groupVisibilityLabel": "Görünürlük",
+  "groupVisibilityPublicOption": "Herkese açık",
+  "groupVisibilityMembersOnlyOption": "Yalnızca üyeler",
+  "groupVisibilityHint": "Yalnızca üyeler seçildiğinde paylaşımlar, etkinlikler, duyurular ve üye listesi katılım isteği onaylanana kadar gizlenir.",
+  "groupManagersVisibilityTitle": "Yöneticileri üye olmayanlara da göster",
+  "groupManagersVisibilityHint": "Bunu yalnızca katılmadan önce kiminle iletişim kurulacağını ziyaretçilere göstermek istiyorsan aç.",
+  "groupNewPostTitle": "Yeni paylaşım",
+  "groupPostHint": "Grup için kısa bir güncelleme yaz",
+  "groupAddImageAction": "Görsel ekle",
+  "groupCreatePostAction": "Paylaşımı gönder",
+  "groupNewEventTitle": "Yeni etkinlik",
+  "groupEventTitleLabel": "Başlık",
+  "groupEventDescriptionLabel": "Açıklama",
+  "groupEventLocationLabel": "Konum",
+  "groupEventStartsAtLabel": "Başlangıç tarihi",
+  "groupEventEndsAtLabel": "Bitiş tarihi",
+  "groupEventScheduleHint": "Tarihler üyelere girildiği biçimde gösterilir; gerekiyorsa saat dilimi veya format bilgisini ekle.",
+  "groupCreateEventAction": "Etkinlik ekle",
+  "groupNewAnnouncementTitle": "Yeni duyuru",
+  "groupAnnouncementTitleLabel": "Başlık",
+  "groupAnnouncementBodyLabel": "İçerik",
+  "groupCreateAnnouncementAction": "Duyuru ekle",
+  "groupEventLocationValue": "Konum: {value}",
+  "@groupEventLocationValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "groupEventStartsAtValue": "Başlangıç: {value}",
+  "@groupEventStartsAtValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "groupEventEndsAtValue": "Bitiş: {value}",
+  "@groupEventEndsAtValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "groupLikesCount": "{count} beğeni",
+  "@groupLikesCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "groupCommentsCount": "{count} yorum",
+  "@groupCommentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "approveAction": "Onayla",
+  "rejectAction": "Reddet",
   "genericMemberLabel": "SDAL Üyesi",
   "genericRequestFailed": "İstek tamamlanamadı.",
+  "feedStoriesTitle": "Topluluktan hikayeler",
+  "exploreTitle": "Keşfet",
+  "exploreSuggestionsTitle": "Öneriler",
+  "exploreNoSuggestions": "Şu anda öneri yok.",
+  "exploreDirectoryTitle": "Üye rehberi",
+  "followAction": "Takip et",
+  "albumsTitle": "Albümler",
+  "albumsUploadAction": "Yükle",
+  "albumsEmpty": "Henüz albüm fotoğrafı yok.",
+  "albumsLoadMore": "Daha fazla fotoğraf",
+  "albumTitleFallback": "Albüm",
+  "albumsCategoryMissing": "Kategori bulunamadı.",
+  "albumsOpenPhotoSemantic": "{label} fotoğrafını aç",
+  "@albumsOpenPhotoSemantic": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "profileStoriesTitle": "Benim hikayelerim",
+  "retryAction": "Tekrar dene",
+  "statusApproved": "Onaylandı",
+  "statusRejected": "Reddedildi",
+  "statusReviewed": "İncelendi",
+  "statusPending": "Bekliyor",
+  "requestsTitle": "Üye talepleri",
+  "requestsCreateTitle": "Yeni talep oluştur",
+  "requestsCreateHelper": "Profil ve üyelik işlemleri için talep oluşturabilir, destekleyici dosyalar ekleyebilir ve son durumu aşağıdan takip edebilirsin.",
+  "requestsCategoryLabel": "Talep kategorisi",
+  "requestsGraduationYearLabel": "İstenen mezuniyet yılı",
+  "requestsTeacherOption": "Öğretmen",
+  "requestsDescriptionLabel": "Açıklama",
+  "requestsPickFromGallery": "Galeriden ekle",
+  "requestsUseCamera": "Kamera",
+  "requestsSendAction": "Talebi gönder",
+  "requestsListTitle": "Taleplerim",
+  "requestsNotificationApproved": "Talep sonucu güncellendi. Onaylanan kayıt aşağıda vurgulandı.",
+  "requestsNotificationUpdated": "Talep sonucu güncellendi. İlgili kayıt aşağıda vurgulandı.",
+  "requestsEmpty": "Henüz gönderilmiş talep yok.",
+  "requestsAttachmentUploadFailed": "Ek dosya yüklenemedi.",
+  "requestsAttachmentUploaded": "Ek dosya yüklendi.",
+  "requestsSelectCategoryError": "Bir talep kategorisi seç.",
+  "requestsSelectGraduationYearError": "İstenen mezuniyet yılını seç.",
+  "requestsSubmitSuccess": "Talep gönderildi.",
+  "requestsSubmitFailed": "Talep gönderilemedi.",
+  "requestsGraduationYearValue": "İstenen mezuniyet yılı: {value}",
+  "@requestsGraduationYearValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "requestsResolutionNote": "Not: {note}",
+  "@requestsResolutionNote": {
+    "placeholders": {
+      "note": {}
+    }
+  },
+  "jobsTitle": "İş ilanları",
+  "jobsCreateTitle": "Yeni iş ilanı",
+  "jobsCreateHelper": "Üyelerin hızlı karar verebilmesi için ilanı kısa, net ve uygulanabilir tut.",
+  "jobsCompanyLabel": "Şirket",
+  "jobsPositionLabel": "Pozisyon",
+  "jobsDescriptionLabel": "Açıklama",
+  "jobsLocationLabel": "Konum",
+  "jobsTypeLabel": "İş tipi",
+  "jobsLinkLabel": "Başvuru linki",
+  "jobsLinkHint": "https://...",
+  "jobsCreateAction": "İlanı yayınla",
+  "jobsCreateInProgress": "Yayınlanıyor...",
+  "jobsSearchTitle": "İlanları filtrele",
+  "jobsSearchHelper": "Mevcut ilanları pozisyon, konum veya iş tipine göre daralt.",
+  "jobsSearchLabel": "Arama",
+  "jobsLocationFilterLabel": "Konum filtresi",
+  "jobsTypeFilterLabel": "İş tipi filtresi",
+  "jobsApplyFiltersAction": "Filtreleri uygula",
+  "jobsEmpty": "Henüz iş ilanı yok.",
+  "jobsApplicationStatus": "Başvuru durumu: {status}",
+  "@jobsApplicationStatus": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "jobsShortNoteLabel": "Kısa başvuru notu",
+  "jobsApplyAction": "Başvur",
+  "jobsLoadApplicationsAction": "Başvuruları yükle",
+  "jobsRefreshApplicationsAction": "Başvuruları yenile",
+  "jobsReviewNoteLabel": "Karar notu",
+  "jobsMarkReviewedAction": "İncelemede",
+  "jobsAcceptAction": "Kabul et",
+  "jobsApplicationsStatus": "Durum: {status}",
+  "@jobsApplicationsStatus": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "jobsCreateSuccess": "İş ilanı yayınlandı.",
+  "jobsCreateFailed": "İlan oluşturulamadı.",
+  "jobsApplySuccess": "Başvuru gönderildi.",
+  "jobsApplyFailed": "Başvuru gönderilemedi.",
+  "jobsDeleteSuccess": "İlan silindi.",
+  "jobsDeleteFailed": "İlan silinemedi.",
+  "jobsReviewSuccess": "Başvuru güncellendi.",
+  "jobsReviewFailed": "Başvuru güncellenemedi.",
+  "jobsPosterPendingApproval": "Onay bekliyor",
+  "eventVisibilityTitle": "Katılım görünürlüğü",
+  "eventVisibilityHelper": "Bu ayarlar etkinliği gören üyelerin hangi katılım bilgilerine erişebileceğini belirler.",
+  "eventVisibilityShowCounts": "Sayıları göster",
+  "eventVisibilityShowCountsHint": "Katılan ve katılamayan kişi sayıları görünür olur.",
+  "eventVisibilityShowAttendees": "Katılan isimlerini göster",
+  "eventVisibilityShowAttendeesHint": "Etkinliği görebilen herkes katılan listesini de görebilir.",
+  "eventVisibilityShowDecliners": "Katılamayan isimlerini göster",
+  "eventVisibilityShowDeclinersHint": "Etkinliği görebilen herkes katılamayanları da görür.",
+  "eventVisibilitySaveAction": "Görünürlük ayarlarını kaydet",
   "oauthFailedWithReason": "OAuth akışı tamamlanamadı: {reason}",
   "@oauthFailedWithReason": {
     "placeholders": {

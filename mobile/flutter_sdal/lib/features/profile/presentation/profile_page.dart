@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/theme/theme_mode_controller.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/theme/theme_mode_store.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -23,6 +26,7 @@ class ProfilePage extends ConsumerWidget {
 
     return FeatureScaffold(
       title: l10n.profileTitle,
+      background: FeatureScaffoldBackground.neutral,
       actions: [
         IconButton(
           onPressed: () => ref.invalidate(profileProvider),
@@ -95,10 +99,10 @@ class ProfilePage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              const StoriesRail(
+              StoriesRail(
                 mode: StoryRailMode.mine,
                 showUpload: true,
-                title: 'Benim hikayelerim',
+                title: l10n.profileStoriesTitle,
               ),
               const SizedBox(height: 16),
               Row(
@@ -177,6 +181,8 @@ class ProfilePage extends ConsumerWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
+                    _ThemeModePreferenceCard(),
+                    const SizedBox(height: 12),
                     Wrap(
                       spacing: 10,
                       runSpacing: 10,
@@ -227,17 +233,92 @@ class _ProfileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (value.isEmpty) return const SizedBox.shrink();
+    final shouldStack =
+        MediaQuery.sizeOf(context).width < 420 ||
+        MediaQuery.textScalerOf(context).scale(1) > 1.15;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 108,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ),
-          Expanded(child: Text(value)),
-        ],
+      child: shouldStack
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 4),
+                Text(value),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 108,
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                Expanded(child: Text(value)),
+              ],
+            ),
+    );
+  }
+}
+
+class _ThemeModePreferenceCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final preference = ref.watch(themeModeControllerProvider);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).sdal.panelRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).sdal.panelBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.themeModeTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.themeModeHelper,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<ThemeModePreference>(
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(
+                    value: ThemeModePreference.system,
+                    label: Text(l10n.themeModeSystem),
+                  ),
+                  ButtonSegment(
+                    value: ThemeModePreference.light,
+                    label: Text(l10n.themeModeLight),
+                  ),
+                  ButtonSegment(
+                    value: ThemeModePreference.dark,
+                    label: Text(l10n.themeModeDark),
+                  ),
+                ],
+                selected: {preference},
+                onSelectionChanged: (selection) {
+                  if (selection.isEmpty) return;
+                  ref
+                      .read(themeModeControllerProvider.notifier)
+                      .setPreference(selection.first);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -302,7 +383,9 @@ Future<void> _openEditProfileDialog(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Profili düzenle'),
           content: SizedBox(
-            width: 520,
+            width: MediaQuery.sizeOf(
+              context,
+            ).width.clamp(280.0, 520.0).toDouble(),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

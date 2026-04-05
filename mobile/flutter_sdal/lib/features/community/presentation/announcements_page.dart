@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
 import '../data/community_repository.dart';
@@ -106,7 +108,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                     if (_imageFile != null)
                       Text(
                         _imageFile!.path.split('/').last,
-                        style: const TextStyle(color: Colors.black54),
+                        style: TextStyle(
+                          color: Theme.of(context).sdal.foregroundMuted,
+                        ),
                       ),
                   ],
                 ),
@@ -159,13 +163,12 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                       ),
                       const SizedBox(height: 8),
                       if (item.image.isNotEmpty) ...[
-                        ClipRRect(
+                        SdalNetworkImage(
+                          imageUrl: item.image,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            item.image,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                          ),
+                          errorFallback: const SizedBox.shrink(),
                         ),
                         const SizedBox(height: 12),
                       ],
@@ -177,9 +180,9 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                           item.creatorHandle,
                           item.approved,
                         ),
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).sdal.foregroundMuted,
+                        ),
                       ),
                     ],
                   ),

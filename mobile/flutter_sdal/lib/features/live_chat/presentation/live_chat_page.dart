@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../application/live_chat_action_controller.dart';
@@ -24,10 +26,13 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
   StreamSubscription<RealtimeConnectionState>? _statesSubscription;
   RealtimeConnectionState? _connectionState;
   bool _loading = true;
+  bool _loadingOlder = false;
+  bool _hasOlder = true;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
@@ -38,6 +43,18 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
     _eventsSubscription?.cancel();
     _statesSubscription?.cancel();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients ||
+        _loading ||
+        _loadingOlder ||
+        !_hasOlder) {
+      return;
+    }
+    if (_scrollController.offset <= 140) {
+      _loadOlder();
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -56,13 +73,32 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
     setState(() => _loading = true);
     final items = await ref.read(liveChatRepositoryProvider).fetchMessages();
     if (!mounted) return;
+    final merged = _mergeMessages(const <LiveChatMessage>[], items);
     setState(() {
       _messages
         ..clear()
-        ..addAll(_mergeMessages(items));
+        ..addAll(merged);
       _loading = false;
+      _hasOlder = items.length >= 50;
     });
     _jumpToBottom();
+  }
+
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || _messages.isEmpty) return;
+    setState(() => _loadingOlder = true);
+    final older = await ref
+        .read(liveChatRepositoryProvider)
+        .fetchMessages(beforeId: _messages.first.id, limit: 30);
+    if (!mounted) return;
+    final merged = _mergeMessages(_messages, older);
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(merged);
+      _loadingOlder = false;
+      _hasOlder = older.length >= 30;
+    });
   }
 
   void _handleEvent(LiveChatEvent event) {
@@ -72,9 +108,10 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
         case 'chat:new':
         case 'chat:updated':
           if (event.item != null) {
+            final merged = _mergeMessages(_messages, [event.item!]);
             _messages
               ..clear()
-              ..addAll(_mergeMessages([..._messages, event.item!]));
+              ..addAll(merged);
           }
           break;
         case 'chat:deleted':
@@ -85,11 +122,14 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
     _jumpToBottom();
   }
 
-  List<LiveChatMessage> _mergeMessages(List<LiveChatMessage> items) {
+  List<LiveChatMessage> _mergeMessages(
+    List<LiveChatMessage> base,
+    List<LiveChatMessage> incoming,
+  ) {
     final merged = <int, LiveChatMessage>{
-      for (final item in _messages) item.id: item,
+      for (final item in base) item.id: item,
     };
-    for (final item in items) {
+    for (final item in incoming) {
       merged[item.id] = item;
     }
     final out = merged.values.toList(growable: false)
@@ -114,8 +154,11 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
     final currentUserId = session?.user?.id ?? 0;
     final config = ref.watch(appConfigProvider);
     final actionState = ref.watch(liveChatActionControllerProvider);
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     return FeatureScaffold(
-      title: 'Canli sohbet',
+      title: l10n.liveChatTitle,
+      background: FeatureScaffoldBackground.utility,
       actions: [
         IconButton(onPressed: _loadInitial, icon: const Icon(Icons.refresh)),
       ],
@@ -127,12 +170,12 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               color:
                   _connectionState!.status == RealtimeConnectionStatus.connected
-                  ? const Color(0xFFE5F7ED)
-                  : const Color(0xFFFFF0D5),
+                  ? tokens.successMuted
+                  : tokens.warningMuted,
               child: Text(
                 _connectionState!.status == RealtimeConnectionStatus.connected
-                    ? 'Canli baglanti aktif'
-                    : 'Baglanti yeniden kuruluyor...',
+                    ? l10n.liveChatConnected
+                    : l10n.liveChatReconnecting,
               ),
             ),
           Expanded(
@@ -140,93 +183,134 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
                 ? const Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
                     onRefresh: _loadInitial,
-                    child: ListView.separated(
+                    child: ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.all(16),
-                      itemCount: _messages.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 12),
+                      itemCount: _messages.length + 1,
                       itemBuilder: (context, index) {
-                        final item = _messages[index];
-                        final isMine = item.userId == currentUserId;
-                        return Align(
-                          alignment: isMine
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: GestureDetector(
-                            onLongPress: isMine
-                                ? () => _openMessageActions(context, item)
-                                : null,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 340),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: isMine
-                                      ? const Color(0xFF0D4C7D)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(22),
+                        if (index == 0) {
+                          if (_loadingOlder) {
+                            return const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
+                              ),
+                            );
+                          }
+                          return const SizedBox(height: 12);
+                        }
+                        final item = _messages[index - 1];
+                        final isMine = item.userId == currentUserId;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Align(
+                            alignment: isMine
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: GestureDetector(
+                              onLongPress: isMine
+                                  ? () => _openMessageActions(context, item)
+                                  : null,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) => ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth:
+                                        MediaQuery.sizeOf(context).width *
+                                        (MediaQuery.textScalerOf(
+                                                  context,
+                                                ).scale(1) >
+                                                1.15
+                                            ? 0.8
+                                            : 0.72),
+                                  ),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: isMine
+                                          ? tokens.chatOutgoing
+                                          : tokens.chatIncoming,
+                                      borderRadius: BorderRadius.circular(22),
+                                      border: Border.all(
+                                        color: isMine
+                                            ? tokens.chatOutgoing
+                                            : tokens.panelBorder,
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(14),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          if (!isMine)
-                                            RemoteAvatar(
-                                              label:
+                                          Row(
+                                            children: [
+                                              if (!isMine)
+                                                RemoteAvatar(
+                                                  label:
+                                                      item.user?.displayName ??
+                                                      context
+                                                          .l10n
+                                                          .genericMemberLabel,
+                                                  imageUrl: config
+                                                      .resolveUrl(
+                                                        item.user?.photo ?? '',
+                                                      )
+                                                      .toString(),
+                                                  radius: 16,
+                                                ),
+                                              if (!isMine)
+                                                const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
                                                   item.user?.displayName ??
-                                                  'Uye',
-                                              imageUrl: config
-                                                  .resolveUrl(
-                                                    item.user?.photo ?? '',
-                                                  )
-                                                  .toString(),
-                                              radius: 16,
-                                            ),
-                                          if (!isMine) const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              item.user?.displayName ??
-                                                  'SDAL Uyesi',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelLarge
-                                                  ?.copyWith(
-                                                    color: isMine
-                                                        ? Colors.white70
-                                                        : null,
-                                                  ),
-                                            ),
+                                                      context
+                                                          .l10n
+                                                          .genericMemberLabel,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelLarge
+                                                      ?.copyWith(
+                                                        color: isMine
+                                                            ? tokens
+                                                                  .foregroundOnAccent
+                                                            : null,
+                                                      ),
+                                                ),
+                                              ),
+                                              Text(
+                                                item.createdAt,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: isMine
+                                                          ? tokens
+                                                                .foregroundOnAccent
+                                                                .withValues(
+                                                                  alpha: 0.72,
+                                                                )
+                                                          : null,
+                                                    ),
+                                              ),
+                                            ],
                                           ),
+                                          const SizedBox(height: 8),
                                           Text(
-                                            item.createdAt,
+                                            item.message,
                                             style: Theme.of(context)
                                                 .textTheme
-                                                .bodySmall
+                                                .bodyLarge
                                                 ?.copyWith(
                                                   color: isMine
-                                                      ? Colors.white60
+                                                      ? tokens
+                                                            .foregroundOnAccent
                                                       : null,
                                                 ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        item.message,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              color: isMine
-                                                  ? Colors.white
-                                                  : null,
-                                            ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -241,27 +325,45 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _composerController,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'Mesajini yaz',
-                        border: OutlineInputBorder(),
-                      ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final stackComposer =
+                      constraints.maxWidth < 420 ||
+                      MediaQuery.textScalerOf(context).scale(1) > 1.2;
+                  final field = TextField(
+                    controller: _composerController,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: l10n.messageFieldLabel,
+                      hintText: l10n.liveChatComposerHint,
+                      border: const OutlineInputBorder(),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton(
+                  );
+                  final sendButton = FilledButton(
                     onPressed: actionState.isLoading
                         ? null
                         : () => _sendMessage(context),
-                    child: Text(actionState.isLoading ? '...' : 'Gonder'),
-                  ),
-                ],
+                    child: Text(
+                      actionState.isLoading
+                          ? l10n.messageSendInProgress
+                          : l10n.messageSendAction,
+                    ),
+                  );
+                  if (stackComposer) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [field, const SizedBox(height: 12), sendButton],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: field),
+                      const SizedBox(width: 12),
+                      sendButton,
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -279,10 +381,11 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
         .sendMessage(text);
     if (!mounted) return;
     if (item != null) {
+      final merged = _mergeMessages(_messages, [item]);
       setState(() {
         _messages
           ..clear()
-          ..addAll(_mergeMessages([item]));
+          ..addAll(merged);
       });
       _composerController.clear();
       _jumpToBottom();
@@ -306,7 +409,7 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Mesaji duzenle'),
+              title: Text(context.l10n.liveChatEditMessageAction),
               onTap: () async {
                 Navigator.of(context).pop();
                 await _editMessage(item);
@@ -314,7 +417,7 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
-              title: const Text('Mesaji sil'),
+              title: Text(context.l10n.liveChatDeleteMessageAction),
               onTap: () async {
                 Navigator.of(context).pop();
                 await _deleteMessage(item);
@@ -331,16 +434,16 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
     final next = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Mesaji duzenle'),
+        title: Text(context.l10n.liveChatEditDialogTitle),
         content: TextField(controller: controller, maxLines: 4),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Vazgec'),
+            child: Text(context.l10n.cancelAction),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Kaydet'),
+            child: Text(context.l10n.saveAction),
           ),
         ],
       ),
@@ -350,10 +453,11 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
         .read(liveChatActionControllerProvider.notifier)
         .editMessage(messageId: item.id, message: next);
     if (!mounted || updated == null) return;
+    final merged = _mergeMessages(_messages, [updated]);
     setState(() {
       _messages
         ..clear()
-        ..addAll(_mergeMessages([updated]));
+        ..addAll(merged);
     });
   }
 

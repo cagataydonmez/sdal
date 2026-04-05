@@ -140,6 +140,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get lastName => 'Soyad';
 
   @override
+  String get captionLabel => 'Açıklama';
+
+  @override
   String get memberId => 'Üye kimliği';
 
   @override
@@ -420,10 +423,669 @@ class AppLocalizationsTr extends AppLocalizations {
   String get messageSendFailed => 'Mesaj gönderilemedi.';
 
   @override
+  String get themeModeTitle => 'Görünüm';
+
+  @override
+  String get themeModeHelper =>
+      'Sistem ayarını izleyin veya uygulama için kalıcı bir görünüm seçin.';
+
+  @override
+  String get themeModeSystem => 'Sistem';
+
+  @override
+  String get themeModeLight => 'Açık';
+
+  @override
+  String get themeModeDark => 'Koyu';
+
+  @override
+  String get cancelAction => 'Vazgeç';
+
+  @override
+  String get saveAction => 'Kaydet';
+
+  @override
+  String get createAction => 'Oluştur';
+
+  @override
+  String get deleteAction => 'Sil';
+
+  @override
+  String get groupsTitle => 'Gruplar';
+
+  @override
+  String get groupsNewGroupAction => 'Yeni grup';
+
+  @override
+  String get groupsOpenAction => 'Aç';
+
+  @override
+  String get groupsLeaveAction => 'Ayrıl';
+
+  @override
+  String get groupsWithdrawRequestAction => 'Talebi çek';
+
+  @override
+  String get groupsAcceptInviteAction => 'Daveti kabul et';
+
+  @override
+  String get groupsJoinAction => 'Katıl';
+
+  @override
+  String get groupsPendingApproval => 'Onay bekliyor';
+
+  @override
+  String get groupsInvitePending => 'Davet bekliyor';
+
+  @override
+  String get groupsNewGroupTitle => 'Yeni grup';
+
+  @override
+  String get groupsNameLabel => 'Grup adı';
+
+  @override
+  String get groupsDescriptionLabel => 'Açıklama';
+
+  @override
+  String get groupsCreating => 'Oluşturuluyor...';
+
+  @override
+  String groupsMembersCount(Object count) {
+    return '$count üye';
+  }
+
+  @override
+  String get storiesTitle => 'Hikayeler';
+
+  @override
+  String get storiesEmpty => 'Henüz aktif hikaye yok.';
+
+  @override
+  String get storiesUploadAction => 'Hikaye ekle';
+
+  @override
+  String get storiesUploadHint => '24 saat görünür';
+
+  @override
+  String get storiesPublishAction => 'Hikayeyi paylaş';
+
+  @override
+  String get storiesViewed => 'Görüldü';
+
+  @override
+  String storiesNewCount(Object count) {
+    return '$count yeni';
+  }
+
+  @override
+  String get storiesNewStoryTitle => 'Yeni hikaye';
+
+  @override
+  String get storiesEditTitleAction => 'Başlığı düzenle';
+
+  @override
+  String get storiesDeleteAction => 'Hikayeyi sil';
+
+  @override
+  String get storiesRepostAction => 'Yeniden paylaş';
+
+  @override
+  String get storiesCaptionDialogTitle => 'Hikaye başlığı';
+
+  @override
+  String get storiesCaptionHint => 'Kısa bir açıklama ekle';
+
+  @override
+  String get storiesDeleteConfirmTitle => 'Hikaye silinsin mi?';
+
+  @override
+  String storiesViewStorySemantic(Object name) {
+    return '$name hikayesini aç';
+  }
+
+  @override
+  String get storiesPreviousStoryHint => 'Önceki hikayeyi aç';
+
+  @override
+  String get storiesNextStoryHint => 'Sonraki hikayeyi aç';
+
+  @override
+  String get liveChatTitle => 'Canlı sohbet';
+
+  @override
+  String get liveChatConnected => 'Canlı bağlantı aktif';
+
+  @override
+  String get liveChatReconnecting => 'Bağlantı yeniden kuruluyor...';
+
+  @override
+  String get liveChatComposerHint => 'Mesajını yaz';
+
+  @override
+  String get liveChatEditMessageAction => 'Mesajı düzenle';
+
+  @override
+  String get liveChatDeleteMessageAction => 'Mesajı sil';
+
+  @override
+  String get liveChatEditDialogTitle => 'Mesajı düzenle';
+
+  @override
+  String get groupDetailTitle => 'Grup detayları';
+
+  @override
+  String get groupNotFound => 'Grup bulunamadı.';
+
+  @override
+  String get groupVisibilityPrivate => 'Özel';
+
+  @override
+  String get groupVisibilityPublic => 'Herkese açık';
+
+  @override
+  String get groupManagersVisible => 'Yöneticiler görünür';
+
+  @override
+  String get groupRejectInviteAction => 'Daveti reddet';
+
+  @override
+  String get groupSettingsAction => 'Ayarlar';
+
+  @override
+  String get groupInviteMembersAction => 'Üye davet et';
+
+  @override
+  String get groupUpdateCoverAction => 'Kapak güncelle';
+
+  @override
+  String get groupManagersTitle => 'Yöneticiler';
+
+  @override
+  String get groupJoinRequestsTitle => 'Katılım istekleri';
+
+  @override
+  String get groupPendingInvitesTitle => 'Bekleyen davetler';
+
+  @override
+  String get groupPostsTitle => 'Paylaşımlar';
+
+  @override
+  String get groupNoPosts => 'Henüz grup paylaşımı yok.';
+
+  @override
+  String get groupEventsTitle => 'Etkinlikler';
+
+  @override
+  String get groupAddEventAction => 'Etkinlik ekle';
+
+  @override
+  String get groupNoEvents => 'Bu grup için planlanmış etkinlik yok.';
+
+  @override
+  String get groupAnnouncementsTitle => 'Duyurular';
+
+  @override
+  String get groupAddAnnouncementAction => 'Duyuru ekle';
+
+  @override
+  String get groupNoAnnouncements => 'Bu grup için duyuru yok.';
+
+  @override
+  String get groupMembersTitle => 'Üyeler';
+
+  @override
+  String get groupContentMembersOnlyTitle => 'İçerik üyeler için açık';
+
+  @override
+  String get groupContentMembersOnlyBody =>
+      'Bu grubun içeriğini görmek için üyelik onayı gerekli.';
+
+  @override
+  String get groupDetailLeaveAction => 'Gruptan ayrıl';
+
+  @override
+  String get groupDetailWithdrawRequestAction => 'Talebi geri çek';
+
+  @override
+  String get groupDetailAcceptInviteAction => 'Daveti kabul et';
+
+  @override
+  String get groupDetailJoinAction => 'Katılım isteği gönder';
+
+  @override
+  String get groupAdminPanelTitle => 'Yönetim araçları';
+
+  @override
+  String get groupAdminPanelHelper =>
+      'Katılım isteklerini incele, yeni üyeler davet et ve grubun görünürlüğünü tek yerden düzenle.';
+
+  @override
+  String get groupTimelineTitle => 'Grup akışı';
+
+  @override
+  String get groupPostsHelper =>
+      'Duyuru açmadan gruba kısa güncellemeler paylaş.';
+
+  @override
+  String get groupTimelineHelper =>
+      'Yaklaşan etkinlikleri ve önemli duyuruları daha rahat taranır halde tut.';
+
+  @override
+  String get groupMembersHelper =>
+      'Yöneticiler önce gösterilir. Rol değişiklikleri moderasyon yetkilerini etkilediği için dikkatli kullanılmalıdır.';
+
+  @override
+  String get groupInviteSearchHint => 'Ad veya kullanıcı adı ile ara';
+
+  @override
+  String groupSelectedCount(Object count) {
+    return '$count kişi seçildi';
+  }
+
+  @override
+  String groupInvitesSent(Object count) {
+    return '$count davet gönderildi.';
+  }
+
+  @override
+  String get groupRoleMakeMember => 'Üye yap';
+
+  @override
+  String get groupRoleMakeModerator => 'Moderatör yap';
+
+  @override
+  String get groupRoleMakeOwner => 'Sahipliği devret';
+
+  @override
+  String get groupSettingsTitle => 'Grup ayarları';
+
+  @override
+  String get groupVisibilityLabel => 'Görünürlük';
+
+  @override
+  String get groupVisibilityPublicOption => 'Herkese açık';
+
+  @override
+  String get groupVisibilityMembersOnlyOption => 'Yalnızca üyeler';
+
+  @override
+  String get groupVisibilityHint =>
+      'Yalnızca üyeler seçildiğinde paylaşımlar, etkinlikler, duyurular ve üye listesi katılım isteği onaylanana kadar gizlenir.';
+
+  @override
+  String get groupManagersVisibilityTitle =>
+      'Yöneticileri üye olmayanlara da göster';
+
+  @override
+  String get groupManagersVisibilityHint =>
+      'Bunu yalnızca katılmadan önce kiminle iletişim kurulacağını ziyaretçilere göstermek istiyorsan aç.';
+
+  @override
+  String get groupNewPostTitle => 'Yeni paylaşım';
+
+  @override
+  String get groupPostHint => 'Grup için kısa bir güncelleme yaz';
+
+  @override
+  String get groupAddImageAction => 'Görsel ekle';
+
+  @override
+  String get groupCreatePostAction => 'Paylaşımı gönder';
+
+  @override
+  String get groupNewEventTitle => 'Yeni etkinlik';
+
+  @override
+  String get groupEventTitleLabel => 'Başlık';
+
+  @override
+  String get groupEventDescriptionLabel => 'Açıklama';
+
+  @override
+  String get groupEventLocationLabel => 'Konum';
+
+  @override
+  String get groupEventStartsAtLabel => 'Başlangıç tarihi';
+
+  @override
+  String get groupEventEndsAtLabel => 'Bitiş tarihi';
+
+  @override
+  String get groupEventScheduleHint =>
+      'Tarihler üyelere girildiği biçimde gösterilir; gerekiyorsa saat dilimi veya format bilgisini ekle.';
+
+  @override
+  String get groupCreateEventAction => 'Etkinlik ekle';
+
+  @override
+  String get groupNewAnnouncementTitle => 'Yeni duyuru';
+
+  @override
+  String get groupAnnouncementTitleLabel => 'Başlık';
+
+  @override
+  String get groupAnnouncementBodyLabel => 'İçerik';
+
+  @override
+  String get groupCreateAnnouncementAction => 'Duyuru ekle';
+
+  @override
+  String groupEventLocationValue(Object value) {
+    return 'Konum: $value';
+  }
+
+  @override
+  String groupEventStartsAtValue(Object value) {
+    return 'Başlangıç: $value';
+  }
+
+  @override
+  String groupEventEndsAtValue(Object value) {
+    return 'Bitiş: $value';
+  }
+
+  @override
+  String groupLikesCount(Object count) {
+    return '$count beğeni';
+  }
+
+  @override
+  String groupCommentsCount(Object count) {
+    return '$count yorum';
+  }
+
+  @override
+  String get approveAction => 'Onayla';
+
+  @override
+  String get rejectAction => 'Reddet';
+
+  @override
   String get genericMemberLabel => 'SDAL Üyesi';
 
   @override
   String get genericRequestFailed => 'İstek tamamlanamadı.';
+
+  @override
+  String get feedStoriesTitle => 'Topluluktan hikayeler';
+
+  @override
+  String get exploreTitle => 'Keşfet';
+
+  @override
+  String get exploreSuggestionsTitle => 'Öneriler';
+
+  @override
+  String get exploreNoSuggestions => 'Şu anda öneri yok.';
+
+  @override
+  String get exploreDirectoryTitle => 'Üye rehberi';
+
+  @override
+  String get followAction => 'Takip et';
+
+  @override
+  String get albumsTitle => 'Albümler';
+
+  @override
+  String get albumsUploadAction => 'Yükle';
+
+  @override
+  String get albumsEmpty => 'Henüz albüm fotoğrafı yok.';
+
+  @override
+  String get albumsLoadMore => 'Daha fazla fotoğraf';
+
+  @override
+  String get albumTitleFallback => 'Albüm';
+
+  @override
+  String get albumsCategoryMissing => 'Kategori bulunamadı.';
+
+  @override
+  String albumsOpenPhotoSemantic(Object label) {
+    return '$label fotoğrafını aç';
+  }
+
+  @override
+  String get profileStoriesTitle => 'Benim hikayelerim';
+
+  @override
+  String get retryAction => 'Tekrar dene';
+
+  @override
+  String get statusApproved => 'Onaylandı';
+
+  @override
+  String get statusRejected => 'Reddedildi';
+
+  @override
+  String get statusReviewed => 'İncelendi';
+
+  @override
+  String get statusPending => 'Bekliyor';
+
+  @override
+  String get requestsTitle => 'Üye talepleri';
+
+  @override
+  String get requestsCreateTitle => 'Yeni talep oluştur';
+
+  @override
+  String get requestsCreateHelper =>
+      'Profil ve üyelik işlemleri için talep oluşturabilir, destekleyici dosyalar ekleyebilir ve son durumu aşağıdan takip edebilirsin.';
+
+  @override
+  String get requestsCategoryLabel => 'Talep kategorisi';
+
+  @override
+  String get requestsGraduationYearLabel => 'İstenen mezuniyet yılı';
+
+  @override
+  String get requestsTeacherOption => 'Öğretmen';
+
+  @override
+  String get requestsDescriptionLabel => 'Açıklama';
+
+  @override
+  String get requestsPickFromGallery => 'Galeriden ekle';
+
+  @override
+  String get requestsUseCamera => 'Kamera';
+
+  @override
+  String get requestsSendAction => 'Talebi gönder';
+
+  @override
+  String get requestsListTitle => 'Taleplerim';
+
+  @override
+  String get requestsNotificationApproved =>
+      'Talep sonucu güncellendi. Onaylanan kayıt aşağıda vurgulandı.';
+
+  @override
+  String get requestsNotificationUpdated =>
+      'Talep sonucu güncellendi. İlgili kayıt aşağıda vurgulandı.';
+
+  @override
+  String get requestsEmpty => 'Henüz gönderilmiş talep yok.';
+
+  @override
+  String get requestsAttachmentUploadFailed => 'Ek dosya yüklenemedi.';
+
+  @override
+  String get requestsAttachmentUploaded => 'Ek dosya yüklendi.';
+
+  @override
+  String get requestsSelectCategoryError => 'Bir talep kategorisi seç.';
+
+  @override
+  String get requestsSelectGraduationYearError =>
+      'İstenen mezuniyet yılını seç.';
+
+  @override
+  String get requestsSubmitSuccess => 'Talep gönderildi.';
+
+  @override
+  String get requestsSubmitFailed => 'Talep gönderilemedi.';
+
+  @override
+  String requestsGraduationYearValue(Object value) {
+    return 'İstenen mezuniyet yılı: $value';
+  }
+
+  @override
+  String requestsResolutionNote(Object note) {
+    return 'Not: $note';
+  }
+
+  @override
+  String get jobsTitle => 'İş ilanları';
+
+  @override
+  String get jobsCreateTitle => 'Yeni iş ilanı';
+
+  @override
+  String get jobsCreateHelper =>
+      'Üyelerin hızlı karar verebilmesi için ilanı kısa, net ve uygulanabilir tut.';
+
+  @override
+  String get jobsCompanyLabel => 'Şirket';
+
+  @override
+  String get jobsPositionLabel => 'Pozisyon';
+
+  @override
+  String get jobsDescriptionLabel => 'Açıklama';
+
+  @override
+  String get jobsLocationLabel => 'Konum';
+
+  @override
+  String get jobsTypeLabel => 'İş tipi';
+
+  @override
+  String get jobsLinkLabel => 'Başvuru linki';
+
+  @override
+  String get jobsLinkHint => 'https://...';
+
+  @override
+  String get jobsCreateAction => 'İlanı yayınla';
+
+  @override
+  String get jobsCreateInProgress => 'Yayınlanıyor...';
+
+  @override
+  String get jobsSearchTitle => 'İlanları filtrele';
+
+  @override
+  String get jobsSearchHelper =>
+      'Mevcut ilanları pozisyon, konum veya iş tipine göre daralt.';
+
+  @override
+  String get jobsSearchLabel => 'Arama';
+
+  @override
+  String get jobsLocationFilterLabel => 'Konum filtresi';
+
+  @override
+  String get jobsTypeFilterLabel => 'İş tipi filtresi';
+
+  @override
+  String get jobsApplyFiltersAction => 'Filtreleri uygula';
+
+  @override
+  String get jobsEmpty => 'Henüz iş ilanı yok.';
+
+  @override
+  String jobsApplicationStatus(Object status) {
+    return 'Başvuru durumu: $status';
+  }
+
+  @override
+  String get jobsShortNoteLabel => 'Kısa başvuru notu';
+
+  @override
+  String get jobsApplyAction => 'Başvur';
+
+  @override
+  String get jobsLoadApplicationsAction => 'Başvuruları yükle';
+
+  @override
+  String get jobsRefreshApplicationsAction => 'Başvuruları yenile';
+
+  @override
+  String get jobsReviewNoteLabel => 'Karar notu';
+
+  @override
+  String get jobsMarkReviewedAction => 'İncelemede';
+
+  @override
+  String get jobsAcceptAction => 'Kabul et';
+
+  @override
+  String jobsApplicationsStatus(Object status) {
+    return 'Durum: $status';
+  }
+
+  @override
+  String get jobsCreateSuccess => 'İş ilanı yayınlandı.';
+
+  @override
+  String get jobsCreateFailed => 'İlan oluşturulamadı.';
+
+  @override
+  String get jobsApplySuccess => 'Başvuru gönderildi.';
+
+  @override
+  String get jobsApplyFailed => 'Başvuru gönderilemedi.';
+
+  @override
+  String get jobsDeleteSuccess => 'İlan silindi.';
+
+  @override
+  String get jobsDeleteFailed => 'İlan silinemedi.';
+
+  @override
+  String get jobsReviewSuccess => 'Başvuru güncellendi.';
+
+  @override
+  String get jobsReviewFailed => 'Başvuru güncellenemedi.';
+
+  @override
+  String get jobsPosterPendingApproval => 'Onay bekliyor';
+
+  @override
+  String get eventVisibilityTitle => 'Katılım görünürlüğü';
+
+  @override
+  String get eventVisibilityHelper =>
+      'Bu ayarlar etkinliği gören üyelerin hangi katılım bilgilerine erişebileceğini belirler.';
+
+  @override
+  String get eventVisibilityShowCounts => 'Sayıları göster';
+
+  @override
+  String get eventVisibilityShowCountsHint =>
+      'Katılan ve katılamayan kişi sayıları görünür olur.';
+
+  @override
+  String get eventVisibilityShowAttendees => 'Katılan isimlerini göster';
+
+  @override
+  String get eventVisibilityShowAttendeesHint =>
+      'Etkinliği görebilen herkes katılan listesini de görebilir.';
+
+  @override
+  String get eventVisibilityShowDecliners => 'Katılamayan isimlerini göster';
+
+  @override
+  String get eventVisibilityShowDeclinersHint =>
+      'Etkinliği görebilen herkes katılamayanları da görür.';
+
+  @override
+  String get eventVisibilitySaveAction => 'Görünürlük ayarlarını kaydet';
 
   @override
   String oauthFailedWithReason(Object reason) {

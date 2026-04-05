@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/state/async_action_state.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/jobs_action_controller.dart';
@@ -65,10 +67,13 @@ class _JobsPageState extends ConsumerState<JobsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     final actionState = ref.watch(jobsActionControllerProvider);
 
     return FeatureScaffold(
-      title: 'İş ilanları',
+      title: l10n.jobsTitle,
+      background: FeatureScaffoldBackground.utility,
       actions: [
         IconButton(
           onPressed: _isLoading ? null : _load,
@@ -78,28 +83,50 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: tokens.panelRaised,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: tokens.panelBorder),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.jobsCreateTitle,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.jobsCreateHelper,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: tokens.foregroundMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           SurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Yeni iş ilanı',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
                 TextField(
                   controller: _companyController,
-                  decoration: const InputDecoration(
-                    labelText: 'Şirket',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsCompanyLabel,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Pozisyon',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsPositionLabel,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -107,35 +134,35 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                   controller: _descriptionController,
                   minLines: 4,
                   maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Açıklama',
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsDescriptionLabel,
                     alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Konum',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsLocationLabel,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _jobTypeController,
-                  decoration: const InputDecoration(
-                    labelText: 'İş tipi',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsTypeLabel,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _linkController,
-                  decoration: const InputDecoration(
-                    labelText: 'Başvuru linki',
-                    hintText: 'https://...',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsLinkLabel,
+                    hintText: l10n.jobsLinkHint,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -150,8 +177,8 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                     child: Text(
                       actionState.isLoading &&
                               actionState.scope == 'jobs:create'
-                          ? 'Kaydediliyor...'
-                          : 'İlanı yayınla',
+                          ? l10n.jobsCreateInProgress
+                          : l10n.jobsCreateAction,
                     ),
                   ),
                 ),
@@ -163,29 +190,39 @@ class _JobsPageState extends ConsumerState<JobsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('İlan ara', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  l10n.jobsSearchTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.jobsSearchHelper,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: tokens.foregroundMuted,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _searchController,
-                  decoration: const InputDecoration(
-                    labelText: 'Arama',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsSearchLabel,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _searchLocationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Konum filtresi',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsLocationFilterLabel,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _searchJobTypeController,
-                  decoration: const InputDecoration(
-                    labelText: 'İş tipi filtresi',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.jobsTypeFilterLabel,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -193,7 +230,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                   alignment: Alignment.centerRight,
                   child: FilledButton.tonal(
                     onPressed: _load,
-                    child: const Text('Filtreleri uygula'),
+                    child: Text(l10n.jobsApplyFiltersAction),
                   ),
                 ),
               ],
@@ -205,7 +242,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
           else if (_error.isNotEmpty)
             SurfaceCard(child: Text(_error))
           else if (_items.isEmpty)
-            const SurfaceCard(child: Text('Henüz iş ilanı yok.'))
+            SurfaceCard(child: Text(l10n.jobsEmpty))
           else
             ..._items.map((job) => _buildJobCard(job, actionState)),
         ],
@@ -214,6 +251,8 @@ class _JobsPageState extends ConsumerState<JobsPage> {
   }
 
   Widget _buildJobCard(JobItem job, AsyncActionState actionState) {
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     final applyController = _applyControllers.putIfAbsent(
       job.id,
       TextEditingController.new,
@@ -247,16 +286,13 @@ class _JobsPageState extends ConsumerState<JobsPage> {
               ].join(' · '),
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+              ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
             ),
             const SizedBox(height: 10),
             Text(_plainText(job.description)),
             if (job.link.isNotEmpty) ...[
               const SizedBox(height: 8),
-              SelectableText(
-                job.link,
-                style: const TextStyle(color: Colors.blue),
-              ),
+              SelectableText(job.link, style: TextStyle(color: tokens.accent)),
             ],
             const SizedBox(height: 12),
             if (job.myApplicationId > 0)
@@ -264,14 +300,20 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF2FF),
+                  color: tokens.infoMuted,
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: tokens.panelBorder),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Başvuru durumu: ${_applicationStatusLabel(job.myApplicationStatus)}',
+                      l10n.jobsApplicationStatus(
+                        _applicationStatusLabel(
+                          context,
+                          job.myApplicationStatus,
+                        ),
+                      ),
                     ),
                     if (job.myApplicationDecisionNote.isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -285,9 +327,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                 controller: applyController,
                 minLines: 2,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Kısa başvuru notu',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: l10n.jobsShortNoteLabel,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
@@ -299,7 +341,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                           actionState.scope == 'jobs:apply:${job.id}'
                       ? null
                       : () => _apply(job.id, applyController.text.trim()),
-                  child: const Text('Başvur'),
+                  child: Text(l10n.jobsApplyAction),
                 ),
               ),
             ],
@@ -308,9 +350,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
               children: [
                 Text(
                   _formatDate(job.createdAt),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: tokens.foregroundMuted,
+                  ),
                 ),
                 const Spacer(),
                 if (job.posterId == _currentUserId)
@@ -320,7 +362,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                             actionState.scope == 'jobs:delete:${job.id}'
                         ? null
                         : () => _delete(job.id),
-                    child: const Text('Sil'),
+                    child: Text(l10n.deleteAction),
                   ),
               ],
             ),
@@ -332,8 +374,8 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                   onPressed: () => _loadApplications(job.id),
                   child: Text(
                     applications.isEmpty
-                        ? 'Başvuruları yükle'
-                        : 'Başvuruları yenile',
+                        ? l10n.jobsLoadApplicationsAction
+                        : l10n.jobsRefreshApplicationsAction,
                   ),
                 ),
               ),
@@ -350,8 +392,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF4F7FA),
+                        color: tokens.panelMuted,
                         borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: tokens.panelBorder),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,11 +407,16 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                             Text(
                               '@${application.handle}',
                               style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: Colors.black54),
+                                  ?.copyWith(color: tokens.foregroundMuted),
                             ),
                           const SizedBox(height: 6),
                           Text(
-                            'Durum: ${_applicationStatusLabel(application.status)}',
+                            l10n.jobsApplicationsStatus(
+                              _applicationStatusLabel(
+                                context,
+                                application.status,
+                              ),
+                            ),
                           ),
                           if (application.coverLetter.isNotEmpty) ...[
                             const SizedBox(height: 6),
@@ -379,9 +427,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                             controller: noteController,
                             minLines: 2,
                             maxLines: 3,
-                            decoration: const InputDecoration(
-                              labelText: 'Karar notu',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: l10n.jobsReviewNoteLabel,
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -400,7 +448,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                                         'reviewed',
                                         noteController.text.trim(),
                                       ),
-                                child: const Text('İncelemede'),
+                                child: Text(l10n.jobsMarkReviewedAction),
                               ),
                               OutlinedButton(
                                 onPressed:
@@ -413,7 +461,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                                         'accepted',
                                         noteController.text.trim(),
                                       ),
-                                child: const Text('Kabul et'),
+                                child: Text(l10n.jobsAcceptAction),
                               ),
                               OutlinedButton(
                                 onPressed:
@@ -426,7 +474,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
                                         'rejected',
                                         noteController.text.trim(),
                                       ),
-                                child: const Text('Reddet'),
+                                child: Text(l10n.rejectAction),
                               ),
                             ],
                           ),
@@ -465,7 +513,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       SnackBar(
         content: Text(
           state.message ??
-              (ok ? 'İş ilanı yayınlandı.' : 'İlan oluşturulamadı.'),
+              (ok
+                  ? context.l10n.jobsCreateSuccess
+                  : context.l10n.jobsCreateFailed),
         ),
       ),
     );
@@ -489,7 +539,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       SnackBar(
         content: Text(
           state.message ??
-              (ok ? 'Başvuru gönderildi.' : 'Başvuru gönderilemedi.'),
+              (ok
+                  ? context.l10n.jobsApplySuccess
+                  : context.l10n.jobsApplyFailed),
         ),
       ),
     );
@@ -505,7 +557,10 @@ class _JobsPageState extends ConsumerState<JobsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          state.message ?? (ok ? 'İlan silindi.' : 'İlan silinemedi.'),
+          state.message ??
+              (ok
+                  ? context.l10n.jobsDeleteSuccess
+                  : context.l10n.jobsDeleteFailed),
         ),
       ),
     );
@@ -547,7 +602,9 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       SnackBar(
         content: Text(
           state.message ??
-              (ok ? 'Başvuru güncellendi.' : 'Başvuru güncellenemedi.'),
+              (ok
+                  ? context.l10n.jobsReviewSuccess
+                  : context.l10n.jobsReviewFailed),
         ),
       ),
     );
@@ -590,16 +647,17 @@ String _plainText(String raw) {
       .trim();
 }
 
-String _applicationStatusLabel(String value) {
+String _applicationStatusLabel(BuildContext context, String value) {
+  final l10n = context.l10n;
   switch (value.trim().toLowerCase()) {
     case 'accepted':
-      return 'Kabul edildi';
+      return l10n.statusApproved;
     case 'rejected':
-      return 'Reddedildi';
+      return l10n.statusRejected;
     case 'reviewed':
-      return 'İncelendi';
+      return l10n.statusReviewed;
     default:
-      return 'Beklemede';
+      return l10n.statusPending;
   }
 }
 

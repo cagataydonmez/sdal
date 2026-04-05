@@ -44,13 +44,54 @@ void main() {
     expect(state.status, AsyncActionStatus.success);
     expect(state.scope, 'groups:join');
   });
+
+  test('GroupsActionController returns invite sent count', () async {
+    final container = ProviderContainer(
+      overrides: [
+        groupsRepositoryProvider.overrideWithValue(
+          _FakeGroupsRepository(inviteSentCount: 3),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final sent = await container
+        .read(groupsActionControllerProvider.notifier)
+        .inviteMembers(groupId: 8, userIds: const [1, 2, 3]);
+
+    expect(sent, 3);
+    final state = container.read(groupsActionControllerProvider);
+    expect(state.status, AsyncActionStatus.success);
+    expect(state.scope, 'groups:invite-members');
+  });
+
+  test('GroupsActionController reports role change success', () async {
+    final container = ProviderContainer(
+      overrides: [
+        groupsRepositoryProvider.overrideWithValue(_FakeGroupsRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final ok = await container
+        .read(groupsActionControllerProvider.notifier)
+        .changeRole(groupId: 9, userId: 44, role: 'moderator');
+
+    expect(ok, isTrue);
+    final state = container.read(groupsActionControllerProvider);
+    expect(state.status, AsyncActionStatus.success);
+    expect(state.scope, 'groups:role');
+  });
 }
 
 class _FakeGroupsRepository extends GroupsRepository {
-  _FakeGroupsRepository({this.membershipStatus = 'member'})
-    : super(FakeApiClient());
+  _FakeGroupsRepository({
+    this.membershipStatus = 'member',
+    this.inviteSentCount = 1,
+  }) : super(FakeApiClient());
 
   final String membershipStatus;
+  final int inviteSentCount;
 
   @override
   Future<ApiResult<dynamic>> createGroup({
@@ -76,6 +117,37 @@ class _FakeGroupsRepository extends GroupsRepository {
       code: '',
       data: <String, dynamic>{'membershipStatus': membershipStatus},
       rawData: <String, dynamic>{'membershipStatus': membershipStatus},
+    );
+  }
+
+  @override
+  Future<ApiResult<Map<String, dynamic>>> inviteMembers({
+    required int groupId,
+    required List<int> userIds,
+  }) async {
+    return ApiResult<Map<String, dynamic>>(
+      ok: true,
+      statusCode: 200,
+      message: 'ok',
+      code: '',
+      data: <String, dynamic>{'sent': inviteSentCount},
+      rawData: <String, dynamic>{'sent': inviteSentCount},
+    );
+  }
+
+  @override
+  Future<ApiResult<dynamic>> changeRole({
+    required int groupId,
+    required int userId,
+    required String role,
+  }) async {
+    return ApiResult<dynamic>(
+      ok: true,
+      statusCode: 200,
+      message: 'ok',
+      code: '',
+      data: null,
+      rawData: const <String, dynamic>{'ok': true},
     );
   }
 }

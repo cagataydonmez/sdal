@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/requests_action_controller.dart';
@@ -46,6 +48,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     final categoriesState = ref.watch(requestCategoriesProvider);
     final requestsState = ref.watch(myRequestsProvider);
     final actionState = ref.watch(requestsActionControllerProvider);
@@ -89,7 +93,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     });
 
     return FeatureScaffold(
-      title: 'Üye talepleri',
+      title: l10n.requestsTitle,
+      background: FeatureScaffoldBackground.utility,
       actions: [
         IconButton(
           onPressed: () {
@@ -103,19 +108,37 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         controller: _scrollController,
         padding: const EdgeInsets.all(20),
         children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: tokens.accentMuted,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: tokens.panelBorder),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.requestsCreateTitle,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    l10n.requestsCreateHelper,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: tokens.foregroundMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           SurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Yeni talep oluştur',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Profil ve üyelik işlemleri için talep oluşturabilir, ek dosya yükleyebilir ve son durumunu aşağıda takip edebilirsin.',
-                ),
-                const SizedBox(height: 16),
                 categoriesState.when(
                   loading: () => const CircularProgressIndicator(),
                   error: (error, _) => Text(error.toString()),
@@ -126,9 +149,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                         )
                         ? _categoryKey
                         : null,
-                    decoration: const InputDecoration(
-                      labelText: 'Talep kategorisi',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: l10n.requestsCategoryLabel,
+                      border: const OutlineInputBorder(),
                     ),
                     items: categories
                         .map(
@@ -149,15 +172,19 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                     initialValue: _requestedGraduationYear.isEmpty
                         ? null
                         : _requestedGraduationYear,
-                    decoration: const InputDecoration(
-                      labelText: 'İstenen mezuniyet yılı',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: l10n.requestsGraduationYearLabel,
+                      border: const OutlineInputBorder(),
                     ),
                     items: _graduationYearOptions
                         .map(
                           (year) => DropdownMenuItem<String>(
                             value: year,
-                            child: Text(year == 'teacher' ? 'Öğretmen' : year),
+                            child: Text(
+                              year == 'teacher'
+                                  ? l10n.requestsTeacherOption
+                                  : year,
+                            ),
                           ),
                         )
                         .toList(growable: false),
@@ -174,10 +201,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                   minLines: 3,
                   maxLines: 5,
                   enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'Açıklama',
+                  decoration: InputDecoration(
+                    labelText: l10n.requestsDescriptionLabel,
                     alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -191,7 +218,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                           : () => _pickAndUpload(ImageSource.gallery),
                       icon: const Icon(Icons.photo_library_outlined),
                       label: Text(
-                        isUploading ? 'Yükleniyor...' : 'Galeriden ekle',
+                        isUploading
+                            ? l10n.submitInProgress
+                            : l10n.requestsPickFromGallery,
                       ),
                     ),
                     OutlinedButton.icon(
@@ -199,7 +228,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                           ? null
                           : () => _pickAndUpload(ImageSource.camera),
                       icon: const Icon(Icons.photo_camera_outlined),
-                      label: const Text('Kamera'),
+                      label: Text(l10n.requestsUseCamera),
                     ),
                   ],
                 ),
@@ -225,7 +254,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                   child: FilledButton(
                     onPressed: isSubmitting ? null : _submit,
                     child: Text(
-                      isSubmitting ? 'Gönderiliyor...' : 'Talebi gönder',
+                      isSubmitting
+                          ? l10n.submitInProgress
+                          : l10n.requestsSendAction,
                     ),
                   ),
                 ),
@@ -233,33 +264,40 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.requestsListTitle,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 12),
+              if (widget.notificationId > 0 &&
+                  widget.notificationStatus.trim().isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: tokens.infoMuted,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: tokens.panelBorder),
+                  ),
+                  child: Text(
+                    widget.notificationStatus.trim().toLowerCase() == 'approved'
+                        ? l10n.requestsNotificationApproved
+                        : l10n.requestsNotificationUpdated,
+                    style: TextStyle(color: tokens.foreground),
+                  ),
+                ),
+              if (widget.notificationId > 0 &&
+                  widget.notificationStatus.trim().isNotEmpty)
+                const SizedBox(height: 12),
+            ],
+          ),
           SurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Taleplerim',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                if (widget.notificationId > 0 &&
-                    widget.notificationStatus.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F2FF),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      widget.notificationStatus.trim().toLowerCase() ==
-                              'approved'
-                          ? 'Talep sonucu güncellendi. Onaylanan kayıt aşağıda vurgulandı.'
-                          : 'Talep sonucu güncellendi. İlgili kayıt aşağıda vurgulandı.',
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
                 requestsState.when(
                   loading: () => const Padding(
                     padding: EdgeInsets.symmetric(vertical: 18),
@@ -272,12 +310,12 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       const SizedBox(height: 12),
                       FilledButton.tonal(
                         onPressed: () => ref.invalidate(myRequestsProvider),
-                        child: const Text('Tekrar dene'),
+                        child: Text(l10n.retryAction),
                       ),
                     ],
                   ),
                   data: (items) => items.isEmpty
-                      ? const Text('Henüz gönderilmiş talep yok.')
+                      ? Text(l10n.requestsEmpty)
                       : Column(
                           children: items
                               .map(
@@ -319,13 +357,21 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final actionState = ref.read(requestsActionControllerProvider);
     if (attachment == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(actionState.message ?? 'Ek dosya yüklenemedi.')),
+        SnackBar(
+          content: Text(
+            actionState.message ?? context.l10n.requestsAttachmentUploadFailed,
+          ),
+        ),
       );
       return;
     }
     setState(() => _attachments.add(attachment));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(actionState.message ?? 'Ek dosya yüklendi.')),
+      SnackBar(
+        content: Text(
+          actionState.message ?? context.l10n.requestsAttachmentUploaded,
+        ),
+      ),
     );
   }
 
@@ -333,14 +379,14 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final categoryKey = _categoryKey.trim();
     if (categoryKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bir talep kategorisi seç.')),
+        SnackBar(content: Text(context.l10n.requestsSelectCategoryError)),
       );
       return;
     }
     if (categoryKey == 'graduation_year_change' &&
         _requestedGraduationYear.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('İstenen mezuniyet yılını seç.')),
+        SnackBar(content: Text(context.l10n.requestsSelectGraduationYearError)),
       );
       return;
     }
@@ -364,7 +410,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       SnackBar(
         content: Text(
           actionState.message ??
-              (ok ? 'Talep gönderildi.' : 'Talep gönderilemedi.'),
+              (ok
+                  ? context.l10n.requestsSubmitSuccess
+                  : context.l10n.requestsSubmitFailed),
         ),
       ),
     );
@@ -386,10 +434,12 @@ class _AttachmentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F7FB),
+        color: tokens.panelMuted,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tokens.panelBorder),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
@@ -426,16 +476,15 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
-        color: highlighted ? const Color(0xFFEFF6FF) : Colors.white,
+        color: highlighted ? tokens.infoMuted : tokens.panel,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: highlighted
-              ? const Color(0xFF6EA8FF)
-              : const Color(0xFFE5ECF3),
+          color: highlighted ? tokens.info : tokens.panelBorder,
         ),
       ),
       padding: const EdgeInsets.all(16),
@@ -458,12 +507,16 @@ class _RequestCard extends StatelessWidget {
             '#${item.id} • ${_formatDate(item.createdAt)}',
             style: Theme.of(
               context,
-            ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+            ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
           ),
           if (item.payload['requestedGraduationYear'] != null) ...[
             const SizedBox(height: 10),
             Text(
-              'İstenen mezuniyet yılı: ${item.payload['requestedGraduationYear'] == 'teacher' ? 'Öğretmen' : item.payload['requestedGraduationYear']}',
+              context.l10n.requestsGraduationYearValue(
+                item.payload['requestedGraduationYear'] == 'teacher'
+                    ? context.l10n.requestsTeacherOption
+                    : item.payload['requestedGraduationYear'].toString(),
+              ),
             ),
           ],
           if ((item.payload['note'] ?? '').toString().trim().isNotEmpty) ...[
@@ -492,7 +545,7 @@ class _RequestCard extends StatelessWidget {
           if (item.resolutionNote.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              'Not: ${item.resolutionNote}',
+              context.l10n.requestsResolutionNote(item.resolutionNote),
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ],
@@ -509,24 +562,14 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     final normalized = status.trim().toLowerCase();
     final (background, foreground, label) = switch (normalized) {
-      'approved' => (
-        const Color(0xFFE6F6EA),
-        const Color(0xFF1B7F3B),
-        'Onaylandı',
-      ),
-      'rejected' => (
-        const Color(0xFFFFECEA),
-        const Color(0xFFC73B2A),
-        'Reddedildi',
-      ),
-      'reviewed' => (
-        const Color(0xFFF4EEFF),
-        const Color(0xFF6B46C1),
-        'İncelendi',
-      ),
-      _ => (const Color(0xFFEAF2FF), const Color(0xFF2457A5), 'Bekliyor'),
+      'approved' => (tokens.successMuted, tokens.success, l10n.statusApproved),
+      'rejected' => (tokens.dangerMuted, tokens.danger, l10n.statusRejected),
+      'reviewed' => (tokens.warningMuted, tokens.warning, l10n.statusReviewed),
+      _ => (tokens.infoMuted, tokens.info, l10n.statusPending),
     };
 
     return Container(

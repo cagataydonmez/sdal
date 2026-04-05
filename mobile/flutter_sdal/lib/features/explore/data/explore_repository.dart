@@ -82,10 +82,16 @@ class ExploreRepository {
 
   final dynamic _apiClient;
 
-  Future<List<MemberSummary>> fetchMembers() async {
+  Future<List<MemberSummary>> fetchMembers({String term = ''}) async {
+    final trimmed = term.trim();
     final result = await _apiClient.get<JsonMap>(
       '/api/members',
-      query: const {'page': 1, 'pageSize': 20, 'excludeSelf': 1},
+      query: {
+        'page': 1,
+        'pageSize': 20,
+        'excludeSelf': 1,
+        if (trimmed.isNotEmpty) 'term': trimmed,
+      },
       decoder: (raw) => asJsonMap(raw),
     );
     return PagedResponse<MemberSummary>.fromDynamic(

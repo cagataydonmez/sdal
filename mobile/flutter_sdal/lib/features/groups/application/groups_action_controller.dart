@@ -72,6 +72,28 @@ class GroupsActionController extends AutoDisposeNotifier<AsyncActionState> {
     return false;
   }
 
+  Future<int?> inviteMembers({
+    required int groupId,
+    required List<int> userIds,
+  }) async {
+    state = AsyncActionState.loading(scope: 'groups:invite-members:$groupId');
+    final result = await _repository.inviteMembers(
+      groupId: groupId,
+      userIds: userIds,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'groups:invite-members');
+      return asInt(asJsonMap(result.rawData)['sent']) ?? 0;
+    }
+    state = AsyncActionState.error(
+      scope: 'groups:invite-members:$groupId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Davetler gonderilemedi.',
+    );
+    return null;
+  }
+
   Future<bool> reviewJoinRequest({
     required int groupId,
     required int requestId,
@@ -118,6 +140,30 @@ class GroupsActionController extends AutoDisposeNotifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Grup ayarlari kaydedilemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> changeRole({
+    required int groupId,
+    required int userId,
+    required String role,
+  }) async {
+    state = AsyncActionState.loading(scope: 'groups:role:$groupId:$userId');
+    final result = await _repository.changeRole(
+      groupId: groupId,
+      userId: userId,
+      role: role,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'groups:role');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'groups:role:$groupId:$userId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Rol guncellenemedi.',
     );
     return false;
   }

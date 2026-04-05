@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/stories_action_controller.dart';
 import '../data/stories_repository.dart';
@@ -17,17 +20,18 @@ class StoriesRail extends ConsumerWidget {
     required this.mode,
     this.memberId,
     this.showUpload = false,
-    this.title = 'Hikayeler',
+    this.title,
   });
 
   final StoryRailMode mode;
   final int? memberId;
   final bool showUpload;
-  final String title;
+  final String? title;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
     final asyncItems = switch (mode) {
       StoryRailMode.feed => ref.watch(feedStoriesProvider),
       StoryRailMode.mine => ref.watch(myStoriesProvider),
@@ -43,7 +47,7 @@ class StoriesRail extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  title,
+                  title ?? l10n.storiesTitle,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
@@ -70,7 +74,7 @@ class StoriesRail extends ConsumerWidget {
               final groups = _buildGroups(items);
               if (groups.isEmpty && !showUpload) {
                 return Text(
-                  'Henuz aktif hikaye yok.',
+                  l10n.storiesEmpty,
                   style: Theme.of(context).textTheme.bodyMedium,
                 );
               }
@@ -85,8 +89,8 @@ class StoriesRail extends ConsumerWidget {
                           .toString(),
                       label: groups[index].author.displayName,
                       subtitle: groups[index].unviewedCount > 0
-                          ? '${groups[index].unviewedCount} yeni'
-                          : 'Goruldu',
+                          ? l10n.storiesNewCount(groups[index].unviewedCount)
+                          : l10n.storiesViewed,
                       viewed: groups[index].viewed,
                       onTap: () {
                         Navigator.of(context).push(
@@ -111,10 +115,11 @@ class StoriesRail extends ConsumerWidget {
   }
 
   Widget _buildUploadTile(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     return _StoryTile(
       icon: Icons.add_a_photo_outlined,
-      label: 'Hikaye ekle',
-      subtitle: '24 saat gorunur',
+      label: l10n.storiesUploadAction,
+      subtitle: l10n.storiesUploadHint,
       viewed: false,
       onTap: () => _openUploadSheet(context, ref),
     );
@@ -142,8 +147,10 @@ class _StoryRailList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final railHeight = textScale > 1.15 ? 138.0 : 118.0;
     return SizedBox(
-      height: 116,
+      height: railHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: children.length + (showUpload ? 1 : 0),
@@ -179,64 +186,72 @@ class _StoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = viewed
-        ? const Color(0xFFD5DEE8)
-        : const Color(0xFF1E7BC8);
-    return InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: onTap,
-      child: SizedBox(
-        width: 86,
-        child: Column(
-          children: [
-            Container(
-              width: 74,
-              height: 74,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: borderColor, width: 2),
-                gradient: viewed
-                    ? null
-                    : const LinearGradient(
-                        colors: [Color(0xFF1E7BC8), Color(0xFF6ED2FF)],
-                      ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: icon != null
-                    ? DecoratedBox(
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEAF4FF),
+    final tokens = Theme.of(context).sdal;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final tileWidth = textScale > 1.15 ? 94.0 : 86.0;
+    final mediaSize = textScale > 1.15 ? 78.0 : 74.0;
+    final borderColor = viewed ? tokens.storyInactive : tokens.storyActive;
+    return Semantics(
+      button: true,
+      label: context.l10n.storiesViewStorySemantic(label),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: SizedBox(
+          width: tileWidth,
+          child: Column(
+            children: [
+              Container(
+                width: mediaSize,
+                height: mediaSize,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: borderColor, width: 2),
+                  gradient: viewed
+                      ? null
+                      : LinearGradient(
+                          colors: [tokens.storyActive, tokens.accent],
                         ),
-                        child: Icon(icon, color: const Color(0xFF0D4C7D)),
-                      )
-                    : imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _StoryFallback(label: label),
-                      )
-                    : _StoryFallback(label: label),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: icon != null
+                      ? DecoratedBox(
+                          decoration: BoxDecoration(color: tokens.accentMuted),
+                          child: Icon(icon, color: tokens.accent),
+                        )
+                      : imageUrl.isNotEmpty
+                      ? SdalNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          cacheWidth: (mediaSize * 2).round(),
+                          cacheHeight: (mediaSize * 2).round(),
+                          semanticLabel: context.l10n.storiesViewStorySemantic(
+                            label,
+                          ),
+                          errorFallback: _StoryFallback(label: label),
+                        )
+                      : _StoryFallback(label: label),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: textScale > 1.15 ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              Text(
+                subtitle,
+                maxLines: textScale > 1.15 ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -250,10 +265,11 @@ class _StoryFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF133A5E), Color(0xFF1E7BC8)],
+          colors: [tokens.chatOutgoing, tokens.storyActive],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -262,7 +278,7 @@ class _StoryFallback extends StatelessWidget {
         child: Text(
           label.characters.first.toUpperCase(),
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: Colors.white,
+            color: tokens.foregroundOnAccent,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -276,16 +292,17 @@ class _StoryPlaceholderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 86,
+    final tokens = Theme.of(context).sdal;
+    return SizedBox(
+      width: MediaQuery.textScalerOf(context).scale(1) > 1.15 ? 94 : 86,
       child: Column(
         children: [
           DecoratedBox(
             decoration: BoxDecoration(
-              color: Color(0xFFE2EAF2),
-              borderRadius: BorderRadius.all(Radius.circular(22)),
+              color: tokens.panelMuted,
+              borderRadius: const BorderRadius.all(Radius.circular(22)),
             ),
-            child: SizedBox(width: 74, height: 74),
+            child: const SizedBox(width: 74, height: 74),
           ),
         ],
       ),
@@ -336,6 +353,7 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
     _timer?.cancel();
     if (!_allowManage && !_item.viewed) {
       ref.read(storiesRepositoryProvider).markViewed(_item.id).then((_) {
+        if (!mounted) return;
         ref.invalidate(feedStoriesProvider);
         if (widget.mode == StoryRailMode.member && _item.author != null) {
           ref.invalidate(memberStoriesProvider(_item.author!.id));
@@ -381,20 +399,29 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     final imageUrl = config.resolveUrl(_item.mediaUrl).toString();
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: tokens.canvas,
       body: Stack(
         children: [
           Positioned.fill(
             child: imageUrl.isNotEmpty
-                ? Image.network(
-                    imageUrl,
+                ? SdalNetworkImage(
+                    imageUrl: imageUrl,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const ColoredBox(color: Colors.black),
+                    semanticLabel: l10n.storiesViewStorySemantic(
+                      _group.author.displayName,
+                    ),
+                    placeholder: DecoratedBox(
+                      decoration: BoxDecoration(color: tokens.canvasSubtle),
+                    ),
+                    errorFallback: DecoratedBox(
+                      decoration: BoxDecoration(color: tokens.canvas),
+                    ),
                   )
-                : const ColoredBox(color: Colors.black),
+                : ColoredBox(color: tokens.canvas),
           ),
           Positioned.fill(
             child: DecoratedBox(
@@ -403,9 +430,9 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.5),
+                    tokens.storyOverlay,
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.7),
+                    tokens.storyOverlay.withValues(alpha: 0.92),
                   ],
                 ),
               ),
@@ -430,8 +457,10 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: i <= _itemIndex
-                                        ? Colors.white
-                                        : Colors.white24,
+                                        ? tokens.foregroundOnAccent
+                                        : tokens.foregroundOnAccent.withValues(
+                                            alpha: 0.24,
+                                          ),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                 ),
@@ -442,7 +471,7 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        color: Colors.white,
+                        color: tokens.foregroundOnAccent,
                         icon: const Icon(Icons.close),
                       ),
                     ],
@@ -466,37 +495,41 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
                           children: [
                             Text(
                               _group.author.displayName,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: tokens.foregroundOnAccent,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                             Text(
                               _item.createdAt,
-                              style: const TextStyle(color: Colors.white70),
+                              style: TextStyle(
+                                color: tokens.foregroundOnAccent.withValues(
+                                  alpha: 0.72,
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
                       if (_allowManage)
                         PopupMenuButton<String>(
-                          color: const Color(0xFF10263A),
-                          iconColor: Colors.white,
+                          color: tokens.panelRaised,
+                          iconColor: tokens.foregroundOnAccent,
                           onSelected: (value) => _onMenuSelected(value),
                           itemBuilder: (context) => [
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'edit',
-                              child: Text('Basligi duzenle'),
+                              child: Text(l10n.storiesEditTitleAction),
                             ),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'delete',
-                              child: Text('Hikayeyi sil'),
+                              child: Text(l10n.storiesDeleteAction),
                             ),
                             if (_item.isExpired)
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'repost',
-                                child: Text('Yeniden paylas'),
+                                child: Text(l10n.storiesRepostAction),
                               ),
                           ],
                         ),
@@ -511,13 +544,13 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
+                        color: tokens.storyOverlay,
                         borderRadius: BorderRadius.circular(22),
                       ),
                       child: Text(
                         _item.caption,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: tokens.foregroundOnAccent,
                           fontSize: 16,
                           height: 1.4,
                         ),
@@ -531,15 +564,23 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
             child: Row(
               children: [
                 Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: _goPrevious,
+                  child: Semantics(
+                    button: true,
+                    label: l10n.storiesPreviousStoryHint,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: _goPrevious,
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: _goNext,
+                  child: Semantics(
+                    button: true,
+                    label: l10n.storiesNextStoryHint,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: _goNext,
+                    ),
                   ),
                 ),
               ],
@@ -569,20 +610,23 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
     final caption = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Hikaye basligi'),
+        title: Text(context.l10n.storiesCaptionDialogTitle),
         content: TextField(
           controller: controller,
           maxLines: 3,
-          decoration: const InputDecoration(hintText: 'Kisa bir aciklama ekle'),
+          decoration: InputDecoration(
+            labelText: context.l10n.captionLabel,
+            hintText: context.l10n.storiesCaptionHint,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Vazgec'),
+            child: Text(context.l10n.cancelAction),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Kaydet'),
+            child: Text(context.l10n.saveAction),
           ),
         ],
       ),
@@ -601,15 +645,15 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Hikaye silinsin mi?'),
+        title: Text(context.l10n.storiesDeleteConfirmTitle),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Vazgec'),
+            child: Text(context.l10n.cancelAction),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Sil'),
+            child: Text(context.l10n.deleteAction),
           ),
         ],
       ),
@@ -657,6 +701,7 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
   Widget build(BuildContext context) {
     final actionState = ref.watch(storiesActionControllerProvider);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final l10n = context.l10n;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, bottomInset + 20),
       child: SingleChildScrollView(
@@ -664,7 +709,10 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Yeni hikaye', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              l10n.storiesNewStoryTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 16),
             FilledButton.tonalIcon(
               onPressed: () async {
@@ -675,16 +723,16 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
               },
               icon: const Icon(Icons.photo_library_outlined),
               label: Text(
-                _pickedFile == null ? 'Galeriden sec' : _pickedFile!.name,
+                _pickedFile == null ? l10n.pickFromGallery : _pickedFile!.name,
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _captionController,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Aciklama',
-                hintText: 'Hikayene kisa bir not ekle',
+              decoration: InputDecoration(
+                labelText: l10n.captionLabel,
+                hintText: l10n.storiesCaptionHint,
               ),
             ),
             const SizedBox(height: 16),
@@ -706,7 +754,9 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
                         Navigator.of(context).pop();
                       },
                 child: Text(
-                  actionState.isLoading ? 'Yukleniyor...' : 'Hikayeyi paylas',
+                  actionState.isLoading
+                      ? l10n.submitInProgress
+                      : l10n.storiesPublishAction,
                 ),
               ),
             ),

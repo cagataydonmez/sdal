@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/sdal_theme_tokens.dart';
+import 'sdal_network_image.dart';
 
 class RemoteAvatar extends StatelessWidget {
   const RemoteAvatar({
@@ -16,18 +18,43 @@ class RemoteAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedUrl = _normalizeImageUrl(imageUrl);
     final initials = _initialsFor(label);
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: const Color(0xFFDCE7F3),
-      foregroundImage: normalizedUrl.isNotEmpty
-          ? NetworkImage(normalizedUrl)
-          : null,
-      onForegroundImageError: normalizedUrl.isNotEmpty ? (_, _) {} : null,
-      child: Text(
-        initials,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: const Color(0xFF0D2238),
-          fontWeight: FontWeight.w700,
+    final theme = Theme.of(context);
+    final tokens = theme.sdal;
+    return SizedBox(
+      width: radius * 2,
+      height: radius * 2,
+      child: ClipOval(
+        child: SdalNetworkImage(
+          imageUrl: normalizedUrl,
+          width: radius * 2,
+          height: radius * 2,
+          cacheWidth: (radius * 4).round(),
+          cacheHeight: (radius * 4).round(),
+          semanticLabel: label,
+          placeholder: DecoratedBox(
+            decoration: BoxDecoration(color: tokens.imagePlaceholder),
+            child: Center(
+              child: Text(
+                initials,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: tokens.foreground,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          errorFallback: DecoratedBox(
+            decoration: BoxDecoration(color: tokens.imageError),
+            child: Center(
+              child: Text(
+                initials,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: tokens.foreground,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

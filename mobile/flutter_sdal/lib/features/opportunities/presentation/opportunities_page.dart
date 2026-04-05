@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../data/opportunities_repository.dart';
@@ -98,8 +99,9 @@ class _OpportunitiesPageState extends ConsumerState<OpportunitiesPage> {
                         const SizedBox(height: 10),
                         Text(
                           item.whyNow,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Colors.black54),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).sdal.foregroundMuted,
+                          ),
                         ),
                       ],
                       if (item.reasons.isNotEmpty) ...[
@@ -116,7 +118,9 @@ class _OpportunitiesPageState extends ConsumerState<OpportunitiesPage> {
                         const SizedBox(height: 12),
                         SelectableText(
                           '${item.targetLabel}: ${item.targetHref}',
-                          style: const TextStyle(color: Colors.blue),
+                          style: TextStyle(
+                            color: Theme.of(context).sdal.info,
+                          ),
                         ),
                       ],
                     ],

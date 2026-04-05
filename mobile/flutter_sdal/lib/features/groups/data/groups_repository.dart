@@ -332,6 +332,17 @@ class GroupsRepository {
     );
   }
 
+  Future<ApiResult<JsonMap>> inviteMembers({
+    required int groupId,
+    required List<int> userIds,
+  }) {
+    return _apiClient.post<JsonMap>(
+      '/api/new/groups/$groupId/invitations',
+      body: {'userIds': userIds},
+      decoder: asJsonMap,
+    );
+  }
+
   Future<ApiResult<dynamic>> reviewJoinRequest({
     required int groupId,
     required int requestId,
@@ -351,6 +362,17 @@ class GroupsRepository {
     return _apiClient.post<dynamic>(
       '/api/new/groups/$groupId/settings',
       body: {'visibility': visibility, 'showContactHint': showContactHint},
+    );
+  }
+
+  Future<ApiResult<dynamic>> changeRole({
+    required int groupId,
+    required int userId,
+    required String role,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/role',
+      body: {'userId': userId, 'role': role},
     );
   }
 

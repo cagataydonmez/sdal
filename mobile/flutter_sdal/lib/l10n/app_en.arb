@@ -50,6 +50,7 @@
   "email": "E-mail",
   "firstName": "First name",
   "lastName": "Last name",
+  "captionLabel": "Caption",
   "memberId": "Member ID",
   "activationCode": "Activation code",
   "captchaCode": "Captcha code",
@@ -150,8 +151,286 @@
   "messageSendAction": "Send",
   "messageSendInProgress": "Sending...",
   "messageSendFailed": "Message could not be sent.",
+  "themeModeTitle": "Appearance",
+  "themeModeHelper": "Follow the system setting or choose a persistent appearance for the app.",
+  "themeModeSystem": "System",
+  "themeModeLight": "Light",
+  "themeModeDark": "Dark",
+  "cancelAction": "Cancel",
+  "saveAction": "Save",
+  "createAction": "Create",
+  "deleteAction": "Delete",
+  "groupsTitle": "Groups",
+  "groupsNewGroupAction": "New group",
+  "groupsOpenAction": "Open",
+  "groupsLeaveAction": "Leave",
+  "groupsWithdrawRequestAction": "Withdraw request",
+  "groupsAcceptInviteAction": "Accept invite",
+  "groupsJoinAction": "Join",
+  "groupsPendingApproval": "Awaiting approval",
+  "groupsInvitePending": "Invite pending",
+  "groupsNewGroupTitle": "New group",
+  "groupsNameLabel": "Group name",
+  "groupsDescriptionLabel": "Description",
+  "groupsCreating": "Creating...",
+  "groupsMembersCount": "{count} members",
+  "@groupsMembersCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "storiesTitle": "Stories",
+  "storiesEmpty": "No active stories yet.",
+  "storiesUploadAction": "Add story",
+  "storiesUploadHint": "Visible for 24 hours",
+  "storiesPublishAction": "Share story",
+  "storiesViewed": "Viewed",
+  "storiesNewCount": "{count} new",
+  "@storiesNewCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "storiesNewStoryTitle": "New story",
+  "storiesEditTitleAction": "Edit title",
+  "storiesDeleteAction": "Delete story",
+  "storiesRepostAction": "Share again",
+  "storiesCaptionDialogTitle": "Story title",
+  "storiesCaptionHint": "Add a short caption",
+  "storiesDeleteConfirmTitle": "Delete this story?",
+  "storiesViewStorySemantic": "Open story from {name}",
+  "@storiesViewStorySemantic": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "storiesPreviousStoryHint": "Open the previous story",
+  "storiesNextStoryHint": "Open the next story",
+  "liveChatTitle": "Live chat",
+  "liveChatConnected": "Live connection is active",
+  "liveChatReconnecting": "Reconnecting...",
+  "liveChatComposerHint": "Write your message",
+  "liveChatEditMessageAction": "Edit message",
+  "liveChatDeleteMessageAction": "Delete message",
+  "liveChatEditDialogTitle": "Edit message",
+  "groupDetailTitle": "Group details",
+  "groupNotFound": "Group not found.",
+  "groupVisibilityPrivate": "Private",
+  "groupVisibilityPublic": "Public",
+  "groupManagersVisible": "Managers visible",
+  "groupRejectInviteAction": "Reject invite",
+  "groupSettingsAction": "Settings",
+  "groupInviteMembersAction": "Invite members",
+  "groupUpdateCoverAction": "Update cover",
+  "groupManagersTitle": "Managers",
+  "groupJoinRequestsTitle": "Join requests",
+  "groupPendingInvitesTitle": "Pending invites",
+  "groupPostsTitle": "Posts",
+  "groupNoPosts": "No group posts yet.",
+  "groupEventsTitle": "Events",
+  "groupAddEventAction": "Add event",
+  "groupNoEvents": "No scheduled events for this group.",
+  "groupAnnouncementsTitle": "Announcements",
+  "groupAddAnnouncementAction": "Add announcement",
+  "groupNoAnnouncements": "No announcements for this group.",
+  "groupMembersTitle": "Members",
+  "groupContentMembersOnlyTitle": "Content is for members only",
+  "groupContentMembersOnlyBody": "Membership approval is required to view this group's content.",
+  "groupDetailLeaveAction": "Leave group",
+  "groupDetailWithdrawRequestAction": "Withdraw request",
+  "groupDetailAcceptInviteAction": "Accept invite",
+  "groupDetailJoinAction": "Send join request",
+  "groupAdminPanelTitle": "Admin tools",
+  "groupAdminPanelHelper": "Review join requests, invite new members, and adjust group visibility from one place.",
+  "groupTimelineTitle": "Group timeline",
+  "groupPostsHelper": "Share lightweight updates with the group without starting a full announcement.",
+  "groupTimelineHelper": "Keep upcoming events and important announcements easy to scan.",
+  "groupMembersHelper": "Managers are shown first. Role changes should be used carefully because they affect moderation access.",
+  "groupInviteSearchHint": "Search by name or username",
+  "groupSelectedCount": "{count} people selected",
+  "@groupSelectedCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "groupInvitesSent": "{count} invitations sent.",
+  "@groupInvitesSent": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "groupRoleMakeMember": "Make member",
+  "groupRoleMakeModerator": "Make moderator",
+  "groupRoleMakeOwner": "Transfer ownership",
+  "groupSettingsTitle": "Group settings",
+  "groupVisibilityLabel": "Visibility",
+  "groupVisibilityPublicOption": "Public",
+  "groupVisibilityMembersOnlyOption": "Members only",
+  "groupVisibilityHint": "Members-only groups hide posts, events, announcements, and the member list until a join request is approved.",
+  "groupManagersVisibilityTitle": "Show managers to non-members",
+  "groupManagersVisibilityHint": "Turn this on only if you want visitors to know who to contact before they join.",
+  "groupNewPostTitle": "New post",
+  "groupPostHint": "Write a short update for the group",
+  "groupAddImageAction": "Add image",
+  "groupCreatePostAction": "Share post",
+  "groupNewEventTitle": "New event",
+  "groupEventTitleLabel": "Title",
+  "groupEventDescriptionLabel": "Description",
+  "groupEventLocationLabel": "Location",
+  "groupEventStartsAtLabel": "Start date",
+  "groupEventEndsAtLabel": "End date",
+  "groupEventScheduleHint": "Dates are shown to members as entered, so include timezone or format details if needed.",
+  "groupCreateEventAction": "Add event",
+  "groupNewAnnouncementTitle": "New announcement",
+  "groupAnnouncementTitleLabel": "Title",
+  "groupAnnouncementBodyLabel": "Content",
+  "groupCreateAnnouncementAction": "Add announcement",
+  "groupEventLocationValue": "Location: {value}",
+  "@groupEventLocationValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "groupEventStartsAtValue": "Starts: {value}",
+  "@groupEventStartsAtValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "groupEventEndsAtValue": "Ends: {value}",
+  "@groupEventEndsAtValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "groupLikesCount": "{count} likes",
+  "@groupLikesCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "groupCommentsCount": "{count} comments",
+  "@groupCommentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "approveAction": "Approve",
+  "rejectAction": "Reject",
   "genericMemberLabel": "SDAL Member",
   "genericRequestFailed": "The request could not be completed.",
+  "feedStoriesTitle": "Stories from the community",
+  "exploreTitle": "Explore",
+  "exploreSuggestionsTitle": "Suggestions",
+  "exploreNoSuggestions": "No suggestions right now.",
+  "exploreDirectoryTitle": "Member directory",
+  "followAction": "Follow",
+  "albumsTitle": "Albums",
+  "albumsUploadAction": "Upload",
+  "albumsEmpty": "No album photos yet.",
+  "albumsLoadMore": "Load more photos",
+  "albumTitleFallback": "Album",
+  "albumsCategoryMissing": "Category not found.",
+  "albumsOpenPhotoSemantic": "Open photo {label}",
+  "@albumsOpenPhotoSemantic": {
+    "placeholders": {
+      "label": {}
+    }
+  },
+  "profileStoriesTitle": "My stories",
+  "retryAction": "Try again",
+  "statusApproved": "Approved",
+  "statusRejected": "Rejected",
+  "statusReviewed": "Reviewed",
+  "statusPending": "Pending",
+  "requestsTitle": "Member requests",
+  "requestsCreateTitle": "Create a new request",
+  "requestsCreateHelper": "Send profile or membership requests, attach supporting files, and track the current status below.",
+  "requestsCategoryLabel": "Request category",
+  "requestsGraduationYearLabel": "Requested graduation year",
+  "requestsTeacherOption": "Teacher",
+  "requestsDescriptionLabel": "Details",
+  "requestsPickFromGallery": "Add from gallery",
+  "requestsUseCamera": "Use camera",
+  "requestsSendAction": "Send request",
+  "requestsListTitle": "My requests",
+  "requestsNotificationApproved": "Your request was updated. The approved item is highlighted below.",
+  "requestsNotificationUpdated": "Your request was updated. The related item is highlighted below.",
+  "requestsEmpty": "No requests have been sent yet.",
+  "requestsAttachmentUploadFailed": "Attachment could not be uploaded.",
+  "requestsAttachmentUploaded": "Attachment uploaded.",
+  "requestsSelectCategoryError": "Choose a request category.",
+  "requestsSelectGraduationYearError": "Choose the requested graduation year.",
+  "requestsSubmitSuccess": "Request sent.",
+  "requestsSubmitFailed": "Request could not be sent.",
+  "requestsGraduationYearValue": "Requested graduation year: {value}",
+  "@requestsGraduationYearValue": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "requestsResolutionNote": "Note: {note}",
+  "@requestsResolutionNote": {
+    "placeholders": {
+      "note": {}
+    }
+  },
+  "jobsTitle": "Job board",
+  "jobsCreateTitle": "Publish a new job",
+  "jobsCreateHelper": "Keep the post practical and specific so members can decide quickly whether to apply.",
+  "jobsCompanyLabel": "Company",
+  "jobsPositionLabel": "Role",
+  "jobsDescriptionLabel": "Description",
+  "jobsLocationLabel": "Location",
+  "jobsTypeLabel": "Job type",
+  "jobsLinkLabel": "Application link",
+  "jobsLinkHint": "https://...",
+  "jobsCreateAction": "Publish job",
+  "jobsCreateInProgress": "Publishing...",
+  "jobsSearchTitle": "Filter listings",
+  "jobsSearchHelper": "Search by role, location, or job type to narrow the current board.",
+  "jobsSearchLabel": "Search",
+  "jobsLocationFilterLabel": "Location filter",
+  "jobsTypeFilterLabel": "Job type filter",
+  "jobsApplyFiltersAction": "Apply filters",
+  "jobsEmpty": "No job listings yet.",
+  "jobsApplicationStatus": "Application status: {status}",
+  "@jobsApplicationStatus": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "jobsShortNoteLabel": "Short application note",
+  "jobsApplyAction": "Apply",
+  "jobsLoadApplicationsAction": "Load applications",
+  "jobsRefreshApplicationsAction": "Refresh applications",
+  "jobsReviewNoteLabel": "Decision note",
+  "jobsMarkReviewedAction": "Mark as reviewed",
+  "jobsAcceptAction": "Accept",
+  "jobsApplicationsStatus": "Status: {status}",
+  "@jobsApplicationsStatus": {
+    "placeholders": {
+      "status": {}
+    }
+  },
+  "jobsCreateSuccess": "Job listing published.",
+  "jobsCreateFailed": "Job listing could not be created.",
+  "jobsApplySuccess": "Application sent.",
+  "jobsApplyFailed": "Application could not be sent.",
+  "jobsDeleteSuccess": "Job listing deleted.",
+  "jobsDeleteFailed": "Job listing could not be deleted.",
+  "jobsReviewSuccess": "Application updated.",
+  "jobsReviewFailed": "Application could not be updated.",
+  "jobsPosterPendingApproval": "Awaiting approval",
+  "eventVisibilityTitle": "Attendance visibility",
+  "eventVisibilityHelper": "These settings control which attendance details other members can see on the event.",
+  "eventVisibilityShowCounts": "Show attendance counts",
+  "eventVisibilityShowCountsHint": "Members can see how many people joined or declined.",
+  "eventVisibilityShowAttendees": "Show attendee names",
+  "eventVisibilityShowAttendeesHint": "Anyone who can view the event can see the attendee list.",
+  "eventVisibilityShowDecliners": "Show decliner names",
+  "eventVisibilityShowDeclinersHint": "Anyone who can view the event can also see who declined.",
+  "eventVisibilitySaveAction": "Save visibility settings",
   "oauthFailedWithReason": "OAuth flow could not be completed: {reason}",
   "@oauthFailedWithReason": {
     "placeholders": {
