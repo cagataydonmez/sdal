@@ -71,23 +71,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          _AuthTextField(
             controller: _usernameController,
             textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-              labelText: l10n.username,
-              prefixIcon: Icon(Icons.alternate_email),
-            ),
+            labelText: l10n.username,
+            prefixIcon: const Icon(Icons.alternate_email),
+            autofillHints: const [AutofillHints.username],
           ),
           const SizedBox(height: 12),
-          TextField(
+          _AuthTextField(
             controller: _passwordController,
             obscureText: true,
             onSubmitted: (_) => _submit(),
-            decoration: InputDecoration(
-              labelText: l10n.password,
-              prefixIcon: Icon(Icons.lock_outline),
-            ),
+            labelText: l10n.password,
+            prefixIcon: const Icon(Icons.lock_outline),
+            keyboardType: TextInputType.visiblePassword,
+            autofillHints: const [AutofillHints.password],
           ),
           if (error != null) ...[
             const SizedBox(height: 12),
@@ -115,6 +114,46 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AuthTextField extends StatelessWidget {
+  const _AuthTextField({
+    required this.controller,
+    required this.labelText,
+    this.prefixIcon,
+    this.obscureText = false,
+    this.onSubmitted,
+    this.textInputAction,
+    this.keyboardType,
+    this.autofillHints,
+  });
+
+  final TextEditingController controller;
+  final String labelText;
+  final Widget? prefixIcon;
+  final bool obscureText;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
+  final TextInputType? keyboardType;
+  final Iterable<String>? autofillHints;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      onSubmitted: onSubmitted,
+      textInputAction: textInputAction,
+      keyboardType: keyboardType,
+      autofillHints: autofillHints,
+      autocorrect: false,
+      enableSuggestions: false,
+      textCapitalization: TextCapitalization.none,
+      smartDashesType: SmartDashesType.disabled,
+      smartQuotesType: SmartQuotesType.disabled,
+      decoration: InputDecoration(labelText: labelText, prefixIcon: prefixIcon),
     );
   }
 }

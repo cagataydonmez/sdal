@@ -10,9 +10,56 @@ import '../../../core/network/paged_response.dart';
 part 'feed_repository.freezed.dart';
 part 'feed_repository.g.dart';
 
+enum FeedType { main, community }
+
+extension FeedTypeApi on FeedType {
+  String get apiValue => switch (this) {
+    FeedType.main => 'main',
+    FeedType.community => 'community',
+  };
+}
+
+enum FeedFilter { latest, popular, following }
+
+extension FeedFilterApi on FeedFilter {
+  String get apiValue => switch (this) {
+    FeedFilter.latest => 'latest',
+    FeedFilter.popular => 'popular',
+    FeedFilter.following => 'following',
+  };
+}
+
+class FeedQuery {
+  const FeedQuery({
+    this.feedType = FeedType.main,
+    this.filter = FeedFilter.latest,
+  });
+
+  final FeedType feedType;
+  final FeedFilter filter;
+
+  FeedQuery copyWith({FeedType? feedType, FeedFilter? filter}) {
+    return FeedQuery(
+      feedType: feedType ?? this.feedType,
+      filter: filter ?? this.filter,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is FeedQuery &&
+        other.feedType == feedType &&
+        other.filter == filter;
+  }
+
+  @override
+  int get hashCode => Object.hash(feedType, filter);
+}
+
 @freezed
 class FeedAuthor with _$FeedAuthor {
   const factory FeedAuthor({
+    @JsonKey(fromJson: readOptionalInt) int? id,
     @JsonKey(fromJson: readRequiredText) required String isim,
     @JsonKey(fromJson: readRequiredText) required String kadi,
     @JsonKey(fromJson: readRequiredText) required String resim,
@@ -21,6 +68,14 @@ class FeedAuthor with _$FeedAuthor {
   factory FeedAuthor.fromJson(Map<String, dynamic> json) =>
       _$FeedAuthorFromJson(
         normalizeJsonAliases(json, {
+          'id': [
+            'userId',
+            'user_id',
+            'authorId',
+            'author_id',
+            'memberId',
+            'member_id',
+          ],
           'isim': ['name', 'kadi'],
           'resim': ['photo'],
         }),
@@ -53,6 +108,7 @@ class FeedItem with _$FeedItem {
     @JsonKey(fromJson: readRequiredBool) required bool liked,
   }) = _FeedItem;
 
+  int? get authorId => author.id;
   String get authorName => author.isim.isNotEmpty ? author.isim : 'SDAL Üyesi';
   String get authorHandle => author.kadi;
   String get authorPhoto => author.resim;
@@ -79,10 +135,24 @@ class FeedComment with _$FeedComment {
     @JsonKey(fromJson: readRequiredText) required String comment,
     @JsonKey(fromJson: readRequiredText) required String isim,
     @JsonKey(fromJson: readRequiredText) required String createdAt,
+    @JsonKey(fromJson: readOptionalInt) int? userId,
+    @JsonKey(fromJson: readOptionalText) String? kadi,
+    @JsonKey(fromJson: readOptionalText) String? soyisim,
+    @JsonKey(fromJson: readOptionalText) String? resim,
+    @JsonKey(fromJson: readOptionalBool) bool? verified,
   }) = _FeedComment;
 
   String get text => comment;
-  String get authorName => isim.isNotEmpty ? isim : 'SDAL Üyesi';
+  String get authorName {
+    final fullName = '${isim.trim()} ${(soyisim ?? '').trim()}'.trim();
+    if (fullName.isNotEmpty) return fullName;
+    if (isim.isNotEmpty) return isim;
+    if ((kadi ?? '').trim().isNotEmpty) return '@${kadi!.trim()}';
+    return 'SDAL Üyesi';
+  }
+
+  String get authorHandle => (kadi ?? '').trim();
+  String get authorPhoto => (resim ?? '').trim();
 
   factory FeedComment.fromJson(Map<String, dynamic> json) =>
       _$FeedCommentFromJson(
@@ -90,6 +160,11 @@ class FeedComment with _$FeedComment {
           'comment': ['body'],
           'isim': ['kadi'],
           'createdAt': ['created_at'],
+          'userId': ['user_id'],
+          'kadi': const [],
+          'soyisim': const [],
+          'resim': ['photo'],
+          'verified': const [],
         }),
       );
 
@@ -101,10 +176,18 @@ class FeedRepository {
 
   final ApiClient _apiClient;
 
-  Future<List<FeedItem>> fetchFeed() async {
+  Future<List<FeedItem>> fetchFeed({
+    FeedType feedType = FeedType.main,
+    FeedFilter filter = FeedFilter.latest,
+  }) async {
     final result = await _apiClient.get<dynamic>(
       '/api/new/feed',
-      query: const {'limit': 20, 'offset': 0},
+      query: {
+        'limit': 20,
+        'offset': 0,
+        'feedType': feedType.apiValue,
+        'filter': filter.apiValue,
+      },
     );
     final page = PagedResponse<FeedItem>.fromDynamic(
       result.rawData,
@@ -177,9 +260,16 @@ final feedRepositoryProvider = Provider<FeedRepository>(
   (ref) => FeedRepository(ref.watch(apiClientProvider)),
 );
 
-final feedItemsProvider = FutureProvider.autoDispose<List<FeedItem>>(
-  (ref) => ref.watch(feedRepositoryProvider).fetchFeed(),
+final feedQueryProvider = StateProvider.autoDispose<FeedQuery>(
+  (ref) => const FeedQuery(),
 );
+
+final feedItemsProvider = FutureProvider.autoDispose<List<FeedItem>>((ref) {
+  final query = ref.watch(feedQueryProvider);
+  return ref
+      .watch(feedRepositoryProvider)
+      .fetchFeed(feedType: query.feedType, filter: query.filter);
+});
 
 final postDetailProvider = FutureProvider.autoDispose.family<FeedItem?, int>(
   (ref, postId) => ref.watch(feedRepositoryProvider).fetchPost(postId),

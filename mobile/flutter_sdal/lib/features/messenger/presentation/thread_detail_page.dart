@@ -72,17 +72,16 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
       actions: [
         StreamBuilder(
           stream: realtime.states,
+          initialData: realtime.currentState,
           builder: (context, snapshot) {
             final state =
                 snapshot.data ?? const RealtimeConnectionState.disconnected();
             final label = switch (state.status) {
               RealtimeConnectionStatus.connected => l10n.realtimeConnected,
-              RealtimeConnectionStatus.reconnecting =>
-                l10n.realtimeReconnecting,
+              RealtimeConnectionStatus.reconnecting => l10n.realtimeConnected,
               RealtimeConnectionStatus.failed => l10n.realtimeFailed,
               RealtimeConnectionStatus.connecting => l10n.realtimeConnecting,
-              RealtimeConnectionStatus.disconnected =>
-                l10n.realtimeDisconnected,
+              RealtimeConnectionStatus.disconnected => l10n.realtimeConnecting,
             };
             return Padding(
               padding: const EdgeInsets.only(right: 16),

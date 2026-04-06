@@ -5,6 +5,7 @@ import '../l10n/context_l10n.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../theme/sdal_theme_tokens.dart';
+import 'remote_avatar.dart';
 
 enum FeatureScaffoldBackground { neutral, editorial, utility, immersive }
 
@@ -29,13 +30,22 @@ class FeatureScaffold extends ConsumerWidget {
     final tokens = Theme.of(context).sdal;
     final session = ref.watch(sessionControllerProvider).valueOrNull;
     final location = GoRouterState.of(context).uri.path;
+    final canPop = Navigator.of(context).canPop();
     final resolvedActions = <Widget>[
       ...?actions,
       _AppMenuButton(session: session, currentLocation: location),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: resolvedActions),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leadingWidth: session?.user != null ? (canPop ? 92 : 64) : null,
+        leading: session?.user != null
+            ? _ProfileLeading(session: session!, canPop: canPop)
+            : (canPop ? const BackButton() : null),
+        title: Text(title),
+        actions: resolvedActions,
+      ),
       floatingActionButton: floatingActionButton,
       body: Container(
         decoration: switch (background) {
@@ -62,6 +72,45 @@ class FeatureScaffold extends ConsumerWidget {
         },
         child: SafeArea(top: false, child: child),
       ),
+    );
+  }
+}
+
+class _ProfileLeading extends StatelessWidget {
+  const _ProfileLeading({required this.session, required this.canPop});
+
+  final SessionSnapshot session;
+  final bool canPop;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = session.user;
+    if (user == null) {
+      return canPop ? const BackButton() : const SizedBox.shrink();
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(width: 8),
+        InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => context.go('/profile'),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: RemoteAvatar(
+              label: user.displayName,
+              imageUrl: session.config.resolveUrl(user.photo).toString(),
+              radius: 16,
+            ),
+          ),
+        ),
+        if (canPop)
+          IconButton(
+            tooltip: 'Geri',
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.chevron_left_rounded),
+          ),
+      ],
     );
   }
 }

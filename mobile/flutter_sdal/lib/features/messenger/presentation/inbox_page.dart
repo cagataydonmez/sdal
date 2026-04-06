@@ -53,19 +53,31 @@ class _InboxPageState extends ConsumerState<InboxPage> {
       actions: [
         StreamBuilder(
           stream: realtime.states,
+          initialData: realtime.currentState,
           builder: (context, snapshot) {
-            final state = snapshot.data;
+            final state =
+                snapshot.data ?? const RealtimeConnectionState.disconnected();
             final color = switch (state?.status) {
               RealtimeConnectionStatus.connected => Colors.green,
-              RealtimeConnectionStatus.reconnecting => Colors.orange,
               RealtimeConnectionStatus.failed => Theme.of(
                 context,
               ).colorScheme.error,
-              _ => Colors.grey,
+              _ => Theme.of(context).colorScheme.outline,
             };
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Icon(Icons.circle, size: 10, color: color),
+            return Tooltip(
+              message: switch (state.status) {
+                RealtimeConnectionStatus.connected => l10n.realtimeConnected,
+                RealtimeConnectionStatus.failed => l10n.realtimeFailed,
+                RealtimeConnectionStatus.reconnecting =>
+                  l10n.realtimeReconnecting,
+                RealtimeConnectionStatus.connecting => l10n.realtimeConnecting,
+                RealtimeConnectionStatus.disconnected =>
+                  l10n.realtimeDisconnected,
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Icon(Icons.circle, size: 10, color: color),
+              ),
             );
           },
         ),

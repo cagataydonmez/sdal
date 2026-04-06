@@ -21,6 +21,8 @@ FeedAuthor _$FeedAuthorFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$FeedAuthor {
+  @JsonKey(fromJson: readOptionalInt)
+  int? get id => throw _privateConstructorUsedError;
   @JsonKey(fromJson: readRequiredText)
   String get isim => throw _privateConstructorUsedError;
   @JsonKey(fromJson: readRequiredText)
@@ -46,6 +48,7 @@ abstract class $FeedAuthorCopyWith<$Res> {
   ) = _$FeedAuthorCopyWithImpl<$Res, FeedAuthor>;
   @useResult
   $Res call({
+    @JsonKey(fromJson: readOptionalInt) int? id,
     @JsonKey(fromJson: readRequiredText) String isim,
     @JsonKey(fromJson: readRequiredText) String kadi,
     @JsonKey(fromJson: readRequiredText) String resim,
@@ -66,9 +69,18 @@ class _$FeedAuthorCopyWithImpl<$Res, $Val extends FeedAuthor>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? isim = null, Object? kadi = null, Object? resim = null}) {
+  $Res call({
+    Object? id = freezed,
+    Object? isim = null,
+    Object? kadi = null,
+    Object? resim = null,
+  }) {
     return _then(
       _value.copyWith(
+            id: freezed == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int?,
             isim: null == isim
                 ? _value.isim
                 : isim // ignore: cast_nullable_to_non_nullable
@@ -97,6 +109,7 @@ abstract class _$$FeedAuthorImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    @JsonKey(fromJson: readOptionalInt) int? id,
     @JsonKey(fromJson: readRequiredText) String isim,
     @JsonKey(fromJson: readRequiredText) String kadi,
     @JsonKey(fromJson: readRequiredText) String resim,
@@ -116,9 +129,18 @@ class __$$FeedAuthorImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? isim = null, Object? kadi = null, Object? resim = null}) {
+  $Res call({
+    Object? id = freezed,
+    Object? isim = null,
+    Object? kadi = null,
+    Object? resim = null,
+  }) {
     return _then(
       _$FeedAuthorImpl(
+        id: freezed == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int?,
         isim: null == isim
             ? _value.isim
             : isim // ignore: cast_nullable_to_non_nullable
@@ -140,6 +162,7 @@ class __$$FeedAuthorImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$FeedAuthorImpl implements _FeedAuthor {
   const _$FeedAuthorImpl({
+    @JsonKey(fromJson: readOptionalInt) this.id,
     @JsonKey(fromJson: readRequiredText) required this.isim,
     @JsonKey(fromJson: readRequiredText) required this.kadi,
     @JsonKey(fromJson: readRequiredText) required this.resim,
@@ -148,6 +171,9 @@ class _$FeedAuthorImpl implements _FeedAuthor {
   factory _$FeedAuthorImpl.fromJson(Map<String, dynamic> json) =>
       _$$FeedAuthorImplFromJson(json);
 
+  @override
+  @JsonKey(fromJson: readOptionalInt)
+  final int? id;
   @override
   @JsonKey(fromJson: readRequiredText)
   final String isim;
@@ -160,7 +186,7 @@ class _$FeedAuthorImpl implements _FeedAuthor {
 
   @override
   String toString() {
-    return 'FeedAuthor(isim: $isim, kadi: $kadi, resim: $resim)';
+    return 'FeedAuthor(id: $id, isim: $isim, kadi: $kadi, resim: $resim)';
   }
 
   @override
@@ -168,6 +194,7 @@ class _$FeedAuthorImpl implements _FeedAuthor {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$FeedAuthorImpl &&
+            (identical(other.id, id) || other.id == id) &&
             (identical(other.isim, isim) || other.isim == isim) &&
             (identical(other.kadi, kadi) || other.kadi == kadi) &&
             (identical(other.resim, resim) || other.resim == resim));
@@ -175,7 +202,7 @@ class _$FeedAuthorImpl implements _FeedAuthor {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, isim, kadi, resim);
+  int get hashCode => Object.hash(runtimeType, id, isim, kadi, resim);
 
   /// Create a copy of FeedAuthor
   /// with the given fields replaced by the non-null parameter values.
@@ -193,6 +220,7 @@ class _$FeedAuthorImpl implements _FeedAuthor {
 
 abstract class _FeedAuthor implements FeedAuthor {
   const factory _FeedAuthor({
+    @JsonKey(fromJson: readOptionalInt) final int? id,
     @JsonKey(fromJson: readRequiredText) required final String isim,
     @JsonKey(fromJson: readRequiredText) required final String kadi,
     @JsonKey(fromJson: readRequiredText) required final String resim,
@@ -201,6 +229,9 @@ abstract class _FeedAuthor implements FeedAuthor {
   factory _FeedAuthor.fromJson(Map<String, dynamic> json) =
       _$FeedAuthorImpl.fromJson;
 
+  @override
+  @JsonKey(fromJson: readOptionalInt)
+  int? get id;
   @override
   @JsonKey(fromJson: readRequiredText)
   String get isim;
@@ -781,6 +812,16 @@ mixin _$FeedComment {
   String get isim => throw _privateConstructorUsedError;
   @JsonKey(fromJson: readRequiredText)
   String get createdAt => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readOptionalInt)
+  int? get userId => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readOptionalText)
+  String? get kadi => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readOptionalText)
+  String? get soyisim => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readOptionalText)
+  String? get resim => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readOptionalBool)
+  bool? get verified => throw _privateConstructorUsedError;
 
   /// Serializes this FeedComment to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -804,6 +845,11 @@ abstract class $FeedCommentCopyWith<$Res> {
     @JsonKey(fromJson: readRequiredText) String comment,
     @JsonKey(fromJson: readRequiredText) String isim,
     @JsonKey(fromJson: readRequiredText) String createdAt,
+    @JsonKey(fromJson: readOptionalInt) int? userId,
+    @JsonKey(fromJson: readOptionalText) String? kadi,
+    @JsonKey(fromJson: readOptionalText) String? soyisim,
+    @JsonKey(fromJson: readOptionalText) String? resim,
+    @JsonKey(fromJson: readOptionalBool) bool? verified,
   });
 }
 
@@ -826,6 +872,11 @@ class _$FeedCommentCopyWithImpl<$Res, $Val extends FeedComment>
     Object? comment = null,
     Object? isim = null,
     Object? createdAt = null,
+    Object? userId = freezed,
+    Object? kadi = freezed,
+    Object? soyisim = freezed,
+    Object? resim = freezed,
+    Object? verified = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -845,6 +896,26 @@ class _$FeedCommentCopyWithImpl<$Res, $Val extends FeedComment>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as String,
+            userId: freezed == userId
+                ? _value.userId
+                : userId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            kadi: freezed == kadi
+                ? _value.kadi
+                : kadi // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            soyisim: freezed == soyisim
+                ? _value.soyisim
+                : soyisim // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            resim: freezed == resim
+                ? _value.resim
+                : resim // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            verified: freezed == verified
+                ? _value.verified
+                : verified // ignore: cast_nullable_to_non_nullable
+                      as bool?,
           )
           as $Val,
     );
@@ -865,6 +936,11 @@ abstract class _$$FeedCommentImplCopyWith<$Res>
     @JsonKey(fromJson: readRequiredText) String comment,
     @JsonKey(fromJson: readRequiredText) String isim,
     @JsonKey(fromJson: readRequiredText) String createdAt,
+    @JsonKey(fromJson: readOptionalInt) int? userId,
+    @JsonKey(fromJson: readOptionalText) String? kadi,
+    @JsonKey(fromJson: readOptionalText) String? soyisim,
+    @JsonKey(fromJson: readOptionalText) String? resim,
+    @JsonKey(fromJson: readOptionalBool) bool? verified,
   });
 }
 
@@ -886,6 +962,11 @@ class __$$FeedCommentImplCopyWithImpl<$Res>
     Object? comment = null,
     Object? isim = null,
     Object? createdAt = null,
+    Object? userId = freezed,
+    Object? kadi = freezed,
+    Object? soyisim = freezed,
+    Object? resim = freezed,
+    Object? verified = freezed,
   }) {
     return _then(
       _$FeedCommentImpl(
@@ -905,6 +986,26 @@ class __$$FeedCommentImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as String,
+        userId: freezed == userId
+            ? _value.userId
+            : userId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        kadi: freezed == kadi
+            ? _value.kadi
+            : kadi // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        soyisim: freezed == soyisim
+            ? _value.soyisim
+            : soyisim // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        resim: freezed == resim
+            ? _value.resim
+            : resim // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        verified: freezed == verified
+            ? _value.verified
+            : verified // ignore: cast_nullable_to_non_nullable
+                  as bool?,
       ),
     );
   }
@@ -918,6 +1019,11 @@ class _$FeedCommentImpl extends _FeedComment {
     @JsonKey(fromJson: readRequiredText) required this.comment,
     @JsonKey(fromJson: readRequiredText) required this.isim,
     @JsonKey(fromJson: readRequiredText) required this.createdAt,
+    @JsonKey(fromJson: readOptionalInt) this.userId,
+    @JsonKey(fromJson: readOptionalText) this.kadi,
+    @JsonKey(fromJson: readOptionalText) this.soyisim,
+    @JsonKey(fromJson: readOptionalText) this.resim,
+    @JsonKey(fromJson: readOptionalBool) this.verified,
   }) : super._();
 
   factory _$FeedCommentImpl.fromJson(Map<String, dynamic> json) =>
@@ -935,10 +1041,25 @@ class _$FeedCommentImpl extends _FeedComment {
   @override
   @JsonKey(fromJson: readRequiredText)
   final String createdAt;
+  @override
+  @JsonKey(fromJson: readOptionalInt)
+  final int? userId;
+  @override
+  @JsonKey(fromJson: readOptionalText)
+  final String? kadi;
+  @override
+  @JsonKey(fromJson: readOptionalText)
+  final String? soyisim;
+  @override
+  @JsonKey(fromJson: readOptionalText)
+  final String? resim;
+  @override
+  @JsonKey(fromJson: readOptionalBool)
+  final bool? verified;
 
   @override
   String toString() {
-    return 'FeedComment(id: $id, comment: $comment, isim: $isim, createdAt: $createdAt)';
+    return 'FeedComment(id: $id, comment: $comment, isim: $isim, createdAt: $createdAt, userId: $userId, kadi: $kadi, soyisim: $soyisim, resim: $resim, verified: $verified)';
   }
 
   @override
@@ -950,12 +1071,29 @@ class _$FeedCommentImpl extends _FeedComment {
             (identical(other.comment, comment) || other.comment == comment) &&
             (identical(other.isim, isim) || other.isim == isim) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.userId, userId) || other.userId == userId) &&
+            (identical(other.kadi, kadi) || other.kadi == kadi) &&
+            (identical(other.soyisim, soyisim) || other.soyisim == soyisim) &&
+            (identical(other.resim, resim) || other.resim == resim) &&
+            (identical(other.verified, verified) ||
+                other.verified == verified));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, id, comment, isim, createdAt);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    comment,
+    isim,
+    createdAt,
+    userId,
+    kadi,
+    soyisim,
+    resim,
+    verified,
+  );
 
   /// Create a copy of FeedComment
   /// with the given fields replaced by the non-null parameter values.
@@ -977,6 +1115,11 @@ abstract class _FeedComment extends FeedComment {
     @JsonKey(fromJson: readRequiredText) required final String comment,
     @JsonKey(fromJson: readRequiredText) required final String isim,
     @JsonKey(fromJson: readRequiredText) required final String createdAt,
+    @JsonKey(fromJson: readOptionalInt) final int? userId,
+    @JsonKey(fromJson: readOptionalText) final String? kadi,
+    @JsonKey(fromJson: readOptionalText) final String? soyisim,
+    @JsonKey(fromJson: readOptionalText) final String? resim,
+    @JsonKey(fromJson: readOptionalBool) final bool? verified,
   }) = _$FeedCommentImpl;
   const _FeedComment._() : super._();
 
@@ -995,6 +1138,21 @@ abstract class _FeedComment extends FeedComment {
   @override
   @JsonKey(fromJson: readRequiredText)
   String get createdAt;
+  @override
+  @JsonKey(fromJson: readOptionalInt)
+  int? get userId;
+  @override
+  @JsonKey(fromJson: readOptionalText)
+  String? get kadi;
+  @override
+  @JsonKey(fromJson: readOptionalText)
+  String? get soyisim;
+  @override
+  @JsonKey(fromJson: readOptionalText)
+  String? get resim;
+  @override
+  @JsonKey(fromJson: readOptionalBool)
+  bool? get verified;
 
   /// Create a copy of FeedComment
   /// with the given fields replaced by the non-null parameter values.

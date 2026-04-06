@@ -305,8 +305,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   }
 }
 
-class _PreferencesCard extends StatelessWidget {
+class _PreferencesCard extends StatefulWidget {
   const _PreferencesCard({
+    super.key,
     required this.preferences,
     required this.saving,
     required this.onChanged,
@@ -317,65 +318,121 @@ class _PreferencesCard extends StatelessWidget {
   final Future<void> Function(NotificationPreferences next) onChanged;
 
   @override
+  State<_PreferencesCard> createState() => _PreferencesCardState();
+}
+
+class _PreferencesCardState extends State<_PreferencesCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Bildirim tercihleri',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          ...preferences.categories.entries.map(
-            (entry) => SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: Text(_labelForCategory(entry.key)),
-              value: entry.value,
-              onChanged: saving
-                  ? null
-                  : (enabled) => onChanged(
-                      NotificationPreferences(
-                        categories: {
-                          ...preferences.categories,
-                          entry.key: enabled,
-                        },
-                        quietModeEnabled: preferences.quietModeEnabled,
-                        quietModeStart: preferences.quietModeStart,
-                        quietModeEnd: preferences.quietModeEnd,
-                      ),
-                    ),
-            ),
-          ),
-          const Divider(height: 24),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Sessiz mod'),
-            subtitle: Text(
-              [
-                    if (preferences.quietModeStart.isNotEmpty)
-                      preferences.quietModeStart,
-                    if (preferences.quietModeEnd.isNotEmpty)
-                      preferences.quietModeEnd,
-                  ].join(' - ').isEmpty
-                  ? 'Başlangıç ve bitiş saati tanımlanmadı.'
-                  : '${preferences.quietModeStart} - ${preferences.quietModeEnd}',
-            ),
-            value: preferences.quietModeEnabled,
-            onChanged: saving
-                ? null
-                : (enabled) => onChanged(
-                    NotificationPreferences(
-                      categories: preferences.categories,
-                      quietModeEnabled: enabled,
-                      quietModeStart: preferences.quietModeStart.isEmpty
-                          ? '22:00'
-                          : preferences.quietModeStart,
-                      quietModeEnd: preferences.quietModeEnd.isEmpty
-                          ? '08:00'
-                          : preferences.quietModeEnd,
+          InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bildirim tercihleri',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _expanded
+                              ? 'Hangi bildirimlerin açık olduğunu buradan yönetebilirsin.'
+                              : 'Kategori ve sessiz mod ayarlarını görmek için aç.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.keyboard_arrow_down_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                children: [
+                  ...widget.preferences.categories.entries.map(
+                    (entry) => SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(_labelForCategory(entry.key)),
+                      value: entry.value,
+                      onChanged: widget.saving
+                          ? null
+                          : (enabled) => widget.onChanged(
+                              NotificationPreferences(
+                                categories: {
+                                  ...widget.preferences.categories,
+                                  entry.key: enabled,
+                                },
+                                quietModeEnabled:
+                                    widget.preferences.quietModeEnabled,
+                                quietModeStart:
+                                    widget.preferences.quietModeStart,
+                                quietModeEnd: widget.preferences.quietModeEnd,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const Divider(height: 24),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Sessiz mod'),
+                    subtitle: Text(
+                      [
+                            if (widget.preferences.quietModeStart.isNotEmpty)
+                              widget.preferences.quietModeStart,
+                            if (widget.preferences.quietModeEnd.isNotEmpty)
+                              widget.preferences.quietModeEnd,
+                          ].join(' - ').isEmpty
+                          ? 'Başlangıç ve bitiş saati tanımlanmadı.'
+                          : '${widget.preferences.quietModeStart} - ${widget.preferences.quietModeEnd}',
+                    ),
+                    value: widget.preferences.quietModeEnabled,
+                    onChanged: widget.saving
+                        ? null
+                        : (enabled) => widget.onChanged(
+                            NotificationPreferences(
+                              categories: widget.preferences.categories,
+                              quietModeEnabled: enabled,
+                              quietModeStart:
+                                  widget.preferences.quietModeStart.isEmpty
+                                  ? '22:00'
+                                  : widget.preferences.quietModeStart,
+                              quietModeEnd:
+                                  widget.preferences.quietModeEnd.isEmpty
+                                  ? '08:00'
+                                  : widget.preferences.quietModeEnd,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 180),
+            sizeCurve: Curves.easeOutCubic,
           ),
         ],
       ),

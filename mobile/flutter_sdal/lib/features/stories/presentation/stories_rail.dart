@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/session/session_controller.dart';
+import '../../../core/session/session_models.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
@@ -21,20 +24,23 @@ class StoriesRail extends ConsumerWidget {
     this.memberId,
     this.showUpload = false,
     this.title,
+    this.feedType = 'main',
   });
 
   final StoryRailMode mode;
   final int? memberId;
   final bool showUpload;
   final String? title;
+  final String feedType;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
+    final sessionUser = ref.watch(sessionControllerProvider).valueOrNull?.user;
     final asyncItems = switch (mode) {
-      StoryRailMode.feed => ref.watch(feedStoriesProvider),
-      StoryRailMode.mine => ref.watch(myStoriesProvider),
+      StoryRailMode.feed => ref.watch(feedStoriesProvider(feedType)),
+      StoryRailMode.mine => ref.watch(myActiveStoriesProvider(feedType)),
       StoryRailMode.member => ref.watch(memberStoriesProvider(memberId ?? 0)),
     };
 
@@ -71,7 +77,12 @@ class StoriesRail extends ConsumerWidget {
             ),
             error: (error, _) => Text(error.toString()),
             data: (items) {
-              final groups = _buildGroups(items);
+              final groups = _buildGroups(
+                items,
+                fallbackAuthor: mode == StoryRailMode.mine
+                    ? _storyAuthorFromSession(sessionUser)
+                    : null,
+              );
               if (groups.isEmpty && !showUpload) {
                 return Text(
                   l10n.storiesEmpty,
@@ -85,7 +96,7 @@ class StoriesRail extends ConsumerWidget {
                   for (var index = 0; index < groups.length; index++)
                     _StoryTile(
                       imageUrl: config
-                          .resolveUrl(groups[index].coverPhoto)
+                          .resolveUrl(groups[index].author.photo)
                           .toString(),
                       label: groups[index].author.displayName,
                       subtitle: groups[index].unviewedCount > 0
@@ -99,6 +110,7 @@ class StoriesRail extends ConsumerWidget {
                               groups: groups,
                               initialGroupIndex: index,
                               mode: mode,
+                              feedType: feedType,
                             ),
                             fullscreenDialog: true,
                           ),
@@ -129,7 +141,7 @@ class StoriesRail extends ConsumerWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => const _StoryUploadSheet(),
+      builder: (context) => _StoryUploadSheet(feedType: feedType),
     );
   }
 }
@@ -191,6 +203,9 @@ class _StoryTile extends StatelessWidget {
     final tileWidth = textScale > 1.15 ? 94.0 : 86.0;
     final mediaSize = textScale > 1.15 ? 78.0 : 74.0;
     final borderColor = viewed ? tokens.storyInactive : tokens.storyActive;
+    final ringFillColor = viewed
+        ? borderColor.withValues(alpha: 0.12)
+        : tokens.storyActive;
     return Semantics(
       button: true,
       label: context.l10n.storiesViewStorySemantic(label),
@@ -201,39 +216,30 @@ class _StoryTile extends StatelessWidget {
           width: tileWidth,
           child: Column(
             children: [
-              Container(
-                width: mediaSize,
-                height: mediaSize,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: borderColor, width: 2),
-                  gradient: viewed
-                      ? null
-                      : LinearGradient(
-                          colors: [tokens.storyActive, tokens.accent],
+              _StoryHeptagonFrame(
+                size: mediaSize,
+                borderColor: borderColor,
+                fillColor: ringFillColor,
+                gradient: viewed
+                    ? null
+                    : LinearGradient(
+                        colors: [tokens.storyActive, tokens.accent],
+                      ),
+                child: icon != null
+                    ? DecoratedBox(
+                        decoration: BoxDecoration(color: tokens.accentMuted),
+                        child: Icon(icon, color: tokens.accent),
+                      )
+                    : imageUrl.isNotEmpty
+                    ? SdalNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        semanticLabel: context.l10n.storiesViewStorySemantic(
+                          label,
                         ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: icon != null
-                      ? DecoratedBox(
-                          decoration: BoxDecoration(color: tokens.accentMuted),
-                          child: Icon(icon, color: tokens.accent),
-                        )
-                      : imageUrl.isNotEmpty
-                      ? SdalNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          cacheWidth: (mediaSize * 2).round(),
-                          cacheHeight: (mediaSize * 2).round(),
-                          semanticLabel: context.l10n.storiesViewStorySemantic(
-                            label,
-                          ),
-                          errorFallback: _StoryFallback(label: label),
-                        )
-                      : _StoryFallback(label: label),
-                ),
+                        errorFallback: _StoryFallback(label: label),
+                      )
+                    : _StoryFallback(label: label),
               ),
               const SizedBox(height: 8),
               Text(
@@ -293,20 +299,123 @@ class _StoryPlaceholderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
+    final mediaSize = MediaQuery.textScalerOf(context).scale(1) > 1.15
+        ? 78.0
+        : 74.0;
     return SizedBox(
       width: MediaQuery.textScalerOf(context).scale(1) > 1.15 ? 94 : 86,
       child: Column(
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: tokens.panelMuted,
-              borderRadius: const BorderRadius.all(Radius.circular(22)),
-            ),
-            child: const SizedBox(width: 74, height: 74),
+          _StoryHeptagonFrame(
+            size: mediaSize,
+            borderColor: tokens.panelMuted,
+            fillColor: tokens.panelMuted,
+            child: const SizedBox.expand(),
           ),
         ],
       ),
     );
+  }
+}
+
+class _StoryHeptagonFrame extends StatelessWidget {
+  const _StoryHeptagonFrame({
+    required this.size,
+    required this.borderColor,
+    required this.fillColor,
+    required this.child,
+    this.gradient,
+  });
+
+  final double size;
+  final Color borderColor;
+  final Color fillColor;
+  final Gradient? gradient;
+  final Widget child;
+
+  static const double _outerCornerRadius = 4;
+  static const double _innerCornerRadius = 3;
+  static const double _inset = 4;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: CustomPaint(
+        painter: _StoryHeptagonPainter(
+          borderColor: borderColor,
+          fillColor: fillColor,
+          gradient: gradient,
+          cornerRadius: _outerCornerRadius,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(_inset),
+          child: ClipPath(
+            clipper: const _RoundedHeptagonClipper(
+              cornerRadius: _innerCornerRadius,
+            ),
+            child: SizedBox.expand(child: child),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoundedHeptagonClipper extends CustomClipper<Path> {
+  const _RoundedHeptagonClipper({required this.cornerRadius});
+
+  final double cornerRadius;
+
+  @override
+  Path getClip(Size size) {
+    return _buildRoundedHeptagonPath(size, cornerRadius);
+  }
+
+  @override
+  bool shouldReclip(covariant _RoundedHeptagonClipper oldClipper) {
+    return oldClipper.cornerRadius != cornerRadius;
+  }
+}
+
+class _StoryHeptagonPainter extends CustomPainter {
+  const _StoryHeptagonPainter({
+    required this.borderColor,
+    required this.fillColor,
+    required this.cornerRadius,
+    this.gradient,
+  });
+
+  final Color borderColor;
+  final Color fillColor;
+  final double cornerRadius;
+  final Gradient? gradient;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _buildRoundedHeptagonPath(size, cornerRadius);
+    final fillPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = fillColor;
+    if (gradient != null) {
+      fillPaint.shader = gradient!.createShader(Offset.zero & size);
+    }
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = borderColor,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _StoryHeptagonPainter oldDelegate) {
+    return oldDelegate.borderColor != borderColor ||
+        oldDelegate.fillColor != fillColor ||
+        oldDelegate.cornerRadius != cornerRadius ||
+        oldDelegate.gradient != gradient;
   }
 }
 
@@ -315,20 +424,27 @@ class _StoryViewerPage extends ConsumerStatefulWidget {
     required this.groups,
     required this.initialGroupIndex,
     required this.mode,
+    this.feedType = 'main',
   });
 
   final List<_StoryGroup> groups;
   final int initialGroupIndex;
   final StoryRailMode mode;
+  final String feedType;
 
   @override
   ConsumerState<_StoryViewerPage> createState() => _StoryViewerPageState();
 }
 
-class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
-  Timer? _timer;
+class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
+    with SingleTickerProviderStateMixin {
+  static const _storyDuration = Duration(seconds: 5);
+  static const _dragDismissThreshold = 120.0;
+
+  late final AnimationController _progressController;
   late int _groupIndex;
   int _itemIndex = 0;
+  double _verticalDragOffset = 0;
 
   _StoryGroup get _group => widget.groups[_groupIndex];
   StoryItem get _item => _group.items[_itemIndex];
@@ -338,6 +454,13 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
   @override
   void initState() {
     super.initState();
+    _progressController =
+        AnimationController(vsync: this, duration: _storyDuration)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              _goNext();
+            }
+          });
     _groupIndex = widget.initialGroupIndex;
     _itemIndex = _group.firstUnviewedIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) => _activateCurrent());
@@ -345,22 +468,24 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _progressController.dispose();
     super.dispose();
   }
 
   void _activateCurrent() {
-    _timer?.cancel();
+    _progressController
+      ..stop()
+      ..value = 0;
     if (!_allowManage && !_item.viewed) {
       ref.read(storiesRepositoryProvider).markViewed(_item.id).then((_) {
         if (!mounted) return;
-        ref.invalidate(feedStoriesProvider);
+        ref.invalidate(feedStoriesProvider(widget.feedType));
         if (widget.mode == StoryRailMode.member && _item.author != null) {
           ref.invalidate(memberStoriesProvider(_item.author!.id));
         }
       });
     }
-    _timer = Timer(const Duration(seconds: 5), _goNext);
+    _progressController.forward();
     setState(() {});
   }
 
@@ -378,7 +503,7 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
       _activateCurrent();
       return;
     }
-    if (mounted) Navigator.of(context).pop();
+    _closeViewer();
   }
 
   void _goPrevious() {
@@ -393,6 +518,30 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
         _itemIndex = widget.groups[_groupIndex].items.length - 1;
       });
       _activateCurrent();
+      return;
+    }
+    _closeViewer();
+  }
+
+  void _closeViewer() {
+    _progressController.stop();
+    if (mounted) Navigator.of(context).maybePop();
+  }
+
+  void _handleVerticalDragUpdate(DragUpdateDetails details) {
+    final nextOffset = _verticalDragOffset + (details.primaryDelta ?? 0);
+    if (nextOffset < 0) return;
+    setState(() => _verticalDragOffset = nextOffset);
+  }
+
+  void _handleVerticalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (_verticalDragOffset > _dragDismissThreshold || velocity > 900) {
+      _closeViewer();
+      return;
+    }
+    if (_verticalDragOffset != 0) {
+      setState(() => _verticalDragOffset = 0);
     }
   }
 
@@ -401,192 +550,242 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
     final tokens = Theme.of(context).sdal;
+    const storyForeground = Colors.white;
+    final storyForegroundMuted = Colors.white.withValues(alpha: 0.78);
     final imageUrl = config.resolveUrl(_item.mediaUrl).toString();
+    final dragFactor = (_verticalDragOffset / 320).clamp(0.0, 0.45);
     return Scaffold(
       backgroundColor: tokens.canvas,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: imageUrl.isNotEmpty
-                ? SdalNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.contain,
-                    semanticLabel: l10n.storiesViewStorySemantic(
-                      _group.author.displayName,
-                    ),
-                    placeholder: DecoratedBox(
-                      decoration: BoxDecoration(color: tokens.canvasSubtle),
-                    ),
-                    errorFallback: DecoratedBox(
-                      decoration: BoxDecoration(color: tokens.canvas),
-                    ),
-                  )
-                : ColoredBox(color: tokens.canvas),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    tokens.storyOverlay,
-                    Colors.transparent,
-                    tokens.storyOverlay.withValues(alpha: 0.92),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onVerticalDragUpdate: _handleVerticalDragUpdate,
+        onVerticalDragEnd: _handleVerticalDragEnd,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          color: Colors.black.withValues(alpha: 1 - dragFactor),
+          child: Transform.translate(
+            offset: Offset(0, _verticalDragOffset),
+            child: Stack(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Row(
+                Positioned.fill(
+                  child: imageUrl.isNotEmpty
+                      ? SdalNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.contain,
+                          semanticLabel: l10n.storiesViewStorySemantic(
+                            _group.author.displayName,
+                          ),
+                          placeholder: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: tokens.canvasSubtle,
+                            ),
+                          ),
+                          errorFallback: DecoratedBox(
+                            decoration: BoxDecoration(color: tokens.canvas),
+                          ),
+                        )
+                      : ColoredBox(color: tokens.canvas),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.62),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.78),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  child: Column(
                     children: [
-                      Expanded(
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                         child: Row(
                           children: [
-                            for (var i = 0; i < _group.items.length; i++) ...[
-                              Expanded(
-                                child: Container(
-                                  height: 3,
-                                  margin: EdgeInsets.only(
-                                    right: i == _group.items.length - 1 ? 0 : 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: i <= _itemIndex
-                                        ? tokens.foregroundOnAccent
-                                        : tokens.foregroundOnAccent.withValues(
-                                            alpha: 0.24,
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  for (
+                                    var i = 0;
+                                    i < _group.items.length;
+                                    i++
+                                  ) ...[
+                                    Expanded(
+                                      child: Container(
+                                        height: 4,
+                                        margin: EdgeInsets.only(
+                                          right: i == _group.items.length - 1
+                                              ? 0
+                                              : 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.18,
                                           ),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                        child: AnimatedBuilder(
+                                          animation: _progressController,
+                                          builder: (context, _) {
+                                            final progress = i < _itemIndex
+                                                ? 1.0
+                                                : i == _itemIndex
+                                                ? _progressController.value
+                                                : 0.0;
+                                            return Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: FractionallySizedBox(
+                                                widthFactor: progress,
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: storyForeground,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          999,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                            ],
+                            ),
+                            IconButton(
+                              onPressed: _closeViewer,
+                              color: storyForeground,
+                              icon: const Icon(Icons.close),
+                            ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        color: tokens.foregroundOnAccent,
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      RemoteAvatar(
-                        label: _group.author.displayName,
-                        imageUrl: config
-                            .resolveUrl(_group.author.photo)
-                            .toString(),
-                        radius: 22,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
                           children: [
-                            Text(
-                              _group.author.displayName,
-                              style: TextStyle(
-                                color: tokens.foregroundOnAccent,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                            RemoteAvatar(
+                              label: _group.author.displayName,
+                              imageUrl: config
+                                  .resolveUrl(_group.author.photo)
+                                  .toString(),
+                              radius: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _group.author.displayName,
+                                    style: const TextStyle(
+                                      color: storyForeground,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    _item.createdAt,
+                                    style: TextStyle(
+                                      color: storyForegroundMuted,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              _item.createdAt,
-                              style: TextStyle(
-                                color: tokens.foregroundOnAccent.withValues(
-                                  alpha: 0.72,
-                                ),
+                            if (_allowManage)
+                              PopupMenuButton<String>(
+                                color: tokens.panelRaised,
+                                iconColor: storyForeground,
+                                onSelected: (value) => _onMenuSelected(value),
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Text(l10n.storiesEditTitleAction),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text(l10n.storiesDeleteAction),
+                                  ),
+                                  if (_item.isExpiredResolved)
+                                    PopupMenuItem(
+                                      value: 'repost',
+                                      child: Text(l10n.storiesRepostAction),
+                                    ),
+                                ],
                               ),
-                            ),
                           ],
                         ),
                       ),
-                      if (_allowManage)
-                        PopupMenuButton<String>(
-                          color: tokens.panelRaised,
-                          iconColor: tokens.foregroundOnAccent,
-                          onSelected: (value) => _onMenuSelected(value),
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Text(l10n.storiesEditTitleAction),
+                      const Spacer(),
+                      if (_item.caption.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.42),
+                              borderRadius: BorderRadius.circular(22),
                             ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text(l10n.storiesDeleteAction),
-                            ),
-                            if (_item.isExpired)
-                              PopupMenuItem(
-                                value: 'repost',
-                                child: Text(l10n.storiesRepostAction),
+                            child: Text(
+                              _item.caption,
+                              style: const TextStyle(
+                                color: storyForeground,
+                                fontSize: 16,
+                                height: 1.4,
                               ),
-                          ],
+                            ),
+                          ),
                         ),
                     ],
                   ),
                 ),
-                const Spacer(),
-                if (_item.caption.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: tokens.storyOverlay,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Text(
-                        _item.caption,
-                        style: TextStyle(
-                          color: tokens.foregroundOnAccent,
-                          fontSize: 16,
-                          height: 1.4,
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 108, 0, 120),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Semantics(
+                            button: true,
+                            label: l10n.storiesPreviousStoryHint,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onTap: _goPrevious,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Positioned.fill(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Semantics(
-                    button: true,
-                    label: l10n.storiesPreviousStoryHint,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _goPrevious,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Semantics(
-                    button: true,
-                    label: l10n.storiesNextStoryHint,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _goNext,
+                        Expanded(
+                          child: Semantics(
+                            button: true,
+                            label: l10n.storiesNextStoryHint,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onTap: _goNext,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -636,8 +835,8 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
         .read(storiesActionControllerProvider.notifier)
         .editStory(storyId: _item.id, caption: caption);
     if (!mounted || !ok) return;
-    ref.invalidate(myStoriesProvider);
-    ref.invalidate(feedStoriesProvider);
+    ref.invalidate(myStoriesProvider(widget.feedType));
+    ref.invalidate(feedStoriesProvider(widget.feedType));
     Navigator.of(context).pop();
   }
 
@@ -663,8 +862,8 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
         .read(storiesActionControllerProvider.notifier)
         .deleteStory(_item.id);
     if (!mounted || !deleted) return;
-    ref.invalidate(myStoriesProvider);
-    ref.invalidate(feedStoriesProvider);
+    ref.invalidate(myStoriesProvider(widget.feedType));
+    ref.invalidate(feedStoriesProvider(widget.feedType));
     Navigator.of(context).pop();
   }
 
@@ -673,14 +872,16 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage> {
         .read(storiesActionControllerProvider.notifier)
         .repostStory(_item.id);
     if (!mounted || !ok) return;
-    ref.invalidate(myStoriesProvider);
-    ref.invalidate(feedStoriesProvider);
+    ref.invalidate(myStoriesProvider(widget.feedType));
+    ref.invalidate(feedStoriesProvider(widget.feedType));
     Navigator.of(context).pop();
   }
 }
 
 class _StoryUploadSheet extends ConsumerStatefulWidget {
-  const _StoryUploadSheet();
+  const _StoryUploadSheet({required this.feedType});
+
+  final String feedType;
 
   @override
   ConsumerState<_StoryUploadSheet> createState() => _StoryUploadSheetState();
@@ -747,10 +948,11 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
                             .uploadStory(
                               imageFile: File(_pickedFile!.path),
                               caption: _captionController.text.trim(),
+                              feedType: widget.feedType,
                             );
                         if (!context.mounted || !ok) return;
-                        ref.invalidate(myStoriesProvider);
-                        ref.invalidate(feedStoriesProvider);
+                        ref.invalidate(myStoriesProvider(widget.feedType));
+                        ref.invalidate(feedStoriesProvider(widget.feedType));
                         Navigator.of(context).pop();
                       },
                 child: Text(
@@ -778,11 +980,25 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
   }
 }
 
-List<_StoryGroup> _buildGroups(List<StoryItem> items) {
+StoryAuthor? _storyAuthorFromSession(SessionUser? user) {
+  if (user == null || user.id <= 0) return null;
+  return StoryAuthor(
+    id: user.id,
+    handle: user.kadi,
+    displayName: user.displayName,
+    photo: user.photo,
+    verified: user.isVerified,
+  );
+}
+
+List<_StoryGroup> _buildGroups(
+  List<StoryItem> items, {
+  StoryAuthor? fallbackAuthor,
+}) {
   final grouped = <int, List<StoryItem>>{};
   final authors = <int, StoryAuthor>{};
   for (final item in items) {
-    final author = item.author;
+    final author = item.author ?? fallbackAuthor;
     if (author == null || author.id <= 0) continue;
     grouped.putIfAbsent(author.id, () => <StoryItem>[]).add(item);
     authors[author.id] = author;
@@ -809,10 +1025,50 @@ class _StoryGroup {
   bool get viewed => items.every((item) => item.viewed);
   int get unviewedCount => items.where((item) => !item.viewed).length;
   String get latestAt => items.isEmpty ? '' : items.last.createdAt;
-  String get coverPhoto => items.isEmpty ? author.photo : items.last.mediaUrl;
 
   int get firstUnviewedIndex {
     final index = items.indexWhere((item) => !item.viewed);
     return index == -1 ? 0 : index;
   }
+}
+
+Path _buildRoundedHeptagonPath(Size size, double cornerRadius) {
+  const sides = 7;
+  final center = Offset(size.width / 2, size.height / 2);
+  final radius = math.min(size.width, size.height) / 2;
+  final vertices = List<Offset>.generate(sides, (index) {
+    final angle = (-math.pi / 2) + (2 * math.pi * index / sides);
+    return Offset(
+      center.dx + radius * math.cos(angle),
+      center.dy + radius * math.sin(angle),
+    );
+  }, growable: false);
+
+  final path = Path();
+  for (var index = 0; index < vertices.length; index++) {
+    final current = vertices[index];
+    final previous = vertices[(index - 1 + vertices.length) % vertices.length];
+    final next = vertices[(index + 1) % vertices.length];
+
+    final toPrevious = previous - current;
+    final toNext = next - current;
+    final previousLength = toPrevious.distance;
+    final nextLength = toNext.distance;
+    final inset = math.min(
+      cornerRadius,
+      math.min(previousLength, nextLength) / 2,
+    );
+
+    final entryPoint = current + (toPrevious / previousLength) * inset;
+    final exitPoint = current + (toNext / nextLength) * inset;
+
+    if (index == 0) {
+      path.moveTo(entryPoint.dx, entryPoint.dy);
+    } else {
+      path.lineTo(entryPoint.dx, entryPoint.dy);
+    }
+    path.quadraticBezierTo(current.dx, current.dy, exitPoint.dx, exitPoint.dy);
+  }
+  path.close();
+  return path;
 }

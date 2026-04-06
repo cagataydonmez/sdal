@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../theme/sdal_theme_tokens.dart';
-import 'sdal_network_image.dart';
 
 class RemoteAvatar extends StatelessWidget {
   const RemoteAvatar({
@@ -20,41 +19,52 @@ class RemoteAvatar extends StatelessWidget {
     final initials = _initialsFor(label);
     final theme = Theme.of(context);
     final tokens = theme.sdal;
-    return SizedBox(
-      width: radius * 2,
-      height: radius * 2,
+    return SizedBox.square(
+      dimension: radius * 2,
       child: ClipOval(
-        child: SdalNetworkImage(
-          imageUrl: normalizedUrl,
-          width: radius * 2,
-          height: radius * 2,
-          cacheWidth: (radius * 4).round(),
-          cacheHeight: (radius * 4).round(),
-          semanticLabel: label,
-          placeholder: DecoratedBox(
-            decoration: BoxDecoration(color: tokens.imagePlaceholder),
-            child: Center(
-              child: Text(
-                initials,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: tokens.foreground,
-                  fontWeight: FontWeight.w700,
+        clipBehavior: Clip.antiAlias,
+        child: ColoredBox(
+          color: normalizedUrl.isEmpty
+              ? tokens.imageError
+              : tokens.imagePlaceholder,
+          child: normalizedUrl.isEmpty
+              ? _AvatarInitials(initials: initials)
+              : Image.network(
+                  normalizedUrl,
+                  width: radius * 2,
+                  height: radius * 2,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  semanticLabel: label,
+                  filterQuality: FilterQuality.medium,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return _AvatarInitials(initials: initials);
+                  },
+                  errorBuilder: (context, error, stackTrace) =>
+                      _AvatarInitials(initials: initials),
                 ),
-              ),
-            ),
-          ),
-          errorFallback: DecoratedBox(
-            decoration: BoxDecoration(color: tokens.imageError),
-            child: Center(
-              child: Text(
-                initials,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: tokens.foreground,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarInitials extends StatelessWidget {
+  const _AvatarInitials({required this.initials});
+
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.sdal;
+    return Center(
+      child: Text(
+        initials,
+        style: theme.textTheme.titleSmall?.copyWith(
+          color: tokens.foreground,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

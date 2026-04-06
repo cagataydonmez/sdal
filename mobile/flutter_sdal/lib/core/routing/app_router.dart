@@ -12,6 +12,7 @@ import '../../features/admin/presentation/admin_pages.dart';
 import '../../features/explore/presentation/explore_page.dart';
 import '../../features/explore/presentation/member_detail_page.dart';
 import '../../features/feed/presentation/feed_page.dart';
+import '../../features/feed/data/feed_repository.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
 import '../../features/following/presentation/following_page.dart';
 import '../../features/groups/presentation/group_detail_page.dart';
@@ -27,6 +28,7 @@ import '../../features/profile/presentation/profile_verification_page.dart';
 import '../../features/opportunities/presentation/jobs_page.dart';
 import '../../features/opportunities/presentation/opportunities_page.dart';
 import '../../features/requests/presentation/requests_page.dart';
+import '../../features/stories/presentation/expired_stories_page.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
@@ -229,6 +231,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/verification',
         builder: (context, state) => const ProfileVerificationPage(),
+      ),
+      GoRoute(
+        path: '/profile/stories/expired',
+        builder: (context, state) => ExpiredStoriesPage(
+          initialFeedType: state.uri.queryParameters['feedType'] == 'community'
+              ? FeedType.community
+              : FeedType.main,
+        ),
       ),
       GoRoute(
         path: '/feed/live-chat',

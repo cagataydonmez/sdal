@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
@@ -50,22 +54,59 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          post.authorName,
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap:
+                                  post.authorId == null || post.authorId! <= 0
+                                  ? null
+                                  : () => context.push(
+                                      '/members/${post.authorId}',
+                                    ),
+                              child: RemoteAvatar(
+                                label: post.authorName,
+                                imageUrl: config
+                                    .resolveUrl(post.authorPhoto)
+                                    .toString(),
+                                radius: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    post.authorName,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
+                                  ),
+                                  if (post.authorHandle.isNotEmpty)
+                                    Text(
+                                      '@${post.authorHandle}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 12),
-                        Text(post.content),
+                        Text(plainTextFromRichContent(post.content)),
                         if (post.imageUrl.isNotEmpty) ...[
                           const SizedBox(height: 14),
-                          ClipRRect(
+                          SdalNetworkImage(
+                            imageUrl: config
+                                .resolveUrl(post.imageUrl)
+                                .toString(),
+                            fit: BoxFit.cover,
                             borderRadius: BorderRadius.circular(18),
-                            child: Image.network(
-                              config.resolveUrl(post.imageUrl).toString(),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, error, stackTrace) =>
-                                  const SizedBox.shrink(),
-                            ),
+                            errorFallback: const SizedBox.shrink(),
                           ),
                         ],
                         const SizedBox(height: 14),
@@ -144,6 +185,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 return const SurfaceCard(child: Text('Henüz yorum yok.'));
               }
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: comments
                     .map(
                       (comment) => Padding(
@@ -152,17 +194,63 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                comment.authorName,
-                                style: Theme.of(context).textTheme.titleMedium,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  InkWell(
+                                    customBorder: const CircleBorder(),
+                                    onTap:
+                                        comment.userId == null ||
+                                            comment.userId! <= 0
+                                        ? null
+                                        : () => context.push(
+                                            '/members/${comment.userId}',
+                                          ),
+                                    child: RemoteAvatar(
+                                      label: comment.authorName,
+                                      imageUrl: config
+                                          .resolveUrl(comment.authorPhoto)
+                                          .toString(),
+                                      radius: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          comment.authorName,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
+                                          textAlign: TextAlign.left,
+                                        ),
+                                        if (comment.authorHandle.isNotEmpty)
+                                          Text(
+                                            '@${comment.authorHandle}',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                            textAlign: TextAlign.left,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 8),
-                              Text(comment.text),
+                              Text(
+                                plainTextFromRichContent(comment.text),
+                                textAlign: TextAlign.left,
+                              ),
                               if (comment.createdAt.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 Text(
                                   comment.createdAt,
                                   style: Theme.of(context).textTheme.bodySmall,
+                                  textAlign: TextAlign.left,
                                 ),
                               ],
                             ],

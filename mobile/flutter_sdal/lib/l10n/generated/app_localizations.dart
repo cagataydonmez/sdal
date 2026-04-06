@@ -197,7 +197,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabInbox.
   ///
   /// In tr, this message translates to:
-  /// **'İç Kutu'**
+  /// **'Mesajlar'**
   String get tabInbox;
 
   /// No description provided for @tabNotifications.

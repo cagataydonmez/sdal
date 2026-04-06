@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../features/messenger/data/messenger_repository.dart';
+import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
 
-class AppTabShell extends StatelessWidget {
+class AppTabShell extends ConsumerWidget {
   const AppTabShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
@@ -15,8 +18,12 @@ class AppTabShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    final unreadMessages =
+        ref.watch(messengerUnreadCountProvider).valueOrNull ?? 0;
+    final unreadNotifications =
+        ref.watch(notificationUnreadCountProvider).valueOrNull ?? 0;
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
@@ -34,13 +41,25 @@ class AppTabShell extends StatelessWidget {
             label: l10n.tabExplore,
           ),
           NavigationDestination(
-            icon: const Icon(Icons.chat_bubble_outline),
-            selectedIcon: const Icon(Icons.chat_bubble),
+            icon: _NavBadgeIcon(
+              icon: Icons.chat_bubble_outline,
+              count: unreadMessages,
+            ),
+            selectedIcon: _NavBadgeIcon(
+              icon: Icons.chat_bubble,
+              count: unreadMessages,
+            ),
             label: l10n.tabInbox,
           ),
           NavigationDestination(
-            icon: const Icon(Icons.notifications_outlined),
-            selectedIcon: const Icon(Icons.notifications),
+            icon: _NavBadgeIcon(
+              icon: Icons.notifications_outlined,
+              count: unreadNotifications,
+            ),
+            selectedIcon: _NavBadgeIcon(
+              icon: Icons.notifications,
+              count: unreadNotifications,
+            ),
             label: l10n.tabNotifications,
           ),
           NavigationDestination(
@@ -50,6 +69,48 @@ class AppTabShell extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _NavBadgeIcon extends StatelessWidget {
+  const _NavBadgeIcon({required this.icon, required this.count});
+
+  final IconData icon;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final badgeLabel = count > 99 ? '99+' : '$count';
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon),
+        if (count > 0)
+          Positioned(
+            right: -10,
+            top: -6,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Center(
+                child: Text(
+                  badgeLabel,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onError,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

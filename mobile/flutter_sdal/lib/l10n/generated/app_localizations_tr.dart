@@ -63,7 +63,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get tabExplore => 'Keşfet';
 
   @override
-  String get tabInbox => 'İç Kutu';
+  String get tabInbox => 'Mesajlar';
 
   @override
   String get tabNotifications => 'Bildirim';

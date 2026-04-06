@@ -5,8 +5,8 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart';
-import 'package:path_provider/path_provider.dart';
 import '../config/app_config.dart';
+import '../storage/app_support_directory.dart';
 import 'api_result.dart';
 import 'api_result_parser.dart';
 
@@ -23,7 +23,7 @@ class ApiClient {
   final PersistCookieJar _cookieJar;
 
   static Future<ApiClient> create(AppConfig config) async {
-    final supportDir = await getApplicationSupportDirectory();
+    final supportDir = await getSdalAppSupportDirectory();
     final cookieDir = Directory('${supportDir.path}/sdal_cookies');
     await cookieDir.create(recursive: true);
 
@@ -64,7 +64,9 @@ class ApiClient {
         ? Uri.parse(path)
         : config.siteBaseUri.resolve(path.startsWith('/') ? path : '/$path');
     final mergedQuery = {...raw.queryParameters, ..._normalizeQuery(query)};
-    return mergedQuery.isEmpty ? raw : raw.replace(queryParameters: mergedQuery);
+    return mergedQuery.isEmpty
+        ? raw
+        : raw.replace(queryParameters: mergedQuery);
   }
 
   Uri buildWebSocketUri(String path, {Map<String, dynamic>? query}) {

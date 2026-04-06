@@ -10,26 +10,43 @@ import '../../../core/theme/theme_mode_store.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../feed/data/feed_repository.dart';
+import '../../stories/data/stories_repository.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
 
-class ProfilePage extends ConsumerWidget {
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends ConsumerState<ProfilePage> {
+  FeedType _storyFeedType = FeedType.main;
+
+  @override
+  Widget build(BuildContext context) {
     final profileState = ref.watch(profileProvider);
     final session = ref.watch(sessionControllerProvider).valueOrNull;
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
+    final selectedFeedType = _storyFeedType.apiValue;
+    final expiredStories = ref
+        .watch(myExpiredStoriesProvider(selectedFeedType))
+        .valueOrNull;
+    final expiredStoriesCount = expiredStories?.length ?? 0;
 
     return FeatureScaffold(
       title: l10n.profileTitle,
       background: FeatureScaffoldBackground.neutral,
       actions: [
         IconButton(
-          onPressed: () => ref.invalidate(profileProvider),
+          onPressed: () {
+            ref.invalidate(profileProvider);
+            ref.invalidate(myStoriesProvider(selectedFeedType));
+          },
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -99,10 +116,43 @@ class ProfilePage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              StoriesRail(
-                mode: StoryRailMode.mine,
-                showUpload: true,
-                title: l10n.profileStoriesTitle,
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hikayeler',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    _FeedTypePicker(
+                      value: _storyFeedType,
+                      onChanged: (next) =>
+                          setState(() => _storyFeedType = next),
+                    ),
+                    const SizedBox(height: 16),
+                    StoriesRail(
+                      mode: StoryRailMode.mine,
+                      showUpload: false,
+                      title: _profileStoriesTitle(context, _storyFeedType),
+                      feedType: selectedFeedType,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.tonalIcon(
+                      onPressed: () => context.push(
+                        '/profile/stories/expired?feedType=$selectedFeedType',
+                      ),
+                      icon: const Icon(Icons.history_toggle_off_rounded),
+                      label: Text(
+                        expiredStories == null
+                            ? _expiredStoriesTitle(context, _storyFeedType)
+                            : expiredStoriesCount > 0
+                            ? '${_expiredStoriesTitle(context, _storyFeedType)} ($expiredStoriesCount)'
+                            : _expiredStoriesTitle(context, _storyFeedType),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -224,6 +274,55 @@ class ProfilePage extends ConsumerWidget {
   }
 }
 
+class _FeedTypePicker extends StatelessWidget {
+  const _FeedTypePicker({required this.value, required this.onChanged});
+
+  final FeedType value;
+  final ValueChanged<FeedType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<FeedType>(
+      segments: const [
+        ButtonSegment<FeedType>(value: FeedType.main, label: Text('Ana Akış')),
+        ButtonSegment<FeedType>(
+          value: FeedType.community,
+          label: Text('Topluluk'),
+        ),
+      ],
+      selected: {value},
+      onSelectionChanged: (selection) {
+        if (selection.isEmpty) return;
+        onChanged(selection.first);
+      },
+    );
+  }
+}
+
+String _profileStoriesTitle(BuildContext context, FeedType feedType) {
+  final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+  return switch (feedType) {
+    FeedType.main =>
+      isTurkish ? 'Ana Akış Hikayelerim' : 'My Main Feed Stories',
+    FeedType.community =>
+      isTurkish ? 'Topluluk Hikayelerim' : 'My Community Stories',
+  };
+}
+
+String _expiredStoriesTitle(BuildContext context, FeedType feedType) {
+  final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+  return switch (feedType) {
+    FeedType.main =>
+      isTurkish
+          ? 'Süresi Dolan Ana Akış Hikayeleri'
+          : 'Expired Main Feed Stories',
+    FeedType.community =>
+      isTurkish
+          ? 'Süresi Dolan Topluluk Hikayeleri'
+          : 'Expired Community Stories',
+  };
+}
+
 class _ProfileRow extends StatelessWidget {
   const _ProfileRow({required this.label, required this.value});
 
@@ -242,8 +341,8 @@ class _ProfileRow extends StatelessWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 4),
+                Text(label, style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 2),
                 Text(value),
               ],
             )
@@ -251,10 +350,10 @@ class _ProfileRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: 108,
+                  width: 110,
                   child: Text(
                     label,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.labelMedium,
                   ),
                 ),
                 Expanded(child: Text(value)),
@@ -265,6 +364,8 @@ class _ProfileRow extends StatelessWidget {
 }
 
 class _ThemeModePreferenceCard extends ConsumerWidget {
+  const _ThemeModePreferenceCard();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;

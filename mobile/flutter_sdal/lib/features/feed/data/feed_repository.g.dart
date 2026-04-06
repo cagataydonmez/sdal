@@ -8,6 +8,7 @@ part of 'feed_repository.dart';
 
 _$FeedAuthorImpl _$$FeedAuthorImplFromJson(Map<String, dynamic> json) =>
     _$FeedAuthorImpl(
+      id: readOptionalInt(json['id']),
       isim: readRequiredText(json['isim']),
       kadi: readRequiredText(json['kadi']),
       resim: readRequiredText(json['resim']),
@@ -15,6 +16,7 @@ _$FeedAuthorImpl _$$FeedAuthorImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$FeedAuthorImplToJson(_$FeedAuthorImpl instance) =>
     <String, dynamic>{
+      'id': instance.id,
       'isim': instance.isim,
       'kadi': instance.kadi,
       'resim': instance.resim,
@@ -60,6 +62,11 @@ _$FeedCommentImpl _$$FeedCommentImplFromJson(Map<String, dynamic> json) =>
       comment: readRequiredText(json['comment']),
       isim: readRequiredText(json['isim']),
       createdAt: readRequiredText(json['createdAt']),
+      userId: readOptionalInt(json['userId']),
+      kadi: readOptionalText(json['kadi']),
+      soyisim: readOptionalText(json['soyisim']),
+      resim: readOptionalText(json['resim']),
+      verified: readOptionalBool(json['verified']),
     );
 
 Map<String, dynamic> _$$FeedCommentImplToJson(_$FeedCommentImpl instance) =>
@@ -68,4 +75,9 @@ Map<String, dynamic> _$$FeedCommentImplToJson(_$FeedCommentImpl instance) =>
       'comment': instance.comment,
       'isim': instance.isim,
       'createdAt': instance.createdAt,
+      'userId': instance.userId,
+      'kadi': instance.kadi,
+      'soyisim': instance.soyisim,
+      'resim': instance.resim,
+      'verified': instance.verified,
     };

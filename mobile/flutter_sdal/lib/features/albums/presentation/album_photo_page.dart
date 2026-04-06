@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -238,12 +239,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
 }
 
 String _plainText(String raw) {
-  return raw
-      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-      .replaceAll(RegExp(r'<[^>]+>'), '')
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll('&amp;', '&')
-      .trim();
+  return plainTextFromRichContent(raw);
 }
 
 String _formatDate(String raw) {

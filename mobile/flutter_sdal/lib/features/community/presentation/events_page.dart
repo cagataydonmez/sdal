@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
@@ -223,9 +224,9 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             const SizedBox(height: 10),
             Text(
               _eventMeta(item),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Theme.of(context).sdal.foregroundMuted),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).sdal.foregroundMuted,
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -352,7 +353,11 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                             Text(
                               _formatDate(comment.createdAt),
                               style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: Theme.of(context).sdal.foregroundMuted),
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).sdal.foregroundMuted,
+                                  ),
                             ),
                             const SizedBox(height: 4),
                             Text(_plainText(comment.comment)),
@@ -676,12 +681,7 @@ class _VisibilityCardState extends State<_VisibilityCard> {
 }
 
 String _plainText(String raw) {
-  return raw
-      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-      .replaceAll(RegExp(r'<[^>]+>'), '')
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll('&amp;', '&')
-      .trim();
+  return plainTextFromRichContent(raw);
 }
 
 String _eventMeta(EventItem item) {

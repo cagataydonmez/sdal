@@ -178,29 +178,30 @@ class MessengerRealtimeService {
 
   IOWebSocketChannel? _channel;
   Timer? _reconnectTimer;
+  Timer? _reconnectIndicatorTimer;
   bool _connecting = false;
   bool _disposed = false;
   int _attempt = 0;
+  RealtimeConnectionState _currentState =
+      const RealtimeConnectionState.disconnected();
 
   Stream<MessengerRealtimeEvent> get events => _eventsController.stream;
   Stream<RealtimeConnectionState> get states => _statesController.stream;
+  RealtimeConnectionState get currentState => _currentState;
 
   Future<void> start() async {
     if (_disposed || _connecting || _channel != null) return;
+    _emitState(
+      const RealtimeConnectionState(
+        status: RealtimeConnectionStatus.connecting,
+      ),
+    );
     await _connect();
   }
 
   Future<void> _connect() async {
     if (_disposed) return;
     _connecting = true;
-    _statesController.add(
-      RealtimeConnectionState(
-        status: _attempt == 0
-            ? RealtimeConnectionStatus.connecting
-            : RealtimeConnectionStatus.reconnecting,
-        attempt: _attempt,
-      ),
-    );
 
     try {
       final uri = _apiClient.buildWebSocketUri('/ws/messenger');
@@ -214,7 +215,8 @@ class MessengerRealtimeService {
       _channel = channel;
       _connecting = false;
       _attempt = 0;
-      _statesController.add(
+      _reconnectIndicatorTimer?.cancel();
+      _emitState(
         const RealtimeConnectionState(
           status: RealtimeConnectionStatus.connected,
         ),
@@ -261,13 +263,23 @@ class MessengerRealtimeService {
 
     _attempt += 1;
     final delay = Duration(seconds: _attempt > 5 ? 5 : _attempt);
-    _statesController.add(
-      RealtimeConnectionState(
-        status: RealtimeConnectionStatus.reconnecting,
-        message: error?.toString(),
-        attempt: _attempt,
-      ),
+    final nextState = RealtimeConnectionState(
+      status: _attempt >= 3
+          ? RealtimeConnectionStatus.failed
+          : RealtimeConnectionStatus.reconnecting,
+      message: error?.toString(),
+      attempt: _attempt,
     );
+
+    _reconnectIndicatorTimer?.cancel();
+    if (_currentState.status == RealtimeConnectionStatus.connected) {
+      _reconnectIndicatorTimer = Timer(const Duration(seconds: 2), () {
+        if (_disposed || _channel != null || _connecting) return;
+        _emitState(nextState);
+      });
+    } else {
+      _emitState(nextState);
+    }
 
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(delay, () {
@@ -279,10 +291,21 @@ class MessengerRealtimeService {
   Future<void> dispose() async {
     _disposed = true;
     _reconnectTimer?.cancel();
+    _reconnectIndicatorTimer?.cancel();
     await _channel?.sink.close();
     _channel = null;
     await _eventsController.close();
     await _statesController.close();
+  }
+
+  void _emitState(RealtimeConnectionState nextState) {
+    if (_currentState.status == nextState.status &&
+        _currentState.message == nextState.message &&
+        _currentState.attempt == nextState.attempt) {
+      return;
+    }
+    _currentState = nextState;
+    _statesController.add(nextState);
   }
 }
 
@@ -305,6 +328,13 @@ final messengerThreadsProvider = FutureProvider.autoDispose
       (ref, query) =>
           ref.watch(messengerRepositoryProvider).fetchThreads(query: query),
     );
+
+final messengerUnreadCountProvider = FutureProvider.autoDispose<int>((
+  ref,
+) async {
+  final threads = await ref.watch(messengerThreadsProvider('').future);
+  return threads.fold<int>(0, (sum, thread) => sum + thread.unreadCount);
+});
 
 final messengerMessagesProvider = FutureProvider.autoDispose
     .family<List<MessengerMessage>, int>(

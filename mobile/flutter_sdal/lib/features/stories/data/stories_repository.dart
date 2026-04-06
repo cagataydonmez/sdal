@@ -91,6 +91,19 @@ class StoryItem {
     return variantUrl.isNotEmpty ? variantUrl : image;
   }
 
+  bool get isExpiredResolved {
+    final now = DateTime.now();
+    final expiresAtDate = DateTime.tryParse(expiresAt);
+    if (expiresAtDate != null) {
+      return !expiresAtDate.isAfter(now);
+    }
+    final createdAtDate = DateTime.tryParse(createdAt);
+    if (createdAtDate != null) {
+      return !createdAtDate.add(const Duration(hours: 24)).isAfter(now);
+    }
+    return isExpired;
+  }
+
   factory StoryItem.fromMap(JsonMap map) {
     final authorMap = asJsonMap(map['author']);
     final variantsMap = asJsonMap(map['variants']);
@@ -194,13 +207,35 @@ final storiesRepositoryProvider = Provider<StoriesRepository>(
   (ref) => StoriesRepository(ref.watch(apiClientProvider)),
 );
 
-final feedStoriesProvider = FutureProvider.autoDispose<List<StoryItem>>((ref) {
-  return ref.watch(storiesRepositoryProvider).fetchFeedStories();
-});
+final feedStoriesProvider = FutureProvider.autoDispose
+    .family<List<StoryItem>, String>((ref, feedType) {
+      return ref
+          .watch(storiesRepositoryProvider)
+          .fetchFeedStories(feedType: feedType);
+    });
 
-final myStoriesProvider = FutureProvider.autoDispose<List<StoryItem>>((ref) {
-  return ref.watch(storiesRepositoryProvider).fetchMyStories();
-});
+final myStoriesProvider = FutureProvider.autoDispose
+    .family<List<StoryItem>, String>((ref, feedType) {
+      return ref
+          .watch(storiesRepositoryProvider)
+          .fetchMyStories(feedType: feedType);
+    });
+
+final myActiveStoriesProvider = FutureProvider.autoDispose
+    .family<List<StoryItem>, String>((ref, feedType) async {
+      final items = await ref.watch(myStoriesProvider(feedType).future);
+      return items
+          .where((item) => !item.isExpiredResolved)
+          .toList(growable: false);
+    });
+
+final myExpiredStoriesProvider = FutureProvider.autoDispose
+    .family<List<StoryItem>, String>((ref, feedType) async {
+      final items = await ref.watch(myStoriesProvider(feedType).future);
+      return items
+          .where((item) => item.isExpiredResolved)
+          .toList(growable: false);
+    });
 
 final memberStoriesProvider = FutureProvider.autoDispose
     .family<List<StoryItem>, int>((ref, memberId) {

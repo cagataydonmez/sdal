@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import '../storage/app_support_directory.dart';
 
 enum ThemeModePreference { system, light, dark }
 
@@ -28,7 +28,7 @@ class ThemeModeStore {
   final File _file;
 
   static Future<ThemeModeStore> create() async {
-    final supportDir = await getApplicationSupportDirectory();
+    final supportDir = await getSdalAppSupportDirectory();
     final file = File('${supportDir.path}/sdal_theme_mode.json');
     return ThemeModeStore._(file);
   }
