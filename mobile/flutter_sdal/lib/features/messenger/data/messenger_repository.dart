@@ -126,6 +126,7 @@ class MessengerRepository {
       '/api/sdal-messenger/threads/$threadId/messages',
       query: {
         'limit': safeLimit,
+        if ((beforeId ?? 0) > 0) 'before': beforeId,
         if ((beforeId ?? 0) > 0) 'beforeId': beforeId,
       },
       decoder: asJsonMap,
@@ -151,12 +152,22 @@ class MessengerRepository {
     return items.map(MessengerContact.fromMap).toList(growable: false);
   }
 
-  Future<int?> createThread(int userId) async {
+  Future<int?> createThread(int userId) {
+    return createThreadWithRecipients(<int>[userId]);
+  }
+
+  Future<int?> createThreadWithRecipients(List<int> recipientIds) async {
+    final normalizedRecipientIds = recipientIds
+        .where((value) => value > 0)
+        .toSet()
+        .toList(growable: false);
+    if (normalizedRecipientIds.isEmpty) return null;
     final result = await _apiClient.post<JsonMap>(
       '/api/sdal-messenger/threads',
       body: {
-        'recipientIds': [userId],
-        'userId': userId,
+        'recipientIds': normalizedRecipientIds,
+        if (normalizedRecipientIds.length == 1)
+          'userId': normalizedRecipientIds.first,
       },
       decoder: asJsonMap,
     );

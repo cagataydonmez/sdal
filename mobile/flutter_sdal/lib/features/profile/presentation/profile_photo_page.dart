@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -34,7 +35,7 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
       title: l10n.profilePhotoAction,
       child: profileState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(error.toString())),
+        error: (error, _) => const ErrorView(),
         data: (profile) {
           if (profile == null) {
             return const Center(child: Text('Profil bulunamadı.'));

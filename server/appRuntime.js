@@ -4185,6 +4185,8 @@ app.get('/api/new/posts/:id/comments', requireAuth, phase1Domain.controllers.pos
 
 app.post('/api/new/posts/:id/comments', requireAuth, commentWriteRateLimit, phase1Domain.controllers.posts.createComment);
 
+app.delete('/api/new/posts/:id/comments/:commentId', requireAuth, phase1Domain.controllers.posts.deleteComment);
+
 registerNotificationRoutes(app, {
   requireAuth,
   requireAdmin,

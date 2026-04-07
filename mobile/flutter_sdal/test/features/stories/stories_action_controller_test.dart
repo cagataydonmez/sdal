@@ -16,11 +16,11 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final ok = await container
+    final result = await container
         .read(storiesActionControllerProvider.notifier)
         .uploadStory(imageFile: File('/tmp/story.jpg'), caption: 'Merhaba');
 
-    expect(ok, isTrue);
+    expect(result, isNotNull);
     final state = container.read(storiesActionControllerProvider);
     expect(state.status, AsyncActionStatus.success);
     expect(state.scope, 'stories:upload');
@@ -31,18 +31,18 @@ class _FakeStoriesRepository extends StoriesRepository {
   _FakeStoriesRepository() : super(FakeApiClient());
 
   @override
-  Future<ApiResult<dynamic>> uploadStory({
+  Future<ApiResult<StoryMutationResult>> uploadStory({
     required File imageFile,
     required String caption,
     String feedType = 'main',
   }) async {
-    return ApiResult<dynamic>(
+    return const ApiResult<StoryMutationResult>(
       ok: true,
       statusCode: 200,
       message: 'ok',
       code: '',
-      data: null,
-      rawData: const <String, dynamic>{'ok': true},
+      data: StoryMutationResult(id: 1, image: '/story.jpg'),
+      rawData: <String, dynamic>{'ok': true},
     );
   }
 }

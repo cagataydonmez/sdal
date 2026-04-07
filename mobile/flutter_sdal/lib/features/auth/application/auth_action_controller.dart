@@ -4,6 +4,22 @@ import '../../../app/providers.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/state/async_action_state.dart';
 import '../../../core/session/session_controller.dart';
+import '../data/auth_repository.dart';
+
+typedef OAuthAuthenticate =
+    Future<String> Function({
+      required String url,
+      required String callbackUrlScheme,
+    });
+
+final oauthAuthenticateProvider = Provider<OAuthAuthenticate>(
+  (ref) =>
+      ({required String url, required String callbackUrlScheme}) =>
+          FlutterWebAuth2.authenticate(
+            url: url,
+            callbackUrlScheme: callbackUrlScheme,
+          ),
+);
 
 class AuthActionController extends AutoDisposeNotifier<AsyncActionState> {
   @override
@@ -26,46 +42,32 @@ class AuthActionController extends AutoDisposeNotifier<AsyncActionState> {
     state = const AsyncActionState.loading(scope: 'oauth');
 
     try {
-      final providers = await ref
-          .read(sessionControllerProvider.notifier)
-          .fetchOAuthProviders();
-      final target = providers.firstWhere((item) => item.provider == provider);
-      final config = ref.read(appConfigProvider);
-      final apiClient = ref.read(apiClientProvider);
-      final authUri = apiClient.buildApiUri(
-        target.startUrl,
-        query: const {'native': '1'},
-      );
-      final callbackUrl = await FlutterWebAuth2.authenticate(
-        url: authUri.toString(),
-        callbackUrlScheme: config.oauthCallbackScheme,
-      );
-      final callback = Uri.parse(callbackUrl);
-      final token = callback.queryParameters['token'];
-      final oauthError = callback.queryParameters['oauth'];
-      if (oauthError != null && oauthError.isNotEmpty) {
+      final result = await ref
+          .read(authRepositoryProvider)
+          .runOAuthFlow(
+            provider: provider,
+            authenticate: ref.read(oauthAuthenticateProvider),
+          );
+      if (!result.providerAvailable || result.errorMessage.isNotEmpty) {
         state = AsyncActionState.error(
-          message: 'OAuth akışı tamamlanamadı: $oauthError',
-          scope: 'oauth',
-        );
-        return;
-      }
-      if (token == null || token.isEmpty) {
-        state = const AsyncActionState.error(
-          message: 'OAuth dönüşünde oturum jetonu bulunamadı.',
+          message: result.errorMessage,
           scope: 'oauth',
         );
         return;
       }
       final message = await ref
           .read(sessionControllerProvider.notifier)
-          .exchangeMobileOAuthToken(token);
+          .exchangeMobileOAuthToken(result.token);
       state = message == null
           ? const AsyncActionState.success(scope: 'oauth')
           : AsyncActionState.error(message: message, scope: 'oauth');
     } catch (error) {
       state = AsyncActionState.error(message: error.toString(), scope: 'oauth');
     }
+  }
+
+  Future<String> fetchLegalContent(String path) {
+    return ref.read(authRepositoryProvider).fetchLegalContent(path);
   }
 
   Future<void> register({

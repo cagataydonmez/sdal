@@ -86,6 +86,33 @@ class StoryItem {
   final StoryAuthor? author;
   final StoryMediaVariants? variants;
 
+  StoryItem copyWith({
+    String? image,
+    String? caption,
+    String? createdAt,
+    String? expiresAt,
+    bool? isExpired,
+    bool? viewed,
+    int? groupId,
+    int? viewCount,
+    StoryAuthor? author,
+    StoryMediaVariants? variants,
+  }) {
+    return StoryItem(
+      id: id,
+      image: image ?? this.image,
+      caption: caption ?? this.caption,
+      createdAt: createdAt ?? this.createdAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      isExpired: isExpired ?? this.isExpired,
+      viewed: viewed ?? this.viewed,
+      groupId: groupId ?? this.groupId,
+      viewCount: viewCount ?? this.viewCount,
+      author: author ?? this.author,
+      variants: variants ?? this.variants,
+    );
+  }
+
   String get mediaUrl {
     final variantUrl = variants?.fullUrl ?? variants?.feedUrl ?? '';
     return variantUrl.isNotEmpty ? variantUrl : image;
@@ -256,11 +283,75 @@ final storiesRepositoryProvider = Provider<StoriesRepository>(
   (ref) => StoriesRepository(ref.watch(apiClientProvider)),
 );
 
+typedef StoryOverlayState = Map<int, StoryItem?>;
+
+class StoryOverlayController extends StateNotifier<StoryOverlayState> {
+  StoryOverlayController() : super(const {});
+
+  void upsert(StoryItem item) {
+    state = {...state, item.id: item};
+  }
+
+  void remove(int storyId) {
+    state = {...state, storyId: null};
+  }
+
+  void clear() {
+    state = const {};
+  }
+}
+
+final feedStoryOverlayProvider = StateNotifierProvider.autoDispose
+    .family<StoryOverlayController, StoryOverlayState, String>(
+      (ref, feedType) => StoryOverlayController(),
+    );
+
+final myStoryOverlayProvider = StateNotifierProvider.autoDispose
+    .family<StoryOverlayController, StoryOverlayState, String>(
+      (ref, feedType) => StoryOverlayController(),
+    );
+
+List<StoryItem> _mergeStoryItems(
+  List<StoryItem> base,
+  StoryOverlayState overlay,
+) {
+  final merged = <int, StoryItem>{for (final item in base) item.id: item};
+  final newItems = <StoryItem>[];
+
+  for (final entry in overlay.entries) {
+    final item = entry.value;
+    if (item == null) {
+      merged.remove(entry.key);
+      continue;
+    }
+    final existed = merged.containsKey(entry.key);
+    merged[entry.key] = item;
+    if (!existed) {
+      newItems.add(item);
+    }
+  }
+
+  final items = [
+    ...newItems,
+    for (final item in base)
+      if (merged.containsKey(item.id)) merged[item.id]!,
+  ];
+  items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return items;
+}
+
 final feedStoriesProvider = FutureProvider.autoDispose
     .family<List<StoryItem>, String>((ref, feedType) {
       return ref
           .watch(storiesRepositoryProvider)
           .fetchFeedStories(feedType: feedType);
+    });
+
+final optimisticFeedStoriesProvider = Provider.autoDispose
+    .family<AsyncValue<List<StoryItem>>, String>((ref, feedType) {
+      final items = ref.watch(feedStoriesProvider(feedType));
+      final overlay = ref.watch(feedStoryOverlayProvider(feedType));
+      return items.whenData((value) => _mergeStoryItems(value, overlay));
     });
 
 final myStoriesProvider = FutureProvider.autoDispose
@@ -270,20 +361,31 @@ final myStoriesProvider = FutureProvider.autoDispose
           .fetchMyStories(feedType: feedType);
     });
 
-final myActiveStoriesProvider = FutureProvider.autoDispose
-    .family<List<StoryItem>, String>((ref, feedType) async {
-      final items = await ref.watch(myStoriesProvider(feedType).future);
-      return items
-          .where((item) => !item.isExpiredResolved)
-          .toList(growable: false);
+final optimisticMyStoriesProvider = Provider.autoDispose
+    .family<AsyncValue<List<StoryItem>>, String>((ref, feedType) {
+      final items = ref.watch(myStoriesProvider(feedType));
+      final overlay = ref.watch(myStoryOverlayProvider(feedType));
+      return items.whenData((value) => _mergeStoryItems(value, overlay));
     });
 
-final myExpiredStoriesProvider = FutureProvider.autoDispose
-    .family<List<StoryItem>, String>((ref, feedType) async {
-      final items = await ref.watch(myStoriesProvider(feedType).future);
-      return items
-          .where((item) => item.isExpiredResolved)
-          .toList(growable: false);
+final myActiveStoriesProvider = Provider.autoDispose
+    .family<AsyncValue<List<StoryItem>>, String>((ref, feedType) {
+      final items = ref.watch(optimisticMyStoriesProvider(feedType));
+      return items.whenData(
+        (value) => value
+            .where((item) => !item.isExpiredResolved)
+            .toList(growable: false),
+      );
+    });
+
+final myExpiredStoriesProvider = Provider.autoDispose
+    .family<AsyncValue<List<StoryItem>>, String>((ref, feedType) {
+      final items = ref.watch(optimisticMyStoriesProvider(feedType));
+      return items.whenData(
+        (value) => value
+            .where((item) => item.isExpiredResolved)
+            .toList(growable: false),
+      );
     });
 
 final memberStoriesProvider = FutureProvider.autoDispose

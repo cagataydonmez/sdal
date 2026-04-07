@@ -7,6 +7,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
@@ -23,6 +24,7 @@ class GroupDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detailState = ref.watch(groupDetailProvider(groupId));
+    final postsState = ref.watch(groupPostsProvider(groupId));
     final config = ref.watch(appConfigProvider);
     final session = ref.watch(sessionControllerProvider).valueOrNull;
     final currentUserId = session?.user?.id ?? 0;
@@ -33,19 +35,27 @@ class GroupDetailPage extends ConsumerWidget {
       background: FeatureScaffoldBackground.editorial,
       actions: [
         IconButton(
-          onPressed: () => ref.invalidate(groupDetailProvider(groupId)),
+          onPressed: () {
+            ref.invalidate(groupDetailProvider(groupId));
+            ref.invalidate(groupPostsProvider(groupId));
+          },
           icon: const Icon(Icons.refresh),
         ),
       ],
       child: detailState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(error.toString())),
+        error: (error, _) => const ErrorView(),
         data: (detail) {
           if (detail == null) {
             return Center(child: Text(l10n.groupNotFound));
           }
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(groupDetailProvider(groupId).future),
+            onRefresh: () async {
+              ref.invalidate(groupDetailProvider(groupId));
+              ref.invalidate(groupPostsProvider(groupId));
+              await ref.read(groupDetailProvider(groupId).future);
+              await ref.read(groupPostsProvider(groupId).future);
+            },
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
@@ -111,16 +121,25 @@ class GroupDetailPage extends ConsumerWidget {
                             child: Text(l10n.groupCreatePostAction),
                           )
                         : null,
-                    child: detail.posts.isEmpty
-                        ? Text(l10n.groupNoPosts)
-                        : Column(
-                            children: [
-                              for (final post in detail.posts) ...[
-                                _GroupPostTile(post: post),
-                                const SizedBox(height: 12),
+                    child: postsState.when(
+                      loading: () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                      error: (error, _) => const ErrorView(compact: true),
+                      data: (posts) => posts.isEmpty
+                          ? Text(l10n.groupNoPosts)
+                          : Column(
+                              children: [
+                                for (final post in posts) ...[
+                                  _GroupPostTile(post: post),
+                                  const SizedBox(height: 12),
+                                ],
                               ],
-                            ],
-                          ),
+                            ),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   _TimelineSection(
@@ -163,6 +182,7 @@ class GroupDetailPage extends ConsumerWidget {
                                     );
                                 if (ok) {
                                   ref.invalidate(groupDetailProvider(groupId));
+                                  ref.invalidate(groupPostsProvider(groupId));
                                 }
                               },
                             ),
@@ -205,9 +225,39 @@ Future<void> _toggleJoin(
   WidgetRef ref,
   int groupId,
 ) async {
-  await ref.read(groupsActionControllerProvider.notifier).toggleJoin(groupId);
+  final detail = ref.read(groupDetailProvider(groupId)).valueOrNull;
+  final membershipStatus = detail?.membershipStatus ?? '';
+  final notifier = ref.read(groupsActionControllerProvider.notifier);
+  if (membershipStatus == 'member') {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gruptan ayrılsın mı?'),
+        content: const Text(
+          'Üyeliğiniz kaldırılacak. Daha sonra tekrar katılım isteği göndermeniz gerekebilir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Ayrıl'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final status = await notifier.leaveGroup(groupId);
+    if (status == null) return;
+  } else {
+    final status = await notifier.toggleJoin(groupId);
+    if (status == null) return;
+  }
   ref.invalidate(groupsListProvider);
   ref.invalidate(groupDetailProvider(groupId));
+  ref.invalidate(groupPostsProvider(groupId));
 }
 
 Future<void> _respondInvite(
@@ -223,6 +273,7 @@ Future<void> _respondInvite(
   if (!ok) return;
   ref.invalidate(groupsListProvider);
   ref.invalidate(groupDetailProvider(groupId));
+  ref.invalidate(groupPostsProvider(groupId));
 }
 
 Future<void> _pickCover(BuildContext context, WidgetRef ref) async {
@@ -238,6 +289,7 @@ Future<void> _pickCover(BuildContext context, WidgetRef ref) async {
   if (!ok) return;
   ref.invalidate(groupsListProvider);
   ref.invalidate(groupDetailProvider(groupId));
+  ref.invalidate(groupPostsProvider(groupId));
 }
 
 Future<void> _deleteEvent(
@@ -1353,6 +1405,7 @@ class _PostSheetState extends ConsumerState<_PostSheet> {
                             );
                         if (!context.mounted || !ok) return;
                         ref.invalidate(groupDetailProvider(widget.groupId));
+                        ref.invalidate(groupPostsProvider(widget.groupId));
                         Navigator.of(context).pop();
                       },
                 child: Text(
@@ -1469,6 +1522,7 @@ class _EventSheetState extends ConsumerState<_EventSheet> {
                             );
                         if (!context.mounted || !ok) return;
                         ref.invalidate(groupDetailProvider(widget.groupId));
+                        ref.invalidate(groupPostsProvider(widget.groupId));
                         Navigator.of(context).pop();
                       },
                 child: Text(
@@ -1553,6 +1607,7 @@ class _AnnouncementSheetState extends ConsumerState<_AnnouncementSheet> {
                           );
                       if (!context.mounted || !ok) return;
                       ref.invalidate(groupDetailProvider(widget.groupId));
+                      ref.invalidate(groupPostsProvider(widget.groupId));
                       Navigator.of(context).pop();
                     },
               child: Text(

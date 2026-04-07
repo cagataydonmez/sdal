@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -20,6 +21,10 @@ class ExplorePage extends ConsumerStatefulWidget {
 
 class _ExplorePageState extends ConsumerState<ExplorePage> {
   String _suggestionTelemetryKey = '';
+  final _queryController = TextEditingController();
+  final _yearController = TextEditingController();
+  final _cityController = TextEditingController();
+  DirectoryMembersQuery _directoryQuery = const DirectoryMembersQuery();
 
   @override
   void initState() {
@@ -39,10 +44,18 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   }
 
   @override
+  void dispose() {
+    _queryController.dispose();
+    _yearController.dispose();
+    _cityController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final latestState = ref.watch(latestMembersProvider);
     final suggestionsState = ref.watch(suggestionMembersProvider);
-    final directoryState = ref.watch(directoryMembersProvider);
+    final directoryState = ref.watch(directoryMembersProvider(_directoryQuery));
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
 
@@ -54,7 +67,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           onPressed: () {
             ref.invalidate(latestMembersProvider);
             ref.invalidate(suggestionMembersProvider);
-            ref.invalidate(directoryMembersProvider);
+            ref.invalidate(directoryMembersProvider(_directoryQuery));
           },
           icon: const Icon(Icons.refresh),
         ),
@@ -66,7 +79,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           const SizedBox(height: 12),
           latestState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (items) => items.isEmpty
                 ? const SizedBox.shrink()
                 : SizedBox(
@@ -106,7 +119,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           const SizedBox(height: 12),
           suggestionsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (items) {
               _trackExploreSuggestions(items);
               return items.isEmpty
@@ -188,30 +201,138 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
-          directoryState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
-            data: (items) => Column(
-              children: items
-                  .map(
-                    (member) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _MemberCard(
-                        member: member,
-                        compact: true,
-                        onTap: () => context.push('/members/${member.id}'),
-                        imageUrl: config.resolveUrl(member.photo).toString(),
-                        onFollow: () async {
-                          await ref
-                              .read(exploreRepositoryProvider)
-                              .follow(member.id);
-                          ref.invalidate(latestMembersProvider);
-                          ref.invalidate(directoryMembersProvider);
-                        },
+          SurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Dizin filtreleri',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _queryController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ara',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _yearController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Mezuniyet yılı',
+                        ),
                       ),
                     ),
-                  )
-                  .toList(growable: false),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _cityController,
+                        decoration: const InputDecoration(labelText: 'Şehir'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton.tonal(
+                      onPressed: () {
+                        setState(() {
+                          _directoryQuery = DirectoryMembersQuery(
+                            query: _queryController.text.trim(),
+                            year: _yearController.text.trim(),
+                            city: _cityController.text.trim(),
+                            page: 1,
+                          );
+                        });
+                      },
+                      child: const Text('Filtreleri uygula'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        _queryController.clear();
+                        _yearController.clear();
+                        _cityController.clear();
+                        setState(() {
+                          _directoryQuery = const DirectoryMembersQuery();
+                        });
+                      },
+                      child: const Text('Temizle'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          directoryState.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => const ErrorView(compact: true),
+            data: (items) => Column(
+              children: [
+                ...items.map(
+                  (member) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _MemberCard(
+                      member: member,
+                      compact: true,
+                      onTap: () => context.push('/members/${member.id}'),
+                      imageUrl: config.resolveUrl(member.photo).toString(),
+                      onFollow: () async {
+                        await ref
+                            .read(exploreRepositoryProvider)
+                            .follow(member.id);
+                        ref.invalidate(latestMembersProvider);
+                        ref.invalidate(
+                          directoryMembersProvider(_directoryQuery),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                if (items.isNotEmpty)
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: _directoryQuery.page > 1
+                            ? () => setState(() {
+                                _directoryQuery = DirectoryMembersQuery(
+                                  query: _directoryQuery.query,
+                                  year: _directoryQuery.year,
+                                  city: _directoryQuery.city,
+                                  page: _directoryQuery.page - 1,
+                                );
+                              })
+                            : null,
+                        child: const Text('Önceki'),
+                      ),
+                      const Spacer(),
+                      Text('Sayfa ${_directoryQuery.page}'),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: items.length >= 20
+                            ? () => setState(() {
+                                _directoryQuery = DirectoryMembersQuery(
+                                  query: _directoryQuery.query,
+                                  year: _directoryQuery.year,
+                                  city: _directoryQuery.city,
+                                  page: _directoryQuery.page + 1,
+                                );
+                              })
+                            : null,
+                        child: const Text('Sonraki'),
+                      ),
+                    ],
+                  ),
+              ],
             ),
           ),
         ],

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/auth_action_controller.dart';
 
@@ -398,7 +399,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             const SizedBox(height: 8),
             Text(
               _availabilityMessage!,
-              style: TextStyle(color: Colors.green.shade700),
+              style: TextStyle(color: Theme.of(context).sdal.success),
             ),
           ],
           if (_availabilityError != null) ...[
@@ -441,6 +442,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               'KVKK Aydınlatma Metni\'ni okudum ve onaylıyorum.',
             ),
           ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => context.push(
+                '/legal',
+                extra: const {'title': 'KVKK Aydınlatma Metni', 'path': '/kvkk'},
+              ),
+              child: const Text('KVKK metnini aç'),
+            ),
+          ),
           CheckboxListTile(
             value: _directoryConsent,
             onChanged: submitting
@@ -449,6 +460,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             title: const Text('Mezun Rehberi açık rıza onayını veriyorum.'),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => context.push(
+                '/legal',
+                extra: const {
+                  'title': 'Mezun Rehberi Açık Rıza Metni',
+                  'path': '/kvkk/acik-riza',
+                },
+              ),
+              child: const Text('Açık rıza metnini aç'),
+            ),
           ),
           const SizedBox(height: 16),
           if (_captchaSvg != null) ...[
@@ -469,7 +493,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               statusText,
               style: TextStyle(
                 color: isSuccessState
-                    ? Colors.green.shade700
+                    ? Theme.of(context).sdal.success
                     : Theme.of(context).colorScheme.error,
               ),
             ),
@@ -727,22 +751,23 @@ class _AuthFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     final canPop = Navigator.of(context).canPop();
     return Scaffold(
       appBar: canPop
           ? AppBar(
-              backgroundColor: const Color(0xFF0D2238),
-              foregroundColor: Colors.white,
+              backgroundColor: tokens.accent,
+              foregroundColor: tokens.foregroundOnAccent,
               elevation: 0,
             )
           : null,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D2238), Color(0xFFF4F7FB)],
-            stops: [0, 0.35],
+            colors: [tokens.accent, tokens.canvas],
+            stops: const [0, 0.38],
           ),
         ),
         child: SafeArea(
@@ -760,10 +785,14 @@ class _AuthFrame extends StatelessWidget {
                         Text(
                           title,
                           style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(color: const Color(0xFF0D2238)),
+                              ?.copyWith(color: tokens.foreground),
                         ),
                         const SizedBox(height: 8),
-                        Text(subtitle),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: tokens.foregroundMuted),
+                        ),
                         const SizedBox(height: 20),
                         child,
                         if (footer != null) ...[

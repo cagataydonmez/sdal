@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
@@ -49,7 +50,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         children: [
           postState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (post) => post == null
                 ? const Text('Gönderi bulunamadı.')
                 : SurfaceCard(
@@ -105,9 +106,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                         feedActionControllerProvider.notifier,
                                       )
                                       .deletePost(widget.postId);
-                                  if (!mounted) return;
+                                  if (!context.mounted) return;
                                   if (ok) {
                                     context.pop();
+                                    return;
                                   }
                                   final nextState = ref.read(
                                     feedActionControllerProvider,
@@ -205,7 +207,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
           const SizedBox(height: 12),
           commentsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (comments) {
               if (comments.isEmpty) {
                 return const SurfaceCard(child: Text('Henüz yorum yok.'));
@@ -264,6 +266,71 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                       ],
                                     ),
                                   ),
+                                  if (session?.user?.id != null &&
+                                      session!.user!.id == comment.userId)
+                                    PopupMenuButton<String>(
+                                      onSelected: (value) async {
+                                        if (value != 'delete') return;
+                                        final approved = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: const Text('Yorumu sil'),
+                                            content: const Text(
+                                              'Bu yorumu silmek istiyor musun?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(
+                                                  context,
+                                                ).pop(false),
+                                                child: Text(l10n.cancelAction),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () => Navigator.of(
+                                                  context,
+                                                ).pop(true),
+                                                child: Text(l10n.deleteAction),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (approved != true ||
+                                            !context.mounted) {
+                                          return;
+                                        }
+                                        final ok = await ref
+                                            .read(
+                                              feedActionControllerProvider
+                                                  .notifier,
+                                            )
+                                            .deleteComment(
+                                              postId: widget.postId,
+                                              commentId: comment.id,
+                                            );
+                                        if (!context.mounted) return;
+                                        final nextState = ref.read(
+                                          feedActionControllerProvider,
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              nextState.message ??
+                                                  (ok
+                                                      ? 'Yorum silindi.'
+                                                      : 'Yorum silinemedi.'),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      itemBuilder: (context) => [
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text(l10n.deleteAction),
+                                        ),
+                                      ],
+                                    ),
                                 ],
                               ),
                               const SizedBox(height: 8),

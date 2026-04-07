@@ -579,7 +579,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ).showSnackBar(const SnackBar(content: Text('İşlem tamamlanamadı.')));
     }
   }
 

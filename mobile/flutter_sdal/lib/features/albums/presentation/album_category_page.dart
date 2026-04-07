@@ -20,6 +20,8 @@ class AlbumCategoryPage extends ConsumerStatefulWidget {
 class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
   AlbumCategoryDetail? _detail;
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
   String _error = '';
 
   @override
@@ -103,6 +105,20 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
                 );
               },
             ),
+            if (_hasMore) ...[
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.center,
+                child: FilledButton.tonal(
+                  onPressed: _isLoadingMore ? null : _loadMore,
+                  child: Text(
+                    _isLoadingMore
+                        ? l10n.submitInProgress
+                        : l10n.albumsLoadMore,
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -113,18 +129,54 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
     setState(() {
       _isLoading = true;
       _error = '';
+      _hasMore = true;
     });
     try {
       final detail = await ref
           .read(albumsRepositoryProvider)
           .fetchCategoryDetail(widget.categoryId);
       if (!mounted) return;
-      setState(() => _detail = detail);
+      setState(() {
+        _detail = detail;
+        _hasMore = detail.hasMore;
+      });
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final detail = _detail;
+    if (detail == null || _isLoading || _isLoadingMore || !_hasMore) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final nextPage = await ref
+          .read(albumsRepositoryProvider)
+          .fetchCategoryDetail(widget.categoryId, page: detail.page + 1);
+      if (!mounted) return;
+      setState(() {
+        _detail = AlbumCategoryDetail(
+          id: nextPage.id,
+          title: nextPage.title,
+          description: nextPage.description,
+          photos: [...detail.photos, ...nextPage.photos],
+          page: nextPage.page,
+          pages: nextPage.pages,
+        );
+        _hasMore = nextPage.hasMore;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Daha fazla yüklenemedi.')));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
     }
   }
 }

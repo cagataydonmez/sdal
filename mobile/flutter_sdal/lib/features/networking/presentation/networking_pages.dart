@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_result.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -60,7 +61,7 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
         error: (error, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(error.toString()),
+            child: const ErrorView(compact: true),
           ),
         ),
         data: (hub) => ListView(
@@ -328,7 +329,7 @@ class NetworkingInboxPage extends ConsumerWidget {
       ],
       child: inboxState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(error.toString())),
+        error: (error, _) => const ErrorView(),
         data: (inbox) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -407,14 +408,18 @@ class _ConnectionRequestsBrowser extends ConsumerStatefulWidget {
 
 class _ConnectionRequestsBrowserState
     extends ConsumerState<_ConnectionRequestsBrowser> {
+  static const int _pageSize = 30;
   NetworkRequestDirection _direction = NetworkRequestDirection.incoming;
   ConnectionRequestStatus _status = ConnectionRequestStatus.pending;
+  int _page = 1;
 
   @override
   Widget build(BuildContext context) {
     final query = ConnectionRequestQuery(
       direction: _direction,
       status: _status,
+      limit: _pageSize,
+      offset: (_page - 1) * _pageSize,
     );
     final state = ref.watch(connectionRequestsProvider(query));
     final config = ref.watch(appConfigProvider);
@@ -440,7 +445,10 @@ class _ConnectionRequestsBrowserState
                           : 'Giden',
                     ),
                     selected: _direction == direction,
-                    onSelected: (_) => setState(() => _direction = direction),
+                    onSelected: (_) => setState(() {
+                      _direction = direction;
+                      _page = 1;
+                    }),
                   ),
                 )
                 .toList(growable: false),
@@ -454,7 +462,10 @@ class _ConnectionRequestsBrowserState
                   (status) => ChoiceChip(
                     label: Text(_connectionStatusLabel(status)),
                     selected: _status == status,
-                    onSelected: (_) => setState(() => _status = status),
+                    onSelected: (_) => setState(() {
+                      _status = status;
+                      _page = 1;
+                    }),
                   ),
                 )
                 .toList(growable: false),
@@ -462,7 +473,7 @@ class _ConnectionRequestsBrowserState
           const SizedBox(height: 14),
           state.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (items) {
               if (items.isEmpty) {
                 return Text(
@@ -470,24 +481,32 @@ class _ConnectionRequestsBrowserState
                 );
               }
               return Column(
-                children: items
-                    .map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _RequestTile(
-                          member: item.member,
-                          subtitle: item.updatedAt.isNotEmpty
-                              ? item.updatedAt
-                              : item.createdAt,
-                          imageUrl: config
-                              .resolveUrl(item.member.photo)
-                              .toString(),
-                          statusLabel: _connectionStatusLabel(_status),
-                          actions: _buildConnectionActions(context, item),
-                        ),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _RequestTile(
+                        member: item.member,
+                        subtitle: item.updatedAt.isNotEmpty
+                            ? item.updatedAt
+                            : item.createdAt,
+                        imageUrl: config
+                            .resolveUrl(item.member.photo)
+                            .toString(),
+                        statusLabel: _connectionStatusLabel(_status),
+                        actions: _buildConnectionActions(context, item),
                       ),
-                    )
-                    .toList(growable: false),
+                    ),
+                  ),
+                  _RequestPaginationControls(
+                    page: _page,
+                    canGoBack: _page > 1,
+                    canGoForward: items.length >= _pageSize,
+                    onPrevious: () => setState(() => _page -= 1),
+                    onNext: () => setState(() => _page += 1),
+                  ),
+                ],
               );
             },
           ),
@@ -549,14 +568,18 @@ class _MentorshipRequestsBrowser extends ConsumerStatefulWidget {
 
 class _MentorshipRequestsBrowserState
     extends ConsumerState<_MentorshipRequestsBrowser> {
+  static const int _pageSize = 30;
   NetworkRequestDirection _direction = NetworkRequestDirection.incoming;
   MentorshipRequestStatus _status = MentorshipRequestStatus.requested;
+  int _page = 1;
 
   @override
   Widget build(BuildContext context) {
     final query = MentorshipRequestQuery(
       direction: _direction,
       status: _status,
+      limit: _pageSize,
+      offset: (_page - 1) * _pageSize,
     );
     final state = ref.watch(mentorshipRequestsProvider(query));
     final config = ref.watch(appConfigProvider);
@@ -582,7 +605,10 @@ class _MentorshipRequestsBrowserState
                           : 'Giden',
                     ),
                     selected: _direction == direction,
-                    onSelected: (_) => setState(() => _direction = direction),
+                    onSelected: (_) => setState(() {
+                      _direction = direction;
+                      _page = 1;
+                    }),
                   ),
                 )
                 .toList(growable: false),
@@ -596,7 +622,10 @@ class _MentorshipRequestsBrowserState
                   (status) => ChoiceChip(
                     label: Text(_mentorshipStatusLabel(status)),
                     selected: _status == status,
-                    onSelected: (_) => setState(() => _status = status),
+                    onSelected: (_) => setState(() {
+                      _status = status;
+                      _page = 1;
+                    }),
                   ),
                 )
                 .toList(growable: false),
@@ -604,7 +633,7 @@ class _MentorshipRequestsBrowserState
           const SizedBox(height: 14),
           state.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (items) {
               if (items.isEmpty) {
                 return Text(
@@ -612,27 +641,35 @@ class _MentorshipRequestsBrowserState
                 );
               }
               return Column(
-                children: items
-                    .map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _RequestTile(
-                          member: item.member,
-                          subtitle: item.focusArea.isNotEmpty
-                              ? item.focusArea
-                              : (item.updatedAt.isNotEmpty
-                                    ? item.updatedAt
-                                    : item.createdAt),
-                          detail: item.message,
-                          imageUrl: config
-                              .resolveUrl(item.member.photo)
-                              .toString(),
-                          statusLabel: _mentorshipStatusLabel(_status),
-                          actions: _buildMentorshipActions(context, item),
-                        ),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _RequestTile(
+                        member: item.member,
+                        subtitle: item.focusArea.isNotEmpty
+                            ? item.focusArea
+                            : (item.updatedAt.isNotEmpty
+                                  ? item.updatedAt
+                                  : item.createdAt),
+                        detail: item.message,
+                        imageUrl: config
+                            .resolveUrl(item.member.photo)
+                            .toString(),
+                        statusLabel: _mentorshipStatusLabel(_status),
+                        actions: _buildMentorshipActions(context, item),
                       ),
-                    )
-                    .toList(growable: false),
+                    ),
+                  ),
+                  _RequestPaginationControls(
+                    page: _page,
+                    canGoBack: _page > 1,
+                    canGoForward: items.length >= _pageSize,
+                    onPrevious: () => setState(() => _page -= 1),
+                    onNext: () => setState(() => _page += 1),
+                  ),
+                ],
               );
             },
           ),
@@ -749,7 +786,7 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
                   loading: () => _searchController.text.trim().isEmpty
                       ? const Text('Kullanıcı adı veya isim ile öğretmen ara.')
                       : const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Text(error.toString()),
+                  error: (error, _) => const ErrorView(compact: true),
                   data: (items) {
                     if (_searchController.text.trim().isEmpty) {
                       return const Text(
@@ -800,7 +837,7 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
           const SizedBox(height: 12),
           linksState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (items) {
               if (items.isEmpty) {
                 return const SurfaceCard(
@@ -870,40 +907,6 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
   }
 }
 
-class _RequestSection extends StatelessWidget {
-  const _RequestSection({
-    required this.title,
-    required this.items,
-    required this.emptyMessage,
-    required this.itemBuilder,
-  });
-
-  final String title;
-  final List<NetworkRequestItem> items;
-  final String emptyMessage;
-  final Widget Function(NetworkRequestItem item) itemBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        if (items.isEmpty)
-          SurfaceCard(child: Text(emptyMessage))
-        else
-          ...items.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: itemBuilder(item),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 class _RequestTile extends StatelessWidget {
   const _RequestTile({
     required this.member,
@@ -964,6 +967,52 @@ class _RequestTile extends StatelessWidget {
             const SizedBox(height: 12),
             Wrap(spacing: 10, runSpacing: 10, children: actions),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestPaginationControls extends StatelessWidget {
+  const _RequestPaginationControls({
+    required this.page,
+    required this.canGoBack,
+    required this.canGoForward,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final int page;
+  final bool canGoBack;
+  final bool canGoForward;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          OutlinedButton.icon(
+            onPressed: canGoBack ? onPrevious : null,
+            icon: const Icon(Icons.chevron_left),
+            label: const Text('Önceki'),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Sayfa $page',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+          const SizedBox(width: 12),
+          FilledButton.tonalIcon(
+            onPressed: canGoForward ? onNext : null,
+            icon: const Icon(Icons.chevron_right),
+            label: const Text('Sonraki'),
+          ),
         ],
       ),
     );

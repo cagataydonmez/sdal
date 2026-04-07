@@ -23,6 +23,8 @@ export class PostRepository {
   findById(_postId) { return notImplemented('PostRepository.findById'); }
   listComments(_query) { return notImplemented('PostRepository.listComments'); }
   createComment(_input) { return notImplemented('PostRepository.createComment'); }
+  findCommentById(_commentId) { return notImplemented('PostRepository.findCommentById'); }
+  deleteCommentById(_commentId) { return notImplemented('PostRepository.deleteCommentById'); }
   findLike(_postId, _userId) { return notImplemented('PostRepository.findLike'); }
   deleteLikeById(_likeId) { return notImplemented('PostRepository.deleteLikeById'); }
   createLike(_input) { return notImplemented('PostRepository.createLike'); }

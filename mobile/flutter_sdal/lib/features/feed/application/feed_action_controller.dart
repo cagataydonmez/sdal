@@ -24,6 +24,7 @@ class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
           );
     if (result.ok) {
       ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
       state = AsyncActionState.success(
         scope: 'createPost',
         message: result.message.isNotEmpty
@@ -46,6 +47,7 @@ class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
     final result = await _repository.toggleReaction(postId);
     if (result.ok) {
       ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
       ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'like');
       return true;
@@ -62,6 +64,7 @@ class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
     final result = await _repository.deletePost(postId);
     if (result.ok) {
       ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
       ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'delete');
       return true;
@@ -88,12 +91,37 @@ class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
       ref.invalidate(postCommentsProvider(postId));
       ref.invalidate(postDetailProvider(postId));
       ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
       state = const AsyncActionState.success(scope: 'comment');
       return true;
     }
     state = AsyncActionState.error(
       scope: 'comment:$postId',
       message: result.message,
+    );
+    return false;
+  }
+
+  Future<bool> deleteComment({
+    required int postId,
+    required int commentId,
+  }) async {
+    state = AsyncActionState.loading(scope: 'comment-delete:$commentId');
+    final result = await _repository.deleteComment(
+      postId: postId,
+      commentId: commentId,
+    );
+    if (result.ok) {
+      ref.invalidate(postCommentsProvider(postId));
+      ref.invalidate(postDetailProvider(postId));
+      ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
+      state = const AsyncActionState.success(scope: 'comment-delete');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'comment-delete:$commentId',
+      message: result.message.isNotEmpty ? result.message : 'Yorum silinemedi.',
     );
     return false;
   }

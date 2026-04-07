@@ -68,6 +68,8 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 
 | Method | Path | Auth | Description | Frontend Usage |
 |--------|------|------|-------------|----------------|
+| `POST` | `/api/auth/login` | — | Authenticates a member using username/password and starts a session cookie. | Login form submit |
+| `POST` | `/api/auth/logout` | Auth | Destroys the authenticated member session. | App logout action |
 | `POST` | `/api/register/preview` | — | Validates registration fields (name, graduation year, etc.) before the user reaches the final submission step. Returns validation errors. | Multi-step registration wizard — step validation |
 | `POST` | `/api/register/check` | — | Checks whether a username or e-mail address is already taken. Returns `{ available: true/false }`. | Registration form live uniqueness check |
 | `POST` | `/api/register` | — | Submits the full registration form. Creates a pending account and sends an activation e-mail. | Final registration form submission |
@@ -106,6 +108,8 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | `GET` | `/api/profile/email-change/verify` | — | Verifies the e-mail change token from the link in the verification e-mail (`?token=...`). | E-mail change confirmation link |
 | `POST` | `/api/profile/password` | Auth | Changes the authenticated user's password. Requires current password in body. | Account settings → change password |
 | `POST` | `/api/profile/photo` | Auth, RL | Uploads a new profile photo. Accepts `multipart/form-data`. Produces thumb/feed/full WebP variants. | Profile photo upload modal |
+| `POST` | `/api/new/verified/proof` | Auth | Uploads supporting proof for profile verification review. Accepts `multipart/form-data`. | Profile verification request flow |
+| `POST` | `/api/new/verified/request` | Auth | Submits a profile verification request with optional message/metadata after proof upload. | Profile verification CTA |
 | `GET` | `/api/menu` | Auth | Returns personalised navigation menu items and badges (unread counts, etc.). | App shell sidebar / tab bar |
 | `GET` | `/api/sidebar` | Auth | Returns sidebar widget data (quick links, online members, etc.). | Desktop sidebar widget area |
 | `GET` | `/api/new/request-categories` | Auth | Lists categories for member support/change requests (e.g., "graduation year correction"). | Request submission form — category dropdown |
@@ -134,8 +138,9 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 
 | Method | Path | Auth | Description | Frontend Usage |
 |--------|------|------|-------------|----------------|
-| `GET` | `/api/new/feed` | Auth | Returns the authenticated user's personalised activity feed (posts, stories, events). Supports cursor-based pagination. | Home feed page |
+| `GET` | `/api/new/feed` | Auth | Returns the authenticated user's personalised activity feed (posts, stories, events). Supports cursor-based pagination and returns `hasMore`, `limit`, `offset`, `cursor`, and `nextCursor`. | Home feed page |
 | `POST` | `/api/new/posts` | Auth | Creates a new post. Supports text, link preview, and optional image upload via `multipart/form-data`. | Feed composer |
+| `POST` | `/api/new/posts/upload` | Auth | Creates a new post with image upload using `multipart/form-data` (`image`, `content`, `feedType`). | Feed composer with image |
 | `GET` | `/api/new/posts/:id` | Auth | Returns a single post with its reactions and comments. | Post detail / permalink page |
 | `DELETE` | `/api/new/posts/:id` | Auth | Deletes a post owned by the authenticated user. | Post overflow menu → Delete |
 | `POST` | `/api/new/posts/:id/react` | Auth | Adds or toggles a reaction (like, etc.) on a post. | Post reaction button |
@@ -174,11 +179,17 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | Method | Path | Auth | Description | Frontend Usage |
 |--------|------|------|-------------|----------------|
 | `GET` | `/api/sdal-messenger/contacts` | Auth | Searches contacts/members for starting a new conversation. Accepts `?q=` query. | New conversation recipient search |
-| `POST` | `/api/sdal-messenger/threads` | Auth | Creates a new message thread (DM or group). Body: `{ recipientIds: [...] }`. | New conversation composer |
+| `POST` | `/api/sdal-messenger/threads` | Auth | Creates a new message thread. Body: `{ recipientIds: [...] }`. Current backend contract is 1:1-only; sending more than one recipient returns `group_threads_not_supported`. | New conversation composer |
 | `GET` | `/api/sdal-messenger/threads` | Auth | Lists all message threads for the authenticated user, sorted by last message time. | Inbox / conversations list |
 | `GET` | `/api/sdal-messenger/threads/:id/messages` | Auth | Returns paginated messages for a thread. Supports cursor pagination via `?before=`. | Thread detail message history |
 | `POST` | `/api/sdal-messenger/threads/:id/messages` | Auth | Sends a new message in a thread. Body: `{ text }`. | Thread detail message composer |
 | `POST` | `/api/sdal-messenger/threads/:id/read` | Auth | Marks all unread messages in a thread as read. Called when user opens a thread. | Thread detail — auto-called on view |
+
+### Realtime Transport
+
+| Transport | Path | Auth | Description | Frontend Usage |
+|-----------|------|------|-------------|----------------|
+| `WS` | `/ws/messenger` | Auth | WebSocket transport for live messenger updates. Uses the authenticated session cookie and emits thread/message/read updates after the initial HTTP bootstrap. | Inbox live thread refresh, thread detail realtime messages/read state |
 
 ---
 
@@ -261,6 +272,17 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | `DELETE` | `/api/new/groups/:id` | Auth | Deletes a group (owner only). | Group settings — Delete group |
 | `GET` | `/api/new/groups/:id/posts` | Auth | Returns posts within a group with pagination. | Group feed tab |
 | `POST` | `/api/new/groups/:id/posts` | Auth | Creates a post within a group. | Group post composer |
+| `POST` | `/api/new/groups/:id/posts/upload` | Auth | Creates a post within a group with image upload via `multipart/form-data`. | Group post composer with image |
+| `POST` | `/api/new/groups/:id/invitations` | Auth | Invites one or more members into the group. Body: `{ userIds: [...] }`. | Group management — invite members |
+| `POST` | `/api/new/groups/:id/invitations/respond` | Auth | Accepts or rejects a received group invitation. Body: `{ action: "accept"|"reject" }`. | Group invitation prompt |
+| `POST` | `/api/new/groups/:id/requests/:requestId` | Auth | Approves or rejects a pending join request. Body: `{ action: "approve"|"reject" }`. | Group moderation — join requests |
+| `POST` | `/api/new/groups/:id/settings` | Auth | Updates group visibility/contact settings. | Group settings screen |
+| `POST` | `/api/new/groups/:id/role` | Auth | Changes a member role inside the group. Body: `{ userId, role }`. | Group member moderation |
+| `POST` | `/api/new/groups/:id/cover` | Auth | Uploads a group cover image via `multipart/form-data`. | Group cover editor |
+| `POST` | `/api/new/groups/:id/events` | Auth | Creates a group-scoped event. | Group events tab |
+| `DELETE` | `/api/new/groups/:id/events/:eventId` | Auth | Deletes a group-scoped event. | Group event management |
+| `POST` | `/api/new/groups/:id/announcements` | Auth | Creates a group announcement. | Group announcements tab |
+| `DELETE` | `/api/new/groups/:id/announcements/:announcementId` | Auth | Deletes a group announcement. | Group announcement management |
 
 ---
 
@@ -386,7 +408,7 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | `POST` | `/api/admin/pages` | Admin | Creates a new CMS page. Body: `{ title, slug, content, ... }`. | Admin → New page form |
 | `PUT` | `/api/admin/pages/:id` | Admin | Updates a CMS page. | Admin page editor save |
 | `DELETE` | `/api/admin/pages/:id` | Admin | Deletes a CMS page. | Admin pages list → Delete |
-| `GET` | `/api/admin/logs` | Admin | Returns paginated admin action logs. | Admin → Audit Log page |
+| `GET` | `/api/admin/logs` | Admin | Returns log file listings, or filtered file content when `file` is provided. | Admin → Log viewer |
 | `GET` | `/api/admin/tournament` | Admin | Returns tournament registration data. | Admin → Tournament management |
 | `DELETE` | `/api/admin/tournament/:id` | Admin | Deletes a tournament registration. | Admin tournament → Delete entry |
 
@@ -441,8 +463,8 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | Method | Path | Auth | Description | Frontend Usage |
 |--------|------|------|-------------|----------------|
 | `POST` | `/api/admin/login` | — | Authenticates an admin user. Sets admin session. | Admin panel login page |
-| `POST` | `/api/admin/logout` | Admin | Destroys the admin session. | Admin panel logout button |
-| `GET` | `/api/admin/session` | Admin | Returns current admin session info and permissions. | Admin panel session check on boot |
+| `POST` | `/api/admin/logout` | Auth | Destroys the admin session. | Admin panel logout button |
+| `GET` | `/api/admin/session` | Auth | Returns current admin session info and whether the elevated admin session is active. | Admin panel session check on boot |
 | `GET` | `/api/admin/root-status` | Admin | Returns whether the root (super-admin) account has been set up. | Admin setup wizard |
 | `POST` | `/admin/users/:id/role` | Admin | Assigns a role (admin, moderator, member) to a user. | Admin user detail → Role assignment |
 | `POST` | `/admin/moderators/:id/scopes` | Admin | Assigns moderation permission scopes to a moderator. | Admin moderator management |
@@ -450,7 +472,7 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | `GET` | `/api/admin/moderation/permissions/catalog` | Admin | Returns the full catalog of available moderation permissions. | Admin permissions management |
 | `GET` | `/api/admin/moderation/permissions/:userId` | Admin | Returns a specific user's moderation permissions. | Admin moderator detail |
 | `PUT` | `/api/admin/moderation/permissions/:userId` | Admin | Updates a user's moderation permissions. | Admin moderator permissions editor |
-| `GET` | `/api/admin/moderation/my-permissions` | Admin | Returns the current admin's own moderation permissions. | Admin panel — permission-aware UI rendering |
+| `GET` | `/api/admin/moderation/my-permissions` | Auth | Returns the current authenticated user's moderation permissions. | Admin panel — permission-aware UI rendering |
 | `POST` | `/admin/moderation/check/:graduationYear` | Admin | Checks whether the current admin has moderation access for a given graduation cohort. | Admin cohort-scoped moderation check |
 
 ---
@@ -510,7 +532,8 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | `GET` | `/api/new/admin/db/backups` | Admin | Lists available database backup files with size and timestamp. | Admin → DB Backups page |
 | `POST` | `/api/new/admin/db/backups` | Admin | Triggers creation of a new database backup. | Admin DB backups → Create backup |
 | `GET` | `/api/new/admin/db/backups/:name/download` | Admin | Downloads a specific backup file. | Admin DB backups → Download |
-| `POST` | `/api/new/admin/db/restore` | Admin | Restores the database from a backup file. Body: `{ backupName }`. | Admin DB backups → Restore |
+| `POST` | `/api/new/admin/db/restore` | Admin | Restores the database from an uploaded backup file using multipart field `backup`. | Admin DB backups → Upload restore |
+| `POST` | `/api/new/admin/db/restore-from-backup` | Admin | Restores the database from an existing named backup file. Body: `{ name }`. | Admin DB backups → Restore existing backup |
 | `GET` | `/api/new/admin/db/driver/status` | Admin | Returns current DB driver (`postgres` or `sqlite`) and any pending switch state. | Admin → DB Driver status indicator |
 | `POST` | `/api/new/admin/db/driver/switch` | Admin | Switches the active database driver. | Admin DB settings → Switch driver |
 | `POST` | `/api/new/admin/db/driver/copy-data` | Admin | Copies all data from one DB driver to another (migration tool). | Admin DB → Copy data between drivers |
@@ -576,7 +599,7 @@ Complete reference for all HTTP endpoints exposed by the SDAL Express server (`s
 | `PUT` | `/api/admin/email/categories/:id` | Admin | Updates an e-mail category. | Admin email category edit |
 | `DELETE` | `/api/admin/email/categories/:id` | Admin | Deletes an e-mail category. | Admin email categories → Delete |
 | `GET` | `/api/admin/email/templates` | Admin | Lists e-mail templates. | Admin → Email templates page |
-| `POST` | `/api/admin/email/templates` | Admin | Creates an e-mail template. Body: `{ name, subject, htmlBody, category }`. | Admin email templates → New |
+| `POST` | `/api/admin/email/templates` | Admin | Creates an e-mail template. Body: `{ ad, konu, icerik }`. | Admin email templates → New |
 | `PUT` | `/api/admin/email/templates/:id` | Admin | Updates an e-mail template. | Admin email template editor save |
 | `DELETE` | `/api/admin/email/templates/:id` | Admin | Deletes an e-mail template. | Admin email templates → Delete |
 | `POST` | `/api/admin/email/bulk` | Admin | Sends a bulk e-mail campaign to a filtered member segment. | Admin → Bulk email composer |

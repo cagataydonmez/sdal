@@ -83,6 +83,22 @@ export class LegacyPostRepository extends PostRepository {
     };
   }
 
+  async findCommentById(commentId) {
+    const row = await this.queryGet(
+      `SELECT c.id, c.post_id, c.user_id, c.comment, c.created_at,
+              u.kadi, u.isim, u.soyisim, u.resim, u.verified
+       FROM post_comments c
+       LEFT JOIN uyeler u ON u.id = c.user_id
+       WHERE c.id = ?`,
+      [commentId]
+    );
+    return toDomainComment(row);
+  }
+
+  async deleteCommentById(commentId) {
+    await this.queryRun('DELETE FROM post_comments WHERE id = ?', [commentId]);
+  }
+
   async findLike(postId, userId) {
     return await this.queryGet('SELECT id FROM post_likes WHERE post_id = ? AND user_id = ?', [postId, userId]) || null;
   }

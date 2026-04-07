@@ -1,0 +1,1641 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app/providers.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/json_utils.dart';
+
+class AdminSummarySnapshot {
+  const AdminSummarySnapshot({
+    required this.counts,
+    required this.recentUsers,
+    required this.recentPosts,
+  });
+
+  final Map<String, int> counts;
+  final List<AdminActivityItem> recentUsers;
+  final List<AdminActivityItem> recentPosts;
+
+  factory AdminSummarySnapshot.fromMap(JsonMap map) {
+    final rawCounts = asJsonMap(map['counts']);
+    return AdminSummarySnapshot(
+      counts: rawCounts.map((key, value) => MapEntry(key, asInt(value) ?? 0)),
+      recentUsers: asJsonMapList(
+        map['recentUsers'],
+      ).map(AdminActivityItem.fromMap).toList(growable: false),
+      recentPosts: asJsonMapList(
+        map['recentPosts'],
+      ).map(AdminActivityItem.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminLiveSnapshot {
+  const AdminLiveSnapshot({required this.counts, required this.activity});
+
+  final Map<String, int> counts;
+  final List<AdminActivityItem> activity;
+
+  factory AdminLiveSnapshot.fromMap(JsonMap map) {
+    final rawCounts = asJsonMap(map['counts']);
+    return AdminLiveSnapshot(
+      counts: rawCounts.map((key, value) => MapEntry(key, asInt(value) ?? 0)),
+      activity: asJsonMapList(
+        map['activity'],
+      ).map(AdminActivityItem.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminSecuritySnapshot {
+  const AdminSecuritySnapshot({
+    required this.totalRejections,
+    required this.activeHelmetHeaders,
+  });
+
+  final int totalRejections;
+  final int activeHelmetHeaders;
+
+  factory AdminSecuritySnapshot.fromMap(JsonMap map) {
+    final helmetHeaders = asJsonMapList(asJsonMap(map['helmet'])['headers']);
+    return AdminSecuritySnapshot(
+      totalRejections:
+          asInt(asJsonMap(map['validation'])['totalRejections']) ?? 0,
+      activeHelmetHeaders: helmetHeaders
+          .where((row) => asBool(row['active']) ?? false)
+          .length,
+    );
+  }
+}
+
+class AdminShellUser {
+  const AdminShellUser({
+    required this.id,
+    required this.handle,
+    required this.name,
+    required this.role,
+    required this.isAdmin,
+  });
+
+  final int id;
+  final String handle;
+  final String name;
+  final String role;
+  final bool isAdmin;
+
+  factory AdminShellUser.fromMap(JsonMap map) {
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    final handle = coalesceText([map['kadi']], fallback: '');
+    return AdminShellUser(
+      id: asInt(map['id']) ?? 0,
+      handle: handle,
+      name: fullName.isNotEmpty
+          ? fullName
+          : handle.isNotEmpty
+          ? '@$handle'
+          : 'Admin kullanici',
+      role: coalesceText([map['role']], fallback: 'user'),
+      isAdmin: asBool(map['admin']) ?? false,
+    );
+  }
+}
+
+class AdminRootStatusSnapshot {
+  const AdminRootStatusSnapshot({
+    required this.hasRoot,
+    required this.rootHandle,
+    required this.bootstrapPasswordConfigured,
+  });
+
+  final bool hasRoot;
+  final String rootHandle;
+  final bool bootstrapPasswordConfigured;
+
+  factory AdminRootStatusSnapshot.fromMap(JsonMap map) {
+    final rootUser = asJsonMap(map['rootUser']);
+    return AdminRootStatusSnapshot(
+      hasRoot: asBool(map['hasRoot']) ?? false,
+      rootHandle: coalesceText([rootUser['kadi']], fallback: ''),
+      bootstrapPasswordConfigured:
+          asBool(map['bootstrapPasswordConfigured']) ?? false,
+    );
+  }
+}
+
+class AdminPermissionSnapshot {
+  const AdminPermissionSnapshot({
+    required this.role,
+    required this.isSuperModerator,
+    required this.permissionKeys,
+  });
+
+  final String role;
+  final bool isSuperModerator;
+  final List<String> permissionKeys;
+
+  factory AdminPermissionSnapshot.fromMap(JsonMap map) {
+    return AdminPermissionSnapshot(
+      role: coalesceText([map['role']], fallback: 'user'),
+      isSuperModerator: asBool(map['isSuperModerator']) ?? false,
+      permissionKeys:
+          (map['permissionKeys'] is List
+                  ? map['permissionKeys'] as List
+                  : const <dynamic>[])
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList(growable: false),
+    );
+  }
+}
+
+class AdminAccessSnapshot {
+  const AdminAccessSnapshot({
+    required this.user,
+    required this.adminOk,
+    required this.permissions,
+    required this.rootStatus,
+  });
+
+  final AdminShellUser? user;
+  final bool adminOk;
+  final AdminPermissionSnapshot? permissions;
+  final AdminRootStatusSnapshot? rootStatus;
+
+  bool get canOpenAdminShell => user != null && adminOk;
+}
+
+class AdminUserListQuery {
+  const AdminUserListQuery({
+    this.query = '',
+    this.filter = 'all',
+    this.verifiedOnly = false,
+    this.adminOnly = false,
+    this.withPhotoOnly = false,
+    this.page = 1,
+    this.limit = 20,
+  });
+
+  final String query;
+  final String filter;
+  final bool verifiedOnly;
+  final bool adminOnly;
+  final bool withPhotoOnly;
+  final int page;
+  final int limit;
+
+  @override
+  bool operator ==(Object other) {
+    return other is AdminUserListQuery &&
+        other.query == query &&
+        other.filter == filter &&
+        other.verifiedOnly == verifiedOnly &&
+        other.adminOnly == adminOnly &&
+        other.withPhotoOnly == withPhotoOnly &&
+        other.page == page &&
+        other.limit == limit;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    query,
+    filter,
+    verifiedOnly,
+    adminOnly,
+    withPhotoOnly,
+    page,
+    limit,
+  );
+}
+
+class AdminRequestNotificationItem {
+  const AdminRequestNotificationItem({
+    required this.categoryKey,
+    required this.label,
+    required this.pendingCount,
+  });
+
+  final String categoryKey;
+  final String label;
+  final int pendingCount;
+
+  factory AdminRequestNotificationItem.fromMap(JsonMap map) {
+    return AdminRequestNotificationItem(
+      categoryKey: coalesceText([map['category_key']], fallback: ''),
+      label: coalesceText([map['label'], map['category_key']], fallback: ''),
+      pendingCount: asInt(map['pending_count']) ?? 0,
+    );
+  }
+}
+
+class AdminActivityItem {
+  const AdminActivityItem({
+    required this.id,
+    required this.title,
+    required this.timestamp,
+    required this.type,
+  });
+
+  final String id;
+  final String title;
+  final String timestamp;
+  final String type;
+
+  factory AdminActivityItem.fromMap(JsonMap map) {
+    final handle = coalesceText([map['kadi']], fallback: '');
+    final content = coalesceText([
+      map['content'],
+      map['message'],
+    ], fallback: '');
+    final title = content.isNotEmpty
+        ? content
+        : handle.isNotEmpty
+        ? '@$handle'
+        : 'Admin kaydı';
+    return AdminActivityItem(
+      id: coalesceText([map['id']], fallback: ''),
+      title: title,
+      timestamp: coalesceText([
+        map['at'],
+        map['created_at'],
+        map['ts'],
+      ], fallback: ''),
+      type: coalesceText([map['type']], fallback: ''),
+    );
+  }
+}
+
+class AdminPreviewList<T> {
+  const AdminPreviewList({required this.total, required this.items});
+
+  final int total;
+  final List<T> items;
+}
+
+class AdminModerationItem {
+  const AdminModerationItem({
+    required this.id,
+    required this.typeLabel,
+    required this.content,
+    required this.createdAt,
+    required this.authorName,
+    required this.authorHandle,
+  });
+
+  final int id;
+  final String typeLabel;
+  final String content;
+  final String createdAt;
+  final String authorName;
+  final String authorHandle;
+
+  factory AdminModerationItem.fromMap(
+    JsonMap map, {
+    required String typeLabel,
+  }) {
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    return AdminModerationItem(
+      id: asInt(map['id']) ?? 0,
+      typeLabel: typeLabel,
+      content: coalesceText([
+        map['content'],
+        map['body'],
+        map['caption'],
+      ], fallback: 'Icerik yok'),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+      authorName: fullName.isNotEmpty
+          ? fullName
+          : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
+      authorHandle: coalesceText([map['kadi']], fallback: ''),
+    );
+  }
+}
+
+class AdminRequestQueueItem {
+  const AdminRequestQueueItem({
+    required this.id,
+    required this.categoryLabel,
+    required this.status,
+    required this.createdAt,
+    required this.requesterName,
+    required this.requesterHandle,
+    required this.reviewerHandle,
+  });
+
+  final int id;
+  final String categoryLabel;
+  final String status;
+  final String createdAt;
+  final String requesterName;
+  final String requesterHandle;
+  final String reviewerHandle;
+
+  factory AdminRequestQueueItem.fromMap(JsonMap map) {
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    return AdminRequestQueueItem(
+      id: asInt(map['id']) ?? 0,
+      categoryLabel: coalesceText([
+        map['category_label'],
+        map['category_key'],
+      ], fallback: 'Talep'),
+      status: coalesceText([map['status']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+      requesterName: fullName.isNotEmpty
+          ? fullName
+          : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
+      requesterHandle: coalesceText([map['kadi']], fallback: ''),
+      reviewerHandle: coalesceText([map['reviewer_kadi']], fallback: ''),
+    );
+  }
+}
+
+class AdminVerificationQueueItem {
+  const AdminVerificationQueueItem({
+    required this.id,
+    required this.status,
+    required this.createdAt,
+    required this.requesterName,
+    required this.requesterHandle,
+    required this.graduationYear,
+  });
+
+  final int id;
+  final String status;
+  final String createdAt;
+  final String requesterName;
+  final String requesterHandle;
+  final String graduationYear;
+
+  factory AdminVerificationQueueItem.fromMap(JsonMap map) {
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    return AdminVerificationQueueItem(
+      id: asInt(map['id']) ?? 0,
+      status: coalesceText([map['status']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+      requesterName: fullName.isNotEmpty
+          ? fullName
+          : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
+      requesterHandle: coalesceText([map['kadi']], fallback: ''),
+      graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
+    );
+  }
+}
+
+class AdminUserPreviewItem {
+  const AdminUserPreviewItem({
+    required this.id,
+    required this.name,
+    required this.handle,
+    required this.email,
+    required this.role,
+    required this.graduationYear,
+    required this.engagementScore,
+  });
+
+  final int id;
+  final String name;
+  final String handle;
+  final String email;
+  final String role;
+  final String graduationYear;
+  final int engagementScore;
+
+  factory AdminUserPreviewItem.fromMap(JsonMap map) {
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    return AdminUserPreviewItem(
+      id: asInt(map['id']) ?? 0,
+      name: fullName.isNotEmpty
+          ? fullName
+          : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
+      handle: coalesceText([map['kadi']], fallback: ''),
+      email: coalesceText([map['email']], fallback: ''),
+      role: coalesceText([map['role']], fallback: 'user'),
+      graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
+      engagementScore: asInt(map['engagement_score']) ?? 0,
+    );
+  }
+}
+
+class AdminSiteControlsSnapshot {
+  const AdminSiteControlsSnapshot({
+    required this.siteOpen,
+    required this.maintenanceMessage,
+    required this.defaultLandingPage,
+    required this.openModuleCount,
+    required this.totalModuleCount,
+  });
+
+  final bool siteOpen;
+  final String maintenanceMessage;
+  final String defaultLandingPage;
+  final int openModuleCount;
+  final int totalModuleCount;
+
+  factory AdminSiteControlsSnapshot.fromMap(JsonMap map) {
+    final modules = asJsonMap(map['modules']);
+    final openCount = modules.values
+        .where((value) => asBool(value) ?? false)
+        .length;
+    return AdminSiteControlsSnapshot(
+      siteOpen: asBool(map['siteOpen']) ?? false,
+      maintenanceMessage: coalesceText([
+        map['maintenanceMessage'],
+      ], fallback: ''),
+      defaultLandingPage: coalesceText([
+        map['defaultLandingPage'],
+      ], fallback: ''),
+      openModuleCount: openCount,
+      totalModuleCount: modules.length,
+    );
+  }
+}
+
+class AdminDbBackupItem {
+  const AdminDbBackupItem({
+    required this.name,
+    required this.size,
+    required this.createdAt,
+  });
+
+  final String name;
+  final int size;
+  final String createdAt;
+
+  factory AdminDbBackupItem.fromMap(JsonMap map) {
+    return AdminDbBackupItem(
+      name: coalesceText([map['name'], map['file']], fallback: ''),
+      size: asInt(map['size']) ?? 0,
+      createdAt: coalesceText([
+        map['createdAt'],
+        map['created_at'],
+        map['mtime'],
+      ], fallback: ''),
+    );
+  }
+}
+
+class AdminDbDriverStatusSnapshot {
+  const AdminDbDriverStatusSnapshot({
+    required this.currentDriver,
+    required this.targetDriver,
+    required this.inProgress,
+    required this.switchEnabled,
+    required this.blockerCount,
+    required this.blockers,
+    required this.warnings,
+    required this.expectedConfirmText,
+    required this.challengeToken,
+    required this.requiresSqliteDriftAck,
+    required this.dataCopySupported,
+    required this.lastError,
+  });
+
+  final String currentDriver;
+  final String targetDriver;
+  final bool inProgress;
+  final bool switchEnabled;
+  final int blockerCount;
+  final List<String> blockers;
+  final List<String> warnings;
+  final String expectedConfirmText;
+  final String challengeToken;
+  final bool requiresSqliteDriftAck;
+  final bool dataCopySupported;
+  final String lastError;
+
+  factory AdminDbDriverStatusSnapshot.fromMap(JsonMap map) {
+    final blockers =
+        (map['blockers'] is List ? map['blockers'] as List : const <dynamic>[])
+            .map((item) => item.toString())
+            .where((item) => item.trim().isNotEmpty)
+            .toList(growable: false);
+    final warnings =
+        (map['warnings'] is List ? map['warnings'] as List : const <dynamic>[])
+            .map((item) => item.toString())
+            .where((item) => item.trim().isNotEmpty)
+            .toList(growable: false);
+    return AdminDbDriverStatusSnapshot(
+      currentDriver: coalesceText([map['currentDriver']], fallback: ''),
+      targetDriver: coalesceText([map['targetDriver']], fallback: ''),
+      inProgress: asBool(map['inProgress']) ?? false,
+      switchEnabled: asBool(map['switchEnabled']) ?? false,
+      blockerCount: blockers.length,
+      blockers: blockers,
+      warnings: warnings,
+      expectedConfirmText: coalesceText([
+        map['expectedConfirmText'],
+      ], fallback: ''),
+      challengeToken: coalesceText([map['challengeToken']], fallback: ''),
+      requiresSqliteDriftAck: asBool(map['requiresSqliteDriftAck']) ?? false,
+      dataCopySupported: asBool(map['dataCopySupported']) ?? false,
+      lastError: coalesceText([map['lastError']], fallback: ''),
+    );
+  }
+}
+
+class AdminLanguageItem {
+  const AdminLanguageItem({
+    required this.code,
+    required this.name,
+    required this.nativeName,
+    required this.isDefault,
+    required this.isActive,
+  });
+
+  final String code;
+  final String name;
+  final String nativeName;
+  final bool isDefault;
+  final bool isActive;
+
+  factory AdminLanguageItem.fromMap(JsonMap map) {
+    return AdminLanguageItem(
+      code: coalesceText([map['code']], fallback: ''),
+      name: coalesceText([map['name']], fallback: ''),
+      nativeName: coalesceText([
+        map['native_name'],
+        map['nativeName'],
+      ], fallback: ''),
+      isDefault: asBool(map['is_default']) ?? false,
+      isActive: asBool(map['is_active']) ?? false,
+    );
+  }
+}
+
+class AdminLanguageConfigSnapshot {
+  const AdminLanguageConfigSnapshot({
+    required this.selectionEnabled,
+    required this.defaultOpen,
+    required this.defaultClosed,
+  });
+
+  final bool selectionEnabled;
+  final String defaultOpen;
+  final String defaultClosed;
+
+  factory AdminLanguageConfigSnapshot.fromMap(JsonMap map) {
+    return AdminLanguageConfigSnapshot(
+      selectionEnabled: asBool(map['lang_selection_enabled']) ?? true,
+      defaultOpen: coalesceText([map['default_lang_open']], fallback: ''),
+      defaultClosed: coalesceText([map['default_lang_closed']], fallback: ''),
+    );
+  }
+}
+
+class AdminPageItem {
+  const AdminPageItem({
+    required this.id,
+    required this.name,
+    required this.url,
+    required this.icon,
+    required this.parentId,
+    required this.menuVisible,
+    required this.isRedirect,
+    required this.layoutOption,
+    required this.sortOrder,
+  });
+
+  final int id;
+  final String name;
+  final String url;
+  final String icon;
+  final int parentId;
+  final bool menuVisible;
+  final bool isRedirect;
+  final int layoutOption;
+  final int sortOrder;
+
+  factory AdminPageItem.fromMap(JsonMap map) {
+    return AdminPageItem(
+      id: asInt(map['id']) ?? 0,
+      name: coalesceText([map['sayfaismi'], map['name']], fallback: ''),
+      url: coalesceText([map['sayfaurl'], map['url']], fallback: ''),
+      icon: coalesceText([map['resim'], map['icon']], fallback: 'yok'),
+      parentId: asInt(map['babaid']) ?? 0,
+      menuVisible: (asInt(map['menugorun']) ?? 0) == 1,
+      isRedirect: (asInt(map['yonlendir']) ?? 0) == 1,
+      layoutOption: asInt(map['mozellik']) ?? 0,
+      sortOrder: asInt(map['sort_order']) ?? 0,
+    );
+  }
+}
+
+class AdminEmailCategoryItem {
+  const AdminEmailCategoryItem({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.value,
+    required this.description,
+  });
+
+  final int id;
+  final String name;
+  final String type;
+  final String value;
+  final String description;
+
+  factory AdminEmailCategoryItem.fromMap(JsonMap map) {
+    return AdminEmailCategoryItem(
+      id: asInt(map['id']) ?? 0,
+      name: coalesceText([map['ad'], map['name']], fallback: ''),
+      type: coalesceText([map['tur'], map['type']], fallback: ''),
+      value: coalesceText([map['deger'], map['value']], fallback: ''),
+      description: coalesceText([
+        map['aciklama'],
+        map['description'],
+      ], fallback: ''),
+    );
+  }
+}
+
+class AdminLogFileItem {
+  const AdminLogFileItem({
+    required this.name,
+    required this.size,
+    required this.modifiedAt,
+    required this.type,
+  });
+
+  final String name;
+  final int size;
+  final String modifiedAt;
+  final String type;
+
+  factory AdminLogFileItem.fromMap(JsonMap map) {
+    return AdminLogFileItem(
+      name: coalesceText([map['name'], map['file']], fallback: ''),
+      size: asInt(map['size']) ?? 0,
+      modifiedAt: coalesceText([map['mtime'], map['modifiedAt']], fallback: ''),
+      type: coalesceText([map['type']], fallback: 'app'),
+    );
+  }
+}
+
+class AdminLanguageStringItem {
+  const AdminLanguageStringItem({
+    required this.langCode,
+    required this.key,
+    required this.value,
+    required this.updatedAt,
+  });
+
+  final String langCode;
+  final String key;
+  final String value;
+  final String updatedAt;
+
+  factory AdminLanguageStringItem.fromMap(JsonMap map) {
+    return AdminLanguageStringItem(
+      langCode: coalesceText([map['lang_code'], map['lang']], fallback: ''),
+      key: coalesceText([map['key']], fallback: ''),
+      value: coalesceText([map['value']], fallback: ''),
+      updatedAt: coalesceText([map['updated_at']], fallback: ''),
+    );
+  }
+}
+
+class AdminLanguageKeyItem {
+  const AdminLanguageKeyItem({required this.key, required this.languageCount});
+
+  final String key;
+  final int languageCount;
+
+  factory AdminLanguageKeyItem.fromMap(JsonMap map) {
+    return AdminLanguageKeyItem(
+      key: coalesceText([map['key']], fallback: ''),
+      languageCount: asInt(map['language_count']) ?? asInt(map['count']) ?? 0,
+    );
+  }
+}
+
+class AdminEmailTemplateItem {
+  const AdminEmailTemplateItem({
+    required this.id,
+    required this.name,
+    required this.subject,
+    required this.bodyHtml,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String name;
+  final String subject;
+  final String bodyHtml;
+  final String createdAt;
+
+  factory AdminEmailTemplateItem.fromMap(JsonMap map) {
+    return AdminEmailTemplateItem(
+      id: asInt(map['id']) ?? 0,
+      name: coalesceText([map['ad'], map['name']], fallback: ''),
+      subject: coalesceText([map['konu'], map['subject']], fallback: ''),
+      bodyHtml: coalesceText([map['icerik'], map['body_html']], fallback: ''),
+      createdAt: coalesceText([
+        map['olusturma'],
+        map['created_at'],
+      ], fallback: ''),
+    );
+  }
+}
+
+class AdminLogContentSnapshot {
+  const AdminLogContentSnapshot({
+    required this.file,
+    required this.content,
+    required this.total,
+    required this.matched,
+    required this.returned,
+  });
+
+  final String file;
+  final String content;
+  final int total;
+  final int matched;
+  final int returned;
+
+  factory AdminLogContentSnapshot.fromMap(JsonMap map) {
+    return AdminLogContentSnapshot(
+      file: coalesceText([map['file']], fallback: ''),
+      content: coalesceText([map['content']], fallback: ''),
+      total: asInt(map['total']) ?? 0,
+      matched: asInt(map['matched']) ?? 0,
+      returned: asInt(map['returned']) ?? 0,
+    );
+  }
+}
+
+class AdminUserDetail {
+  const AdminUserDetail({
+    required this.id,
+    required this.handle,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.activationToken,
+    required this.isActive,
+    required this.isBanned,
+    required this.isProfileInitialized,
+    required this.website,
+    required this.signature,
+    required this.profession,
+    required this.city,
+    required this.isEmailHidden,
+    required this.profileViewCount,
+    required this.isVerified,
+    required this.graduationYear,
+    required this.university,
+    required this.birthDay,
+    required this.birthMonth,
+    required this.birthYear,
+    required this.avatar,
+  });
+
+  final int id;
+  final String handle;
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String activationToken;
+  final bool isActive;
+  final bool isBanned;
+  final bool isProfileInitialized;
+  final String website;
+  final String signature;
+  final String profession;
+  final String city;
+  final bool isEmailHidden;
+  final int profileViewCount;
+  final bool isVerified;
+  final String graduationYear;
+  final String university;
+  final String birthDay;
+  final String birthMonth;
+  final String birthYear;
+  final String avatar;
+
+  factory AdminUserDetail.fromMap(JsonMap map) {
+    final user = map.containsKey('user') ? asJsonMap(map['user']) : map;
+    return AdminUserDetail(
+      id: asInt(user['id']) ?? 0,
+      handle: coalesceText([user['kadi']], fallback: ''),
+      firstName: coalesceText([user['isim']], fallback: ''),
+      lastName: coalesceText([user['soyisim']], fallback: ''),
+      email: coalesceText([user['email']], fallback: ''),
+      activationToken: coalesceText([user['aktivasyon']], fallback: ''),
+      isActive: (asInt(user['aktiv']) ?? 0) == 1,
+      isBanned: (asInt(user['yasak']) ?? 0) == 1,
+      isProfileInitialized: (asInt(user['ilkbd']) ?? 0) == 1,
+      website: coalesceText([user['websitesi']], fallback: ''),
+      signature: coalesceText([user['imza']], fallback: ''),
+      profession: coalesceText([user['meslek']], fallback: ''),
+      city: coalesceText([user['sehir']], fallback: ''),
+      isEmailHidden: (asInt(user['mailkapali']) ?? 0) == 1,
+      profileViewCount: asInt(user['hit']) ?? 0,
+      isVerified: (asInt(user['verified']) ?? 0) == 1,
+      graduationYear: coalesceText([user['mezuniyetyili']], fallback: ''),
+      university: coalesceText([user['universite']], fallback: ''),
+      birthDay: coalesceText([user['dogumgun']], fallback: ''),
+      birthMonth: coalesceText([user['dogumay']], fallback: ''),
+      birthYear: coalesceText([user['dogumyil']], fallback: ''),
+      avatar: coalesceText([user['resim']], fallback: 'yok'),
+    );
+  }
+}
+
+class AdminRepository {
+  const AdminRepository(this._apiClient);
+
+  final ApiClient _apiClient;
+
+  Future<AdminAccessSnapshot> fetchAdminAccess() async {
+    final sessionResult = await _apiClient.get<JsonMap>(
+      '/api/admin/session',
+      decoder: asJsonMap,
+    );
+    final sessionMap = asJsonMap(sessionResult.rawData);
+    final userMap = asJsonMap(sessionMap['user']);
+    final user = userMap.isEmpty ? null : AdminShellUser.fromMap(userMap);
+    final adminOk = asBool(sessionMap['adminOk']) ?? false;
+    if (!adminOk || user == null) {
+      return AdminAccessSnapshot(
+        user: user,
+        adminOk: adminOk,
+        permissions: null,
+        rootStatus: null,
+      );
+    }
+
+    final permissionsResult = await _apiClient.get<JsonMap>(
+      '/api/admin/moderation/my-permissions',
+      decoder: asJsonMap,
+    );
+    final rootStatusResult = await _apiClient.get<JsonMap>(
+      '/api/admin/root-status',
+      decoder: asJsonMap,
+    );
+
+    return AdminAccessSnapshot(
+      user: user,
+      adminOk: true,
+      permissions: AdminPermissionSnapshot.fromMap(
+        asJsonMap(permissionsResult.rawData),
+      ),
+      rootStatus: AdminRootStatusSnapshot.fromMap(
+        asJsonMap(rootStatusResult.rawData),
+      ),
+    );
+  }
+
+  Future<void> loginToAdmin(String password) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/login',
+      body: {'password': password},
+    );
+  }
+
+  Future<void> logoutFromAdmin() async {
+    await _apiClient.post<dynamic>('/api/admin/logout');
+  }
+
+  Future<AdminSummarySnapshot> fetchSummary() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/stats',
+      decoder: asJsonMap,
+    );
+    return AdminSummarySnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<AdminLiveSnapshot> fetchLive() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/live',
+      decoder: asJsonMap,
+    );
+    return AdminLiveSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<AdminSecuritySnapshot> fetchSecurityStatus() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/security/status',
+      decoder: asJsonMap,
+    );
+    return AdminSecuritySnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<List<AdminRequestNotificationItem>> fetchRequestNotifications() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/requests/notifications',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['items'],
+    ).map(AdminRequestNotificationItem.fromMap).toList(growable: false);
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchPostPreview({
+    int limit = 5,
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/posts',
+      limit: limit,
+      decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Gonderi'),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchCommentPreview({
+    int limit = 5,
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/comments',
+      limit: limit,
+      decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Yorum'),
+    );
+  }
+
+  Future<AdminPreviewList<AdminModerationItem>> fetchStoryPreview({
+    int limit = 5,
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/stories',
+      limit: limit,
+      decoder: (map) => AdminModerationItem.fromMap(map, typeLabel: 'Hikaye'),
+    );
+  }
+
+  Future<AdminPreviewList<AdminRequestQueueItem>> fetchMemberRequestPreview({
+    int limit = 6,
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/requests',
+      query: {'status': 'pending'},
+      limit: limit,
+      decoder: AdminRequestQueueItem.fromMap,
+    );
+  }
+
+  Future<AdminPreviewList<AdminVerificationQueueItem>>
+  fetchVerificationRequestPreview({int limit = 6}) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/verification-requests',
+      query: {'status': 'pending'},
+      limit: limit,
+      decoder: AdminVerificationQueueItem.fromMap,
+    );
+  }
+
+  Future<AdminPreviewList<AdminUserPreviewItem>> fetchUserPreview({
+    AdminUserListQuery query = const AdminUserListQuery(),
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/users/lists',
+      query: {
+        'page': query.page,
+        'limit': query.limit,
+        'sort': 'engagement_desc',
+        if (query.query.trim().isNotEmpty) 'q': query.query.trim(),
+        if (query.filter.trim().isNotEmpty) 'filter': query.filter.trim(),
+        if (query.verifiedOnly) 'verified': '1',
+        if (query.adminOnly) 'admin': '1',
+        if (query.withPhotoOnly) 'photo': '1',
+      },
+      decoder: asJsonMap,
+    );
+    final raw = asJsonMap(result.rawData);
+    final meta = asJsonMap(raw['meta']);
+    return AdminPreviewList<AdminUserPreviewItem>(
+      total: asInt(meta['total']) ?? asJsonMapList(raw['users']).length,
+      items: asJsonMapList(
+        raw['users'],
+      ).map(AdminUserPreviewItem.fromMap).toList(growable: false),
+    );
+  }
+
+  Future<AdminSiteControlsSnapshot> fetchSiteControls() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/site-controls',
+      decoder: asJsonMap,
+    );
+    return AdminSiteControlsSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<void> updateSiteControls({
+    required bool siteOpen,
+    String? maintenanceMessage,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/site-controls',
+      body: {
+        'siteOpen': siteOpen,
+        ...?maintenanceMessage == null
+            ? null
+            : {'maintenanceMessage': maintenanceMessage},
+      },
+    );
+  }
+
+  Future<List<AdminDbBackupItem>> fetchDbBackups() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/db/backups',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['items'],
+    ).map(AdminDbBackupItem.fromMap).toList(growable: false);
+  }
+
+  Future<AdminDbDriverStatusSnapshot> fetchDbDriverStatus() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/db/driver/status',
+      decoder: asJsonMap,
+    );
+    return AdminDbDriverStatusSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<void> createDbBackup({String label = 'manual'}) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/db/backups',
+      body: {'label': label},
+    );
+  }
+
+  Future<void> copyDbData({
+    required String sourceDriver,
+    required String targetDriver,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/db/driver/copy-data',
+      body: {'sourceDriver': sourceDriver, 'targetDriver': targetDriver},
+    );
+  }
+
+  Future<void> switchDbDriver({
+    required String targetDriver,
+    required String confirmText,
+    required String challengeToken,
+    bool acknowledgeSqliteDrift = false,
+    bool copyData = false,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/db/driver/switch',
+      body: {
+        'targetDriver': targetDriver,
+        'confirmText': confirmText,
+        'challengeToken': challengeToken,
+        'acknowledgeSqliteDrift': acknowledgeSqliteDrift,
+        'copyData': copyData,
+      },
+    );
+  }
+
+  Future<void> restoreDbBackupByName(String name) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/db/restore-from-backup',
+      body: {'name': name},
+    );
+  }
+
+  Future<List<AdminPageItem>> fetchPages() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/pages',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['pages'],
+    ).map(AdminPageItem.fromMap).toList(growable: false);
+  }
+
+  Future<void> addPage({
+    required String name,
+    required String url,
+    String icon = 'yok',
+    int parentId = 0,
+    bool menuVisible = true,
+    bool isRedirect = false,
+    int layoutOption = 0,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/pages',
+      body: {
+        'sayfaismi': name,
+        'sayfaurl': url,
+        'babaid': parentId,
+        'menugorun': menuVisible ? 1 : 0,
+        'yonlendir': isRedirect ? 1 : 0,
+        'mozellik': layoutOption,
+        'resim': icon,
+      },
+    );
+  }
+
+  Future<void> updatePage({
+    required int id,
+    required String name,
+    required String url,
+    required String icon,
+    required int parentId,
+    required bool menuVisible,
+    required bool isRedirect,
+    required int layoutOption,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/pages/$id',
+      body: {
+        'sayfaismi': name,
+        'sayfaurl': url,
+        'babaid': parentId,
+        'menugorun': menuVisible ? 1 : 0,
+        'yonlendir': isRedirect ? 1 : 0,
+        'mozellik': layoutOption,
+        'resim': icon,
+      },
+    );
+  }
+
+  Future<void> reorderPages(List<int> order) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/pages/reorder',
+      body: {'order': order},
+    );
+  }
+
+  Future<void> deletePage(int id) async {
+    await _apiClient.delete<dynamic>('/api/admin/pages/$id');
+  }
+
+  Future<List<AdminEmailCategoryItem>> fetchEmailCategories() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/email/categories',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['categories'],
+    ).map(AdminEmailCategoryItem.fromMap).toList(growable: false);
+  }
+
+  Future<void> addEmailCategory({
+    required String name,
+    required String type,
+    String value = '',
+    String description = '',
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/email/categories',
+      body: {'ad': name, 'tur': type, 'deger': value, 'aciklama': description},
+    );
+  }
+
+  Future<void> deleteEmailCategory(int id) async {
+    await _apiClient.delete<dynamic>('/api/admin/email/categories/$id');
+  }
+
+  Future<List<AdminEmailTemplateItem>> fetchEmailTemplates() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/email/templates',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['templates'],
+    ).map(AdminEmailTemplateItem.fromMap).toList(growable: false);
+  }
+
+  Future<void> addEmailTemplate({
+    required String name,
+    required String subject,
+    required String bodyHtml,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/email/templates',
+      body: {'ad': name, 'konu': subject, 'icerik': bodyHtml},
+    );
+  }
+
+  Future<void> updateEmailTemplate({
+    required int id,
+    required String name,
+    required String subject,
+    required String bodyHtml,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/email/templates/$id',
+      body: {'ad': name, 'konu': subject, 'icerik': bodyHtml},
+    );
+  }
+
+  Future<void> deleteEmailTemplate(int id) async {
+    await _apiClient.delete<dynamic>('/api/admin/email/templates/$id');
+  }
+
+  Future<void> sendBulkEmail({
+    required int categoryId,
+    required String subject,
+    required String html,
+    String from = '',
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/email/bulk',
+      body: {
+        'categoryId': categoryId,
+        'subject': subject,
+        'html': html,
+        if (from.trim().isNotEmpty) 'from': from.trim(),
+      },
+    );
+  }
+
+  Future<void> sendEmail({
+    required String to,
+    required String from,
+    required String subject,
+    required String html,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/email/send',
+      body: {'to': to, 'from': from, 'subject': subject, 'html': html},
+    );
+  }
+
+  Future<List<AdminLogFileItem>> fetchLogFiles({String type = 'app'}) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/logs',
+      query: {'type': type},
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(asJsonMap(result.rawData)['files'])
+        .map((map) => AdminLogFileItem.fromMap({...map, 'type': type}))
+        .toList(growable: false);
+  }
+
+  Future<AdminLogContentSnapshot> fetchLogContent({
+    required String type,
+    required String file,
+    int limit = 4000,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/logs',
+      query: {'type': type, 'file': file, 'limit': limit},
+      decoder: asJsonMap,
+    );
+    return AdminLogContentSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<List<AdminLanguageItem>> fetchLanguages() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/languages',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['languages'],
+    ).map(AdminLanguageItem.fromMap).toList(growable: false);
+  }
+
+  Future<AdminLanguageConfigSnapshot> fetchLanguageConfig() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/language-config',
+      decoder: asJsonMap,
+    );
+    return AdminLanguageConfigSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<void> addLanguage({
+    required String code,
+    required String name,
+    required String nativeName,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/languages',
+      body: {'code': code, 'name': name, 'native_name': nativeName},
+    );
+  }
+
+  Future<void> updateLanguage({
+    required String code,
+    String? name,
+    String? nativeName,
+    bool? isActive,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/languages/$code',
+      body: {
+        ...?name == null ? null : {'name': name},
+        ...?nativeName == null ? null : {'native_name': nativeName},
+        ...?isActive == null ? null : {'is_active': isActive},
+      },
+    );
+  }
+
+  Future<void> deleteLanguage(String code) async {
+    await _apiClient.delete<dynamic>('/api/admin/languages/$code');
+  }
+
+  Future<void> updateLanguageConfig({
+    required bool selectionEnabled,
+    String? defaultOpen,
+    String? defaultClosed,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/language-config',
+      body: {
+        'lang_selection_enabled': selectionEnabled,
+        ...?defaultOpen == null ? null : {'default_lang_open': defaultOpen},
+        ...?defaultClosed == null
+            ? null
+            : {'default_lang_closed': defaultClosed},
+      },
+    );
+  }
+
+  Future<List<AdminLanguageStringItem>> fetchLanguageStrings({
+    required String lang,
+    int limit = 8,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/language-strings',
+      query: {'lang': lang, 'page': 1, 'limit': limit},
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['strings'],
+    ).map(AdminLanguageStringItem.fromMap).toList(growable: false);
+  }
+
+  Future<List<AdminLanguageKeyItem>> fetchLanguageKeys({int limit = 12}) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/language-strings/keys',
+      query: {'page': 1, 'limit': limit},
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['keys'],
+    ).map(AdminLanguageKeyItem.fromMap).toList(growable: false);
+  }
+
+  Future<void> saveLanguageString({
+    required String lang,
+    required String key,
+    required String value,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/language-strings/$lang/$key',
+      body: {'value': value},
+    );
+  }
+
+  Future<void> fillMissingLanguageStrings(String lang) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/language-strings/fill-missing',
+      body: {'lang': lang},
+    );
+  }
+
+  Future<void> bulkImportLanguageStrings({
+    required String lang,
+    required Map<String, String> strings,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/language-strings/bulk',
+      body: {'lang': lang, 'strings': strings},
+    );
+  }
+
+  Future<void> deleteLanguageKey(String key) async {
+    await _apiClient.delete<dynamic>('/api/admin/language-strings/key/$key');
+  }
+
+  Future<AdminUserDetail> fetchUserDetail(int id) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/users/$id',
+      decoder: asJsonMap,
+    );
+    return AdminUserDetail.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<void> updateUserDetail(AdminUserDetail detail) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/users/${detail.id}',
+      body: {
+        'isim': detail.firstName,
+        'soyisim': detail.lastName,
+        'aktivasyon': detail.activationToken,
+        'email': detail.email,
+        'aktiv': detail.isActive ? 1 : 0,
+        'yasak': detail.isBanned ? 1 : 0,
+        'ilkbd': detail.isProfileInitialized ? 1 : 0,
+        'websitesi': detail.website,
+        'imza': detail.signature,
+        'meslek': detail.profession,
+        'sehir': detail.city,
+        'mailkapali': detail.isEmailHidden ? 1 : 0,
+        'hit': detail.profileViewCount,
+        'verified': detail.isVerified ? 1 : 0,
+        'mezuniyetyili': detail.graduationYear,
+        'universite': detail.university,
+        'dogumgun': detail.birthDay,
+        'dogumay': detail.birthMonth,
+        'dogumyil': detail.birthYear,
+        'resim': detail.avatar,
+      },
+    );
+  }
+
+  Future<AdminPreviewList<T>> _fetchPreviewList<T>({
+    required String path,
+    required T Function(JsonMap map) decoder,
+    Map<String, dynamic>? query,
+    int limit = 5,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      path,
+      query: {'page': 1, 'limit': limit, ...?query},
+      decoder: asJsonMap,
+    );
+    final raw = asJsonMap(result.rawData);
+    final meta = asJsonMap(raw['meta']);
+    return AdminPreviewList<T>(
+      total: asInt(meta['total']) ?? asJsonMapList(raw['items']).length,
+      items: asJsonMapList(raw['items']).map(decoder).toList(growable: false),
+    );
+  }
+
+  Future<void> deletePost(int id) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/posts/$id');
+  }
+
+  Future<void> deleteComment(int id) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/comments/$id');
+  }
+
+  Future<void> deleteStory(int id) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/stories/$id');
+  }
+
+  Future<void> reviewMemberRequest({
+    required int id,
+    required String status,
+    String resolutionNote = '',
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/requests/$id/review',
+      body: {
+        'status': status,
+        if (resolutionNote.trim().isNotEmpty)
+          'resolution_note': resolutionNote.trim(),
+      },
+    );
+  }
+
+  Future<void> reviewVerificationRequest({
+    required int id,
+    required String status,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/verification-requests/$id',
+      body: {'status': status},
+    );
+  }
+
+  Future<void> deleteMember(int id) async {
+    await _apiClient.delete<dynamic>('/api/new/admin/members/$id');
+  }
+
+  Future<void> updateGraduationYear({
+    required int id,
+    required String graduationYear,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/new/admin/users/$id/graduation-year',
+      body: {'mezuniyetyili': graduationYear},
+    );
+  }
+}
+
+final adminRepositoryProvider = Provider<AdminRepository>(
+  (ref) => AdminRepository(ref.watch(apiClientProvider)),
+);
+
+final adminAccessProvider = FutureProvider<AdminAccessSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchAdminAccess(),
+);
+
+final adminSummaryProvider = FutureProvider<AdminSummarySnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchSummary(),
+);
+
+final adminLiveProvider = FutureProvider<AdminLiveSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchLive(),
+);
+
+final adminSecurityProvider = FutureProvider<AdminSecuritySnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchSecurityStatus(),
+);
+
+final adminRequestNotificationsProvider =
+    FutureProvider<List<AdminRequestNotificationItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchRequestNotifications(),
+    );
+
+final adminPostPreviewProvider =
+    FutureProvider<AdminPreviewList<AdminModerationItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchPostPreview(),
+    );
+
+final adminCommentPreviewProvider =
+    FutureProvider<AdminPreviewList<AdminModerationItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchCommentPreview(),
+    );
+
+final adminStoryPreviewProvider =
+    FutureProvider<AdminPreviewList<AdminModerationItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchStoryPreview(),
+    );
+
+final adminMemberRequestPreviewProvider =
+    FutureProvider<AdminPreviewList<AdminRequestQueueItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchMemberRequestPreview(),
+    );
+
+final adminVerificationRequestPreviewProvider =
+    FutureProvider<AdminPreviewList<AdminVerificationQueueItem>>(
+      (ref) =>
+          ref.watch(adminRepositoryProvider).fetchVerificationRequestPreview(),
+    );
+
+final adminUserPreviewProvider =
+    FutureProvider.family<
+      AdminPreviewList<AdminUserPreviewItem>,
+      AdminUserListQuery
+    >(
+      (ref, query) =>
+          ref.watch(adminRepositoryProvider).fetchUserPreview(query: query),
+    );
+
+final adminSiteControlsProvider = FutureProvider<AdminSiteControlsSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchSiteControls(),
+);
+
+final adminDbBackupsProvider = FutureProvider<List<AdminDbBackupItem>>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchDbBackups(),
+);
+
+final adminDbDriverStatusProvider = FutureProvider<AdminDbDriverStatusSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchDbDriverStatus(),
+);
+
+final adminLanguagesProvider = FutureProvider<List<AdminLanguageItem>>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchLanguages(),
+);
+
+final adminLanguageConfigProvider = FutureProvider<AdminLanguageConfigSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchLanguageConfig(),
+);
+
+final adminPagesProvider = FutureProvider<List<AdminPageItem>>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchPages(),
+);
+
+final adminEmailCategoriesProvider =
+    FutureProvider<List<AdminEmailCategoryItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchEmailCategories(),
+    );
+
+final adminEmailTemplatesProvider =
+    FutureProvider<List<AdminEmailTemplateItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchEmailTemplates(),
+    );
+
+final adminAppLogFilesProvider = FutureProvider<List<AdminLogFileItem>>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchLogFiles(type: 'app'),
+);
+
+final adminLogContentProvider =
+    FutureProvider.family<
+      AdminLogContentSnapshot,
+      ({String type, String file})
+    >(
+      (ref, params) => ref
+          .watch(adminRepositoryProvider)
+          .fetchLogContent(type: params.type, file: params.file),
+    );
+
+final adminLanguageStringsProvider =
+    FutureProvider.family<List<AdminLanguageStringItem>, String>((ref, lang) {
+      if (lang.trim().isEmpty) {
+        return Future.value(const <AdminLanguageStringItem>[]);
+      }
+      return ref
+          .watch(adminRepositoryProvider)
+          .fetchLanguageStrings(lang: lang);
+    });
+
+final adminLanguageKeysProvider = FutureProvider<List<AdminLanguageKeyItem>>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchLanguageKeys(),
+);
+
+final adminUserDetailProvider = FutureProvider.family<AdminUserDetail, int>(
+  (ref, id) => ref.watch(adminRepositoryProvider).fetchUserDetail(id),
+);

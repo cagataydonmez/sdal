@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -50,7 +52,7 @@ class _ExpiredStoriesPageState extends ConsumerState<ExpiredStoriesPage> {
               error: (error, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text(error.toString()),
+                  child: const ErrorView(),
                 ),
               ),
               data: (stories) {
@@ -65,7 +67,8 @@ class _ExpiredStoriesPageState extends ConsumerState<ExpiredStoriesPage> {
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                   itemCount: stories.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = stories[index];
                     final reposting =
@@ -181,15 +184,35 @@ class _ExpiredStoriesPageState extends ConsumerState<ExpiredStoriesPage> {
     if (!context.mounted) return;
 
     final actionState = ref.read(storiesActionControllerProvider);
-    if (ok) {
-      ref.invalidate(myStoriesProvider(feedType));
-      ref.invalidate(feedStoriesProvider(feedType));
+    if (ok != null) {
+      final current = ref.read(myExpiredStoriesProvider(feedType)).valueOrNull;
+      StoryItem? source;
+      if (current != null) {
+        for (final item in current) {
+          if (item.id == storyId) {
+            source = item;
+            break;
+          }
+        }
+      }
+      final optimistic = _buildOptimisticRepostStory(
+        mutation: ok,
+        storyId: storyId,
+        source: source,
+      );
+      if (optimistic != null) {
+        ref.read(myStoryOverlayProvider(feedType).notifier).upsert(optimistic);
+        ref
+            .read(feedStoryOverlayProvider(feedType).notifier)
+            .upsert(optimistic);
+      }
+      unawaited(_refreshStories(ref, feedType, memberId: source?.author?.id));
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           actionState.message ??
-              (ok
+              (ok != null
                   ? 'Hikaye yeniden yayınlandı.'
                   : 'Hikaye yeniden yayınlanamadı.'),
         ),
@@ -249,4 +272,39 @@ String _emptyTitle(BuildContext context, FeedType feedType) {
           ? 'Süresi dolmuş topluluk hikayesi bulunmuyor.'
           : 'No expired community stories.',
   };
+}
+
+Future<void> _refreshStories(
+  WidgetRef ref,
+  String feedType, {
+  int? memberId,
+}) async {
+  ref.invalidate(myStoriesProvider(feedType));
+  ref.invalidate(feedStoriesProvider(feedType));
+  if (memberId != null && memberId > 0) {
+    ref.invalidate(memberStoriesProvider(memberId));
+  }
+}
+
+StoryItem? _buildOptimisticRepostStory({
+  required StoryMutationResult mutation,
+  required int storyId,
+  required StoryItem? source,
+}) {
+  final nextId = mutation.id ?? storyId;
+  if (nextId <= 0) return null;
+  final createdAt = DateTime.now();
+  return StoryItem(
+    id: nextId,
+    image: mutation.image.isNotEmpty ? mutation.image : (source?.image ?? ''),
+    caption: source?.caption ?? '',
+    createdAt: createdAt.toIso8601String(),
+    expiresAt: createdAt.add(const Duration(hours: 24)).toIso8601String(),
+    isExpired: false,
+    viewed: false,
+    groupId: source?.groupId,
+    viewCount: 0,
+    author: source?.author,
+    variants: mutation.variants ?? source?.variants,
+  );
 }

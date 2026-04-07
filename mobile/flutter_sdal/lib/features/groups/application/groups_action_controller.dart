@@ -50,6 +50,24 @@ class GroupsActionController extends AutoDisposeNotifier<AsyncActionState> {
     return null;
   }
 
+  Future<String?> leaveGroup(int groupId) async {
+    state = AsyncActionState.loading(scope: 'groups:leave:$groupId');
+    final result = await _repository.leaveGroup(groupId);
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'groups:leave');
+      return coalesceText([
+        asJsonMap(result.rawData)['membershipStatus'],
+      ], fallback: '');
+    }
+    state = AsyncActionState.error(
+      scope: 'groups:leave:$groupId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Gruptan ayrılma işlemi tamamlanamadı.',
+    );
+    return null;
+  }
+
   Future<bool> respondToInvite({
     required int groupId,
     required String action,

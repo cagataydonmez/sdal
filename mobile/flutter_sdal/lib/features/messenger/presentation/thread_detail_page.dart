@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -135,7 +136,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
           Expanded(
             child: messagesState.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text(error.toString())),
+              error: (error, _) => const ErrorView(),
               data: (page) {
                 final latestMessages = page.items;
                 _hasOlderMessages = _olderMessages.isNotEmpty

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -58,7 +60,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
             final state =
                 snapshot.data ?? const RealtimeConnectionState.disconnected();
             final color = switch (state?.status) {
-              RealtimeConnectionStatus.connected => Colors.green,
+              RealtimeConnectionStatus.connected => Theme.of(context).sdal.success,
               RealtimeConnectionStatus.failed => Theme.of(
                 context,
               ).colorScheme.error,
@@ -109,7 +111,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
           Expanded(
             child: threadsState.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text(error.toString())),
+              error: (error, _) => const ErrorView(),
               data: (threads) {
                 if (threads.isEmpty) {
                   return Center(
@@ -259,7 +261,7 @@ Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
                     loading: () => controller.text.trim().isEmpty
                         ? Center(child: Text(l10n.searchPrompt))
                         : const Center(child: CircularProgressIndicator()),
-                    error: (error, _) => Center(child: Text(error.toString())),
+                    error: (error, _) => const ErrorView(),
                     data: (contacts) {
                       if (controller.text.trim().isEmpty) {
                         return Center(child: Text(l10n.searchPrompt));

@@ -9,6 +9,7 @@ import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/session/session_models.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -39,7 +40,7 @@ class StoriesRail extends ConsumerWidget {
     final l10n = context.l10n;
     final sessionUser = ref.watch(sessionControllerProvider).valueOrNull?.user;
     final asyncItems = switch (mode) {
-      StoryRailMode.feed => ref.watch(feedStoriesProvider(feedType)),
+      StoryRailMode.feed => ref.watch(optimisticFeedStoriesProvider(feedType)),
       StoryRailMode.mine => ref.watch(myActiveStoriesProvider(feedType)),
       StoryRailMode.member => ref.watch(memberStoriesProvider(memberId ?? 0)),
     };
@@ -75,7 +76,7 @@ class StoriesRail extends ConsumerWidget {
                 _StoryPlaceholderTile(),
               ],
             ),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (items) {
               final groups = _buildGroups(
                 items,
@@ -834,9 +835,19 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
     final ok = await ref
         .read(storiesActionControllerProvider.notifier)
         .editStory(storyId: _item.id, caption: caption);
-    if (!mounted || !ok) return;
-    ref.invalidate(myStoriesProvider(widget.feedType));
-    ref.invalidate(feedStoriesProvider(widget.feedType));
+    if (!mounted || ok == null) return;
+    final updated = _item.copyWith(
+      caption: caption,
+      image: ok.image.isNotEmpty ? ok.image : null,
+      variants: ok.variants ?? _item.variants,
+    );
+    ref.read(myStoryOverlayProvider(widget.feedType).notifier).upsert(updated);
+    ref
+        .read(feedStoryOverlayProvider(widget.feedType).notifier)
+        .upsert(updated);
+    unawaited(
+      _refreshStoryScopes(ref, widget.feedType, memberId: _item.author?.id),
+    );
     Navigator.of(context).pop();
   }
 
@@ -862,18 +873,39 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
         .read(storiesActionControllerProvider.notifier)
         .deleteStory(_item.id);
     if (!mounted || !deleted) return;
-    ref.invalidate(myStoriesProvider(widget.feedType));
-    ref.invalidate(feedStoriesProvider(widget.feedType));
+    ref.read(myStoryOverlayProvider(widget.feedType).notifier).remove(_item.id);
+    ref
+        .read(feedStoryOverlayProvider(widget.feedType).notifier)
+        .remove(_item.id);
+    unawaited(
+      _refreshStoryScopes(ref, widget.feedType, memberId: _item.author?.id),
+    );
     Navigator.of(context).pop();
   }
 
   Future<void> _repostStory() async {
-    final ok = await ref
+    final result = await ref
         .read(storiesActionControllerProvider.notifier)
         .repostStory(_item.id);
-    if (!mounted || !ok) return;
-    ref.invalidate(myStoriesProvider(widget.feedType));
-    ref.invalidate(feedStoriesProvider(widget.feedType));
+    if (!mounted || result == null) return;
+    final optimistic = _buildOptimisticStory(
+      mutation: result,
+      fallbackId: _item.id,
+      caption: _item.caption,
+      author: _item.author,
+      fallbackImage: _item.image,
+    );
+    if (optimistic != null) {
+      ref
+          .read(myStoryOverlayProvider(widget.feedType).notifier)
+          .upsert(optimistic);
+      ref
+          .read(feedStoryOverlayProvider(widget.feedType).notifier)
+          .upsert(optimistic);
+    }
+    unawaited(
+      _refreshStoryScopes(ref, widget.feedType, memberId: _item.author?.id),
+    );
     Navigator.of(context).pop();
   }
 }
@@ -950,9 +982,34 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
                               caption: _captionController.text.trim(),
                               feedType: widget.feedType,
                             );
-                        if (!context.mounted || !ok) return;
-                        ref.invalidate(myStoriesProvider(widget.feedType));
-                        ref.invalidate(feedStoriesProvider(widget.feedType));
+                        if (!context.mounted || ok == null) return;
+                        final sessionUser = ref
+                            .read(sessionControllerProvider)
+                            .valueOrNull
+                            ?.user;
+                        final optimistic = _buildOptimisticStory(
+                          mutation: ok,
+                          fallbackId: ok.id ?? 0,
+                          caption: _captionController.text.trim(),
+                          author: _storyAuthorFromSession(sessionUser),
+                        );
+                        if (optimistic != null) {
+                          ref
+                              .read(
+                                myStoryOverlayProvider(
+                                  widget.feedType,
+                                ).notifier,
+                              )
+                              .upsert(optimistic);
+                          ref
+                              .read(
+                                feedStoryOverlayProvider(
+                                  widget.feedType,
+                                ).notifier,
+                              )
+                              .upsert(optimistic);
+                        }
+                        unawaited(_refreshStoryScopes(ref, widget.feedType));
                         Navigator.of(context).pop();
                       },
                 child: Text(
@@ -988,6 +1045,44 @@ StoryAuthor? _storyAuthorFromSession(SessionUser? user) {
     displayName: user.displayName,
     photo: user.photo,
     verified: user.isVerified,
+  );
+}
+
+Future<void> _refreshStoryScopes(
+  WidgetRef ref,
+  String feedType, {
+  int? memberId,
+}) async {
+  ref.invalidate(myStoriesProvider(feedType));
+  ref.invalidate(feedStoriesProvider(feedType));
+  if (memberId != null && memberId > 0) {
+    ref.invalidate(memberStoriesProvider(memberId));
+  }
+}
+
+StoryItem? _buildOptimisticStory({
+  required StoryMutationResult mutation,
+  required int fallbackId,
+  required String caption,
+  StoryAuthor? author,
+  String fallbackImage = '',
+}) {
+  final storyId = mutation.id ?? fallbackId;
+  if (storyId <= 0) return null;
+  final createdAt = DateTime.now();
+  final createdAtIso = createdAt.toIso8601String();
+  return StoryItem(
+    id: storyId,
+    image: mutation.image.isNotEmpty ? mutation.image : fallbackImage,
+    caption: caption,
+    createdAt: createdAtIso,
+    expiresAt: createdAt.add(const Duration(hours: 24)).toIso8601String(),
+    isExpired: false,
+    viewed: false,
+    groupId: null,
+    viewCount: 0,
+    author: author,
+    variants: mutation.variants,
   );
 }
 

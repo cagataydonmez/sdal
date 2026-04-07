@@ -163,13 +163,45 @@ class ExploreRepository {
   }
 }
 
+class DirectoryMembersQuery {
+  const DirectoryMembersQuery({
+    this.query = '',
+    this.year = '',
+    this.city = '',
+    this.page = 1,
+  });
+
+  final String query;
+  final String year;
+  final String city;
+  final int page;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DirectoryMembersQuery &&
+          runtimeType == other.runtimeType &&
+          query == other.query &&
+          year == other.year &&
+          city == other.city &&
+          page == other.page;
+
+  @override
+  int get hashCode => Object.hash(query, year, city, page);
+}
+
 final exploreRepositoryProvider = Provider<ExploreRepository>(
   (ref) => ExploreRepository(ref.watch(apiClientProvider)),
 );
 
-final directoryMembersProvider =
-    FutureProvider.autoDispose<List<MemberSummary>>(
-      (ref) => ref.watch(exploreRepositoryProvider).fetchMembers(),
+final directoryMembersProvider = FutureProvider.autoDispose
+    .family<List<MemberSummary>, DirectoryMembersQuery>(
+      (ref, query) => ref.watch(exploreRepositoryProvider).fetchMembers(
+        q: query.query,
+        year: query.year,
+        city: query.city,
+        page: query.page,
+      ),
     );
 
 final suggestionMembersProvider =

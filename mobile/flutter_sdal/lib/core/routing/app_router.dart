@@ -9,6 +9,7 @@ import '../../features/albums/presentation/albums_page.dart';
 import '../../features/community/presentation/announcements_page.dart';
 import '../../features/community/presentation/events_page.dart';
 import '../../features/admin/presentation/admin_pages.dart';
+import '../../features/bulletin/presentation/bulletin_page.dart';
 import '../../features/explore/presentation/explore_page.dart';
 import '../../features/explore/presentation/member_detail_page.dart';
 import '../../features/feed/presentation/feed_page.dart';
@@ -22,6 +23,7 @@ import '../../features/messenger/presentation/inbox_page.dart';
 import '../../features/messenger/presentation/thread_detail_page.dart';
 import '../../features/networking/presentation/networking_pages.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
+import '../../features/legal/presentation/legal_content_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
 import '../../features/profile/presentation/email_change_verify_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
@@ -77,71 +79,86 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               : '/login';
         },
       ),
-      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (context, state) => _fadePage(const LoginPage()),
+      ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const RegisterPage(),
+        pageBuilder: (context, state) => _slidePage(const RegisterPage()),
       ),
       GoRoute(
         path: '/activate',
-        builder: (context, state) => ActivationPage(
+        pageBuilder: (context, state) => _slidePage(ActivationPage(
           memberId: state.uri.queryParameters['id'] ?? '',
           code: state.uri.queryParameters['akt'] ?? '',
-        ),
+        )),
       ),
       GoRoute(
         path: '/activation/resend',
-        builder: (context, state) => const ActivationResendPage(),
+        pageBuilder: (context, state) =>
+            _slidePage(const ActivationResendPage()),
       ),
       GoRoute(
         path: '/password-reset',
-        builder: (context, state) => const PasswordResetPage(),
+        pageBuilder: (context, state) =>
+            _slidePage(const PasswordResetPage()),
+      ),
+      GoRoute(
+        path: '/legal',
+        pageBuilder: (context, state) {
+          final extra = state.extra is Map ? state.extra as Map : const {};
+          return _slidePage(LegalContentPage(
+            title: (extra['title'] ?? 'Yasal içerik').toString(),
+            path: (extra['path'] ?? '/kvkk').toString(),
+          ));
+        },
       ),
       GoRoute(
         path: '/profile/email-change/verify',
-        builder: (context, state) => EmailChangeVerifyPage(
+        pageBuilder: (context, state) => _slidePage(EmailChangeVerifyPage(
           token: state.uri.queryParameters['token'] ?? '',
-        ),
+        )),
       ),
       GoRoute(
         path: '/oauth/callback',
-        builder: (context, state) => const OAuthCallbackPage(),
+        pageBuilder: (context, state) => _fadePage(const OAuthCallbackPage()),
       ),
       GoRoute(
         path: '/site-closed',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final s = ref.read(sessionControllerProvider).value;
           final maintenanceMessage = s?.siteAccess.maintenanceMessage ?? '';
-          return StatusScaffold(
+          return _fadePage(StatusScaffold(
             title: AppLocalizations.of(context)!.siteClosedTitle,
             message: maintenanceMessage.isNotEmpty
                 ? maintenanceMessage
                 : AppLocalizations.of(context)!.siteClosedFallbackMessage,
-          );
+          ));
         },
       ),
       GoRoute(
         path: '/module-closed',
-        builder: (context, state) => ModuleAccessRequestPage(
+        pageBuilder: (context, state) => _fadePage(ModuleAccessRequestPage(
           moduleKey: state.uri.queryParameters['module'] ?? '',
-        ),
+        )),
       ),
       GoRoute(
         path: '/account-banned',
-        builder: (context, state) => StatusScaffold(
+        pageBuilder: (context, state) => _fadePage(StatusScaffold(
           title: AppLocalizations.of(context)!.accountBannedTitle,
           message: AppLocalizations.of(context)!.accountBannedMessage,
-        ),
+        )),
       ),
       GoRoute(
         path: '/verification-required',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final feature = state.uri.queryParameters['feature'] ?? 'networking';
           final l10n = AppLocalizations.of(context)!;
-          return StatusScaffold(
+          return _fadePage(StatusScaffold(
             title: l10n.verificationRequiredTitle,
             message: l10n.verificationRequiredMessage(feature),
-          );
+          ));
         },
       ),
       StatefulShellRoute.indexedStack(
@@ -197,105 +214,128 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/posts/:postId',
-        builder: (context, state) => PostDetailPage(
+        pageBuilder: (context, state) => _liftPage(PostDetailPage(
           postId: int.tryParse(state.pathParameters['postId'] ?? '') ?? 0,
-        ),
+        )),
       ),
       GoRoute(
         path: '/members/:memberId',
-        builder: (context, state) => MemberDetailPage(
+        pageBuilder: (context, state) => _liftPage(MemberDetailPage(
           memberId: int.tryParse(state.pathParameters['memberId'] ?? '') ?? 0,
-        ),
+        )),
       ),
       GoRoute(
         path: '/messages/:threadId',
-        builder: (context, state) => ThreadDetailPage(
+        pageBuilder: (context, state) => _liftPage(ThreadDetailPage(
           threadId: int.tryParse(state.pathParameters['threadId'] ?? '') ?? 0,
-        ),
+        )),
       ),
       GoRoute(
         path: '/network/hub',
-        builder: (context, state) => const NetworkingHubPage(),
+        pageBuilder: (context, state) => _slidePage(const NetworkingHubPage()),
       ),
       GoRoute(
         path: '/network/inbox',
-        builder: (context, state) => const NetworkingInboxPage(),
+        pageBuilder: (context, state) =>
+            _slidePage(const NetworkingInboxPage()),
       ),
       GoRoute(
         path: '/network/teachers',
-        builder: (context, state) => const TeacherLinksPage(),
+        pageBuilder: (context, state) =>
+            _slidePage(const TeacherLinksPage()),
       ),
       GoRoute(
         path: '/profile/photo',
-        builder: (context, state) => const ProfilePhotoPage(),
+        pageBuilder: (context, state) => _slidePage(const ProfilePhotoPage()),
       ),
       GoRoute(
         path: '/profile/verification',
-        builder: (context, state) => const ProfileVerificationPage(),
+        pageBuilder: (context, state) =>
+            _slidePage(const ProfileVerificationPage()),
       ),
       GoRoute(
         path: '/profile/stories/expired',
-        builder: (context, state) => ExpiredStoriesPage(
+        pageBuilder: (context, state) => _slidePage(ExpiredStoriesPage(
           initialFeedType: state.uri.queryParameters['feedType'] == 'community'
               ? FeedType.community
               : FeedType.main,
-        ),
+        )),
       ),
       GoRoute(
         path: '/feed/live-chat',
-        builder: (context, state) => const LiveChatPage(),
+        pageBuilder: (context, state) => _slidePage(const LiveChatPage()),
       ),
       GoRoute(
         path: '/following',
-        builder: (context, state) => const FollowingPage(),
+        pageBuilder: (context, state) => _slidePage(const FollowingPage()),
       ),
-      GoRoute(path: '/groups', builder: (context, state) => const GroupsPage()),
+      GoRoute(
+        path: '/groups',
+        pageBuilder: (context, state) => _slidePage(const GroupsPage()),
+      ),
       GoRoute(
         path: '/groups/:groupId',
-        builder: (context, state) => GroupDetailPage(
+        pageBuilder: (context, state) => _liftPage(GroupDetailPage(
           groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
-        ),
+        )),
       ),
-      GoRoute(path: '/events', builder: (context, state) => const EventsPage()),
+      GoRoute(
+        path: '/events',
+        pageBuilder: (context, state) => _slidePage(const EventsPage()),
+      ),
       GoRoute(
         path: '/announcements',
-        builder: (context, state) => const AnnouncementsPage(),
+        pageBuilder: (context, state) => _slidePage(const AnnouncementsPage()),
+      ),
+      GoRoute(
+        path: '/panolar',
+        pageBuilder: (context, state) => _slidePage(BulletinPage(
+          initialCategoryId:
+              int.tryParse(state.uri.queryParameters['mkatid'] ?? '') ?? 0,
+        )),
       ),
       GoRoute(
         path: '/admin',
-        builder: (context, state) => const AdminHubPage(),
+        pageBuilder: (context, state) => _slidePage(const AdminHubPage()),
       ),
       GoRoute(
         path: '/admin/:section',
-        builder: (context, state) =>
-            AdminSectionPage(sectionKey: state.pathParameters['section'] ?? ''),
+        pageBuilder: (context, state) => _liftPage(
+          AdminSectionPage(sectionKey: state.pathParameters['section'] ?? ''),
+        ),
       ),
-      GoRoute(path: '/jobs', builder: (context, state) => const JobsPage()),
+      GoRoute(
+        path: '/jobs',
+        pageBuilder: (context, state) => _slidePage(const JobsPage()),
+      ),
       GoRoute(
         path: '/opportunities',
-        builder: (context, state) => const OpportunitiesPage(),
+        pageBuilder: (context, state) => _slidePage(const OpportunitiesPage()),
       ),
-      GoRoute(path: '/albums', builder: (context, state) => const AlbumsPage()),
+      GoRoute(
+        path: '/albums',
+        pageBuilder: (context, state) => _slidePage(const AlbumsPage()),
+      ),
       GoRoute(
         path: '/albums/:categoryId',
-        builder: (context, state) => AlbumCategoryPage(
+        pageBuilder: (context, state) => _liftPage(AlbumCategoryPage(
           categoryId:
               int.tryParse(state.pathParameters['categoryId'] ?? '') ?? 0,
-        ),
+        )),
       ),
       GoRoute(
         path: '/albums/photo/:photoId',
-        builder: (context, state) => AlbumPhotoPage(
+        pageBuilder: (context, state) => _liftPage(AlbumPhotoPage(
           photoId: int.tryParse(state.pathParameters['photoId'] ?? '') ?? 0,
-        ),
+        )),
       ),
       GoRoute(
         path: '/albums/upload',
-        builder: (context, state) => const AlbumUploadPage(),
+        pageBuilder: (context, state) => _slidePage(const AlbumUploadPage()),
       ),
       GoRoute(
         path: '/requests',
-        builder: (context, state) => RequestsPage(
+        pageBuilder: (context, state) => _slidePage(RequestsPage(
           initialCategoryKey: state.uri.queryParameters['category'] ?? '',
           highlightedRequestId:
               int.tryParse(state.uri.queryParameters['request'] ?? '') ?? 0,
@@ -303,7 +343,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               int.tryParse(state.uri.queryParameters['notification'] ?? '') ??
               0,
           notificationStatus: state.uri.queryParameters['status'] ?? '',
-        ),
+        )),
       ),
     ],
   );
@@ -400,3 +440,56 @@ bool requiresVerificationGate(String location) {
   if (location == '/inbox' || location.startsWith('/messages/')) return false;
   return location.startsWith('/network/');
 }
+
+// ── Transition helpers ────────────────────────────────────────────────────────
+
+const _kCurve = Curves.easeOutCubic;
+const _kDuration = Duration(milliseconds: 280);
+
+/// Slide from right + fade. Use for list / feature pages pushed from the tab shell.
+CustomTransitionPage<void> _slidePage(Widget child) =>
+    CustomTransitionPage<void>(
+      child: child,
+      transitionDuration: _kDuration,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved =
+            CurvedAnimation(parent: animation, curve: _kCurve);
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.06, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: FadeTransition(opacity: curved, child: child),
+        );
+      },
+    );
+
+/// Lift from below + fade. Use for detail pages opened from a list item.
+CustomTransitionPage<void> _liftPage(Widget child) =>
+    CustomTransitionPage<void>(
+      child: child,
+      transitionDuration: _kDuration,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved =
+            CurvedAnimation(parent: animation, curve: _kCurve);
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.05),
+            end: Offset.zero,
+          ).animate(curved),
+          child: FadeTransition(opacity: curved, child: child),
+        );
+      },
+    );
+
+/// Cross-fade. Use for full-screen takeovers (auth, status screens).
+CustomTransitionPage<void> _fadePage(Widget child) =>
+    CustomTransitionPage<void>(
+      child: child,
+      transitionDuration: _kDuration,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: _kCurve),
+            child: child,
+          ),
+    );

@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/requests_action_controller.dart';
@@ -141,7 +142,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               children: [
                 categoriesState.when(
                   loading: () => const CircularProgressIndicator(),
-                  error: (error, _) => Text(error.toString()),
+                  error: (error, _) => const ErrorView(compact: true),
                   data: (categories) => DropdownButtonFormField<String>(
                     initialValue:
                         categories.any(
@@ -306,7 +307,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                   error: (error, _) => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(error.toString()),
+                      const ErrorView(compact: true),
                       const SizedBox(height: 12),
                       FilledButton.tonal(
                         onPressed: () => ref.invalidate(myRequestsProvider),

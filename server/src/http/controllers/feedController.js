@@ -61,9 +61,15 @@ export function createFeedController({
         return item;
       });
 
+      const paging = data.paging || {};
       const responsePayload = {
         items,
-        hasMore: data.hasMore
+        hasMore: data.hasMore,
+        limit: Number(paging.limit || limit),
+        offset: Number(paging.offset || 0),
+        cursor: Number(paging.cursor || 0),
+        nextCursor: paging.nextCursor ? Number(paging.nextCursor) : null,
+        next_cursor: paging.nextCursor ? Number(paging.nextCursor) : null
       };
 
       if (cacheKey && typeof setCacheJson === 'function') {

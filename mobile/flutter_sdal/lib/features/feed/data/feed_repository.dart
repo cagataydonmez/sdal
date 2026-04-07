@@ -199,20 +199,45 @@ class FeedOnlineMember {
   }
 }
 
+class FeedPageData {
+  const FeedPageData({
+    required this.items,
+    required this.hasMore,
+    required this.limit,
+    this.offset,
+    this.cursor,
+    this.nextCursor,
+  });
+
+  final List<FeedItem> items;
+  final bool hasMore;
+  final int limit;
+  final int? offset;
+  final int? cursor;
+  final int? nextCursor;
+}
+
 class FeedRepository {
   const FeedRepository(this._apiClient);
 
   final ApiClient _apiClient;
 
-  Future<List<FeedItem>> fetchFeed({
+  Future<FeedPageData> fetchFeedPage({
     FeedType feedType = FeedType.main,
     FeedFilter filter = FeedFilter.latest,
+    int limit = 20,
+    int offset = 0,
+    int? cursor,
   }) async {
+    final safeLimit = limit.clamp(1, 50);
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeCursor = (cursor ?? 0) > 0 ? cursor : null;
     final result = await _apiClient.get<dynamic>(
       '/api/new/feed',
       query: {
-        'limit': 20,
-        'offset': 0,
+        'limit': safeLimit,
+        if (safeCursor == null) 'offset': safeOffset,
+        ...?safeCursor == null ? null : {'cursor': safeCursor},
         'feedType': feedType.apiValue,
         'filter': filter.apiValue,
       },
@@ -221,7 +246,17 @@ class FeedRepository {
       result.rawData,
       FeedItem.fromMap,
     );
-    return page.items;
+    final nextCursor =
+        asInt(page.nextCursor) ??
+        (page.hasMore && page.items.isNotEmpty ? page.items.last.id : null);
+    return FeedPageData(
+      items: page.items,
+      hasMore: page.hasMore,
+      limit: page.limit ?? safeLimit,
+      offset: safeCursor == null ? (page.offset ?? safeOffset) : null,
+      cursor: asInt(asJsonMap(result.rawData)['cursor']) ?? safeCursor,
+      nextCursor: nextCursor,
+    );
   }
 
   Future<FeedItem?> fetchPost(int postId) async {
@@ -289,6 +324,15 @@ class FeedRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> deleteComment({
+    required int postId,
+    required int commentId,
+  }) {
+    return _apiClient.delete<dynamic>(
+      '/api/new/posts/$postId/comments/$commentId',
+    );
+  }
+
   Future<ApiResult<dynamic>> deletePost(int postId) async {
     final canonical = await _apiClient.delete<dynamic>(
       '/api/new/posts/$postId',
@@ -327,7 +371,15 @@ final feedItemsProvider = FutureProvider.autoDispose<List<FeedItem>>((ref) {
   final query = ref.watch(feedQueryProvider);
   return ref
       .watch(feedRepositoryProvider)
-      .fetchFeed(feedType: query.feedType, filter: query.filter);
+      .fetchFeedPage(feedType: query.feedType, filter: query.filter)
+      .then((page) => page.items);
+});
+
+final feedPageProvider = FutureProvider.autoDispose<FeedPageData>((ref) {
+  final query = ref.watch(feedQueryProvider);
+  return ref
+      .watch(feedRepositoryProvider)
+      .fetchFeedPage(feedType: query.feedType, filter: query.filter);
 });
 
 final postDetailProvider = FutureProvider.autoDispose.family<FeedItem?, int>(

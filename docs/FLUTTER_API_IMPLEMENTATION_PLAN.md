@@ -143,7 +143,7 @@ Files likely touched:
 
 ## 2. Authentication & Registration
 
-Status: done except legal content screens and OAuth contract cleanup
+Status: done
 
 Current Flutter coverage:
 
@@ -169,7 +169,7 @@ Partial implementation gaps:
 - registration is single-submit; no preview/check preflight
 - no inline uniqueness validation for username/e-mail
 - no pre-submit validation step
-- no native legal-policy screens or external-opener flow
+- external-open alternative is optional; in-app legal content screen is now implemented
 
 Plan:
 
@@ -178,11 +178,11 @@ Plan:
    - field-level uniqueness check
    - pre-submit preview/validation
    - final submit
-3. [pending] Add a reusable legal content screen strategy:
+3. [done] Add a reusable legal content screen strategy:
    - either in-app webview/native screen
    - or external browser launcher with clear routing from registration/profile flows
-4. [pending] Keep OAuth browser start/callback indirect, but document that Flutter uses `/api/auth/oauth/:provider/start` via `FlutterWebAuth2`.
-5. [pending] Update docs to include `/api/auth/login` and `/api/auth/logout`, which Flutter already uses but `API_REFERENCE.md` currently omits.
+4. [done] Keep OAuth browser start/callback indirect, but document that Flutter uses `/api/auth/oauth/:provider/start` via `FlutterWebAuth2`.
+5. [done] Update docs to include `/api/auth/login` and `/api/auth/logout`, which Flutter already uses but `API_REFERENCE.md` currently omits.
 
 Files likely touched:
 
@@ -194,6 +194,8 @@ Files likely touched:
 
 ## 3. OAuth
 
+Status: done for the current mobile OAuth contract
+
 Current Flutter coverage:
 
 - provider discovery
@@ -202,14 +204,16 @@ Current Flutter coverage:
 
 Missing or partial:
 
-- no explicit contract object for provider start/callback edge cases
-- no standardized error mapping for provider-specific failures
+- no dedicated auth repository/use-case for provider start/callback orchestration
+- backend/provider-specific error vocabularies still need docs reconciliation beyond the current mobile guards
 
 Plan:
 
-1. Keep current auth flow, but move provider start/callback handling into a dedicated auth repository/use-case.
-2. Normalize OAuth error payload parsing and callback query handling.
-3. Add tests covering:
+1. [done] Keep current auth flow, but move provider start/callback handling into a dedicated auth repository/use-case.
+2. [done] Normalize OAuth error payload parsing and callback query handling.
+   - missing provider is now mapped to a stable “provider unavailable” error
+   - callback `oauth` query errors and missing-token callbacks are handled explicitly
+3. [done] Add tests covering:
    - missing token
    - provider-disabled
    - callback error
@@ -223,7 +227,7 @@ Files likely touched:
 
 ## 4. Profile & Self-Service
 
-Status: done for mobile implementation parity in this phase, docs sync still pending
+Status: done for mobile implementation parity in this phase
 
 Current Flutter coverage:
 
@@ -276,7 +280,7 @@ Plan:
    - optional visibility/permissions
 5. [done] Decide whether `/api/sidebar` should power a desktop/tablet sidebar only or remain unused in mobile layout.
    Mobile decision: use it as lightweight quick-glance shell metadata in the app menu instead of a dedicated sidebar screen.
-6. [pending] Update docs to include verification proof/request endpoints already used by Flutter.
+6. [done] Update docs to include verification proof/request endpoints already used by Flutter.
 
 Files likely touched:
 
@@ -318,7 +322,7 @@ Plan:
    - explore page
    - feed secondary card
    - or profile/discovery module
-4. [pending] Add filters UI for year/city if product wants parity with docs.
+4. [done] Add filters UI for year/city if product wants parity with docs.
 
 Files likely touched:
 
@@ -328,7 +332,7 @@ Files likely touched:
 
 ## 6. Feed & Posts
 
-Status: in progress
+Status: done for the current backend contract
 
 Current Flutter coverage:
 
@@ -349,27 +353,24 @@ Missing documented endpoints:
 
 Partial implementation gaps:
 
-- feed pagination not wired as documented
-- no delete post UI
-- no delete comment UI
-- reaction contract mismatch
-- no dedicated online-members widget
-- potential missing optimistic updates / cursor support
+- potential missing optimistic updates
 
 Plan:
 
 1. [done] Resolve canonical reaction contract:
    - either update docs to `/like`
    - or add `/react` support in Flutter and optionally keep `/like` fallback
-2. [partial] Add destructive actions:
+2. [done] Add destructive actions:
    - delete post from feed card and post detail
-   - [blocked by backend gap] delete own comment in post detail
-3. [pending] Implement cursor pagination properly for feed list if server/reference requires it.
-4. [pending] Parse and preserve pagination metadata in `FeedRepository`.
+   - delete own comment in post detail
+3. [done] Implement cursor pagination properly for feed list if server/reference requires it.
+   - server now returns explicit `nextCursor`
+   - Flutter prefers server-driven cursor metadata and only falls back if needed
+4. [done] Parse and preserve pagination metadata in `FeedRepository`.
 5. [done] Add online-members surface if product wants doc parity:
    - feed header card
    - optional lightweight horizontal strip
-6. [pending] Document `POST /api/new/posts/upload` in API reference because Flutter already uses it.
+6. [done] Document `POST /api/new/posts/upload` in API reference because Flutter already uses it.
 
 Files likely touched:
 
@@ -381,7 +382,7 @@ Files likely touched:
 
 ## 7. Stories
 
-Status: partial
+Status: done for the current mobile parity scope
 
 Current Flutter coverage:
 
@@ -396,19 +397,16 @@ Current Flutter coverage:
 
 Missing or partial:
 
-- canonical `PATCH /api/new/stories/:id` is not used
-- canonical `DELETE /api/new/stories/:id` is not used
-- Flutter currently leans on legacy alias endpoints for edit/delete
-- upload response is not strongly typed
-- story state refresh still depends on broad invalidation rather than typed optimistic merging
+- mark-viewed still refreshes from server after side effects, but CRUD/repost flows no longer depend on broad invalidation for immediate UI updates
 
 Plan:
 
 1. [done] Switch story edit/delete to canonical `PATCH` / `DELETE` with alias fallback only if needed.
 2. [done] Introduce a typed story mutation response model.
-3. [pending] Tighten story state management:
+3. [done] Tighten story state management:
    - optimistic update on upload/edit/delete/repost
    - explicit handling for active vs expired partitions
+   - feed and profile story lists now merge local overlays before background refresh
 4. [done] Confirm story feed query params match docs and backend behavior for `feedType`.
 5. [done] Keep alias endpoints only as backward-compatibility fallback, not as primary integration.
 
@@ -421,7 +419,7 @@ Files likely touched:
 
 ## 8. Messenger (Modern)
 
-Status: partial
+Status: done for the current backend contract
 
 Current Flutter coverage:
 
@@ -435,20 +433,19 @@ Current Flutter coverage:
 
 Partial implementation gaps:
 
-- no `before` cursor/pagination for thread history
-- thread creation body shape does not match docs (`userId` vs `recipientIds`)
-- no explicit support for group thread creation
-- realtime websocket contract is not represented in API reference
+- backend intentionally remains 1:1-only and now rejects multi-recipient creation with an explicit stable error code
 
 Plan:
 
 1. [done] Align thread creation with docs:
    - post `{ recipientIds: [...] }`
-   - [partial] support 1:1 and multi-recipient creation
+   - single-recipient creation is supported
+   - multi-recipient attempts now fail deterministically with `group_threads_not_supported` until backend thread architecture changes
 2. [done] Add paginated history loading using `before`.
 3. [done] Add UI support for older-history load / reverse infinite scroll.
-4. [pending] Add tests for thread creation and pagination.
-5. [pending] Extend docs with websocket transport notes for `/ws/messenger` if realtime is considered part of supported contract.
+4. [done] Add tests for thread creation and pagination.
+   - repository contract tests added for `recipientIds` body + `before` pagination aliasing
+5. [done] Extend docs with websocket transport notes for `/ws/messenger` if realtime is considered part of supported contract.
 
 Files likely touched:
 
@@ -489,6 +486,8 @@ Recommended plan:
 
 ## 10. Albums & Photos
 
+Status: done for the current mobile scope, with admin moderation ownership still undecided
+
 Current Flutter coverage:
 
 - categories
@@ -499,15 +498,13 @@ Current Flutter coverage:
 - photo detail
 - photo comments list/add
 
-Status:
-
-- core API coverage is already strong
-
 Partial follow-up tasks:
 
-1. Validate pagination parity for category detail and latest feeds.
-2. Add repository/widget tests so albums remain a regression-safe baseline.
-3. Decide whether admin album moderation belongs in Flutter admin rollout.
+1. [done] Validate pagination parity for category detail and latest feeds.
+2. [done] Add repository/widget tests so albums remain a regression-safe baseline.
+   - [done] repository contract tests added for latest-feed and category-detail pagination/query parity
+   - [done] widget-level regression coverage added for albums page and category page load-more behavior
+3. [pending] Decide whether admin album moderation belongs in Flutter admin rollout.
 
 ## 11. Community Events
 
@@ -586,6 +583,8 @@ Files likely touched:
 
 ## 13. Groups
 
+Status: partial, with explicit leave flow and post-feed provider integration added
+
 Documented Flutter coverage:
 
 - list groups
@@ -612,18 +611,23 @@ Missing documented endpoints:
 
 Partial implementation gaps:
 
-- join is present, leave is not
-- group posts can be created but not fetched from documented posts endpoint
-- delete group owner flow is missing
+- leave is now explicit in Flutter UI and uses canonical `/leave` first with fallback to existing `/join` toggle behavior
+- group posts are now loaded through a dedicated provider that calls canonical `/posts` first and falls back to embedded detail posts when the backend route is absent
+- delete group owner flow is still missing because a public `DELETE /api/new/groups/:id` route was not found on the server
 - docs do not reflect several already-implemented moderation/management endpoints
 
 Plan:
 
 1. Add leave group flow explicitly.
+   - done in Flutter with canonical-first/fallback behavior
 2. Add delete group flow with owner confirmation UX.
+   - blocked by backend gap: no public delete route found
 3. Add paginated group posts fetch endpoint integration.
+   - partial: Flutter now reads a dedicated posts provider, but current backend falls back to embedded detail posts because canonical route is absent
 4. Decide whether group detail should continue relying on embedded recent posts or switch to dedicated posts API.
+   - partial: Flutter is prepared for a dedicated posts API and currently falls back automatically
 5. Update API reference to include all currently implemented group-management endpoints.
+   - done
 
 Files likely touched:
 
@@ -731,7 +735,7 @@ Files likely touched:
 
 ## 16. Connection & Mentorship Requests
 
-Status: partial, with standalone request-list endpoints now integrated in Flutter
+Status: partial, with standalone request-list endpoints now integrated in Flutter and paginated
 
 Current Flutter coverage:
 
@@ -749,7 +753,7 @@ Partial implementation gaps:
 
 - standalone `connections/requests` and `mentorship/requests` endpoints are now wired into the networking inbox UI with direction/status filters
 - aggregated inbox payload is still used for teacher-link notifications
-- request pagination is still first-page only in Flutter UI
+- request pagination now supports page-based browsing in Flutter UI
 - backend mismatch: `POST /api/new/connections/cancel/:id` writes `cancelled`, but `GET /api/new/connections/requests` only normalizes `pending|accepted|ignored`, so cancelled connection history cannot be queried canonically yet
 
 Plan:
@@ -819,7 +823,7 @@ Plan:
 1. Verify and align jobs filter keys with documented contract.
    - done
 2. Add repository tests for filter serialization.
-   - pending
+   - done
 3. Keep jobs as one of the “already strong” modules after contract alignment.
    - partial
 
@@ -830,40 +834,41 @@ Files likely touched:
 
 ## 19. Miscellaneous App Features
 
+Status: partial, with quick-access and bulletin board flows added to Flutter; tournament + mini-games explicitly de-scoped as classic/web-only.
+
 Current Flutter coverage:
 
-- none from this section
-
-Missing documented endpoints:
-
+- quick access (`/api/quick-access`, `/api/quick-access/add`, `/api/quick-access/remove`)
 - bulletin boards (`/api/panolar`)
-- quick access
-- tournament register
-- snake/tetris/arcade leaderboards and score submission
+
+Notes:
+
+- Bulletin board list/create are implemented, and delete is wired to the current backend `requireAdmin` contract.
+- API reference says bulletin delete is `owner or admin`, but the live server route is admin-only; keep this section `partial` until the contract is reconciled.
+- Tournament registration and snake/tetris/arcade leaderboard flows are excluded from Flutter scope for now and treated as classic/web-only.
 
 Decision gate:
 
 - If these are part of Flutter product roadmap, create separate feature modules.
 - If not, explicitly de-scope and record them as web/classic-only.
 
-Recommended implementation order if kept in scope:
+Recommended implementation order if scope changes later:
 
-1. quick access
-2. bulletin boards
-3. mini-games / leaderboards
-4. tournament registration
+1. tournament registration
+2. mini-games / leaderboards
 
 ## 20–32. Admin APIs
 
 Current Flutter coverage:
 
 - route shell exists
-- static admin hub exists
-- no real data integration
+- dashboard backbone now consumes real summary/live/security/request-notification data
+- management, content moderation, request moderation, operations, database, and languages section pages now show live preview queues or live settings snapshots
+- core preview actions are wired for content delete, request / verification approve-reject, member delete, graduation-year update, site-open toggle, backup creation, DB copy-data, page/email-category CRUD previews, and language/string management flows
 
 Missing:
 
-- effectively the full admin API implementation
+- most moderation, CRUD, DB, localization, and email admin workflows
 
 Admin rollout should be treated as its own program, not as one oversized ticket.
 
@@ -877,9 +882,10 @@ Endpoints:
 
 Deliverables:
 
-- real admin auth/session repository
-- permission-aware admin shell
-- dashboard cards and live activity data
+- [done] real admin auth/session repository
+- [done] permission-aware admin shell
+- [done] dashboard cards and live activity data
+- [done] security/request-notification summary surfaced on the admin hub
 
 ### Admin Phase B: User management and request moderation
 
@@ -894,10 +900,17 @@ Endpoints:
 
 Deliverables:
 
-- list/detail pages
-- filter/search UI
-- review actions
+- [partial] list/detail pages
+- [done] filter/search UI
+- [done] review actions on preview queues
 - confirmation/error states
+- [done] management preview actions for member delete and graduation-year update
+- [done] operations preview actions for site-open toggle
+- [done] database preview actions for backup creation
+- [done] languages preview actions for selection toggle, add, activate/deactivate, and delete
+- [done] operations preview actions for page add/delete, email-category add/delete, and app-log preview
+- [done] database preview action for copy-data trigger
+- [done] languages preview actions for string edit/save and fill-missing
 
 ### Admin Phase C: Content moderation
 
@@ -908,7 +921,8 @@ Endpoints:
 
 Deliverables:
 
-- moderation queues
+- [partial] moderation queues
+- [done] delete actions on preview queues for posts/comments/stories
 - delete actions
 - filter rule management
 
@@ -1111,5 +1125,47 @@ Use these as implementation epics:
 10. Epic 10 — Admin management and moderation
 11. Epic 11 — Admin operations/security/experiments
 12. Epic 12 — Admin database/language/email/albums
+
+## Completed Work Summary
+
+- Authentication & Registration: register preflight/check flows, legal content screens, and auth/docs alignment are implemented; only optional alternate legal-opening UX remains.
+- OAuth: callback error normalization, repository extraction, and targeted contract tests are in place for the current mobile contract.
+- Profile & Self-Service: email-change verify, menu/sidebar bootstrap, verification request/proof, and module-access requests are integrated in Flutter.
+- Member Directory: documented query parity, latest-members surface, and year/city filter UI are implemented.
+- Feed & Posts: delete-post, delete-comment, reaction parity, online-members, upload docs alignment, and server-driven pagination metadata are integrated; remaining work is mostly optional UX hardening.
+- Stories: canonical `PATCH`/`DELETE`, typed mutation responses, feed-type parity, expired/archive flows, and optimistic local overlay updates are in place.
+- Messenger (Modern): thread creation contract, paginated history loading, repository contract tests, and websocket docs are implemented; group-thread support is still open.
+- Albums & Photos: core list/detail/upload/comment flows, pagination parity, repository tests, and widget regression coverage are in place.
+- Community Events: admin approve/unpublish/delete actions are wired on top of existing list/create/comment/RSVP flows.
+- Community Announcements: admin approve/unpublish/delete actions are wired on top of existing list/create/upload flows.
+- Groups: explicit leave flow and dedicated post-feed provider integration are implemented with canonical-first and fallback behavior.
+- Notifications: canonical mark-all-read, cursor pagination, unread-source handling, and core telemetry events are implemented.
+- Network Discovery & Explore: network metrics and supported telemetry events are integrated into hub/explore/teacher surfaces.
+- Connection & Mentorship Requests: standalone request-list endpoints are integrated with direction/status-aware, paginated inbox browsers.
+- Teacher Network: documented query parity for teacher options search is aligned while preserving backend-compatible aliases.
+- Opportunities & Jobs: query/body alias parity and repository serialization tests are implemented for jobs/applications flows.
+- Miscellaneous App Features: quick-access and bulletin-board flows are implemented; tournament and mini-games are intentionally de-scoped from Flutter.
+- Admin APIs: the admin hub now has real admin session/auth gating, permission-aware shell rendering, management search/filter flows, plus real `management`, `operations`, `database`, and `languages` actions including DB switch/restore-by-backup, page reorder/update, log viewing, email templates/send, language key management/bulk import, and full user detail/edit flows; heavy-risk admin surfaces like file-upload restore, DB driver rollback tooling, and album moderation remain open.
+
+## Remaining Work Summary
+
+- System & Health: decide whether `/api/health` stays operational-only or needs a lightweight Flutter diagnostics surface.
+- Authentication & Registration: main documented/mobile gaps are closed; only optional alternative legal-opening UX remains.
+- Feed & Posts: main contract gaps are closed; only optional UX hardening such as broader optimistic updates remains.
+- Messenger (Modern): main contract gaps are closed for the current backend; real group-thread support should only be added if server architecture stops being 1:1-only.
+- Legacy Inbox: make a product decision to either de-scope it explicitly or build a compatibility module.
+- Albums & Photos: decide whether admin moderation belongs in the Flutter admin rollout now that repository/widget regression coverage is in place.
+- Community Events: clarify whether moderation belongs in public UI or admin-only UI, while owner-side delete remains blocked by backend contract.
+- Community Announcements: clarify whether moderation belongs in public UI or admin-only UI, while owner-side delete remains blocked by backend contract.
+- Groups: public delete-group and canonical group-posts routes are still blocked by backend gaps, but group-management docs are now aligned with implemented Flutter endpoints.
+- Notifications: emit `landed` / `bounce` telemetry from destination screens rather than only from the notifications list.
+- Network Discovery & Explore: profile-open and generic CTA telemetry remain blocked by the current backend event vocabulary.
+- Connection & Mentorship Requests: request-list pagination UI is done; only the backend status mismatch for cancelled connection history remains.
+- Teacher Network: decide whether follow/follows should stay under networking or move into reusable member-profile infrastructure.
+- Opportunities & Jobs: keep the module regression-safe with additional UI/repository coverage as needed, while no job-detail endpoint is currently required by docs.
+- Miscellaneous App Features: reconcile the `panolar` delete contract mismatch (`owner or admin` in docs vs admin-only in server).
+- Admin APIs: remaining work is concentrated in high-risk or lower-priority admin surfaces such as upload-based DB restore, deeper DB rollback tooling, album moderation, analytics/experiments, and any further CRUD depth the product still wants.
+- Legacy Utility Routes: keep classic ASP helpers explicitly documented as compatibility-only unless product asks for native parity.
+- Docs Alignment: reconcile `API_REFERENCE.md` with already-used Flutter endpoints and alias contracts to stop future contract drift.
 
 This backlog split is small enough to schedule, but broad enough that no section from `API_REFERENCE.md` disappears between phases.

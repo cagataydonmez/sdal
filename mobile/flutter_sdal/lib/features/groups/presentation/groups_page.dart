@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -33,7 +34,9 @@ class GroupsPage extends ConsumerWidget {
       ),
       child: groupsState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(error.toString())),
+        error: (error, _) => ErrorView(
+          onRetry: () => ref.invalidate(groupsListProvider),
+        ),
         data: (groups) => RefreshIndicator(
           onRefresh: () => ref.refresh(groupsListProvider.future),
           child: ListView.separated(
@@ -51,7 +54,9 @@ class GroupsPage extends ConsumerWidget {
                     children: [
                       if (group.coverImage.isNotEmpty) ...[
                         SdalNetworkImage(
-                          imageUrl: config.resolveUrl(group.coverImage).toString(),
+                          imageUrl: config
+                              .resolveUrl(group.coverImage)
+                              .toString(),
                           height: 164,
                           width: double.infinity,
                           fit: BoxFit.cover,
@@ -126,12 +131,24 @@ Future<void> _toggleJoin(
   WidgetRef ref,
   int groupId,
 ) async {
-  final status = await ref
-      .read(groupsActionControllerProvider.notifier)
-      .toggleJoin(groupId);
+  final groups =
+      ref.read(groupsListProvider).valueOrNull ?? const <GroupListItem>[];
+  GroupListItem? group;
+  for (final item in groups) {
+    if (item.id == groupId) {
+      group = item;
+      break;
+    }
+  }
+  final notifier = ref.read(groupsActionControllerProvider.notifier);
+  final status = switch (group?.membershipStatus) {
+    'member' => await _confirmAndLeaveGroup(context, notifier, groupId),
+    _ => await notifier.toggleJoin(groupId),
+  };
+  if (status == null) return;
   ref.invalidate(groupsListProvider);
   if (!context.mounted) return;
-  if (status == null) {
+  if (status.isEmpty) {
     final message = ref.read(groupsActionControllerProvider).message;
     if ((message ?? '').isNotEmpty) {
       ScaffoldMessenger.of(
@@ -139,6 +156,32 @@ Future<void> _toggleJoin(
       ).showSnackBar(SnackBar(content: Text(message!)));
     }
   }
+}
+
+Future<String?> _confirmAndLeaveGroup(
+  BuildContext context,
+  GroupsActionController notifier,
+  int groupId,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Gruptan ayrılsın mı?'),
+      content: const Text('Bu işlem grup üyeliğinizi sonlandırır.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Ayrıl'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return null;
+  return notifier.leaveGroup(groupId);
 }
 
 String _joinLabel(BuildContext context, String membershipStatus) {
@@ -255,7 +298,7 @@ class _MetaChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F5FA),
+        color: Theme.of(context).sdal.panelMuted,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(

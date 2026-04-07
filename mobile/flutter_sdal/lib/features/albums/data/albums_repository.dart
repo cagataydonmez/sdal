@@ -78,6 +78,8 @@ class AlbumCategoryDetail {
   final List<AlbumPhotoSummary> photos;
   final int page;
   final int pages;
+
+  bool get hasMore => page < pages;
 }
 
 class AlbumPhotoSummary {

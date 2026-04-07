@@ -18,6 +18,7 @@ export class PostService {
   createPost(_input) { return notImplemented('PostService.createPost'); }
   listPostComments(_input) { return notImplemented('PostService.listPostComments'); }
   createPostComment(_input) { return notImplemented('PostService.createPostComment'); }
+  deletePostComment(_input) { return notImplemented('PostService.deletePostComment'); }
   togglePostLike(_input) { return notImplemented('PostService.togglePostLike'); }
 }
 

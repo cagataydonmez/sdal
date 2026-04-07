@@ -9,7 +9,7 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
   @override
   AsyncActionState build() => const AsyncActionState.idle();
 
-  Future<bool> uploadStory({
+  Future<StoryMutationResult?> uploadStory({
     required File imageFile,
     required String caption,
     String feedType = 'main',
@@ -22,7 +22,7 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'stories:upload');
-      return true;
+      return result.data;
     }
     state = AsyncActionState.error(
       scope: 'stories:upload',
@@ -30,10 +30,10 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
           ? result.message
           : 'Hikaye yüklenemedi.',
     );
-    return false;
+    return null;
   }
 
-  Future<bool> editStory({
+  Future<StoryMutationResult?> editStory({
     required int storyId,
     required String caption,
   }) async {
@@ -44,7 +44,7 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'stories:edit');
-      return true;
+      return result.data;
     }
     state = AsyncActionState.error(
       scope: 'stories:edit:$storyId',
@@ -52,7 +52,7 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
           ? result.message
           : 'Hikaye güncellenemedi.',
     );
-    return false;
+    return null;
   }
 
   Future<bool> deleteStory(int storyId) async {
@@ -71,12 +71,12 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
     return false;
   }
 
-  Future<bool> repostStory(int storyId) async {
+  Future<StoryMutationResult?> repostStory(int storyId) async {
     state = AsyncActionState.loading(scope: 'stories:repost:$storyId');
     final result = await _repository.repostStory(storyId);
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'stories:repost');
-      return true;
+      return result.data;
     }
     state = AsyncActionState.error(
       scope: 'stories:repost:$storyId',
@@ -84,7 +84,7 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
           ? result.message
           : 'Hikaye yeniden paylasilamadi.',
     );
-    return false;
+    return null;
   }
 }
 

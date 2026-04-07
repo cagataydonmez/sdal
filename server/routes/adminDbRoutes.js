@@ -249,4 +249,25 @@ export function registerAdminDbRoutes(app, {
       }
     }
   });
+
+  app.post('/api/new/admin/db/restore-from-backup', requireAdmin, (req, res) => {
+    try {
+      const name = String(req.body?.name || '').trim();
+      if (!name) return res.status(400).send('Yedek adı gerekli.');
+      const fullPath = runtime.resolveBackupPath(name);
+      if (!fullPath || !fs.existsSync(fullPath)) {
+        return res.status(404).send('Yedek dosyası bulunamadı.');
+      }
+      const restored = runtime.restoreDbFromUploadedFile(fullPath);
+      logAdminAction(req, 'db_restore_from_backup', {
+        sourceName: path.basename(fullPath),
+        uploadedFile: restored.uploadedName,
+        preRestoreBackup: restored.preRestoreName
+      });
+      res.json({ ok: true, restored });
+    } catch (err) {
+      writeAppLog('error', 'db_restore_from_backup_failed', { message: err?.message || 'unknown' });
+      res.status(500).send(err?.message || 'Geri yükleme başarısız.');
+    }
+  });
 }

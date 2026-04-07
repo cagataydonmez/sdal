@@ -48,7 +48,22 @@ export function registerMessengerRoutes(app, {
 
   app.post('/api/sdal-messenger/threads', requireAuth, async (req, res) => {
     try {
-      const peerId = normalizeUserId(req.body?.userId);
+      const rawRecipientIds = Array.isArray(req.body?.recipientIds)
+        ? req.body.recipientIds
+        : [];
+      const recipientIds = Array.from(new Set(rawRecipientIds
+        .map((value) => normalizeUserId(value))
+        .filter(Boolean)));
+      const peerId = recipientIds.length > 0
+        ? recipientIds[0]
+        : normalizeUserId(req.body?.userId);
+      if (recipientIds.length > 1) {
+        return res.status(400).json({
+          ok: false,
+          code: 'group_threads_not_supported',
+          message: 'Grup sohbetleri henüz desteklenmiyor.'
+        });
+      }
       if (!peerId) return res.status(400).send('Kullanıcı seçilmedi.');
       if (sameUserId(peerId, req.session.userId)) return res.status(400).send('Kendinle mesajlaşamazsın.');
       const peer = await sqlGetAsync('SELECT id, kadi, isim, soyisim, resim, verified FROM uyeler WHERE id = ?', [peerId]);

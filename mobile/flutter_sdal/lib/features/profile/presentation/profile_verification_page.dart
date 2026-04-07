@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/profile_action_controller.dart';
@@ -77,7 +78,7 @@ class _ProfileVerificationPageState
                   const SizedBox(height: 8),
                   Text(
                     l10n.proofReady,
-                    style: TextStyle(color: Colors.green.shade700),
+                    style: TextStyle(color: Theme.of(context).sdal.success),
                   ),
                 ],
                 const SizedBox(height: 16),

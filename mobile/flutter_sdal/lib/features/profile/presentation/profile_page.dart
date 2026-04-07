@@ -7,6 +7,7 @@ import '../../../core/session/session_controller.dart';
 import '../../../core/theme/theme_mode_controller.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/theme/theme_mode_store.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -55,7 +56,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         error: (error, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(error.toString()),
+            child: const ErrorView(),
           ),
         ),
         data: (profile) {

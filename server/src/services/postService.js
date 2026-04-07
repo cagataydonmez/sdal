@@ -61,6 +61,19 @@ export class PostService {
     return { created, post };
   }
 
+  async deletePostComment({ postId, commentId, viewerId, isAdmin }) {
+    await this.requireVisiblePost({ postId, viewerId, isAdmin });
+    const comment = await this.postRepository.findCommentById(commentId);
+    if (!comment || Number(comment.postId) !== Number(postId)) {
+      throw new HttpError(404, 'Yorum bulunamadı.');
+    }
+    if (!isAdmin && Number(comment.authorId) !== Number(viewerId)) {
+      throw new HttpError(403, 'Bu yorumu silme yetkin yok.');
+    }
+    await this.postRepository.deleteCommentById(commentId);
+    return { comment };
+  }
+
   async togglePostLike({ postId, viewerId, isAdmin }) {
     await this.requireVisiblePost({ postId, viewerId, isAdmin });
 

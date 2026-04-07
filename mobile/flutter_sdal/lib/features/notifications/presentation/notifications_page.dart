@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/notifications_action_controller.dart';
@@ -79,7 +80,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 Expanded(
                   child: unreadCountState.when(
                     loading: () => Text(l10n.notificationsUnreadLoading),
-                    error: (error, _) => Text(error.toString()),
+                    error: (error, _) => const ErrorView(compact: true),
                     data: (count) => Text(
                       l10n.notificationsUnreadCount(count),
                       style: Theme.of(context).textTheme.titleMedium,
@@ -119,7 +120,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             loading: () => const SurfaceCard(
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (error, _) => SurfaceCard(child: Text(error.toString())),
+            error: (error, _) => const ErrorView(compact: true),
             data: (preferences) => _PreferencesCard(
               preferences: preferences,
               saving: savingPreferences,
@@ -152,7 +153,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           const SizedBox(height: 12),
           notificationsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Text(error.toString()),
+            error: (error, _) => const ErrorView(compact: true),
             data: (page) {
               final items = visibleItems.isEmpty ? page.items : visibleItems;
               final hasMore = visibleItems.isEmpty ? page.hasMore : _hasMore;

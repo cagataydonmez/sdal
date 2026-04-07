@@ -86,6 +86,24 @@ class ShellSidebarMember {
   }
 }
 
+class QuickAccessUser {
+  const QuickAccessUser({
+    required this.id,
+    required this.kadi,
+    required this.photo,
+    required this.graduationYear,
+    required this.isOnline,
+  });
+
+  final int id;
+  final String kadi;
+  final String photo;
+  final String graduationYear;
+  final bool isOnline;
+
+  String get displayName => kadi.isNotEmpty ? '@$kadi' : 'SDAL Üyesi';
+}
+
 class ShellMetadataRepository {
   const ShellMetadataRepository({required this.apiClient});
 
@@ -158,6 +176,34 @@ class ShellMetadataRepository {
       newMessagesCount: asInt(payload['newMessagesCount']) ?? 0,
     );
   }
+
+  Future<List<QuickAccessUser>> fetchQuickAccess() async {
+    final result = await apiClient.get<JsonMap>(
+      '/api/quick-access',
+      decoder: (raw) => asJsonMap(raw),
+    );
+    final payload = asJsonMap(result.rawData);
+    return asJsonMapList(
+          payload['users'] ?? payload['items'] ?? payload['rows'],
+        )
+        .map(_quickAccessUserFromMap)
+        .where((user) => user.id > 0)
+        .toList(growable: false);
+  }
+
+  Future<dynamic> addQuickAccessUser(int memberId) {
+    return apiClient.post<dynamic>(
+      '/api/quick-access/add',
+      body: {'id': memberId},
+    );
+  }
+
+  Future<dynamic> removeQuickAccessUser(int memberId) {
+    return apiClient.post<dynamic>(
+      '/api/quick-access/remove',
+      body: {'id': memberId},
+    );
+  }
 }
 
 ShellSidebarMember _shellSidebarMemberFromMap(JsonMap row) {
@@ -175,6 +221,22 @@ ShellSidebarMember _shellSidebarMemberFromMap(JsonMap row) {
     lastName: coalesceText([normalized['lastName']], fallback: ''),
     photo: coalesceText([normalized['photo']], fallback: ''),
     graduationYear: coalesceText([normalized['graduationYear']], fallback: ''),
+  );
+}
+
+QuickAccessUser _quickAccessUserFromMap(JsonMap row) {
+  final normalized = normalizeJsonAliases(row, {
+    'kadi': ['username'],
+    'photo': ['resim'],
+    'graduationYear': ['mezuniyetyili'],
+    'isOnline': ['online'],
+  });
+  return QuickAccessUser(
+    id: asInt(normalized['id']) ?? 0,
+    kadi: coalesceText([normalized['kadi']], fallback: ''),
+    photo: coalesceText([normalized['photo']], fallback: ''),
+    graduationYear: coalesceText([normalized['graduationYear']], fallback: ''),
+    isOnline: asBool(normalized['isOnline']) ?? false,
   );
 }
 
@@ -213,6 +275,13 @@ String? normalizeShellMenuRoute(String raw) {
   if (value == '/announcements' || value.startsWith('/new/announcements')) {
     return '/announcements';
   }
+  if (value == '/panolar' ||
+      value.startsWith('/panolar?') ||
+      value.contains('pano.asp') ||
+      value.contains('panolar.asp') ||
+      value.contains('mesajpanosu.asp')) {
+    return '/panolar';
+  }
   if (value == '/jobs' || value.startsWith('/new/jobs')) return '/jobs';
   if (value == '/opportunities' || value.startsWith('/new/opportunities')) {
     return '/opportunities';
@@ -233,6 +302,7 @@ IconData iconForShellRoute(String route) => switch (route) {
   '/groups' => Icons.groups_outlined,
   '/events' => Icons.event_outlined,
   '/announcements' => Icons.campaign_outlined,
+  '/panolar' => Icons.view_agenda_outlined,
   '/requests' => Icons.assignment_outlined,
   '/network/hub' => Icons.hub_outlined,
   '/network/teachers' => Icons.school_outlined,
@@ -264,4 +334,8 @@ final shellMenuProvider = FutureProvider<ShellMenuSnapshot>(
 
 final shellSidebarProvider = FutureProvider<ShellSidebarSnapshot>(
   (ref) => ref.watch(shellMetadataRepositoryProvider).fetchSidebar(),
+);
+
+final quickAccessUsersProvider = FutureProvider<List<QuickAccessUser>>(
+  (ref) => ref.watch(shellMetadataRepositoryProvider).fetchQuickAccess(),
 );

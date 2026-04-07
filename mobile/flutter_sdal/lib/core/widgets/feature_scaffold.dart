@@ -158,7 +158,7 @@ class _AppMenuButton extends StatelessWidget {
   }
 }
 
-class _AppMenuSheet extends StatelessWidget {
+class _AppMenuSheet extends ConsumerWidget {
   const _AppMenuSheet({
     required this.session,
     required this.currentLocation,
@@ -172,9 +172,12 @@ class _AppMenuSheet extends StatelessWidget {
   final ShellSidebarSnapshot? shellSidebar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final user = session?.user;
+    final quickAccessUsers =
+        ref.watch(quickAccessUsersProvider).valueOrNull ??
+        const <QuickAccessUser>[];
     final menuLabelsByRoute = <String, String>{
       for (final item in shellMenu?.appItems ?? const <ShellMenuItem>[])
         if (item.appRoute != null) item.appRoute!: item.label,
@@ -354,6 +357,52 @@ class _AppMenuSheet extends StatelessWidget {
               _SidebarHighlights(sidebar: shellSidebar!),
               const SizedBox(height: 18),
             ],
+            if (quickAccessUsers.isNotEmpty) ...[
+              Text(
+                'Hızlı erişim',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Card(
+                margin: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    for (
+                      var index = 0;
+                      index < quickAccessUsers.length;
+                      index++
+                    )
+                      _QuickAccessTile(
+                        user: quickAccessUsers[index],
+                        session: session,
+                        showDivider: index < quickAccessUsers.length - 1,
+                        onRemove: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final result = await ref
+                              .read(shellMetadataRepositoryProvider)
+                              .removeQuickAccessUser(
+                                quickAccessUsers[index].id,
+                              );
+                          ref.invalidate(quickAccessUsersProvider);
+                          if (!context.mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                result.ok
+                                    ? 'Hızlı erişimden kaldırıldı.'
+                                    : (result.message.isNotEmpty
+                                          ? result.message
+                                          : 'İşlem tamamlanamadı.'),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+            ],
             for (final section in sections) ...[
               Text(
                 section.title,
@@ -407,6 +456,71 @@ class _AppMenuSheet extends StatelessWidget {
       return leftIndex.compareTo(rightIndex);
     });
     return sorted;
+  }
+}
+
+class _QuickAccessTile extends StatelessWidget {
+  const _QuickAccessTile({
+    required this.user,
+    required this.session,
+    required this.showDivider,
+    required this.onRemove,
+  });
+
+  final QuickAccessUser user;
+  final SessionSnapshot? session;
+  final bool showDivider;
+  final Future<void> Function() onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          leading: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              RemoteAvatar(
+                label: user.displayName,
+                imageUrl:
+                    session?.config.resolveUrl(user.photo).toString() ?? '',
+                radius: 22,
+              ),
+              if (user.isOnline)
+                Positioned(
+                  right: -1,
+                  bottom: -1,
+                  child: Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: tokens.success,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: tokens.canvas, width: 2),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          title: Text(user.displayName),
+          subtitle: user.graduationYear.isEmpty
+              ? null
+              : Text('${user.graduationYear} mezunu'),
+          trailing: IconButton(
+            tooltip: 'Hızlı erişimden kaldır',
+            onPressed: onRemove,
+            icon: const Icon(Icons.push_pin_outlined),
+          ),
+          onTap: () {
+            Navigator.of(context).pop();
+            context.push('/members/${user.id}');
+          },
+        ),
+        if (showDivider) const Divider(height: 1),
+      ],
+    );
   }
 }
 

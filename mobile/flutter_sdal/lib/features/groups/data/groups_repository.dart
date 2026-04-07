@@ -266,10 +266,10 @@ class GroupDetail {
   }
 }
 
-class GroupsPageData {
+class GroupsPageData<T> {
   const GroupsPageData({required this.items, required this.hasMore});
 
-  final List<GroupListItem> items;
+  final List<T> items;
   final bool hasMore;
 }
 
@@ -278,14 +278,17 @@ class GroupsRepository {
 
   final ApiClient _apiClient;
 
-  Future<GroupsPageData> fetchGroups({int limit = 30, int offset = 0}) async {
+  Future<GroupsPageData<GroupListItem>> fetchGroups({
+    int limit = 30,
+    int offset = 0,
+  }) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/groups',
       query: {'limit': limit, 'offset': offset},
       decoder: asJsonMap,
     );
     final payload = asJsonMap(result.rawData);
-    return GroupsPageData(
+    return GroupsPageData<GroupListItem>(
       items: asJsonMapList(
         payload['items'],
       ).map(GroupListItem.fromMap).toList(growable: false),
@@ -310,6 +313,17 @@ class GroupsRepository {
     );
   }
 
+  Future<ApiResult<JsonMap>> leaveGroup(int groupId) async {
+    final canonical = await _apiClient.post<JsonMap>(
+      '/api/new/groups/$groupId/leave',
+      decoder: asJsonMap,
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
+    return toggleJoin(groupId);
+  }
+
   Future<GroupDetail?> fetchGroupDetail(int groupId) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/groups/$groupId',
@@ -319,6 +333,47 @@ class GroupsRepository {
     return GroupDetail.fromMap(
       asJsonMap(result.rawData),
       accessDenied: result.statusCode == 403,
+    );
+  }
+
+  Future<GroupsPageData<GroupPost>> fetchGroupPosts({
+    required int groupId,
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    final canonical = await _apiClient.get<JsonMap>(
+      '/api/new/groups/$groupId/posts',
+      query: {'limit': limit, 'offset': offset},
+      decoder: asJsonMap,
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      final payload = asJsonMap(canonical.rawData);
+      return GroupsPageData(
+        items: asJsonMapList(
+          payload['items'],
+        ).map(GroupPost.fromMap).toList(growable: false),
+        hasMore: asBool(payload['hasMore']) ?? false,
+      );
+    }
+
+    final detail = await fetchGroupDetail(groupId);
+    if (detail == null) {
+      return const GroupsPageData<GroupPost>(
+        items: <GroupPost>[],
+        hasMore: false,
+      );
+    }
+    final start = offset < 0 ? 0 : offset;
+    if (start >= detail.posts.length) {
+      return const GroupsPageData<GroupPost>(
+        items: <GroupPost>[],
+        hasMore: false,
+      );
+    }
+    final end = (start + limit).clamp(0, detail.posts.length);
+    return GroupsPageData<GroupPost>(
+      items: detail.posts.sublist(start, end),
+      hasMore: end < detail.posts.length,
     );
   }
 
@@ -452,6 +507,9 @@ class GroupsRepository {
       '/api/new/groups/$groupId/announcements/$announcementId',
     );
   }
+
+  bool _shouldFallback(int statusCode) =>
+      statusCode == 404 || statusCode == 405 || statusCode == 501;
 }
 
 final groupsRepositoryProvider = Provider<GroupsRepository>(
@@ -470,4 +528,12 @@ final groupsListProvider = FutureProvider.autoDispose<List<GroupListItem>>((
 final groupDetailProvider = FutureProvider.autoDispose
     .family<GroupDetail?, int>((ref, groupId) {
       return ref.watch(groupsRepositoryProvider).fetchGroupDetail(groupId);
+    });
+
+final groupPostsProvider = FutureProvider.autoDispose
+    .family<List<GroupPost>, int>((ref, groupId) {
+      return ref
+          .watch(groupsRepositoryProvider)
+          .fetchGroupPosts(groupId: groupId)
+          .then((value) => value.items);
     });

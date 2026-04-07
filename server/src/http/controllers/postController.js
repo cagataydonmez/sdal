@@ -116,6 +116,32 @@ export function createPostController({
     }
   }
 
+  async function deleteComment(req, res) {
+    try {
+      const currentUser = getCurrentUser(req);
+      const postId = Number(req.params.id || 0);
+      const commentId = Number(req.params.commentId || 0);
+      if (!postId || !commentId) {
+        return res.status(400).send('Geçersiz yorum.');
+      }
+
+      await postService.deletePostComment({
+        postId,
+        commentId,
+        viewerId: req.session.userId,
+        isAdmin: hasAdminRole(currentUser)
+      });
+
+      scheduleEngagementRecalculation('post_comment_deleted');
+      Promise.resolve(invalidateFeedCache?.()).catch(() => {});
+      return res.json({ ok: true });
+    } catch (err) {
+      if (isHttpError(err)) return res.status(err.statusCode).send(err.message);
+      console.error('posts.deleteComment failed:', err);
+      return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  }
+
   async function toggleLike(req, res) {
     try {
       const currentUser = getCurrentUser(req);
@@ -152,6 +178,7 @@ export function createPostController({
     createPost,
     listComments,
     createComment,
+    deleteComment,
     toggleLike
   };
 }
