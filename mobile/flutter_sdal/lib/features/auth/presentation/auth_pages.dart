@@ -78,7 +78,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             controller: _usernameController,
             textInputAction: TextInputAction.next,
             labelText: l10n.username,
-            prefixIcon: const Icon(Icons.alternate_email),
+            prefixIcon: Image.asset('icon.png', width: 20, height: 20),
             autofillHints: const [AutofillHints.username],
           ),
           const SizedBox(height: 12),
@@ -106,13 +106,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: submitting ? null : () => _startOAuth('google'),
-            icon: const Icon(Icons.g_mobiledata),
+            icon: Image.asset('icon.png', width: 20, height: 20),
             label: Text(l10n.continueWithGoogle),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: submitting ? null : () => _startOAuth('x'),
-            icon: const Icon(Icons.alternate_email),
+            icon: Image.asset('icon.png', width: 20, height: 20),
             label: Text(l10n.continueWithX),
           ),
         ],
@@ -447,7 +447,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             child: TextButton(
               onPressed: () => context.push(
                 '/legal',
-                extra: const {'title': 'KVKK Aydınlatma Metni', 'path': '/kvkk'},
+                extra: const {
+                  'title': 'KVKK Aydınlatma Metni',
+                  'path': '/kvkk',
+                },
               ),
               child: const Text('KVKK metnini aç'),
             ),
@@ -782,6 +785,10 @@ class _AuthFrame extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Center(
+                          child: Image.asset('icon.png', width: 80, height: 80),
+                        ),
+                        const SizedBox(height: 16),
                         Text(
                           title,
                           style: Theme.of(context).textTheme.headlineMedium

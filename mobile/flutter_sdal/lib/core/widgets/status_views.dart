@@ -21,6 +21,8 @@ class AppSplashScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Image.asset('icon.png', width: 120, height: 120),
+                const SizedBox(height: 18),
                 const CircularProgressIndicator(color: Colors.white),
                 const SizedBox(height: 18),
                 Text(
