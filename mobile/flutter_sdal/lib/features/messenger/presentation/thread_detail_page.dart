@@ -22,7 +22,10 @@ class ThreadDetailPage extends ConsumerStatefulWidget {
 class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   final _messageController = TextEditingController();
   StreamSubscription<MessengerRealtimeEvent>? _eventsSubscription;
+  final List<MessengerMessage> _olderMessages = <MessengerMessage>[];
   bool _markedRead = false;
+  bool _loadingOlder = false;
+  bool _hasOlderMessages = false;
 
   @override
   void initState() {
@@ -133,7 +136,11 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
             child: messagesState.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, _) => Center(child: Text(error.toString())),
-              data: (messages) {
+              data: (page) {
+                final latestMessages = page.items;
+                _hasOlderMessages = _olderMessages.isNotEmpty
+                    ? _hasOlderMessages
+                    : page.hasMore;
                 if (!_markedRead) {
                   _markedRead = true;
                   Future<void>.microtask(() async {
@@ -143,6 +150,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                     ref.invalidate(messengerThreadsProvider(''));
                   });
                 }
+                final messages = [..._olderMessages, ...latestMessages];
                 if (messages.isEmpty) {
                   return Center(
                     child: Padding(
@@ -154,9 +162,37 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                 return ListView.separated(
                   reverse: false,
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  itemCount: messages.length,
+                  itemCount:
+                      messages.length +
+                      ((_loadingOlder || _hasOlderMessages) ? 1 : 0),
                   separatorBuilder: (_, index) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
+                    if (_loadingOlder || _hasOlderMessages) {
+                      if (index == 0) {
+                        return Center(
+                          child: TextButton.icon(
+                            onPressed: _loadingOlder
+                                ? null
+                                : _loadOlderMessages,
+                            icon: _loadingOlder
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.expand_less_rounded),
+                            label: Text(
+                              _loadingOlder
+                                  ? 'Yükleniyor...'
+                                  : 'Eski mesajları yükle',
+                            ),
+                          ),
+                        );
+                      }
+                      index -= 1;
+                    }
                     final message = messages[index];
                     final bubbleColor = message.isMine
                         ? const Color(0xFF0D2238)
@@ -274,5 +310,27 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _loadOlderMessages() async {
+    if (_loadingOlder) return;
+    final initialPage = ref
+        .read(messengerMessagesProvider(widget.threadId))
+        .valueOrNull;
+    final initialItems = initialPage?.items ?? const <MessengerMessage>[];
+    final oldestId = _olderMessages.isNotEmpty
+        ? _olderMessages.first.id
+        : (initialItems.isEmpty ? null : initialItems.first.id);
+    if ((oldestId ?? 0) <= 0) return;
+    setState(() => _loadingOlder = true);
+    final page = await ref
+        .read(messengerRepositoryProvider)
+        .fetchMessages(widget.threadId, beforeId: oldestId);
+    if (!mounted) return;
+    setState(() {
+      _olderMessages.insertAll(0, page.items);
+      _hasOlderMessages = page.hasMore;
+      _loadingOlder = false;
+    });
   }
 }

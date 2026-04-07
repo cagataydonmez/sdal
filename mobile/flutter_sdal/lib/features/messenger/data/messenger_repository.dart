@@ -7,6 +7,7 @@ import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
+import '../../../core/network/paged_response.dart';
 import '../../../core/network/realtime_connection_state.dart';
 
 part 'messenger_repository.freezed.dart';
@@ -115,13 +116,27 @@ class MessengerRepository {
     return items.map(MessengerThreadSummary.fromMap).toList(growable: false);
   }
 
-  Future<List<MessengerMessage>> fetchMessages(int threadId) async {
+  Future<PagedResponse<MessengerMessage>> fetchMessages(
+    int threadId, {
+    int? beforeId,
+    int limit = 60,
+  }) async {
+    final safeLimit = limit.clamp(1, 120);
     final result = await _apiClient.get<JsonMap>(
       '/api/sdal-messenger/threads/$threadId/messages',
+      query: {
+        'limit': safeLimit,
+        if ((beforeId ?? 0) > 0) 'beforeId': beforeId,
+      },
       decoder: asJsonMap,
     );
-    final items = asJsonMapList(asJsonMap(result.rawData)['items']);
-    return items.map(MessengerMessage.fromMap).toList(growable: false);
+    final page = PagedResponse<MessengerMessage>.fromDynamic({
+      ...asJsonMap(result.rawData),
+      'hasMore':
+          asJsonMapList(asJsonMap(result.rawData)['items']).length == safeLimit,
+      'limit': safeLimit,
+    }, MessengerMessage.fromMap);
+    return page;
   }
 
   Future<List<MessengerContact>> searchContacts(String query) async {
@@ -139,7 +154,10 @@ class MessengerRepository {
   Future<int?> createThread(int userId) async {
     final result = await _apiClient.post<JsonMap>(
       '/api/sdal-messenger/threads',
-      body: {'userId': userId},
+      body: {
+        'recipientIds': [userId],
+        'userId': userId,
+      },
       decoder: asJsonMap,
     );
     if (!result.ok) return null;
@@ -337,7 +355,7 @@ final messengerUnreadCountProvider = FutureProvider.autoDispose<int>((
 });
 
 final messengerMessagesProvider = FutureProvider.autoDispose
-    .family<List<MessengerMessage>, int>(
+    .family<PagedResponse<MessengerMessage>, int>(
       (ref, threadId) =>
           ref.watch(messengerRepositoryProvider).fetchMessages(threadId),
     );

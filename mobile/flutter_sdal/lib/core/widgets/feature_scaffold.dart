@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../l10n/context_l10n.dart';
+import '../shell/shell_metadata_repository.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../theme/sdal_theme_tokens.dart';
@@ -29,11 +30,18 @@ class FeatureScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = Theme.of(context).sdal;
     final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final shellMenu = ref.watch(shellMenuProvider).valueOrNull;
+    final shellSidebar = ref.watch(shellSidebarProvider).valueOrNull;
     final location = GoRouterState.of(context).uri.path;
     final canPop = Navigator.of(context).canPop();
     final resolvedActions = <Widget>[
       ...?actions,
-      _AppMenuButton(session: session, currentLocation: location),
+      _AppMenuButton(
+        session: session,
+        currentLocation: location,
+        shellMenu: shellMenu,
+        shellSidebar: shellSidebar,
+      ),
     ];
 
     return Scaffold(
@@ -116,10 +124,17 @@ class _ProfileLeading extends StatelessWidget {
 }
 
 class _AppMenuButton extends StatelessWidget {
-  const _AppMenuButton({required this.session, required this.currentLocation});
+  const _AppMenuButton({
+    required this.session,
+    required this.currentLocation,
+    required this.shellMenu,
+    required this.shellSidebar,
+  });
 
   final SessionSnapshot? session;
   final String currentLocation;
+  final ShellMenuSnapshot? shellMenu;
+  final ShellSidebarSnapshot? shellSidebar;
 
   @override
   Widget build(BuildContext context) {
@@ -130,8 +145,12 @@ class _AppMenuButton extends StatelessWidget {
           context: context,
           isScrollControlled: true,
           showDragHandle: true,
-          builder: (sheetContext) =>
-              _AppMenuSheet(session: session, currentLocation: currentLocation),
+          builder: (sheetContext) => _AppMenuSheet(
+            session: session,
+            currentLocation: currentLocation,
+            shellMenu: shellMenu,
+            shellSidebar: shellSidebar,
+          ),
         );
       },
       icon: const Icon(Icons.grid_view_rounded),
@@ -140,15 +159,128 @@ class _AppMenuButton extends StatelessWidget {
 }
 
 class _AppMenuSheet extends StatelessWidget {
-  const _AppMenuSheet({required this.session, required this.currentLocation});
+  const _AppMenuSheet({
+    required this.session,
+    required this.currentLocation,
+    required this.shellMenu,
+    required this.shellSidebar,
+  });
 
   final SessionSnapshot? session;
   final String currentLocation;
+  final ShellMenuSnapshot? shellMenu;
+  final ShellSidebarSnapshot? shellSidebar;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final user = session?.user;
+    final menuLabelsByRoute = <String, String>{
+      for (final item in shellMenu?.appItems ?? const <ShellMenuItem>[])
+        if (item.appRoute != null) item.appRoute!: item.label,
+    };
+    final communityEntries = _sortModuleEntries([
+      if (_isModuleVisible('groups'))
+        _MenuEntry(
+          route: '/groups',
+          icon: Icons.groups_outlined,
+          label: menuLabelsByRoute['/groups'] ?? l10n.groupsTitle,
+          moduleKey: 'groups',
+        ),
+      if (_isModuleVisible('events'))
+        _MenuEntry(
+          route: '/events',
+          icon: Icons.event_outlined,
+          label: menuLabelsByRoute['/events'] ?? 'Etkinlikler',
+          moduleKey: 'events',
+        ),
+      if (_isModuleVisible('announcements'))
+        _MenuEntry(
+          route: '/announcements',
+          icon: Icons.campaign_outlined,
+          label: menuLabelsByRoute['/announcements'] ?? 'Duyurular',
+          moduleKey: 'announcements',
+        ),
+      if (_isModuleVisible('requests'))
+        _MenuEntry(
+          route: '/requests',
+          icon: Icons.assignment_outlined,
+          label: menuLabelsByRoute['/requests'] ?? l10n.requestsTitle,
+          moduleKey: 'requests',
+        ),
+      if (_isModuleVisible('networking'))
+        _MenuEntry(
+          route: '/network/hub',
+          icon: Icons.hub_outlined,
+          label: menuLabelsByRoute['/network/hub'] ?? 'Networking',
+          moduleKey: 'networking',
+        ),
+      if (_isModuleVisible('teachers_network'))
+        _MenuEntry(
+          route: '/network/teachers',
+          icon: Icons.school_outlined,
+          label:
+              menuLabelsByRoute['/network/teachers'] ?? 'Ogretmen baglantilari',
+          moduleKey: 'teachers_network',
+        ),
+      if (_isModuleVisible('jobs'))
+        _MenuEntry(
+          route: '/jobs',
+          icon: Icons.work_outline,
+          label: menuLabelsByRoute['/jobs'] ?? l10n.jobsTitle,
+          moduleKey: 'jobs',
+        ),
+      if (_isModuleVisible('opportunities'))
+        _MenuEntry(
+          route: '/opportunities',
+          icon: Icons.auto_awesome_outlined,
+          label: menuLabelsByRoute['/opportunities'] ?? 'Firsatlar',
+          moduleKey: 'opportunities',
+        ),
+      if (_isModuleVisible('albums'))
+        _MenuEntry(
+          route: '/albums',
+          icon: Icons.photo_library_outlined,
+          label: menuLabelsByRoute['/albums'] ?? l10n.albumsTitle,
+          moduleKey: 'albums',
+        ),
+      if (_isModuleVisible('following'))
+        _MenuEntry(
+          route: '/following',
+          icon: Icons.favorite_border,
+          label: menuLabelsByRoute['/following'] ?? 'Takipler',
+          moduleKey: 'following',
+        ),
+      if (_isModuleVisible('feed'))
+        _MenuEntry(
+          route: '/feed/live-chat',
+          icon: Icons.forum_outlined,
+          label: menuLabelsByRoute['/feed/live-chat'] ?? l10n.liveChatTitle,
+          moduleKey: 'feed',
+        ),
+    ]);
+    final staticRoutes = {
+      '/feed',
+      '/explore',
+      '/inbox',
+      '/notifications',
+      '/profile',
+      for (final entry in communityEntries) entry.route,
+      '/admin',
+    };
+    final extraMenuEntries = (shellMenu?.appItems ?? const <ShellMenuItem>[])
+        .where(
+          (item) =>
+              item.appRoute != null && !staticRoutes.contains(item.appRoute),
+        )
+        .map(
+          (item) => _MenuEntry(
+            route: item.appRoute!,
+            icon: iconForShellRoute(item.appRoute!),
+            label: item.label,
+          ),
+        )
+        .toList(growable: false);
     final sections = <_MenuSection>[
       _MenuSection(
         title: 'Ana gezinme',
@@ -156,101 +288,35 @@ class _AppMenuSheet extends StatelessWidget {
           _MenuEntry(
             route: '/feed',
             icon: Icons.dynamic_feed_outlined,
-            label: l10n.feedTitle,
+            label: menuLabelsByRoute['/feed'] ?? l10n.feedTitle,
           ),
           _MenuEntry(
             route: '/explore',
             icon: Icons.explore_outlined,
-            label: l10n.exploreTitle,
+            label: menuLabelsByRoute['/explore'] ?? l10n.exploreTitle,
           ),
           _MenuEntry(
             route: '/inbox',
             icon: Icons.chat_bubble_outline,
-            label: l10n.tabInbox,
+            label: menuLabelsByRoute['/inbox'] ?? l10n.tabInbox,
           ),
           _MenuEntry(
             route: '/notifications',
             icon: Icons.notifications_outlined,
-            label: l10n.notificationsTitle,
+            label:
+                menuLabelsByRoute['/notifications'] ?? l10n.notificationsTitle,
           ),
           _MenuEntry(
             route: '/profile',
             icon: Icons.person_outline,
-            label: l10n.profileTitle,
+            label: menuLabelsByRoute['/profile'] ?? l10n.profileTitle,
           ),
         ],
       ),
-      _MenuSection(
-        title: 'Topluluk',
-        entries: [
-          if (_isModuleVisible('groups'))
-            _MenuEntry(
-              route: '/groups',
-              icon: Icons.groups_outlined,
-              label: l10n.groupsTitle,
-            ),
-          if (_isModuleVisible('events'))
-            const _MenuEntry(
-              route: '/events',
-              icon: Icons.event_outlined,
-              label: 'Etkinlikler',
-            ),
-          if (_isModuleVisible('announcements'))
-            const _MenuEntry(
-              route: '/announcements',
-              icon: Icons.campaign_outlined,
-              label: 'Duyurular',
-            ),
-          if (_isModuleVisible('requests'))
-            _MenuEntry(
-              route: '/requests',
-              icon: Icons.assignment_outlined,
-              label: l10n.requestsTitle,
-            ),
-          if (_isModuleVisible('networking'))
-            const _MenuEntry(
-              route: '/network/hub',
-              icon: Icons.hub_outlined,
-              label: 'Networking',
-            ),
-          if (_isModuleVisible('teachers_network'))
-            const _MenuEntry(
-              route: '/network/teachers',
-              icon: Icons.school_outlined,
-              label: 'Ogretmen baglantilari',
-            ),
-          if (_isModuleVisible('jobs'))
-            _MenuEntry(
-              route: '/jobs',
-              icon: Icons.work_outline,
-              label: l10n.jobsTitle,
-            ),
-          if (_isModuleVisible('opportunities'))
-            const _MenuEntry(
-              route: '/opportunities',
-              icon: Icons.auto_awesome_outlined,
-              label: 'Firsatlar',
-            ),
-          if (_isModuleVisible('albums'))
-            _MenuEntry(
-              route: '/albums',
-              icon: Icons.photo_library_outlined,
-              label: l10n.albumsTitle,
-            ),
-          if (_isModuleVisible('following'))
-            const _MenuEntry(
-              route: '/following',
-              icon: Icons.favorite_border,
-              label: 'Takipler',
-            ),
-          if (_isModuleVisible('feed'))
-            _MenuEntry(
-              route: '/feed/live-chat',
-              icon: Icons.forum_outlined,
-              label: l10n.liveChatTitle,
-            ),
-        ],
-      ),
+      if (communityEntries.isNotEmpty)
+        _MenuSection(title: 'Topluluk', entries: communityEntries),
+      if (extraMenuEntries.isNotEmpty)
+        _MenuSection(title: 'Ek sayfalar', entries: extraMenuEntries),
       if (user?.isAdmin ?? false)
         const _MenuSection(
           title: 'Yonetim',
@@ -284,6 +350,10 @@ class _AppMenuSheet extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
+            if (shellSidebar != null) ...[
+              _SidebarHighlights(sidebar: shellSidebar!),
+              const SizedBox(height: 18),
+            ],
             for (final section in sections) ...[
               Text(
                 section.title,
@@ -315,7 +385,29 @@ class _AppMenuSheet extends StatelessWidget {
       currentLocation == route || currentLocation.startsWith('$route/');
 
   bool _isModuleVisible(String moduleKey) =>
-      session?.isModuleOpen(moduleKey) ?? true;
+      session?.isModuleVisible(moduleKey) ?? true;
+
+  List<_MenuEntry> _sortModuleEntries(List<_MenuEntry> entries) {
+    final order = session?.moduleMenuOrder ?? const <String>[];
+    if (order.isEmpty) return entries;
+    final orderIndex = <String, int>{
+      for (var index = 0; index < order.length; index++) order[index]: index,
+    };
+    final sorted = [...entries];
+    sorted.sort((left, right) {
+      final leftIndex = left.moduleKey == null
+          ? null
+          : orderIndex[left.moduleKey];
+      final rightIndex = right.moduleKey == null
+          ? null
+          : orderIndex[right.moduleKey];
+      if (leftIndex == null && rightIndex == null) return 0;
+      if (leftIndex == null) return 1;
+      if (rightIndex == null) return -1;
+      return leftIndex.compareTo(rightIndex);
+    });
+    return sorted;
+  }
 }
 
 class _MenuTile extends StatelessWidget {
@@ -370,9 +462,69 @@ class _MenuEntry {
     required this.route,
     required this.icon,
     required this.label,
+    this.moduleKey,
   });
 
   final String route;
   final IconData icon;
   final String label;
+  final String? moduleKey;
+}
+
+class _SidebarHighlights extends StatelessWidget {
+  const _SidebarHighlights({required this.sidebar});
+
+  final ShellSidebarSnapshot sidebar;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final stats = <({IconData icon, String label})>[
+      (
+        icon: Icons.circle_rounded,
+        label: '${sidebar.onlineUsers.length} cevrimici uye',
+      ),
+      (
+        icon: Icons.markunread_outlined,
+        label: '${sidebar.newMessagesCount} yeni mesaj',
+      ),
+      (
+        icon: Icons.person_add_alt_1_rounded,
+        label: '${sidebar.newMembers.length} yeni uye',
+      ),
+    ];
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final stat in stats)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.sdal.panelMuted,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(stat.icon, size: 16),
+                      const SizedBox(width: 6),
+                      Text(stat.label),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

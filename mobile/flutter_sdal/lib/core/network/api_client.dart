@@ -117,6 +117,14 @@ class ApiClient {
     return _request<T>('PUT', path, body: body, decoder: decoder);
   }
 
+  Future<ApiResult<T>> patch<T>(
+    String path, {
+    Object? body,
+    ApiDecoder<T>? decoder,
+  }) {
+    return _request<T>('PATCH', path, body: body, decoder: decoder);
+  }
+
   Future<ApiResult<T>> delete<T>(
     String path, {
     Object? body,

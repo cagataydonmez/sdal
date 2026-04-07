@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/session/session_controller.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -35,6 +36,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final commentsState = ref.watch(postCommentsProvider(widget.postId));
     final actionState = ref.watch(feedActionControllerProvider);
     final config = ref.watch(appConfigProvider);
+    final session = ref.watch(sessionControllerProvider).valueOrNull;
     final l10n = context.l10n;
     final submittingComment =
         actionState.isLoading &&
@@ -94,6 +96,34 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                 ],
                               ),
                             ),
+                            if (session?.user?.id != null &&
+                                session!.user!.id == post.authorId)
+                              _FeedPostMenuButton(
+                                onDelete: () async {
+                                  final ok = await ref
+                                      .read(
+                                        feedActionControllerProvider.notifier,
+                                      )
+                                      .deletePost(widget.postId);
+                                  if (!mounted) return;
+                                  if (ok) {
+                                    context.pop();
+                                  }
+                                  final nextState = ref.read(
+                                    feedActionControllerProvider,
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        nextState.message ??
+                                            (ok
+                                                ? 'Gönderi silindi.'
+                                                : 'Gönderi silinemedi.'),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -117,12 +147,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                             FilledButton.tonalIcon(
                               onPressed: () async {
                                 await ref
-                                    .read(feedRepositoryProvider)
+                                    .read(feedActionControllerProvider.notifier)
                                     .toggleLike(widget.postId);
-                                ref.invalidate(
-                                  postDetailProvider(widget.postId),
-                                );
-                                ref.invalidate(feedItemsProvider);
                               },
                               icon: Icon(
                                 post.liked
@@ -281,6 +307,46 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final actionState = ref.read(feedActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(actionState.message ?? 'Yorum gönderilemedi.')),
+    );
+  }
+}
+
+class _FeedPostMenuButton extends StatelessWidget {
+  const _FeedPostMenuButton({required this.onDelete});
+
+  final Future<void> Function() onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      onSelected: (value) async {
+        if (value != 'delete') return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Gönderiyi sil'),
+            content: const Text(
+              'Bu gönderi kalıcı olarak silinecek. Devam etmek istiyor musun?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          await onDelete();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem<String>(value: 'delete', child: Text('Gönderiyi sil')),
+      ],
     );
   }
 }

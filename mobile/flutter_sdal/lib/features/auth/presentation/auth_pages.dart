@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/network/json_utils.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/auth_action_controller.dart';
 
@@ -175,11 +177,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _yearController = TextEditingController(text: '2011');
   final _captchaController = TextEditingController();
   String? _captchaSvg;
+  Timer? _availabilityDebounce;
+  int _availabilityRequestId = 0;
+  bool _checkingAvailability = false;
+  String? _availabilityMessage;
+  String? _availabilityError;
+  String? _previewError;
+  bool _kvkkConsent = false;
+  bool _directoryConsent = false;
 
   @override
   void initState() {
     super.initState();
     _loadCaptcha();
+    _usernameController.addListener(_scheduleAvailabilityCheck);
+    _emailController.addListener(_scheduleAvailabilityCheck);
   }
 
   @override
@@ -192,6 +204,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _lastNameController.dispose();
     _yearController.dispose();
     _captchaController.dispose();
+    _availabilityDebounce?.cancel();
     super.dispose();
   }
 
@@ -206,6 +219,40 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _submit() async {
+    setState(() {
+      _previewError = null;
+    });
+
+    final preview = await ref
+        .read(apiClientProvider)
+        .post<JsonMap>(
+          '/api/register/preview',
+          body: {
+            'kadi': _usernameController.text.trim(),
+            'sifre': _passwordController.text,
+            'sifre2': _repeatPasswordController.text,
+            'email': _emailController.text.trim(),
+            'isim': _firstNameController.text.trim(),
+            'soyisim': _lastNameController.text.trim(),
+            'mezuniyetyili': _yearController.text.trim(),
+            'gkodu': _captchaController.text.trim(),
+            'kvkk_consent': _kvkkConsent,
+            'directory_consent': _directoryConsent,
+          },
+          decoder: asJsonMap,
+        );
+    if (!mounted) return;
+
+    if (!preview.ok) {
+      setState(() {
+        _previewError = preview.message.isNotEmpty
+            ? preview.message
+            : 'Kayıt bilgileri doğrulanamadı.';
+      });
+      await _loadCaptcha();
+      return;
+    }
+
     await ref
         .read(authActionControllerProvider.notifier)
         .register(
@@ -217,8 +264,94 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           lastName: _lastNameController.text.trim(),
           graduationYear: _yearController.text.trim(),
           captcha: _captchaController.text.trim(),
+          kvkkConsent: _kvkkConsent,
+          directoryConsent: _directoryConsent,
         );
     await _loadCaptcha();
+  }
+
+  void _scheduleAvailabilityCheck() {
+    _availabilityDebounce?.cancel();
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    if (username.isEmpty && email.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _checkingAvailability = false;
+        _availabilityMessage = null;
+        _availabilityError = null;
+      });
+      return;
+    }
+    _availabilityDebounce = Timer(
+      const Duration(milliseconds: 450),
+      _runAvailabilityCheck,
+    );
+  }
+
+  Future<void> _runAvailabilityCheck() async {
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    if (username.isEmpty && email.isEmpty) return;
+
+    final requestId = ++_availabilityRequestId;
+    if (mounted) {
+      setState(() {
+        _checkingAvailability = true;
+        _availabilityError = null;
+      });
+    }
+
+    final result = await ref
+        .read(apiClientProvider)
+        .post<JsonMap>(
+          '/api/register/check',
+          body: {
+            if (username.isNotEmpty) 'kadi': username,
+            if (email.isNotEmpty) 'email': email,
+          },
+          decoder: asJsonMap,
+        );
+    if (!mounted || requestId != _availabilityRequestId) return;
+
+    if (!result.ok) {
+      setState(() {
+        _checkingAvailability = false;
+        _availabilityMessage = null;
+        _availabilityError = result.message.isNotEmpty
+            ? result.message
+            : 'Kullanılabilirlik kontrolü yapılamadı.';
+      });
+      return;
+    }
+
+    final payload = asJsonMap(result.rawData);
+    final usernameExists = asBool(payload['kadiExists']) ?? false;
+    final emailExists = asBool(payload['emailExists']) ?? false;
+    final parts = <String>[];
+    if (username.isNotEmpty) {
+      parts.add(
+        usernameExists
+            ? 'Bu kullanıcı adı zaten kayıtlı.'
+            : 'Kullanıcı adı uygun görünüyor.',
+      );
+    }
+    if (email.isNotEmpty) {
+      parts.add(
+        emailExists
+            ? 'Bu e-posta adresi zaten kayıtlı.'
+            : 'E-posta adresi uygun görünüyor.',
+      );
+    }
+    setState(() {
+      _checkingAvailability = false;
+      _availabilityError = usernameExists || emailExists
+          ? parts.join(' ')
+          : null;
+      _availabilityMessage = usernameExists || emailExists
+          ? null
+          : parts.join(' ');
+    });
   }
 
   @override
@@ -227,6 +360,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final l10n = context.l10n;
     final submitting = actionState.isLoading && actionState.scope == 'register';
     final status = actionState.scope == 'register' ? actionState.message : null;
+    final statusText = _previewError ?? status;
+    final isSuccessState = _previewError == null && actionState.isSuccess;
 
     return _AuthFrame(
       title: l10n.registerTitle,
@@ -235,44 +370,85 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _twoColumn(
-            TextField(
+            _AuthTextField(
               controller: _firstNameController,
-              decoration: InputDecoration(labelText: l10n.firstName),
+              labelText: l10n.firstName,
             ),
-            TextField(
+            _AuthTextField(
               controller: _lastNameController,
-              decoration: InputDecoration(labelText: l10n.lastName),
+              labelText: l10n.lastName,
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
+          _AuthTextField(
             controller: _usernameController,
-            decoration: InputDecoration(labelText: l10n.username),
+            labelText: l10n.username,
           ),
           const SizedBox(height: 12),
-          TextField(
+          _AuthTextField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(labelText: l10n.email),
+            labelText: l10n.email,
           ),
+          if (_checkingAvailability) ...[
+            const SizedBox(height: 8),
+            const LinearProgressIndicator(minHeight: 2),
+          ],
+          if (_availabilityMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _availabilityMessage!,
+              style: TextStyle(color: Colors.green.shade700),
+            ),
+          ],
+          if (_availabilityError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _availabilityError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
           const SizedBox(height: 12),
           _twoColumn(
-            TextField(
+            _AuthTextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: InputDecoration(labelText: l10n.password),
+              keyboardType: TextInputType.visiblePassword,
+              labelText: l10n.password,
             ),
-            TextField(
+            _AuthTextField(
               controller: _repeatPasswordController,
               obscureText: true,
-              decoration: InputDecoration(labelText: l10n.passwordRepeat),
+              keyboardType: TextInputType.visiblePassword,
+              labelText: l10n.passwordRepeat,
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
+          _AuthTextField(
             controller: _yearController,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: l10n.graduationYear),
+            labelText: l10n.graduationYear,
+          ),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            value: _kvkkConsent,
+            onChanged: submitting
+                ? null
+                : (value) => setState(() => _kvkkConsent = value ?? false),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text(
+              'KVKK Aydınlatma Metni\'ni okudum ve onaylıyorum.',
+            ),
+          ),
+          CheckboxListTile(
+            value: _directoryConsent,
+            onChanged: submitting
+                ? null
+                : (value) => setState(() => _directoryConsent = value ?? false),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Mezun Rehberi açık rıza onayını veriyorum.'),
           ),
           const SizedBox(height: 16),
           if (_captchaSvg != null) ...[
@@ -282,16 +458,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ),
             const SizedBox(height: 12),
           ],
-          TextField(
+          _AuthTextField(
             controller: _captchaController,
-            decoration: InputDecoration(labelText: l10n.captchaCode),
+            keyboardType: TextInputType.number,
+            labelText: l10n.captchaCode,
           ),
-          if (status != null) ...[
+          if (statusText != null) ...[
             const SizedBox(height: 12),
             Text(
-              status,
+              statusText,
               style: TextStyle(
-                color: actionState.isSuccess
+                color: isSuccessState
                     ? Colors.green.shade700
                     : Theme.of(context).colorScheme.error,
               ),

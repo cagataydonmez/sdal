@@ -148,6 +148,22 @@ class RequestsRepository {
       body: {'category_key': categoryKey, 'payload': payload},
     );
   }
+
+  Future<ApiResult<dynamic>> requestModuleAccess({
+    required String moduleKey,
+    String note = '',
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/module-access-requests',
+      body: {
+        'payload': {
+          'module_key': moduleKey,
+          if (note.trim().isNotEmpty) 'note': note.trim(),
+          'source_surface': 'flutter_module_closed',
+        },
+      },
+    );
+  }
 }
 
 JsonMap _decodePayload(dynamic value) {

@@ -113,11 +113,15 @@ class SessionSnapshot {
     required this.config,
     required this.siteAccess,
     required this.user,
+    this.menuVisibility = const <String, bool>{},
+    this.moduleMenuOrder = const <String>[],
   });
 
   final AppConfig config;
   final SiteAccessSnapshot siteAccess;
   final SessionUser? user;
+  final Map<String, bool> menuVisibility;
+  final List<String> moduleMenuOrder;
 
   bool get isAuthenticated => user != null;
   bool get isBanned => user?.isBanned ?? false;
@@ -126,6 +130,9 @@ class SessionSnapshot {
       isAuthenticated && !(user?.isVerified ?? false);
 
   bool isModuleOpen(String moduleKey) => siteAccess.isModuleOpen(moduleKey);
+
+  bool isModuleVisible(String moduleKey) =>
+      (menuVisibility[moduleKey] ?? true) && isModuleOpen(moduleKey);
 
   String get defaultHomePath {
     final webPath = siteAccess.defaultLandingPage;

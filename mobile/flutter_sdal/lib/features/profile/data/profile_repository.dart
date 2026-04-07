@@ -138,6 +138,13 @@ class ProfileRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> verifyEmailChange(String token) {
+    return _apiClient.get<dynamic>(
+      '/api/profile/email-change/verify',
+      query: {'token': token},
+    );
+  }
+
   Future<ApiResult<dynamic>> changePassword({
     required String currentPassword,
     required String nextPassword,

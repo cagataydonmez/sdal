@@ -23,11 +23,13 @@ import '../../features/messenger/presentation/thread_detail_page.dart';
 import '../../features/networking/presentation/networking_pages.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
+import '../../features/profile/presentation/email_change_verify_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
 import '../../features/profile/presentation/profile_verification_page.dart';
 import '../../features/opportunities/presentation/jobs_page.dart';
 import '../../features/opportunities/presentation/opportunities_page.dart';
 import '../../features/requests/presentation/requests_page.dart';
+import '../../features/requests/presentation/module_access_request_page.dart';
 import '../../features/stories/presentation/expired_stories_page.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../session/session_controller.dart';
@@ -96,6 +98,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PasswordResetPage(),
       ),
       GoRoute(
+        path: '/profile/email-change/verify',
+        builder: (context, state) => EmailChangeVerifyPage(
+          token: state.uri.queryParameters['token'] ?? '',
+        ),
+      ),
+      GoRoute(
         path: '/oauth/callback',
         builder: (context, state) => const OAuthCallbackPage(),
       ),
@@ -114,16 +122,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/module-closed',
-        builder: (context, state) {
-          final moduleKey = state.uri.queryParameters['module'] ?? '';
-          final l10n = AppLocalizations.of(context)!;
-          return StatusScaffold(
-            title: l10n.moduleClosedTitle,
-            message: moduleKey.isEmpty
-                ? l10n.moduleClosedDefaultMessage
-                : l10n.moduleClosedWithName(moduleKey),
-          );
-        },
+        builder: (context, state) => ModuleAccessRequestPage(
+          moduleKey: state.uri.queryParameters['module'] ?? '',
+        ),
       ),
       GoRoute(
         path: '/account-banned',
@@ -316,6 +317,7 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
     '/activate',
     '/activation/resend',
     '/password-reset',
+    '/profile/email-change/verify',
     '/oauth/callback',
   };
 

@@ -4,6 +4,80 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
 
+class NetworkingTelemetryEvent {
+  const NetworkingTelemetryEvent({
+    required this.eventName,
+    required this.sourceSurface,
+    this.targetUserId,
+    this.entityType = '',
+    this.entityId,
+    this.metadata,
+  });
+
+  final String eventName;
+  final String sourceSurface;
+  final int? targetUserId;
+  final String entityType;
+  final int? entityId;
+  final Map<String, dynamic>? metadata;
+
+  JsonMap toJson() => <String, dynamic>{
+    'event_name': eventName,
+    'source_surface': sourceSurface,
+    if (targetUserId != null) 'target_user_id': targetUserId,
+    if (entityType.trim().isNotEmpty) 'entity_type': entityType,
+    if (entityId != null) 'entity_id': entityId,
+    if (metadata != null && metadata!.isNotEmpty) 'metadata': metadata,
+  };
+}
+
+class NetworkMetricsPayload {
+  const NetworkMetricsPayload({
+    required this.window,
+    required this.connectionsRequested,
+    required this.connectionsAccepted,
+    required this.connectionsPendingIncoming,
+    required this.connectionsPendingOutgoing,
+    required this.mentorshipRequested,
+    required this.mentorshipAccepted,
+    required this.teacherLinksCreated,
+    required this.timeToFirstNetworkSuccessDays,
+  });
+
+  final String window;
+  final int connectionsRequested;
+  final int connectionsAccepted;
+  final int connectionsPendingIncoming;
+  final int connectionsPendingOutgoing;
+  final int mentorshipRequested;
+  final int mentorshipAccepted;
+  final int teacherLinksCreated;
+  final int? timeToFirstNetworkSuccessDays;
+
+  factory NetworkMetricsPayload.fromMap(JsonMap map) {
+    final payload = asJsonMap(map['data']).isEmpty
+        ? map
+        : asJsonMap(map['data']);
+    final metrics = asJsonMap(payload['metrics']);
+    final connections = asJsonMap(metrics['connections']);
+    final mentorship = asJsonMap(metrics['mentorship']);
+    final teacherLinks = asJsonMap(metrics['teacherLinks']);
+    return NetworkMetricsPayload(
+      window: coalesceText([payload['window']], fallback: '30d'),
+      connectionsRequested: asInt(connections['requested']) ?? 0,
+      connectionsAccepted: asInt(connections['accepted']) ?? 0,
+      connectionsPendingIncoming: asInt(connections['pending_incoming']) ?? 0,
+      connectionsPendingOutgoing: asInt(connections['pending_outgoing']) ?? 0,
+      mentorshipRequested: asInt(mentorship['requested']) ?? 0,
+      mentorshipAccepted: asInt(mentorship['accepted']) ?? 0,
+      teacherLinksCreated: asInt(teacherLinks['created']) ?? 0,
+      timeToFirstNetworkSuccessDays: asInt(
+        metrics['time_to_first_network_success_days'],
+      ),
+    );
+  }
+}
+
 class NetworkMemberRef {
   const NetworkMemberRef({
     required this.id,
@@ -312,6 +386,15 @@ class NetworkingRepository {
     return NetworkInboxPayload.fromMap(asJsonMap(result.rawData));
   }
 
+  Future<NetworkMetricsPayload> fetchMetrics({String window = '30d'}) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/network/metrics',
+      query: {'window': window},
+      decoder: asJsonMap,
+    );
+    return NetworkMetricsPayload.fromMap(asJsonMap(result.rawData));
+  }
+
   Future<List<TeacherLinkRecord>> fetchTeacherLinks() async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/teachers/network',
@@ -417,6 +500,14 @@ class NetworkingRepository {
       },
     );
   }
+
+  Future<ApiResult<JsonMap>> trackTelemetry(NetworkingTelemetryEvent event) {
+    return _apiClient.post<JsonMap>(
+      '/api/new/network/telemetry',
+      body: event.toJson(),
+      decoder: asJsonMap,
+    );
+  }
 }
 
 final networkingRepositoryProvider = Provider<NetworkingRepository>(
@@ -430,6 +521,11 @@ final networkHubProvider = FutureProvider.autoDispose<NetworkHubPayload>(
 final networkInboxProvider = FutureProvider.autoDispose<NetworkInboxPayload>(
   (ref) => ref.watch(networkingRepositoryProvider).fetchInbox(),
 );
+
+final networkMetricsProvider =
+    FutureProvider.autoDispose<NetworkMetricsPayload>(
+      (ref) => ref.watch(networkingRepositoryProvider).fetchMetrics(),
+    );
 
 final teacherLinksProvider =
     FutureProvider.autoDispose<List<TeacherLinkRecord>>(

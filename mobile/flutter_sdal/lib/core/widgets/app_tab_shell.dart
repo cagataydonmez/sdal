@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/messenger/data/messenger_repository.dart';
 import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
+import '../shell/shell_metadata_repository.dart';
 
 class AppTabShell extends ConsumerWidget {
   const AppTabShell({super.key, required this.navigationShell});
@@ -20,10 +23,20 @@ class AppTabShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final unreadMessages =
+    final localUnreadMessages =
         ref.watch(messengerUnreadCountProvider).valueOrNull ?? 0;
-    final unreadNotifications =
+    final localUnreadNotifications =
         ref.watch(notificationUnreadCountProvider).valueOrNull ?? 0;
+    final shellMenu = ref.watch(shellMenuProvider).valueOrNull;
+    final shellSidebar = ref.watch(shellSidebarProvider).valueOrNull;
+    final unreadMessages = math.max(
+      localUnreadMessages,
+      shellMenu?.badgeForRoute('/inbox') ?? shellSidebar?.newMessagesCount ?? 0,
+    );
+    final unreadNotifications = math.max(
+      localUnreadNotifications,
+      shellMenu?.badgeForRoute('/notifications') ?? 0,
+    );
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(

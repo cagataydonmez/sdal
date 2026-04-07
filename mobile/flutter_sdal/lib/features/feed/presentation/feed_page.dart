@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/session/session_controller.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -23,8 +24,10 @@ class FeedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final query = ref.watch(feedQueryProvider);
     final feedState = ref.watch(feedItemsProvider);
+    final onlineMembersState = ref.watch(onlineMembersProvider);
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
+    final session = ref.watch(sessionControllerProvider).valueOrNull;
 
     return FeatureScaffold(
       title: _feedPageTitle(context, query.feedType),
@@ -33,6 +36,7 @@ class FeedPage extends ConsumerWidget {
         IconButton(
           onPressed: () {
             ref.invalidate(feedItemsProvider);
+            ref.invalidate(onlineMembersProvider);
             ref.invalidate(feedStoriesProvider(query.feedType.apiValue));
           },
           icon: const Icon(Icons.refresh),
@@ -52,16 +56,25 @@ class FeedPage extends ConsumerWidget {
           ),
         ),
         data: (items) => RefreshIndicator(
-          onRefresh: () => ref.refresh(feedItemsProvider.future),
+          onRefresh: () async {
+            await ref.refresh(feedItemsProvider.future);
+            await ref.refresh(onlineMembersProvider.future);
+          },
           child: ListView.separated(
             padding: const EdgeInsets.all(20),
-            itemCount: items.length + 2,
+            itemCount: items.length + 3,
             separatorBuilder: (_, index) => const SizedBox(height: 14),
             itemBuilder: (context, index) {
               if (index == 0) {
                 return _FeedControlsCard(query: query);
               }
               if (index == 1) {
+                return _OnlineMembersCard(
+                  state: onlineMembersState,
+                  imageUrlFor: (photo) => config.resolveUrl(photo).toString(),
+                );
+              }
+              if (index == 2) {
                 return StoriesRail(
                   mode: StoryRailMode.feed,
                   showUpload: true,
@@ -69,7 +82,7 @@ class FeedPage extends ConsumerWidget {
                   feedType: query.feedType.apiValue,
                 );
               }
-              final item = items[index - 2];
+              final item = items[index - 3];
               return InkWell(
                 borderRadius: BorderRadius.circular(24),
                 onTap: () => context.push('/posts/${item.id}'),
@@ -116,6 +129,29 @@ class FeedPage extends ConsumerWidget {
                               ],
                             ),
                           ),
+                          if (session?.user?.id != null &&
+                              session!.user!.id == item.authorId)
+                            _FeedPostMenuButton(
+                              onDelete: () async {
+                                final ok = await ref
+                                    .read(feedActionControllerProvider.notifier)
+                                    .deletePost(item.id);
+                                if (!context.mounted) return;
+                                final actionState = ref.read(
+                                  feedActionControllerProvider,
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      actionState.message ??
+                                          (ok
+                                              ? 'Gönderi silindi.'
+                                              : 'Gönderi silinemedi.'),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -175,6 +211,46 @@ class FeedPage extends ConsumerWidget {
   }
 }
 
+class _FeedPostMenuButton extends StatelessWidget {
+  const _FeedPostMenuButton({required this.onDelete});
+
+  final Future<void> Function() onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      onSelected: (value) async {
+        if (value != 'delete') return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Gönderiyi sil'),
+            content: const Text(
+              'Bu gönderi kalıcı olarak silinecek. Devam etmek istiyor musun?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Sil'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          await onDelete();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem<String>(value: 'delete', child: Text('Gönderiyi sil')),
+      ],
+    );
+  }
+}
+
 class _MetricPill extends StatelessWidget {
   const _MetricPill({
     required this.icon,
@@ -214,6 +290,97 @@ class _MetricPill extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _OnlineMembersCard extends StatelessWidget {
+  const _OnlineMembersCard({required this.state, required this.imageUrlFor});
+
+  final AsyncValue<List<FeedOnlineMember>> state;
+  final String Function(String photo) imageUrlFor;
+
+  @override
+  Widget build(BuildContext context) {
+    return state.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (members) {
+        if (members.isEmpty) return const SizedBox.shrink();
+        return SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Şu an çevrimiçi',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 92,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: members.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final member = members[index];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: member.id <= 0
+                          ? null
+                          : () => context.push('/members/${member.id}'),
+                      child: SizedBox(
+                        width: 72,
+                        child: Column(
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                RemoteAvatar(
+                                  label: member.name,
+                                  imageUrl: imageUrlFor(member.photo),
+                                  radius: 24,
+                                ),
+                                Positioned(
+                                  right: 1,
+                                  bottom: 1,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.surface,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              member.handle.isNotEmpty
+                                  ? '@${member.handle}'
+                                  : member.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

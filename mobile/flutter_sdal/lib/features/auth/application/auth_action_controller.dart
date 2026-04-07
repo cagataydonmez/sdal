@@ -77,6 +77,8 @@ class AuthActionController extends AutoDisposeNotifier<AsyncActionState> {
     required String lastName,
     required String graduationYear,
     required String captcha,
+    required bool kvkkConsent,
+    required bool directoryConsent,
   }) async {
     state = const AsyncActionState.loading(scope: 'register');
     final result = await ref
@@ -92,6 +94,8 @@ class AuthActionController extends AutoDisposeNotifier<AsyncActionState> {
             'soyisim': lastName,
             'mezuniyetyili': graduationYear,
             'gkodu': captcha,
+            'kvkk_consent': kvkkConsent,
+            'directory_consent': directoryConsent,
           },
           decoder: asJsonMap,
         );

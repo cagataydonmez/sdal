@@ -131,6 +131,29 @@ class StoryItem {
   }
 }
 
+class StoryMutationResult {
+  const StoryMutationResult({
+    required this.id,
+    required this.image,
+    this.variants,
+  });
+
+  final int? id;
+  final String image;
+  final StoryMediaVariants? variants;
+
+  factory StoryMutationResult.fromMap(JsonMap map) {
+    final variantsMap = asJsonMap(map['variants']);
+    return StoryMutationResult(
+      id: asInt(map['id']),
+      image: coalesceText([map['image']], fallback: ''),
+      variants: variantsMap.isEmpty
+          ? null
+          : StoryMediaVariants.fromMap(variantsMap),
+    );
+  }
+}
+
 class StoriesRepository {
   const StoriesRepository(this._apiClient);
 
@@ -168,39 +191,65 @@ class StoriesRepository {
     ).map(StoryItem.fromMap).toList(growable: false);
   }
 
-  Future<ApiResult<dynamic>> uploadStory({
+  Future<ApiResult<StoryMutationResult>> uploadStory({
     required File imageFile,
     required String caption,
     String feedType = 'main',
   }) {
-    return _apiClient.multipart<dynamic>(
+    return _apiClient.multipart<StoryMutationResult>(
       '/api/new/stories/upload',
       files: {'image': imageFile},
       fields: {'caption': caption, 'feedType': feedType},
+      decoder: (raw) => StoryMutationResult.fromMap(asJsonMap(raw)),
     );
   }
 
-  Future<ApiResult<dynamic>> editStory({
+  Future<ApiResult<StoryMutationResult>> editStory({
     required int storyId,
     required String caption,
-  }) {
-    return _apiClient.post<dynamic>(
+  }) async {
+    final canonical = await _apiClient.patch<StoryMutationResult>(
+      '/api/new/stories/$storyId',
+      body: {'caption': caption},
+      decoder: (raw) => StoryMutationResult.fromMap(asJsonMap(raw)),
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
+    return _apiClient.post<StoryMutationResult>(
       '/api/new/stories/$storyId/edit',
       body: {'caption': caption},
+      decoder: (raw) => StoryMutationResult.fromMap(asJsonMap(raw)),
     );
   }
 
-  Future<ApiResult<dynamic>> deleteStory(int storyId) {
-    return _apiClient.post<dynamic>('/api/new/stories/$storyId/delete');
+  Future<ApiResult<StoryMutationResult>> deleteStory(int storyId) async {
+    final canonical = await _apiClient.delete<StoryMutationResult>(
+      '/api/new/stories/$storyId',
+      decoder: (raw) => StoryMutationResult.fromMap(asJsonMap(raw)),
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
+    return _apiClient.post<StoryMutationResult>(
+      '/api/new/stories/$storyId/delete',
+      decoder: (raw) => StoryMutationResult.fromMap(asJsonMap(raw)),
+    );
   }
 
-  Future<ApiResult<dynamic>> repostStory(int storyId) {
-    return _apiClient.post<dynamic>('/api/new/stories/$storyId/repost');
+  Future<ApiResult<StoryMutationResult>> repostStory(int storyId) {
+    return _apiClient.post<StoryMutationResult>(
+      '/api/new/stories/$storyId/repost',
+      decoder: (raw) => StoryMutationResult.fromMap(asJsonMap(raw)),
+    );
   }
 
   Future<ApiResult<dynamic>> markViewed(int storyId) {
     return _apiClient.post<dynamic>('/api/new/stories/$storyId/view');
   }
+
+  bool _shouldFallback(int statusCode) =>
+      statusCode == 404 || statusCode == 405 || statusCode == 501;
 }
 
 final storiesRepositoryProvider = Provider<StoriesRepository>(

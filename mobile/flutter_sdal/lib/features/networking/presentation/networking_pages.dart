@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,19 +10,48 @@ import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../data/networking_repository.dart';
 
-class NetworkingHubPage extends ConsumerWidget {
+class NetworkingHubPage extends ConsumerStatefulWidget {
   const NetworkingHubPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NetworkingHubPage> createState() => _NetworkingHubPageState();
+}
+
+class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
+  String _hubSuggestionTelemetryKey = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        ref
+            .read(networkingRepositoryProvider)
+            .trackTelemetry(
+              const NetworkingTelemetryEvent(
+                eventName: 'network_hub_viewed',
+                sourceSurface: 'network_hub',
+                metadata: {'window': '30d'},
+              ),
+            ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final hubState = ref.watch(networkHubProvider);
+    final metricsState = ref.watch(networkMetricsProvider);
     final config = ref.watch(appConfigProvider);
 
     return FeatureScaffold(
       title: 'Networking',
       actions: [
         IconButton(
-          onPressed: () => ref.invalidate(networkHubProvider),
+          onPressed: () {
+            ref.invalidate(networkHubProvider);
+            ref.invalidate(networkMetricsProvider);
+          },
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -35,6 +66,7 @@ class NetworkingHubPage extends ConsumerWidget {
         data: (hub) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            _trackHubSuggestions(hub.discoverySuggestions),
             SurfaceCard(
               child: Row(
                 children: [
@@ -62,6 +94,62 @@ class NetworkingHubPage extends ConsumerWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            metricsState.when(
+              loading: () => const SurfaceCard(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, _) => const SizedBox.shrink(),
+              data: (metrics) => SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Networking içgörüleri',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _MiniMetricChip(
+                          label: 'İstekler',
+                          value: '${metrics.connectionsRequested}',
+                        ),
+                        _MiniMetricChip(
+                          label: 'Kabul edilen',
+                          value: '${metrics.connectionsAccepted}',
+                        ),
+                        _MiniMetricChip(
+                          label: 'Bekleyen gelen',
+                          value: '${metrics.connectionsPendingIncoming}',
+                        ),
+                        _MiniMetricChip(
+                          label: 'Bekleyen giden',
+                          value: '${metrics.connectionsPendingOutgoing}',
+                        ),
+                        _MiniMetricChip(
+                          label: 'Mentorluk',
+                          value: '${metrics.mentorshipAccepted}',
+                        ),
+                        _MiniMetricChip(
+                          label: 'Öğretmen linki',
+                          value: '${metrics.teacherLinksCreated}',
+                        ),
+                      ],
+                    ),
+                    if (metrics.timeToFirstNetworkSuccessDays != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'İlk network başarısı: ${metrics.timeToFirstNetworkSuccessDays} gün',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -192,6 +280,29 @@ class NetworkingHubPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _trackHubSuggestions(List<NetworkDiscoverySuggestion> items) {
+    final key = items.map((item) => item.id).join(',');
+    if (key.isNotEmpty && key != _hubSuggestionTelemetryKey) {
+      _hubSuggestionTelemetryKey = key;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(
+          ref
+              .read(networkingRepositoryProvider)
+              .trackTelemetry(
+                NetworkingTelemetryEvent(
+                  eventName: 'network_hub_suggestions_loaded',
+                  sourceSurface: 'network_hub',
+                  entityType: 'suggestion_batch',
+                  metadata: {'suggestion_count': items.length},
+                ),
+              ),
+        );
+      });
+    }
+    return const SizedBox.shrink();
   }
 }
 
@@ -394,6 +505,23 @@ class TeacherLinksPage extends ConsumerStatefulWidget {
 
 class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
   final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        ref
+            .read(networkingRepositoryProvider)
+            .trackTelemetry(
+              const NetworkingTelemetryEvent(
+                eventName: 'teacher_network_viewed',
+                sourceSurface: 'teachers_network_page',
+              ),
+            ),
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -681,6 +809,33 @@ class _StatTile extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+}
+
+class _MiniMetricChip extends StatelessWidget {
+  const _MiniMetricChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 2),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
     );
   }
 }

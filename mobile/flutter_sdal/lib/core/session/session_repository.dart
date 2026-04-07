@@ -30,8 +30,23 @@ class SessionRepository {
     final sessionPayload = asJsonMap(sessionResult.rawData);
     final userMap = asJsonMap(sessionPayload['user']);
     final user = userMap.isEmpty ? null : SessionUser.fromMap(userMap);
+    final menuVisibility = asJsonMap(
+      siteAccessResult.rawData['menuVisibility'],
+    ).map((key, value) => MapEntry(key, asBool(value) ?? true));
+    final moduleMenuOrder =
+        (siteAccessResult.rawData['moduleMenuOrder'] as List?)
+            ?.map(asString)
+            .whereType<String>()
+            .toList(growable: false) ??
+        const <String>[];
 
-    return SessionSnapshot(config: config, siteAccess: siteAccess, user: user);
+    return SessionSnapshot(
+      config: config,
+      siteAccess: siteAccess,
+      user: user,
+      menuVisibility: menuVisibility,
+      moduleMenuOrder: moduleMenuOrder,
+    );
   }
 
   Future<ApiResult<JsonMap>> login({

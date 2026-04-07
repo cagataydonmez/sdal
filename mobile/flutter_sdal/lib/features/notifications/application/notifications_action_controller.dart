@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/notifications_repository.dart';
@@ -10,10 +12,28 @@ class NotificationsActionController
   @override
   AsyncActionState build() => const AsyncActionState.idle();
 
-  Future<bool> markAllRead() async {
+  Future<bool> markAllRead({
+    Iterable<AppNotification> trackedItems = const <AppNotification>[],
+  }) async {
     state = const AsyncActionState.loading(scope: 'markAllRead');
     final result = await _repository.markAllRead();
     if (result.ok) {
+      final unreadItems = trackedItems.where((item) => item.isUnread);
+      unawaited(
+        _repository.trackTelemetry(
+          unreadItems
+              .map(
+                (item) => NotificationTelemetryEvent(
+                  notificationId: item.id,
+                  notificationType: item.type,
+                  eventName: 'no_action',
+                  surface: 'notifications_page',
+                  actionKind: 'mark_all_read',
+                ),
+              )
+              .toList(growable: false),
+        ),
+      );
       _refreshAll();
       state = AsyncActionState.success(
         scope: 'markAllRead',
@@ -32,10 +52,24 @@ class NotificationsActionController
     return false;
   }
 
-  Future<bool> markRead(int notificationId) async {
+  Future<bool> markRead(
+    int notificationId, {
+    String notificationType = '',
+  }) async {
     state = AsyncActionState.loading(scope: 'markRead:$notificationId');
     final result = await _repository.markRead(notificationId);
     if (result.ok) {
+      unawaited(
+        _repository.trackTelemetry([
+          NotificationTelemetryEvent(
+            notificationId: notificationId,
+            notificationType: notificationType,
+            eventName: 'no_action',
+            surface: 'notifications_page',
+            actionKind: 'mark_read',
+          ),
+        ]),
+      );
       ref.invalidate(notificationsProvider);
       ref.invalidate(notificationUnreadCountProvider);
       state = AsyncActionState.success(
@@ -55,7 +89,10 @@ class NotificationsActionController
     return false;
   }
 
-  Future<NotificationTarget?> open(int notificationId) async {
+  Future<NotificationTarget?> open(
+    int notificationId, {
+    String notificationType = '',
+  }) async {
     state = AsyncActionState.loading(scope: 'open:$notificationId');
     final result = await _repository.openNotification(notificationId);
     ref.invalidate(notificationsProvider);
@@ -78,14 +115,40 @@ class NotificationsActionController
     final targetRaw = data['target'] is Map<String, dynamic>
         ? data['target'] as Map<String, dynamic>
         : <String, dynamic>{};
+    unawaited(
+      _repository.trackTelemetry([
+        NotificationTelemetryEvent(
+          notificationId: notificationId,
+          notificationType: notificationType,
+          eventName: 'open',
+          surface: 'notifications_page',
+          actionKind: 'open',
+        ),
+      ]),
+    );
     state = const AsyncActionState.success(scope: 'open');
     return NotificationTarget.fromMap(targetRaw);
   }
 
-  Future<bool> runAction(NotificationActionItem action) async {
+  Future<bool> runAction(
+    NotificationActionItem action, {
+    int? notificationId,
+    String notificationType = '',
+  }) async {
     state = AsyncActionState.loading(scope: 'action:${action.kind}');
     final result = await _repository.runAction(action);
     if (result.ok) {
+      unawaited(
+        _repository.trackTelemetry([
+          NotificationTelemetryEvent(
+            notificationId: notificationId,
+            notificationType: notificationType,
+            eventName: 'action',
+            surface: 'notifications_page',
+            actionKind: action.kind,
+          ),
+        ]),
+      );
       _refreshAll();
       state = AsyncActionState.success(
         scope: 'action:${action.kind}',
@@ -124,6 +187,21 @@ class NotificationsActionController
           : 'Tercihler kaydedilemedi.',
     );
     return false;
+  }
+
+  Future<void> trackImpressions(Iterable<AppNotification> items) async {
+    await _repository.trackTelemetry(
+      items
+          .map(
+            (item) => NotificationTelemetryEvent(
+              notificationId: item.id,
+              notificationType: item.type,
+              eventName: 'impression',
+              surface: 'notifications_page',
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   void _refreshAll() {

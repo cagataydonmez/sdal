@@ -171,6 +171,34 @@ class FeedComment with _$FeedComment {
   factory FeedComment.fromMap(JsonMap map) => FeedComment.fromJson(map);
 }
 
+class FeedOnlineMember {
+  const FeedOnlineMember({
+    required this.id,
+    required this.name,
+    required this.handle,
+    required this.photo,
+  });
+
+  final int id;
+  final String name;
+  final String handle;
+  final String photo;
+
+  factory FeedOnlineMember.fromMap(JsonMap map) {
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    return FeedOnlineMember(
+      id: asInt(map['id']) ?? 0,
+      name: fullName.isNotEmpty
+          ? fullName
+          : coalesceText([map['name'], map['kadi']], fallback: 'SDAL Üyesi'),
+      handle: coalesceText([map['kadi']], fallback: ''),
+      photo: coalesceText([map['resim'], map['photo']], fallback: ''),
+    );
+  }
+}
+
 class FeedRepository {
   const FeedRepository(this._apiClient);
 
@@ -241,7 +269,13 @@ class FeedRepository {
     );
   }
 
-  Future<ApiResult<dynamic>> toggleLike(int postId) {
+  Future<ApiResult<dynamic>> toggleReaction(int postId) async {
+    final canonical = await _apiClient.post<dynamic>(
+      '/api/new/posts/$postId/react',
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
     return _apiClient.post<dynamic>('/api/new/posts/$postId/like');
   }
 
@@ -254,6 +288,31 @@ class FeedRepository {
       body: {'comment': comment},
     );
   }
+
+  Future<ApiResult<dynamic>> deletePost(int postId) async {
+    final canonical = await _apiClient.delete<dynamic>(
+      '/api/new/posts/$postId',
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
+    return _apiClient.post<dynamic>('/api/new/posts/$postId/delete');
+  }
+
+  Future<List<FeedOnlineMember>> fetchOnlineMembers({int limit = 12}) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/online-members',
+      query: {'limit': limit.clamp(1, 20), 'excludeSelf': 1},
+      decoder: (raw) => asJsonMap(raw),
+    );
+    final payload = asJsonMap(result.rawData);
+    return asJsonMapList(
+      payload['items'] ?? payload['rows'],
+    ).map(FeedOnlineMember.fromMap).toList(growable: false);
+  }
+
+  bool _shouldFallback(int statusCode) =>
+      statusCode == 404 || statusCode == 405 || statusCode == 501;
 }
 
 final feedRepositoryProvider = Provider<FeedRepository>(
@@ -278,4 +337,9 @@ final postDetailProvider = FutureProvider.autoDispose.family<FeedItem?, int>(
 final postCommentsProvider = FutureProvider.autoDispose
     .family<List<FeedComment>, int>(
       (ref, postId) => ref.watch(feedRepositoryProvider).fetchComments(postId),
+    );
+
+final onlineMembersProvider =
+    FutureProvider.autoDispose<List<FeedOnlineMember>>(
+      (ref) => ref.watch(feedRepositoryProvider).fetchOnlineMembers(),
     );

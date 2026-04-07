@@ -43,7 +43,7 @@ class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
 
   Future<bool> toggleLike(int postId) async {
     state = AsyncActionState.loading(scope: 'like:$postId');
-    final result = await _repository.toggleLike(postId);
+    final result = await _repository.toggleReaction(postId);
     if (result.ok) {
       ref.invalidate(feedItemsProvider);
       ref.invalidate(postDetailProvider(postId));
@@ -53,6 +53,24 @@ class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
     state = AsyncActionState.error(
       scope: 'like:$postId',
       message: result.message,
+    );
+    return false;
+  }
+
+  Future<bool> deletePost(int postId) async {
+    state = AsyncActionState.loading(scope: 'delete:$postId');
+    final result = await _repository.deletePost(postId);
+    if (result.ok) {
+      ref.invalidate(feedItemsProvider);
+      ref.invalidate(postDetailProvider(postId));
+      state = const AsyncActionState.success(scope: 'delete');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'delete:$postId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Gönderi silinemedi.',
     );
     return false;
   }

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/paged_response.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
 
@@ -117,6 +118,31 @@ class NotificationCategoryConverter
       Map<String, dynamic>.from(object);
 }
 
+class NotificationTelemetryEvent {
+  const NotificationTelemetryEvent({
+    required this.eventName,
+    this.notificationId,
+    this.notificationType = '',
+    this.surface = '',
+    this.actionKind = '',
+  });
+
+  final int? notificationId;
+  final String eventName;
+  final String notificationType;
+  final String surface;
+  final String actionKind;
+
+  JsonMap toJson() => <String, dynamic>{
+    if (notificationId != null) 'notification_id': notificationId,
+    'event_name': eventName,
+    if (notificationType.trim().isNotEmpty)
+      'notification_type': notificationType,
+    if (surface.trim().isNotEmpty) 'surface': surface,
+    if (actionKind.trim().isNotEmpty) 'action_kind': actionKind,
+  };
+}
+
 String _readActionLabel(dynamic value) => asString(value) ?? 'İşlem';
 
 String _readActionMethod(dynamic value) => asString(value) ?? 'POST';
@@ -126,17 +152,19 @@ class NotificationsRepository {
 
   final ApiClient _apiClient;
 
-  Future<List<AppNotification>> fetchNotifications() async {
-    final result = await _apiClient.get<JsonMap>(
+  Future<PagedResponse<AppNotification>> fetchNotifications({
+    String? cursor,
+    int limit = 20,
+    String sort = 'priority',
+  }) async {
+    final result = await _apiClient.get<dynamic>(
       '/api/new/notifications',
-      decoder: asJsonMap,
+      query: {'limit': limit, 'cursor': cursor, 'sort': sort},
     );
-    final payload = asJsonMap(result.rawData);
-    final container = asJsonMap(payload['data']);
-    final items = asJsonMapList(
-      (container.isEmpty ? payload : container)['items'],
+    return PagedResponse<AppNotification>.fromDynamic(
+      asJsonMap(result.rawData)['data'] ?? result.rawData,
+      AppNotification.fromMap,
     );
-    return items.map(AppNotification.fromMap).toList(growable: false);
   }
 
   Future<int> fetchUnreadCount() async {
@@ -155,7 +183,13 @@ class NotificationsRepository {
     return NotificationPreferences.fromMap(asJsonMap(result.rawData));
   }
 
-  Future<ApiResult<dynamic>> markAllRead() {
+  Future<ApiResult<dynamic>> markAllRead() async {
+    final canonical = await _apiClient.post<dynamic>(
+      '/api/new/notifications/read',
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
     return _apiClient.post<dynamic>('/api/new/notifications/bulk-read');
   }
 
@@ -172,16 +206,40 @@ class NotificationsRepository {
     );
   }
 
+  Future<ApiResult<JsonMap>> trackTelemetry(
+    List<NotificationTelemetryEvent> events,
+  ) {
+    if (events.isEmpty) {
+      return Future.value(
+        const ApiResult<JsonMap>(
+          ok: true,
+          statusCode: 200,
+          message: '',
+          code: '',
+          data: <String, dynamic>{},
+          rawData: <String, dynamic>{},
+        ),
+      );
+    }
+    return _apiClient.post<JsonMap>(
+      '/api/new/notifications/telemetry',
+      body: {'events': events.map((event) => event.toJson()).toList()},
+      decoder: asJsonMap,
+    );
+  }
+
   Future<ApiResult<dynamic>> runAction(NotificationActionItem action) {
     if (action.endpoint.trim().isEmpty) {
-      return Future.value(const ApiResult<dynamic>(
-        ok: false,
-        statusCode: 0,
-        message: 'İşlem adresi eksik.',
-        code: '',
-        data: null,
-        rawData: null,
-      ));
+      return Future.value(
+        const ApiResult<dynamic>(
+          ok: false,
+          statusCode: 0,
+          message: 'İşlem adresi eksik.',
+          code: '',
+          data: null,
+          rawData: null,
+        ),
+      );
     }
     final method = action.method.toUpperCase();
     if (method == 'PUT') {
@@ -208,15 +266,19 @@ class NotificationsRepository {
       },
     );
   }
+
+  bool _shouldFallback(int statusCode) =>
+      statusCode == 404 || statusCode == 405 || statusCode == 501;
 }
 
 final notificationsRepositoryProvider = Provider<NotificationsRepository>(
   (ref) => NotificationsRepository(ref.watch(apiClientProvider)),
 );
 
-final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
-  (ref) => ref.watch(notificationsRepositoryProvider).fetchNotifications(),
-);
+final notificationsProvider =
+    FutureProvider.autoDispose<PagedResponse<AppNotification>>(
+      (ref) => ref.watch(notificationsRepositoryProvider).fetchNotifications(),
+    );
 
 final notificationPreferencesProvider =
     FutureProvider.autoDispose<NotificationPreferences>(
