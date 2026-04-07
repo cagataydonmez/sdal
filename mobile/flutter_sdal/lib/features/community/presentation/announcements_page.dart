@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/session/session_controller.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -50,6 +51,8 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   @override
   Widget build(BuildContext context) {
     final actionState = ref.watch(communityActionControllerProvider);
+    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final isAdmin = session?.user?.isAdmin ?? false;
     final isSaving =
         actionState.isLoading && actionState.scope == 'announcements:create';
 
@@ -162,6 +165,47 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                         item.title,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
+                      if (isAdmin)
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'approve') {
+                                await _approveAnnouncement(
+                                  item.id,
+                                  approved: true,
+                                );
+                                return;
+                              }
+                              if (value == 'reject') {
+                                await _approveAnnouncement(
+                                  item.id,
+                                  approved: false,
+                                );
+                                return;
+                              }
+                              if (value == 'delete') {
+                                await _deleteAnnouncement(item.id);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              if (!item.approved)
+                                const PopupMenuItem<String>(
+                                  value: 'approve',
+                                  child: Text('Onayla'),
+                                ),
+                              if (item.approved)
+                                const PopupMenuItem<String>(
+                                  value: 'reject',
+                                  child: Text('Yayından kaldır'),
+                                ),
+                              const PopupMenuItem<String>(
+                                value: 'delete',
+                                child: Text('Sil'),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 8),
                       if (item.image.isNotEmpty) ...[
                         SdalNetworkImage(
@@ -277,6 +321,67 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
         });
       }
     }
+  }
+
+  Future<void> _approveAnnouncement(
+    int announcementId, {
+    required bool approved,
+  }) async {
+    final ok = await ref
+        .read(communityActionControllerProvider.notifier)
+        .approveAnnouncement(
+          announcementId: announcementId,
+          approved: approved,
+        );
+    if (!mounted) return;
+    final state = ref.read(communityActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok
+                  ? (approved
+                        ? 'Duyuru onaylandı.'
+                        : 'Duyuru yayından kaldırıldı.')
+                  : 'İşlem başarısız oldu.'),
+        ),
+      ),
+    );
+    if (ok) _load(reset: true);
+  }
+
+  Future<void> _deleteAnnouncement(int announcementId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Duyuru silinsin mi?'),
+        content: const Text('Bu işlem duyuruyu kalıcı olarak kaldırır.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final ok = await ref
+        .read(communityActionControllerProvider.notifier)
+        .deleteAnnouncement(announcementId);
+    if (!mounted) return;
+    final state = ref.read(communityActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ?? (ok ? 'Duyuru silindi.' : 'Duyuru silinemedi.'),
+        ),
+      ),
+    );
+    if (ok) _load(reset: true);
   }
 
   void _onScroll() {

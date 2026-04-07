@@ -511,6 +511,8 @@ Partial follow-up tasks:
 
 ## 11. Community Events
 
+Status: partial, with documented approve/delete endpoints now integrated for admin users
+
 Current Flutter coverage:
 
 - list
@@ -526,11 +528,20 @@ Missing documented endpoints:
 - `POST /api/new/events/:id/approve`
 - `DELETE /api/new/events/:id`
 
+Current implementation update:
+
+- Flutter now calls event approve/unapprove and delete mutations
+- events page exposes admin-only moderation actions for approve, unpublish, and delete
+- backend route is `requireAdmin`, so owner-side delete is still not supported by the server contract
+
 Plan:
 
 1. Add delete event for owner/moderator flows.
+   - partial: delete exists in Flutter, but only for admins because backend route is admin-only
 2. Add moderator/admin approve action where relevant.
+   - done for admin
 3. Decide whether notify audience remains mod-only and should live under admin event moderation rather than public events page.
+   - pending
 
 Files likely touched:
 
@@ -539,6 +550,8 @@ Files likely touched:
 - admin rollout files if approval is kept in admin
 
 ## 12. Community Announcements
+
+Status: partial, with documented approve/delete endpoints now integrated for admin users
 
 Current Flutter coverage:
 
@@ -551,11 +564,20 @@ Missing documented endpoints:
 - `POST /api/new/announcements/:id/approve`
 - `DELETE /api/new/announcements/:id`
 
+Current implementation update:
+
+- Flutter now calls announcement approve/unapprove and delete mutations
+- announcements page exposes admin-only moderation actions for approve, unpublish, and delete
+- backend route is `requireAdmin`, so owner-side delete remains unsupported on the server contract
+
 Plan:
 
 1. Add delete announcement for owner/moderator.
+   - partial: delete exists in Flutter, but only for admins because backend route is admin-only
 2. Add moderator approval flow if announcements are moderated.
+   - done for admin
 3. Clarify whether approval belongs in public UI or admin moderation UI.
+   - pending
 
 Files likely touched:
 
@@ -709,6 +731,8 @@ Files likely touched:
 
 ## 16. Connection & Mentorship Requests
 
+Status: partial, with standalone request-list endpoints now integrated in Flutter
+
 Current Flutter coverage:
 
 - send connection request
@@ -723,14 +747,19 @@ Missing documented endpoints:
 
 Partial implementation gaps:
 
-- app relies on aggregated inbox payload, not explicit request-list endpoints
-- no standalone request history/pagination API integration
+- standalone `connections/requests` and `mentorship/requests` endpoints are now wired into the networking inbox UI with direction/status filters
+- aggregated inbox payload is still used for teacher-link notifications
+- request pagination is still first-page only in Flutter UI
+- backend mismatch: `POST /api/new/connections/cancel/:id` writes `cancelled`, but `GET /api/new/connections/requests` only normalizes `pending|accepted|ignored`, so cancelled connection history cannot be queried canonically yet
 
 Plan:
 
 1. Decide whether inbox aggregation is sufficient.
+   - done: not sufficient for full docs parity
 2. If not, implement dedicated providers/pages for connection and mentorship request lists.
+   - done: dedicated provider families and inbox request browsers added
 3. If yes, still verify that inbox payload fully covers all request states documented by the standalone endpoints.
+   - done: inbox payload does not cover the full documented state space, so explicit endpoints remain necessary
 
 Files likely touched:
 
@@ -750,13 +779,17 @@ Current Flutter coverage:
 Status:
 
 - consumer-facing coverage is good
+- query parity baseline done: Flutter now sends documented `q` while preserving backend-compatible `term`, and supports `include_id`
 
 Partial follow-up:
 
 1. Verify query parameter parity for teacher options search.
+   - done
 2. Decide whether follow/follows should remain under teacher/networking section or become reusable member-profile infrastructure.
 
 ## 18. Opportunities & Jobs
+
+Status: partial, with filter/body contract aliases now aligned for docs + backend compatibility
 
 Current Flutter coverage:
 
@@ -770,15 +803,25 @@ Current Flutter coverage:
 
 Partial implementation gaps:
 
-- filter query names may not match docs
-- no explicit typed contract validation for list filters
+- filter query names now send both documented and backend-compatible aliases:
+  - `q` + `search`
+  - `city` + `location`
+  - `type` + `job_type`
+- create/apply bodies now also send docs aliases alongside backend-compatible keys:
+  - `city` + `location`
+  - `type` + `job_type`
+  - `coverLetter` + `cover_letter`
+- no explicit typed contract validation tests yet for filter serialization
 - no dedicated job detail endpoint, but docs do not currently require one
 
 Plan:
 
 1. Verify and align jobs filter keys with documented contract.
+   - done
 2. Add repository tests for filter serialization.
+   - pending
 3. Keep jobs as one of the “already strong” modules after contract alignment.
+   - partial
 
 Files likely touched:
 

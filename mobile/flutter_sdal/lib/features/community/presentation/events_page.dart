@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/session/session_controller.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import 'package:image_picker/image_picker.dart';
@@ -197,6 +198,8 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     );
     final actionState = ref.watch(communityActionControllerProvider);
     final config = ref.watch(appConfigProvider);
+    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final isAdmin = session?.user?.isAdmin ?? false;
     final respondingScope = 'events:respond:${item.id}';
     final commentingScope = 'events:comment:${item.id}';
     final visibilityScope = 'events:visibility:${item.id}';
@@ -208,7 +211,49 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(item.title, style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                if (isAdmin)
+                  PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      if (value == 'approve') {
+                        await _approveEvent(item.id, approved: true);
+                        return;
+                      }
+                      if (value == 'reject') {
+                        await _approveEvent(item.id, approved: false);
+                        return;
+                      }
+                      if (value == 'delete') {
+                        await _deleteEvent(item.id);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (!item.approved)
+                        const PopupMenuItem<String>(
+                          value: 'approve',
+                          child: Text('Onayla'),
+                        ),
+                      if (item.approved)
+                        const PopupMenuItem<String>(
+                          value: 'reject',
+                          child: Text('Yayından kaldır'),
+                        ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Sil'),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             if (item.image.isNotEmpty) ...[
               SdalNetworkImage(
@@ -501,6 +546,63 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _approveEvent(int eventId, {required bool approved}) async {
+    final ok = await ref
+        .read(communityActionControllerProvider.notifier)
+        .approveEvent(eventId: eventId, approved: approved);
+    if (!mounted) return;
+    final state = ref.read(communityActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok
+                  ? (approved
+                        ? 'Etkinlik onaylandı.'
+                        : 'Etkinlik yayından kaldırıldı.')
+                  : 'İşlem başarısız oldu.'),
+        ),
+      ),
+    );
+    if (ok) _load(reset: true);
+  }
+
+  Future<void> _deleteEvent(int eventId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Etkinlik silinsin mi?'),
+        content: const Text(
+          'Bu işlem etkinliği ve ilişkili yorum/yanıtları kaldırır.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final ok = await ref
+        .read(communityActionControllerProvider.notifier)
+        .deleteEvent(eventId);
+    if (!mounted) return;
+    final state = ref.read(communityActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ?? (ok ? 'Etkinlik silindi.' : 'Etkinlik silinemedi.'),
+        ),
+      ),
+    );
+    if (ok) _load(reset: true);
   }
 
   Future<void> _load({required bool reset}) async {

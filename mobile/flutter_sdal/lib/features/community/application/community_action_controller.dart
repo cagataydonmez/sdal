@@ -38,6 +38,54 @@ class CommunityActionController extends AutoDisposeNotifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> approveAnnouncement({
+    required int announcementId,
+    required bool approved,
+  }) async {
+    state = AsyncActionState.loading(
+      scope: 'announcements:approve:$announcementId',
+    );
+    final result = await _repository.approveAnnouncement(
+      announcementId: announcementId,
+      approved: approved,
+    );
+    if (result.ok) {
+      state = AsyncActionState.success(
+        scope: 'announcements:approve:$announcementId',
+        message: approved ? 'Duyuru onaylandı.' : 'Duyuru reddedildi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'announcements:approve:$announcementId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Duyuru durumu güncellenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteAnnouncement(int announcementId) async {
+    state = AsyncActionState.loading(
+      scope: 'announcements:delete:$announcementId',
+    );
+    final result = await _repository.deleteAnnouncement(announcementId);
+    if (result.ok) {
+      state = const AsyncActionState.success(
+        scope: 'announcements:delete',
+        message: 'Duyuru silindi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'announcements:delete:$announcementId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Duyuru silinemedi.',
+    );
+    return false;
+  }
+
   Future<bool> createEvent({
     required String title,
     required String description,
@@ -69,6 +117,50 @@ class CommunityActionController extends AutoDisposeNotifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Etkinlik oluşturulamadı.',
+    );
+    return false;
+  }
+
+  Future<bool> approveEvent({
+    required int eventId,
+    required bool approved,
+  }) async {
+    state = AsyncActionState.loading(scope: 'events:approve:$eventId');
+    final result = await _repository.approveEvent(
+      eventId: eventId,
+      approved: approved,
+    );
+    if (result.ok) {
+      state = AsyncActionState.success(
+        scope: 'events:approve:$eventId',
+        message: approved ? 'Etkinlik onaylandı.' : 'Etkinlik reddedildi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'events:approve:$eventId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Etkinlik durumu güncellenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteEvent(int eventId) async {
+    state = AsyncActionState.loading(scope: 'events:delete:$eventId');
+    final result = await _repository.deleteEvent(eventId);
+    if (result.ok) {
+      state = const AsyncActionState.success(
+        scope: 'events:delete',
+        message: 'Etkinlik silindi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'events:delete:$eventId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Etkinlik silinemedi.',
     );
     return false;
   }

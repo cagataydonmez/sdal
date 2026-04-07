@@ -150,6 +150,87 @@ class NetworkRequestItem {
   }
 }
 
+enum NetworkRequestDirection {
+  incoming('incoming'),
+  outgoing('outgoing');
+
+  const NetworkRequestDirection(this.apiValue);
+  final String apiValue;
+}
+
+enum ConnectionRequestStatus {
+  pending('pending'),
+  accepted('accepted'),
+  ignored('ignored');
+
+  const ConnectionRequestStatus(this.apiValue);
+  final String apiValue;
+}
+
+enum MentorshipRequestStatus {
+  requested('requested'),
+  accepted('accepted'),
+  declined('declined'),
+  cancelled('cancelled');
+
+  const MentorshipRequestStatus(this.apiValue);
+  final String apiValue;
+}
+
+class ConnectionRequestQuery {
+  const ConnectionRequestQuery({
+    required this.direction,
+    required this.status,
+    this.limit = 30,
+    this.offset = 0,
+  });
+
+  final NetworkRequestDirection direction;
+  final ConnectionRequestStatus status;
+  final int limit;
+  final int offset;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConnectionRequestQuery &&
+          runtimeType == other.runtimeType &&
+          direction == other.direction &&
+          status == other.status &&
+          limit == other.limit &&
+          offset == other.offset;
+
+  @override
+  int get hashCode => Object.hash(direction, status, limit, offset);
+}
+
+class MentorshipRequestQuery {
+  const MentorshipRequestQuery({
+    required this.direction,
+    required this.status,
+    this.limit = 30,
+    this.offset = 0,
+  });
+
+  final NetworkRequestDirection direction;
+  final MentorshipRequestStatus status;
+  final int limit;
+  final int offset;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MentorshipRequestQuery &&
+          runtimeType == other.runtimeType &&
+          direction == other.direction &&
+          status == other.status &&
+          limit == other.limit &&
+          offset == other.offset;
+
+  @override
+  int get hashCode => Object.hash(direction, status, limit, offset);
+}
+
 class TeacherLinkEvent {
   const TeacherLinkEvent({
     required this.id,
@@ -386,6 +467,50 @@ class NetworkingRepository {
     return NetworkInboxPayload.fromMap(asJsonMap(result.rawData));
   }
 
+  Future<List<NetworkRequestItem>> fetchConnectionRequests(
+    ConnectionRequestQuery query,
+  ) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/connections/requests',
+      query: {
+        'direction': query.direction.apiValue,
+        'status': query.status.apiValue,
+        'limit': query.limit,
+        'offset': query.offset,
+      },
+      decoder: asJsonMap,
+    );
+    final payload = asJsonMap(result.rawData);
+    final data = asJsonMap(payload['data']).isEmpty
+        ? payload
+        : asJsonMap(payload['data']);
+    return asJsonMapList(
+      data['items'],
+    ).map(NetworkRequestItem.fromMap).toList(growable: false);
+  }
+
+  Future<List<NetworkRequestItem>> fetchMentorshipRequests(
+    MentorshipRequestQuery query,
+  ) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/mentorship/requests',
+      query: {
+        'direction': query.direction.apiValue,
+        'status': query.status.apiValue,
+        'limit': query.limit,
+        'offset': query.offset,
+      },
+      decoder: asJsonMap,
+    );
+    final payload = asJsonMap(result.rawData);
+    final data = asJsonMap(payload['data']).isEmpty
+        ? payload
+        : asJsonMap(payload['data']);
+    return asJsonMapList(
+      data['items'],
+    ).map(NetworkRequestItem.fromMap).toList(growable: false);
+  }
+
   Future<NetworkMetricsPayload> fetchMetrics({String window = '30d'}) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/network/metrics',
@@ -405,10 +530,19 @@ class NetworkingRepository {
     return items.map(TeacherLinkRecord.fromMap).toList(growable: false);
   }
 
-  Future<List<TeacherOption>> searchTeacherOptions(String term) async {
+  Future<List<TeacherOption>> searchTeacherOptions(
+    String term, {
+    int? includeId,
+  }) async {
+    final queryText = term.trim();
     final result = await _apiClient.get<JsonMap>(
       '/api/new/teachers/options',
-      query: {'term': term, 'limit': 12},
+      query: {
+        if (queryText.isNotEmpty) 'q': queryText,
+        if (queryText.isNotEmpty) 'term': queryText,
+        'limit': 12,
+        if ((includeId ?? 0) > 0) 'include_id': includeId,
+      },
       decoder: asJsonMap,
     );
     final items = asJsonMapList(
@@ -521,6 +655,20 @@ final networkHubProvider = FutureProvider.autoDispose<NetworkHubPayload>(
 final networkInboxProvider = FutureProvider.autoDispose<NetworkInboxPayload>(
   (ref) => ref.watch(networkingRepositoryProvider).fetchInbox(),
 );
+
+final connectionRequestsProvider = FutureProvider.autoDispose
+    .family<List<NetworkRequestItem>, ConnectionRequestQuery>(
+      (ref, query) => ref
+          .watch(networkingRepositoryProvider)
+          .fetchConnectionRequests(query),
+    );
+
+final mentorshipRequestsProvider = FutureProvider.autoDispose
+    .family<List<NetworkRequestItem>, MentorshipRequestQuery>(
+      (ref, query) => ref
+          .watch(networkingRepositoryProvider)
+          .fetchMentorshipRequests(query),
+    );
 
 final networkMetricsProvider =
     FutureProvider.autoDispose<NetworkMetricsPayload>(

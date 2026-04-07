@@ -218,6 +218,20 @@ class CommunityRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> approveAnnouncement({
+    required int announcementId,
+    required bool approved,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/announcements/$announcementId/approve',
+      body: {'approved': approved ? '1' : '0'},
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteAnnouncement(int announcementId) {
+    return _apiClient.delete<dynamic>('/api/new/announcements/$announcementId');
+  }
+
   Future<CommunityPageData<EventItem>> fetchEvents({
     int limit = 15,
     int offset = 0,
@@ -259,6 +273,20 @@ class CommunityRepository {
       );
     }
     return _apiClient.post<dynamic>('/api/new/events', body: fields);
+  }
+
+  Future<ApiResult<dynamic>> approveEvent({
+    required int eventId,
+    required bool approved,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/events/$eventId/approve',
+      body: {'approved': approved ? '1' : '0'},
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteEvent(int eventId) {
+    return _apiClient.delete<dynamic>('/api/new/events/$eventId');
   }
 
   Future<List<EventComment>> fetchEventComments(int eventId) async {

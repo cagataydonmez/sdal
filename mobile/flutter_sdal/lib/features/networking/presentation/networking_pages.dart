@@ -318,7 +318,11 @@ class NetworkingInboxPage extends ConsumerWidget {
       title: 'Networking Inbox',
       actions: [
         IconButton(
-          onPressed: () => ref.invalidate(networkInboxProvider),
+          onPressed: () {
+            ref.invalidate(networkInboxProvider);
+            ref.invalidate(connectionRequestsProvider);
+            ref.invalidate(mentorshipRequestsProvider);
+          },
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -328,112 +332,9 @@ class NetworkingInboxPage extends ConsumerWidget {
         data: (inbox) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _RequestSection(
-              title: 'Gelen bağlantı istekleri',
-              items: inbox.incomingConnections,
-              emptyMessage: 'Bekleyen bağlantı isteği yok.',
-              itemBuilder: (item) => _RequestTile(
-                member: item.member,
-                subtitle: item.updatedAt,
-                imageUrl: config.resolveUrl(item.member.photo).toString(),
-                actions: [
-                  TextButton(
-                    onPressed: () => _showActionResult(
-                      context,
-                      ref
-                          .read(networkingRepositoryProvider)
-                          .ignoreConnection(item.id),
-                      onDone: () => ref.invalidate(networkInboxProvider),
-                    ),
-                    child: const Text('Yoksay'),
-                  ),
-                  FilledButton(
-                    onPressed: () => _showActionResult(
-                      context,
-                      ref
-                          .read(networkingRepositoryProvider)
-                          .acceptConnection(item.id),
-                      onDone: () => ref.invalidate(networkInboxProvider),
-                    ),
-                    child: const Text('Kabul et'),
-                  ),
-                ],
-              ),
-            ),
+            const _ConnectionRequestsBrowser(),
             const SizedBox(height: 18),
-            _RequestSection(
-              title: 'Gönderdiğin bağlantı istekleri',
-              items: inbox.outgoingConnections,
-              emptyMessage: 'Aktif giden bağlantı isteği yok.',
-              itemBuilder: (item) => _RequestTile(
-                member: item.member,
-                subtitle: item.updatedAt,
-                imageUrl: config.resolveUrl(item.member.photo).toString(),
-                actions: [
-                  OutlinedButton(
-                    onPressed: () => _showActionResult(
-                      context,
-                      ref
-                          .read(networkingRepositoryProvider)
-                          .cancelConnection(item.id),
-                      onDone: () => ref.invalidate(networkInboxProvider),
-                    ),
-                    child: const Text('Geri çek'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            _RequestSection(
-              title: 'Gelen mentorluk istekleri',
-              items: inbox.incomingMentorship,
-              emptyMessage: 'Bekleyen mentorluk isteği yok.',
-              itemBuilder: (item) => _RequestTile(
-                member: item.member,
-                subtitle: item.focusArea.isNotEmpty
-                    ? item.focusArea
-                    : item.updatedAt,
-                detail: item.message,
-                imageUrl: config.resolveUrl(item.member.photo).toString(),
-                actions: [
-                  TextButton(
-                    onPressed: () => _showActionResult(
-                      context,
-                      ref
-                          .read(networkingRepositoryProvider)
-                          .declineMentorship(item.id),
-                      onDone: () => ref.invalidate(networkInboxProvider),
-                    ),
-                    child: const Text('Reddet'),
-                  ),
-                  FilledButton(
-                    onPressed: () => _showActionResult(
-                      context,
-                      ref
-                          .read(networkingRepositoryProvider)
-                          .acceptMentorship(item.id),
-                      onDone: () => ref.invalidate(networkInboxProvider),
-                    ),
-                    child: const Text('Kabul et'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            _RequestSection(
-              title: 'Gönderdiğin mentorluk istekleri',
-              items: inbox.outgoingMentorship,
-              emptyMessage: 'Aktif giden mentorluk isteği yok.',
-              itemBuilder: (item) => _RequestTile(
-                member: item.member,
-                subtitle: item.focusArea.isNotEmpty
-                    ? item.focusArea
-                    : item.updatedAt,
-                detail: item.message,
-                imageUrl: config.resolveUrl(item.member.photo).toString(),
-                actions: const [],
-              ),
-            ),
+            const _MentorshipRequestsBrowser(),
             const SizedBox(height: 18),
             SurfaceCard(
               child: Column(
@@ -493,6 +394,284 @@ class NetworkingInboxPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+class _ConnectionRequestsBrowser extends ConsumerStatefulWidget {
+  const _ConnectionRequestsBrowser();
+
+  @override
+  ConsumerState<_ConnectionRequestsBrowser> createState() =>
+      _ConnectionRequestsBrowserState();
+}
+
+class _ConnectionRequestsBrowserState
+    extends ConsumerState<_ConnectionRequestsBrowser> {
+  NetworkRequestDirection _direction = NetworkRequestDirection.incoming;
+  ConnectionRequestStatus _status = ConnectionRequestStatus.pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = ConnectionRequestQuery(
+      direction: _direction,
+      status: _status,
+    );
+    final state = ref.watch(connectionRequestsProvider(query));
+    final config = ref.watch(appConfigProvider);
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Bağlantı istekleri',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: NetworkRequestDirection.values
+                .map(
+                  (direction) => ChoiceChip(
+                    label: Text(
+                      direction == NetworkRequestDirection.incoming
+                          ? 'Gelen'
+                          : 'Giden',
+                    ),
+                    selected: _direction == direction,
+                    onSelected: (_) => setState(() => _direction = direction),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ConnectionRequestStatus.values
+                .map(
+                  (status) => ChoiceChip(
+                    label: Text(_connectionStatusLabel(status)),
+                    selected: _status == status,
+                    onSelected: (_) => setState(() => _status = status),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+          const SizedBox(height: 14),
+          state.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => Text(error.toString()),
+            data: (items) {
+              if (items.isEmpty) {
+                return Text(
+                  '${_direction == NetworkRequestDirection.incoming ? 'Gelen' : 'Giden'} ${_connectionStatusLabel(_status).toLowerCase()} bağlantı isteği yok.',
+                );
+              }
+              return Column(
+                children: items
+                    .map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _RequestTile(
+                          member: item.member,
+                          subtitle: item.updatedAt.isNotEmpty
+                              ? item.updatedAt
+                              : item.createdAt,
+                          imageUrl: config
+                              .resolveUrl(item.member.photo)
+                              .toString(),
+                          statusLabel: _connectionStatusLabel(_status),
+                          actions: _buildConnectionActions(context, item),
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildConnectionActions(
+    BuildContext context,
+    NetworkRequestItem item,
+  ) {
+    if (_status != ConnectionRequestStatus.pending) return const [];
+    if (_direction == NetworkRequestDirection.incoming) {
+      return [
+        TextButton(
+          onPressed: () => _showActionResult(
+            context,
+            ref.read(networkingRepositoryProvider).ignoreConnection(item.id),
+            onDone: _invalidateNetworkingRequests,
+          ),
+          child: const Text('Yoksay'),
+        ),
+        FilledButton(
+          onPressed: () => _showActionResult(
+            context,
+            ref.read(networkingRepositoryProvider).acceptConnection(item.id),
+            onDone: _invalidateNetworkingRequests,
+          ),
+          child: const Text('Kabul et'),
+        ),
+      ];
+    }
+    return [
+      OutlinedButton(
+        onPressed: () => _showActionResult(
+          context,
+          ref.read(networkingRepositoryProvider).cancelConnection(item.id),
+          onDone: _invalidateNetworkingRequests,
+        ),
+        child: const Text('Geri çek'),
+      ),
+    ];
+  }
+
+  void _invalidateNetworkingRequests() {
+    ref.invalidate(networkInboxProvider);
+    ref.invalidate(connectionRequestsProvider);
+  }
+}
+
+class _MentorshipRequestsBrowser extends ConsumerStatefulWidget {
+  const _MentorshipRequestsBrowser();
+
+  @override
+  ConsumerState<_MentorshipRequestsBrowser> createState() =>
+      _MentorshipRequestsBrowserState();
+}
+
+class _MentorshipRequestsBrowserState
+    extends ConsumerState<_MentorshipRequestsBrowser> {
+  NetworkRequestDirection _direction = NetworkRequestDirection.incoming;
+  MentorshipRequestStatus _status = MentorshipRequestStatus.requested;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = MentorshipRequestQuery(
+      direction: _direction,
+      status: _status,
+    );
+    final state = ref.watch(mentorshipRequestsProvider(query));
+    final config = ref.watch(appConfigProvider);
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mentorluk talepleri',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: NetworkRequestDirection.values
+                .map(
+                  (direction) => ChoiceChip(
+                    label: Text(
+                      direction == NetworkRequestDirection.incoming
+                          ? 'Gelen'
+                          : 'Giden',
+                    ),
+                    selected: _direction == direction,
+                    onSelected: (_) => setState(() => _direction = direction),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: MentorshipRequestStatus.values
+                .map(
+                  (status) => ChoiceChip(
+                    label: Text(_mentorshipStatusLabel(status)),
+                    selected: _status == status,
+                    onSelected: (_) => setState(() => _status = status),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+          const SizedBox(height: 14),
+          state.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => Text(error.toString()),
+            data: (items) {
+              if (items.isEmpty) {
+                return Text(
+                  '${_direction == NetworkRequestDirection.incoming ? 'Gelen' : 'Giden'} ${_mentorshipStatusLabel(_status).toLowerCase()} mentorluk talebi yok.',
+                );
+              }
+              return Column(
+                children: items
+                    .map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _RequestTile(
+                          member: item.member,
+                          subtitle: item.focusArea.isNotEmpty
+                              ? item.focusArea
+                              : (item.updatedAt.isNotEmpty
+                                    ? item.updatedAt
+                                    : item.createdAt),
+                          detail: item.message,
+                          imageUrl: config
+                              .resolveUrl(item.member.photo)
+                              .toString(),
+                          statusLabel: _mentorshipStatusLabel(_status),
+                          actions: _buildMentorshipActions(context, item),
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildMentorshipActions(
+    BuildContext context,
+    NetworkRequestItem item,
+  ) {
+    if (_status != MentorshipRequestStatus.requested ||
+        _direction != NetworkRequestDirection.incoming) {
+      return const [];
+    }
+    return [
+      TextButton(
+        onPressed: () => _showActionResult(
+          context,
+          ref.read(networkingRepositoryProvider).declineMentorship(item.id),
+          onDone: _invalidateNetworkingRequests,
+        ),
+        child: const Text('Reddet'),
+      ),
+      FilledButton(
+        onPressed: () => _showActionResult(
+          context,
+          ref.read(networkingRepositoryProvider).acceptMentorship(item.id),
+          onDone: _invalidateNetworkingRequests,
+        ),
+        child: const Text('Kabul et'),
+      ),
+    ];
+  }
+
+  void _invalidateNetworkingRequests() {
+    ref.invalidate(networkInboxProvider);
+    ref.invalidate(mentorshipRequestsProvider);
   }
 }
 
@@ -731,6 +910,7 @@ class _RequestTile extends StatelessWidget {
     required this.subtitle,
     required this.imageUrl,
     required this.actions,
+    this.statusLabel = '',
     this.detail = '',
   });
 
@@ -738,6 +918,7 @@ class _RequestTile extends StatelessWidget {
   final String subtitle;
   final String imageUrl;
   final List<Widget> actions;
+  final String statusLabel;
   final String detail;
 
   @override
@@ -763,6 +944,11 @@ class _RequestTile extends StatelessWidget {
                         '@${member.handle}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
+                    if (statusLabel.isNotEmpty)
+                      Text(
+                        statusLabel,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     if (subtitle.isNotEmpty)
                       Text(
                         subtitle,
@@ -781,6 +967,30 @@ class _RequestTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+String _connectionStatusLabel(ConnectionRequestStatus status) {
+  switch (status) {
+    case ConnectionRequestStatus.pending:
+      return 'Bekliyor';
+    case ConnectionRequestStatus.accepted:
+      return 'Kabul edildi';
+    case ConnectionRequestStatus.ignored:
+      return 'Yoksayıldı';
+  }
+}
+
+String _mentorshipStatusLabel(MentorshipRequestStatus status) {
+  switch (status) {
+    case MentorshipRequestStatus.requested:
+      return 'Bekliyor';
+    case MentorshipRequestStatus.accepted:
+      return 'Kabul edildi';
+    case MentorshipRequestStatus.declined:
+      return 'Reddedildi';
+    case MentorshipRequestStatus.cancelled:
+      return 'İptal edildi';
   }
 }
 

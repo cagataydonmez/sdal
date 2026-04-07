@@ -168,15 +168,28 @@ class OpportunitiesRepository {
 
   Future<List<JobItem>> fetchJobs({
     String search = '',
+    String? q,
     String location = '',
+    String? city,
     String jobType = '',
+    String? type,
+    int limit = 40,
+    int offset = 0,
   }) async {
+    final queryText = (q ?? search).trim();
+    final cityText = (city ?? location).trim();
+    final typeText = (type ?? jobType).trim();
     final result = await _apiClient.get<JsonMap>(
       '/api/new/jobs',
       query: {
-        if (search.trim().isNotEmpty) 'search': search.trim(),
-        if (location.trim().isNotEmpty) 'location': location.trim(),
-        if (jobType.trim().isNotEmpty) 'job_type': jobType.trim(),
+        'limit': limit.clamp(1, 100),
+        'offset': offset < 0 ? 0 : offset,
+        if (queryText.isNotEmpty) 'q': queryText,
+        if (queryText.isNotEmpty) 'search': queryText,
+        if (cityText.isNotEmpty) 'city': cityText,
+        if (cityText.isNotEmpty) 'location': cityText,
+        if (typeText.isNotEmpty) 'type': typeText,
+        if (typeText.isNotEmpty) 'job_type': typeText,
       },
       decoder: asJsonMap,
     );
@@ -199,7 +212,9 @@ class OpportunitiesRepository {
         'company': company,
         'title': title,
         'description': description,
+        'city': location,
         'location': location,
+        'type': jobType,
         'job_type': jobType,
         'link': link,
       },
@@ -216,7 +231,7 @@ class OpportunitiesRepository {
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/jobs/$jobId/apply',
-      body: {'cover_letter': coverLetter},
+      body: {'coverLetter': coverLetter, 'cover_letter': coverLetter},
     );
   }
 
