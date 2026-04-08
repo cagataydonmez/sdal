@@ -846,6 +846,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Send the first message to start this conversation.';
 
   @override
+  String get chatJumpToLatestAction => 'Jump to latest';
+
+  @override
+  String get chatNewMessagesAction => 'New messages';
+
+  @override
   String get teacherSearchHintTitle => 'Search for a teacher';
 
   @override

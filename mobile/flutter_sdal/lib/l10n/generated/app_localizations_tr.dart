@@ -844,6 +844,12 @@ class AppLocalizationsTr extends AppLocalizations {
       'Bu konuşmayı başlatmak için ilk mesajı sen gönder.';
 
   @override
+  String get chatJumpToLatestAction => 'En yeniye git';
+
+  @override
+  String get chatNewMessagesAction => 'Yeni mesajlar';
+
+  @override
   String get teacherSearchHintTitle => 'Bir öğretmen ara';
 
   @override

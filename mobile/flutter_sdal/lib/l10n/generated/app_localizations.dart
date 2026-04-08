@@ -1634,6 +1634,18 @@ abstract class AppLocalizations {
   /// **'Bu konuşmayı başlatmak için ilk mesajı sen gönder.'**
   String get threadEmptyMessage;
 
+  /// No description provided for @chatJumpToLatestAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'En yeniye git'**
+  String get chatJumpToLatestAction;
+
+  /// No description provided for @chatNewMessagesAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni mesajlar'**
+  String get chatNewMessagesAction;
+
   /// No description provided for @teacherSearchHintTitle.
   ///
   /// In tr, this message translates to:

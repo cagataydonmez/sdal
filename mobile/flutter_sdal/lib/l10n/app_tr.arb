@@ -332,6 +332,8 @@
   "threadFallbackTitle": "Sohbet",
   "threadEmptyTitle": "Henüz mesaj yok",
   "threadEmptyMessage": "Bu konuşmayı başlatmak için ilk mesajı sen gönder.",
+  "chatJumpToLatestAction": "En yeniye git",
+  "chatNewMessagesAction": "Yeni mesajlar",
   "teacherSearchHintTitle": "Bir öğretmen ara",
   "teacherSearchHintMessage": "Bağlantı eklemeden önce isim veya kullanıcı adı ile öğretmen ara.",
   "teacherSearchEmptyTitle": "Eşleşen öğretmen bulunamadı",

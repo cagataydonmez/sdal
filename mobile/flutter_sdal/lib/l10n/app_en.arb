@@ -332,6 +332,8 @@
   "threadFallbackTitle": "Chat",
   "threadEmptyTitle": "No messages yet",
   "threadEmptyMessage": "Send the first message to start this conversation.",
+  "chatJumpToLatestAction": "Jump to latest",
+  "chatNewMessagesAction": "New messages",
   "teacherSearchHintTitle": "Search for a teacher",
   "teacherSearchHintMessage": "Use a name or username to find a teacher before adding a connection.",
   "teacherSearchEmptyTitle": "No matching teacher found",

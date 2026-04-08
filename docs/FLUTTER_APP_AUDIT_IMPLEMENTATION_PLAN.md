@@ -632,7 +632,14 @@ Used skills in implementation:
 
 #### E1. Fix DM chat theming and scroll behavior
 
-Status: `Not started`
+Status: `Completed`
+
+Current progress in implementation:
+
+- added explicit scroll management to DM thread detail so new messages only auto-scroll when the user is already near the bottom
+- added a shared jump-to-latest CTA for both DM and live chat when the user is reading older history
+- aligned DM and live chat status treatment through a shared realtime status banner component
+- kept DM/live chat bubbles on the tokenized chat palette while improving behavioral consistency across both surfaces
 
 Audit coverage:
 
@@ -658,6 +665,11 @@ Definition of done:
 - new messages do not yank users away from older history
 - users can jump to bottom intentionally
 - DM and live chat feel visually and behaviorally consistent
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `harden`
 
 ---
 
