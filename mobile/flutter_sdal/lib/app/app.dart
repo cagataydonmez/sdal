@@ -9,6 +9,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/theme_mode_controller.dart';
 import '../core/theme/theme_mode_store.dart';
 import '../core/widgets/status_views.dart';
+import '../features/push_notifications/presentation/push_notifications_bootstrap.dart';
 
 class SdalFlutterApp extends ConsumerWidget {
   const SdalFlutterApp({super.key});
@@ -72,6 +73,9 @@ class SdalFlutterApp extends ConsumerWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
+          builder: (context, child) => PushNotificationsBootstrap(
+            child: child ?? const SizedBox.shrink(),
+          ),
           routerConfig: router,
         );
       },

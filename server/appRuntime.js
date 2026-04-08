@@ -47,6 +47,7 @@ import { hardDeleteUser as executeHardDeleteUser } from './src/admin/hardDeleteU
 import { createAdminInsightsRuntime } from './src/admin/createAdminInsightsRuntime.js';
 import { createNotificationGovernanceRuntime } from './src/notifications/createNotificationGovernanceRuntime.js';
 import { createNotificationPresentationRuntime } from './src/notifications/createNotificationPresentationRuntime.js';
+import { createNotificationPushRuntime } from './src/notifications/createNotificationPushRuntime.js';
 import { createNetworkingRuntime } from './src/networking/createNetworkingRuntime.js';
 import { createWebSocketRuntime } from './src/realtime/createWebSocketRuntime.js';
 import { createEventChatRuntime } from './src/events/createEventChatRuntime.js';
@@ -1448,6 +1449,32 @@ const {
   buildNotificationActions,
   enrichNotificationRows
 } = notificationPresentationRuntime;
+const notificationPushRuntime = createNotificationPushRuntime({
+  dbDriver,
+  sqlRun,
+  sqlGet,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
+  getNotificationCategory,
+  buildNotificationTarget,
+  writeAppLog,
+  sanitizePlainUserText
+});
+const {
+  ensureNotificationPushSettingsTable,
+  ensureNotificationPushDevicesTable,
+  ensureNotificationPushDeliveryAuditTable,
+  readPushSettings,
+  updatePushSettings,
+  registerPushDevice,
+  unregisterPushDevice,
+  buildPushAdminSummary,
+  dispatchPushNotification
+} = notificationPushRuntime;
+ensureNotificationPushSettingsTable();
+ensureNotificationPushDevicesTable();
+ensureNotificationPushDeliveryAuditTable();
 const notificationGovernanceRuntime = createNotificationGovernanceRuntime({
   sqlRun,
   sqlGet,
@@ -1457,7 +1484,8 @@ const notificationGovernanceRuntime = createNotificationGovernanceRuntime({
   hasTable,
   sanitizePlainUserText,
   getNotificationCategory,
-  getNotificationPriority
+  getNotificationPriority,
+  dispatchPushNotification
 });
 const {
   notificationPreferenceCategoryKeys,
@@ -4217,7 +4245,12 @@ registerNotificationRoutes(app, {
   notificationGovernanceChecklist,
   ensureNotificationExperimentConfigsTable,
   ensureNotificationDeliveryAuditTable,
-  ensureNotificationTelemetryEventsTable: (...args) => ensureNetworkingTelemetryEventsTable(...args),
+  ensureNotificationTelemetryEventsTable,
+  readPushSettings,
+  updatePushSettings,
+  registerPushDevice,
+  unregisterPushDevice,
+  buildPushAdminSummary,
   parseNetworkWindowDays: (...args) => parseNetworkWindowDays(...args),
   toIsoThreshold: (...args) => toIsoThreshold(...args),
   notificationTypeInventory

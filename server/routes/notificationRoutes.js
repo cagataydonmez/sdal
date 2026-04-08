@@ -29,6 +29,11 @@ export function registerNotificationRoutes(app, {
   ensureNotificationExperimentConfigsTable,
   ensureNotificationDeliveryAuditTable,
   ensureNotificationTelemetryEventsTable,
+  readPushSettings,
+  updatePushSettings,
+  registerPushDevice,
+  unregisterPushDevice,
+  buildPushAdminSummary,
   parseNetworkWindowDays,
   toIsoThreshold,
   notificationTypeInventory
@@ -334,6 +339,54 @@ export function registerNotificationRoutes(app, {
     }
   });
 
+  app.post('/api/new/mobile/push/register', requireAuth, async (req, res) => {
+    try {
+      const registered = await registerPushDevice({
+        userId: req.session.userId,
+        installationId: req.body?.installation_id,
+        platform: req.body?.platform,
+        pushToken: req.body?.push_token,
+        locale: req.body?.locale,
+        appVersion: req.body?.app_version
+      });
+      if (!registered) {
+        return sendApiError(res, 400, 'PUSH_DEVICE_INVALID', 'Push cihaz kaydı için gerekli alanlar eksik.');
+      }
+      const settings = await readPushSettings();
+      return res.json(apiSuccessEnvelope(
+        'PUSH_DEVICE_REGISTERED',
+        'Push cihazı kaydedildi.',
+        { registered: true, settings },
+        { registered: true, settings }
+      ));
+    } catch (err) {
+      console.error('mobile.push.register failed:', err);
+      return sendApiError(res, 500, 'PUSH_DEVICE_REGISTER_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/mobile/push/unregister', requireAuth, async (req, res) => {
+    try {
+      const removed = await unregisterPushDevice({
+        userId: req.session.userId,
+        installationId: req.body?.installation_id,
+        pushToken: req.body?.push_token
+      });
+      if (!removed) {
+        return sendApiError(res, 400, 'PUSH_DEVICE_UNREGISTER_INVALID', 'Push cihazı kaldırmak için installation_id veya push_token gerekli.');
+      }
+      return res.json(apiSuccessEnvelope(
+        'PUSH_DEVICE_UNREGISTERED',
+        'Push cihazı kaldırıldı.',
+        { removed: true },
+        { removed: true }
+      ));
+    } catch (err) {
+      console.error('mobile.push.unregister failed:', err);
+      return sendApiError(res, 500, 'PUSH_DEVICE_UNREGISTER_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
   app.get('/api/new/admin/notifications/governance', requireAdmin, (_req, res) => {
     try {
       const inventory = notificationTypeInventory.sort().map((type) => ({
@@ -399,6 +452,39 @@ export function registerNotificationRoutes(app, {
     } catch (err) {
       console.error('admin.notifications.experiments.update failed:', err);
       return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_EXPERIMENT_UPDATE_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/admin/notifications/push-settings', requireAdmin, async (req, res) => {
+    try {
+      const windowDays = parseNetworkWindowDays(req.query.window || '30d');
+      const settings = await buildPushAdminSummary(windowDays);
+      return res.json(apiSuccessEnvelope(
+        'ADMIN_NOTIFICATIONS_PUSH_SETTINGS_OK',
+        'Push ayarları hazır.',
+        settings,
+        settings
+      ));
+    } catch (err) {
+      console.error('admin.notifications.pushSettings.get failed:', err);
+      return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_PUSH_SETTINGS_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.put('/api/new/admin/notifications/push-settings', requireAdmin, async (req, res) => {
+    try {
+      const enabled = Boolean(req.body?.enabled);
+      const settings = await updatePushSettings({ enabled });
+      const summary = await buildPushAdminSummary(30);
+      return res.json(apiSuccessEnvelope(
+        'ADMIN_NOTIFICATIONS_PUSH_SETTINGS_UPDATED',
+        'Push ayarı güncellendi.',
+        { settings, summary },
+        { settings, summary }
+      ));
+    } catch (err) {
+      console.error('admin.notifications.pushSettings.update failed:', err);
+      return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_PUSH_SETTINGS_UPDATE_FAILED', 'Beklenmeyen bir hata oluştu.');
     }
   });
 

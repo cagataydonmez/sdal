@@ -49,6 +49,8 @@ export default function NotificationsSection({ canViewRequests = false, canModer
   const [governance, setGovernance] = useState({ checklist: [], inventory: [] });
   const [experiments, setExperiments] = useState([]);
   const [experimentBusyKey, setExperimentBusyKey] = useState('');
+  const [pushSettings, setPushSettings] = useState(null);
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (!availableKinds.includes(kind)) {
@@ -69,18 +71,21 @@ export default function NotificationsSection({ canViewRequests = false, canModer
   const loadAdminOps = useCallback(async () => {
     if (!isAdmin) return;
     try {
-      const [opsPayload, governancePayload, experimentsPayload] = await Promise.all([
+      const [opsPayload, governancePayload, experimentsPayload, pushPayload] = await Promise.all([
         adminClient.get('/api/new/admin/notifications/ops?window=30d'),
         adminClient.get('/api/new/admin/notifications/governance'),
-        adminClient.get('/api/new/admin/notifications/experiments')
+        adminClient.get('/api/new/admin/notifications/experiments'),
+        adminClient.get('/api/new/admin/notifications/push-settings')
       ]);
       setOps(unwrapData(opsPayload));
       setGovernance(unwrapData(governancePayload));
       setExperiments(unwrapData(experimentsPayload).items || []);
+      setPushSettings(unwrapData(pushPayload).summary || unwrapData(pushPayload));
     } catch {
       setOps(null);
       setGovernance({ checklist: [], inventory: [] });
       setExperiments([]);
+      setPushSettings(null);
     }
   }, [isAdmin]);
 
@@ -194,6 +199,19 @@ export default function NotificationsSection({ canViewRequests = false, canModer
     });
     await loadAdminOps();
     setExperimentBusyKey('');
+  }
+
+  async function togglePushNotifications() {
+    if (!pushSettings) return;
+    setPushBusy(true);
+    try {
+      const payload = await adminClient.put('/api/new/admin/notifications/push-settings', {
+        enabled: !pushSettings.enabled
+      });
+      setPushSettings(unwrapData(payload).summary || unwrapData(payload).settings || unwrapData(payload));
+    } finally {
+      setPushBusy(false);
+    }
   }
 
   return (
@@ -331,6 +349,48 @@ export default function NotificationsSection({ canViewRequests = false, canModer
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-body">
+              <strong>{t('Push dağıtımı')}</strong>
+              <div className="stack">
+                <div className="chip">
+                  {t('Durum')}: {pushSettings?.enabled ? t('aktif') : t('kapalı')}
+                </div>
+                <div className="chip">
+                  Firebase: {pushSettings?.firebase_configured ? t('hazır') : t('eksik')}
+                  {pushSettings?.mock_mode ? ` · ${t('mock mod')}` : ''}
+                </div>
+                <div className="chip">
+                  {t('Kayıtlı cihazlar')}: {Number(pushSettings?.registered_devices || 0)} · {t('Kayıtlı kullanıcılar')}: {Number(pushSettings?.registered_users || 0)}
+                </div>
+                {(pushSettings?.platforms || []).length ? (
+                  <div className="chip">
+                    {(pushSettings.platforms || []).map((item) => `${item.platform}: ${item.count}`).join(' · ')}
+                  </div>
+                ) : null}
+                <div className="chip">
+                  {t('Son 30 gün')}: sent {Number(pushSettings?.delivery_summary?.sent || 0)} · skipped {Number(pushSettings?.delivery_summary?.skipped || 0)} · failed {Number(pushSettings?.delivery_summary?.failed || 0)}
+                </div>
+                <div>
+                  <button
+                    className="btn"
+                    disabled={pushBusy || (!pushSettings?.firebase_configured && !pushSettings?.enabled)}
+                    onClick={() => togglePushNotifications().catch(() => {})}
+                  >
+                    {pushBusy
+                      ? t('Kaydediliyor...')
+                      : pushSettings?.enabled
+                        ? t('Push bildirimlerini kapat')
+                        : t('Push bildirimlerini aç')}
+                  </button>
+                </div>
+                {!pushSettings?.firebase_configured ? (
+                  <div className="muted">{t('Firebase servis hesabı ayarlanmadan gerçek push gönderimi açılamaz.')}</div>
+                ) : null}
               </div>
             </div>
           </div>

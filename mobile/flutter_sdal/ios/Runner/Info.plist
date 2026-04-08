@@ -46,6 +46,10 @@
 	<string>SDAL profil fotoğrafı ve doğrulama belgelerini seçebilmek için fotoğraf arşivine erişir.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>SDAL seçtiğin medyaları uygulama içi yükleme akışında kullanır.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

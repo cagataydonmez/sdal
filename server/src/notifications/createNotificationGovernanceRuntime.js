@@ -7,7 +7,8 @@ export function createNotificationGovernanceRuntime({
   hasTable,
   sanitizePlainUserText,
   getNotificationCategory,
-  getNotificationPriority
+  getNotificationPriority,
+  dispatchPushNotification = null
 }) {
   const notificationPreferenceCategoryKeys = Object.freeze([
     'social',
@@ -409,6 +410,18 @@ export function createNotificationGovernanceRuntime({
       const notificationId = Number(result?.lastInsertRowid || 0) || null;
       if (shouldAuditNotificationDelivery(normalizedType)) {
         await logAuditAsync({ notificationId, notificationType: normalizedType, userId: safeUserId, sourceUserId: safeSourceUserId, entityId: safeEntityId, deliveryStatus: 'inserted' });
+      }
+      if (typeof dispatchPushNotification === 'function' && notificationId) {
+        await Promise.resolve(
+          dispatchPushNotification({
+            notificationId,
+            userId: safeUserId,
+            notificationType: normalizedType,
+            message: message || '',
+            sourceUserId: safeSourceUserId,
+            entityId: safeEntityId
+          })
+        ).catch(() => {});
       }
       return notificationId;
     } catch (err) {

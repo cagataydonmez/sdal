@@ -252,6 +252,7 @@ process.env.ROOT_BOOTSTRAP_PASSWORD = 'RootPass!123';
 process.env.MAIL_ALLOW_MOCK = 'true';
 process.env.SDAL_LEGACY_ROOT_DIR = tmpDir;
 process.env.REDIS_URL = '';
+process.env.FCM_MOCK_MODE = 'true';
 
 const { default: app, onServerStarted } = await import('../../app.js');
 const { sqlRun, sqlGet } = await import('../../db.js');
@@ -365,6 +366,34 @@ try {
   const applicantCookie = await login('phase2_notify_applicant', 'phase2-pass-d');
   const adminCookie = await login('phase2_notify_admin', 'phase2-pass-admin');
 
+  const pushRegisterBeforeEnable = await request('/api/new/mobile/push/register', {
+    method: 'POST',
+    cookie: receiverCookie,
+    body: {
+      installation_id: 'receiver-device-1',
+      platform: 'android',
+      push_token: 'phase2-mock-token-1',
+      locale: 'tr-TR'
+    }
+  });
+  assert.equal(pushRegisterBeforeEnable.res.status, 200);
+
+  const pushSummaryBeforeEnable = await request('/api/new/admin/notifications/push-settings', {
+    cookie: adminCookie
+  });
+  assert.equal(pushSummaryBeforeEnable.res.status, 200);
+  assert.equal(pushSummaryBeforeEnable.data?.data?.enabled, false);
+  assert.equal(pushSummaryBeforeEnable.data?.data?.mock_mode, true);
+  assert.equal(Number(pushSummaryBeforeEnable.data?.data?.registered_devices || 0), 1);
+
+  const pushEnable = await request('/api/new/admin/notifications/push-settings', {
+    method: 'PUT',
+    cookie: adminCookie,
+    body: { enabled: true }
+  });
+  assert.equal(pushEnable.res.status, 200);
+  assert.equal(pushEnable.data?.data?.settings?.enabled, true);
+
   const initialPreferences = await request('/api/new/notifications/preferences', { cookie: senderCookie });
   assert.equal(initialPreferences.res.status, 200);
   assert.equal(initialPreferences.data?.data?.preferences?.categories?.social, true);
@@ -429,6 +458,16 @@ try {
   assert.equal(connectionNotification.actions.some((action) => action.kind === 'ignore_connection_request'), true);
   assert.match(String(connectionNotification.target?.href || ''), /\/new\/network\/hub\?section=incoming-connections/);
   assert.match(String(connectionNotification.target?.href || ''), new RegExp(`request=${requestId}`));
+  const pushAuditRow = sqlGet(
+    `SELECT delivery_status, notification_type
+     FROM notification_push_delivery_audit
+     WHERE notification_id = ?
+     ORDER BY id DESC
+     LIMIT 1`,
+    [connectionNotification.id]
+  );
+  assert.equal(pushAuditRow?.delivery_status, 'sent');
+  assert.equal(pushAuditRow?.notification_type, 'connection_request');
 
   const unreadBeforeOpen = await request('/api/new/notifications/unread', { cookie: receiverCookie });
   assert.equal(Number(unreadBeforeOpen.data?.count || 0) >= 1, true);
