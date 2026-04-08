@@ -517,7 +517,19 @@ Used skills in implementation:
 
 #### D1. Add skeleton loading states for primary surfaces
 
-Status: `Not started`
+Status: `Completed`
+
+Current progress in implementation:
+
+- added reusable skeleton primitives in `mobile/flutter_sdal/lib/core/widgets/skeleton_view.dart`
+- replaced cold-start spinner-only loading on the highest-traffic audited surfaces with content-shaped placeholders:
+  - feed list
+  - explore latest members / suggestions / directory
+  - notifications preferences and notifications list
+  - profile header / stories / details sections
+  - messenger thread list
+- kept skeletons token-driven and static rather than introducing generic shimmer at this stage
+- preserved existing error and empty-state handling while changing only the loading branches
 
 Audit coverage:
 
@@ -539,6 +551,11 @@ Scope:
 Definition of done:
 
 - the highest-traffic list screens no longer cold-start with only a centered spinner
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `normalize`
 
 #### D2. Replace inefficient or flat motion patterns
 

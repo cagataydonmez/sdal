@@ -9,6 +9,7 @@ import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../networking/data/networking_repository.dart';
 import '../data/explore_repository.dart';
@@ -83,7 +84,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           ),
           const SizedBox(height: 12),
           latestState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const _ExploreCarouselSkeleton(),
             error: (error, _) =>
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) => items.isEmpty
@@ -124,7 +125,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           ),
           const SizedBox(height: 12),
           suggestionsState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const _ExploreGridSkeleton(),
             error: (error, _) =>
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) {
@@ -294,7 +295,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           ),
           const SizedBox(height: 12),
           directoryState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const _ExploreDirectorySkeleton(),
             error: (error, _) =>
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) => Column(
@@ -380,6 +381,107 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
             ),
       );
     });
+  }
+}
+
+class _ExploreCarouselSkeleton extends StatelessWidget {
+  const _ExploreCarouselSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 220,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: 3,
+        separatorBuilder: (_, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) => const SizedBox(
+          width: 260,
+          child: _MemberCardSkeleton(compact: false),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExploreGridSkeleton extends StatelessWidget {
+  const _ExploreGridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 640) {
+          return const _ExploreCarouselSkeleton();
+        }
+        final cardWidth = (constraints.maxWidth - 12) / 2;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: List.generate(
+            4,
+            (_) => SizedBox(
+              width: cardWidth,
+              child: const _MemberCardSkeleton(compact: false),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ExploreDirectorySkeleton extends StatelessWidget {
+  const _ExploreDirectorySkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        _MemberCardSkeleton(compact: true),
+        SizedBox(height: 12),
+        _MemberCardSkeleton(compact: true),
+        SizedBox(height: 12),
+        _MemberCardSkeleton(compact: true),
+      ],
+    );
+  }
+}
+
+class _MemberCardSkeleton extends StatelessWidget {
+  const _MemberCardSkeleton({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SkeletonBox(
+                height: compact ? 48 : 56,
+                width: compact ? 48 : 56,
+                shape: BoxShape.circle,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: SkeletonLines(
+                  widthFactors: [0.62, 0.36],
+                  lineHeight: 11,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const SkeletonLines(widthFactors: [0.48, 0.72, 0.38]),
+          const SizedBox(height: 12),
+          const SkeletonBox(width: 110, height: 40),
+        ],
+      ),
+    );
   }
 }
 

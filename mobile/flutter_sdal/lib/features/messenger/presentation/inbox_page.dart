@@ -10,6 +10,7 @@ import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/messenger_action_controller.dart';
 import '../data/messenger_repository.dart';
@@ -114,7 +115,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
           ),
           Expanded(
             child: threadsState.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const _InboxThreadsSkeleton(),
               error: (error, _) => ErrorView(
                 kind: ErrorViewKind.network,
                 onRetry: () => ref.invalidate(
@@ -225,6 +226,46 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                   },
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InboxThreadsSkeleton extends StatelessWidget {
+  const _InboxThreadsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      itemCount: 5,
+      separatorBuilder: (_, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => const _InboxThreadCardSkeleton(),
+    );
+  }
+}
+
+class _InboxThreadCardSkeleton extends StatelessWidget {
+  const _InboxThreadCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Row(
+        children: const [
+          SkeletonBox(height: 52, width: 52, shape: BoxShape.circle),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLines(widthFactors: [0.54, 0.24], lineHeight: 11),
+                SizedBox(height: 10),
+                SkeletonLines(widthFactors: [0.82, 0.38], lineHeight: 10),
+              ],
             ),
           ),
         ],

@@ -10,6 +10,7 @@ import '../../../core/theme/theme_mode_store.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../feed/data/feed_repository.dart';
 import '../../stories/data/stories_repository.dart';
@@ -53,7 +54,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ),
       ],
       child: profileState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const _ProfileLoadingView(),
         error: (error, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -306,6 +307,129 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ProfileLoadingView extends StatelessWidget {
+  const _ProfileLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: const [
+        _ProfileHeaderSkeleton(),
+        SizedBox(height: 16),
+        _ProfileStoriesSkeleton(),
+        SizedBox(height: 16),
+        _ProfileDetailsSkeleton(),
+      ],
+    );
+  }
+}
+
+class _ProfileHeaderSkeleton extends StatelessWidget {
+  const _ProfileHeaderSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Row(
+        children: const [
+          SkeletonBox(height: 68, width: 68, shape: BoxShape.circle),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLines(widthFactors: [0.44, 0.3], lineHeight: 12),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    SkeletonBox(width: 110, height: 30),
+                    SizedBox(width: 8),
+                    SkeletonBox(width: 84, height: 30),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileStoriesSkeleton extends StatelessWidget {
+  const _ProfileStoriesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonBox(width: 96, height: 18),
+          const SizedBox(height: 12),
+          const Row(
+            children: [
+              Expanded(child: SkeletonBox(height: 42)),
+              SizedBox(width: 10),
+              Expanded(child: SkeletonBox(height: 42)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 108,
+            child: Row(
+              children: List.generate(
+                4,
+                (index) => Padding(
+                  padding: EdgeInsets.only(right: index == 3 ? 0 : 12),
+                  child: const SkeletonBox(width: 78, height: 108),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const SkeletonBox(height: 42),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileDetailsSkeleton extends StatelessWidget {
+  const _ProfileDetailsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Row(
+            children: [
+              Expanded(child: SkeletonBox(height: 18)),
+              SizedBox(width: 12),
+              SkeletonBox(width: 84, height: 38),
+            ],
+          ),
+          SizedBox(height: 14),
+          SkeletonLines(widthFactors: [0.35, 0.78, 0.32, 0.67, 0.45, 0.72]),
+          SizedBox(height: 16),
+          SkeletonBox(width: 140, height: 18),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              SkeletonBox(width: 120, height: 38),
+              SizedBox(width: 10),
+              SkeletonBox(width: 132, height: 38),
+            ],
+          ),
+        ],
       ),
     );
   }

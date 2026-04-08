@@ -12,6 +12,7 @@ import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
+import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../stories/data/stories_repository.dart';
 import '../../stories/presentation/stories_rail.dart';
@@ -85,7 +86,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       ),
       child: feedState.when(
         loading: () => _items.isEmpty
-            ? const Center(child: CircularProgressIndicator())
+            ? const _FeedLoadingList()
             : _buildFeedList(
                 context: context,
                 ref: ref,
@@ -362,6 +363,159 @@ class _FeedPageState extends ConsumerState<FeedPage> {
         setState(() => _isLoadingMore = false);
       }
     }
+  }
+}
+
+class _FeedLoadingList extends StatelessWidget {
+  const _FeedLoadingList();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: const [
+        _FeedControlsSkeleton(),
+        SizedBox(height: 12),
+        _OnlineMembersSkeleton(),
+        SizedBox(height: 12),
+        _StoriesRailSkeleton(),
+        SizedBox(height: 12),
+        _FeedPostSkeleton(),
+        SizedBox(height: 12),
+        _FeedPostSkeleton(),
+      ],
+    );
+  }
+}
+
+class _FeedControlsSkeleton extends StatelessWidget {
+  const _FeedControlsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SkeletonBox(width: 140, height: 18),
+          SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: SkeletonBox(height: 44)),
+              SizedBox(width: 10),
+              Expanded(child: SkeletonBox(height: 44)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnlineMembersSkeleton extends StatelessWidget {
+  const _OnlineMembersSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonBox(width: 120, height: 18),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 92,
+            child: Row(
+              children: List.generate(
+                4,
+                (index) => Padding(
+                  padding: EdgeInsets.only(right: index == 3 ? 0 : 12),
+                  child: Column(
+                    children: const [
+                      SkeletonBox(
+                        height: 48,
+                        width: 48,
+                        shape: BoxShape.circle,
+                      ),
+                      SizedBox(height: 10),
+                      SkeletonBox(width: 54, height: 10),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoriesRailSkeleton extends StatelessWidget {
+  const _StoriesRailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonBox(width: 96, height: 18),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 108,
+            child: Row(
+              children: List.generate(
+                4,
+                (index) => Padding(
+                  padding: EdgeInsets.only(right: index == 3 ? 0 : 12),
+                  child: const SkeletonBox(width: 78, height: 108),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedPostSkeleton extends StatelessWidget {
+  const _FeedPostSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Row(
+            children: [
+              SkeletonBox(height: 48, width: 48, shape: BoxShape.circle),
+              SizedBox(width: 12),
+              Expanded(
+                child: SkeletonLines(
+                  widthFactors: [0.42, 0.26],
+                  lineHeight: 11,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14),
+          SkeletonLines(widthFactors: [0.95, 0.82, 0.56]),
+          SizedBox(height: 14),
+          SkeletonBox(height: 180),
+          SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: SkeletonBox(height: 40)),
+              SizedBox(width: 10),
+              Expanded(child: SkeletonBox(height: 40)),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

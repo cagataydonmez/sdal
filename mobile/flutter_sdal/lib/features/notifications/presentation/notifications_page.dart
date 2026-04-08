@@ -9,6 +9,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/notifications_action_controller.dart';
 import '../data/notifications_repository.dart';
@@ -121,9 +122,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
           const SizedBox(height: 18),
           preferencesState.when(
-            loading: () => const SurfaceCard(
-              child: Center(child: CircularProgressIndicator()),
-            ),
+            loading: () => const _NotificationPreferencesSkeleton(),
             error: (error, _) =>
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (preferences) => _PreferencesCard(
@@ -157,7 +156,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
           const SizedBox(height: 12),
           notificationsState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const _NotificationsLoadingList(),
             error: (error, _) =>
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (page) {
@@ -462,6 +461,69 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           )
           .toList(growable: false);
     });
+  }
+}
+
+class _NotificationPreferencesSkeleton extends StatelessWidget {
+  const _NotificationPreferencesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SkeletonBox(width: 180, height: 16),
+          SizedBox(height: 14),
+          SkeletonBox(height: 52),
+          SizedBox(height: 10),
+          SkeletonBox(height: 52),
+          SizedBox(height: 10),
+          SkeletonBox(height: 52),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationsLoadingList extends StatelessWidget {
+  const _NotificationsLoadingList();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        _NotificationCardSkeleton(),
+        SizedBox(height: 12),
+        _NotificationCardSkeleton(),
+        SizedBox(height: 12),
+        _NotificationCardSkeleton(),
+      ],
+    );
+  }
+}
+
+class _NotificationCardSkeleton extends StatelessWidget {
+  const _NotificationCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SkeletonLines(widthFactors: [0.92, 0.58], lineHeight: 12),
+          SizedBox(height: 14),
+          Row(
+            children: [
+              SkeletonBox(width: 100, height: 38),
+              SizedBox(width: 10),
+              SkeletonBox(width: 96, height: 38),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
