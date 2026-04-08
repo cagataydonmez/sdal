@@ -380,58 +380,68 @@ class _MemberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: onTap,
-      child: SurfaceCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final l10n = context.l10n;
+    return Tooltip(
+      message: l10n.openMemberProfileForName(member.name),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Semantics(
+          button: true,
+          label: l10n.openMemberProfileForName(member.name),
+          child: SurfaceCard(
+            semanticContainer: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                RemoteAvatar(
-                  label: member.name,
-                  imageUrl: imageUrl,
-                  radius: compact ? 24 : 28,
+                Row(
+                  children: [
+                    RemoteAvatar(
+                      label: member.name,
+                      imageUrl: imageUrl,
+                      radius: compact ? 24 : 28,
+                      excludeFromSemantics: true,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        member.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    member.name,
-                    style: Theme.of(context).textTheme.titleMedium,
+                const SizedBox(height: 12),
+                if (member.handle.isNotEmpty)
+                  Text(
+                    '@${member.handle}',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
+                if (member.profession.isNotEmpty || member.city.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    [
+                      member.profession,
+                      member.city,
+                    ].where((part) => part.isNotEmpty).join(' · '),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                if (member.graduationYear.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${member.graduationYear} mezunu',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: onFollow,
+                  child: Text(l10n.followAction),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (member.handle.isNotEmpty)
-              Text(
-                '@${member.handle}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            if (member.profession.isNotEmpty || member.city.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                [
-                  member.profession,
-                  member.city,
-                ].where((part) => part.isNotEmpty).join(' · '),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            if (member.graduationYear.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                '${member.graduationYear} mezunu',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: onFollow,
-              child: Text(context.l10n.followAction),
-            ),
-          ],
+          ),
         ),
       ),
     );

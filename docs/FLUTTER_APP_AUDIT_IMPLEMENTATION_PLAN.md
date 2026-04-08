@@ -195,6 +195,8 @@ Current progress in implementation:
 - messenger inbox rows now expose unread-count semantics through the card surface pattern
 - feed post detail author/comment avatars now announce correctly as profile-navigation affordances
 - feed overflow menus and composer image-removal controls now expose localized tooltips instead of raw gesture-only affordances
+- explore member cards now expose explicit profile-opening affordances while keeping nested follow actions intact
+- feed metric pills and feed-filter chips now expose button/selected semantics instead of relying on visual state alone
 
 Audit coverage:
 

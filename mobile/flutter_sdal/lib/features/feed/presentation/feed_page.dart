@@ -405,28 +405,37 @@ class _MetricPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: active
-              ? Theme.of(context).sdal.accentMuted
-              : Theme.of(context).sdal.panelMuted,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: active ? Theme.of(context).sdal.accent : null,
-            ),
-            const SizedBox(width: 6),
-            Text(label),
-          ],
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: active
+            ? Theme.of(context).sdal.accentMuted
+            : Theme.of(context).sdal.panelMuted,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: active ? Theme.of(context).sdal.accent : null,
+          ),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
+      ),
+    );
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Semantics(
+          button: onTap != null,
+          selected: active,
+          label: label,
+          child: ExcludeSemantics(child: pill),
         ),
       ),
     );
@@ -840,25 +849,34 @@ class _FeedFilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? tokens.accentMuted : tokens.panelMuted,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? tokens.accent : Colors.transparent,
-          ),
+    final chip = AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        color: selected ? tokens.accentMuted : tokens.panelMuted,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: selected ? tokens.accent : Colors.transparent,
         ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: selected ? tokens.accent : null,
-          ),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: selected ? tokens.accent : null,
+        ),
+      ),
+    );
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: label,
+          child: ExcludeSemantics(child: chip),
         ),
       ),
     );
