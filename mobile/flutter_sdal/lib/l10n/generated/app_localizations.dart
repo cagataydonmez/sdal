@@ -2408,11 +2408,11 @@ abstract class AppLocalizations {
   /// **'Sayfa {page}'**
   String explorePageLabel(Object page);
 
-  /// No description provided for @exploreGraduationYearValue.
+  /// No description provided for @memberGraduationYearValue.
   ///
   /// In tr, this message translates to:
   /// **'{year} mezunu'**
-  String exploreGraduationYearValue(Object year);
+  String memberGraduationYearValue(Object year);
 
   /// No description provided for @followAction.
   ///

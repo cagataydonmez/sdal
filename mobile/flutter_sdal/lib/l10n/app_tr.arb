@@ -522,8 +522,8 @@
       "page": {}
     }
   },
-  "exploreGraduationYearValue": "{year} mezunu",
-  "@exploreGraduationYearValue": {
+  "memberGraduationYearValue": "{year} mezunu",
+  "@memberGraduationYearValue": {
     "placeholders": {
       "year": {}
     }

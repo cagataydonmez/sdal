@@ -522,8 +522,8 @@
       "page": {}
     }
   },
-  "exploreGraduationYearValue": "Class of {year}",
-  "@exploreGraduationYearValue": {
+  "memberGraduationYearValue": "Class of {year}",
+  "@memberGraduationYearValue": {
     "placeholders": {
       "year": {}
     }

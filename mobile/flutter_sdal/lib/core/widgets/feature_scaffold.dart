@@ -561,7 +561,7 @@ class _QuickAccessTile extends StatelessWidget {
           title: Text(user.displayName),
           subtitle: user.graduationYear.isEmpty
               ? null
-              : Text('${user.graduationYear} mezunu'),
+              : Text(l10n.memberGraduationYearValue(user.graduationYear)),
           trailing: IconButton(
             tooltip: l10n.quickAccessRemoveAction,
             onPressed: onRemove,

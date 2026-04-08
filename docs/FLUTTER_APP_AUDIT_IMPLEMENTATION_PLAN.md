@@ -373,7 +373,7 @@ Definition of done:
 
 #### C1. Route all audited hardcoded strings through l10n
 
-Status: `In progress`
+Status: `Completed`
 
 Current progress in implementation:
 
@@ -383,6 +383,7 @@ Current progress in implementation:
 - `post_detail_page.dart` dialog text, empty states, button labels, and success/failure snackbars now route through l10n
 - `profile_page.dart` story titles, feed selectors, account detail labels, and email/password dialog copy now route through l10n
 - `explore_page.dart` section headings, directory filter fields, pagination controls, and member graduation-year copy now route through l10n
+- `feature_scaffold.dart` quick-access graduation-year subtitle now also routes through l10n, closing the last audited raw literal in the shared shell
 
 Audit coverage:
 
@@ -413,6 +414,11 @@ Definition of done:
 
 - audited strings no longer appear as raw literals in presentation files
 - TR and EN locale both show translated values correctly
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `harden`
 
 #### C2. Improve error and empty-state copy clarity
 

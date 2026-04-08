@@ -435,7 +435,7 @@ class _MemberCard extends StatelessWidget {
                 if (member.graduationYear.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    l10n.exploreGraduationYearValue(member.graduationYear),
+                    l10n.memberGraduationYearValue(member.graduationYear),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],

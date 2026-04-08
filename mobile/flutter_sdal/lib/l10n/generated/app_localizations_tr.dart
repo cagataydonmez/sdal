@@ -1258,7 +1258,7 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
-  String exploreGraduationYearValue(Object year) {
+  String memberGraduationYearValue(Object year) {
     return '$year mezunu';
   }
 
