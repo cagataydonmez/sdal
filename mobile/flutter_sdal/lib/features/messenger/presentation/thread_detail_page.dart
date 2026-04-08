@@ -226,59 +226,73 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                     final textColor = message.isMine
                         ? tokens.foregroundOnAccent
                         : tokens.foreground;
-                    return Align(
-                      alignment: message.isMine
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: bubbleColor,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: message.isMine
-                                  ? tokens.chatOutgoing
-                                  : tokens.panelBorder,
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final textScale = MediaQuery.textScalerOf(
+                          context,
+                        ).scale(1);
+                        final maxBubbleWidth =
+                            constraints.maxWidth *
+                            (textScale > 1.15 ? 0.92 : 0.82);
+                        return Align(
+                          alignment: message.isMine
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: maxBubbleWidth,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: tokens.foreground.withValues(
-                                  alpha: 0.06,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: bubbleColor,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: message.isMine
+                                      ? tokens.chatOutgoing
+                                      : tokens.panelBorder,
                                 ),
-                                blurRadius: 18,
-                                offset: const Offset(0, 8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: tokens.foreground.withValues(
+                                      alpha: 0.06,
+                                    ),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  message.body,
-                                  style: TextStyle(color: textColor),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  message.createdAt,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: message.isMine
-                                            ? tokens.foregroundOnAccent
-                                                  .withValues(alpha: 0.72)
-                                            : tokens.foregroundMuted,
-                                      ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      message.body,
+                                      style: TextStyle(color: textColor),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      message.createdAt,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: message.isMine
+                                                ? tokens.foregroundOnAccent
+                                                      .withValues(alpha: 0.72)
+                                                : tokens.foregroundMuted,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     );
                   },
                 );

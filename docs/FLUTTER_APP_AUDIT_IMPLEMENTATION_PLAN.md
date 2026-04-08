@@ -598,7 +598,13 @@ Used skills in implementation:
 
 #### D3. Fix audited responsive constraints
 
-Status: `Not started`
+Status: `Completed`
+
+Current progress in implementation:
+
+- replaced the fixed `maxWidth: 320` DM bubble constraint with responsive width based on the available layout width and current text scale
+- converted the profile header avatar into an explicit large tap target that comfortably exceeds the 44x44 minimum while preserving the existing layout
+- kept the responsive fix scoped to the audited constraints instead of broad layout churn
 
 Audit coverage:
 
@@ -614,6 +620,11 @@ Definition of done:
 
 - profile leading avatar target reaches accessible size
 - chat bubble width adapts to screen size
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `adapt`
 
 ---
 

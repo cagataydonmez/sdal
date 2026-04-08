@@ -73,10 +73,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               SurfaceCard(
                 child: Row(
                   children: [
-                    RemoteAvatar(
-                      label: user.displayName,
-                      imageUrl: config.resolveUrl(profile.photo).toString(),
-                      radius: 34,
+                    Tooltip(
+                      message: l10n.profilePhotoAction,
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => context.push('/profile/photo'),
+                        child: Semantics(
+                          button: true,
+                          label: l10n.profilePhotoAction,
+                          child: ExcludeSemantics(
+                            child: SizedBox.square(
+                              dimension: 68,
+                              child: Center(
+                                child: RemoteAvatar(
+                                  label: user.displayName,
+                                  imageUrl: config
+                                      .resolveUrl(profile.photo)
+                                      .toString(),
+                                  radius: 34,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
