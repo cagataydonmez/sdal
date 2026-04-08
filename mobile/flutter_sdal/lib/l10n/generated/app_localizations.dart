@@ -1622,6 +1622,18 @@ abstract class AppLocalizations {
   /// **'Vazgeç'**
   String get cancelAction;
 
+  /// No description provided for @previousAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Önceki'**
+  String get previousAction;
+
+  /// No description provided for @nextAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sonraki'**
+  String get nextAction;
+
   /// No description provided for @saveAction.
   ///
   /// In tr, this message translates to:
@@ -2336,6 +2348,12 @@ abstract class AppLocalizations {
   /// **'Keşfet'**
   String get exploreTitle;
 
+  /// No description provided for @exploreLatestMembersTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'En yeni üyeler'**
+  String get exploreLatestMembersTitle;
+
   /// No description provided for @exploreSuggestionsTitle.
   ///
   /// In tr, this message translates to:
@@ -2353,6 +2371,48 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Üye rehberi'**
   String get exploreDirectoryTitle;
+
+  /// No description provided for @exploreDirectoryFiltersTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Rehber filtreleri'**
+  String get exploreDirectoryFiltersTitle;
+
+  /// No description provided for @exploreSearchLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ara'**
+  String get exploreSearchLabel;
+
+  /// No description provided for @exploreGraduationYearLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mezuniyet yılı'**
+  String get exploreGraduationYearLabel;
+
+  /// No description provided for @exploreApplyFiltersAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Filtreleri uygula'**
+  String get exploreApplyFiltersAction;
+
+  /// No description provided for @exploreClearFiltersAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Temizle'**
+  String get exploreClearFiltersAction;
+
+  /// No description provided for @explorePageLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Sayfa {page}'**
+  String explorePageLabel(Object page);
+
+  /// No description provided for @exploreGraduationYearValue.
+  ///
+  /// In tr, this message translates to:
+  /// **'{year} mezunu'**
+  String exploreGraduationYearValue(Object year);
 
   /// No description provided for @followAction.
   ///

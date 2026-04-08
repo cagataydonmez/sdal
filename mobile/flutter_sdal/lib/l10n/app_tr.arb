@@ -330,6 +330,8 @@
   "themeModeLight": "Açık",
   "themeModeDark": "Koyu",
   "cancelAction": "Vazgeç",
+  "previousAction": "Önceki",
+  "nextAction": "Sonraki",
   "saveAction": "Kaydet",
   "createAction": "Oluştur",
   "deleteAction": "Sil",
@@ -505,9 +507,27 @@
   "genericRequestFailed": "İstek tamamlanamadı.",
   "feedStoriesTitle": "Topluluktan hikayeler",
   "exploreTitle": "Keşfet",
+  "exploreLatestMembersTitle": "En yeni üyeler",
   "exploreSuggestionsTitle": "Öneriler",
   "exploreNoSuggestions": "Şu anda öneri yok.",
   "exploreDirectoryTitle": "Üye rehberi",
+  "exploreDirectoryFiltersTitle": "Rehber filtreleri",
+  "exploreSearchLabel": "Ara",
+  "exploreGraduationYearLabel": "Mezuniyet yılı",
+  "exploreApplyFiltersAction": "Filtreleri uygula",
+  "exploreClearFiltersAction": "Temizle",
+  "explorePageLabel": "Sayfa {page}",
+  "@explorePageLabel": {
+    "placeholders": {
+      "page": {}
+    }
+  },
+  "exploreGraduationYearValue": "{year} mezunu",
+  "@exploreGraduationYearValue": {
+    "placeholders": {
+      "year": {}
+    }
+  },
   "followAction": "Takip et",
   "albumsTitle": "Albümler",
   "albumsUploadAction": "Yükle",

@@ -76,7 +76,10 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('En Yeni Uyeler', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            l10n.exploreLatestMembersTitle,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 12),
           latestState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -207,14 +210,14 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Dizin filtreleri',
+                  l10n.exploreDirectoryFiltersTitle,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _queryController,
-                  decoration: const InputDecoration(
-                    labelText: 'Ara',
+                  decoration: InputDecoration(
+                    labelText: l10n.exploreSearchLabel,
                     prefixIcon: Icon(Icons.search),
                   ),
                 ),
@@ -225,8 +228,8 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                       child: TextField(
                         controller: _yearController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Mezuniyet yılı',
+                        decoration: InputDecoration(
+                          labelText: l10n.exploreGraduationYearLabel,
                         ),
                       ),
                     ),
@@ -234,7 +237,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                     Expanded(
                       child: TextField(
                         controller: _cityController,
-                        decoration: const InputDecoration(labelText: 'Şehir'),
+                        decoration: InputDecoration(
+                          labelText: l10n.profileEditCityLabel,
+                        ),
                       ),
                     ),
                   ],
@@ -255,7 +260,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                           );
                         });
                       },
-                      child: const Text('Filtreleri uygula'),
+                      child: Text(l10n.exploreApplyFiltersAction),
                     ),
                     TextButton(
                       onPressed: () {
@@ -266,7 +271,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                           _directoryQuery = const DirectoryMembersQuery();
                         });
                       },
-                      child: const Text('Temizle'),
+                      child: Text(l10n.exploreClearFiltersAction),
                     ),
                   ],
                 ),
@@ -313,10 +318,10 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                 );
                               })
                             : null,
-                        child: const Text('Önceki'),
+                        child: Text(l10n.previousAction),
                       ),
                       const Spacer(),
-                      Text('Sayfa ${_directoryQuery.page}'),
+                      Text(l10n.explorePageLabel(_directoryQuery.page)),
                       const Spacer(),
                       TextButton(
                         onPressed: items.length >= 20
@@ -329,7 +334,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                 );
                               })
                             : null,
-                        child: const Text('Sonraki'),
+                        child: Text(l10n.nextAction),
                       ),
                     ],
                   ),
@@ -430,7 +435,7 @@ class _MemberCard extends StatelessWidget {
                 if (member.graduationYear.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    '${member.graduationYear} mezunu',
+                    l10n.exploreGraduationYearValue(member.graduationYear),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],

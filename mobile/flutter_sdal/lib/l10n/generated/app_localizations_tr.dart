@@ -830,6 +830,12 @@ class AppLocalizationsTr extends AppLocalizations {
   String get cancelAction => 'Vazgeç';
 
   @override
+  String get previousAction => 'Önceki';
+
+  @override
+  String get nextAction => 'Sonraki';
+
+  @override
   String get saveAction => 'Kaydet';
 
   @override
@@ -1220,6 +1226,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get exploreTitle => 'Keşfet';
 
   @override
+  String get exploreLatestMembersTitle => 'En yeni üyeler';
+
+  @override
   String get exploreSuggestionsTitle => 'Öneriler';
 
   @override
@@ -1227,6 +1236,31 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get exploreDirectoryTitle => 'Üye rehberi';
+
+  @override
+  String get exploreDirectoryFiltersTitle => 'Rehber filtreleri';
+
+  @override
+  String get exploreSearchLabel => 'Ara';
+
+  @override
+  String get exploreGraduationYearLabel => 'Mezuniyet yılı';
+
+  @override
+  String get exploreApplyFiltersAction => 'Filtreleri uygula';
+
+  @override
+  String get exploreClearFiltersAction => 'Temizle';
+
+  @override
+  String explorePageLabel(Object page) {
+    return 'Sayfa $page';
+  }
+
+  @override
+  String exploreGraduationYearValue(Object year) {
+    return '$year mezunu';
+  }
 
   @override
   String get followAction => 'Takip et';

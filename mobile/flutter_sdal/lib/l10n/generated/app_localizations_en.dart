@@ -832,6 +832,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancelAction => 'Cancel';
 
   @override
+  String get previousAction => 'Previous';
+
+  @override
+  String get nextAction => 'Next';
+
+  @override
   String get saveAction => 'Save';
 
   @override
@@ -1219,6 +1225,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exploreTitle => 'Explore';
 
   @override
+  String get exploreLatestMembersTitle => 'Newest members';
+
+  @override
   String get exploreSuggestionsTitle => 'Suggestions';
 
   @override
@@ -1226,6 +1235,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exploreDirectoryTitle => 'Member directory';
+
+  @override
+  String get exploreDirectoryFiltersTitle => 'Directory filters';
+
+  @override
+  String get exploreSearchLabel => 'Search';
+
+  @override
+  String get exploreGraduationYearLabel => 'Graduation year';
+
+  @override
+  String get exploreApplyFiltersAction => 'Apply filters';
+
+  @override
+  String get exploreClearFiltersAction => 'Clear';
+
+  @override
+  String explorePageLabel(Object page) {
+    return 'Page $page';
+  }
+
+  @override
+  String exploreGraduationYearValue(Object year) {
+    return 'Class of $year';
+  }
 
   @override
   String get followAction => 'Follow';

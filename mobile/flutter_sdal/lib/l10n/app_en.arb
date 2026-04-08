@@ -330,6 +330,8 @@
   "themeModeLight": "Light",
   "themeModeDark": "Dark",
   "cancelAction": "Cancel",
+  "previousAction": "Previous",
+  "nextAction": "Next",
   "saveAction": "Save",
   "createAction": "Create",
   "deleteAction": "Delete",
@@ -505,9 +507,27 @@
   "genericRequestFailed": "The request could not be completed.",
   "feedStoriesTitle": "Stories from the community",
   "exploreTitle": "Explore",
+  "exploreLatestMembersTitle": "Newest members",
   "exploreSuggestionsTitle": "Suggestions",
   "exploreNoSuggestions": "No suggestions right now.",
   "exploreDirectoryTitle": "Member directory",
+  "exploreDirectoryFiltersTitle": "Directory filters",
+  "exploreSearchLabel": "Search",
+  "exploreGraduationYearLabel": "Graduation year",
+  "exploreApplyFiltersAction": "Apply filters",
+  "exploreClearFiltersAction": "Clear",
+  "explorePageLabel": "Page {page}",
+  "@explorePageLabel": {
+    "placeholders": {
+      "page": {}
+    }
+  },
+  "exploreGraduationYearValue": "Class of {year}",
+  "@exploreGraduationYearValue": {
+    "placeholders": {
+      "year": {}
+    }
+  },
   "followAction": "Follow",
   "albumsTitle": "Albums",
   "albumsUploadAction": "Upload",
