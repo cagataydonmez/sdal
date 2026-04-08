@@ -268,6 +268,7 @@ export function mapNetworkSuggestionForApi(item) {
     mezuniyetyili: item?.mezuniyetyili,
     online: item?.online,
     role: item?.role,
+    following: Number(item?.following || 0) > 0,
     mentor_opt_in: Number(item?.mentor_opt_in || 0),
     reasons: Array.isArray(item?.reasons) ? item.reasons : [],
     trust_badges: Array.isArray(item?.trustBadges) ? item.trustBadges : []

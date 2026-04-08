@@ -13,6 +13,7 @@ class MemberSummary {
     required this.profession,
     required this.photo,
     required this.verified,
+    required this.following,
     required this.graduationYear,
     required this.joinedAt,
   });
@@ -24,6 +25,7 @@ class MemberSummary {
   final String profession;
   final String photo;
   final bool verified;
+  final bool following;
   final String graduationYear;
   final DateTime? joinedAt;
 
@@ -43,6 +45,7 @@ class MemberSummary {
       ], fallback: ''),
       photo: coalesceText([map['resim'], map['photo']], fallback: ''),
       verified: asBool(map['verified']) ?? false,
+      following: asBool(map['following']) ?? false,
       graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
       joinedAt: asDateTime(map['ilktarih'] ?? map['joinedAt']),
     );
@@ -196,12 +199,14 @@ final exploreRepositoryProvider = Provider<ExploreRepository>(
 
 final directoryMembersProvider = FutureProvider.autoDispose
     .family<List<MemberSummary>, DirectoryMembersQuery>(
-      (ref, query) => ref.watch(exploreRepositoryProvider).fetchMembers(
-        q: query.query,
-        year: query.year,
-        city: query.city,
-        page: query.page,
-      ),
+      (ref, query) => ref
+          .watch(exploreRepositoryProvider)
+          .fetchMembers(
+            q: query.query,
+            year: query.year,
+            city: query.city,
+            page: query.page,
+          ),
     );
 
 final suggestionMembersProvider =

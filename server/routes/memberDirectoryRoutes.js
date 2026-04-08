@@ -101,6 +101,12 @@ export function registerMemberDirectoryRoutes(app, {
                   u.role,
                   CASE WHEN EXISTS (
                     SELECT 1
+                    FROM follows f
+                    WHERE f.follower_id = ?
+                      AND f.following_id = u.id
+                  ) THEN 1 ELSE 0 END AS following,
+                  CASE WHEN EXISTS (
+                    SELECT 1
                     FROM teacher_alumni_links tal
                     WHERE tal.teacher_user_id = u.id OR tal.alumni_user_id = u.id
                   ) THEN 1 ELSE 0 END AS teacher_network_member
@@ -109,7 +115,7 @@ export function registerMemberDirectoryRoutes(app, {
            WHERE ${where}
            ORDER BY ${orderBy}
            LIMIT ? OFFSET ?`,
-          [...params, pageSize, offset]
+          [req.session.userId, ...params, pageSize, offset]
         ),
         term ? Promise.resolve([]) : getCachedActiveMemberNameRows()
       ]);
@@ -123,6 +129,7 @@ export function registerMemberDirectoryRoutes(app, {
 
       const rowsWithTrustBadges = rows.map((row) => ({
         ...row,
+        following: Number(row?.following || 0) > 0,
         trust_badges: buildMemberTrustBadges(row)
       }));
 
@@ -148,13 +155,24 @@ export function registerMemberDirectoryRoutes(app, {
       const row = await sqlGetAsync(
         `SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
                 sehir, universite, meslek, websitesi, imza, resim, online, sontarih,
-                sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari
+                sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari,
+                CASE WHEN EXISTS (
+                  SELECT 1
+                  FROM follows f
+                  WHERE f.follower_id = ?
+                    AND f.following_id = uyeler.id
+                ) THEN 1 ELSE 0 END AS following
          FROM uyeler
          WHERE id = ?`,
-        [req.params.id]
+        [req.session.userId, req.params.id]
       );
       if (!row) return res.status(404).send('Üye bulunamadı');
-      return res.json({ row });
+      return res.json({
+        row: {
+          ...row,
+          following: Number(row?.following || 0) > 0
+        }
+      });
     } catch (err) {
       console.error('members.detail failed:', err);
       return res.status(500).send('Beklenmeyen bir hata oluştu.');

@@ -45,14 +45,25 @@ export function registerMiscAppRoutes(app, {
       if (!req.session.userId) return res.status(401).send('Login required');
       const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
       const rows = await sqlAllAsync(
-        `SELECT id, kadi, isim, soyisim, resim, mezuniyetyili, ilktarih
+        `SELECT id, kadi, isim, soyisim, resim, mezuniyetyili, ilktarih,
+                CASE WHEN EXISTS (
+                  SELECT 1
+                  FROM follows f
+                  WHERE f.follower_id = ?
+                    AND f.following_id = uyeler.id
+                ) THEN 1 ELSE 0 END AS following
          FROM uyeler
          WHERE aktiv = 1 AND yasak = 0
          ORDER BY id DESC
          LIMIT ?`,
-        [limit]
+        [req.session.userId, limit]
       );
-      res.json({ items: rows });
+      res.json({
+        items: rows.map((row) => ({
+          ...row,
+          following: Number(row?.following || 0) > 0
+        }))
+      });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

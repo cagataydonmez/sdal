@@ -734,7 +734,12 @@ Definition of done:
 
 #### G1. Explore follow-state clarity
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `harden`
 
 Audit coverage:
 
@@ -749,7 +754,11 @@ Scope:
 Likely files:
 
 - `mobile/flutter_sdal/lib/features/explore/presentation/explore_page.dart`
-- supporting repository/provider if needed
+- `mobile/flutter_sdal/lib/features/explore/data/explore_repository.dart`
+- `server/routes/memberDirectoryRoutes.js`
+- `server/routes/miscAppRoutes.js`
+- `server/src/networking/createNetworkDiscoveryPayloadRuntime.js`
+- `server/src/services/networkSuggestionService.js`
 
 Definition of done:
 

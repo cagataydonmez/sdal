@@ -372,6 +372,12 @@ export function createNetworkDiscoveryPayloadRuntime({
       sqlAllAsync(
         `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, ${candidateVerifiedSql}, u.mezuniyetyili, u.sehir, u.universite, u.meslek, ${hasOnline ? 'u.online' : '0'} AS online,
                 ${candidateRoleSql}, ${hasMentorOptIn ? 'u.mentor_opt_in' : '0'} AS mentor_opt_in,
+                ${hasFollows ? `CASE WHEN EXISTS (
+                  SELECT 1
+                  FROM follows f
+                  WHERE f.follower_id = ?
+                    AND f.following_id = u.id
+                ) THEN 1 ELSE 0 END` : '0'} AS following,
                 ${hasEngagementScores ? 'COALESCE(es.score, 0)' : '0'} AS engagement_score
          FROM uyeler u
          ${hasEngagementScores ? 'LEFT JOIN member_engagement_scores es ON es.user_id = u.id' : ''}
@@ -384,7 +390,7 @@ export function createNetworkDiscoveryPayloadRuntime({
              WHERE f.follower_id = ?
                AND f.following_id = u.id
            )` : ''}`,
-        hasFollows ? [safeUserId, safeUserId] : [safeUserId]
+        hasFollows ? [safeUserId, safeUserId, safeUserId] : [safeUserId]
       )
     ]);
 

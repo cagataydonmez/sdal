@@ -195,6 +195,10 @@ try {
   assert.equal(typeof payload?.discovery?.experiment_variant, 'string');
   assert.equal(typeof payload?.discovery?.connection_maps?.incoming, 'object');
   assert.equal(typeof payload?.discovery?.connection_maps?.outgoing, 'object');
+  assert.equal(
+    payload.discovery.suggestions.every((item) => typeof item?.following === 'boolean'),
+    true
+  );
   assert.equal(payload?.metrics?.connections?.pending_incoming, 1);
   assert.equal(payload?.metrics?.connections?.pending_outgoing, 1);
   assert.equal(payload?.metrics?.mentorship?.accepted, 1);
@@ -204,6 +208,27 @@ try {
   assert.equal(Number(payload?.discovery?.connection_maps?.outgoing?.[receiverId] || 0) >= 1, true);
   const suggestionAssignment = sqlGet('SELECT variant FROM network_suggestion_ab_assignments WHERE user_id = ?', [meId]);
   assert.equal(typeof suggestionAssignment?.variant, 'string');
+
+  sqlRun(
+    'INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)',
+    [meId, receiverId, now]
+  );
+
+  const memberDirectory = await request(`/api/members?excludeSelf=1&term=phase2_hub_receiver`, {
+    cookie: cookieMe
+  });
+  assert.equal(memberDirectory.res.status, 200);
+  assert.equal(Array.isArray(memberDirectory.data?.rows), true);
+  assert.equal(memberDirectory.data.rows.length, 1);
+  assert.equal(memberDirectory.data.rows[0].id, receiverId);
+  assert.equal(memberDirectory.data.rows[0].following, true);
+
+  const latestMembers = await request('/api/members/latest?limit=20', { cookie: cookieMe });
+  assert.equal(latestMembers.res.status, 200);
+  assert.equal(Array.isArray(latestMembers.data?.items), true);
+  const followedLatestRow = latestMembers.data.items.find((item) => Number(item?.id || 0) === receiverId);
+  assert.equal(Boolean(followedLatestRow), true);
+  assert.equal(followedLatestRow.following, true);
 
   console.log('phase2 network hub tests passed');
 } finally {

@@ -27,6 +27,8 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   final _yearController = TextEditingController();
   final _cityController = TextEditingController();
   DirectoryMembersQuery _directoryQuery = const DirectoryMembersQuery();
+  final Set<int> _followedMemberIds = <int>{};
+  final Set<int> _followingInFlightIds = <int>{};
 
   @override
   void initState() {
@@ -102,16 +104,13 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                           child: _MemberCard(
                             member: item,
                             compact: false,
+                            isFollowed: _isMemberFollowed(item),
+                            followInFlight: _followingInFlightIds.contains(
+                              item.id,
+                            ),
                             onTap: () => context.push('/members/${item.id}'),
                             imageUrl: config.resolveUrl(item.photo).toString(),
-                            onFollow: () async {
-                              await ref
-                                  .read(exploreRepositoryProvider)
-                                  .follow(item.id);
-                              ref.invalidate(latestMembersProvider);
-                              ref.invalidate(suggestionMembersProvider);
-                              ref.invalidate(directoryMembersProvider);
-                            },
+                            onFollow: () => _followMember(item.id),
                           ),
                         );
                       },
@@ -164,19 +163,15 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                   child: _MemberCard(
                                     member: item,
                                     compact: false,
+                                    isFollowed: _isMemberFollowed(item),
+                                    followInFlight: _followingInFlightIds
+                                        .contains(item.id),
                                     onTap: () =>
                                         context.push('/members/${item.id}'),
                                     imageUrl: config
                                         .resolveUrl(item.photo)
                                         .toString(),
-                                    onFollow: () async {
-                                      await ref
-                                          .read(exploreRepositoryProvider)
-                                          .follow(item.id);
-                                      ref.invalidate(latestMembersProvider);
-                                      ref.invalidate(suggestionMembersProvider);
-                                      ref.invalidate(directoryMembersProvider);
-                                    },
+                                    onFollow: () => _followMember(item.id),
                                   ),
                                 );
                               },
@@ -193,19 +188,15 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                 child: _MemberCard(
                                   member: item,
                                   compact: false,
+                                  isFollowed: _isMemberFollowed(item),
+                                  followInFlight: _followingInFlightIds
+                                      .contains(item.id),
                                   onTap: () =>
                                       context.push('/members/${item.id}'),
                                   imageUrl: config
                                       .resolveUrl(item.photo)
                                       .toString(),
-                                  onFollow: () async {
-                                    await ref
-                                        .read(exploreRepositoryProvider)
-                                        .follow(item.id);
-                                    ref.invalidate(latestMembersProvider);
-                                    ref.invalidate(suggestionMembersProvider);
-                                    ref.invalidate(directoryMembersProvider);
-                                  },
+                                  onFollow: () => _followMember(item.id),
                                 ),
                               ),
                           ],
@@ -306,17 +297,11 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                     child: _MemberCard(
                       member: member,
                       compact: true,
+                      isFollowed: _isMemberFollowed(member),
+                      followInFlight: _followingInFlightIds.contains(member.id),
                       onTap: () => context.push('/members/${member.id}'),
                       imageUrl: config.resolveUrl(member.photo).toString(),
-                      onFollow: () async {
-                        await ref
-                            .read(exploreRepositoryProvider)
-                            .follow(member.id);
-                        ref.invalidate(latestMembersProvider);
-                        ref.invalidate(
-                          directoryMembersProvider(_directoryQuery),
-                        );
-                      },
+                      onFollow: () => _followMember(member.id),
                     ),
                   ),
                 ),
@@ -381,6 +366,38 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
             ),
       );
     });
+  }
+
+  Future<void> _followMember(int memberId) async {
+    if (_followedMemberIds.contains(memberId) ||
+        _followingInFlightIds.contains(memberId)) {
+      return;
+    }
+    setState(() => _followingInFlightIds.add(memberId));
+    final result = await ref.read(exploreRepositoryProvider).follow(memberId);
+    if (!mounted) return;
+    setState(() {
+      _followingInFlightIds.remove(memberId);
+      if (result.ok) {
+        _followedMemberIds.add(memberId);
+      }
+    });
+    if (result.ok) {
+      ref.invalidate(latestMembersProvider);
+      ref.invalidate(suggestionMembersProvider);
+      ref.invalidate(directoryMembersProvider(_directoryQuery));
+      return;
+    }
+    final message = result.message.isNotEmpty
+        ? result.message
+        : context.l10n.actionFailedGeneric;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  bool _isMemberFollowed(MemberSummary member) {
+    return member.following || _followedMemberIds.contains(member.id);
   }
 }
 
@@ -492,6 +509,8 @@ class _MemberCard extends StatelessWidget {
     required this.imageUrl,
     required this.onFollow,
     required this.compact,
+    required this.isFollowed,
+    required this.followInFlight,
   });
 
   final MemberSummary member;
@@ -499,6 +518,8 @@ class _MemberCard extends StatelessWidget {
   final String imageUrl;
   final Future<void> Function() onFollow;
   final bool compact;
+  final bool isFollowed;
+  final bool followInFlight;
 
   @override
   Widget build(BuildContext context) {
@@ -557,9 +578,31 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: onFollow,
-                  child: Text(l10n.followAction),
+                OutlinedButton.icon(
+                  onPressed: isFollowed || followInFlight
+                      ? null
+                      : () async {
+                          await onFollow();
+                        },
+                  icon: followInFlight
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          isFollowed
+                              ? Icons.check_rounded
+                              : Icons.person_add_alt_1_rounded,
+                          size: 18,
+                        ),
+                  label: Text(
+                    followInFlight
+                        ? l10n.submitInProgress
+                        : isFollowed
+                        ? l10n.followingTitle
+                        : l10n.followAction,
+                  ),
                 ),
               ],
             ),
