@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -40,6 +41,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   Widget build(BuildContext context) {
     final actionState = ref.watch(albumsActionControllerProvider);
     final config = ref.watch(appConfigProvider);
+    final tokens = Theme.of(context).sdal;
 
     return FeatureScaffold(
       title: _photo?.title ?? 'Fotoğraf',
@@ -83,9 +85,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                   const SizedBox(height: 8),
                   Text(
                     _formatDate(_photo!.date),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: tokens.foregroundMuted,
+                    ),
                   ),
                 ],
               ),
@@ -163,17 +165,17 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                                     ),
                                   ),
                                   if (comment.verified)
-                                    const Icon(
+                                    Icon(
                                       Icons.verified_rounded,
                                       size: 16,
-                                      color: Colors.blue,
+                                      color: tokens.info,
                                     ),
                                 ],
                               ),
                               Text(
                                 _formatDate(comment.date),
                                 style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.black54),
+                                    ?.copyWith(color: tokens.foregroundMuted),
                               ),
                               const SizedBox(height: 4),
                               Text(_plainText(comment.comment)),

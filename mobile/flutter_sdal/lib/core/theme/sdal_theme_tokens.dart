@@ -29,6 +29,7 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     required this.foreground,
     required this.foregroundMuted,
     required this.foregroundOnAccent,
+    required this.adminExperiment,
   });
 
   final Color canvas;
@@ -57,6 +58,7 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
   final Color foreground;
   final Color foregroundMuted;
   final Color foregroundOnAccent;
+  final Color adminExperiment;
 
   static const light = SdalThemeTokens(
     canvas: Color(0xFFF7F1E8),
@@ -85,6 +87,7 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     foreground: Color(0xFF241C16),
     foregroundMuted: Color(0xFF6E6255),
     foregroundOnAccent: Color(0xFFFFFAF6),
+    adminExperiment: Color(0xFF6A4FB4),
   );
 
   static const dark = SdalThemeTokens(
@@ -114,6 +117,7 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     foreground: Color(0xFFF4ECE0),
     foregroundMuted: Color(0xFFC6B7A6),
     foregroundOnAccent: Color(0xFF1B130D),
+    adminExperiment: Color(0xFFAB94E6),
   );
 
   @override
@@ -144,6 +148,7 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
     Color? foreground,
     Color? foregroundMuted,
     Color? foregroundOnAccent,
+    Color? adminExperiment,
   }) {
     return SdalThemeTokens(
       canvas: canvas ?? this.canvas,
@@ -172,6 +177,7 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
       foreground: foreground ?? this.foreground,
       foregroundMuted: foregroundMuted ?? this.foregroundMuted,
       foregroundOnAccent: foregroundOnAccent ?? this.foregroundOnAccent,
+      adminExperiment: adminExperiment ?? this.adminExperiment,
     );
   }
 
@@ -213,6 +219,7 @@ class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
         other.foregroundOnAccent,
         t,
       )!,
+      adminExperiment: Color.lerp(adminExperiment, other.adminExperiment, t)!,
     );
   }
 }

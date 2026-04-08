@@ -567,8 +567,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: section.tint.withValues(alpha: 0.18),
-                      foregroundColor: section.tint,
+                      backgroundColor: _adminToneColor(
+                        context,
+                        section.tone,
+                      ).withValues(alpha: 0.18),
+                      foregroundColor: _adminToneColor(context, section.tone),
                       child: Icon(section.icon),
                     ),
                     const SizedBox(width: 12),
@@ -1175,7 +1178,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.chevron_right, color: section.tint),
+                      Icon(
+                        Icons.chevron_right,
+                        color: _adminToneColor(context, section.tone),
+                      ),
                       const SizedBox(width: 4),
                       Expanded(child: Text(capability)),
                     ],
@@ -1660,11 +1666,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _AdminInfoBanner(
+                _AdminInfoBanner(
                   title: 'Operasyon notu',
                   body:
                       'Anlamli bir label kullanmak geri donus operasyonlarini kolaylastirir.',
-                  tone: Colors.blueAccent,
+                  tone: Theme.of(dialogContext).sdal.info,
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -2364,11 +2370,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const _AdminInfoBanner(
+                      _AdminInfoBanner(
                         title: 'Yuksek riskli islem',
                         body:
                             'Aktif veritabani bu backup ile degistirilir. Islemden once otomatik bir pre-restore yedegi alinmaya devam eder.',
-                        tone: Colors.redAccent,
+                        tone: Theme.of(dialogContext).sdal.danger,
                         icon: Icons.warning_amber_rounded,
                       ),
                       const SizedBox(height: 20),
@@ -2814,11 +2820,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _AdminInfoBanner(
+                          _AdminInfoBanner(
                             title: 'Toplu gonderim',
                             body:
                                 'Kategori secimi alicilari belirler. Sablon secmek sadece govdeyi hizli doldurur.',
-                            tone: Colors.blueAccent,
+                            tone: Theme.of(dialogContext).sdal.info,
                           ),
                           const SizedBox(height: 20),
                           _AdminDialogSection(
@@ -3042,11 +3048,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _AdminInfoBanner(
+                _AdminInfoBanner(
                   title: 'Beklenen format',
                   body:
                       'Gecerli bir JSON object beklenir. Her key string olmali ve value metne donusebilir olmalidir.',
-                  tone: Colors.blueAccent,
+                  tone: Theme.of(dialogContext).sdal.info,
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -3469,8 +3475,11 @@ class _AdminSectionCard extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: section.tint.withValues(alpha: 0.16),
-                foregroundColor: section.tint,
+                backgroundColor: _adminToneColor(
+                  context,
+                  section.tone,
+                ).withValues(alpha: 0.16),
+                foregroundColor: _adminToneColor(context, section.tone),
                 child: Icon(section.icon),
               ),
               const SizedBox(width: 14),
@@ -3741,18 +3750,19 @@ class _AdminInfoBanner extends StatelessWidget {
   const _AdminInfoBanner({
     required this.title,
     required this.body,
-    this.tone = Colors.orange,
+    this.tone,
     this.icon = Icons.info_outline,
   });
 
   final String title;
   final String body;
-  final Color tone;
+  final Color? tone;
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tone = this.tone ?? theme.sdal.warning;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -3853,7 +3863,7 @@ class _AdminSection {
     required this.summary,
     required this.description,
     required this.icon,
-    required this.tint,
+    required this.tone,
     required this.routeFile,
     required this.capabilities,
   });
@@ -3863,9 +3873,23 @@ class _AdminSection {
   final String summary;
   final String description;
   final IconData icon;
-  final Color tint;
+  final _AdminTone tone;
   final String routeFile;
   final List<String> capabilities;
+}
+
+enum _AdminTone { info, warning, success, danger, experiment, accent }
+
+Color _adminToneColor(BuildContext context, _AdminTone tone) {
+  final tokens = Theme.of(context).sdal;
+  return switch (tone) {
+    _AdminTone.info => tokens.info,
+    _AdminTone.warning => tokens.warning,
+    _AdminTone.success => tokens.success,
+    _AdminTone.danger => tokens.danger,
+    _AdminTone.experiment => tokens.adminExperiment,
+    _AdminTone.accent => tokens.accent,
+  };
 }
 
 Future<void> _showAdminLoginDialog(BuildContext context, WidgetRef ref) async {
@@ -3969,7 +3993,7 @@ const _adminSections = <_AdminSection>[
     description:
         'Kullanici rolleri, moderator kapsam atamalari ve temel admin oturum kontrolleri burada toplanir.',
     icon: Icons.manage_accounts_outlined,
-    tint: Color(0xFF355C87),
+    tone: _AdminTone.info,
     routeFile: 'server/routes/adminManagementRoutes.js',
     capabilities: [
       'Admin oturumu ve root bootstrap durumu',
@@ -3984,7 +4008,7 @@ const _adminSections = <_AdminSection>[
     description:
         'Topluluk icerigi uzerindeki denetim akislarini bir araya getirir.',
     icon: Icons.shield_outlined,
-    tint: Color(0xFF9B6A1C),
+    tone: _AdminTone.warning,
     routeFile: 'server/routes/adminContentModerationRoutes.js',
     capabilities: [
       'Dogrulama talepleri',
@@ -4000,7 +4024,7 @@ const _adminSections = <_AdminSection>[
     description:
         'Uyelik dogrulama, talep bildirimleri ve ogretmen baglantisi incelemeleri bu bolumdedir.',
     icon: Icons.assignment_turned_in_outlined,
-    tint: Color(0xFF2C6B4B),
+    tone: _AdminTone.success,
     routeFile: 'server/routes/adminRequestModerationRoutes.js',
     capabilities: [
       'Uyelik ve mezuniyet talepleri',
@@ -4015,7 +4039,7 @@ const _adminSections = <_AdminSection>[
     description:
         'Bakim, operasyon ve guvenlik odakli admin akislarini tek yerde toplar.',
     icon: Icons.security_outlined,
-    tint: Color(0xFFAA4834),
+    tone: _AdminTone.danger,
     routeFile:
         'server/routes/adminOperationsRoutes.js + adminSecurityRoutes.js',
     capabilities: [
@@ -4031,7 +4055,7 @@ const _adminSections = <_AdminSection>[
     description:
         'Deney varyantlari ile yonetici panelindeki ozet ve aktivite akislarini kapsar.',
     icon: Icons.science_outlined,
-    tint: Color(0xFF6A4FB4),
+    tone: _AdminTone.experiment,
     routeFile: 'server/routes/adminExperimentRoutes.js',
     capabilities: [
       'Engagement A/B yonetimi',
@@ -4047,7 +4071,7 @@ const _adminSections = <_AdminSection>[
     description:
         'Veritabani surucu durumu, yedekleme ve veri tasima akislarini kapsar.',
     icon: Icons.storage_outlined,
-    tint: Color(0xFF355C87),
+    tone: _AdminTone.info,
     routeFile: 'server/routes/adminDbRoutes.js',
     capabilities: [
       'Backup listesi ve indirme',
@@ -4063,7 +4087,7 @@ const _adminSections = <_AdminSection>[
     description:
         'Dil konfigrasyonu ve metin yonetimi icin gerekli admin endpointlerini kapsar.',
     icon: Icons.translate_outlined,
-    tint: Color(0xFFC8633C),
+    tone: _AdminTone.accent,
     routeFile: 'server/routes/adminLanguageRoutes.js',
     capabilities: [
       'Dil ekleme, guncelleme ve silme',

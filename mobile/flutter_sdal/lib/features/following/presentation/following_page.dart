@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -43,6 +44,7 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
   Widget build(BuildContext context) {
     final actionState = ref.watch(followingActionControllerProvider);
     final config = ref.watch(appConfigProvider);
+    final tokens = Theme.of(context).sdal;
 
     return FeatureScaffold(
       title: 'Takip edilenler',
@@ -145,10 +147,10 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
                                       ),
                                     ),
                                     if (item.verified)
-                                      const Icon(
+                                      Icon(
                                         Icons.verified_rounded,
                                         size: 18,
-                                        color: Colors.blue,
+                                        color: tokens.info,
                                       ),
                                   ],
                                 ),
@@ -157,7 +159,9 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
                                   Text(
                                     '@${item.handle}',
                                     style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: Colors.black54),
+                                        ?.copyWith(
+                                          color: tokens.foregroundMuted,
+                                        ),
                                   ),
                                 ],
                                 const SizedBox(height: 8),
@@ -169,7 +173,9 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
                                   Text(
                                     'Takip tarihi: ${_formatDate(item.followedAt)}',
                                     style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: Colors.black54),
+                                        ?.copyWith(
+                                          color: tokens.foregroundMuted,
+                                        ),
                                   ),
                               ],
                             ),
@@ -201,12 +207,12 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
                 child: Center(child: CircularProgressIndicator()),
               ),
             if (!_hasMore && _items.isNotEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Center(
                   child: Text(
                     'Takip listenin sonuna ulaştın.',
-                    style: TextStyle(color: Colors.black54),
+                    style: TextStyle(color: tokens.foregroundMuted),
                   ),
                 ),
               ),

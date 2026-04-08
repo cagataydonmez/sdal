@@ -278,13 +278,17 @@ Definition of done:
 
 #### B1. Replace all audited hardcoded colors with token references
 
-Status: `In progress`
+Status: `Completed`
 
 Current progress in implementation:
 
 - `profile_page.dart` verified/pending chips and role chip now derive from `SdalThemeTokens.success`, `.warning`, and `.info` instead of hardcoded one-off colors
 - `thread_detail_page.dart` direct-message bubbles now reuse the design-system chat tokens and token-derived text/border/shadow colors instead of bespoke navy/white/black values
 - `notifications_page.dart` unread dot now uses the shared info token instead of a hardcoded blue accent
+- `following_page.dart` and `album_photo_page.dart` verified badges plus muted secondary text now use `SdalThemeTokens.info` and `.foregroundMuted` instead of `Colors.blue` / `Colors.black54`
+- `networking_pages.dart` unread indicators and stat-tile icons now use the shared info token instead of hardcoded blue/navy values
+- `admin_pages.dart` now uses semantic admin tones backed by design tokens, including a deliberate `adminExperiment` token for the experiments section instead of hardcoded purple/blue/red/orange literals
+- `status_views.dart` no longer uses hardcoded navy/white splash colors and now derives its palette from the theme token set
 
 Audit coverage:
 
@@ -317,9 +321,19 @@ Definition of done:
 - DM chat matches live chat token usage
 - unread indicators, chips, banners, and links derive from tokens
 
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `normalize`
+
 #### B2. Redesign splash screen to match brand tokens
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `normalize`
 
 Audit coverage:
 

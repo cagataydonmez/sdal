@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import '../l10n/context_l10n.dart';
+import '../theme/sdal_theme_tokens.dart';
 
 class AppSplashScreen extends StatelessWidget {
   const AppSplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final theme = Theme.of(context);
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D2238), Color(0xFF173657)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [tokens.canvas, tokens.panelRaised, tokens.accentMuted],
           ),
         ),
         child: Center(
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -25,9 +28,16 @@ class AppSplashScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(32),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.35),
+                      color: tokens.panelBorder.withValues(alpha: 0.9),
                       width: 2.5,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: tokens.foreground.withValues(alpha: 0.08),
+                        blurRadius: 28,
+                        offset: const Offset(0, 18),
+                      ),
+                    ],
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(29.5),
@@ -35,13 +45,12 @@ class AppSplashScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const CircularProgressIndicator(color: Colors.white),
+                CircularProgressIndicator(color: tokens.accent),
                 const SizedBox(height: 18),
                 Text(
                   context.l10n.splashPreparing,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: tokens.foreground,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

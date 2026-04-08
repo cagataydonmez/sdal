@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/api_result.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -404,10 +405,10 @@ class NetworkingInboxPage extends ConsumerWidget {
                         title: Text(item.message),
                         subtitle: Text(item.createdAt),
                         trailing: item.isUnread
-                            ? const Icon(
+                            ? Icon(
                                 Icons.circle,
                                 size: 10,
-                                color: Color(0xFF1F6FEB),
+                                color: Theme.of(context).sdal.info,
                               )
                             : null,
                       ),
@@ -1140,9 +1141,10 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return Column(
       children: [
-        Icon(icon, color: const Color(0xFF0D2238)),
+        Icon(icon, color: tokens.info),
         const SizedBox(height: 8),
         Text(value, style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 4),
