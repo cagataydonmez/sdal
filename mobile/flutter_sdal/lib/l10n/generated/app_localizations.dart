@@ -2624,6 +2624,12 @@ abstract class AppLocalizations {
   /// **'Takip et'**
   String get followAction;
 
+  /// No description provided for @unfollowAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Takibi bırak'**
+  String get unfollowAction;
+
   /// No description provided for @albumsTitle.
   ///
   /// In tr, this message translates to:

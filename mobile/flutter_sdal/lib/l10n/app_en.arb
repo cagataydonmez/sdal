@@ -575,6 +575,7 @@
     }
   },
   "followAction": "Follow",
+  "unfollowAction": "Unfollow",
   "albumsTitle": "Albums",
   "albumsUploadAction": "Upload",
   "albumsEmpty": "No album photos yet.",

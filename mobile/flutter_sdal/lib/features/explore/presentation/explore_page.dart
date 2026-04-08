@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/network/json_utils.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -27,7 +28,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   final _yearController = TextEditingController();
   final _cityController = TextEditingController();
   DirectoryMembersQuery _directoryQuery = const DirectoryMembersQuery();
-  final Set<int> _followedMemberIds = <int>{};
+  final Map<int, bool> _followOverrides = <int, bool>{};
   final Set<int> _followingInFlightIds = <int>{};
 
   @override
@@ -105,7 +106,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                               imageUrl: config
                                   .resolveUrl(item.photo)
                                   .toString(),
-                              onFollow: () => _followMember(item.id),
+                              onFollow: () => _toggleFollowMember(item),
                             ),
                           );
                         },
@@ -166,7 +167,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                       imageUrl: config
                                           .resolveUrl(item.photo)
                                           .toString(),
-                                      onFollow: () => _followMember(item.id),
+                                      onFollow: () => _toggleFollowMember(item),
                                     ),
                                   );
                                 },
@@ -191,7 +192,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                     imageUrl: config
                                         .resolveUrl(item.photo)
                                         .toString(),
-                                    onFollow: () => _followMember(item.id),
+                                    onFollow: () => _toggleFollowMember(item),
                                   ),
                                 ),
                             ],
@@ -298,7 +299,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                         ),
                         onTap: () => context.push('/members/${member.id}'),
                         imageUrl: config.resolveUrl(member.photo).toString(),
-                        onFollow: () => _followMember(member.id),
+                        onFollow: () => _toggleFollowMember(member),
                       ),
                     ),
                   ),
@@ -366,18 +367,21 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     });
   }
 
-  Future<void> _followMember(int memberId) async {
-    if (_followedMemberIds.contains(memberId) ||
-        _followingInFlightIds.contains(memberId)) {
+  Future<void> _toggleFollowMember(MemberSummary member) async {
+    final memberId = member.id;
+    if (_followingInFlightIds.contains(memberId)) {
       return;
     }
+    final currentFollowing = _isMemberFollowed(member);
     setState(() => _followingInFlightIds.add(memberId));
     final result = await ref.read(exploreRepositoryProvider).follow(memberId);
     if (!mounted) return;
+    final payload = asJsonMap(result.rawData);
+    final nextFollowing = asBool(payload['following']) ?? !currentFollowing;
     setState(() {
       _followingInFlightIds.remove(memberId);
       if (result.ok) {
-        _followedMemberIds.add(memberId);
+        _followOverrides[memberId] = nextFollowing;
       }
     });
     if (result.ok) {
@@ -395,10 +399,11 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   }
 
   bool _isMemberFollowed(MemberSummary member) {
-    return member.following || _followedMemberIds.contains(member.id);
+    return _followOverrides[member.id] ?? member.following;
   }
 
   Future<void> _refreshPage() async {
+    setState(_followOverrides.clear);
     ref.invalidate(latestMembersProvider);
     ref.invalidate(suggestionMembersProvider);
     ref.invalidate(directoryMembersProvider(_directoryQuery));
@@ -588,7 +593,7 @@ class _MemberCard extends StatelessWidget {
                 ],
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
-                  onPressed: isFollowed || followInFlight
+                  onPressed: followInFlight
                       ? null
                       : () async {
                           await onFollow();
@@ -601,7 +606,7 @@ class _MemberCard extends StatelessWidget {
                         )
                       : Icon(
                           isFollowed
-                              ? Icons.check_rounded
+                              ? Icons.person_remove_alt_1_rounded
                               : Icons.person_add_alt_1_rounded,
                           size: 18,
                         ),
@@ -609,7 +614,7 @@ class _MemberCard extends StatelessWidget {
                     followInFlight
                         ? l10n.submitInProgress
                         : isFollowed
-                        ? l10n.followingTitle
+                        ? l10n.unfollowAction
                         : l10n.followAction,
                   ),
                 ),

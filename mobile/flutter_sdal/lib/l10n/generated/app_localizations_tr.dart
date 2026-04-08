@@ -1385,6 +1385,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get followAction => 'Takip et';
 
   @override
+  String get unfollowAction => 'Takibi bırak';
+
+  @override
   String get albumsTitle => 'Albümler';
 
   @override

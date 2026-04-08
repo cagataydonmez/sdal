@@ -1386,6 +1386,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get followAction => 'Follow';
 
   @override
+  String get unfollowAction => 'Unfollow';
+
+  @override
   String get albumsTitle => 'Albums';
 
   @override

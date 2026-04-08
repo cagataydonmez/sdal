@@ -575,6 +575,7 @@
     }
   },
   "followAction": "Takip et",
+  "unfollowAction": "Takibi bırak",
   "albumsTitle": "Albümler",
   "albumsUploadAction": "Yükle",
   "albumsEmpty": "Henüz albüm fotoğrafı yok.",
