@@ -16,6 +16,24 @@
   "moreActions": "Diğer işlemler",
   "removeImageAction": "Görseli kaldır",
   "quickAccessRemoveAction": "Hızlı erişimden kaldır",
+  "openPostByAuthor": "{name} gönderisini aç",
+  "@openPostByAuthor": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "feedLikesCount": "{count} beğeni",
+  "@feedLikesCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "feedCommentsCount": "{count} yorum",
+  "@feedCommentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
   "siteClosedTitle": "SDAL şu anda kapalı",
   "siteClosedFallbackMessage": "Bakım çalışması nedeniyle uygulama geçici olarak kullanılamıyor.",
   "moduleClosedTitle": "Modül kapalı",

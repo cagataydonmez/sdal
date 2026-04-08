@@ -164,6 +164,24 @@ abstract class AppLocalizations {
   /// **'Hızlı erişimden kaldır'**
   String get quickAccessRemoveAction;
 
+  /// No description provided for @openPostByAuthor.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} gönderisini aç'**
+  String openPostByAuthor(Object name);
+
+  /// No description provided for @feedLikesCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} beğeni'**
+  String feedLikesCount(Object count);
+
+  /// No description provided for @feedCommentsCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} yorum'**
+  String feedCommentsCount(Object count);
+
   /// No description provided for @siteClosedTitle.
   ///
   /// In tr, this message translates to:

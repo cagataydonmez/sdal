@@ -183,7 +183,12 @@ Definition of done:
 
 #### A2. Full accessibility semantics pass on audited surfaces
 
-Status: `In progress`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `fixing-accessibility`
+- `harden`
 
 Current progress in implementation:
 
@@ -200,6 +205,7 @@ Current progress in implementation:
 - networking request tiles, teacher-event rows, and teacher-link rows now expose explicit profile-opening affordances on member avatars
 - messenger thread detail header now exposes a direct profile-opening affordance instead of a static identity card
 - shell quick-access remove action now uses localized tooltip copy instead of a hardcoded string
+- feed cards now expose explicit post-opening semantics and descriptive like/comment count labels instead of purely visual affordances
 
 Audit coverage:
 

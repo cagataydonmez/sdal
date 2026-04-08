@@ -44,6 +44,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickAccessRemoveAction => 'Remove from quick access';
 
   @override
+  String openPostByAuthor(Object name) {
+    return 'Open post by $name';
+  }
+
+  @override
+  String feedLikesCount(Object count) {
+    return '$count likes';
+  }
+
+  @override
+  String feedCommentsCount(Object count) {
+    return '$count comments';
+  }
+
+  @override
   String get siteClosedTitle => 'SDAL is currently closed';
 
   @override

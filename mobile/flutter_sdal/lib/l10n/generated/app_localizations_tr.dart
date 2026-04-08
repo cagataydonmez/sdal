@@ -44,6 +44,21 @@ class AppLocalizationsTr extends AppLocalizations {
   String get quickAccessRemoveAction => 'Hızlı erişimden kaldır';
 
   @override
+  String openPostByAuthor(Object name) {
+    return '$name gönderisini aç';
+  }
+
+  @override
+  String feedLikesCount(Object count) {
+    return '$count beğeni';
+  }
+
+  @override
+  String feedCommentsCount(Object count) {
+    return '$count yorum';
+  }
+
+  @override
   String get siteClosedTitle => 'SDAL şu anda kapalı';
 
   @override

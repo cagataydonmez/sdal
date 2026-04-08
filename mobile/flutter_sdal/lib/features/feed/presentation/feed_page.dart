@@ -187,128 +187,145 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           return InkWell(
             borderRadius: BorderRadius.circular(24),
             onTap: () => context.push('/posts/${item.id}'),
-            child: SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Tooltip(
+              message: l10n.openPostByAuthor(item.authorName),
+              child: Semantics(
+                button: true,
+                label: l10n.openPostByAuthor(item.authorName),
+                child: SurfaceCard(
+                  semanticContainer: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: canOpenAuthorProfile
-                            ? () => context.push('/members/${item.authorId}')
-                            : null,
-                        child: Tooltip(
-                          message: l10n.openMemberProfileForName(
-                            item.authorName,
-                          ),
-                          child: Semantics(
-                            button: canOpenAuthorProfile,
-                            enabled: canOpenAuthorProfile,
-                            label: l10n.openMemberProfileForName(
-                              item.authorName,
-                            ),
-                            child: RemoteAvatar(
-                              label: item.authorName,
-                              imageUrl: config
-                                  .resolveUrl(item.authorPhoto)
-                                  .toString(),
-                              radius: 24,
-                              excludeFromSemantics: true,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.authorName,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            if (item.authorHandle.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                '@${item.authorHandle}',
-                                style: Theme.of(context).textTheme.bodySmall,
+                      Row(
+                        children: [
+                          InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: canOpenAuthorProfile
+                                ? () =>
+                                      context.push('/members/${item.authorId}')
+                                : null,
+                            child: Tooltip(
+                              message: l10n.openMemberProfileForName(
+                                item.authorName,
                               ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      if (session?.user?.id != null &&
-                          session!.user!.id == item.authorId)
-                        _FeedPostMenuButton(
-                          onDelete: () async {
-                            final ok = await ref
-                                .read(feedActionControllerProvider.notifier)
-                                .deletePost(item.id);
-                            if (!context.mounted) return;
-                            final actionState = ref.read(
-                              feedActionControllerProvider,
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  actionState.message ??
-                                      (ok
-                                          ? 'Gönderi silindi.'
-                                          : 'Gönderi silinemedi.'),
+                              child: Semantics(
+                                button: canOpenAuthorProfile,
+                                enabled: canOpenAuthorProfile,
+                                label: l10n.openMemberProfileForName(
+                                  item.authorName,
+                                ),
+                                child: RemoteAvatar(
+                                  label: item.authorName,
+                                  imageUrl: config
+                                      .resolveUrl(item.authorPhoto)
+                                      .toString(),
+                                  radius: 24,
+                                  excludeFromSemantics: true,
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    item.content.isEmpty
-                        ? l10n.feedEmptyContent
-                        : plainTextFromRichContent(item.content),
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  if (item.imageUrl.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    SdalNetworkImage(
-                      imageUrl: config.resolveUrl(item.imageUrl).toString(),
-                      borderRadius: BorderRadius.circular(18),
-                      semanticLabel: item.authorName,
-                      cacheWidth: (MediaQuery.sizeOf(context).width * 2)
-                          .round(),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      _MetricPill(
-                        icon: item.liked
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        label: '${item.likeCount}',
-                        active: item.liked,
-                        onTap: () async {
-                          await ref
-                              .read(feedActionControllerProvider.notifier)
-                              .toggleLike(item.id);
-                        },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.authorName,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                                if (item.authorHandle.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '@${item.authorHandle}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (session?.user?.id != null &&
+                              session!.user!.id == item.authorId)
+                            _FeedPostMenuButton(
+                              onDelete: () async {
+                                final ok = await ref
+                                    .read(feedActionControllerProvider.notifier)
+                                    .deletePost(item.id);
+                                if (!context.mounted) return;
+                                final actionState = ref.read(
+                                  feedActionControllerProvider,
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      actionState.message ??
+                                          (ok
+                                              ? 'Gönderi silindi.'
+                                              : 'Gönderi silinemedi.'),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      _MetricPill(
-                        icon: Icons.chat_bubble_outline,
-                        label: '${item.commentCount}',
-                        onTap: () => context.push('/posts/${item.id}'),
-                      ),
-                      const Spacer(),
+                      const SizedBox(height: 12),
                       Text(
-                        item.createdAt,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        item.content.isEmpty
+                            ? l10n.feedEmptyContent
+                            : plainTextFromRichContent(item.content),
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      if (item.imageUrl.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        SdalNetworkImage(
+                          imageUrl: config.resolveUrl(item.imageUrl).toString(),
+                          borderRadius: BorderRadius.circular(18),
+                          semanticLabel: item.authorName,
+                          cacheWidth: (MediaQuery.sizeOf(context).width * 2)
+                              .round(),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          _MetricPill(
+                            icon: item.liked
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            label: '${item.likeCount}',
+                            semanticLabel: l10n.feedLikesCount(item.likeCount),
+                            active: item.liked,
+                            onTap: () async {
+                              await ref
+                                  .read(feedActionControllerProvider.notifier)
+                                  .toggleLike(item.id);
+                            },
+                          ),
+                          const SizedBox(width: 10),
+                          _MetricPill(
+                            icon: Icons.chat_bubble_outline,
+                            label: '${item.commentCount}',
+                            semanticLabel: l10n.feedCommentsCount(
+                              item.commentCount,
+                            ),
+                            onTap: () => context.push('/posts/${item.id}'),
+                          ),
+                          const Spacer(),
+                          Text(
+                            item.createdAt,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           );
@@ -394,12 +411,14 @@ class _MetricPill extends StatelessWidget {
   const _MetricPill({
     required this.icon,
     required this.label,
+    this.semanticLabel,
     this.active = false,
     this.onTap,
   });
 
   final IconData icon;
   final String label;
+  final String? semanticLabel;
   final bool active;
   final VoidCallback? onTap;
 
@@ -427,14 +446,14 @@ class _MetricPill extends StatelessWidget {
       ),
     );
     return Tooltip(
-      message: label,
+      message: semanticLabel ?? label,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: Semantics(
           button: onTap != null,
           selected: active,
-          label: label,
+          label: semanticLabel ?? label,
           child: ExcludeSemantics(child: pill),
         ),
       ),

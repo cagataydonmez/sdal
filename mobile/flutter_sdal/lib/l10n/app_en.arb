@@ -16,6 +16,24 @@
   "moreActions": "More actions",
   "removeImageAction": "Remove image",
   "quickAccessRemoveAction": "Remove from quick access",
+  "openPostByAuthor": "Open post by {name}",
+  "@openPostByAuthor": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "feedLikesCount": "{count} likes",
+  "@feedLikesCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "feedCommentsCount": "{count} comments",
+  "@feedCommentsCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
   "siteClosedTitle": "SDAL is currently closed",
   "siteClosedFallbackMessage": "The app is temporarily unavailable due to maintenance.",
   "moduleClosedTitle": "Module unavailable",
