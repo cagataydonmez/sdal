@@ -116,6 +116,36 @@ abstract class AppLocalizations {
   /// **'Tekrar dene'**
   String get retry;
 
+  /// No description provided for @refreshAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yenile'**
+  String get refreshAction;
+
+  /// No description provided for @backAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Geri'**
+  String get backAction;
+
+  /// No description provided for @quickMenuAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hızlı menü'**
+  String get quickMenuAction;
+
+  /// No description provided for @profileOpenAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Profili aç'**
+  String get profileOpenAction;
+
+  /// No description provided for @openMemberProfileForName.
+  ///
+  /// In tr, this message translates to:
+  /// **'{name} profilini aç'**
+  String openMemberProfileForName(Object name);
+
   /// No description provided for @siteClosedTitle.
   ///
   /// In tr, this message translates to:
@@ -374,6 +404,180 @@ abstract class AppLocalizations {
   /// **'Şifre tekrar'**
   String get passwordRepeat;
 
+  /// No description provided for @registerFieldRequired.
+  ///
+  /// In tr, this message translates to:
+  /// **'{field} alanı zorunludur.'**
+  String registerFieldRequired(Object field);
+
+  /// No description provided for @registerFieldTooLong.
+  ///
+  /// In tr, this message translates to:
+  /// **'{field} alanı en fazla {max} karakter olabilir.'**
+  String registerFieldTooLong(Object field, Object max);
+
+  /// No description provided for @registerEmailInvalid.
+  ///
+  /// In tr, this message translates to:
+  /// **'Geçerli bir e-posta adresi gir.'**
+  String get registerEmailInvalid;
+
+  /// No description provided for @registerPasswordMismatch.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şifre alanları birbiriyle aynı olmalıdır.'**
+  String get registerPasswordMismatch;
+
+  /// No description provided for @registerPasswordHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'8-20 karakter kullan. Büyük harf, küçük harf, sayı ve sembol karışımı hesabını daha iyi korur.'**
+  String get registerPasswordHint;
+
+  /// No description provided for @registerPasswordStrengthNone.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şifre gücü'**
+  String get registerPasswordStrengthNone;
+
+  /// No description provided for @registerPasswordStrengthWeak.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şifre gücü: Zayıf'**
+  String get registerPasswordStrengthWeak;
+
+  /// No description provided for @registerPasswordStrengthMedium.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şifre gücü: Orta'**
+  String get registerPasswordStrengthMedium;
+
+  /// No description provided for @registerPasswordStrengthStrong.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şifre gücü: Güçlü'**
+  String get registerPasswordStrengthStrong;
+
+  /// No description provided for @registerGraduationYearInvalid.
+  ///
+  /// In tr, this message translates to:
+  /// **'1999 ile içinde bulunduğumuz yıl arasında geçerli bir mezuniyet yılı veya Öğretmen gir.'**
+  String get registerGraduationYearInvalid;
+
+  /// No description provided for @registerKvkkConsentLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'KVKK Aydınlatma Metni\'ni okudum ve onaylıyorum.'**
+  String get registerKvkkConsentLabel;
+
+  /// No description provided for @registerKvkkConsentError.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kayıt olmadan önce KVKK Aydınlatma Metni onayı gerekiyor.'**
+  String get registerKvkkConsentError;
+
+  /// No description provided for @registerKvkkTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'KVKK Aydınlatma Metni'**
+  String get registerKvkkTitle;
+
+  /// No description provided for @registerKvkkOpenAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'KVKK metnini aç'**
+  String get registerKvkkOpenAction;
+
+  /// No description provided for @registerDirectoryConsentLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mezun Rehberi açık rıza onayını veriyorum.'**
+  String get registerDirectoryConsentLabel;
+
+  /// No description provided for @registerDirectoryConsentError.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kayıt olmadan önce Mezun Rehberi açık rıza onayı gerekiyor.'**
+  String get registerDirectoryConsentError;
+
+  /// No description provided for @registerDirectoryConsentTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mezun Rehberi Açık Rıza Metni'**
+  String get registerDirectoryConsentTitle;
+
+  /// No description provided for @registerDirectoryConsentOpenAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Açık rıza metnini aç'**
+  String get registerDirectoryConsentOpenAction;
+
+  /// No description provided for @registerCaptchaLoading.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güvenlik kodu yükleniyor...'**
+  String get registerCaptchaLoading;
+
+  /// No description provided for @registerCaptchaUnavailable.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güvenlik kodu yüklenemedi. Kodu yenileyip tekrar deneyin.'**
+  String get registerCaptchaUnavailable;
+
+  /// No description provided for @registerCaptchaRetryAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kodu yenile'**
+  String get registerCaptchaRetryAction;
+
+  /// No description provided for @registerCaptchaCodeRequired.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güvenlik kodunu gir.'**
+  String get registerCaptchaCodeRequired;
+
+  /// No description provided for @registerCaptchaDigitsOnly.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güvenlik kodu yalnızca rakamlardan oluşmalıdır.'**
+  String get registerCaptchaDigitsOnly;
+
+  /// No description provided for @registerPreviewFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kayıt bilgileri doğrulanamadı.'**
+  String get registerPreviewFailed;
+
+  /// No description provided for @registerAvailabilityCheckFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kullanılabilirlik şu anda kontrol edilemedi.'**
+  String get registerAvailabilityCheckFailed;
+
+  /// No description provided for @registerUsernameTaken.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu kullanıcı adı zaten kayıtlı.'**
+  String get registerUsernameTaken;
+
+  /// No description provided for @registerUsernameAvailable.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu kullanıcı adı uygun görünüyor.'**
+  String get registerUsernameAvailable;
+
+  /// No description provided for @registerEmailTaken.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu e-posta adresi zaten kayıtlı.'**
+  String get registerEmailTaken;
+
+  /// No description provided for @registerEmailAvailable.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu e-posta adresi uygun görünüyor.'**
+  String get registerEmailAvailable;
+
   /// No description provided for @loginInProgress.
   ///
   /// In tr, this message translates to:
@@ -517,6 +721,12 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Okunmamış bildirim: {count}'**
   String notificationsUnreadCount(Object count);
+
+  /// No description provided for @messagesUnreadCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'Okunmamış mesaj: {count}'**
+  String messagesUnreadCount(Object count);
 
   /// No description provided for @notificationsMarkAllRead.
   ///

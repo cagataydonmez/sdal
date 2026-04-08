@@ -3,6 +3,16 @@
   "appName": "SDAL Sosyal",
   "appInitFailedTitle": "Başlatılamadı",
   "retry": "Tekrar dene",
+  "refreshAction": "Yenile",
+  "backAction": "Geri",
+  "quickMenuAction": "Hızlı menü",
+  "profileOpenAction": "Profili aç",
+  "openMemberProfileForName": "{name} profilini aç",
+  "@openMemberProfileForName": {
+    "placeholders": {
+      "name": {}
+    }
+  },
   "siteClosedTitle": "SDAL şu anda kapalı",
   "siteClosedFallbackMessage": "Bakım çalışması nedeniyle uygulama geçici olarak kullanılamıyor.",
   "moduleClosedTitle": "Modül kapalı",
@@ -56,6 +66,46 @@
   "captchaCode": "Captcha kodu",
   "graduationYear": "Mezuniyet yılı / Teacher",
   "passwordRepeat": "Şifre tekrar",
+  "registerFieldRequired": "{field} alanı zorunludur.",
+  "@registerFieldRequired": {
+    "placeholders": {
+      "field": {}
+    }
+  },
+  "registerFieldTooLong": "{field} alanı en fazla {max} karakter olabilir.",
+  "@registerFieldTooLong": {
+    "placeholders": {
+      "field": {},
+      "max": {}
+    }
+  },
+  "registerEmailInvalid": "Geçerli bir e-posta adresi gir.",
+  "registerPasswordMismatch": "Şifre alanları birbiriyle aynı olmalıdır.",
+  "registerPasswordHint": "8-20 karakter kullan. Büyük harf, küçük harf, sayı ve sembol karışımı hesabını daha iyi korur.",
+  "registerPasswordStrengthNone": "Şifre gücü",
+  "registerPasswordStrengthWeak": "Şifre gücü: Zayıf",
+  "registerPasswordStrengthMedium": "Şifre gücü: Orta",
+  "registerPasswordStrengthStrong": "Şifre gücü: Güçlü",
+  "registerGraduationYearInvalid": "1999 ile içinde bulunduğumuz yıl arasında geçerli bir mezuniyet yılı veya Öğretmen gir.",
+  "registerKvkkConsentLabel": "KVKK Aydınlatma Metni'ni okudum ve onaylıyorum.",
+  "registerKvkkConsentError": "Kayıt olmadan önce KVKK Aydınlatma Metni onayı gerekiyor.",
+  "registerKvkkTitle": "KVKK Aydınlatma Metni",
+  "registerKvkkOpenAction": "KVKK metnini aç",
+  "registerDirectoryConsentLabel": "Mezun Rehberi açık rıza onayını veriyorum.",
+  "registerDirectoryConsentError": "Kayıt olmadan önce Mezun Rehberi açık rıza onayı gerekiyor.",
+  "registerDirectoryConsentTitle": "Mezun Rehberi Açık Rıza Metni",
+  "registerDirectoryConsentOpenAction": "Açık rıza metnini aç",
+  "registerCaptchaLoading": "Güvenlik kodu yükleniyor...",
+  "registerCaptchaUnavailable": "Güvenlik kodu yüklenemedi. Kodu yenileyip tekrar deneyin.",
+  "registerCaptchaRetryAction": "Kodu yenile",
+  "registerCaptchaCodeRequired": "Güvenlik kodunu gir.",
+  "registerCaptchaDigitsOnly": "Güvenlik kodu yalnızca rakamlardan oluşmalıdır.",
+  "registerPreviewFailed": "Kayıt bilgileri doğrulanamadı.",
+  "registerAvailabilityCheckFailed": "Kullanılabilirlik şu anda kontrol edilemedi.",
+  "registerUsernameTaken": "Bu kullanıcı adı zaten kayıtlı.",
+  "registerUsernameAvailable": "Bu kullanıcı adı uygun görünüyor.",
+  "registerEmailTaken": "Bu e-posta adresi zaten kayıtlı.",
+  "registerEmailAvailable": "Bu e-posta adresi uygun görünüyor.",
   "loginInProgress": "Giriş yapılıyor...",
   "loginAction": "Giriş yap",
   "continueWithGoogle": "Google ile devam et",
@@ -81,6 +131,12 @@
   "notificationsUnreadLoading": "Okunmamış sayısı yükleniyor...",
   "notificationsUnreadCount": "Okunmamış bildirim: {count}",
   "@notificationsUnreadCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "messagesUnreadCount": "Okunmamış mesaj: {count}",
+  "@messagesUnreadCount": {
     "placeholders": {
       "count": {}
     }

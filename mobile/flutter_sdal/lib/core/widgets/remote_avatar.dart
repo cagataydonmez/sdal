@@ -7,11 +7,13 @@ class RemoteAvatar extends StatelessWidget {
     required this.label,
     this.imageUrl = '',
     this.radius = 24,
+    this.excludeFromSemantics = false,
   });
 
   final String label;
   final String imageUrl;
   final double radius;
+  final bool excludeFromSemantics;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +21,7 @@ class RemoteAvatar extends StatelessWidget {
     final initials = _initialsFor(label);
     final theme = Theme.of(context);
     final tokens = theme.sdal;
-    return SizedBox.square(
+    final avatar = SizedBox.square(
       dimension: radius * 2,
       child: ClipOval(
         clipBehavior: Clip.antiAlias,
@@ -35,7 +37,6 @@ class RemoteAvatar extends StatelessWidget {
                   height: radius * 2,
                   fit: BoxFit.cover,
                   alignment: Alignment.center,
-                  semanticLabel: label,
                   filterQuality: FilterQuality.medium,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
@@ -46,6 +47,14 @@ class RemoteAvatar extends StatelessWidget {
                 ),
         ),
       ),
+    );
+    if (excludeFromSemantics) {
+      return ExcludeSemantics(child: avatar);
+    }
+    return Semantics(
+      image: true,
+      label: label,
+      child: ExcludeSemantics(child: avatar),
     );
   }
 }

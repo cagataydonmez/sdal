@@ -59,8 +59,10 @@ class _InboxPageState extends ConsumerState<InboxPage> {
           builder: (context, snapshot) {
             final state =
                 snapshot.data ?? const RealtimeConnectionState.disconnected();
-            final color = switch (state?.status) {
-              RealtimeConnectionStatus.connected => Theme.of(context).sdal.success,
+            final color = switch (state.status) {
+              RealtimeConnectionStatus.connected => Theme.of(
+                context,
+              ).sdal.success,
               RealtimeConnectionStatus.failed => Theme.of(
                 context,
               ).colorScheme.error,
@@ -84,6 +86,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
           },
         ),
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: () => ref.invalidate(
             messengerThreadsProvider(_searchController.text.trim()),
           ),
@@ -127,80 +130,82 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                   separatorBuilder: (_, index) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final thread = threads[index];
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(24),
+                    return SurfaceCard(
                       onTap: () => context.push('/messages/${thread.id}'),
-                      child: SurfaceCard(
-                        child: Row(
-                          children: [
-                            RemoteAvatar(
-                              label: thread.peer.name,
-                              imageUrl: config
-                                  .resolveUrl(thread.peer.photo)
-                                  .toString(),
-                              radius: 26,
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          thread.peer.name,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium,
+                      tooltip: l10n.openAction,
+                      semanticContainer: true,
+                      child: Row(
+                        children: [
+                          RemoteAvatar(
+                            label: thread.peer.name,
+                            imageUrl: config
+                                .resolveUrl(thread.peer.photo)
+                                .toString(),
+                            radius: 26,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        thread.peer.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                    ),
+                                    if (thread.unreadCount > 0)
+                                      Semantics(
+                                        label: l10n.messagesUnreadCount(
+                                          thread.unreadCount,
+                                        ),
+                                        child: ExcludeSemantics(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF0D2238),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              '${thread.unreadCount}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                      if (thread.unreadCount > 0)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF0D2238),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${thread.unreadCount}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  thread.lastMessage?.body ?? l10n.startNewChat,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                if ((thread.lastMessage?.createdAt ?? '')
+                                    .isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Text(
-                                    thread.lastMessage?.body ??
-                                        l10n.startNewChat,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                    thread.lastMessage!.createdAt,
                                     style: Theme.of(
                                       context,
-                                    ).textTheme.bodyMedium,
+                                    ).textTheme.bodySmall,
                                   ),
-                                  if ((thread.lastMessage?.createdAt ?? '')
-                                      .isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      thread.lastMessage!.createdAt,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                  ],
                                 ],
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     );
                   },

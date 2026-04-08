@@ -57,10 +57,12 @@ class AppTabShell extends ConsumerWidget {
             icon: _NavBadgeIcon(
               icon: Icons.chat_bubble_outline,
               count: unreadMessages,
+              unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
             ),
             selectedIcon: _NavBadgeIcon(
               icon: Icons.chat_bubble,
               count: unreadMessages,
+              unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
             ),
             label: l10n.tabInbox,
           ),
@@ -68,10 +70,16 @@ class AppTabShell extends ConsumerWidget {
             icon: _NavBadgeIcon(
               icon: Icons.notifications_outlined,
               count: unreadNotifications,
+              unreadSemanticLabel: l10n.notificationsUnreadCount(
+                unreadNotifications,
+              ),
             ),
             selectedIcon: _NavBadgeIcon(
               icon: Icons.notifications,
               count: unreadNotifications,
+              unreadSemanticLabel: l10n.notificationsUnreadCount(
+                unreadNotifications,
+              ),
             ),
             label: l10n.tabNotifications,
           ),
@@ -87,10 +95,15 @@ class AppTabShell extends ConsumerWidget {
 }
 
 class _NavBadgeIcon extends StatelessWidget {
-  const _NavBadgeIcon({required this.icon, required this.count});
+  const _NavBadgeIcon({
+    required this.icon,
+    required this.count,
+    required this.unreadSemanticLabel,
+  });
 
   final IconData icon;
   final int count;
+  final String unreadSemanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -103,21 +116,34 @@ class _NavBadgeIcon extends StatelessWidget {
           Positioned(
             right: -10,
             top: -6,
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.error,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Center(
-                child: Text(
-                  badgeLabel,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onError,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    height: 1,
+            child: Semantics(
+              container: true,
+              liveRegion: true,
+              label: unreadSemanticLabel,
+              child: ExcludeSemantics(
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Center(
+                    child: Text(
+                      badgeLabel,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onError,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
+                    ),
                   ),
                 ),
               ),

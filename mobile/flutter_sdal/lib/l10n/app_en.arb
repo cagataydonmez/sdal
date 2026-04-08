@@ -3,6 +3,16 @@
   "appName": "SDAL Sosyal",
   "appInitFailedTitle": "Could not start",
   "retry": "Retry",
+  "refreshAction": "Refresh",
+  "backAction": "Back",
+  "quickMenuAction": "Quick menu",
+  "profileOpenAction": "Open profile",
+  "openMemberProfileForName": "Open profile for {name}",
+  "@openMemberProfileForName": {
+    "placeholders": {
+      "name": {}
+    }
+  },
   "siteClosedTitle": "SDAL is currently closed",
   "siteClosedFallbackMessage": "The app is temporarily unavailable due to maintenance.",
   "moduleClosedTitle": "Module unavailable",
@@ -56,6 +66,46 @@
   "captchaCode": "Captcha code",
   "graduationYear": "Graduation year / Teacher",
   "passwordRepeat": "Repeat password",
+  "registerFieldRequired": "{field} is required.",
+  "@registerFieldRequired": {
+    "placeholders": {
+      "field": {}
+    }
+  },
+  "registerFieldTooLong": "{field} must be {max} characters or fewer.",
+  "@registerFieldTooLong": {
+    "placeholders": {
+      "field": {},
+      "max": {}
+    }
+  },
+  "registerEmailInvalid": "Enter a valid e-mail address.",
+  "registerPasswordMismatch": "The password fields must match.",
+  "registerPasswordHint": "Use 8-20 characters. A mix of uppercase, lowercase, numbers, and symbols is easier to protect.",
+  "registerPasswordStrengthNone": "Password strength",
+  "registerPasswordStrengthWeak": "Password strength: Weak",
+  "registerPasswordStrengthMedium": "Password strength: Medium",
+  "registerPasswordStrengthStrong": "Password strength: Strong",
+  "registerGraduationYearInvalid": "Enter a valid graduation year between 1999 and the current year, or Teacher.",
+  "registerKvkkConsentLabel": "I have read and approve the KVKK clarification text.",
+  "registerKvkkConsentError": "You need to approve the KVKK clarification text before registering.",
+  "registerKvkkTitle": "KVKK Clarification Text",
+  "registerKvkkOpenAction": "Open the KVKK text",
+  "registerDirectoryConsentLabel": "I approve the Graduate Guide explicit consent text.",
+  "registerDirectoryConsentError": "Graduate Guide explicit consent is required before registering.",
+  "registerDirectoryConsentTitle": "Graduate Guide Explicit Consent Text",
+  "registerDirectoryConsentOpenAction": "Open the explicit consent text",
+  "registerCaptchaLoading": "Loading security code...",
+  "registerCaptchaUnavailable": "The security code could not be loaded. Refresh it and try again.",
+  "registerCaptchaRetryAction": "Reload code",
+  "registerCaptchaCodeRequired": "Enter the security code.",
+  "registerCaptchaDigitsOnly": "The security code should contain digits only.",
+  "registerPreviewFailed": "The registration details could not be verified.",
+  "registerAvailabilityCheckFailed": "Availability could not be checked right now.",
+  "registerUsernameTaken": "This username is already registered.",
+  "registerUsernameAvailable": "This username looks available.",
+  "registerEmailTaken": "This e-mail address is already registered.",
+  "registerEmailAvailable": "This e-mail address looks available.",
   "loginInProgress": "Signing in...",
   "loginAction": "Sign in",
   "continueWithGoogle": "Continue with Google",
@@ -81,6 +131,12 @@
   "notificationsUnreadLoading": "Loading unread count...",
   "notificationsUnreadCount": "Unread notifications: {count}",
   "@notificationsUnreadCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "messagesUnreadCount": "Unread messages: {count}",
+  "@messagesUnreadCount": {
     "placeholders": {
       "count": {}
     }

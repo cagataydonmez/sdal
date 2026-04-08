@@ -44,6 +44,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       background: FeatureScaffoldBackground.neutral,
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: () {
             ref.invalidate(profileProvider);
             ref.invalidate(myStoriesProvider(selectedFeedType));

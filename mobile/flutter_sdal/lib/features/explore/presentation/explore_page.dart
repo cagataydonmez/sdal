@@ -64,6 +64,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       background: FeatureScaffoldBackground.editorial,
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: () {
             ref.invalidate(latestMembersProvider);
             ref.invalidate(suggestionMembersProvider);

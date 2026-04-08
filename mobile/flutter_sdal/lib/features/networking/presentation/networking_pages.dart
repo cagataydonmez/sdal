@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -49,6 +50,7 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
       title: 'Networking',
       actions: [
         IconButton(
+          tooltip: context.l10n.refreshAction,
           onPressed: () {
             ref.invalidate(networkHubProvider);
             ref.invalidate(networkMetricsProvider);
@@ -232,6 +234,7 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
                               ),
                             ),
                             IconButton(
+                              tooltip: context.l10n.openAction,
                               onPressed: () =>
                                   context.push('/members/${item.id}'),
                               icon: const Icon(
@@ -319,6 +322,7 @@ class NetworkingInboxPage extends ConsumerWidget {
       title: 'Networking Inbox',
       actions: [
         IconButton(
+          tooltip: context.l10n.refreshAction,
           onPressed: () {
             ref.invalidate(networkInboxProvider);
             ref.invalidate(connectionRequestsProvider);
@@ -757,6 +761,7 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
       title: 'Öğretmen bağlantıları',
       actions: [
         IconButton(
+          tooltip: context.l10n.refreshAction,
           onPressed: () => ref.invalidate(teacherLinksProvider),
           icon: const Icon(Icons.refresh),
         ),

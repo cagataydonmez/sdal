@@ -18,6 +18,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retry => 'Retry';
 
   @override
+  String get refreshAction => 'Refresh';
+
+  @override
+  String get backAction => 'Back';
+
+  @override
+  String get quickMenuAction => 'Quick menu';
+
+  @override
+  String get profileOpenAction => 'Open profile';
+
+  @override
+  String openMemberProfileForName(Object name) {
+    return 'Open profile for $name';
+  }
+
+  @override
   String get siteClosedTitle => 'SDAL is currently closed';
 
   @override
@@ -159,6 +176,109 @@ class AppLocalizationsEn extends AppLocalizations {
   String get passwordRepeat => 'Repeat password';
 
   @override
+  String registerFieldRequired(Object field) {
+    return '$field is required.';
+  }
+
+  @override
+  String registerFieldTooLong(Object field, Object max) {
+    return '$field must be $max characters or fewer.';
+  }
+
+  @override
+  String get registerEmailInvalid => 'Enter a valid e-mail address.';
+
+  @override
+  String get registerPasswordMismatch => 'The password fields must match.';
+
+  @override
+  String get registerPasswordHint =>
+      'Use 8-20 characters. A mix of uppercase, lowercase, numbers, and symbols is easier to protect.';
+
+  @override
+  String get registerPasswordStrengthNone => 'Password strength';
+
+  @override
+  String get registerPasswordStrengthWeak => 'Password strength: Weak';
+
+  @override
+  String get registerPasswordStrengthMedium => 'Password strength: Medium';
+
+  @override
+  String get registerPasswordStrengthStrong => 'Password strength: Strong';
+
+  @override
+  String get registerGraduationYearInvalid =>
+      'Enter a valid graduation year between 1999 and the current year, or Teacher.';
+
+  @override
+  String get registerKvkkConsentLabel =>
+      'I have read and approve the KVKK clarification text.';
+
+  @override
+  String get registerKvkkConsentError =>
+      'You need to approve the KVKK clarification text before registering.';
+
+  @override
+  String get registerKvkkTitle => 'KVKK Clarification Text';
+
+  @override
+  String get registerKvkkOpenAction => 'Open the KVKK text';
+
+  @override
+  String get registerDirectoryConsentLabel =>
+      'I approve the Graduate Guide explicit consent text.';
+
+  @override
+  String get registerDirectoryConsentError =>
+      'Graduate Guide explicit consent is required before registering.';
+
+  @override
+  String get registerDirectoryConsentTitle =>
+      'Graduate Guide Explicit Consent Text';
+
+  @override
+  String get registerDirectoryConsentOpenAction =>
+      'Open the explicit consent text';
+
+  @override
+  String get registerCaptchaLoading => 'Loading security code...';
+
+  @override
+  String get registerCaptchaUnavailable =>
+      'The security code could not be loaded. Refresh it and try again.';
+
+  @override
+  String get registerCaptchaRetryAction => 'Reload code';
+
+  @override
+  String get registerCaptchaCodeRequired => 'Enter the security code.';
+
+  @override
+  String get registerCaptchaDigitsOnly =>
+      'The security code should contain digits only.';
+
+  @override
+  String get registerPreviewFailed =>
+      'The registration details could not be verified.';
+
+  @override
+  String get registerAvailabilityCheckFailed =>
+      'Availability could not be checked right now.';
+
+  @override
+  String get registerUsernameTaken => 'This username is already registered.';
+
+  @override
+  String get registerUsernameAvailable => 'This username looks available.';
+
+  @override
+  String get registerEmailTaken => 'This e-mail address is already registered.';
+
+  @override
+  String get registerEmailAvailable => 'This e-mail address looks available.';
+
+  @override
   String get loginInProgress => 'Signing in...';
 
   @override
@@ -230,6 +350,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String notificationsUnreadCount(Object count) {
     return 'Unread notifications: $count';
+  }
+
+  @override
+  String messagesUnreadCount(Object count) {
+    return 'Unread messages: $count';
   }
 
   @override

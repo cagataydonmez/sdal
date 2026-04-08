@@ -8,6 +8,7 @@ import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../application/auth_action_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -131,6 +132,7 @@ class _AuthTextField extends StatelessWidget {
     this.textInputAction,
     this.keyboardType,
     this.autofillHints,
+    this.validator,
   });
 
   final TextEditingController controller;
@@ -141,16 +143,18 @@ class _AuthTextField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final TextInputType? keyboardType;
   final Iterable<String>? autofillHints;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       obscureText: obscureText,
-      onSubmitted: onSubmitted,
+      onFieldSubmitted: onSubmitted,
       textInputAction: textInputAction,
       keyboardType: keyboardType,
       autofillHints: autofillHints,
+      validator: validator,
       autocorrect: false,
       enableSuggestions: false,
       textCapitalization: TextCapitalization.none,
@@ -169,6 +173,11 @@ class RegisterPage extends ConsumerStatefulWidget {
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _identitySectionKey = GlobalKey();
+  final _passwordSectionKey = GlobalKey();
+  final _consentSectionKey = GlobalKey();
+  final _captchaSectionKey = GlobalKey();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _repeatPasswordController = TextEditingController();
@@ -178,6 +187,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _yearController = TextEditingController(text: '2011');
   final _captchaController = TextEditingController();
   String? _captchaSvg;
+  bool _captchaLoading = false;
+  String? _captchaLoadError;
   Timer? _availabilityDebounce;
   int _availabilityRequestId = 0;
   bool _checkingAvailability = false;
@@ -210,19 +221,37 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _loadCaptcha() async {
+    if (mounted) {
+      setState(() {
+        _captchaLoading = true;
+        _captchaLoadError = null;
+        _captchaSvg = null;
+      });
+    }
     final result = await ref
         .read(apiClientProvider)
         .get<String>('/api/captcha');
     if (!mounted) return;
     setState(() {
+      _captchaLoading = false;
       _captchaSvg = result.rawData is String ? result.rawData as String : null;
+      if (_captchaSvg == null || _captchaSvg!.trim().isEmpty) {
+        _captchaSvg = null;
+        _captchaLoadError = result.message.isNotEmpty ? result.message : '';
+      }
     });
   }
 
   Future<void> _submit() async {
+    final l10n = context.l10n;
     setState(() {
       _previewError = null;
     });
+
+    if (!_validateBeforeSubmit(l10n)) {
+      await _scrollToFirstClientError();
+      return;
+    }
 
     final preview = await ref
         .read(apiClientProvider)
@@ -248,9 +277,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       setState(() {
         _previewError = preview.message.isNotEmpty
             ? preview.message
-            : 'Kayıt bilgileri doğrulanamadı.';
+            : l10n.registerPreviewFailed;
       });
       await _loadCaptcha();
+      await _scrollToServerError(_previewError);
       return;
     }
 
@@ -268,7 +298,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           kvkkConsent: _kvkkConsent,
           directoryConsent: _directoryConsent,
         );
+    if (!mounted) return;
     await _loadCaptcha();
+    final actionState = ref.read(authActionControllerProvider);
+    if (actionState.isError) {
+      await _scrollToServerError(actionState.message);
+    }
   }
 
   void _scheduleAvailabilityCheck() {
@@ -321,7 +356,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         _availabilityMessage = null;
         _availabilityError = result.message.isNotEmpty
             ? result.message
-            : 'Kullanılabilirlik kontrolü yapılamadı.';
+            : context.l10n.registerAvailabilityCheckFailed;
       });
       return;
     }
@@ -333,15 +368,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (username.isNotEmpty) {
       parts.add(
         usernameExists
-            ? 'Bu kullanıcı adı zaten kayıtlı.'
-            : 'Kullanıcı adı uygun görünüyor.',
+            ? context.l10n.registerUsernameTaken
+            : context.l10n.registerUsernameAvailable,
       );
     }
     if (email.isNotEmpty) {
       parts.add(
         emailExists
-            ? 'Bu e-posta adresi zaten kayıtlı.'
-            : 'E-posta adresi uygun görünüyor.',
+            ? context.l10n.registerEmailTaken
+            : context.l10n.registerEmailAvailable,
       );
     }
     setState(() {
@@ -363,150 +398,515 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final status = actionState.scope == 'register' ? actionState.message : null;
     final statusText = _previewError ?? status;
     final isSuccessState = _previewError == null && actionState.isSuccess;
+    final passwordStrength = _passwordStrength(_passwordController.text);
 
     return _AuthFrame(
       title: l10n.registerTitle,
       subtitle: l10n.registerSubtitle,
+      child: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KeyedSubtree(
+              key: _identitySectionKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _twoColumn(
+                    _AuthTextField(
+                      controller: _firstNameController,
+                      labelText: l10n.firstName,
+                      validator: (value) => _requiredValidator(
+                        value,
+                        l10n.firstName,
+                        maxLength: 20,
+                      ),
+                    ),
+                    _AuthTextField(
+                      controller: _lastNameController,
+                      labelText: l10n.lastName,
+                      validator: (value) => _requiredValidator(
+                        value,
+                        l10n.lastName,
+                        maxLength: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _AuthTextField(
+                    controller: _usernameController,
+                    labelText: l10n.username,
+                    validator: (value) =>
+                        _requiredValidator(value, l10n.username, maxLength: 15),
+                  ),
+                  const SizedBox(height: 12),
+                  _AuthTextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    labelText: l10n.email,
+                    validator: _emailValidator,
+                  ),
+                  if (_checkingAvailability) ...[
+                    const SizedBox(height: 8),
+                    const LinearProgressIndicator(minHeight: 2),
+                  ],
+                  if (_availabilityMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _availabilityMessage!,
+                      style: TextStyle(color: Theme.of(context).sdal.success),
+                    ),
+                  ],
+                  if (_availabilityError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _availabilityError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            KeyedSubtree(
+              key: _passwordSectionKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _twoColumn(
+                    _AuthTextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      keyboardType: TextInputType.visiblePassword,
+                      labelText: l10n.password,
+                      validator: _passwordValidator,
+                    ),
+                    _AuthTextField(
+                      controller: _repeatPasswordController,
+                      obscureText: true,
+                      keyboardType: TextInputType.visiblePassword,
+                      labelText: l10n.passwordRepeat,
+                      validator: _repeatPasswordValidator,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _PasswordStrengthCard(strength: passwordStrength),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _AuthTextField(
+              controller: _yearController,
+              keyboardType: TextInputType.text,
+              labelText: l10n.graduationYear,
+              validator: _graduationYearValidator,
+            ),
+            const SizedBox(height: 8),
+            KeyedSubtree(
+              key: _consentSectionKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  CheckboxListTile(
+                    value: _kvkkConsent,
+                    onChanged: submitting
+                        ? null
+                        : (value) =>
+                              setState(() => _kvkkConsent = value ?? false),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(l10n.registerKvkkConsentLabel),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () => context.push(
+                        '/legal',
+                        extra: {
+                          'title': l10n.registerKvkkTitle,
+                          'path': '/kvkk',
+                        },
+                      ),
+                      child: Text(l10n.registerKvkkOpenAction),
+                    ),
+                  ),
+                  CheckboxListTile(
+                    value: _directoryConsent,
+                    onChanged: submitting
+                        ? null
+                        : (value) => setState(
+                            () => _directoryConsent = value ?? false,
+                          ),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(l10n.registerDirectoryConsentLabel),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () => context.push(
+                        '/legal',
+                        extra: {
+                          'title': l10n.registerDirectoryConsentTitle,
+                          'path': '/kvkk/acik-riza',
+                        },
+                      ),
+                      child: Text(l10n.registerDirectoryConsentOpenAction),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            KeyedSubtree(
+              key: _captchaSectionKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_captchaLoading)
+                    SurfaceCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(strokeWidth: 2.4),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            l10n.registerCaptchaLoading,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_captchaSvg != null)
+                    SurfaceCard(
+                      padding: const EdgeInsets.all(12),
+                      child: SvgPicture.string(_captchaSvg!, height: 56),
+                    )
+                  else
+                    SurfaceCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.shield_outlined,
+                            color: Theme.of(context).sdal.foregroundMuted,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            (_captchaLoadError?.isNotEmpty ?? false)
+                                ? _captchaLoadError!
+                                : l10n.registerCaptchaUnavailable,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: submitting ? null : _loadCaptcha,
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: Text(l10n.registerCaptchaRetryAction),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  _AuthTextField(
+                    controller: _captchaController,
+                    keyboardType: TextInputType.number,
+                    labelText: l10n.captchaCode,
+                    validator: _captchaValidator,
+                  ),
+                ],
+              ),
+            ),
+            if (statusText != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                statusText,
+                style: TextStyle(
+                  color: isSuccessState
+                      ? Theme.of(context).sdal.success
+                      : Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed: submitting ? null : _submit,
+              child: Text(
+                submitting ? l10n.submitInProgress : l10n.registerSubmitAction,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _validateBeforeSubmit(AppLocalizations l10n) {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return false;
+    }
+    if (!_kvkkConsent) {
+      setState(() {
+        _previewError = l10n.registerKvkkConsentError;
+      });
+      return false;
+    }
+    if (!_directoryConsent) {
+      setState(() {
+        _previewError = l10n.registerDirectoryConsentError;
+      });
+      return false;
+    }
+    if (_captchaLoading) {
+      setState(() {
+        _previewError = l10n.registerCaptchaLoading;
+      });
+      return false;
+    }
+    if (_captchaSvg == null) {
+      setState(() {
+        _previewError = l10n.registerCaptchaUnavailable;
+      });
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _scrollToFirstClientError() async {
+    if (!_isIdentitySectionValid()) {
+      await _scrollToKey(_identitySectionKey);
+      return;
+    }
+    if (!_isPasswordSectionValid()) {
+      await _scrollToKey(_passwordSectionKey);
+      return;
+    }
+    if (!_isConsentSectionValid()) {
+      await _scrollToKey(_consentSectionKey);
+      return;
+    }
+    await _scrollToKey(_captchaSectionKey);
+  }
+
+  Future<void> _scrollToServerError(String? message) async {
+    final lower = (message ?? '').toLowerCase();
+    if (lower.contains('captcha') || lower.contains('güvenlik')) {
+      await _scrollToKey(_captchaSectionKey);
+      return;
+    }
+    if (lower.contains('şifre') || lower.contains('password')) {
+      await _scrollToKey(_passwordSectionKey);
+      return;
+    }
+    if (lower.contains('kvkk') ||
+        lower.contains('rıza') ||
+        lower.contains('rehberi')) {
+      await _scrollToKey(_consentSectionKey);
+      return;
+    }
+    await _scrollToKey(_identitySectionKey);
+  }
+
+  Future<void> _scrollToKey(GlobalKey key) async {
+    final targetContext = key.currentContext;
+    if (targetContext == null) return;
+    await Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      alignment: 0.12,
+    );
+  }
+
+  bool _isIdentitySectionValid() {
+    return _requiredValidator(
+              _firstNameController.text,
+              context.l10n.firstName,
+              maxLength: 20,
+            ) ==
+            null &&
+        _requiredValidator(
+              _lastNameController.text,
+              context.l10n.lastName,
+              maxLength: 20,
+            ) ==
+            null &&
+        _requiredValidator(
+              _usernameController.text,
+              context.l10n.username,
+              maxLength: 15,
+            ) ==
+            null &&
+        _emailValidator(_emailController.text) == null &&
+        _graduationYearValidator(_yearController.text) == null;
+  }
+
+  bool _isPasswordSectionValid() {
+    return _passwordValidator(_passwordController.text) == null &&
+        _repeatPasswordValidator(_repeatPasswordController.text) == null;
+  }
+
+  bool _isConsentSectionValid() => _kvkkConsent && _directoryConsent;
+
+  String? _requiredValidator(String? value, String label, {int? maxLength}) {
+    final trimmed = (value ?? '').trim();
+    if (trimmed.isEmpty) {
+      return context.l10n.registerFieldRequired(label);
+    }
+    if (maxLength != null && trimmed.length > maxLength) {
+      return context.l10n.registerFieldTooLong(label, maxLength);
+    }
+    return null;
+  }
+
+  String? _emailValidator(String? value) {
+    final trimmed = (value ?? '').trim();
+    if (trimmed.isEmpty) {
+      return context.l10n.registerFieldRequired(context.l10n.email);
+    }
+    final looksValid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(trimmed);
+    if (!looksValid) {
+      return context.l10n.registerEmailInvalid;
+    }
+    if (trimmed.length > 50) {
+      return context.l10n.registerFieldTooLong(context.l10n.email, 50);
+    }
+    return null;
+  }
+
+  String? _passwordValidator(String? value) {
+    final raw = value ?? '';
+    if (raw.isEmpty) {
+      return context.l10n.registerFieldRequired(context.l10n.password);
+    }
+    if (raw.length > 20) {
+      return context.l10n.registerFieldTooLong(context.l10n.password, 20);
+    }
+    return null;
+  }
+
+  String? _repeatPasswordValidator(String? value) {
+    final raw = value ?? '';
+    if (raw.isEmpty) {
+      return context.l10n.registerFieldRequired(context.l10n.passwordRepeat);
+    }
+    if (raw != _passwordController.text) {
+      return context.l10n.registerPasswordMismatch;
+    }
+    return null;
+  }
+
+  String? _graduationYearValidator(String? value) {
+    final trimmed = (value ?? '').trim();
+    if (trimmed.isEmpty) {
+      return context.l10n.registerGraduationYearInvalid;
+    }
+    final normalized = trimmed.toLowerCase();
+    if (normalized == 'teacher' ||
+        normalized == 'öğretmen' ||
+        normalized == 'ogretmen') {
+      return null;
+    }
+    final year = int.tryParse(trimmed);
+    final currentYear = DateTime.now().year;
+    if (year == null || year < 1999 || year > currentYear) {
+      return context.l10n.registerGraduationYearInvalid;
+    }
+    return null;
+  }
+
+  String? _captchaValidator(String? value) {
+    final trimmed = (value ?? '').trim();
+    if (trimmed.isEmpty) {
+      return context.l10n.registerCaptchaCodeRequired;
+    }
+    if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
+      return context.l10n.registerCaptchaDigitsOnly;
+    }
+    return null;
+  }
+}
+
+enum _RegisterPasswordStrength { none, weak, medium, strong }
+
+_RegisterPasswordStrength _passwordStrength(String value) {
+  if (value.isEmpty) return _RegisterPasswordStrength.none;
+  var score = 0;
+  if (value.length >= 8) score++;
+  if (RegExp(r'[A-Z]').hasMatch(value) && RegExp(r'[a-z]').hasMatch(value)) {
+    score++;
+  }
+  if (RegExp(r'\d').hasMatch(value)) score++;
+  if (RegExp(r'[^A-Za-z0-9]').hasMatch(value)) score++;
+  if (value.length >= 12) score++;
+  if (score <= 1) return _RegisterPasswordStrength.weak;
+  if (score <= 3) return _RegisterPasswordStrength.medium;
+  return _RegisterPasswordStrength.strong;
+}
+
+class _PasswordStrengthCard extends StatelessWidget {
+  const _PasswordStrengthCard({required this.strength});
+
+  final _RegisterPasswordStrength strength;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
+    final (label, color, value) = switch (strength) {
+      _RegisterPasswordStrength.none => (
+        l10n.registerPasswordStrengthNone,
+        tokens.foregroundMuted,
+        0.0,
+      ),
+      _RegisterPasswordStrength.weak => (
+        l10n.registerPasswordStrengthWeak,
+        tokens.danger,
+        0.34,
+      ),
+      _RegisterPasswordStrength.medium => (
+        l10n.registerPasswordStrengthMedium,
+        tokens.warning,
+        0.67,
+      ),
+      _RegisterPasswordStrength.strong => (
+        l10n.registerPasswordStrengthStrong,
+        tokens.success,
+        1.0,
+      ),
+    };
+
+    return SurfaceCard(
+      padding: const EdgeInsets.all(14),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _twoColumn(
-            _AuthTextField(
-              controller: _firstNameController,
-              labelText: l10n.firstName,
-            ),
-            _AuthTextField(
-              controller: _lastNameController,
-              labelText: l10n.lastName,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _AuthTextField(
-            controller: _usernameController,
-            labelText: l10n.username,
-          ),
-          const SizedBox(height: 12),
-          _AuthTextField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            labelText: l10n.email,
-          ),
-          if (_checkingAvailability) ...[
-            const SizedBox(height: 8),
-            const LinearProgressIndicator(minHeight: 2),
-          ],
-          if (_availabilityMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _availabilityMessage!,
-              style: TextStyle(color: Theme.of(context).sdal.success),
-            ),
-          ],
-          if (_availabilityError != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _availabilityError!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-          const SizedBox(height: 12),
-          _twoColumn(
-            _AuthTextField(
-              controller: _passwordController,
-              obscureText: true,
-              keyboardType: TextInputType.visiblePassword,
-              labelText: l10n.password,
-            ),
-            _AuthTextField(
-              controller: _repeatPasswordController,
-              obscureText: true,
-              keyboardType: TextInputType.visiblePassword,
-              labelText: l10n.passwordRepeat,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _AuthTextField(
-            controller: _yearController,
-            keyboardType: TextInputType.number,
-            labelText: l10n.graduationYear,
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: color),
           ),
           const SizedBox(height: 8),
-          CheckboxListTile(
-            value: _kvkkConsent,
-            onChanged: submitting
-                ? null
-                : (value) => setState(() => _kvkkConsent = value ?? false),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: const Text(
-              'KVKK Aydınlatma Metni\'ni okudum ve onaylıyorum.',
-            ),
+          LinearProgressIndicator(
+            value: value,
+            minHeight: 6,
+            backgroundColor: tokens.panelMuted,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => context.push(
-                '/legal',
-                extra: const {
-                  'title': 'KVKK Aydınlatma Metni',
-                  'path': '/kvkk',
-                },
-              ),
-              child: const Text('KVKK metnini aç'),
-            ),
-          ),
-          CheckboxListTile(
-            value: _directoryConsent,
-            onChanged: submitting
-                ? null
-                : (value) => setState(() => _directoryConsent = value ?? false),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('Mezun Rehberi açık rıza onayını veriyorum.'),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => context.push(
-                '/legal',
-                extra: const {
-                  'title': 'Mezun Rehberi Açık Rıza Metni',
-                  'path': '/kvkk/acik-riza',
-                },
-              ),
-              child: const Text('Açık rıza metnini aç'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_captchaSvg != null) ...[
-            SurfaceCard(
-              padding: const EdgeInsets.all(12),
-              child: SvgPicture.string(_captchaSvg!, height: 56),
-            ),
-            const SizedBox(height: 12),
-          ],
-          _AuthTextField(
-            controller: _captchaController,
-            keyboardType: TextInputType.number,
-            labelText: l10n.captchaCode,
-          ),
-          if (statusText != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              statusText,
-              style: TextStyle(
-                color: isSuccessState
-                    ? Theme.of(context).sdal.success
-                    : Theme.of(context).colorScheme.error,
-              ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          FilledButton(
-            onPressed: submitting ? null : _submit,
-            child: Text(
-              submitting ? l10n.submitInProgress : l10n.registerSubmitAction,
-            ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.registerPasswordHint,
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),

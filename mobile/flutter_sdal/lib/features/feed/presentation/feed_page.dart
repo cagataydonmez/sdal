@@ -68,6 +68,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       background: FeatureScaffoldBackground.editorial,
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: () {
             ref.invalidate(feedItemsProvider);
             ref.invalidate(feedPageProvider);
@@ -181,6 +182,8 @@ class _FeedPageState extends ConsumerState<FeedPage> {
             );
           }
           final item = _items[index - 3];
+          final canOpenAuthorProfile =
+              item.authorId != null && item.authorId! > 0;
           return InkWell(
             borderRadius: BorderRadius.circular(24),
             onTap: () => context.push('/posts/${item.id}'),
@@ -192,15 +195,28 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                     children: [
                       InkWell(
                         customBorder: const CircleBorder(),
-                        onTap: item.authorId == null || item.authorId! <= 0
-                            ? null
-                            : () => context.push('/members/${item.authorId}'),
-                        child: RemoteAvatar(
-                          label: item.authorName,
-                          imageUrl: config
-                              .resolveUrl(item.authorPhoto)
-                              .toString(),
-                          radius: 24,
+                        onTap: canOpenAuthorProfile
+                            ? () => context.push('/members/${item.authorId}')
+                            : null,
+                        child: Tooltip(
+                          message: l10n.openMemberProfileForName(
+                            item.authorName,
+                          ),
+                          child: Semantics(
+                            button: canOpenAuthorProfile,
+                            enabled: canOpenAuthorProfile,
+                            label: l10n.openMemberProfileForName(
+                              item.authorName,
+                            ),
+                            child: RemoteAvatar(
+                              label: item.authorName,
+                              imageUrl: config
+                                  .resolveUrl(item.authorPhoto)
+                                  .toString(),
+                              radius: 24,
+                              excludeFromSemantics: true,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -423,6 +439,7 @@ class _OnlineMembersCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return state.when(
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
@@ -450,46 +467,63 @@ class _OnlineMembersCard extends StatelessWidget {
                       onTap: member.id <= 0
                           ? null
                           : () => context.push('/members/${member.id}'),
-                      child: SizedBox(
-                        width: 72,
-                        child: Column(
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                RemoteAvatar(
-                                  label: member.name,
-                                  imageUrl: imageUrlFor(member.photo),
-                                  radius: 24,
-                                ),
-                                Positioned(
-                                  right: 1,
-                                  bottom: 1,
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).sdal.success,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Theme.of(context).sdal.panel,
-                                        width: 2,
+                      child: Tooltip(
+                        message: l10n.openMemberProfileForName(member.name),
+                        child: Semantics(
+                          button: member.id > 0,
+                          enabled: member.id > 0,
+                          label: l10n.openMemberProfileForName(member.name),
+                          child: ExcludeSemantics(
+                            child: SizedBox(
+                              width: 72,
+                              child: Column(
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      RemoteAvatar(
+                                        label: member.name,
+                                        imageUrl: imageUrlFor(member.photo),
+                                        radius: 24,
+                                        excludeFromSemantics: true,
                                       ),
-                                    ),
+                                      Positioned(
+                                        right: 1,
+                                        bottom: 1,
+                                        child: Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).sdal.success,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Theme.of(
+                                                context,
+                                              ).sdal.panel,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    member.handle.isNotEmpty
+                                        ? '@${member.handle}'
+                                        : member.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              member.handle.isNotEmpty
-                                  ? '@${member.handle}'
-                                  : member.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     );
@@ -702,9 +736,9 @@ class _FeedEmptyState extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'İlk paylaşımı yapan sen ol — topluluk seni duyuyor.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: tokens.foregroundMuted,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: tokens.foregroundMuted),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -729,9 +763,7 @@ class _FeedControlsCard extends ConsumerWidget {
     final tokens = Theme.of(context).sdal;
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: tokens.panelBorder),
-        ),
+        border: Border(bottom: BorderSide(color: tokens.panelBorder)),
       ),
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
       child: Column(
@@ -772,8 +804,8 @@ class _FeedControlsCard extends ConsumerWidget {
                     label: _feedFilterLabel(context, filter),
                     selected: query.filter == filter,
                     onTap: () {
-                      ref.read(feedQueryProvider.notifier).state =
-                          query.copyWith(filter: filter);
+                      ref.read(feedQueryProvider.notifier).state = query
+                          .copyWith(filter: filter);
                     },
                   ),
                   if (filter != FeedFilter.values.last)

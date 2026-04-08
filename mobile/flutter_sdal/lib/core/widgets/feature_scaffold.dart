@@ -29,6 +29,7 @@ class FeatureScaffold extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = Theme.of(context).sdal;
+    final l10n = context.l10n;
     final session = ref.watch(sessionControllerProvider).valueOrNull;
     final shellMenu = ref.watch(shellMenuProvider).valueOrNull;
     final shellSidebar = ref.watch(shellSidebarProvider).valueOrNull;
@@ -54,23 +55,28 @@ class FeatureScaffold extends ConsumerWidget {
         centerTitle: true,
         title: canPop
             ? Text(title)
-            : GestureDetector(
-                onTap: () => context.go('/feed'),
-                child: Container(
-                  decoration: BoxDecoration(
+            : Tooltip(
+                message: l10n.tabFeed,
+                child: Semantics(
+                  button: true,
+                  label: l10n.tabFeed,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: tokens.panelBorder,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10.5),
-                    child: Image.asset(
-                      'icon.png',
-                      height: 32,
-                      width: 32,
-                      semanticLabel: 'SDAL',
+                    onTap: () => context.go('/feed'),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: tokens.panelBorder,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10.5),
+                        child: ExcludeSemantics(
+                          child: Image.asset('icon.png', height: 32, width: 32),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -116,6 +122,7 @@ class _ProfileLeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = session.user;
+    final l10n = context.l10n;
     if (user == null) {
       return canPop ? const BackButton() : const SizedBox.shrink();
     }
@@ -123,21 +130,36 @@ class _ProfileLeading extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(width: 8),
-        InkWell(
-          borderRadius: BorderRadius.circular(999),
-          onTap: () => context.go('/profile'),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: RemoteAvatar(
-              label: user.displayName,
-              imageUrl: session.config.resolveUrl(user.photo).toString(),
-              radius: 16,
+        Semantics(
+          button: true,
+          label: l10n.profileOpenAction,
+          child: Tooltip(
+            message: l10n.profileOpenAction,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => context.go('/profile'),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Center(
+                    child: RemoteAvatar(
+                      label: user.displayName,
+                      imageUrl: session.config
+                          .resolveUrl(user.photo)
+                          .toString(),
+                      radius: 16,
+                      excludeFromSemantics: true,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
         if (canPop)
           IconButton(
-            tooltip: 'Geri',
+            tooltip: l10n.backAction,
             onPressed: () => Navigator.of(context).maybePop(),
             icon: const Icon(Icons.chevron_left_rounded),
           ),
@@ -161,8 +183,9 @@ class _AppMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return IconButton(
-      tooltip: 'Hızlı menü',
+      tooltip: l10n.quickMenuAction,
       onPressed: () {
         showModalBottomSheet<void>(
           context: context,

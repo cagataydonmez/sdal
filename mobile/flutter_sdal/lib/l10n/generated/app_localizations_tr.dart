@@ -18,6 +18,23 @@ class AppLocalizationsTr extends AppLocalizations {
   String get retry => 'Tekrar dene';
 
   @override
+  String get refreshAction => 'Yenile';
+
+  @override
+  String get backAction => 'Geri';
+
+  @override
+  String get quickMenuAction => 'Hızlı menü';
+
+  @override
+  String get profileOpenAction => 'Profili aç';
+
+  @override
+  String openMemberProfileForName(Object name) {
+    return '$name profilini aç';
+  }
+
+  @override
   String get siteClosedTitle => 'SDAL şu anda kapalı';
 
   @override
@@ -158,6 +175,107 @@ class AppLocalizationsTr extends AppLocalizations {
   String get passwordRepeat => 'Şifre tekrar';
 
   @override
+  String registerFieldRequired(Object field) {
+    return '$field alanı zorunludur.';
+  }
+
+  @override
+  String registerFieldTooLong(Object field, Object max) {
+    return '$field alanı en fazla $max karakter olabilir.';
+  }
+
+  @override
+  String get registerEmailInvalid => 'Geçerli bir e-posta adresi gir.';
+
+  @override
+  String get registerPasswordMismatch =>
+      'Şifre alanları birbiriyle aynı olmalıdır.';
+
+  @override
+  String get registerPasswordHint =>
+      '8-20 karakter kullan. Büyük harf, küçük harf, sayı ve sembol karışımı hesabını daha iyi korur.';
+
+  @override
+  String get registerPasswordStrengthNone => 'Şifre gücü';
+
+  @override
+  String get registerPasswordStrengthWeak => 'Şifre gücü: Zayıf';
+
+  @override
+  String get registerPasswordStrengthMedium => 'Şifre gücü: Orta';
+
+  @override
+  String get registerPasswordStrengthStrong => 'Şifre gücü: Güçlü';
+
+  @override
+  String get registerGraduationYearInvalid =>
+      '1999 ile içinde bulunduğumuz yıl arasında geçerli bir mezuniyet yılı veya Öğretmen gir.';
+
+  @override
+  String get registerKvkkConsentLabel =>
+      'KVKK Aydınlatma Metni\'ni okudum ve onaylıyorum.';
+
+  @override
+  String get registerKvkkConsentError =>
+      'Kayıt olmadan önce KVKK Aydınlatma Metni onayı gerekiyor.';
+
+  @override
+  String get registerKvkkTitle => 'KVKK Aydınlatma Metni';
+
+  @override
+  String get registerKvkkOpenAction => 'KVKK metnini aç';
+
+  @override
+  String get registerDirectoryConsentLabel =>
+      'Mezun Rehberi açık rıza onayını veriyorum.';
+
+  @override
+  String get registerDirectoryConsentError =>
+      'Kayıt olmadan önce Mezun Rehberi açık rıza onayı gerekiyor.';
+
+  @override
+  String get registerDirectoryConsentTitle => 'Mezun Rehberi Açık Rıza Metni';
+
+  @override
+  String get registerDirectoryConsentOpenAction => 'Açık rıza metnini aç';
+
+  @override
+  String get registerCaptchaLoading => 'Güvenlik kodu yükleniyor...';
+
+  @override
+  String get registerCaptchaUnavailable =>
+      'Güvenlik kodu yüklenemedi. Kodu yenileyip tekrar deneyin.';
+
+  @override
+  String get registerCaptchaRetryAction => 'Kodu yenile';
+
+  @override
+  String get registerCaptchaCodeRequired => 'Güvenlik kodunu gir.';
+
+  @override
+  String get registerCaptchaDigitsOnly =>
+      'Güvenlik kodu yalnızca rakamlardan oluşmalıdır.';
+
+  @override
+  String get registerPreviewFailed => 'Kayıt bilgileri doğrulanamadı.';
+
+  @override
+  String get registerAvailabilityCheckFailed =>
+      'Kullanılabilirlik şu anda kontrol edilemedi.';
+
+  @override
+  String get registerUsernameTaken => 'Bu kullanıcı adı zaten kayıtlı.';
+
+  @override
+  String get registerUsernameAvailable => 'Bu kullanıcı adı uygun görünüyor.';
+
+  @override
+  String get registerEmailTaken => 'Bu e-posta adresi zaten kayıtlı.';
+
+  @override
+  String get registerEmailAvailable => 'Bu e-posta adresi uygun görünüyor.';
+
+  @override
   String get loginInProgress => 'Giriş yapılıyor...';
 
   @override
@@ -229,6 +347,11 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String notificationsUnreadCount(Object count) {
     return 'Okunmamış bildirim: $count';
+  }
+
+  @override
+  String messagesUnreadCount(Object count) {
+    return 'Okunmamış mesaj: $count';
   }
 
   @override

@@ -127,11 +127,25 @@ Each implementation batch should explicitly call out which of the above skills i
 
 ## Canonical Backlog
 
+Status legend used below:
+
+- `Completed` means code landed and received narrow validation.
+- `In progress` means some implementation has landed, but the track is not fully closed against the audit.
+- `Not started` means not yet verified as implemented in this audit rollout.
+
 The audit collapses into 20 implementation tracks plus 4 config/release tasks.
 
 ### A. Critical Tracks
 
 #### A1. Replace profile-edit modal with dedicated edit flow
+
+Status: `Completed`
+
+Used skills in implementation:
+
+- `harden`
+- `adapt`
+- `arrange`
 
 Audit coverage:
 
@@ -168,6 +182,17 @@ Definition of done:
 - keyboard does not trap actions on small phones
 
 #### A2. Full accessibility semantics pass on audited surfaces
+
+Status: `In progress`
+
+Current progress in implementation:
+
+- shell navigation badges now expose unread counts to screen readers
+- `FeatureScaffold` profile affordances and app logo now announce as buttons with tooltips
+- `SurfaceCard` now supports optional interactive semantics and focus/ripple handling for card-like rows
+- refresh icon buttons on the audited top-level feed/profile/explore/notifications/networking/messenger screens now expose localized tooltips
+- interactive member avatar/profile affordances in feed surfaces now announce correctly
+- messenger inbox rows now expose unread-count semantics through the card surface pattern
 
 Audit coverage:
 
@@ -208,6 +233,12 @@ Definition of done:
 
 #### A3. Stop rebuilding full themes on app rebuilds
 
+Status: `Completed`
+
+Used skills in implementation:
+
+- `optimize`
+
 Audit coverage:
 
 - `C3 — Theme Build Called on Every Frame`
@@ -233,6 +264,8 @@ Definition of done:
 ### B. Token / Theming Tracks
 
 #### B1. Replace all audited hardcoded colors with token references
+
+Status: `Not started`
 
 Audit coverage:
 
@@ -267,6 +300,8 @@ Definition of done:
 
 #### B2. Redesign splash screen to match brand tokens
 
+Status: `Not started`
+
 Audit coverage:
 
 - `H3 — Splash Screen Design Mismatch`
@@ -289,6 +324,8 @@ Definition of done:
 - visual language matches auth/feed shell palette
 
 #### B3. Define and enforce a border-radius scale
+
+Status: `Not started`
 
 Audit coverage:
 
@@ -323,6 +360,8 @@ Definition of done:
 
 #### C1. Route all audited hardcoded strings through l10n
 
+Status: `In progress`
+
 Audit coverage:
 
 - `H2 — Hardcoded Strings Bypass l10n System`
@@ -354,6 +393,8 @@ Definition of done:
 - TR and EN locale both show translated values correctly
 
 #### C2. Improve error and empty-state copy clarity
+
+Status: `Not started`
 
 Audit coverage:
 
@@ -392,6 +433,8 @@ Definition of done:
 
 #### D1. Add skeleton loading states for primary surfaces
 
+Status: `Not started`
+
 Audit coverage:
 
 - `H5 — No Loading Skeleton / Shimmer States`
@@ -414,6 +457,8 @@ Definition of done:
 - the highest-traffic list screens no longer cold-start with only a centered spinner
 
 #### D2. Replace inefficient or flat motion patterns
+
+Status: `Not started`
 
 Audit coverage:
 
@@ -439,6 +484,8 @@ Definition of done:
 
 #### D3. Fix audited responsive constraints
 
+Status: `Not started`
+
 Audit coverage:
 
 - `M4 — Touch Targets Below 44px Minimum`
@@ -459,6 +506,8 @@ Definition of done:
 ### E. Chat / Messaging Tracks
 
 #### E1. Fix DM chat theming and scroll behavior
+
+Status: `Not started`
 
 Audit coverage:
 
@@ -491,6 +540,12 @@ Definition of done:
 
 #### F1. Profile form validation and field hygiene
 
+Status: `Completed`
+
+Used skills in implementation:
+
+- `harden`
+
 Audit coverage:
 
 - `H8 — Profile edit dialog creates 14 TextEditingControllers without validation`
@@ -507,6 +562,13 @@ Definition of done:
 - invalid profile fields fail before network submit
 
 #### F2. Registration UX hardening
+
+Status: `Completed`
+
+Used skills in implementation:
+
+- `harden`
+- `clarify`
 
 Audit coverage:
 
@@ -535,6 +597,8 @@ Definition of done:
 
 #### G1. Explore follow-state clarity
 
+Status: `Not started`
+
 Audit coverage:
 
 - `M1 — _MemberCard Follow Button Always Shows`
@@ -555,6 +619,8 @@ Definition of done:
 - followed members no longer look identical to unfollowed members
 
 #### G2. Native refresh behavior
+
+Status: `Not started`
 
 Audit coverage:
 
@@ -577,6 +643,8 @@ Definition of done:
 
 #### H1. Normalize admin palette and accents
 
+Status: `Not started`
+
 Audit coverage:
 
 - `L2 — admin_pages.dart uses hardcoded tint colors not from tokens`
@@ -595,6 +663,8 @@ Definition of done:
 - admin visual language is deliberate and token-based rather than a Material-default palette leak
 
 #### H2. Decide and implement album moderation if still desired
+
+Status: `Not started`
 
 Audit coverage:
 
@@ -617,6 +687,8 @@ Definition of done:
 
 #### I1. Review and tighten lint rules
 
+Status: `Not started`
+
 Audit coverage:
 
 - `L5 — analysis_options.yaml Not Reviewed`
@@ -636,6 +708,8 @@ Definition of done:
 
 #### I2. Stabilize SDK constraint
 
+Status: `Not started`
+
 Audit coverage:
 
 - `L6 — pubspec.yaml SDK Constraint Is Pre-release`
@@ -652,6 +726,8 @@ Definition of done:
 
 #### I3. Add branded app icon / asset setup
 
+Status: `Not started`
+
 Audit coverage:
 
 - `L4 — pubspec.yaml has no app icon / assets configured`
@@ -667,6 +743,8 @@ Definition of done:
 - icon/asset strategy is configured or explicitly parked with owner/rationale
 
 #### I4. Document server oddities surfaced by the audit
+
+Status: `Not started`
 
 Audit coverage:
 

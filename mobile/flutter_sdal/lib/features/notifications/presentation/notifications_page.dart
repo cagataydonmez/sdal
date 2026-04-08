@@ -57,6 +57,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       title: l10n.notificationsTitle,
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: () {
             setState(() {
               _items = const <AppNotification>[];
@@ -453,7 +454,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
 class _PreferencesCard extends StatefulWidget {
   const _PreferencesCard({
-    super.key,
     required this.preferences,
     required this.saving,
     required this.onChanged,
@@ -476,38 +476,46 @@ class _PreferencesCardState extends State<_PreferencesCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bildirim tercihleri',
-                          style: Theme.of(context).textTheme.titleMedium,
+          MergeSemantics(
+            child: Semantics(
+              button: true,
+              toggled: _expanded,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Bildirim tercihleri',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _expanded
+                                  ? 'Hangi bildirimlerin açık olduğunu buradan yönetebilirsin.'
+                                  : 'Kategori ve sessiz mod ayarlarını görmek için aç.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _expanded
-                              ? 'Hangi bildirimlerin açık olduğunu buradan yönetebilirsin.'
-                              : 'Kategori ve sessiz mod ayarlarını görmek için aç.',
-                          style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 12),
+                      AnimatedRotation(
+                        turns: _expanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: const ExcludeSemantics(
+                          child: Icon(Icons.keyboard_arrow_down_rounded),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 180),
-                    child: const Icon(Icons.keyboard_arrow_down_rounded),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
