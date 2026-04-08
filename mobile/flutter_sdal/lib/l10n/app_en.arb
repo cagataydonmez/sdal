@@ -15,6 +15,7 @@
   },
   "moreActions": "More actions",
   "removeImageAction": "Remove image",
+  "quickAccessRemoveAction": "Remove from quick access",
   "siteClosedTitle": "SDAL is currently closed",
   "siteClosedFallbackMessage": "The app is temporarily unavailable due to maintenance.",
   "moduleClosedTitle": "Module unavailable",

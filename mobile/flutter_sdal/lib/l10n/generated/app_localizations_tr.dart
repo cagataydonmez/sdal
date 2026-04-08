@@ -41,6 +41,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get removeImageAction => 'Görseli kaldır';
 
   @override
+  String get quickAccessRemoveAction => 'Hızlı erişimden kaldır';
+
+  @override
   String get siteClosedTitle => 'SDAL şu anda kapalı';
 
   @override

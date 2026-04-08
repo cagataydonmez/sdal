@@ -158,6 +158,12 @@ abstract class AppLocalizations {
   /// **'Görseli kaldır'**
   String get removeImageAction;
 
+  /// No description provided for @quickAccessRemoveAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hızlı erişimden kaldır'**
+  String get quickAccessRemoveAction;
+
   /// No description provided for @siteClosedTitle.
   ///
   /// In tr, this message translates to:

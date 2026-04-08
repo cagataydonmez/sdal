@@ -521,6 +521,7 @@ class _QuickAccessTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
+    final l10n = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -555,7 +556,7 @@ class _QuickAccessTile extends StatelessWidget {
               ? null
               : Text('${user.graduationYear} mezunu'),
           trailing: IconButton(
-            tooltip: 'Hızlı erişimden kaldır',
+            tooltip: l10n.quickAccessRemoveAction,
             onPressed: onRemove,
             icon: const Icon(Icons.push_pin_outlined),
           ),
