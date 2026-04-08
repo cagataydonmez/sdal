@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -142,7 +143,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
               children: [
                 categoriesState.when(
                   loading: () => const CircularProgressIndicator(),
-                  error: (error, _) => const ErrorView(compact: true),
+                  error: (error, _) => const ErrorView(
+                    compact: true,
+                    kind: ErrorViewKind.network,
+                  ),
                   data: (categories) => DropdownButtonFormField<String>(
                     initialValue:
                         categories.any(
@@ -307,7 +311,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                   error: (error, _) => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const ErrorView(compact: true),
+                      const ErrorView(
+                        compact: true,
+                        kind: ErrorViewKind.network,
+                      ),
                       const SizedBox(height: 12),
                       FilledButton.tonal(
                         onPressed: () => ref.invalidate(myRequestsProvider),
@@ -316,7 +323,12 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                     ],
                   ),
                   data: (items) => items.isEmpty
-                      ? Text(l10n.requestsEmpty)
+                      ? EmptyStateView(
+                          icon: Icons.assignment_outlined,
+                          title: l10n.requestsEmptyTitle,
+                          message: l10n.requestsEmptyMessage,
+                          compact: true,
+                        )
                       : Column(
                           children: items
                               .map(

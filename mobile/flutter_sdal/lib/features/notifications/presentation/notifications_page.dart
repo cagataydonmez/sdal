@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -123,7 +124,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             loading: () => const SurfaceCard(
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (preferences) => _PreferencesCard(
               preferences: preferences,
               saving: savingPreferences,
@@ -156,12 +158,21 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           const SizedBox(height: 12),
           notificationsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (page) {
               final items = visibleItems.isEmpty ? page.items : visibleItems;
               final hasMore = visibleItems.isEmpty ? page.hasMore : _hasMore;
               if (items.isEmpty) {
-                return SurfaceCard(child: Text(l10n.notificationsEmpty));
+                return SurfaceCard(
+                  child: EmptyStateView(
+                    icon: Icons.notifications_none_rounded,
+                    title: l10n.notificationsEmptyTitle,
+                    message: l10n.notificationsEmptyMessage,
+                    actionLabel: l10n.refreshAction,
+                    onAction: () => ref.invalidate(notificationsProvider),
+                  ),
+                );
               }
               return Column(
                 children: [

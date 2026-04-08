@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/empty_state_view.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -45,11 +48,13 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
     final actionState = ref.watch(followingActionControllerProvider);
     final config = ref.watch(appConfigProvider);
     final tokens = Theme.of(context).sdal;
+    final l10n = context.l10n;
 
     return FeatureScaffold(
-      title: 'Takip edilenler',
+      title: l10n.followingTitle,
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: _isLoadingInitial ? null : () => _load(reset: true),
           icon: const Icon(Icons.refresh),
         ),
@@ -67,42 +72,20 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
               )
             else if (_error.isNotEmpty && _items.isEmpty)
               SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Takip listesi yüklenemedi',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(_error),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: () => _load(reset: true),
-                      child: const Text('Tekrar dene'),
-                    ),
-                  ],
+                child: ErrorView(
+                  message: _error,
+                  onRetry: () => _load(reset: true),
+                  kind: ErrorViewKind.network,
                 ),
               )
             else if (_items.isEmpty)
               SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Henüz takip ettiğin üye yok.',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Keşfet ekranından ilgilendiğin üyeleri takip ederek burada görebilirsin.',
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.tonal(
-                      onPressed: () => context.push('/explore'),
-                      child: const Text('Keşfete git'),
-                    ),
-                  ],
+                child: EmptyStateView(
+                  icon: Icons.person_add_alt_1_outlined,
+                  title: l10n.followingEmptyTitle,
+                  message: l10n.followingEmptyMessage,
+                  actionLabel: l10n.exploreTitle,
+                  onAction: () => context.push('/explore'),
                 ),
               )
             else

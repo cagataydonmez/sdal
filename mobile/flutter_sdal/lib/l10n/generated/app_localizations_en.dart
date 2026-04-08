@@ -77,6 +77,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get followingTitle => 'Following';
 
   @override
+  String get followingEmptyTitle => 'No people followed yet';
+
+  @override
+  String get followingEmptyMessage =>
+      'Follow members from Explore to build a quick list of people you want to revisit.';
+
+  @override
   String get mainNavigationTitle => 'Main navigation';
 
   @override
@@ -117,6 +124,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get feedCommentsEmpty => 'No comments yet.';
+
+  @override
+  String get feedCommentsEmptyTitle => 'No comments yet';
+
+  @override
+  String get feedCommentsEmptyMessage =>
+      'Start the conversation with the first comment so other members know what to respond to.';
 
   @override
   String get feedCommentDeleteTitle => 'Delete comment';
@@ -508,6 +522,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsEmpty => 'No notifications yet.';
 
   @override
+  String get notificationsEmptyTitle => 'No notifications yet';
+
+  @override
+  String get notificationsEmptyMessage =>
+      'When activity needs your attention, it will appear here with quick actions.';
+
+  @override
   String get notificationsReadAction => 'Read';
 
   @override
@@ -755,6 +776,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagesTitle => 'Messages';
 
   @override
+  String get messagesEmptyTitle => 'No conversations yet';
+
+  @override
+  String get messagesEmptyMessage =>
+      'Start a new chat to reach a member directly from your inbox.';
+
+  @override
+  String get announcementsEmptyTitle => 'No announcements published yet';
+
+  @override
+  String get announcementsEmptyMessage =>
+      'Announcements from the community team will appear here once they are approved and published.';
+
+  @override
+  String get eventsEmptyTitle => 'No events published yet';
+
+  @override
+  String get eventsEmptyMessage =>
+      'Check back after refresh to see new community events and RSVP opportunities.';
+
+  @override
+  String get albumPhotoMissingTitle => 'Photo not available';
+
+  @override
+  String get albumPhotoMissingMessage =>
+      'This photo could not be loaded right now. Refresh to try again.';
+
+  @override
+  String get albumCommentsEmptyTitle => 'No comments yet';
+
+  @override
+  String get albumCommentsEmptyMessage =>
+      'Leave the first comment to help other members join the conversation around this photo.';
+
+  @override
   String get newChatAction => 'New chat';
 
   @override
@@ -781,6 +837,58 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get threadFallbackTitle => 'Chat';
+
+  @override
+  String get threadEmptyTitle => 'No messages yet';
+
+  @override
+  String get threadEmptyMessage =>
+      'Send the first message to start this conversation.';
+
+  @override
+  String get teacherSearchHintTitle => 'Search for a teacher';
+
+  @override
+  String get teacherSearchHintMessage =>
+      'Use a name or username to find a teacher before adding a connection.';
+
+  @override
+  String get teacherSearchEmptyTitle => 'No matching teacher found';
+
+  @override
+  String get teacherSearchEmptyMessage =>
+      'Try a different name, username, or spelling to widen the search.';
+
+  @override
+  String get teacherConnectionsEmptyTitle => 'No teacher connections yet';
+
+  @override
+  String get teacherConnectionsEmptyMessage =>
+      'Search for a teacher above to create your first teacher connection.';
+
+  @override
+  String get networkConnectionsEmptyTitle =>
+      'No connection requests in this view';
+
+  @override
+  String networkConnectionsEmptyMessage(Object direction, Object status) {
+    return 'There are no $direction $status connection requests right now.';
+  }
+
+  @override
+  String get networkMentorshipEmptyTitle =>
+      'No mentorship requests in this view';
+
+  @override
+  String networkMentorshipEmptyMessage(Object direction, Object status) {
+    return 'There are no $direction $status mentorship requests right now.';
+  }
+
+  @override
+  String get networkDirectionIncoming => 'incoming';
+
+  @override
+  String get networkDirectionOutgoing => 'outgoing';
 
   @override
   String get realtimeConnected => 'Live';
@@ -1234,6 +1342,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exploreNoSuggestions => 'No suggestions right now.';
 
   @override
+  String get exploreSuggestionsEmptyTitle => 'No suggestions right now';
+
+  @override
+  String get exploreSuggestionsEmptyMessage =>
+      'Refresh this list later to see new members and recommendations.';
+
+  @override
   String get exploreDirectoryTitle => 'Member directory';
 
   @override
@@ -1294,6 +1409,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retryAction => 'Try again';
 
   @override
+  String get errorGenericTitle => 'Something went wrong.';
+
+  @override
+  String get errorGenericMessage =>
+      'Try again in a moment or refresh this screen.';
+
+  @override
+  String get errorNetworkTitle => 'Connection problem';
+
+  @override
+  String get errorNetworkMessage =>
+      'Check your internet connection and try again.';
+
+  @override
   String get statusApproved => 'Approved';
 
   @override
@@ -1349,6 +1478,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get requestsEmpty => 'No requests have been sent yet.';
+
+  @override
+  String get requestsEmptyTitle => 'No requests yet';
+
+  @override
+  String get requestsEmptyMessage =>
+      'Use the form above to send a profile or membership request when you need admin review.';
 
   @override
   String get requestsAttachmentUploadFailed =>

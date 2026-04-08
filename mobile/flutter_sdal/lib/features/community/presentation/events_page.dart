@@ -7,6 +7,8 @@ import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/widgets/empty_state_view.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
@@ -69,11 +71,13 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     final actionState = ref.watch(communityActionControllerProvider);
     final isSaving =
         actionState.isLoading && actionState.scope == 'events:create';
+    final l10n = context.l10n;
 
     return FeatureScaffold(
-      title: 'Etkinlikler',
+      title: l10n.eventsTitle,
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: _isLoadingInitial ? null : () => _load(reset: true),
           icon: const Icon(Icons.refresh),
         ),
@@ -175,9 +179,23 @@ class _EventsPageState extends ConsumerState<EventsPage> {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (_error.isNotEmpty && _items.isEmpty)
-            SurfaceCard(child: Text(_error))
+            SurfaceCard(
+              child: ErrorView(
+                message: _error,
+                kind: ErrorViewKind.network,
+                onRetry: () => _load(reset: true),
+              ),
+            )
           else if (_items.isEmpty)
-            const SurfaceCard(child: Text('Henüz yayınlanmış etkinlik yok.'))
+            SurfaceCard(
+              child: EmptyStateView(
+                icon: Icons.event_busy_outlined,
+                title: l10n.eventsEmptyTitle,
+                message: l10n.eventsEmptyMessage,
+                actionLabel: l10n.refreshAction,
+                onAction: () => _load(reset: true),
+              ),
+            )
           else
             ..._items.map(_buildEventCard),
           if (_isLoadingMore)

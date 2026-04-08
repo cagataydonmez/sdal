@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
+import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -50,7 +51,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         children: [
           postState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (post) => post == null
                 ? Text(l10n.feedPostNotFound)
                 : SurfaceCard(
@@ -232,10 +234,18 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
           const SizedBox(height: 12),
           commentsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (comments) {
               if (comments.isEmpty) {
-                return SurfaceCard(child: Text(l10n.feedCommentsEmpty));
+                return SurfaceCard(
+                  child: EmptyStateView(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    title: l10n.feedCommentsEmptyTitle,
+                    message: l10n.feedCommentsEmptyMessage,
+                    compact: true,
+                  ),
+                );
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -453,7 +453,26 @@ Used skills in implementation:
 
 #### C2. Improve error and empty-state copy clarity
 
-Status: `Not started`
+Status: `Completed`
+
+Current progress in implementation:
+
+- introduced reusable `EmptyStateView` for guided empty states with icon, headline, explanation, and optional CTA
+- upgraded `ErrorView` with `ErrorViewKind` so network failures and generic failures no longer share the same misleading `wifi_off` treatment
+- replaced raw placeholder text on the priority audited surfaces:
+  - notifications
+  - explore suggestions
+  - messenger inbox
+  - messenger thread detail
+  - requests
+  - post comments
+- extended the same guided pattern to closely related surfaces that still had plain text placeholders:
+  - following
+  - announcements
+  - events
+  - album photo detail / comments
+  - networking teacher search / teacher links / request browsers
+- added localized copy for the new states in both EN and TR ARB files and regenerated l10n outputs
 
 Audit coverage:
 
@@ -485,6 +504,12 @@ Definition of done:
 
 - empty states teach the feature instead of only reporting emptiness
 - network errors and generic errors no longer share the same misleading icon
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `harden`
+- `clarify`
 
 ---
 

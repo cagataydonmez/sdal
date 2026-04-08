@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -83,7 +84,8 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           const SizedBox(height: 12),
           latestState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) => items.isEmpty
                 ? const SizedBox.shrink()
                 : SizedBox(
@@ -123,11 +125,23 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           const SizedBox(height: 12),
           suggestionsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) {
               _trackExploreSuggestions(items);
               return items.isEmpty
-                  ? SurfaceCard(child: Text(l10n.exploreNoSuggestions))
+                  ? SurfaceCard(
+                      child: EmptyStateView(
+                        icon: Icons.person_search_outlined,
+                        title: l10n.exploreSuggestionsEmptyTitle,
+                        message: l10n.exploreSuggestionsEmptyMessage,
+                        actionLabel: l10n.refreshAction,
+                        onAction: () {
+                          ref.invalidate(latestMembersProvider);
+                          ref.invalidate(suggestionMembersProvider);
+                        },
+                      ),
+                    )
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         final compact = constraints.maxWidth < 640;
@@ -281,7 +295,8 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           const SizedBox(height: 12),
           directoryState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) => Column(
               children: [
                 ...items.map(

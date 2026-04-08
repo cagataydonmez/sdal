@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../l10n/context_l10n.dart';
 import '../theme/sdal_theme_tokens.dart';
+
+enum ErrorViewKind { generic, network }
 
 /// A friendly, on-brand error state. Never shows raw exception strings.
 /// Provides a retry button when [onRetry] is supplied.
@@ -9,17 +12,37 @@ class ErrorView extends StatelessWidget {
     this.message,
     this.onRetry,
     this.compact = false,
+    this.kind = ErrorViewKind.generic,
+    this.actionLabel,
   });
 
   final String? message;
   final VoidCallback? onRetry;
-
-  /// When true, renders a smaller inline version without full padding.
   final bool compact;
+  final ErrorViewKind kind;
+  final String? actionLabel;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
+    final l10n = context.l10n;
+    final title =
+        message != null &&
+            message!.isNotEmpty &&
+            !message!.startsWith('Exception')
+        ? message!
+        : switch (kind) {
+            ErrorViewKind.network => l10n.errorNetworkTitle,
+            ErrorViewKind.generic => l10n.errorGenericTitle,
+          };
+    final supportingText = switch (kind) {
+      ErrorViewKind.network => l10n.errorNetworkMessage,
+      ErrorViewKind.generic => l10n.errorGenericMessage,
+    };
+    final icon = switch (kind) {
+      ErrorViewKind.network => Icons.wifi_off_rounded,
+      ErrorViewKind.generic => Icons.error_outline_rounded,
+    };
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -30,31 +53,25 @@ class ErrorView extends StatelessWidget {
             color: tokens.dangerMuted,
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            Icons.wifi_off_rounded,
-            size: compact ? 20 : 28,
-            color: tokens.danger,
-          ),
+          child: Icon(icon, size: compact ? 20 : 28, color: tokens.danger),
         ),
         SizedBox(height: compact ? 10 : 16),
         Text(
-          message != null && message!.isNotEmpty && !message!.startsWith('Exception')
-              ? message!
-              : 'Bir şeyler ters gitti.',
-          style: (compact
-                  ? Theme.of(context).textTheme.bodyMedium
-                  : Theme.of(context).textTheme.titleMedium)
-              ?.copyWith(color: tokens.foreground),
+          title,
+          style:
+              (compact
+                      ? Theme.of(context).textTheme.bodyMedium
+                      : Theme.of(context).textTheme.titleMedium)
+                  ?.copyWith(color: tokens.foreground),
           textAlign: TextAlign.center,
         ),
         if (!compact) ...[
           const SizedBox(height: 6),
           Text(
-            'Lütfen bağlantını kontrol et ve tekrar dene.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: tokens.foregroundMuted),
+            supportingText,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
             textAlign: TextAlign.center,
           ),
         ],
@@ -63,7 +80,7 @@ class ErrorView extends StatelessWidget {
           FilledButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
-            label: const Text('Tekrar dene'),
+            label: Text(actionLabel ?? l10n.retryAction),
           ),
         ],
       ],

@@ -7,6 +7,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -64,7 +65,7 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
         error: (error, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: const ErrorView(compact: true),
+            child: const ErrorView(compact: true, kind: ErrorViewKind.network),
           ),
         ),
         data: (hub) => ListView(
@@ -334,7 +335,7 @@ class NetworkingInboxPage extends ConsumerWidget {
       ],
       child: inboxState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => const ErrorView(),
+        error: (error, _) => const ErrorView(kind: ErrorViewKind.network),
         data: (inbox) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -498,11 +499,20 @@ class _ConnectionRequestsBrowserState
           const SizedBox(height: 14),
           state.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) {
               if (items.isEmpty) {
-                return Text(
-                  '${_direction == NetworkRequestDirection.incoming ? 'Gelen' : 'Giden'} ${_connectionStatusLabel(_status).toLowerCase()} bağlantı isteği yok.',
+                return EmptyStateView(
+                  icon: Icons.person_search_outlined,
+                  title: context.l10n.networkConnectionsEmptyTitle,
+                  message: context.l10n.networkConnectionsEmptyMessage(
+                    _direction == NetworkRequestDirection.incoming
+                        ? context.l10n.networkDirectionIncoming
+                        : context.l10n.networkDirectionOutgoing,
+                    _connectionStatusLabel(_status).toLowerCase(),
+                  ),
+                  compact: true,
                 );
               }
               return Column(
@@ -658,11 +668,20 @@ class _MentorshipRequestsBrowserState
           const SizedBox(height: 14),
           state.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) {
               if (items.isEmpty) {
-                return Text(
-                  '${_direction == NetworkRequestDirection.incoming ? 'Gelen' : 'Giden'} ${_mentorshipStatusLabel(_status).toLowerCase()} mentorluk talebi yok.',
+                return EmptyStateView(
+                  icon: Icons.school_outlined,
+                  title: context.l10n.networkMentorshipEmptyTitle,
+                  message: context.l10n.networkMentorshipEmptyMessage(
+                    _direction == NetworkRequestDirection.incoming
+                        ? context.l10n.networkDirectionIncoming
+                        : context.l10n.networkDirectionOutgoing,
+                    _mentorshipStatusLabel(_status).toLowerCase(),
+                  ),
+                  compact: true,
                 );
               }
               return Column(
@@ -810,17 +829,33 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
                 const SizedBox(height: 12),
                 teacherOptionsState.when(
                   loading: () => _searchController.text.trim().isEmpty
-                      ? const Text('Kullanıcı adı veya isim ile öğretmen ara.')
+                      ? EmptyStateView(
+                          icon: Icons.search_rounded,
+                          title: context.l10n.teacherSearchHintTitle,
+                          message: context.l10n.teacherSearchHintMessage,
+                          compact: true,
+                        )
                       : const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => const ErrorView(compact: true),
+                  error: (error, _) => const ErrorView(
+                    compact: true,
+                    kind: ErrorViewKind.network,
+                  ),
                   data: (items) {
                     if (_searchController.text.trim().isEmpty) {
-                      return const Text(
-                        'Kullanıcı adı veya isim ile öğretmen ara.',
+                      return EmptyStateView(
+                        icon: Icons.search_rounded,
+                        title: context.l10n.teacherSearchHintTitle,
+                        message: context.l10n.teacherSearchHintMessage,
+                        compact: true,
                       );
                     }
                     if (items.isEmpty) {
-                      return const Text('Eşleşen öğretmen bulunamadı.');
+                      return EmptyStateView(
+                        icon: Icons.person_off_outlined,
+                        title: context.l10n.teacherSearchEmptyTitle,
+                        message: context.l10n.teacherSearchEmptyMessage,
+                        compact: true,
+                      );
                     }
                     return Column(
                       children: items
@@ -882,11 +917,17 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
           const SizedBox(height: 12),
           linksState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => const ErrorView(compact: true),
+            error: (error, _) =>
+                const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (items) {
               if (items.isEmpty) {
-                return const SurfaceCard(
-                  child: Text('Henüz öğretmen bağlantısı eklenmedi.'),
+                return SurfaceCard(
+                  child: EmptyStateView(
+                    icon: Icons.school_outlined,
+                    title: context.l10n.teacherConnectionsEmptyTitle,
+                    message: context.l10n.teacherConnectionsEmptyMessage,
+                    compact: true,
+                  ),
                 );
               }
               return Column(

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
+import '../../../core/widgets/empty_state_view.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -42,11 +45,13 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     final actionState = ref.watch(albumsActionControllerProvider);
     final config = ref.watch(appConfigProvider);
     final tokens = Theme.of(context).sdal;
+    final l10n = context.l10n;
 
     return FeatureScaffold(
       title: _photo?.title ?? 'Fotoğraf',
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: _isLoading ? null : _load,
           icon: const Icon(Icons.refresh),
         ),
@@ -57,9 +62,23 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
           if (_isLoading)
             const Center(child: CircularProgressIndicator())
           else if (_error.isNotEmpty)
-            SurfaceCard(child: Text(_error))
+            SurfaceCard(
+              child: ErrorView(
+                message: _error,
+                kind: ErrorViewKind.network,
+                onRetry: _load,
+              ),
+            )
           else if (_photo == null)
-            const SurfaceCard(child: Text('Fotoğraf bulunamadı.'))
+            SurfaceCard(
+              child: EmptyStateView(
+                icon: Icons.photo_library_outlined,
+                title: l10n.albumPhotoMissingTitle,
+                message: l10n.albumPhotoMissingMessage,
+                actionLabel: l10n.refreshAction,
+                onAction: _load,
+              ),
+            )
           else ...[
             SurfaceCard(
               child: Column(
@@ -135,7 +154,14 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
             ),
             const SizedBox(height: 16),
             if (_comments.isEmpty)
-              const SurfaceCard(child: Text('Henüz yorum yok.'))
+              SurfaceCard(
+                child: EmptyStateView(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: l10n.albumCommentsEmptyTitle,
+                  message: l10n.albumCommentsEmptyMessage,
+                  compact: true,
+                ),
+              )
             else
               ..._comments.map(
                 (comment) => Padding(

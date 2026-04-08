@@ -218,6 +218,18 @@ abstract class AppLocalizations {
   /// **'Takipler'**
   String get followingTitle;
 
+  /// No description provided for @followingEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz takip ettiğin üye yok'**
+  String get followingEmptyTitle;
+
+  /// No description provided for @followingEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Tekrar ulaşmak istediğin üyeler için Keşfet ekranından takip listeni oluşturmaya başla.'**
+  String get followingEmptyMessage;
+
   /// No description provided for @mainNavigationTitle.
   ///
   /// In tr, this message translates to:
@@ -301,6 +313,18 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Henüz yorum yok.'**
   String get feedCommentsEmpty;
+
+  /// No description provided for @feedCommentsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz yorum yok'**
+  String get feedCommentsEmptyTitle;
+
+  /// No description provided for @feedCommentsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Diğer üyelerin katılabilmesi için ilk yorumu sen bırak.'**
+  String get feedCommentsEmptyMessage;
 
   /// No description provided for @feedCommentDeleteTitle.
   ///
@@ -998,6 +1022,18 @@ abstract class AppLocalizations {
   /// **'Henüz bildirim yok.'**
   String get notificationsEmpty;
 
+  /// No description provided for @notificationsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz bildirim yok'**
+  String get notificationsEmptyTitle;
+
+  /// No description provided for @notificationsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Dikkatini gerektiren hareketler burada hızlı işlemlerle görünecek.'**
+  String get notificationsEmptyMessage;
+
   /// No description provided for @notificationsReadAction.
   ///
   /// In tr, this message translates to:
@@ -1472,6 +1508,66 @@ abstract class AppLocalizations {
   /// **'Mesajlar'**
   String get messagesTitle;
 
+  /// No description provided for @messagesEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz konuşma yok'**
+  String get messagesEmptyTitle;
+
+  /// No description provided for @messagesEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bir üyeye doğrudan ulaşmak için yeni bir sohbet başlat.'**
+  String get messagesEmptyMessage;
+
+  /// No description provided for @announcementsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz yayınlanmış duyuru yok'**
+  String get announcementsEmptyTitle;
+
+  /// No description provided for @announcementsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Topluluk ekibinden onaylanan duyurular burada yayınlandığında görünür.'**
+  String get announcementsEmptyMessage;
+
+  /// No description provided for @eventsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz yayınlanmış etkinlik yok'**
+  String get eventsEmptyTitle;
+
+  /// No description provided for @eventsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni topluluk etkinlikleri ve katılım fırsatları için yenileyip tekrar kontrol et.'**
+  String get eventsEmptyMessage;
+
+  /// No description provided for @albumPhotoMissingTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Fotoğraf şu anda kullanılamıyor'**
+  String get albumPhotoMissingTitle;
+
+  /// No description provided for @albumPhotoMissingMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu fotoğraf şu anda yüklenemedi. Tekrar denemek için sayfayı yenile.'**
+  String get albumPhotoMissingMessage;
+
+  /// No description provided for @albumCommentsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz yorum yok'**
+  String get albumCommentsEmptyTitle;
+
+  /// No description provided for @albumCommentsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Diğer üyelerin sohbete katılması için bu fotoğrafa ilk yorumu sen bırak.'**
+  String get albumCommentsEmptyMessage;
+
   /// No description provided for @newChatAction.
   ///
   /// In tr, this message translates to:
@@ -1525,6 +1621,90 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Sohbet'**
   String get threadFallbackTitle;
+
+  /// No description provided for @threadEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz mesaj yok'**
+  String get threadEmptyTitle;
+
+  /// No description provided for @threadEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu konuşmayı başlatmak için ilk mesajı sen gönder.'**
+  String get threadEmptyMessage;
+
+  /// No description provided for @teacherSearchHintTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bir öğretmen ara'**
+  String get teacherSearchHintTitle;
+
+  /// No description provided for @teacherSearchHintMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bağlantı eklemeden önce isim veya kullanıcı adı ile öğretmen ara.'**
+  String get teacherSearchHintMessage;
+
+  /// No description provided for @teacherSearchEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Eşleşen öğretmen bulunamadı'**
+  String get teacherSearchEmptyTitle;
+
+  /// No description provided for @teacherSearchEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Aramayı genişletmek için farklı bir isim, kullanıcı adı veya yazım dene.'**
+  String get teacherSearchEmptyMessage;
+
+  /// No description provided for @teacherConnectionsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz öğretmen bağlantısı yok'**
+  String get teacherConnectionsEmptyTitle;
+
+  /// No description provided for @teacherConnectionsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'İlk öğretmen bağlantını oluşturmak için yukarıdan bir öğretmen ara.'**
+  String get teacherConnectionsEmptyMessage;
+
+  /// No description provided for @networkConnectionsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu görünümde bağlantı isteği yok'**
+  String get networkConnectionsEmptyTitle;
+
+  /// No description provided for @networkConnectionsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu anda {direction} {status} bağlantı isteği yok.'**
+  String networkConnectionsEmptyMessage(Object direction, Object status);
+
+  /// No description provided for @networkMentorshipEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu görünümde mentorluk talebi yok'**
+  String get networkMentorshipEmptyTitle;
+
+  /// No description provided for @networkMentorshipEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu anda {direction} {status} mentorluk talebi yok.'**
+  String networkMentorshipEmptyMessage(Object direction, Object status);
+
+  /// No description provided for @networkDirectionIncoming.
+  ///
+  /// In tr, this message translates to:
+  /// **'gelen'**
+  String get networkDirectionIncoming;
+
+  /// No description provided for @networkDirectionOutgoing.
+  ///
+  /// In tr, this message translates to:
+  /// **'giden'**
+  String get networkDirectionOutgoing;
 
   /// No description provided for @realtimeConnected.
   ///
@@ -2366,6 +2546,18 @@ abstract class AppLocalizations {
   /// **'Şu anda öneri yok.'**
   String get exploreNoSuggestions;
 
+  /// No description provided for @exploreSuggestionsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu anda öneri yok'**
+  String get exploreSuggestionsEmptyTitle;
+
+  /// No description provided for @exploreSuggestionsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni üye ve öneriler için bu listeyi daha sonra yenile.'**
+  String get exploreSuggestionsEmptyMessage;
+
   /// No description provided for @exploreDirectoryTitle.
   ///
   /// In tr, this message translates to:
@@ -2474,6 +2666,30 @@ abstract class AppLocalizations {
   /// **'Tekrar dene'**
   String get retryAction;
 
+  /// No description provided for @errorGenericTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bir şeyler ters gitti.'**
+  String get errorGenericTitle;
+
+  /// No description provided for @errorGenericMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Biraz sonra yeniden dene veya bu ekranı yenile.'**
+  String get errorGenericMessage;
+
+  /// No description provided for @errorNetworkTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bağlantı sorunu'**
+  String get errorNetworkTitle;
+
+  /// No description provided for @errorNetworkMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'İnternet bağlantını kontrol edip yeniden dene.'**
+  String get errorNetworkMessage;
+
   /// No description provided for @statusApproved.
   ///
   /// In tr, this message translates to:
@@ -2581,6 +2797,18 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Henüz gönderilmiş talep yok.'**
   String get requestsEmpty;
+
+  /// No description provided for @requestsEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz talep yok'**
+  String get requestsEmptyTitle;
+
+  /// No description provided for @requestsEmptyMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Admin incelemesi gerektiren durumlarda yukarıdaki formu kullanarak profil veya üyelik talebi gönderebilirsin.'**
+  String get requestsEmptyMessage;
 
   /// No description provided for @requestsAttachmentUploadFailed.
   ///

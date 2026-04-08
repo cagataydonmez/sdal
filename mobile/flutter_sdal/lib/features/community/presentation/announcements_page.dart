@@ -2,9 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/empty_state_view.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -55,11 +58,13 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     final isAdmin = session?.user?.isAdmin ?? false;
     final isSaving =
         actionState.isLoading && actionState.scope == 'announcements:create';
+    final l10n = context.l10n;
 
     return FeatureScaffold(
-      title: 'Duyurular',
+      title: l10n.announcementsTitle,
       actions: [
         IconButton(
+          tooltip: l10n.refreshAction,
           onPressed: _isLoadingInitial ? null : () => _load(reset: true),
           icon: const Icon(Icons.refresh),
         ),
@@ -139,20 +144,22 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
             )
           else if (_error.isNotEmpty && _items.isEmpty)
             SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Duyurular yüklenemedi',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(_error),
-                ],
+              child: ErrorView(
+                message: _error,
+                kind: ErrorViewKind.network,
+                onRetry: () => _load(reset: true),
               ),
             )
           else if (_items.isEmpty)
-            const SurfaceCard(child: Text('Henüz yayınlanmış duyuru yok.'))
+            SurfaceCard(
+              child: EmptyStateView(
+                icon: Icons.campaign_outlined,
+                title: l10n.announcementsEmptyTitle,
+                message: l10n.announcementsEmptyMessage,
+                actionLabel: l10n.refreshAction,
+                onAction: () => _load(reset: true),
+              ),
+            )
           else
             ..._items.map(
               (item) => Padding(

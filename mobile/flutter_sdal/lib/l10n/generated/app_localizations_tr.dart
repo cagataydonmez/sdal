@@ -77,6 +77,13 @@ class AppLocalizationsTr extends AppLocalizations {
   String get followingTitle => 'Takipler';
 
   @override
+  String get followingEmptyTitle => 'Henüz takip ettiğin üye yok';
+
+  @override
+  String get followingEmptyMessage =>
+      'Tekrar ulaşmak istediğin üyeler için Keşfet ekranından takip listeni oluşturmaya başla.';
+
+  @override
   String get mainNavigationTitle => 'Ana gezinme';
 
   @override
@@ -117,6 +124,13 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get feedCommentsEmpty => 'Henüz yorum yok.';
+
+  @override
+  String get feedCommentsEmptyTitle => 'Henüz yorum yok';
+
+  @override
+  String get feedCommentsEmptyMessage =>
+      'Diğer üyelerin katılabilmesi için ilk yorumu sen bırak.';
 
   @override
   String get feedCommentDeleteTitle => 'Yorumu sil';
@@ -505,6 +519,13 @@ class AppLocalizationsTr extends AppLocalizations {
   String get notificationsEmpty => 'Henüz bildirim yok.';
 
   @override
+  String get notificationsEmptyTitle => 'Henüz bildirim yok';
+
+  @override
+  String get notificationsEmptyMessage =>
+      'Dikkatini gerektiren hareketler burada hızlı işlemlerle görünecek.';
+
+  @override
   String get notificationsReadAction => 'Okundu';
 
   @override
@@ -753,6 +774,41 @@ class AppLocalizationsTr extends AppLocalizations {
   String get messagesTitle => 'Mesajlar';
 
   @override
+  String get messagesEmptyTitle => 'Henüz konuşma yok';
+
+  @override
+  String get messagesEmptyMessage =>
+      'Bir üyeye doğrudan ulaşmak için yeni bir sohbet başlat.';
+
+  @override
+  String get announcementsEmptyTitle => 'Henüz yayınlanmış duyuru yok';
+
+  @override
+  String get announcementsEmptyMessage =>
+      'Topluluk ekibinden onaylanan duyurular burada yayınlandığında görünür.';
+
+  @override
+  String get eventsEmptyTitle => 'Henüz yayınlanmış etkinlik yok';
+
+  @override
+  String get eventsEmptyMessage =>
+      'Yeni topluluk etkinlikleri ve katılım fırsatları için yenileyip tekrar kontrol et.';
+
+  @override
+  String get albumPhotoMissingTitle => 'Fotoğraf şu anda kullanılamıyor';
+
+  @override
+  String get albumPhotoMissingMessage =>
+      'Bu fotoğraf şu anda yüklenemedi. Tekrar denemek için sayfayı yenile.';
+
+  @override
+  String get albumCommentsEmptyTitle => 'Henüz yorum yok';
+
+  @override
+  String get albumCommentsEmptyMessage =>
+      'Diğer üyelerin sohbete katılması için bu fotoğrafa ilk yorumu sen bırak.';
+
+  @override
   String get newChatAction => 'Yeni sohbet';
 
   @override
@@ -779,6 +835,56 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get threadFallbackTitle => 'Sohbet';
+
+  @override
+  String get threadEmptyTitle => 'Henüz mesaj yok';
+
+  @override
+  String get threadEmptyMessage =>
+      'Bu konuşmayı başlatmak için ilk mesajı sen gönder.';
+
+  @override
+  String get teacherSearchHintTitle => 'Bir öğretmen ara';
+
+  @override
+  String get teacherSearchHintMessage =>
+      'Bağlantı eklemeden önce isim veya kullanıcı adı ile öğretmen ara.';
+
+  @override
+  String get teacherSearchEmptyTitle => 'Eşleşen öğretmen bulunamadı';
+
+  @override
+  String get teacherSearchEmptyMessage =>
+      'Aramayı genişletmek için farklı bir isim, kullanıcı adı veya yazım dene.';
+
+  @override
+  String get teacherConnectionsEmptyTitle => 'Henüz öğretmen bağlantısı yok';
+
+  @override
+  String get teacherConnectionsEmptyMessage =>
+      'İlk öğretmen bağlantını oluşturmak için yukarıdan bir öğretmen ara.';
+
+  @override
+  String get networkConnectionsEmptyTitle => 'Bu görünümde bağlantı isteği yok';
+
+  @override
+  String networkConnectionsEmptyMessage(Object direction, Object status) {
+    return 'Şu anda $direction $status bağlantı isteği yok.';
+  }
+
+  @override
+  String get networkMentorshipEmptyTitle => 'Bu görünümde mentorluk talebi yok';
+
+  @override
+  String networkMentorshipEmptyMessage(Object direction, Object status) {
+    return 'Şu anda $direction $status mentorluk talebi yok.';
+  }
+
+  @override
+  String get networkDirectionIncoming => 'gelen';
+
+  @override
+  String get networkDirectionOutgoing => 'giden';
 
   @override
   String get realtimeConnected => 'Canlı';
@@ -1235,6 +1341,13 @@ class AppLocalizationsTr extends AppLocalizations {
   String get exploreNoSuggestions => 'Şu anda öneri yok.';
 
   @override
+  String get exploreSuggestionsEmptyTitle => 'Şu anda öneri yok';
+
+  @override
+  String get exploreSuggestionsEmptyMessage =>
+      'Yeni üye ve öneriler için bu listeyi daha sonra yenile.';
+
+  @override
   String get exploreDirectoryTitle => 'Üye rehberi';
 
   @override
@@ -1295,6 +1408,20 @@ class AppLocalizationsTr extends AppLocalizations {
   String get retryAction => 'Tekrar dene';
 
   @override
+  String get errorGenericTitle => 'Bir şeyler ters gitti.';
+
+  @override
+  String get errorGenericMessage =>
+      'Biraz sonra yeniden dene veya bu ekranı yenile.';
+
+  @override
+  String get errorNetworkTitle => 'Bağlantı sorunu';
+
+  @override
+  String get errorNetworkMessage =>
+      'İnternet bağlantını kontrol edip yeniden dene.';
+
+  @override
   String get statusApproved => 'Onaylandı';
 
   @override
@@ -1350,6 +1477,13 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get requestsEmpty => 'Henüz gönderilmiş talep yok.';
+
+  @override
+  String get requestsEmptyTitle => 'Henüz talep yok';
+
+  @override
+  String get requestsEmptyMessage =>
+      'Admin incelemesi gerektiren durumlarda yukarıdaki formu kullanarak profil veya üyelik talebi gönderebilirsin.';
 
   @override
   String get requestsAttachmentUploadFailed => 'Ek dosya yüklenemedi.';

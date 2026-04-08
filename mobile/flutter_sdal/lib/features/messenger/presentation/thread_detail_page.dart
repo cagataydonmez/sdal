@@ -6,6 +6,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -156,7 +157,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
           Expanded(
             child: messagesState.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => const ErrorView(),
+              error: (error, _) => const ErrorView(kind: ErrorViewKind.network),
               data: (page) {
                 final latestMessages = page.items;
                 _hasOlderMessages = _olderMessages.isNotEmpty
@@ -176,7 +177,11 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(l10n.threadEmpty),
+                      child: EmptyStateView(
+                        icon: Icons.chat_outlined,
+                        title: l10n.threadEmptyTitle,
+                        message: l10n.threadEmptyMessage,
+                      ),
                     ),
                   );
                 }
