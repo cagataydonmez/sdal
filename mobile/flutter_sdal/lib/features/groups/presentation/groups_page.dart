@@ -34,9 +34,8 @@ class GroupsPage extends ConsumerWidget {
       ),
       child: groupsState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ErrorView(
-          onRetry: () => ref.invalidate(groupsListProvider),
-        ),
+        error: (error, _) =>
+            ErrorView(onRetry: () => ref.invalidate(groupsListProvider)),
         data: (groups) => RefreshIndicator(
           onRefresh: () => ref.refresh(groupsListProvider.future),
           child: ListView.separated(
@@ -141,10 +140,31 @@ Future<void> _toggleJoin(
     }
   }
   final notifier = ref.read(groupsActionControllerProvider.notifier);
-  final status = switch (group?.membershipStatus) {
-    'member' => await _confirmAndLeaveGroup(context, notifier, groupId),
-    _ => await notifier.toggleJoin(groupId),
-  };
+  final isMember = group?.membershipStatus == 'member';
+  String? status;
+  if (isMember) {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Gruptan ayrılsın mı?'),
+        content: const Text('Bu işlem grup üyeliğinizi sonlandırır.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Ayrıl'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    status = await notifier.leaveGroup(groupId);
+  } else {
+    status = await notifier.toggleJoin(groupId);
+  }
   if (status == null) return;
   ref.invalidate(groupsListProvider);
   if (!context.mounted) return;
@@ -156,32 +176,6 @@ Future<void> _toggleJoin(
       ).showSnackBar(SnackBar(content: Text(message!)));
     }
   }
-}
-
-Future<String?> _confirmAndLeaveGroup(
-  BuildContext context,
-  GroupsActionController notifier,
-  int groupId,
-) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Gruptan ayrılsın mı?'),
-      content: const Text('Bu işlem grup üyeliğinizi sonlandırır.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Vazgeç'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Ayrıl'),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true) return null;
-  return notifier.leaveGroup(groupId);
 }
 
 String _joinLabel(BuildContext context, String membershipStatus) {
@@ -299,7 +293,7 @@ class _MetaChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).sdal.panelMuted,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -321,7 +315,7 @@ class _VisibilityBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: membersOnly ? tokens.warningMuted : tokens.successMuted,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

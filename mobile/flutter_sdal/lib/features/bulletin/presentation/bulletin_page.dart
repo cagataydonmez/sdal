@@ -357,7 +357,9 @@ class _BulletinMessageCard extends ConsumerWidget {
                   ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).sdal.accentMuted,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(
+                      SdalThemeTokens.radiusPill,
+                    ),
                   ),
                   child: const Text('Yeni'),
                 ),

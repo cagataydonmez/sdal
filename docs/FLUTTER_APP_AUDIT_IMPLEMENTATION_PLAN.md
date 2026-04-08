@@ -358,7 +358,18 @@ Definition of done:
 
 #### B3. Define and enforce a border-radius scale
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `normalize`
+
+Current progress in implementation:
+
+- semantic radius constants now live in `SdalThemeTokens` for cards, controls, compact surfaces, and pill shapes
+- `app_theme.dart` now derives card, input, chip, segmented-button, filled-button, outlined-button, and FAB radii from the shared radius scale instead of anonymous literals
+- the shared `999` pill/badge anti-pattern was replaced with the semantic `radiusPill` constant across shell badges, feed pills/chips, profile status chips, request/group/admin badges, bulletin badges, and story progress bars
 
 Audit coverage:
 

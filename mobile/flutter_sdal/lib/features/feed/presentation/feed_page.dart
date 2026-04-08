@@ -430,7 +430,7 @@ class _MetricPill extends StatelessWidget {
         color: active
             ? Theme.of(context).sdal.accentMuted
             : Theme.of(context).sdal.panelMuted,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -448,7 +448,7 @@ class _MetricPill extends StatelessWidget {
     return Tooltip(
       message: semanticLabel ?? label,
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
         onTap: onTap,
         child: Semantics(
           button: onTap != null,
@@ -874,7 +874,7 @@ class _FeedFilterChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
         color: selected ? tokens.accentMuted : tokens.panelMuted,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
         border: Border.all(
           color: selected ? tokens.accent : Colors.transparent,
         ),
@@ -889,7 +889,7 @@ class _FeedFilterChip extends StatelessWidget {
     return Tooltip(
       message: label,
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
         onTap: onTap,
         child: Semantics(
           button: true,

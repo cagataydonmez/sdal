@@ -738,7 +738,7 @@ class _StatusBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -762,7 +762,7 @@ class _DetailChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: tokens.panelMuted,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
         border: Border.all(color: tokens.panelBorder),
       ),
       child: Padding(

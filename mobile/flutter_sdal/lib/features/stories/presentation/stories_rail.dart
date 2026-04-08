@@ -631,7 +631,7 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
                                             alpha: 0.18,
                                           ),
                                           borderRadius: BorderRadius.circular(
-                                            999,
+                                            SdalThemeTokens.radiusPill,
                                           ),
                                         ),
                                         child: AnimatedBuilder(
@@ -651,7 +651,8 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
                                                     color: storyForeground,
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                          999,
+                                                          SdalThemeTokens
+                                                              .radiusPill,
                                                         ),
                                                   ),
                                                 ),

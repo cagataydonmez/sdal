@@ -7,6 +7,7 @@ import '../../features/messenger/data/messenger_repository.dart';
 import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
 import '../shell/shell_metadata_repository.dart';
+import '../theme/sdal_theme_tokens.dart';
 
 class AppTabShell extends ConsumerWidget {
   const AppTabShell({super.key, required this.navigationShell});
@@ -132,7 +133,9 @@ class _NavBadgeIcon extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.error,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(
+                      SdalThemeTokens.radiusPill,
+                    ),
                   ),
                   child: Center(
                     child: Text(

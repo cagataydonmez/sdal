@@ -136,7 +136,7 @@ class _ProfileLeading extends StatelessWidget {
           child: Tooltip(
             message: l10n.profileOpenAction,
             child: InkWell(
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
               onTap: () => context.go('/profile'),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -674,7 +674,9 @@ class _SidebarHighlights extends StatelessWidget {
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: theme.sdal.panelMuted,
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(
+                    SdalThemeTokens.radiusPill,
+                  ),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(

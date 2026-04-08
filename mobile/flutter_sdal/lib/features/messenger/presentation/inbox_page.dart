@@ -172,7 +172,9 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                                             decoration: BoxDecoration(
                                               color: const Color(0xFF0D2238),
                                               borderRadius:
-                                                  BorderRadius.circular(999),
+                                                  BorderRadius.circular(
+                                                    SdalThemeTokens.radiusPill,
+                                                  ),
                                             ),
                                             child: Text(
                                               '${thread.unreadCount}',

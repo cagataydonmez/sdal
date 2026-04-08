@@ -3634,7 +3634,7 @@ class _AdminPreviewLine extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: theme.sdal.panelRaised,
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
             ),
             child: Text(
               trailing,

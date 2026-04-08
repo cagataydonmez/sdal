@@ -82,7 +82,7 @@ ThemeData _buildSdalTheme({
       color: tokens.panel,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radius2xl),
         side: BorderSide(color: tokens.panelBorder),
       ),
       margin: EdgeInsets.zero,
@@ -107,15 +107,15 @@ ThemeData _buildSdalTheme({
       fillColor: tokens.panel,
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
         borderSide: BorderSide(color: tokens.panelBorder),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
         borderSide: BorderSide(color: tokens.panelBorder),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
         borderSide: BorderSide(color: tokens.accent, width: 1.5),
       ),
       labelStyle: TextStyle(color: tokens.foregroundMuted),
@@ -139,7 +139,9 @@ ThemeData _buildSdalTheme({
       selectedColor: tokens.accentMuted,
       labelStyle: TextStyle(color: tokens.foreground),
       secondaryLabelStyle: TextStyle(color: tokens.foreground),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+      ),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
       color: tokens.accent,
@@ -149,7 +151,9 @@ ThemeData _buildSdalTheme({
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: tokens.accent,
       foregroundColor: tokens.foregroundOnAccent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusXl),
+      ),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
@@ -160,7 +164,9 @@ ThemeData _buildSdalTheme({
         foregroundColor: WidgetStateProperty.all(tokens.foreground),
         side: WidgetStateProperty.all(BorderSide(color: tokens.panelBorder)),
         shape: WidgetStateProperty.all(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
+          ),
         ),
       ),
     ),
@@ -169,7 +175,9 @@ ThemeData _buildSdalTheme({
         backgroundColor: tokens.accent,
         foregroundColor: tokens.foregroundOnAccent,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
+        ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -177,7 +185,9 @@ ThemeData _buildSdalTheme({
         foregroundColor: tokens.foreground,
         side: BorderSide(color: tokens.panelBorder),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusLg),
+        ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(

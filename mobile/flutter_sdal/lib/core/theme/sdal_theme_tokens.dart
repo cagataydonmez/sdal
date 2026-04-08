@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 
 @immutable
 class SdalThemeTokens extends ThemeExtension<SdalThemeTokens> {
+  static const double radiusXs = 12;
+  static const double radiusSm = 14;
+  static const double radiusMd = 16;
+  static const double radiusLg = 18;
+  static const double radiusXl = 20;
+  static const double radius2xl = 24;
+  static const double radiusPill = 999;
+
   const SdalThemeTokens({
     required this.canvas,
     required this.canvasSubtle,
