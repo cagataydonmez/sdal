@@ -278,7 +278,13 @@ Definition of done:
 
 #### B1. Replace all audited hardcoded colors with token references
 
-Status: `Not started`
+Status: `In progress`
+
+Current progress in implementation:
+
+- `profile_page.dart` verified/pending chips and role chip now derive from `SdalThemeTokens.success`, `.warning`, and `.info` instead of hardcoded one-off colors
+- `thread_detail_page.dart` direct-message bubbles now reuse the design-system chat tokens and token-derived text/border/shadow colors instead of bespoke navy/white/black values
+- `notifications_page.dart` unread dot now uses the shared info token instead of a hardcoded blue accent
 
 Audit coverage:
 

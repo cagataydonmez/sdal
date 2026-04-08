@@ -102,12 +102,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                     ? l10n.profileVerified
                                     : l10n.profilePendingVerification,
                                 color: user.isVerified
-                                    ? const Color(0xFF0D7A4B)
-                                    : const Color(0xFF9A6700),
+                                    ? Theme.of(context).sdal.success
+                                    : Theme.of(context).sdal.warning,
                               ),
                               _StatusChip(
                                 label: user.role,
-                                color: const Color(0xFF173657),
+                                color: Theme.of(context).sdal.info,
                               ),
                             ],
                           ),

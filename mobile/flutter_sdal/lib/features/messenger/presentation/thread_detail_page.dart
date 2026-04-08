@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
@@ -57,6 +58,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
     final config = ref.watch(appConfigProvider);
     final actionState = ref.watch(messengerActionControllerProvider);
     final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     final sending =
         actionState.isLoading &&
         actionState.scope == 'messenger:send:${widget.threadId}';
@@ -214,11 +216,11 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                     }
                     final message = messages[index];
                     final bubbleColor = message.isMine
-                        ? const Color(0xFF0D2238)
-                        : Colors.white;
+                        ? tokens.chatOutgoing
+                        : tokens.chatIncoming;
                     final textColor = message.isMine
-                        ? Colors.white
-                        : const Color(0xFF0D2238);
+                        ? tokens.foregroundOnAccent
+                        : tokens.foreground;
                     return Align(
                       alignment: message.isMine
                           ? Alignment.centerRight
@@ -229,9 +231,16 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                           decoration: BoxDecoration(
                             color: bubbleColor,
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: message.isMine
+                                  ? tokens.chatOutgoing
+                                  : tokens.panelBorder,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.06),
+                                color: tokens.foreground.withValues(
+                                  alpha: 0.06,
+                                ),
                                 blurRadius: 18,
                                 offset: const Offset(0, 8),
                               ),
@@ -255,8 +264,9 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: message.isMine
-                                            ? Colors.white70
-                                            : Colors.black54,
+                                            ? tokens.foregroundOnAccent
+                                                  .withValues(alpha: 0.72)
+                                            : tokens.foregroundMuted,
                                       ),
                                 ),
                               ],

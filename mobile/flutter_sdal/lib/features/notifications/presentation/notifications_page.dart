@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
+import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -49,6 +50,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final unreadCountState = ref.watch(notificationUnreadCountProvider);
     final actionState = ref.watch(notificationsActionControllerProvider);
     final l10n = context.l10n;
+    final tokens = Theme.of(context).sdal;
     final savingPreferences =
         actionState.isLoading && actionState.scope == 'preferences';
     final visibleItems = _items;
@@ -201,12 +203,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                   ),
                                 ),
                                 if (item.isUnread)
-                                  const Padding(
+                                  Padding(
                                     padding: EdgeInsets.only(left: 12),
                                     child: Icon(
                                       Icons.circle,
                                       size: 10,
-                                      color: Color(0xFF1F6FEB),
+                                      color: tokens.info,
                                     ),
                                   ),
                               ],
