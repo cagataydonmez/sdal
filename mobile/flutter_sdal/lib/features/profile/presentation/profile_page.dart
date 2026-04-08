@@ -123,7 +123,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hikayeler',
+                      l10n.storiesTitle,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
@@ -149,7 +149,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         expiredStories == null
                             ? _expiredStoriesTitle(context, _storyFeedType)
                             : expiredStoriesCount > 0
-                            ? '${_expiredStoriesTitle(context, _storyFeedType)} ($expiredStoriesCount)'
+                            ? l10n.profileExpiredStoriesCountLabel(
+                                _expiredStoriesTitle(context, _storyFeedType),
+                                expiredStoriesCount,
+                              )
                             : _expiredStoriesTitle(context, _storyFeedType),
                       ),
                     ),
@@ -196,29 +199,62 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    _ProfileRow(label: 'Ad', value: profile.firstName),
-                    _ProfileRow(label: 'Soyad', value: profile.lastName),
                     _ProfileRow(
-                      label: 'Mezuniyet',
+                      label: l10n.profileEditFirstNameLabel,
+                      value: profile.firstName,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditLastNameLabel,
+                      value: profile.lastName,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileDetailsGraduationYearLabel,
                       value: profile.graduationYear,
                     ),
-                    _ProfileRow(label: 'Şehir', value: profile.city),
-                    _ProfileRow(label: 'Meslek', value: profile.profession),
-                    _ProfileRow(label: 'Şirket', value: profile.company),
-                    _ProfileRow(label: 'Unvan', value: profile.title),
-                    _ProfileRow(label: 'Uzmanlık', value: profile.expertise),
-                    _ProfileRow(label: 'Web sitesi', value: profile.website),
-                    _ProfileRow(label: 'LinkedIn', value: profile.linkedinUrl),
-                    _ProfileRow(label: 'Üniversite', value: profile.university),
                     _ProfileRow(
-                      label: 'Bölüm',
+                      label: l10n.profileEditCityLabel,
+                      value: profile.city,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditProfessionLabel,
+                      value: profile.profession,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditCompanyLabel,
+                      value: profile.company,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditTitleLabel,
+                      value: profile.title,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditExpertiseLabel,
+                      value: profile.expertise,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditWebsiteLabel,
+                      value: profile.website,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditLinkedinLabel,
+                      value: profile.linkedinUrl,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditUniversityLabel,
+                      value: profile.university,
+                    ),
+                    _ProfileRow(
+                      label: l10n.profileEditDepartmentLabel,
                       value: profile.universityDepartment,
                     ),
                     _ProfileRow(
-                      label: 'Mentorluk konuları',
+                      label: l10n.profileEditMentorTopicsLabel,
                       value: profile.mentorTopics,
                     ),
-                    _ProfileRow(label: 'İmza', value: profile.signature),
+                    _ProfileRow(
+                      label: l10n.profileEditSignatureLabel,
+                      value: profile.signature,
+                    ),
                   ],
                 ),
               ),
@@ -283,12 +319,16 @@ class _FeedTypePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return SegmentedButton<FeedType>(
-      segments: const [
-        ButtonSegment<FeedType>(value: FeedType.main, label: Text('Ana Akış')),
+      segments: [
+        ButtonSegment<FeedType>(
+          value: FeedType.main,
+          label: Text(l10n.feedTitle),
+        ),
         ButtonSegment<FeedType>(
           value: FeedType.community,
-          label: Text('Topluluk'),
+          label: Text(l10n.communitySectionTitle),
         ),
       ],
       selected: {value},
@@ -301,26 +341,18 @@ class _FeedTypePicker extends StatelessWidget {
 }
 
 String _profileStoriesTitle(BuildContext context, FeedType feedType) {
-  final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+  final l10n = context.l10n;
   return switch (feedType) {
-    FeedType.main =>
-      isTurkish ? 'Ana Akış Hikayelerim' : 'My Main Feed Stories',
-    FeedType.community =>
-      isTurkish ? 'Topluluk Hikayelerim' : 'My Community Stories',
+    FeedType.main => l10n.profileMainFeedStoriesTitle,
+    FeedType.community => l10n.profileCommunityStoriesTitle,
   };
 }
 
 String _expiredStoriesTitle(BuildContext context, FeedType feedType) {
-  final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+  final l10n = context.l10n;
   return switch (feedType) {
-    FeedType.main =>
-      isTurkish
-          ? 'Süresi Dolan Ana Akış Hikayeleri'
-          : 'Expired Main Feed Stories',
-    FeedType.community =>
-      isTurkish
-          ? 'Süresi Dolan Topluluk Hikayeleri'
-          : 'Expired Community Stories',
+    FeedType.main => l10n.profileExpiredMainFeedStoriesTitle,
+    FeedType.community => l10n.profileExpiredCommunityStoriesTitle,
   };
 }
 
@@ -449,21 +481,24 @@ class _StatusChip extends StatelessWidget {
 }
 
 Future<void> _openEmailChangeDialog(BuildContext context, WidgetRef ref) async {
+  final l10n = context.l10n;
   final controller = TextEditingController();
   try {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('E-posta değiştir'),
+        title: Text(l10n.changeEmailAction),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(labelText: 'Yeni e-posta'),
+          decoration: InputDecoration(
+            labelText: l10n.profileEmailChangeNewEmailLabel,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Vazgeç'),
+            child: Text(l10n.cancelAction),
           ),
           FilledButton(
             onPressed: () async {
@@ -478,13 +513,13 @@ Future<void> _openEmailChangeDialog(BuildContext context, WidgetRef ref) async {
                   content: Text(
                     actionState.message ??
                         (ok
-                            ? 'Doğrulama e-postası gönderildi.'
-                            : 'İstek başarısız oldu.'),
+                            ? l10n.profileEmailChangeSuccess
+                            : l10n.profileEmailChangeFailed),
                   ),
                 ),
               );
             },
-            child: const Text('Gönder'),
+            child: Text(l10n.profileEmailChangeSubmitAction),
           ),
         ],
       ),
@@ -495,6 +530,7 @@ Future<void> _openEmailChangeDialog(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _openPasswordDialog(BuildContext context, WidgetRef ref) async {
+  final l10n = context.l10n;
   final currentController = TextEditingController();
   final nextController = TextEditingController();
   final repeatController = TextEditingController();
@@ -502,15 +538,23 @@ Future<void> _openPasswordDialog(BuildContext context, WidgetRef ref) async {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Şifre değiştir'),
+        title: Text(l10n.changePasswordAction),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _dialogField(currentController, 'Eski şifre', obscureText: true),
-            _dialogField(nextController, 'Yeni şifre', obscureText: true),
+            _dialogField(
+              currentController,
+              l10n.profilePasswordChangeCurrentPasswordLabel,
+              obscureText: true,
+            ),
+            _dialogField(
+              nextController,
+              l10n.profilePasswordChangeNewPasswordLabel,
+              obscureText: true,
+            ),
             _dialogField(
               repeatController,
-              'Yeni şifre tekrar',
+              l10n.profilePasswordChangeRepeatPasswordLabel,
               obscureText: true,
             ),
           ],
@@ -518,7 +562,7 @@ Future<void> _openPasswordDialog(BuildContext context, WidgetRef ref) async {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Vazgeç'),
+            child: Text(l10n.cancelAction),
           ),
           FilledButton(
             onPressed: () async {
@@ -536,12 +580,14 @@ Future<void> _openPasswordDialog(BuildContext context, WidgetRef ref) async {
                 SnackBar(
                   content: Text(
                     actionState.message ??
-                        (ok ? 'Şifre güncellendi.' : 'Şifre güncellenemedi.'),
+                        (ok
+                            ? l10n.profilePasswordChangeSuccess
+                            : l10n.profilePasswordChangeFailed),
                   ),
                 ),
               );
             },
-            child: const Text('Güncelle'),
+            child: Text(l10n.profilePasswordChangeSubmitAction),
           ),
         ],
       ),

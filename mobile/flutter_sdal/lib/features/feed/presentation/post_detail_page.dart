@@ -52,7 +52,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => const ErrorView(compact: true),
             data: (post) => post == null
-                ? const Text('Gönderi bulunamadı.')
+                ? Text(l10n.feedPostNotFound)
                 : SurfaceCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,8 +137,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                       content: Text(
                                         nextState.message ??
                                             (ok
-                                                ? 'Gönderi silindi.'
-                                                : 'Gönderi silinemedi.'),
+                                                ? l10n.feedPostDeleted
+                                                : l10n.feedPostDeleteFailed),
                                       ),
                                     ),
                                   );
@@ -175,12 +175,14 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                     ? Icons.favorite
                                     : Icons.favorite_border,
                               ),
-                              label: Text('${post.likeCount} beğeni'),
+                              label: Text(l10n.feedLikesCount(post.likeCount)),
                             ),
                             FilledButton.tonalIcon(
                               onPressed: null,
                               icon: const Icon(Icons.chat_bubble_outline),
-                              label: Text('${post.commentCount} yorum'),
+                              label: Text(
+                                l10n.feedCommentsCount(post.commentCount),
+                              ),
                             ),
                           ],
                         ),
@@ -194,7 +196,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Yorum ekle',
+                  l10n.feedCommentAddTitle,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
@@ -202,8 +204,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   controller: _commentController,
                   minLines: 2,
                   maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'Yorumun',
+                  decoration: InputDecoration(
+                    labelText: l10n.feedCommentFieldLabel,
                     alignLabelWithHint: true,
                   ),
                 ),
@@ -213,7 +215,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   child: FilledButton(
                     onPressed: submittingComment ? null : _submitComment,
                     child: Text(
-                      submittingComment ? 'Gönderiliyor...' : 'Yorumu gönder',
+                      submittingComment
+                          ? l10n.submitInProgress
+                          : l10n.feedCommentSubmitAction,
                     ),
                   ),
                 ),
@@ -221,14 +225,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             ),
           ),
           const SizedBox(height: 18),
-          Text('Yorumlar', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            l10n.feedCommentsTitle,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 12),
           commentsState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => const ErrorView(compact: true),
             data: (comments) {
               if (comments.isEmpty) {
-                return const SurfaceCard(child: Text('Henüz yorum yok.'));
+                return SurfaceCard(child: Text(l10n.feedCommentsEmpty));
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -315,9 +322,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                         final approved = await showDialog<bool>(
                                           context: context,
                                           builder: (context) => AlertDialog(
-                                            title: const Text('Yorumu sil'),
-                                            content: const Text(
-                                              'Bu yorumu silmek istiyor musun?',
+                                            title: Text(
+                                              l10n.feedCommentDeleteTitle,
+                                            ),
+                                            content: Text(
+                                              l10n.feedCommentDeleteMessage,
                                             ),
                                             actions: [
                                               TextButton(
@@ -359,8 +368,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                             content: Text(
                                               nextState.message ??
                                                   (ok
-                                                      ? 'Yorum silindi.'
-                                                      : 'Yorum silinemedi.'),
+                                                      ? l10n.feedCommentDeleted
+                                                      : l10n.feedCommentDeleteFailed),
                                             ),
                                           ),
                                         );
@@ -403,6 +412,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   Future<void> _submitComment() async {
     final comment = _commentController.text.trim();
+    final l10n = context.l10n;
     if (comment.isEmpty) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
@@ -414,7 +424,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     }
     final actionState = ref.read(feedActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(actionState.message ?? 'Yorum gönderilemedi.')),
+      SnackBar(
+        content: Text(actionState.message ?? l10n.feedCommentSubmitFailed),
+      ),
     );
   }
 }
@@ -434,18 +446,16 @@ class _FeedPostMenuButton extends StatelessWidget {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Gönderiyi sil'),
-            content: const Text(
-              'Bu gönderi kalıcı olarak silinecek. Devam etmek istiyor musun?',
-            ),
+            title: Text(l10n.feedPostDeleteTitle),
+            content: Text(l10n.feedPostDeleteMessage),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Vazgeç'),
+                child: Text(l10n.cancelAction),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Sil'),
+                child: Text(l10n.deleteAction),
               ),
             ],
           ),
@@ -454,8 +464,11 @@ class _FeedPostMenuButton extends StatelessWidget {
           await onDelete();
         }
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem<String>(value: 'delete', child: Text('Gönderiyi sil')),
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Text(l10n.feedPostDeleteTitle),
+        ),
       ],
     );
   }

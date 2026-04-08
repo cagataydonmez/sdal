@@ -266,6 +266,96 @@ abstract class AppLocalizations {
   /// **'İşlem tamamlanamadı.'**
   String get actionFailedGeneric;
 
+  /// No description provided for @feedPostNotFound.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönderi bulunamadı.'**
+  String get feedPostNotFound;
+
+  /// No description provided for @feedCommentAddTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorum ekle'**
+  String get feedCommentAddTitle;
+
+  /// No description provided for @feedCommentFieldLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorumun'**
+  String get feedCommentFieldLabel;
+
+  /// No description provided for @feedCommentSubmitAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorumu gönder'**
+  String get feedCommentSubmitAction;
+
+  /// No description provided for @feedCommentsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorumlar'**
+  String get feedCommentsTitle;
+
+  /// No description provided for @feedCommentsEmpty.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz yorum yok.'**
+  String get feedCommentsEmpty;
+
+  /// No description provided for @feedCommentDeleteTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorumu sil'**
+  String get feedCommentDeleteTitle;
+
+  /// No description provided for @feedCommentDeleteMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu yorumu silmek istiyor musun?'**
+  String get feedCommentDeleteMessage;
+
+  /// No description provided for @feedCommentDeleted.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorum silindi.'**
+  String get feedCommentDeleted;
+
+  /// No description provided for @feedCommentDeleteFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorum silinemedi.'**
+  String get feedCommentDeleteFailed;
+
+  /// No description provided for @feedCommentSubmitFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorum gönderilemedi.'**
+  String get feedCommentSubmitFailed;
+
+  /// No description provided for @feedPostDeleteTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönderiyi sil'**
+  String get feedPostDeleteTitle;
+
+  /// No description provided for @feedPostDeleteMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bu gönderi kalıcı olarak silinecek. Devam etmek istiyor musun?'**
+  String get feedPostDeleteMessage;
+
+  /// No description provided for @feedPostDeleted.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönderi silindi.'**
+  String get feedPostDeleted;
+
+  /// No description provided for @feedPostDeleteFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönderi silinemedi.'**
+  String get feedPostDeleteFailed;
+
   /// No description provided for @sidebarOnlineUsersCount.
   ///
   /// In tr, this message translates to:
@@ -968,6 +1058,12 @@ abstract class AppLocalizations {
   /// **'Hesap bilgileri'**
   String get profileAccountDetailsTitle;
 
+  /// No description provided for @profileDetailsGraduationYearLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mezuniyet yılı'**
+  String get profileDetailsGraduationYearLabel;
+
   /// No description provided for @editAction.
   ///
   /// In tr, this message translates to:
@@ -1184,11 +1280,71 @@ abstract class AppLocalizations {
   /// **'E-posta değiştir'**
   String get changeEmailAction;
 
+  /// No description provided for @profileEmailChangeNewEmailLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni e-posta'**
+  String get profileEmailChangeNewEmailLabel;
+
+  /// No description provided for @profileEmailChangeSubmitAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönder'**
+  String get profileEmailChangeSubmitAction;
+
+  /// No description provided for @profileEmailChangeSuccess.
+  ///
+  /// In tr, this message translates to:
+  /// **'Doğrulama e-postası gönderildi.'**
+  String get profileEmailChangeSuccess;
+
+  /// No description provided for @profileEmailChangeFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'İstek başarısız oldu.'**
+  String get profileEmailChangeFailed;
+
   /// No description provided for @changePasswordAction.
   ///
   /// In tr, this message translates to:
   /// **'Şifre değiştir'**
   String get changePasswordAction;
+
+  /// No description provided for @profilePasswordChangeCurrentPasswordLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Eski şifre'**
+  String get profilePasswordChangeCurrentPasswordLabel;
+
+  /// No description provided for @profilePasswordChangeNewPasswordLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni şifre'**
+  String get profilePasswordChangeNewPasswordLabel;
+
+  /// No description provided for @profilePasswordChangeRepeatPasswordLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni şifre tekrar'**
+  String get profilePasswordChangeRepeatPasswordLabel;
+
+  /// No description provided for @profilePasswordChangeSubmitAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güncelle'**
+  String get profilePasswordChangeSubmitAction;
+
+  /// No description provided for @profilePasswordChangeSuccess.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şifre güncellendi.'**
+  String get profilePasswordChangeSuccess;
+
+  /// No description provided for @profilePasswordChangeFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şifre güncellenemedi.'**
+  String get profilePasswordChangeFailed;
 
   /// No description provided for @logoutAction.
   ///
@@ -1573,6 +1729,36 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Hikayeler'**
   String get storiesTitle;
+
+  /// No description provided for @profileMainFeedStoriesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ana akış hikayelerim'**
+  String get profileMainFeedStoriesTitle;
+
+  /// No description provided for @profileCommunityStoriesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Topluluk hikayelerim'**
+  String get profileCommunityStoriesTitle;
+
+  /// No description provided for @profileExpiredMainFeedStoriesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Süresi dolan ana akış hikayeleri'**
+  String get profileExpiredMainFeedStoriesTitle;
+
+  /// No description provided for @profileExpiredCommunityStoriesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Süresi dolan topluluk hikayeleri'**
+  String get profileExpiredCommunityStoriesTitle;
+
+  /// No description provided for @profileExpiredStoriesCountLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'{title} ({count})'**
+  String profileExpiredStoriesCountLabel(Object title, Object count);
 
   /// No description provided for @storiesEmpty.
   ///

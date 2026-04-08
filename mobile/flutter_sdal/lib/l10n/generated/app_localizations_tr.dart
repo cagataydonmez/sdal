@@ -101,6 +101,52 @@ class AppLocalizationsTr extends AppLocalizations {
   String get actionFailedGeneric => 'İşlem tamamlanamadı.';
 
   @override
+  String get feedPostNotFound => 'Gönderi bulunamadı.';
+
+  @override
+  String get feedCommentAddTitle => 'Yorum ekle';
+
+  @override
+  String get feedCommentFieldLabel => 'Yorumun';
+
+  @override
+  String get feedCommentSubmitAction => 'Yorumu gönder';
+
+  @override
+  String get feedCommentsTitle => 'Yorumlar';
+
+  @override
+  String get feedCommentsEmpty => 'Henüz yorum yok.';
+
+  @override
+  String get feedCommentDeleteTitle => 'Yorumu sil';
+
+  @override
+  String get feedCommentDeleteMessage => 'Bu yorumu silmek istiyor musun?';
+
+  @override
+  String get feedCommentDeleted => 'Yorum silindi.';
+
+  @override
+  String get feedCommentDeleteFailed => 'Yorum silinemedi.';
+
+  @override
+  String get feedCommentSubmitFailed => 'Yorum gönderilemedi.';
+
+  @override
+  String get feedPostDeleteTitle => 'Gönderiyi sil';
+
+  @override
+  String get feedPostDeleteMessage =>
+      'Bu gönderi kalıcı olarak silinecek. Devam etmek istiyor musun?';
+
+  @override
+  String get feedPostDeleted => 'Gönderi silindi.';
+
+  @override
+  String get feedPostDeleteFailed => 'Gönderi silinemedi.';
+
+  @override
   String sidebarOnlineUsersCount(Object count) {
     return '$count çevrim içi üye';
   }
@@ -489,6 +535,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get profileAccountDetailsTitle => 'Hesap bilgileri';
 
   @override
+  String get profileDetailsGraduationYearLabel => 'Mezuniyet yılı';
+
+  @override
   String get editAction => 'Düzenle';
 
   @override
@@ -603,7 +652,37 @@ class AppLocalizationsTr extends AppLocalizations {
   String get changeEmailAction => 'E-posta değiştir';
 
   @override
+  String get profileEmailChangeNewEmailLabel => 'Yeni e-posta';
+
+  @override
+  String get profileEmailChangeSubmitAction => 'Gönder';
+
+  @override
+  String get profileEmailChangeSuccess => 'Doğrulama e-postası gönderildi.';
+
+  @override
+  String get profileEmailChangeFailed => 'İstek başarısız oldu.';
+
+  @override
   String get changePasswordAction => 'Şifre değiştir';
+
+  @override
+  String get profilePasswordChangeCurrentPasswordLabel => 'Eski şifre';
+
+  @override
+  String get profilePasswordChangeNewPasswordLabel => 'Yeni şifre';
+
+  @override
+  String get profilePasswordChangeRepeatPasswordLabel => 'Yeni şifre tekrar';
+
+  @override
+  String get profilePasswordChangeSubmitAction => 'Güncelle';
+
+  @override
+  String get profilePasswordChangeSuccess => 'Şifre güncellendi.';
+
+  @override
+  String get profilePasswordChangeFailed => 'Şifre güncellenemedi.';
 
   @override
   String get logoutAction => 'Çıkış yap';
@@ -805,6 +884,25 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get storiesTitle => 'Hikayeler';
+
+  @override
+  String get profileMainFeedStoriesTitle => 'Ana akış hikayelerim';
+
+  @override
+  String get profileCommunityStoriesTitle => 'Topluluk hikayelerim';
+
+  @override
+  String get profileExpiredMainFeedStoriesTitle =>
+      'Süresi dolan ana akış hikayeleri';
+
+  @override
+  String get profileExpiredCommunityStoriesTitle =>
+      'Süresi dolan topluluk hikayeleri';
+
+  @override
+  String profileExpiredStoriesCountLabel(Object title, Object count) {
+    return '$title ($count)';
+  }
 
   @override
   String get storiesEmpty => 'Henüz aktif hikaye yok.';

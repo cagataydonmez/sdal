@@ -101,6 +101,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionFailedGeneric => 'Action could not be completed.';
 
   @override
+  String get feedPostNotFound => 'Post not found.';
+
+  @override
+  String get feedCommentAddTitle => 'Add comment';
+
+  @override
+  String get feedCommentFieldLabel => 'Your comment';
+
+  @override
+  String get feedCommentSubmitAction => 'Send comment';
+
+  @override
+  String get feedCommentsTitle => 'Comments';
+
+  @override
+  String get feedCommentsEmpty => 'No comments yet.';
+
+  @override
+  String get feedCommentDeleteTitle => 'Delete comment';
+
+  @override
+  String get feedCommentDeleteMessage => 'Do you want to delete this comment?';
+
+  @override
+  String get feedCommentDeleted => 'Comment deleted.';
+
+  @override
+  String get feedCommentDeleteFailed => 'Comment could not be deleted.';
+
+  @override
+  String get feedCommentSubmitFailed => 'Comment could not be sent.';
+
+  @override
+  String get feedPostDeleteTitle => 'Delete post';
+
+  @override
+  String get feedPostDeleteMessage =>
+      'This post will be permanently deleted. Do you want to continue?';
+
+  @override
+  String get feedPostDeleted => 'Post deleted.';
+
+  @override
+  String get feedPostDeleteFailed => 'Post could not be deleted.';
+
+  @override
   String sidebarOnlineUsersCount(Object count) {
     return '$count users online';
   }
@@ -492,6 +538,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileAccountDetailsTitle => 'Account details';
 
   @override
+  String get profileDetailsGraduationYearLabel => 'Graduation year';
+
+  @override
   String get editAction => 'Edit';
 
   @override
@@ -606,7 +655,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changeEmailAction => 'Change e-mail';
 
   @override
+  String get profileEmailChangeNewEmailLabel => 'New e-mail';
+
+  @override
+  String get profileEmailChangeSubmitAction => 'Send';
+
+  @override
+  String get profileEmailChangeSuccess => 'Verification e-mail sent.';
+
+  @override
+  String get profileEmailChangeFailed => 'Request failed.';
+
+  @override
   String get changePasswordAction => 'Change password';
+
+  @override
+  String get profilePasswordChangeCurrentPasswordLabel => 'Current password';
+
+  @override
+  String get profilePasswordChangeNewPasswordLabel => 'New password';
+
+  @override
+  String get profilePasswordChangeRepeatPasswordLabel => 'Repeat new password';
+
+  @override
+  String get profilePasswordChangeSubmitAction => 'Update';
+
+  @override
+  String get profilePasswordChangeSuccess => 'Password updated.';
+
+  @override
+  String get profilePasswordChangeFailed => 'Password could not be updated.';
 
   @override
   String get logoutAction => 'Sign out';
@@ -807,6 +886,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get storiesTitle => 'Stories';
+
+  @override
+  String get profileMainFeedStoriesTitle => 'My main feed stories';
+
+  @override
+  String get profileCommunityStoriesTitle => 'My community stories';
+
+  @override
+  String get profileExpiredMainFeedStoriesTitle => 'Expired main feed stories';
+
+  @override
+  String get profileExpiredCommunityStoriesTitle => 'Expired community stories';
+
+  @override
+  String profileExpiredStoriesCountLabel(Object title, Object count) {
+    return '$title ($count)';
+  }
 
   @override
   String get storiesEmpty => 'No active stories yet.';
