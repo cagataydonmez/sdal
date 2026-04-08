@@ -25,6 +25,7 @@ import '../../features/networking/presentation/networking_pages.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/legal/presentation/legal_content_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
+import '../../features/profile/presentation/profile_edit_page.dart';
 import '../../features/profile/presentation/email_change_verify_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
 import '../../features/profile/presentation/profile_verification_page.dart';
@@ -89,10 +90,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/activate',
-        pageBuilder: (context, state) => _slidePage(ActivationPage(
-          memberId: state.uri.queryParameters['id'] ?? '',
-          code: state.uri.queryParameters['akt'] ?? '',
-        )),
+        pageBuilder: (context, state) => _slidePage(
+          ActivationPage(
+            memberId: state.uri.queryParameters['id'] ?? '',
+            code: state.uri.queryParameters['akt'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '/activation/resend',
@@ -101,24 +104,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/password-reset',
-        pageBuilder: (context, state) =>
-            _slidePage(const PasswordResetPage()),
+        pageBuilder: (context, state) => _slidePage(const PasswordResetPage()),
       ),
       GoRoute(
         path: '/legal',
         pageBuilder: (context, state) {
           final extra = state.extra is Map ? state.extra as Map : const {};
-          return _slidePage(LegalContentPage(
-            title: (extra['title'] ?? 'Yasal içerik').toString(),
-            path: (extra['path'] ?? '/kvkk').toString(),
-          ));
+          return _slidePage(
+            LegalContentPage(
+              title: (extra['title'] ?? 'Yasal içerik').toString(),
+              path: (extra['path'] ?? '/kvkk').toString(),
+            ),
+          );
         },
       ),
       GoRoute(
         path: '/profile/email-change/verify',
-        pageBuilder: (context, state) => _slidePage(EmailChangeVerifyPage(
-          token: state.uri.queryParameters['token'] ?? '',
-        )),
+        pageBuilder: (context, state) => _slidePage(
+          EmailChangeVerifyPage(
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '/oauth/callback',
@@ -129,36 +135,44 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) {
           final s = ref.read(sessionControllerProvider).value;
           final maintenanceMessage = s?.siteAccess.maintenanceMessage ?? '';
-          return _fadePage(StatusScaffold(
-            title: AppLocalizations.of(context)!.siteClosedTitle,
-            message: maintenanceMessage.isNotEmpty
-                ? maintenanceMessage
-                : AppLocalizations.of(context)!.siteClosedFallbackMessage,
-          ));
+          return _fadePage(
+            StatusScaffold(
+              title: AppLocalizations.of(context)!.siteClosedTitle,
+              message: maintenanceMessage.isNotEmpty
+                  ? maintenanceMessage
+                  : AppLocalizations.of(context)!.siteClosedFallbackMessage,
+            ),
+          );
         },
       ),
       GoRoute(
         path: '/module-closed',
-        pageBuilder: (context, state) => _fadePage(ModuleAccessRequestPage(
-          moduleKey: state.uri.queryParameters['module'] ?? '',
-        )),
+        pageBuilder: (context, state) => _fadePage(
+          ModuleAccessRequestPage(
+            moduleKey: state.uri.queryParameters['module'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '/account-banned',
-        pageBuilder: (context, state) => _fadePage(StatusScaffold(
-          title: AppLocalizations.of(context)!.accountBannedTitle,
-          message: AppLocalizations.of(context)!.accountBannedMessage,
-        )),
+        pageBuilder: (context, state) => _fadePage(
+          StatusScaffold(
+            title: AppLocalizations.of(context)!.accountBannedTitle,
+            message: AppLocalizations.of(context)!.accountBannedMessage,
+          ),
+        ),
       ),
       GoRoute(
         path: '/verification-required',
         pageBuilder: (context, state) {
           final feature = state.uri.queryParameters['feature'] ?? 'networking';
           final l10n = AppLocalizations.of(context)!;
-          return _fadePage(StatusScaffold(
-            title: l10n.verificationRequiredTitle,
-            message: l10n.verificationRequiredMessage(feature),
-          ));
+          return _fadePage(
+            StatusScaffold(
+              title: l10n.verificationRequiredTitle,
+              message: l10n.verificationRequiredMessage(feature),
+            ),
+          );
         },
       ),
       StatefulShellRoute.indexedStack(
@@ -214,21 +228,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/posts/:postId',
-        pageBuilder: (context, state) => _liftPage(PostDetailPage(
-          postId: int.tryParse(state.pathParameters['postId'] ?? '') ?? 0,
-        )),
+        pageBuilder: (context, state) => _liftPage(
+          PostDetailPage(
+            postId: int.tryParse(state.pathParameters['postId'] ?? '') ?? 0,
+          ),
+        ),
       ),
       GoRoute(
         path: '/members/:memberId',
-        pageBuilder: (context, state) => _liftPage(MemberDetailPage(
-          memberId: int.tryParse(state.pathParameters['memberId'] ?? '') ?? 0,
-        )),
+        pageBuilder: (context, state) => _liftPage(
+          MemberDetailPage(
+            memberId: int.tryParse(state.pathParameters['memberId'] ?? '') ?? 0,
+          ),
+        ),
       ),
       GoRoute(
         path: '/messages/:threadId',
-        pageBuilder: (context, state) => _liftPage(ThreadDetailPage(
-          threadId: int.tryParse(state.pathParameters['threadId'] ?? '') ?? 0,
-        )),
+        pageBuilder: (context, state) => _liftPage(
+          ThreadDetailPage(
+            threadId: int.tryParse(state.pathParameters['threadId'] ?? '') ?? 0,
+          ),
+        ),
       ),
       GoRoute(
         path: '/network/hub',
@@ -241,8 +261,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/network/teachers',
-        pageBuilder: (context, state) =>
-            _slidePage(const TeacherLinksPage()),
+        pageBuilder: (context, state) => _slidePage(const TeacherLinksPage()),
+      ),
+      GoRoute(
+        path: '/profile/edit',
+        pageBuilder: (context, state) => _slidePage(const ProfileEditPage()),
       ),
       GoRoute(
         path: '/profile/photo',
@@ -255,11 +278,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/profile/stories/expired',
-        pageBuilder: (context, state) => _slidePage(ExpiredStoriesPage(
-          initialFeedType: state.uri.queryParameters['feedType'] == 'community'
-              ? FeedType.community
-              : FeedType.main,
-        )),
+        pageBuilder: (context, state) => _slidePage(
+          ExpiredStoriesPage(
+            initialFeedType:
+                state.uri.queryParameters['feedType'] == 'community'
+                ? FeedType.community
+                : FeedType.main,
+          ),
+        ),
       ),
       GoRoute(
         path: '/feed/live-chat',
@@ -275,9 +301,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/groups/:groupId',
-        pageBuilder: (context, state) => _liftPage(GroupDetailPage(
-          groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
-        )),
+        pageBuilder: (context, state) => _liftPage(
+          GroupDetailPage(
+            groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
+          ),
+        ),
       ),
       GoRoute(
         path: '/events',
@@ -289,10 +317,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/panolar',
-        pageBuilder: (context, state) => _slidePage(BulletinPage(
-          initialCategoryId:
-              int.tryParse(state.uri.queryParameters['mkatid'] ?? '') ?? 0,
-        )),
+        pageBuilder: (context, state) => _slidePage(
+          BulletinPage(
+            initialCategoryId:
+                int.tryParse(state.uri.queryParameters['mkatid'] ?? '') ?? 0,
+          ),
+        ),
       ),
       GoRoute(
         path: '/admin',
@@ -318,16 +348,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/albums/:categoryId',
-        pageBuilder: (context, state) => _liftPage(AlbumCategoryPage(
-          categoryId:
-              int.tryParse(state.pathParameters['categoryId'] ?? '') ?? 0,
-        )),
+        pageBuilder: (context, state) => _liftPage(
+          AlbumCategoryPage(
+            categoryId:
+                int.tryParse(state.pathParameters['categoryId'] ?? '') ?? 0,
+          ),
+        ),
       ),
       GoRoute(
         path: '/albums/photo/:photoId',
-        pageBuilder: (context, state) => _liftPage(AlbumPhotoPage(
-          photoId: int.tryParse(state.pathParameters['photoId'] ?? '') ?? 0,
-        )),
+        pageBuilder: (context, state) => _liftPage(
+          AlbumPhotoPage(
+            photoId: int.tryParse(state.pathParameters['photoId'] ?? '') ?? 0,
+          ),
+        ),
       ),
       GoRoute(
         path: '/albums/upload',
@@ -335,15 +369,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/requests',
-        pageBuilder: (context, state) => _slidePage(RequestsPage(
-          initialCategoryKey: state.uri.queryParameters['category'] ?? '',
-          highlightedRequestId:
-              int.tryParse(state.uri.queryParameters['request'] ?? '') ?? 0,
-          notificationId:
-              int.tryParse(state.uri.queryParameters['notification'] ?? '') ??
-              0,
-          notificationStatus: state.uri.queryParameters['status'] ?? '',
-        )),
+        pageBuilder: (context, state) => _slidePage(
+          RequestsPage(
+            initialCategoryKey: state.uri.queryParameters['category'] ?? '',
+            highlightedRequestId:
+                int.tryParse(state.uri.queryParameters['request'] ?? '') ?? 0,
+            notificationId:
+                int.tryParse(state.uri.queryParameters['notification'] ?? '') ??
+                0,
+            notificationStatus: state.uri.queryParameters['status'] ?? '',
+          ),
+        ),
       ),
     ],
   );
@@ -416,7 +452,9 @@ String? moduleKeyForLocation(String location) {
   }
   if (location == '/notifications') return 'notifications';
   if (location == '/profile') return 'profile';
-  if (location == '/profile/photo' || location == '/profile/verification') {
+  if (location == '/profile/edit' ||
+      location == '/profile/photo' ||
+      location == '/profile/verification') {
     return 'profile';
   }
   if (location == '/feed/live-chat') return 'feed';
@@ -452,8 +490,7 @@ CustomTransitionPage<void> _slidePage(Widget child) =>
       child: child,
       transitionDuration: _kDuration,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final curved =
-            CurvedAnimation(parent: animation, curve: _kCurve);
+        final curved = CurvedAnimation(parent: animation, curve: _kCurve);
         return SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(0.06, 0),
@@ -470,8 +507,7 @@ CustomTransitionPage<void> _liftPage(Widget child) =>
       child: child,
       transitionDuration: _kDuration,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final curved =
-            CurvedAnimation(parent: animation, curve: _kCurve);
+        final curved = CurvedAnimation(parent: animation, curve: _kCurve);
         return SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(0, 0.05),

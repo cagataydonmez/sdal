@@ -51,9 +51,30 @@ class FeatureScaffold extends ConsumerWidget {
         leading: session?.user != null
             ? _ProfileLeading(session: session!, canPop: canPop)
             : (canPop ? const BackButton() : null),
+        centerTitle: true,
         title: canPop
             ? Text(title)
-            : Image.asset('icon.png', height: 32, semanticLabel: 'SDAL'),
+            : GestureDetector(
+                onTap: () => context.go('/feed'),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: tokens.panelBorder,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10.5),
+                    child: Image.asset(
+                      'icon.png',
+                      height: 32,
+                      width: 32,
+                      semanticLabel: 'SDAL',
+                    ),
+                  ),
+                ),
+              ),
         actions: resolvedActions,
       ),
       floatingActionButton: floatingActionButton,

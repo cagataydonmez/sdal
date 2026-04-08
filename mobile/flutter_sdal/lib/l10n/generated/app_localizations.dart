@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In tr, this message translates to:
-  /// **'SDAL'**
+  /// **'SDAL Sosyal'**
   String get appName;
 
   /// No description provided for @appInitFailedTitle.
@@ -215,13 +215,13 @@ abstract class AppLocalizations {
   /// No description provided for @loginTitle.
   ///
   /// In tr, this message translates to:
-  /// **'SDAL'**
+  /// **'SDAL Sosyal'**
   String get loginTitle;
 
   /// No description provided for @loginSubtitle.
   ///
   /// In tr, this message translates to:
-  /// **'Yeni Flutter iOS istemcisine giriş yapın.'**
+  /// **'SDAL Sosyal uygulamasına giriş yapın.'**
   String get loginSubtitle;
 
   /// No description provided for @registerTitle.
@@ -625,6 +625,204 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Düzenle'**
   String get editAction;
+
+  /// No description provided for @profileEditPageTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Profili düzenle'**
+  String get profileEditPageTitle;
+
+  /// No description provided for @profileEditIdentitySectionTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Temel bilgiler'**
+  String get profileEditIdentitySectionTitle;
+
+  /// No description provided for @profileEditIdentitySectionDescription.
+  ///
+  /// In tr, this message translates to:
+  /// **'Profilinde görünen temel alanları güncelle ve seni tanımayı kolaylaştır.'**
+  String get profileEditIdentitySectionDescription;
+
+  /// No description provided for @profileEditContactSectionTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Bağlantılar ve geçmiş'**
+  String get profileEditContactSectionTitle;
+
+  /// No description provided for @profileEditContactSectionDescription.
+  ///
+  /// In tr, this message translates to:
+  /// **'İsteğe bağlı bağlantılarını, okul bilgisini ve mentorluk konularını uygulama genelinde düzgün görünecek biçimde paylaş.'**
+  String get profileEditContactSectionDescription;
+
+  /// No description provided for @profileEditPrivacySectionTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Görünürlük ve onaylar'**
+  String get profileEditPrivacySectionTitle;
+
+  /// No description provided for @profileEditPrivacySectionDescription.
+  ///
+  /// In tr, this message translates to:
+  /// **'Profilinin rehberde nasıl görüneceğini yönet ve gerekli onayları güncel tut.'**
+  String get profileEditPrivacySectionDescription;
+
+  /// No description provided for @profileEditFirstNameLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ad'**
+  String get profileEditFirstNameLabel;
+
+  /// No description provided for @profileEditLastNameLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Soyad'**
+  String get profileEditLastNameLabel;
+
+  /// No description provided for @profileEditGraduationYearLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mezuniyet yılı / Öğretmen'**
+  String get profileEditGraduationYearLabel;
+
+  /// No description provided for @profileEditGraduationYearHint.
+  ///
+  /// In tr, this message translates to:
+  /// **'1999-2100 veya Öğretmen'**
+  String get profileEditGraduationYearHint;
+
+  /// No description provided for @profileEditCityLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şehir'**
+  String get profileEditCityLabel;
+
+  /// No description provided for @profileEditProfessionLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Meslek'**
+  String get profileEditProfessionLabel;
+
+  /// No description provided for @profileEditCompanyLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şirket'**
+  String get profileEditCompanyLabel;
+
+  /// No description provided for @profileEditTitleLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Unvan'**
+  String get profileEditTitleLabel;
+
+  /// No description provided for @profileEditExpertiseLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Uzmanlık'**
+  String get profileEditExpertiseLabel;
+
+  /// No description provided for @profileEditWebsiteLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Web sitesi'**
+  String get profileEditWebsiteLabel;
+
+  /// No description provided for @profileEditLinkedinLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'LinkedIn'**
+  String get profileEditLinkedinLabel;
+
+  /// No description provided for @profileEditUniversityLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üniversite'**
+  String get profileEditUniversityLabel;
+
+  /// No description provided for @profileEditDepartmentLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Üniversite bölümü'**
+  String get profileEditDepartmentLabel;
+
+  /// No description provided for @profileEditMentorTopicsLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Mentorluk konuları'**
+  String get profileEditMentorTopicsLabel;
+
+  /// No description provided for @profileEditSignatureLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'İmza'**
+  String get profileEditSignatureLabel;
+
+  /// No description provided for @profileEditMentorVisibleLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Beni mentor olarak göster'**
+  String get profileEditMentorVisibleLabel;
+
+  /// No description provided for @profileEditKvkkConsentLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'KVKK onayı'**
+  String get profileEditKvkkConsentLabel;
+
+  /// No description provided for @profileEditDirectoryConsentLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'Rehber onayı'**
+  String get profileEditDirectoryConsentLabel;
+
+  /// No description provided for @profileEditHideEmailLabel.
+  ///
+  /// In tr, this message translates to:
+  /// **'E-postamı gizle'**
+  String get profileEditHideEmailLabel;
+
+  /// No description provided for @profileEditSaveInProgress.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kaydediliyor...'**
+  String get profileEditSaveInProgress;
+
+  /// No description provided for @profileEditSaved.
+  ///
+  /// In tr, this message translates to:
+  /// **'Profil güncellendi.'**
+  String get profileEditSaved;
+
+  /// No description provided for @profileEditSaveFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Profil güncellenemedi.'**
+  String get profileEditSaveFailed;
+
+  /// No description provided for @profileEditGraduationYearError.
+  ///
+  /// In tr, this message translates to:
+  /// **'1999-2100 arasında bir mezuniyet yılı veya Öğretmen gir.'**
+  String get profileEditGraduationYearError;
+
+  /// No description provided for @profileEditWebsiteError.
+  ///
+  /// In tr, this message translates to:
+  /// **'Geçerli bir web sitesi adresi gir.'**
+  String get profileEditWebsiteError;
+
+  /// No description provided for @profileEditLinkedinError.
+  ///
+  /// In tr, this message translates to:
+  /// **'Geçerli bir LinkedIn adresi gir.'**
+  String get profileEditLinkedinError;
+
+  /// No description provided for @profileEditRequiredField.
+  ///
+  /// In tr, this message translates to:
+  /// **'{field} alanı zorunludur.'**
+  String profileEditRequiredField(Object field);
 
   /// No description provided for @profileAccountActionsTitle.
   ///

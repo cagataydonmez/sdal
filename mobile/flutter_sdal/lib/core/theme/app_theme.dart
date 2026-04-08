@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'sdal_theme_tokens.dart';
+
+final ThemeData sdalLightTheme = buildSdalLightTheme();
+final ThemeData sdalDarkTheme = buildSdalDarkTheme();
 
 ThemeData buildSdalLightTheme() => _buildSdalTheme(
   brightness: Brightness.light,
@@ -35,11 +37,7 @@ ThemeData _buildSdalTheme({
     colorScheme: colorScheme,
     scaffoldBackgroundColor: tokens.canvas,
     brightness: brightness,
-    textTheme: GoogleFonts.manropeTextTheme(
-      brightness == Brightness.dark
-          ? ThemeData.dark().textTheme
-          : ThemeData.light().textTheme,
-    ),
+    fontFamily: 'Manrope',
     extensions: <ThemeExtension<dynamic>>[tokens],
   );
 

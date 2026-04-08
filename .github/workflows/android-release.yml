@@ -1,0 +1,96 @@
+name: Android Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Versiyon adı (örn. 1.2.0)'
+        required: true
+        default: '1.0.0'
+      release_notes:
+        description: 'Sürüm notları (release açıklaması)'
+        required: false
+        default: 'Android test sürümü'
+
+jobs:
+  build:
+    name: APK Derle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter kur
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Keystore dosyasını çöz
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode \
+            > mobile/flutter_sdal/android/app/keystore.jks
+
+      - name: key.properties oluştur
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf 'storeFile=keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+            > mobile/flutter_sdal/android/key.properties
+
+      - name: Bağımlılıkları yükle
+        working-directory: mobile/flutter_sdal
+        run: flutter pub get
+
+      - name: Release APK derle
+        working-directory: mobile/flutter_sdal
+        run: |
+          flutter build apk --release \
+            --build-name="${{ inputs.version_name }}" \
+            --build-number="${{ github.run_number }}"
+
+      - name: APK'yı yeniden adlandır
+        run: |
+          mv mobile/flutter_sdal/build/app/outputs/flutter-apk/app-release.apk \
+             sdal-sosyal-v${{ inputs.version_name }}.apk
+
+      - name: APK artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: sdal-sosyal-v${{ inputs.version_name }}.apk
+          retention-days: 7
+
+  publish:
+    name: GitHub Releases'e Yayınla
+    needs: build
+    runs-on: ubuntu-latest
+    environment: android-release   # Bu environment'ta onay beklenir
+
+    steps:
+      - name: APK artifact'ı indir
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+
+      - name: GitHub Release oluştur ve APK yükle
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v${{ inputs.version_name }}
+          name: "SDAL Sosyal Android v${{ inputs.version_name }}"
+          body: ${{ inputs.release_notes }}
+          draft: false
+          prerelease: true
+          files: sdal-sosyal-v${{ inputs.version_name }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

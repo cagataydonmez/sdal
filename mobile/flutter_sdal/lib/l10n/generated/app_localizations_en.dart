@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => 'SDAL';
+  String get appName => 'SDAL Sosyal';
 
   @override
   String get appInitFailedTitle => 'Could not start';
@@ -287,6 +287,111 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get editAction => 'Edit';
+
+  @override
+  String get profileEditPageTitle => 'Edit profile';
+
+  @override
+  String get profileEditIdentitySectionTitle => 'Core details';
+
+  @override
+  String get profileEditIdentitySectionDescription =>
+      'Update the fields that appear on your member profile and help others recognize you.';
+
+  @override
+  String get profileEditContactSectionTitle => 'Links and background';
+
+  @override
+  String get profileEditContactSectionDescription =>
+      'Share optional links, school context, and mentoring topics with a format that stays reliable across the app.';
+
+  @override
+  String get profileEditPrivacySectionTitle => 'Visibility and consent';
+
+  @override
+  String get profileEditPrivacySectionDescription =>
+      'Control how your profile appears in the directory and keep the required privacy settings up to date.';
+
+  @override
+  String get profileEditFirstNameLabel => 'First name';
+
+  @override
+  String get profileEditLastNameLabel => 'Last name';
+
+  @override
+  String get profileEditGraduationYearLabel => 'Graduation year / Teacher';
+
+  @override
+  String get profileEditGraduationYearHint => '1999-2100 or Teacher';
+
+  @override
+  String get profileEditCityLabel => 'City';
+
+  @override
+  String get profileEditProfessionLabel => 'Profession';
+
+  @override
+  String get profileEditCompanyLabel => 'Company';
+
+  @override
+  String get profileEditTitleLabel => 'Title';
+
+  @override
+  String get profileEditExpertiseLabel => 'Expertise';
+
+  @override
+  String get profileEditWebsiteLabel => 'Website';
+
+  @override
+  String get profileEditLinkedinLabel => 'LinkedIn';
+
+  @override
+  String get profileEditUniversityLabel => 'University';
+
+  @override
+  String get profileEditDepartmentLabel => 'University department';
+
+  @override
+  String get profileEditMentorTopicsLabel => 'Mentoring topics';
+
+  @override
+  String get profileEditSignatureLabel => 'Signature';
+
+  @override
+  String get profileEditMentorVisibleLabel => 'Show me as a mentor';
+
+  @override
+  String get profileEditKvkkConsentLabel => 'KVKK consent';
+
+  @override
+  String get profileEditDirectoryConsentLabel => 'Directory consent';
+
+  @override
+  String get profileEditHideEmailLabel => 'Hide my e-mail';
+
+  @override
+  String get profileEditSaveInProgress => 'Saving...';
+
+  @override
+  String get profileEditSaved => 'Profile updated.';
+
+  @override
+  String get profileEditSaveFailed => 'Profile could not be updated.';
+
+  @override
+  String get profileEditGraduationYearError =>
+      'Enter a graduation year between 1999 and 2100, or Teacher.';
+
+  @override
+  String get profileEditWebsiteError => 'Enter a valid website URL.';
+
+  @override
+  String get profileEditLinkedinError => 'Enter a valid LinkedIn URL.';
+
+  @override
+  String profileEditRequiredField(Object field) {
+    return '$field is required.';
+  }
 
   @override
   String get profileAccountActionsTitle => 'Account actions';

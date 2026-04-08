@@ -9,7 +9,7 @@ class AppLocalizationsTr extends AppLocalizations {
   AppLocalizationsTr([String locale = 'tr']) : super(locale);
 
   @override
-  String get appName => 'SDAL';
+  String get appName => 'SDAL Sosyal';
 
   @override
   String get appInitFailedTitle => 'Başlatılamadı';
@@ -72,10 +72,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get tabProfile => 'Profil';
 
   @override
-  String get loginTitle => 'SDAL';
+  String get loginTitle => 'SDAL Sosyal';
 
   @override
-  String get loginSubtitle => 'Yeni Flutter iOS istemcisine giriş yapın.';
+  String get loginSubtitle => 'SDAL Sosyal uygulamasına giriş yapın.';
 
   @override
   String get registerTitle => 'Kayıt ol';
@@ -286,6 +286,111 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get editAction => 'Düzenle';
+
+  @override
+  String get profileEditPageTitle => 'Profili düzenle';
+
+  @override
+  String get profileEditIdentitySectionTitle => 'Temel bilgiler';
+
+  @override
+  String get profileEditIdentitySectionDescription =>
+      'Profilinde görünen temel alanları güncelle ve seni tanımayı kolaylaştır.';
+
+  @override
+  String get profileEditContactSectionTitle => 'Bağlantılar ve geçmiş';
+
+  @override
+  String get profileEditContactSectionDescription =>
+      'İsteğe bağlı bağlantılarını, okul bilgisini ve mentorluk konularını uygulama genelinde düzgün görünecek biçimde paylaş.';
+
+  @override
+  String get profileEditPrivacySectionTitle => 'Görünürlük ve onaylar';
+
+  @override
+  String get profileEditPrivacySectionDescription =>
+      'Profilinin rehberde nasıl görüneceğini yönet ve gerekli onayları güncel tut.';
+
+  @override
+  String get profileEditFirstNameLabel => 'Ad';
+
+  @override
+  String get profileEditLastNameLabel => 'Soyad';
+
+  @override
+  String get profileEditGraduationYearLabel => 'Mezuniyet yılı / Öğretmen';
+
+  @override
+  String get profileEditGraduationYearHint => '1999-2100 veya Öğretmen';
+
+  @override
+  String get profileEditCityLabel => 'Şehir';
+
+  @override
+  String get profileEditProfessionLabel => 'Meslek';
+
+  @override
+  String get profileEditCompanyLabel => 'Şirket';
+
+  @override
+  String get profileEditTitleLabel => 'Unvan';
+
+  @override
+  String get profileEditExpertiseLabel => 'Uzmanlık';
+
+  @override
+  String get profileEditWebsiteLabel => 'Web sitesi';
+
+  @override
+  String get profileEditLinkedinLabel => 'LinkedIn';
+
+  @override
+  String get profileEditUniversityLabel => 'Üniversite';
+
+  @override
+  String get profileEditDepartmentLabel => 'Üniversite bölümü';
+
+  @override
+  String get profileEditMentorTopicsLabel => 'Mentorluk konuları';
+
+  @override
+  String get profileEditSignatureLabel => 'İmza';
+
+  @override
+  String get profileEditMentorVisibleLabel => 'Beni mentor olarak göster';
+
+  @override
+  String get profileEditKvkkConsentLabel => 'KVKK onayı';
+
+  @override
+  String get profileEditDirectoryConsentLabel => 'Rehber onayı';
+
+  @override
+  String get profileEditHideEmailLabel => 'E-postamı gizle';
+
+  @override
+  String get profileEditSaveInProgress => 'Kaydediliyor...';
+
+  @override
+  String get profileEditSaved => 'Profil güncellendi.';
+
+  @override
+  String get profileEditSaveFailed => 'Profil güncellenemedi.';
+
+  @override
+  String get profileEditGraduationYearError =>
+      '1999-2100 arasında bir mezuniyet yılı veya Öğretmen gir.';
+
+  @override
+  String get profileEditWebsiteError => 'Geçerli bir web sitesi adresi gir.';
+
+  @override
+  String get profileEditLinkedinError => 'Geçerli bir LinkedIn adresi gir.';
+
+  @override
+  String profileEditRequiredField(Object field) {
+    return '$field alanı zorunludur.';
+  }
 
   @override
   String get profileAccountActionsTitle => 'Hesap işlemleri';

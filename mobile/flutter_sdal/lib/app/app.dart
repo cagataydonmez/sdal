@@ -16,15 +16,13 @@ class SdalFlutterApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionControllerProvider);
-    final lightTheme = buildSdalLightTheme();
-    final darkTheme = buildSdalDarkTheme();
     final themeMode = ref.watch(themeModeControllerProvider).themeMode;
 
     return sessionState.when(
       loading: () => MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: lightTheme,
-        darkTheme: darkTheme,
+        theme: sdalLightTheme,
+        darkTheme: sdalDarkTheme,
         themeMode: themeMode,
         locale: const Locale('tr'),
         supportedLocales: const [Locale('tr'), Locale('en')],
@@ -38,8 +36,8 @@ class SdalFlutterApp extends ConsumerWidget {
       ),
       error: (error, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: lightTheme,
-        darkTheme: darkTheme,
+        theme: sdalLightTheme,
+        darkTheme: sdalDarkTheme,
         themeMode: themeMode,
         locale: const Locale('tr'),
         supportedLocales: const [Locale('tr'), Locale('en')],
@@ -63,8 +61,8 @@ class SdalFlutterApp extends ConsumerWidget {
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
           onGenerateTitle: (context) => AppLocalizations.of(context)!.appName,
-          theme: lightTheme,
-          darkTheme: darkTheme,
+          theme: sdalLightTheme,
+          darkTheme: sdalDarkTheme,
           themeMode: themeMode,
           locale: const Locale('tr'),
           supportedLocales: const [Locale('tr'), Locale('en')],

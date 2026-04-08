@@ -22,19 +22,16 @@ class SessionRepository {
       decoder: (raw) => asJsonMap(raw),
     );
 
-    final siteAccess = SiteAccessSnapshot.fromMap(
-      siteAccessResult.rawData is JsonMap
-          ? siteAccessResult.rawData as JsonMap
-          : asJsonMap(siteAccessResult.rawData),
-    );
-    final sessionPayload = asJsonMap(sessionResult.rawData);
+    final siteAccessPayload = _requireSiteAccessPayload(siteAccessResult);
+    final sessionPayload = _resolveSessionPayload(sessionResult);
+    final siteAccess = SiteAccessSnapshot.fromMap(siteAccessPayload);
     final userMap = asJsonMap(sessionPayload['user']);
     final user = userMap.isEmpty ? null : SessionUser.fromMap(userMap);
     final menuVisibility = asJsonMap(
-      siteAccessResult.rawData['menuVisibility'],
+      siteAccessPayload['menuVisibility'],
     ).map((key, value) => MapEntry(key, asBool(value) ?? true));
     final moduleMenuOrder =
-        (siteAccessResult.rawData['moduleMenuOrder'] as List?)
+        (siteAccessPayload['moduleMenuOrder'] as List?)
             ?.map(asString)
             .whereType<String>()
             .toList(growable: false) ??
@@ -47,6 +44,28 @@ class SessionRepository {
       menuVisibility: menuVisibility,
       moduleMenuOrder: moduleMenuOrder,
     );
+  }
+
+  JsonMap _requireSiteAccessPayload(ApiResult<JsonMap> result) {
+    if (result.ok) return asJsonMap(result.rawData);
+    throw StateError(_bootstrapMessageFor(result));
+  }
+
+  JsonMap _resolveSessionPayload(ApiResult<JsonMap> result) {
+    if (result.ok) return asJsonMap(result.rawData);
+    if (result.statusCode == 0) {
+      throw StateError(_bootstrapMessageFor(result));
+    }
+    return const <String, dynamic>{'user': null};
+  }
+
+  String _bootstrapMessageFor(ApiResult<dynamic> result) {
+    if (result.statusCode == 0) {
+      return 'Sunucuya ulasilamadi. Internet baglantinizi ve DNS ayarlarinizi kontrol edip tekrar deneyin.';
+    }
+    final message = result.message.trim();
+    if (message.isNotEmpty) return message;
+    return 'Uygulama baslatilamadi. Lutfen tekrar deneyin.';
   }
 
   Future<ApiResult<JsonMap>> login({
