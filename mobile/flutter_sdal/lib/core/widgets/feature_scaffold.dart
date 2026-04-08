@@ -51,7 +51,9 @@ class FeatureScaffold extends ConsumerWidget {
         leading: session?.user != null
             ? _ProfileLeading(session: session!, canPop: canPop)
             : (canPop ? const BackButton() : null),
-        title: Text(title),
+        title: canPop
+            ? Text(title)
+            : Image.asset('icon.png', height: 32, semanticLabel: 'SDAL'),
         actions: resolvedActions,
       ),
       floatingActionButton: floatingActionButton,

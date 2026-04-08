@@ -26,6 +26,7 @@ class SdalFlutterApp extends ConsumerWidget {
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: themeMode,
+        locale: const Locale('tr'),
         supportedLocales: const [Locale('tr'), Locale('en')],
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -40,6 +41,7 @@ class SdalFlutterApp extends ConsumerWidget {
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: themeMode,
+        locale: const Locale('tr'),
         supportedLocales: const [Locale('tr'), Locale('en')],
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -64,6 +66,7 @@ class SdalFlutterApp extends ConsumerWidget {
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: themeMode,
+          locale: const Locale('tr'),
           supportedLocales: const [Locale('tr'), Locale('en')],
           localizationsDelegates: const [
             AppLocalizations.delegate,
