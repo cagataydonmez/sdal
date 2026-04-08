@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../network/legacy_media_value.dart';
 import '../theme/sdal_theme_tokens.dart';
 
 class RemoteAvatar extends StatelessWidget {
@@ -81,10 +82,7 @@ class _AvatarInitials extends StatelessWidget {
 }
 
 String _normalizeImageUrl(String raw) {
-  final value = raw.trim();
-  if (value.isEmpty) return '';
-  if (value.toLowerCase() == 'yok' || value.toLowerCase() == 'null') return '';
-  return value;
+  return normalizeLegacyMediaValue(raw);
 }
 
 String _initialsFor(String label) {

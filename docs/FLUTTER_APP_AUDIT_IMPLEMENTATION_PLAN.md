@@ -795,7 +795,13 @@ Definition of done:
 
 #### H1. Normalize admin palette and accents
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `normalize`
+- `arrange`
 
 Audit coverage:
 
@@ -816,7 +822,12 @@ Definition of done:
 
 #### H2. Decide and implement album moderation if still desired
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `clarify`
 
 Audit coverage:
 
@@ -829,6 +840,10 @@ Scope:
 - if yes, scope into admin rollout
 - if no, close as de-scoped rather than leave dangling
 
+Decision recorded:
+
+- no explicit product requirement was found in the current repo context, so album moderation is de-scoped from this Flutter audit rollout rather than partially implemented speculatively
+
 Definition of done:
 
 - explicit decision recorded in audit plan status
@@ -839,7 +854,13 @@ Definition of done:
 
 #### I1. Review and tighten lint rules
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `clarify`
+- `optimize`
 
 Audit coverage:
 
@@ -860,7 +881,12 @@ Definition of done:
 
 #### I2. Stabilize SDK constraint
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `clarify`
 
 Audit coverage:
 
@@ -878,7 +904,12 @@ Definition of done:
 
 #### I3. Add branded app icon / asset setup
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `clarify`
 
 Audit coverage:
 
@@ -890,13 +921,22 @@ Scope:
 - wire `flutter_launcher_icons` or equivalent if the team wants it inside Flutter
 - ensure app assets strategy is no longer “all commented out”
 
+Verification recorded:
+
+- `pubspec.yaml` already contains `flutter_launcher_icons` configuration and a real `icon.png` asset is present in the Flutter app root, so this track is considered already satisfied rather than newly implemented in this pass
+
 Definition of done:
 
 - icon/asset strategy is configured or explicitly parked with owner/rationale
 
 #### I4. Document server oddities surfaced by the audit
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `clarify`
 
 Audit coverage:
 

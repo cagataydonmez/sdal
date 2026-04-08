@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../network/legacy_media_value.dart';
 import '../theme/sdal_theme_tokens.dart';
 
 class SdalNetworkImage extends StatelessWidget {
@@ -62,7 +63,7 @@ class SdalNetworkImage extends StatelessWidget {
           ),
         );
 
-    final trimmed = imageUrl.trim();
+    final trimmed = normalizeLegacyMediaValue(imageUrl);
     if (trimmed.isEmpty) {
       return SizedBox(width: width, height: height, child: fallbackError);
     }
