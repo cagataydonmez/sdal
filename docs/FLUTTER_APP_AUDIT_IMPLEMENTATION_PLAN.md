@@ -193,6 +193,8 @@ Current progress in implementation:
 - refresh icon buttons on the audited top-level feed/profile/explore/notifications/networking/messenger screens now expose localized tooltips
 - interactive member avatar/profile affordances in feed surfaces now announce correctly
 - messenger inbox rows now expose unread-count semantics through the card surface pattern
+- feed post detail author/comment avatars now announce correctly as profile-navigation affordances
+- feed overflow menus and composer image-removal controls now expose localized tooltips instead of raw gesture-only affordances
 
 Audit coverage:
 

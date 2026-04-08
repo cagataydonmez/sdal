@@ -13,6 +13,8 @@
       "name": {}
     }
   },
+  "moreActions": "Diğer işlemler",
+  "removeImageAction": "Görseli kaldır",
   "siteClosedTitle": "SDAL şu anda kapalı",
   "siteClosedFallbackMessage": "Bakım çalışması nedeniyle uygulama geçici olarak kullanılamıyor.",
   "moduleClosedTitle": "Modül kapalı",

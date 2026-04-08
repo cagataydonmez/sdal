@@ -146,6 +146,18 @@ abstract class AppLocalizations {
   /// **'{name} profilini aç'**
   String openMemberProfileForName(Object name);
 
+  /// No description provided for @moreActions.
+  ///
+  /// In tr, this message translates to:
+  /// **'Diğer işlemler'**
+  String get moreActions;
+
+  /// No description provided for @removeImageAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Görseli kaldır'**
+  String get removeImageAction;
+
   /// No description provided for @siteClosedTitle.
   ///
   /// In tr, this message translates to:

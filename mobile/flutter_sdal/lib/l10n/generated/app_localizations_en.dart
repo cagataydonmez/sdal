@@ -35,6 +35,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get moreActions => 'More actions';
+
+  @override
+  String get removeImageAction => 'Remove image';
+
+  @override
   String get siteClosedTitle => 'SDAL is currently closed';
 
   @override

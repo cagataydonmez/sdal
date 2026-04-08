@@ -60,21 +60,39 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap:
-                                  post.authorId == null || post.authorId! <= 0
-                                  ? null
-                                  : () => context.push(
-                                      '/members/${post.authorId}',
+                            Builder(
+                              builder: (context) {
+                                final canOpenAuthorProfile =
+                                    post.authorId != null && post.authorId! > 0;
+                                return InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: canOpenAuthorProfile
+                                      ? () => context.push(
+                                          '/members/${post.authorId}',
+                                        )
+                                      : null,
+                                  child: Tooltip(
+                                    message: l10n.openMemberProfileForName(
+                                      post.authorName,
                                     ),
-                              child: RemoteAvatar(
-                                label: post.authorName,
-                                imageUrl: config
-                                    .resolveUrl(post.authorPhoto)
-                                    .toString(),
-                                radius: 22,
-                              ),
+                                    child: Semantics(
+                                      button: canOpenAuthorProfile,
+                                      enabled: canOpenAuthorProfile,
+                                      label: l10n.openMemberProfileForName(
+                                        post.authorName,
+                                      ),
+                                      child: RemoteAvatar(
+                                        label: post.authorName,
+                                        imageUrl: config
+                                            .resolveUrl(post.authorPhoto)
+                                            .toString(),
+                                        radius: 22,
+                                        excludeFromSemantics: true,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -225,22 +243,44 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  InkWell(
-                                    customBorder: const CircleBorder(),
-                                    onTap:
-                                        comment.userId == null ||
-                                            comment.userId! <= 0
-                                        ? null
-                                        : () => context.push(
-                                            '/members/${comment.userId}',
+                                  Builder(
+                                    builder: (context) {
+                                      final canOpenAuthorProfile =
+                                          comment.userId != null &&
+                                          comment.userId! > 0;
+                                      return InkWell(
+                                        customBorder: const CircleBorder(),
+                                        onTap: canOpenAuthorProfile
+                                            ? () => context.push(
+                                                '/members/${comment.userId}',
+                                              )
+                                            : null,
+                                        child: Tooltip(
+                                          message: l10n
+                                              .openMemberProfileForName(
+                                                comment.authorName,
+                                              ),
+                                          child: Semantics(
+                                            button: canOpenAuthorProfile,
+                                            enabled: canOpenAuthorProfile,
+                                            label: l10n
+                                                .openMemberProfileForName(
+                                                  comment.authorName,
+                                                ),
+                                            child: RemoteAvatar(
+                                              label: comment.authorName,
+                                              imageUrl: config
+                                                  .resolveUrl(
+                                                    comment.authorPhoto,
+                                                  )
+                                                  .toString(),
+                                              radius: 18,
+                                              excludeFromSemantics: true,
+                                            ),
                                           ),
-                                    child: RemoteAvatar(
-                                      label: comment.authorName,
-                                      imageUrl: config
-                                          .resolveUrl(comment.authorPhoto)
-                                          .toString(),
-                                      radius: 18,
-                                    ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -269,6 +309,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                   if (session?.user?.id != null &&
                                       session!.user!.id == comment.userId)
                                     PopupMenuButton<String>(
+                                      tooltip: l10n.moreActions,
                                       onSelected: (value) async {
                                         if (value != 'delete') return;
                                         final approved = await showDialog<bool>(
@@ -385,7 +426,9 @@ class _FeedPostMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return PopupMenuButton<String>(
+      tooltip: l10n.moreActions,
       onSelected: (value) async {
         if (value != 'delete') return;
         final confirmed = await showDialog<bool>(

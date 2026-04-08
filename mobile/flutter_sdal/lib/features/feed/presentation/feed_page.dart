@@ -355,7 +355,9 @@ class _FeedPostMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return PopupMenuButton<String>(
+      tooltip: l10n.moreActions,
       onSelected: (value) async {
         if (value != 'delete') return;
         final confirmed = await showDialog<bool>(
@@ -623,15 +625,19 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(6),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedImage = null),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
+                      child: Material(
+                        color: Colors.black54,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: l10n.removeImageAction,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
                           ),
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
+                          onPressed: () =>
+                              setState(() => _selectedImage = null),
+                          icon: const Icon(
                             Icons.close,
                             size: 16,
                             color: Colors.white,

@@ -13,6 +13,8 @@
       "name": {}
     }
   },
+  "moreActions": "More actions",
+  "removeImageAction": "Remove image",
   "siteClosedTitle": "SDAL is currently closed",
   "siteClosedFallbackMessage": "The app is temporarily unavailable due to maintenance.",
   "moduleClosedTitle": "Module unavailable",
