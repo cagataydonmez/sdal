@@ -47,10 +47,8 @@ void main() {
 }
 
 class _FakeFeedRepository extends FeedRepository {
-  _FakeFeedRepository({
-    this.createPostOk = true,
-    this.commentOk = true,
-  }) : super(FakeApiClient());
+  _FakeFeedRepository({this.createPostOk = true, this.commentOk = true})
+    : super(FakeApiClient());
 
   final bool createPostOk;
   final bool commentOk;
@@ -71,7 +69,7 @@ class _FakeFeedRepository extends FeedRepository {
   }
 
   @override
-  Future<ApiResult<dynamic>> toggleLike(int postId) async {
+  Future<ApiResult<dynamic>> toggleReaction(int postId) async {
     return ApiResult<dynamic>(
       ok: true,
       statusCode: 200,

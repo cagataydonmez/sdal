@@ -84,11 +84,9 @@ void main() {
 class _RecordingApiClient extends FakeApiClient {
   _RecordingApiClient({
     this.getRawData = const {'items': <Map<String, Object?>>[]},
-    this.postRawData = const <String, Object?>{'ok': true},
   });
 
   final dynamic getRawData;
-  final dynamic postRawData;
 
   String? lastMethod;
   String? lastPath;
@@ -130,8 +128,10 @@ class _RecordingApiClient extends FakeApiClient {
       statusCode: 200,
       message: '',
       code: '',
-      data: decoder == null ? null : decoder(postRawData),
-      rawData: postRawData,
+      data: decoder == null
+          ? null
+          : decoder(const <String, Object?>{'ok': true}),
+      rawData: const <String, Object?>{'ok': true},
     );
   }
 }
