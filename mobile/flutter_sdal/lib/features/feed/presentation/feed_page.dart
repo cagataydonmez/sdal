@@ -1022,23 +1022,33 @@ class _FeedFilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
-    final chip = AnimatedContainer(
+    final chip = TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: selected ? 1 : 0),
       duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: selected ? tokens.accentMuted : tokens.panelMuted,
-        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
-        border: Border.all(
-          color: selected ? tokens.accent : Colors.transparent,
-        ),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: selected ? tokens.accent : null,
-        ),
-      ),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: Color.lerp(tokens.panelMuted, tokens.accentMuted, value),
+            borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+            border: Border.all(
+              color: Color.lerp(Colors.transparent, tokens.accent, value)!,
+            ),
+          ),
+          child: DefaultTextStyle.merge(
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Color.lerp(
+                Theme.of(context).textTheme.labelLarge?.color,
+                tokens.accent,
+                value,
+              ),
+            ),
+            child: child!,
+          ),
+        );
+      },
+      child: Text(label, style: Theme.of(context).textTheme.labelLarge),
     );
     return Tooltip(
       message: label,

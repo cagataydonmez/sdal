@@ -594,74 +594,88 @@ class _PreferencesCardState extends State<_PreferencesCard> {
               ),
             ),
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Column(
-                children: [
-                  ...widget.preferences.categories.entries.map(
-                    (entry) => SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(_labelForCategory(entry.key)),
-                      value: entry.value,
-                      onChanged: widget.saving
-                          ? null
-                          : (enabled) => widget.onChanged(
-                              NotificationPreferences(
-                                categories: {
-                                  ...widget.preferences.categories,
-                                  entry.key: enabled,
-                                },
-                                quietModeEnabled:
-                                    widget.preferences.quietModeEnabled,
-                                quietModeStart:
-                                    widget.preferences.quietModeStart,
-                                quietModeEnd: widget.preferences.quietModeEnd,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const Divider(height: 24),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Sessiz mod'),
-                    subtitle: Text(
-                      [
-                            if (widget.preferences.quietModeStart.isNotEmpty)
-                              widget.preferences.quietModeStart,
-                            if (widget.preferences.quietModeEnd.isNotEmpty)
-                              widget.preferences.quietModeEnd,
-                          ].join(' - ').isEmpty
-                          ? 'Başlangıç ve bitiş saati tanımlanmadı.'
-                          : '${widget.preferences.quietModeStart} - ${widget.preferences.quietModeEnd}',
-                    ),
-                    value: widget.preferences.quietModeEnabled,
-                    onChanged: widget.saving
-                        ? null
-                        : (enabled) => widget.onChanged(
-                            NotificationPreferences(
-                              categories: widget.preferences.categories,
-                              quietModeEnabled: enabled,
-                              quietModeStart:
-                                  widget.preferences.quietModeStart.isEmpty
-                                  ? '22:00'
-                                  : widget.preferences.quietModeStart,
-                              quietModeEnd:
-                                  widget.preferences.quietModeEnd.isEmpty
-                                  ? '08:00'
-                                  : widget.preferences.quietModeEnd,
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: _expanded
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Column(
+                        children: [
+                          ...widget.preferences.categories.entries.map(
+                            (entry) => SwitchListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(_labelForCategory(entry.key)),
+                              value: entry.value,
+                              onChanged: widget.saving
+                                  ? null
+                                  : (enabled) => widget.onChanged(
+                                      NotificationPreferences(
+                                        categories: {
+                                          ...widget.preferences.categories,
+                                          entry.key: enabled,
+                                        },
+                                        quietModeEnabled:
+                                            widget.preferences.quietModeEnabled,
+                                        quietModeStart:
+                                            widget.preferences.quietModeStart,
+                                        quietModeEnd:
+                                            widget.preferences.quietModeEnd,
+                                      ),
+                                    ),
                             ),
                           ),
-                  ),
-                ],
-              ),
+                          const Divider(height: 24),
+                          SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Sessiz mod'),
+                            subtitle: Text(
+                              [
+                                    if (widget
+                                        .preferences
+                                        .quietModeStart
+                                        .isNotEmpty)
+                                      widget.preferences.quietModeStart,
+                                    if (widget
+                                        .preferences
+                                        .quietModeEnd
+                                        .isNotEmpty)
+                                      widget.preferences.quietModeEnd,
+                                  ].join(' - ').isEmpty
+                                  ? 'Başlangıç ve bitiş saati tanımlanmadı.'
+                                  : '${widget.preferences.quietModeStart} - ${widget.preferences.quietModeEnd}',
+                            ),
+                            value: widget.preferences.quietModeEnabled,
+                            onChanged: widget.saving
+                                ? null
+                                : (enabled) => widget.onChanged(
+                                    NotificationPreferences(
+                                      categories: widget.preferences.categories,
+                                      quietModeEnabled: enabled,
+                                      quietModeStart:
+                                          widget
+                                              .preferences
+                                              .quietModeStart
+                                              .isEmpty
+                                          ? '22:00'
+                                          : widget.preferences.quietModeStart,
+                                      quietModeEnd:
+                                          widget
+                                              .preferences
+                                              .quietModeEnd
+                                              .isEmpty
+                                          ? '08:00'
+                                          : widget.preferences.quietModeEnd,
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
-            crossFadeState: _expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 180),
-            sizeCurve: Curves.easeOutCubic,
           ),
         ],
       ),

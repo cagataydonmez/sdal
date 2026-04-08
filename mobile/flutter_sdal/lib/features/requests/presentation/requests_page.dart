@@ -490,17 +490,23 @@ class _RequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
-    return AnimatedContainer(
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: highlighted ? 1 : 0),
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        color: highlighted ? tokens.infoMuted : tokens.panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: highlighted ? tokens.info : tokens.panelBorder,
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
+      builder: (context, value, child) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Color.lerp(tokens.panel, tokens.infoMuted, value),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: Color.lerp(tokens.panelBorder, tokens.info, value)!,
+            ),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: child,
+        );
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

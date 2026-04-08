@@ -183,8 +183,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/feed',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: FeedPage()),
+                pageBuilder: (context, state) => _tabPage(const FeedPage()),
               ),
             ],
           ),
@@ -192,8 +191,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/explore',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: ExplorePage()),
+                pageBuilder: (context, state) => _tabPage(const ExplorePage()),
               ),
             ],
           ),
@@ -201,8 +199,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/inbox',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: InboxPage()),
+                pageBuilder: (context, state) => _tabPage(const InboxPage()),
               ),
             ],
           ),
@@ -211,7 +208,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/notifications',
                 pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: NotificationsPage()),
+                    _tabPage(const NotificationsPage()),
               ),
             ],
           ),
@@ -219,8 +216,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/profile',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: ProfilePage()),
+                pageBuilder: (context, state) => _tabPage(const ProfilePage()),
               ),
             ],
           ),
@@ -483,6 +479,26 @@ bool requiresVerificationGate(String location) {
 
 const _kCurve = Curves.easeOutCubic;
 const _kDuration = Duration(milliseconds: 280);
+const _kTabDuration = Duration(milliseconds: 220);
+
+CustomTransitionPage<void> _tabPage(Widget child) => CustomTransitionPage<void>(
+  child: child,
+  transitionDuration: _kTabDuration,
+  reverseTransitionDuration: _kTabDuration,
+  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+    final curved = CurvedAnimation(parent: animation, curve: _kCurve);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.015),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
+    );
+  },
+);
 
 /// Slide from right + fade. Use for list / feature pages pushed from the tab shell.
 CustomTransitionPage<void> _slidePage(Widget child) =>

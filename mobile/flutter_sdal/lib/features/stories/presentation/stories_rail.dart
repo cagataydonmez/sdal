@@ -561,9 +561,7 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
         behavior: HitTestBehavior.translucent,
         onVerticalDragUpdate: _handleVerticalDragUpdate,
         onVerticalDragEnd: _handleVerticalDragEnd,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
+        child: ColoredBox(
           color: Colors.black.withValues(alpha: 1 - dragFactor),
           child: Transform.translate(
             offset: Offset(0, _verticalDragOffset),

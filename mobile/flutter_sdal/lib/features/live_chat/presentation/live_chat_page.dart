@@ -165,17 +165,25 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
       child: Column(
         children: [
           if (_connectionState != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color:
-                  _connectionState!.status == RealtimeConnectionStatus.connected
-                  ? tokens.successMuted
-                  : tokens.warningMuted,
-              child: Text(
-                _connectionState!.status == RealtimeConnectionStatus.connected
-                    ? l10n.liveChatConnected
-                    : l10n.liveChatReconnecting,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              transitionBuilder: (child, animation) {
+                final slide = Tween<Offset>(
+                  begin: const Offset(0, -0.12),
+                  end: Offset.zero,
+                ).animate(animation);
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(position: slide, child: child),
+                );
+              },
+              child: _LiveChatConnectionBanner(
+                key: ValueKey(_connectionState!.status),
+                state: _connectionState!,
+                connectedLabel: l10n.liveChatConnected,
+                reconnectingLabel: l10n.liveChatReconnecting,
               ),
             ),
           Expanded(
@@ -467,5 +475,55 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
         .deleteMessage(item.id);
     if (!mounted || !ok) return;
     setState(() => _messages.removeWhere((message) => message.id == item.id));
+  }
+}
+
+class _LiveChatConnectionBanner extends StatelessWidget {
+  const _LiveChatConnectionBanner({
+    super.key,
+    required this.state,
+    required this.connectedLabel,
+    required this.reconnectingLabel,
+  });
+
+  final RealtimeConnectionState state;
+  final String connectedLabel;
+  final String reconnectingLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final connected = state.status == RealtimeConnectionStatus.connected;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: connected ? tokens.successMuted : tokens.warningMuted,
+        border: Border(
+          bottom: BorderSide(
+            color: connected ? tokens.success : tokens.warning,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            connected ? Icons.check_circle_outline : Icons.sync_problem_rounded,
+            size: 16,
+            color: connected ? tokens.success : tokens.warning,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              connected ? connectedLabel : reconnectingLabel,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: tokens.foreground),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -559,7 +559,15 @@ Used skills in implementation:
 
 #### D2. Replace inefficient or flat motion patterns
 
-Status: `Not started`
+Status: `Completed`
+
+Current progress in implementation:
+
+- replaced the notifications preferences `AnimatedCrossFade` with an `AnimatedSize` expand/collapse pattern to avoid the audited cross-fade layout swap
+- removed decoration-only `AnimatedContainer` usage from the story viewer backdrop and replaced feed/request highlight transitions with lighter `TweenAnimationBuilder`-based color/border interpolation
+- added animated tab-root transitions in the router for the primary shell pages instead of hard `NoTransitionPage` swaps
+- added an animated live chat connection banner so realtime status changes now slide/fade instead of appearing abruptly
+- kept motion minimal and feedback-oriented rather than introducing broad decorative animation
 
 Audit coverage:
 
@@ -582,6 +590,11 @@ Definition of done:
 
 - audited inefficient animation patterns are corrected
 - app gains meaningful motion in a small number of important places
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `animate`
 
 #### D3. Fix audited responsive constraints
 
