@@ -59,6 +59,63 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get eventsTitle => 'Events';
+
+  @override
+  String get announcementsTitle => 'Announcements';
+
+  @override
+  String get networkingTitle => 'Networking';
+
+  @override
+  String get teacherConnectionsTitle => 'Teacher connections';
+
+  @override
+  String get opportunitiesTitle => 'Opportunities';
+
+  @override
+  String get followingTitle => 'Following';
+
+  @override
+  String get mainNavigationTitle => 'Main navigation';
+
+  @override
+  String get communitySectionTitle => 'Community';
+
+  @override
+  String get extraPagesSectionTitle => 'Extra pages';
+
+  @override
+  String get adminSectionTitle => 'Admin';
+
+  @override
+  String get adminPanelTitle => 'Admin panel';
+
+  @override
+  String get quickAccessTitle => 'Quick access';
+
+  @override
+  String get quickAccessRemovedMessage => 'Removed from quick access.';
+
+  @override
+  String get actionFailedGeneric => 'Action could not be completed.';
+
+  @override
+  String sidebarOnlineUsersCount(Object count) {
+    return '$count users online';
+  }
+
+  @override
+  String sidebarNewMessagesCount(Object count) {
+    return '$count new messages';
+  }
+
+  @override
+  String sidebarNewMembersCount(Object count) {
+    return '$count new members';
+  }
+
+  @override
   String get siteClosedTitle => 'SDAL is currently closed';
 
   @override

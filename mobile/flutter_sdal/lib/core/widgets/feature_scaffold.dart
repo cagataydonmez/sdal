@@ -240,14 +240,14 @@ class _AppMenuSheet extends ConsumerWidget {
         _MenuEntry(
           route: '/events',
           icon: Icons.event_outlined,
-          label: menuLabelsByRoute['/events'] ?? 'Etkinlikler',
+          label: menuLabelsByRoute['/events'] ?? l10n.eventsTitle,
           moduleKey: 'events',
         ),
       if (_isModuleVisible('announcements'))
         _MenuEntry(
           route: '/announcements',
           icon: Icons.campaign_outlined,
-          label: menuLabelsByRoute['/announcements'] ?? 'Duyurular',
+          label: menuLabelsByRoute['/announcements'] ?? l10n.announcementsTitle,
           moduleKey: 'announcements',
         ),
       if (_isModuleVisible('requests'))
@@ -261,7 +261,7 @@ class _AppMenuSheet extends ConsumerWidget {
         _MenuEntry(
           route: '/network/hub',
           icon: Icons.hub_outlined,
-          label: menuLabelsByRoute['/network/hub'] ?? 'Networking',
+          label: menuLabelsByRoute['/network/hub'] ?? l10n.networkingTitle,
           moduleKey: 'networking',
         ),
       if (_isModuleVisible('teachers_network'))
@@ -269,7 +269,8 @@ class _AppMenuSheet extends ConsumerWidget {
           route: '/network/teachers',
           icon: Icons.school_outlined,
           label:
-              menuLabelsByRoute['/network/teachers'] ?? 'Ogretmen baglantilari',
+              menuLabelsByRoute['/network/teachers'] ??
+              l10n.teacherConnectionsTitle,
           moduleKey: 'teachers_network',
         ),
       if (_isModuleVisible('jobs'))
@@ -283,7 +284,7 @@ class _AppMenuSheet extends ConsumerWidget {
         _MenuEntry(
           route: '/opportunities',
           icon: Icons.auto_awesome_outlined,
-          label: menuLabelsByRoute['/opportunities'] ?? 'Firsatlar',
+          label: menuLabelsByRoute['/opportunities'] ?? l10n.opportunitiesTitle,
           moduleKey: 'opportunities',
         ),
       if (_isModuleVisible('albums'))
@@ -297,7 +298,7 @@ class _AppMenuSheet extends ConsumerWidget {
         _MenuEntry(
           route: '/following',
           icon: Icons.favorite_border,
-          label: menuLabelsByRoute['/following'] ?? 'Takipler',
+          label: menuLabelsByRoute['/following'] ?? l10n.followingTitle,
           moduleKey: 'following',
         ),
       if (_isModuleVisible('feed'))
@@ -332,7 +333,7 @@ class _AppMenuSheet extends ConsumerWidget {
         .toList(growable: false);
     final sections = <_MenuSection>[
       _MenuSection(
-        title: 'Ana gezinme',
+        title: l10n.mainNavigationTitle,
         entries: [
           _MenuEntry(
             route: '/feed',
@@ -363,17 +364,23 @@ class _AppMenuSheet extends ConsumerWidget {
         ],
       ),
       if (communityEntries.isNotEmpty)
-        _MenuSection(title: 'Topluluk', entries: communityEntries),
+        _MenuSection(
+          title: l10n.communitySectionTitle,
+          entries: communityEntries,
+        ),
       if (extraMenuEntries.isNotEmpty)
-        _MenuSection(title: 'Ek sayfalar', entries: extraMenuEntries),
+        _MenuSection(
+          title: l10n.extraPagesSectionTitle,
+          entries: extraMenuEntries,
+        ),
       if (user?.isAdmin ?? false)
-        const _MenuSection(
-          title: 'Yonetim',
+        _MenuSection(
+          title: l10n.adminSectionTitle,
           entries: [
             _MenuEntry(
               route: '/admin',
               icon: Icons.admin_panel_settings_outlined,
-              label: 'Admin paneli',
+              label: l10n.adminPanelTitle,
             ),
           ],
         ),
@@ -405,7 +412,7 @@ class _AppMenuSheet extends ConsumerWidget {
             ],
             if (quickAccessUsers.isNotEmpty) ...[
               Text(
-                'Hızlı erişim',
+                l10n.quickAccessTitle,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
@@ -435,10 +442,10 @@ class _AppMenuSheet extends ConsumerWidget {
                             SnackBar(
                               content: Text(
                                 result.ok
-                                    ? 'Hızlı erişimden kaldırıldı.'
+                                    ? l10n.quickAccessRemovedMessage
                                     : (result.message.isNotEmpty
                                           ? result.message
-                                          : 'İşlem tamamlanamadı.'),
+                                          : l10n.actionFailedGeneric),
                               ),
                             ),
                           );
@@ -640,18 +647,19 @@ class _SidebarHighlights extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     final stats = <({IconData icon, String label})>[
       (
         icon: Icons.circle_rounded,
-        label: '${sidebar.onlineUsers.length} cevrimici uye',
+        label: l10n.sidebarOnlineUsersCount(sidebar.onlineUsers.length),
       ),
       (
         icon: Icons.markunread_outlined,
-        label: '${sidebar.newMessagesCount} yeni mesaj',
+        label: l10n.sidebarNewMessagesCount(sidebar.newMessagesCount),
       ),
       (
         icon: Icons.person_add_alt_1_rounded,
-        label: '${sidebar.newMembers.length} yeni uye',
+        label: l10n.sidebarNewMembersCount(sidebar.newMembers.length),
       ),
     ];
     return Card(

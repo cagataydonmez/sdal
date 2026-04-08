@@ -34,6 +34,38 @@
       "count": {}
     }
   },
+  "eventsTitle": "Etkinlikler",
+  "announcementsTitle": "Duyurular",
+  "networkingTitle": "Networking",
+  "teacherConnectionsTitle": "Öğretmen bağlantıları",
+  "opportunitiesTitle": "Fırsatlar",
+  "followingTitle": "Takipler",
+  "mainNavigationTitle": "Ana gezinme",
+  "communitySectionTitle": "Topluluk",
+  "extraPagesSectionTitle": "Ek sayfalar",
+  "adminSectionTitle": "Yönetim",
+  "adminPanelTitle": "Admin paneli",
+  "quickAccessTitle": "Hızlı erişim",
+  "quickAccessRemovedMessage": "Hızlı erişimden kaldırıldı.",
+  "actionFailedGeneric": "İşlem tamamlanamadı.",
+  "sidebarOnlineUsersCount": "{count} çevrim içi üye",
+  "@sidebarOnlineUsersCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sidebarNewMessagesCount": "{count} yeni mesaj",
+  "@sidebarNewMessagesCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sidebarNewMembersCount": "{count} yeni üye",
+  "@sidebarNewMembersCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
   "siteClosedTitle": "SDAL şu anda kapalı",
   "siteClosedFallbackMessage": "Bakım çalışması nedeniyle uygulama geçici olarak kullanılamıyor.",
   "moduleClosedTitle": "Modül kapalı",

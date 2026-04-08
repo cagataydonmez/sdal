@@ -182,6 +182,108 @@ abstract class AppLocalizations {
   /// **'{count} yorum'**
   String feedCommentsCount(Object count);
 
+  /// No description provided for @eventsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Etkinlikler'**
+  String get eventsTitle;
+
+  /// No description provided for @announcementsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Duyurular'**
+  String get announcementsTitle;
+
+  /// No description provided for @networkingTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Networking'**
+  String get networkingTitle;
+
+  /// No description provided for @teacherConnectionsTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Öğretmen bağlantıları'**
+  String get teacherConnectionsTitle;
+
+  /// No description provided for @opportunitiesTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Fırsatlar'**
+  String get opportunitiesTitle;
+
+  /// No description provided for @followingTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Takipler'**
+  String get followingTitle;
+
+  /// No description provided for @mainNavigationTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ana gezinme'**
+  String get mainNavigationTitle;
+
+  /// No description provided for @communitySectionTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Topluluk'**
+  String get communitySectionTitle;
+
+  /// No description provided for @extraPagesSectionTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Ek sayfalar'**
+  String get extraPagesSectionTitle;
+
+  /// No description provided for @adminSectionTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yönetim'**
+  String get adminSectionTitle;
+
+  /// No description provided for @adminPanelTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Admin paneli'**
+  String get adminPanelTitle;
+
+  /// No description provided for @quickAccessTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hızlı erişim'**
+  String get quickAccessTitle;
+
+  /// No description provided for @quickAccessRemovedMessage.
+  ///
+  /// In tr, this message translates to:
+  /// **'Hızlı erişimden kaldırıldı.'**
+  String get quickAccessRemovedMessage;
+
+  /// No description provided for @actionFailedGeneric.
+  ///
+  /// In tr, this message translates to:
+  /// **'İşlem tamamlanamadı.'**
+  String get actionFailedGeneric;
+
+  /// No description provided for @sidebarOnlineUsersCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} çevrim içi üye'**
+  String sidebarOnlineUsersCount(Object count);
+
+  /// No description provided for @sidebarNewMessagesCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} yeni mesaj'**
+  String sidebarNewMessagesCount(Object count);
+
+  /// No description provided for @sidebarNewMembersCount.
+  ///
+  /// In tr, this message translates to:
+  /// **'{count} yeni üye'**
+  String sidebarNewMembersCount(Object count);
+
   /// No description provided for @siteClosedTitle.
   ///
   /// In tr, this message translates to:

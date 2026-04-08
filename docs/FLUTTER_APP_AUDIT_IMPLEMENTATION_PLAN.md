@@ -375,6 +375,12 @@ Definition of done:
 
 Status: `In progress`
 
+Current progress in implementation:
+
+- shell menu labels, section headings, quick-access copy, and sidebar highlight strings are now routed through l10n
+- broken Turkish fallbacks in shared shell/menu surfaces were replaced with proper localized copy
+- feed accessibility copy introduced in `A2` also now routes through l10n instead of inline strings
+
 Audit coverage:
 
 - `H2 — Hardcoded Strings Bypass l10n System`

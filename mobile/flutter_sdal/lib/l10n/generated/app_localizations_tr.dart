@@ -59,6 +59,63 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
+  String get eventsTitle => 'Etkinlikler';
+
+  @override
+  String get announcementsTitle => 'Duyurular';
+
+  @override
+  String get networkingTitle => 'Networking';
+
+  @override
+  String get teacherConnectionsTitle => 'Öğretmen bağlantıları';
+
+  @override
+  String get opportunitiesTitle => 'Fırsatlar';
+
+  @override
+  String get followingTitle => 'Takipler';
+
+  @override
+  String get mainNavigationTitle => 'Ana gezinme';
+
+  @override
+  String get communitySectionTitle => 'Topluluk';
+
+  @override
+  String get extraPagesSectionTitle => 'Ek sayfalar';
+
+  @override
+  String get adminSectionTitle => 'Yönetim';
+
+  @override
+  String get adminPanelTitle => 'Admin paneli';
+
+  @override
+  String get quickAccessTitle => 'Hızlı erişim';
+
+  @override
+  String get quickAccessRemovedMessage => 'Hızlı erişimden kaldırıldı.';
+
+  @override
+  String get actionFailedGeneric => 'İşlem tamamlanamadı.';
+
+  @override
+  String sidebarOnlineUsersCount(Object count) {
+    return '$count çevrim içi üye';
+  }
+
+  @override
+  String sidebarNewMessagesCount(Object count) {
+    return '$count yeni mesaj';
+  }
+
+  @override
+  String sidebarNewMembersCount(Object count) {
+    return '$count yeni üye';
+  }
+
+  @override
   String get siteClosedTitle => 'SDAL şu anda kapalı';
 
   @override

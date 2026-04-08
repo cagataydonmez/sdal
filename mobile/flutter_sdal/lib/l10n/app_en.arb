@@ -34,6 +34,38 @@
       "count": {}
     }
   },
+  "eventsTitle": "Events",
+  "announcementsTitle": "Announcements",
+  "networkingTitle": "Networking",
+  "teacherConnectionsTitle": "Teacher connections",
+  "opportunitiesTitle": "Opportunities",
+  "followingTitle": "Following",
+  "mainNavigationTitle": "Main navigation",
+  "communitySectionTitle": "Community",
+  "extraPagesSectionTitle": "Extra pages",
+  "adminSectionTitle": "Admin",
+  "adminPanelTitle": "Admin panel",
+  "quickAccessTitle": "Quick access",
+  "quickAccessRemovedMessage": "Removed from quick access.",
+  "actionFailedGeneric": "Action could not be completed.",
+  "sidebarOnlineUsersCount": "{count} users online",
+  "@sidebarOnlineUsersCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sidebarNewMessagesCount": "{count} new messages",
+  "@sidebarNewMessagesCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sidebarNewMembersCount": "{count} new members",
+  "@sidebarNewMembersCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
   "siteClosedTitle": "SDAL is currently closed",
   "siteClosedFallbackMessage": "The app is temporarily unavailable due to maintenance.",
   "moduleClosedTitle": "Module unavailable",
