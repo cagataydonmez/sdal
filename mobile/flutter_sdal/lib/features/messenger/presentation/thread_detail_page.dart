@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/realtime_connection_state.dart';
@@ -104,33 +105,50 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
           if (thread != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-              child: SurfaceCard(
-                child: Row(
-                  children: [
-                    RemoteAvatar(
-                      label: thread.peer.name,
-                      imageUrl: config.resolveUrl(thread.peer.photo).toString(),
-                      radius: 24,
+              child: Builder(
+                builder: (context) {
+                  final currentThread = thread!;
+                  return SurfaceCard(
+                    onTap: () =>
+                        context.push('/members/${currentThread.peer.id}'),
+                    tooltip: context.l10n.openMemberProfileForName(
+                      currentThread.peer.name,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            thread.peer.name,
-                            style: Theme.of(context).textTheme.titleMedium,
+                    semanticLabel: context.l10n.openMemberProfileForName(
+                      currentThread.peer.name,
+                    ),
+                    semanticContainer: true,
+                    child: Row(
+                      children: [
+                        RemoteAvatar(
+                          label: currentThread.peer.name,
+                          imageUrl: config
+                              .resolveUrl(currentThread.peer.photo)
+                              .toString(),
+                          radius: 24,
+                          excludeFromSemantics: true,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currentThread.peer.name,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              if (currentThread.peer.handle.isNotEmpty)
+                                Text(
+                                  '@${currentThread.peer.handle}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                            ],
                           ),
-                          if (thread.peer.handle.isNotEmpty)
-                            Text(
-                              '@${thread.peer.handle}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           Expanded(

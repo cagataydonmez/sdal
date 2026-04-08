@@ -375,11 +375,31 @@ class NetworkingInboxPage extends ConsumerWidget {
                     ...inbox.teacherEvents.map(
                       (item) => ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: RemoteAvatar(
-                          label: item.member.name,
-                          imageUrl: config
-                              .resolveUrl(item.member.photo)
-                              .toString(),
+                        leading: Tooltip(
+                          message: context.l10n.openMemberProfileForName(
+                            item.member.name,
+                          ),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: item.member.id > 0
+                                ? () =>
+                                      context.push('/members/${item.member.id}')
+                                : null,
+                            child: Semantics(
+                              button: item.member.id > 0,
+                              enabled: item.member.id > 0,
+                              label: context.l10n.openMemberProfileForName(
+                                item.member.name,
+                              ),
+                              child: RemoteAvatar(
+                                label: item.member.name,
+                                imageUrl: config
+                                    .resolveUrl(item.member.photo)
+                                    .toString(),
+                                excludeFromSemantics: true,
+                              ),
+                            ),
+                          ),
                         ),
                         title: Text(item.message),
                         subtitle: Text(item.createdAt),
@@ -806,11 +826,30 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
                           .map(
                             (item) => ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: RemoteAvatar(
-                                label: item.name,
-                                imageUrl: config
-                                    .resolveUrl(item.photo)
-                                    .toString(),
+                              leading: Tooltip(
+                                message: context.l10n.openMemberProfileForName(
+                                  item.name,
+                                ),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: item.id > 0
+                                      ? () =>
+                                            context.push('/members/${item.id}')
+                                      : null,
+                                  child: Semantics(
+                                    button: item.id > 0,
+                                    enabled: item.id > 0,
+                                    label: context.l10n
+                                        .openMemberProfileForName(item.name),
+                                    child: RemoteAvatar(
+                                      label: item.name,
+                                      imageUrl: config
+                                          .resolveUrl(item.photo)
+                                          .toString(),
+                                      excludeFromSemantics: true,
+                                    ),
+                                  ),
+                                ),
                               ),
                               title: Text(item.name),
                               subtitle: Text(
@@ -857,12 +896,34 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
                         child: SurfaceCard(
                           child: Row(
                             children: [
-                              RemoteAvatar(
-                                label: item.member.name,
-                                imageUrl: config
-                                    .resolveUrl(item.member.photo)
-                                    .toString(),
-                                radius: 24,
+                              Tooltip(
+                                message: context.l10n.openMemberProfileForName(
+                                  item.member.name,
+                                ),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: item.member.id > 0
+                                      ? () => context.push(
+                                          '/members/${item.member.id}',
+                                        )
+                                      : null,
+                                  child: Semantics(
+                                    button: item.member.id > 0,
+                                    enabled: item.member.id > 0,
+                                    label: context.l10n
+                                        .openMemberProfileForName(
+                                          item.member.name,
+                                        ),
+                                    child: RemoteAvatar(
+                                      label: item.member.name,
+                                      imageUrl: config
+                                          .resolveUrl(item.member.photo)
+                                          .toString(),
+                                      radius: 24,
+                                      excludeFromSemantics: true,
+                                    ),
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 14),
                               Expanded(
@@ -937,7 +998,25 @@ class _RequestTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              RemoteAvatar(label: member.name, imageUrl: imageUrl),
+              Tooltip(
+                message: context.l10n.openMemberProfileForName(member.name),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: member.id > 0
+                      ? () => context.push('/members/${member.id}')
+                      : null,
+                  child: Semantics(
+                    button: member.id > 0,
+                    enabled: member.id > 0,
+                    label: context.l10n.openMemberProfileForName(member.name),
+                    child: RemoteAvatar(
+                      label: member.name,
+                      imageUrl: imageUrl,
+                      excludeFromSemantics: true,
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(

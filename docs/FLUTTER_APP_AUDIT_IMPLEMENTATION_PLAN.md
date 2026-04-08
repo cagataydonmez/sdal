@@ -197,6 +197,8 @@ Current progress in implementation:
 - feed overflow menus and composer image-removal controls now expose localized tooltips instead of raw gesture-only affordances
 - explore member cards now expose explicit profile-opening affordances while keeping nested follow actions intact
 - feed metric pills and feed-filter chips now expose button/selected semantics instead of relying on visual state alone
+- networking request tiles, teacher-event rows, and teacher-link rows now expose explicit profile-opening affordances on member avatars
+- messenger thread detail header now exposes a direct profile-opening affordance instead of a static identity card
 
 Audit coverage:
 
