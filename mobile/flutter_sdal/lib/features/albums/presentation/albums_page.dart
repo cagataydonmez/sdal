@@ -36,106 +36,109 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     return FeatureScaffold(
       title: l10n.albumsTitle,
       background: FeatureScaffoldBackground.immersive,
-      actions: [
-        IconButton(
-          onPressed: _isLoading ? null : () => _load(reset: true),
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/albums/upload'),
         label: Text(l10n.albumsUploadAction),
         icon: const Icon(Icons.upload_rounded),
       ),
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (_error.isNotEmpty)
-            SurfaceCard(child: Text(_error))
-          else ...[
-            SurfaceCard(
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _categories
-                    .map(
-                      (category) => ActionChip(
-                        label: Text('${category.title} (${category.count})'),
-                        onPressed: () => context.push('/albums/${category.id}'),
-                      ),
-                    )
-                    .toList(growable: false),
+      child: RefreshIndicator(
+        onRefresh: () => _load(reset: true),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_error.isNotEmpty)
+              SurfaceCard(child: Text(_error))
+            else ...[
+              SurfaceCard(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _categories
+                      .map(
+                        (category) => ActionChip(
+                          label: Text('${category.title} (${category.count})'),
+                          onPressed: () =>
+                              context.push('/albums/${category.id}'),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            if (_latest.isEmpty)
-              SurfaceCard(child: Text(l10n.albumsEmpty))
-            else
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = constraints.maxWidth > 720
-                      ? 4
-                      : constraints.maxWidth > 520
-                      ? 3
-                      : 2;
-                  final spacing = 10.0;
-                  final itemWidth =
-                      (constraints.maxWidth - (spacing * (columns - 1))) /
-                      columns;
-                  return Wrap(
-                    spacing: spacing,
-                    runSpacing: spacing,
-                    children: [
-                      for (var index = 0; index < _latest.length; index++)
-                        SizedBox(
-                          width: itemWidth,
-                          height: itemWidth,
-                          child: Semantics(
-                            button: true,
-                            label: l10n.albumsOpenPhotoSemantic('${index + 1}'),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(18),
-                              onTap: () => context.push(
-                                '/albums/photo/${_latest[index].id}',
+              const SizedBox(height: 16),
+              if (_latest.isEmpty)
+                SurfaceCard(child: Text(l10n.albumsEmpty))
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = constraints.maxWidth > 720
+                        ? 4
+                        : constraints.maxWidth > 520
+                        ? 3
+                        : 2;
+                    final spacing = 10.0;
+                    final itemWidth =
+                        (constraints.maxWidth - (spacing * (columns - 1))) /
+                        columns;
+                    return Wrap(
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: [
+                        for (var index = 0; index < _latest.length; index++)
+                          SizedBox(
+                            width: itemWidth,
+                            height: itemWidth,
+                            child: Semantics(
+                              button: true,
+                              label: l10n.albumsOpenPhotoSemantic(
+                                '${index + 1}',
                               ),
-                              child: SdalNetworkImage(
-                                imageUrl: config.siteBaseUri
-                                    .resolve(
-                                      _thumbPath(_latest[index].fileName),
-                                    )
-                                    .toString(),
+                              child: InkWell(
                                 borderRadius: BorderRadius.circular(18),
-                                cacheWidth: (itemWidth * 2).round(),
-                                cacheHeight: (itemWidth * 2).round(),
-                                semanticLabel: l10n.albumsOpenPhotoSemantic(
-                                  '${index + 1}',
+                                onTap: () => context.push(
+                                  '/albums/photo/${_latest[index].id}',
+                                ),
+                                child: SdalNetworkImage(
+                                  imageUrl: config.siteBaseUri
+                                      .resolve(
+                                        _thumbPath(_latest[index].fileName),
+                                      )
+                                      .toString(),
+                                  borderRadius: BorderRadius.circular(18),
+                                  cacheWidth: (itemWidth * 2).round(),
+                                  cacheHeight: (itemWidth * 2).round(),
+                                  semanticLabel: l10n.albumsOpenPhotoSemantic(
+                                    '${index + 1}',
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            if (_hasMore) ...[
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.center,
-                child: FilledButton.tonal(
-                  onPressed: _isLoadingMore ? null : () => _load(reset: false),
-                  child: Text(
-                    _isLoadingMore
-                        ? l10n.submitInProgress
-                        : l10n.albumsLoadMore,
+                      ],
+                    );
+                  },
+                ),
+              if (_hasMore) ...[
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.center,
+                  child: FilledButton.tonal(
+                    onPressed: _isLoadingMore
+                        ? null
+                        : () => _load(reset: false),
+                    child: Text(
+                      _isLoadingMore
+                          ? l10n.submitInProgress
+                          : l10n.albumsLoadMore,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ],
-        ],
+        ),
       ),
     );
   }

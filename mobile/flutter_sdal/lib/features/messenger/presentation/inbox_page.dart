@@ -87,13 +87,6 @@ class _InboxPageState extends ConsumerState<InboxPage> {
             );
           },
         ),
-        IconButton(
-          tooltip: l10n.refreshAction,
-          onPressed: () => ref.invalidate(
-            messengerThreadsProvider(_searchController.text.trim()),
-          ),
-          icon: const Icon(Icons.refresh),
-        ),
       ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openComposeSheet(context, ref),
@@ -122,26 +115,35 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                   messengerThreadsProvider(_searchController.text.trim()),
                 ),
               ),
-              data: (threads) {
-                if (threads.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: EmptyStateView(
-                        icon: Icons.forum_outlined,
-                        title: l10n.messagesEmptyTitle,
-                        message: l10n.messagesEmptyMessage,
-                        actionLabel: l10n.startNewChat,
-                        onAction: () => _openComposeSheet(context, ref),
-                      ),
-                    ),
+              data: (threads) => RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(
+                    messengerThreadsProvider(_searchController.text.trim()),
                   );
-                }
-                return ListView.separated(
+                  await ref.read(
+                    messengerThreadsProvider(
+                      _searchController.text.trim(),
+                    ).future,
+                  );
+                },
+                child: ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  itemCount: threads.length,
+                  itemCount: threads.isEmpty ? 1 : threads.length,
                   separatorBuilder: (_, index) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
+                    if (threads.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: EmptyStateView(
+                          icon: Icons.forum_outlined,
+                          title: l10n.messagesEmptyTitle,
+                          message: l10n.messagesEmptyMessage,
+                          actionLabel: l10n.startNewChat,
+                          onAction: () => _openComposeSheet(context, ref),
+                        ),
+                      );
+                    }
                     final thread = threads[index];
                     return SurfaceCard(
                       onTap: () => context.push('/messages/${thread.id}'),
@@ -224,8 +226,8 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                       ),
                     );
                   },
-                );
-              },
+                ),
+              ),
             ),
           ),
         ],

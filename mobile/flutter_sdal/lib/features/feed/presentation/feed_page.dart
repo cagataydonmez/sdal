@@ -67,18 +67,6 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     return FeatureScaffold(
       title: _feedPageTitle(context, query.feedType),
       background: FeatureScaffoldBackground.editorial,
-      actions: [
-        IconButton(
-          tooltip: l10n.refreshAction,
-          onPressed: () {
-            ref.invalidate(feedItemsProvider);
-            ref.invalidate(feedPageProvider);
-            ref.invalidate(onlineMembersProvider);
-            ref.invalidate(feedStoriesProvider(query.feedType.apiValue));
-          },
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openComposer(context, ref),
         icon: const Icon(Icons.edit_outlined),
@@ -136,12 +124,15 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   }) {
     return RefreshIndicator(
       onRefresh: () async {
+        ref.invalidate(feedItemsProvider);
         ref.invalidate(feedPageProvider);
         ref.invalidate(onlineMembersProvider);
+        ref.invalidate(feedStoriesProvider(query.feedType.apiValue));
         await ref.read(feedPageProvider.future);
         await ref.read(onlineMembersProvider.future);
       },
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: _items.length + 4,
         separatorBuilder: (_, index) => const SizedBox(height: 12),

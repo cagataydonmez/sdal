@@ -59,293 +59,297 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
     return FeatureScaffold(
       title: l10n.notificationsTitle,
-      actions: [
-        IconButton(
-          tooltip: l10n.refreshAction,
-          onPressed: () {
-            setState(() {
-              _items = const <AppNotification>[];
-              _nextCursor = null;
-              _hasMore = false;
-              _loadingMore = false;
-            });
-            ref.invalidate(notificationsProvider);
-            ref.invalidate(notificationPreferencesProvider);
-            ref.invalidate(notificationUnreadCountProvider);
-          },
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          SurfaceCard(
-            child: Row(
-              children: [
-                Expanded(
-                  child: unreadCountState.when(
-                    loading: () => Text(l10n.notificationsUnreadLoading),
-                    error: (error, _) => const ErrorView(compact: true),
-                    data: (count) => Text(
-                      l10n.notificationsUnreadCount(count),
-                      style: Theme.of(context).textTheme.titleMedium,
+      child: RefreshIndicator(
+        onRefresh: _refreshPage,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            SurfaceCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: unreadCountState.when(
+                      loading: () => Text(l10n.notificationsUnreadLoading),
+                      error: (error, _) => const ErrorView(compact: true),
+                      data: (count) => Text(
+                        l10n.notificationsUnreadCount(count),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
                   ),
-                ),
-                FilledButton.tonal(
-                  onPressed: () async {
-                    final ok = await ref
-                        .read(notificationsActionControllerProvider.notifier)
-                        .markAllRead(trackedItems: visibleItems);
-                    if (!context.mounted) return;
-                    if (ok) {
-                      _markAllLoadedRead();
-                    }
-                    final nextState = ref.read(
-                      notificationsActionControllerProvider,
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          nextState.message ??
-                              (ok
-                                  ? l10n.notificationsUpdatedAllRead
-                                  : l10n.notificationsActionFailed),
+                  FilledButton.tonal(
+                    onPressed: () async {
+                      final ok = await ref
+                          .read(notificationsActionControllerProvider.notifier)
+                          .markAllRead(trackedItems: visibleItems);
+                      if (!context.mounted) return;
+                      if (ok) {
+                        _markAllLoadedRead();
+                      }
+                      final nextState = ref.read(
+                        notificationsActionControllerProvider,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            nextState.message ??
+                                (ok
+                                    ? l10n.notificationsUpdatedAllRead
+                                    : l10n.notificationsActionFailed),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(l10n.notificationsMarkAllRead),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            preferencesState.when(
+              loading: () => const _NotificationPreferencesSkeleton(),
+              error: (error, _) =>
+                  const ErrorView(compact: true, kind: ErrorViewKind.network),
+              data: (preferences) => _PreferencesCard(
+                preferences: preferences,
+                saving: savingPreferences,
+                onChanged: (next) async {
+                  final ok = await ref
+                      .read(notificationsActionControllerProvider.notifier)
+                      .savePreferences(next);
+                  if (!context.mounted) return;
+                  final nextState = ref.read(
+                    notificationsActionControllerProvider,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        nextState.message ??
+                            (ok
+                                ? l10n.notificationsPreferencesUpdated
+                                : l10n.notificationsPreferencesFailed),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              l10n.notificationsInboxTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            notificationsState.when(
+              loading: () => const _NotificationsLoadingList(),
+              error: (error, _) =>
+                  const ErrorView(compact: true, kind: ErrorViewKind.network),
+              data: (page) {
+                final items = visibleItems.isEmpty ? page.items : visibleItems;
+                final hasMore = visibleItems.isEmpty ? page.hasMore : _hasMore;
+                if (items.isEmpty) {
+                  return SurfaceCard(
+                    child: EmptyStateView(
+                      icon: Icons.notifications_none_rounded,
+                      title: l10n.notificationsEmptyTitle,
+                      message: l10n.notificationsEmptyMessage,
+                      actionLabel: l10n.refreshAction,
+                      onAction: () => ref.invalidate(notificationsProvider),
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    ...items.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SurfaceCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.message,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          [
+                                            if (item.sourceName.isNotEmpty)
+                                              item.sourceName,
+                                            if (item.category.isNotEmpty)
+                                              item.category,
+                                            if (item.createdAt.isNotEmpty)
+                                              item.createdAt,
+                                          ].join(' · '),
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (item.isUnread)
+                                    Padding(
+                                      padding: EdgeInsets.only(left: 12),
+                                      child: Icon(
+                                        Icons.circle,
+                                        size: 10,
+                                        color: tokens.info,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              if (item.actions.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  children: item.actions
+                                      .map(
+                                        (action) => OutlinedButton(
+                                          onPressed: () async {
+                                            final messenger =
+                                                ScaffoldMessenger.of(context);
+                                            final ok = await ref
+                                                .read(
+                                                  notificationsActionControllerProvider
+                                                      .notifier,
+                                                )
+                                                .runAction(
+                                                  action,
+                                                  notificationId: item.id,
+                                                  notificationType: item.type,
+                                                );
+                                            if (!context.mounted) return;
+                                            final nextState = ref.read(
+                                              notificationsActionControllerProvider,
+                                            );
+                                            messenger.showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  nextState.message ??
+                                                      (ok
+                                                          ? '${action.label} tamamlandı.'
+                                                          : l10n.notificationsActionFailed),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          child: Text(action.label),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  TextButton(
+                                    onPressed: item.isUnread
+                                        ? () async {
+                                            final messenger =
+                                                ScaffoldMessenger.of(context);
+                                            final ok = await ref
+                                                .read(
+                                                  notificationsActionControllerProvider
+                                                      .notifier,
+                                                )
+                                                .markRead(
+                                                  item.id,
+                                                  notificationType: item.type,
+                                                );
+                                            if (!context.mounted) return;
+                                            if (ok) {
+                                              _markNotificationRead(item.id);
+                                            }
+                                            final nextState = ref.read(
+                                              notificationsActionControllerProvider,
+                                            );
+                                            messenger.showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  nextState.message ??
+                                                      (ok
+                                                          ? 'Bildirim okundu.'
+                                                          : l10n.notificationsActionFailed),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        : null,
+                                    child: Text(l10n.notificationsReadAction),
+                                  ),
+                                  const Spacer(),
+                                  FilledButton.tonal(
+                                    onPressed: () =>
+                                        _openNotification(context, ref, item),
+                                    child: Text(l10n.openAction),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    );
-                  },
-                  child: Text(l10n.notificationsMarkAllRead),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          preferencesState.when(
-            loading: () => const _NotificationPreferencesSkeleton(),
-            error: (error, _) =>
-                const ErrorView(compact: true, kind: ErrorViewKind.network),
-            data: (preferences) => _PreferencesCard(
-              preferences: preferences,
-              saving: savingPreferences,
-              onChanged: (next) async {
-                final ok = await ref
-                    .read(notificationsActionControllerProvider.notifier)
-                    .savePreferences(next);
-                if (!context.mounted) return;
-                final nextState = ref.read(
-                  notificationsActionControllerProvider,
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      nextState.message ??
-                          (ok
-                              ? l10n.notificationsPreferencesUpdated
-                              : l10n.notificationsPreferencesFailed),
                     ),
-                  ),
+                    if (hasMore) ...[
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: _loadingMore
+                              ? null
+                              : () => _loadMore(context),
+                          icon: _loadingMore
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.expand_more),
+                          label: Text(
+                            _loadingMore ? 'Yükleniyor...' : 'Daha fazla yükle',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 );
               },
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            l10n.notificationsInboxTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          notificationsState.when(
-            loading: () => const _NotificationsLoadingList(),
-            error: (error, _) =>
-                const ErrorView(compact: true, kind: ErrorViewKind.network),
-            data: (page) {
-              final items = visibleItems.isEmpty ? page.items : visibleItems;
-              final hasMore = visibleItems.isEmpty ? page.hasMore : _hasMore;
-              if (items.isEmpty) {
-                return SurfaceCard(
-                  child: EmptyStateView(
-                    icon: Icons.notifications_none_rounded,
-                    title: l10n.notificationsEmptyTitle,
-                    message: l10n.notificationsEmptyMessage,
-                    actionLabel: l10n.refreshAction,
-                    onAction: () => ref.invalidate(notificationsProvider),
-                  ),
-                );
-              }
-              return Column(
-                children: [
-                  ...items.map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: SurfaceCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.message,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        [
-                                          if (item.sourceName.isNotEmpty)
-                                            item.sourceName,
-                                          if (item.category.isNotEmpty)
-                                            item.category,
-                                          if (item.createdAt.isNotEmpty)
-                                            item.createdAt,
-                                        ].join(' · '),
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (item.isUnread)
-                                  Padding(
-                                    padding: EdgeInsets.only(left: 12),
-                                    child: Icon(
-                                      Icons.circle,
-                                      size: 10,
-                                      color: tokens.info,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            if (item.actions.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: item.actions
-                                    .map(
-                                      (action) => OutlinedButton(
-                                        onPressed: () async {
-                                          final messenger =
-                                              ScaffoldMessenger.of(context);
-                                          final ok = await ref
-                                              .read(
-                                                notificationsActionControllerProvider
-                                                    .notifier,
-                                              )
-                                              .runAction(
-                                                action,
-                                                notificationId: item.id,
-                                                notificationType: item.type,
-                                              );
-                                          if (!context.mounted) return;
-                                          final nextState = ref.read(
-                                            notificationsActionControllerProvider,
-                                          );
-                                          messenger.showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                nextState.message ??
-                                                    (ok
-                                                        ? '${action.label} tamamlandı.'
-                                                        : l10n.notificationsActionFailed),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                        child: Text(action.label),
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                TextButton(
-                                  onPressed: item.isUnread
-                                      ? () async {
-                                          final messenger =
-                                              ScaffoldMessenger.of(context);
-                                          final ok = await ref
-                                              .read(
-                                                notificationsActionControllerProvider
-                                                    .notifier,
-                                              )
-                                              .markRead(
-                                                item.id,
-                                                notificationType: item.type,
-                                              );
-                                          if (!context.mounted) return;
-                                          if (ok) {
-                                            _markNotificationRead(item.id);
-                                          }
-                                          final nextState = ref.read(
-                                            notificationsActionControllerProvider,
-                                          );
-                                          messenger.showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                nextState.message ??
-                                                    (ok
-                                                        ? 'Bildirim okundu.'
-                                                        : l10n.notificationsActionFailed),
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      : null,
-                                  child: Text(l10n.notificationsReadAction),
-                                ),
-                                const Spacer(),
-                                FilledButton.tonal(
-                                  onPressed: () =>
-                                      _openNotification(context, ref, item),
-                                  child: Text(l10n.openAction),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (hasMore) ...[
-                    const SizedBox(height: 4),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        onPressed: _loadingMore
-                            ? null
-                            : () => _loadMore(context),
-                        icon: _loadingMore
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.expand_more),
-                        label: Text(
-                          _loadingMore ? 'Yükleniyor...' : 'Daha fazla yükle',
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              );
-            },
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _refreshPage() async {
+    setState(() {
+      _items = const <AppNotification>[];
+      _nextCursor = null;
+      _hasMore = false;
+      _loadingMore = false;
+    });
+    ref.invalidate(notificationsProvider);
+    ref.invalidate(notificationPreferencesProvider);
+    ref.invalidate(notificationUnreadCountProvider);
+    await Future.wait([
+      ref.read(notificationsProvider.future),
+      ref.read(notificationPreferencesProvider.future),
+      ref.read(notificationUnreadCountProvider.future),
+    ]);
   }
 
   Future<void> _openNotification(

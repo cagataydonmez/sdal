@@ -50,16 +50,6 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
 
     return FeatureScaffold(
       title: 'Networking',
-      actions: [
-        IconButton(
-          tooltip: context.l10n.refreshAction,
-          onPressed: () {
-            ref.invalidate(networkHubProvider);
-            ref.invalidate(networkMetricsProvider);
-          },
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       child: hubState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
@@ -68,221 +58,232 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
             child: const ErrorView(compact: true, kind: ErrorViewKind.network),
           ),
         ),
-        data: (hub) => ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _trackHubSuggestions(hub.discoverySuggestions),
-            SurfaceCard(
-              child: Row(
+        data: (hub) => RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(networkHubProvider);
+            ref.invalidate(networkMetricsProvider);
+            await Future.wait([
+              ref.read(networkHubProvider.future),
+              ref.read(networkMetricsProvider.future),
+            ]);
+          },
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            children: [
+              _trackHubSuggestions(hub.discoverySuggestions),
+              SurfaceCard(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _StatTile(
+                        label: 'Aksiyon bekleyen',
+                        value: '${hub.actionableCount}',
+                        icon: Icons.bolt,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StatTile(
+                        label: 'Bağlantı',
+                        value:
+                            '${hub.incomingConnections.length + hub.outgoingConnections.length}',
+                        icon: Icons.people_alt_outlined,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StatTile(
+                        label: 'Mentorluk',
+                        value:
+                            '${hub.incomingMentorship.length + hub.outgoingMentorship.length}',
+                        icon: Icons.school_outlined,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              metricsState.when(
+                loading: () => const SurfaceCard(
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, _) => const SizedBox.shrink(),
+                data: (metrics) => SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Networking içgörüleri',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _MiniMetricChip(
+                            label: 'İstekler',
+                            value: '${metrics.connectionsRequested}',
+                          ),
+                          _MiniMetricChip(
+                            label: 'Kabul edilen',
+                            value: '${metrics.connectionsAccepted}',
+                          ),
+                          _MiniMetricChip(
+                            label: 'Bekleyen gelen',
+                            value: '${metrics.connectionsPendingIncoming}',
+                          ),
+                          _MiniMetricChip(
+                            label: 'Bekleyen giden',
+                            value: '${metrics.connectionsPendingOutgoing}',
+                          ),
+                          _MiniMetricChip(
+                            label: 'Mentorluk',
+                            value: '${metrics.mentorshipAccepted}',
+                          ),
+                          _MiniMetricChip(
+                            label: 'Öğretmen linki',
+                            value: '${metrics.teacherLinksCreated}',
+                          ),
+                        ],
+                      ),
+                      if (metrics.timeToFirstNetworkSuccessDays != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'İlk network başarısı: ${metrics.timeToFirstNetworkSuccessDays} gün',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
                 children: [
                   Expanded(
-                    child: _StatTile(
-                      label: 'Aksiyon bekleyen',
-                      value: '${hub.actionableCount}',
-                      icon: Icons.bolt,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => context.push('/network/inbox'),
+                      icon: const Icon(Icons.inbox_outlined),
+                      label: const Text('Networking Inbox'),
                     ),
                   ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: _StatTile(
-                      label: 'Bağlantı',
-                      value:
-                          '${hub.incomingConnections.length + hub.outgoingConnections.length}',
-                      icon: Icons.people_alt_outlined,
-                    ),
-                  ),
-                  Expanded(
-                    child: _StatTile(
-                      label: 'Mentorluk',
-                      value:
-                          '${hub.incomingMentorship.length + hub.outgoingMentorship.length}',
-                      icon: Icons.school_outlined,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => context.push('/network/teachers'),
+                      icon: const Icon(Icons.person_search_outlined),
+                      label: const Text('Öğretmen bağlantıları'),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            metricsState.when(
-              loading: () => const SurfaceCard(
-                child: Center(child: CircularProgressIndicator()),
+              const SizedBox(height: 20),
+              Text(
+                'Öne çıkan öneriler',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              error: (_, _) => const SizedBox.shrink(),
-              data: (metrics) => SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Networking içgörüleri',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        _MiniMetricChip(
-                          label: 'İstekler',
-                          value: '${metrics.connectionsRequested}',
-                        ),
-                        _MiniMetricChip(
-                          label: 'Kabul edilen',
-                          value: '${metrics.connectionsAccepted}',
-                        ),
-                        _MiniMetricChip(
-                          label: 'Bekleyen gelen',
-                          value: '${metrics.connectionsPendingIncoming}',
-                        ),
-                        _MiniMetricChip(
-                          label: 'Bekleyen giden',
-                          value: '${metrics.connectionsPendingOutgoing}',
-                        ),
-                        _MiniMetricChip(
-                          label: 'Mentorluk',
-                          value: '${metrics.mentorshipAccepted}',
-                        ),
-                        _MiniMetricChip(
-                          label: 'Öğretmen linki',
-                          value: '${metrics.teacherLinksCreated}',
-                        ),
-                      ],
-                    ),
-                    if (metrics.timeToFirstNetworkSuccessDays != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'İlk network başarısı: ${metrics.timeToFirstNetworkSuccessDays} gün',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    onPressed: () => context.push('/network/inbox'),
-                    icon: const Icon(Icons.inbox_outlined),
-                    label: const Text('Networking Inbox'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    onPressed: () => context.push('/network/teachers'),
-                    icon: const Icon(Icons.person_search_outlined),
-                    label: const Text('Öğretmen bağlantıları'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Öne çıkan öneriler',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            if (hub.discoverySuggestions.isEmpty)
-              const SurfaceCard(
-                child: Text('Şu anda yeni networking önerisi yok.'),
-              )
-            else
-              ...hub.discoverySuggestions.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SurfaceCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            RemoteAvatar(
-                              label: item.name,
-                              imageUrl: config
-                                  .resolveUrl(item.photo)
-                                  .toString(),
-                              radius: 26,
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.name,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
+              const SizedBox(height: 12),
+              if (hub.discoverySuggestions.isEmpty)
+                const SurfaceCard(
+                  child: Text('Şu anda yeni networking önerisi yok.'),
+                )
+              else
+                ...hub.discoverySuggestions.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SurfaceCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              RemoteAvatar(
+                                label: item.name,
+                                imageUrl: config
+                                    .resolveUrl(item.photo)
+                                    .toString(),
+                                radius: 26,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.name,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    if (item.handle.isNotEmpty)
+                                      Text(
+                                        '@${item.handle}',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    if (item.profession.isNotEmpty ||
+                                        item.city.isNotEmpty)
+                                      Text(
+                                        [item.profession, item.city]
+                                            .where((part) => part.isNotEmpty)
+                                            .join(' · '),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: context.l10n.openAction,
+                                onPressed: () =>
+                                    context.push('/members/${item.id}'),
+                                icon: const Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => _showActionResult(
+                                    context,
+                                    ref
+                                        .read(networkingRepositoryProvider)
+                                        .requestConnection(item.id),
+                                    onDone: () {
+                                      ref.invalidate(networkHubProvider);
+                                      ref.invalidate(networkInboxProvider);
+                                    },
                                   ),
-                                  if (item.handle.isNotEmpty)
-                                    Text(
-                                      '@${item.handle}',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                  if (item.profession.isNotEmpty ||
-                                      item.city.isNotEmpty)
-                                    Text(
-                                      [item.profession, item.city]
-                                          .where((part) => part.isNotEmpty)
-                                          .join(' · '),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: context.l10n.openAction,
-                              onPressed: () =>
-                                  context.push('/members/${item.id}'),
-                              icon: const Icon(
-                                Icons.arrow_forward_ios,
-                                size: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => _showActionResult(
-                                  context,
-                                  ref
-                                      .read(networkingRepositoryProvider)
-                                      .requestConnection(item.id),
-                                  onDone: () {
-                                    ref.invalidate(networkHubProvider);
-                                    ref.invalidate(networkInboxProvider);
-                                  },
+                                  child: const Text('Bağlantı iste'),
                                 ),
-                                child: const Text('Bağlantı iste'),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: FilledButton.tonal(
-                                onPressed: () => _openMentorshipDialog(
-                                  context,
-                                  ref,
-                                  item.id,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: FilledButton.tonal(
+                                  onPressed: () => _openMentorshipDialog(
+                                    context,
+                                    ref,
+                                    item.id,
+                                  ),
+                                  child: const Text('Mentorluk iste'),
                                 ),
-                                child: const Text('Mentorluk iste'),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -322,102 +323,101 @@ class NetworkingInboxPage extends ConsumerWidget {
 
     return FeatureScaffold(
       title: 'Networking Inbox',
-      actions: [
-        IconButton(
-          tooltip: context.l10n.refreshAction,
-          onPressed: () {
-            ref.invalidate(networkInboxProvider);
-            ref.invalidate(connectionRequestsProvider);
-            ref.invalidate(mentorshipRequestsProvider);
-          },
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       child: inboxState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => const ErrorView(kind: ErrorViewKind.network),
-        data: (inbox) => ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const _ConnectionRequestsBrowser(),
-            const SizedBox(height: 18),
-            const _MentorshipRequestsBrowser(),
-            const SizedBox(height: 18),
-            SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Öğretmen ağı bildirimleri',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: inbox.teacherEvents.isEmpty
-                            ? null
-                            : () => _showActionResult(
-                                context,
-                                ref
-                                    .read(networkingRepositoryProvider)
-                                    .markTeacherLinksRead(),
-                                onDone: () =>
-                                    ref.invalidate(networkInboxProvider),
-                              ),
-                        child: const Text('Okundu işaretle'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (inbox.teacherEvents.isEmpty)
-                    const Text('Yeni öğretmen ağı bildirimi yok.')
-                  else
-                    ...inbox.teacherEvents.map(
-                      (item) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Tooltip(
-                          message: context.l10n.openMemberProfileForName(
-                            item.member.name,
+        data: (inbox) => RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(networkInboxProvider);
+            ref.invalidate(connectionRequestsProvider);
+            ref.invalidate(mentorshipRequestsProvider);
+            await ref.read(networkInboxProvider.future);
+          },
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            children: [
+              const _ConnectionRequestsBrowser(),
+              const SizedBox(height: 18),
+              const _MentorshipRequestsBrowser(),
+              const SizedBox(height: 18),
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Öğretmen ağı bildirimleri',
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: item.member.id > 0
-                                ? () =>
-                                      context.push('/members/${item.member.id}')
-                                : null,
-                            child: Semantics(
-                              button: item.member.id > 0,
-                              enabled: item.member.id > 0,
-                              label: context.l10n.openMemberProfileForName(
-                                item.member.name,
-                              ),
-                              child: RemoteAvatar(
-                                label: item.member.name,
-                                imageUrl: config
-                                    .resolveUrl(item.member.photo)
-                                    .toString(),
-                                excludeFromSemantics: true,
+                        ),
+                        TextButton(
+                          onPressed: inbox.teacherEvents.isEmpty
+                              ? null
+                              : () => _showActionResult(
+                                  context,
+                                  ref
+                                      .read(networkingRepositoryProvider)
+                                      .markTeacherLinksRead(),
+                                  onDone: () =>
+                                      ref.invalidate(networkInboxProvider),
+                                ),
+                          child: const Text('Okundu işaretle'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (inbox.teacherEvents.isEmpty)
+                      const Text('Yeni öğretmen ağı bildirimi yok.')
+                    else
+                      ...inbox.teacherEvents.map(
+                        (item) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Tooltip(
+                            message: context.l10n.openMemberProfileForName(
+                              item.member.name,
+                            ),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: item.member.id > 0
+                                  ? () => context.push(
+                                      '/members/${item.member.id}',
+                                    )
+                                  : null,
+                              child: Semantics(
+                                button: item.member.id > 0,
+                                enabled: item.member.id > 0,
+                                label: context.l10n.openMemberProfileForName(
+                                  item.member.name,
+                                ),
+                                child: RemoteAvatar(
+                                  label: item.member.name,
+                                  imageUrl: config
+                                      .resolveUrl(item.member.photo)
+                                      .toString(),
+                                  excludeFromSemantics: true,
+                                ),
                               ),
                             ),
                           ),
+                          title: Text(item.message),
+                          subtitle: Text(item.createdAt),
+                          trailing: item.isUnread
+                              ? Icon(
+                                  Icons.circle,
+                                  size: 10,
+                                  color: Theme.of(context).sdal.info,
+                                )
+                              : null,
                         ),
-                        title: Text(item.message),
-                        subtitle: Text(item.createdAt),
-                        trailing: item.isUnread
-                            ? Icon(
-                                Icons.circle,
-                                size: 10,
-                                color: Theme.of(context).sdal.info,
-                              )
-                            : null,
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -799,217 +799,223 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
 
     return FeatureScaffold(
       title: 'Öğretmen bağlantıları',
-      actions: [
-        IconButton(
-          tooltip: context.l10n.refreshAction,
-          onPressed: () => ref.invalidate(teacherLinksProvider),
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Yeni öğretmen ekle',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    labelText: 'Öğretmen ara',
-                    prefixIcon: Icon(Icons.search),
+      child: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(teacherLinksProvider);
+          await ref.read(teacherLinksProvider.future);
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Yeni öğretmen ekle',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 12),
-                teacherOptionsState.when(
-                  loading: () => _searchController.text.trim().isEmpty
-                      ? EmptyStateView(
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Öğretmen ara',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  teacherOptionsState.when(
+                    loading: () => _searchController.text.trim().isEmpty
+                        ? EmptyStateView(
+                            icon: Icons.search_rounded,
+                            title: context.l10n.teacherSearchHintTitle,
+                            message: context.l10n.teacherSearchHintMessage,
+                            compact: true,
+                          )
+                        : const Center(child: CircularProgressIndicator()),
+                    error: (error, _) => const ErrorView(
+                      compact: true,
+                      kind: ErrorViewKind.network,
+                    ),
+                    data: (items) {
+                      if (_searchController.text.trim().isEmpty) {
+                        return EmptyStateView(
                           icon: Icons.search_rounded,
                           title: context.l10n.teacherSearchHintTitle,
                           message: context.l10n.teacherSearchHintMessage,
                           compact: true,
-                        )
-                      : const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => const ErrorView(
-                    compact: true,
-                    kind: ErrorViewKind.network,
-                  ),
-                  data: (items) {
-                    if (_searchController.text.trim().isEmpty) {
-                      return EmptyStateView(
-                        icon: Icons.search_rounded,
-                        title: context.l10n.teacherSearchHintTitle,
-                        message: context.l10n.teacherSearchHintMessage,
-                        compact: true,
-                      );
-                    }
-                    if (items.isEmpty) {
-                      return EmptyStateView(
-                        icon: Icons.person_off_outlined,
-                        title: context.l10n.teacherSearchEmptyTitle,
-                        message: context.l10n.teacherSearchEmptyMessage,
-                        compact: true,
-                      );
-                    }
-                    return Column(
-                      children: items
-                          .map(
-                            (item) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Tooltip(
-                                message: context.l10n.openMemberProfileForName(
-                                  item.name,
-                                ),
-                                child: InkWell(
-                                  customBorder: const CircleBorder(),
-                                  onTap: item.id > 0
-                                      ? () =>
-                                            context.push('/members/${item.id}')
-                                      : null,
-                                  child: Semantics(
-                                    button: item.id > 0,
-                                    enabled: item.id > 0,
-                                    label: context.l10n
-                                        .openMemberProfileForName(item.name),
-                                    child: RemoteAvatar(
-                                      label: item.name,
-                                      imageUrl: config
-                                          .resolveUrl(item.photo)
-                                          .toString(),
-                                      excludeFromSemantics: true,
+                        );
+                      }
+                      if (items.isEmpty) {
+                        return EmptyStateView(
+                          icon: Icons.person_off_outlined,
+                          title: context.l10n.teacherSearchEmptyTitle,
+                          message: context.l10n.teacherSearchEmptyMessage,
+                          compact: true,
+                        );
+                      }
+                      return Column(
+                        children: items
+                            .map(
+                              (item) => ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Tooltip(
+                                  message: context.l10n
+                                      .openMemberProfileForName(item.name),
+                                  child: InkWell(
+                                    customBorder: const CircleBorder(),
+                                    onTap: item.id > 0
+                                        ? () => context.push(
+                                            '/members/${item.id}',
+                                          )
+                                        : null,
+                                    child: Semantics(
+                                      button: item.id > 0,
+                                      enabled: item.id > 0,
+                                      label: context.l10n
+                                          .openMemberProfileForName(item.name),
+                                      child: RemoteAvatar(
+                                        label: item.name,
+                                        imageUrl: config
+                                            .resolveUrl(item.photo)
+                                            .toString(),
+                                        excludeFromSemantics: true,
+                                      ),
                                     ),
                                   ),
                                 ),
+                                title: Text(item.name),
+                                subtitle: Text(
+                                  [
+                                    if (item.handle.isNotEmpty)
+                                      '@${item.handle}',
+                                    if (item.studentCount > 0)
+                                      '${item.studentCount} öğrenci bağlantısı',
+                                  ].join(' · '),
+                                ),
+                                trailing: FilledButton.tonal(
+                                  onPressed: () => _openTeacherLinkDialog(
+                                    context,
+                                    ref,
+                                    item,
+                                  ),
+                                  child: const Text('Ekle'),
+                                ),
                               ),
-                              title: Text(item.name),
-                              subtitle: Text(
-                                [
-                                  if (item.handle.isNotEmpty) '@${item.handle}',
-                                  if (item.studentCount > 0)
-                                    '${item.studentCount} öğrenci bağlantısı',
-                                ].join(' · '),
-                              ),
-                              trailing: FilledButton.tonal(
-                                onPressed: () =>
-                                    _openTeacherLinkDialog(context, ref, item),
-                                child: const Text('Ekle'),
-                              ),
-                            ),
-                          )
-                          .toList(growable: false),
-                    );
-                  },
-                ),
-              ],
+                            )
+                            .toList(growable: false),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Kayıtlı öğretmen bağlantıların',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          linksState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) =>
-                const ErrorView(compact: true, kind: ErrorViewKind.network),
-            data: (items) {
-              if (items.isEmpty) {
-                return SurfaceCard(
-                  child: EmptyStateView(
-                    icon: Icons.school_outlined,
-                    title: context.l10n.teacherConnectionsEmptyTitle,
-                    message: context.l10n.teacherConnectionsEmptyMessage,
-                    compact: true,
-                  ),
-                );
-              }
-              return Column(
-                children: items
-                    .map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SurfaceCard(
-                          child: Row(
-                            children: [
-                              Tooltip(
-                                message: context.l10n.openMemberProfileForName(
-                                  item.member.name,
-                                ),
-                                child: InkWell(
-                                  customBorder: const CircleBorder(),
-                                  onTap: item.member.id > 0
-                                      ? () => context.push(
-                                          '/members/${item.member.id}',
-                                        )
-                                      : null,
-                                  child: Semantics(
-                                    button: item.member.id > 0,
-                                    enabled: item.member.id > 0,
-                                    label: context.l10n
-                                        .openMemberProfileForName(
-                                          item.member.name,
-                                        ),
-                                    child: RemoteAvatar(
-                                      label: item.member.name,
-                                      imageUrl: config
-                                          .resolveUrl(item.member.photo)
-                                          .toString(),
-                                      radius: 24,
-                                      excludeFromSemantics: true,
+            const SizedBox(height: 20),
+            Text(
+              'Kayıtlı öğretmen bağlantıların',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            linksState.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) =>
+                  const ErrorView(compact: true, kind: ErrorViewKind.network),
+              data: (items) {
+                if (items.isEmpty) {
+                  return SurfaceCard(
+                    child: EmptyStateView(
+                      icon: Icons.school_outlined,
+                      title: context.l10n.teacherConnectionsEmptyTitle,
+                      message: context.l10n.teacherConnectionsEmptyMessage,
+                      compact: true,
+                    ),
+                  );
+                }
+                return Column(
+                  children: items
+                      .map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SurfaceCard(
+                            child: Row(
+                              children: [
+                                Tooltip(
+                                  message: context.l10n
+                                      .openMemberProfileForName(
+                                        item.member.name,
+                                      ),
+                                  child: InkWell(
+                                    customBorder: const CircleBorder(),
+                                    onTap: item.member.id > 0
+                                        ? () => context.push(
+                                            '/members/${item.member.id}',
+                                          )
+                                        : null,
+                                    child: Semantics(
+                                      button: item.member.id > 0,
+                                      enabled: item.member.id > 0,
+                                      label: context.l10n
+                                          .openMemberProfileForName(
+                                            item.member.name,
+                                          ),
+                                      child: RemoteAvatar(
+                                        label: item.member.name,
+                                        imageUrl: config
+                                            .resolveUrl(item.member.photo)
+                                            .toString(),
+                                        radius: 24,
+                                        excludeFromSemantics: true,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.member.name,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                    Text(
-                                      item.relationshipType.isEmpty
-                                          ? 'Bağlantı kaydı'
-                                          : item.relationshipType,
-                                    ),
-                                    if (item.classYear.isNotEmpty)
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
                                       Text(
-                                        'Sınıf yılı: ${item.classYear}',
+                                        item.member.name,
                                         style: Theme.of(
                                           context,
-                                        ).textTheme.bodySmall,
+                                        ).textTheme.titleMedium,
                                       ),
-                                    if (item.notes.isNotEmpty)
                                       Text(
-                                        item.notes,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
+                                        item.relationshipType.isEmpty
+                                            ? 'Bağlantı kaydı'
+                                            : item.relationshipType,
                                       ),
-                                  ],
+                                      if (item.classYear.isNotEmpty)
+                                        Text(
+                                          'Sınıf yılı: ${item.classYear}',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      if (item.notes.isNotEmpty)
+                                        Text(
+                                          item.notes,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    )
-                    .toList(growable: false),
-              );
-            },
-          ),
-        ],
+                      )
+                      .toList(growable: false),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

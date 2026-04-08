@@ -75,135 +75,132 @@ class _EventsPageState extends ConsumerState<EventsPage> {
 
     return FeatureScaffold(
       title: l10n.eventsTitle,
-      actions: [
-        IconButton(
-          tooltip: l10n.refreshAction,
-          onPressed: _isLoadingInitial ? null : () => _load(reset: true),
-          icon: const Icon(Icons.refresh),
+      child: RefreshIndicator(
+        onRefresh: () => _load(reset: true),
+        child: ListView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Yeni etkinlik öner',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Başlık',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _descriptionController,
+                    minLines: 4,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Açıklama',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _locationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Konum',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _startsAtController,
+                          decoration: const InputDecoration(
+                            labelText: 'Başlangıç tarihi',
+                            hintText: '2026-04-04T19:30',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _endsAtController,
+                          decoration: const InputDecoration(
+                            labelText: 'Bitiş tarihi',
+                            hintText: '2026-04-04T22:00',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: isSaving
+                        ? null
+                        : () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text(
+                      _imageFile == null
+                          ? 'Kapak görseli ekle'
+                          : 'Kapak görselini değiştir',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: isSaving ? null : _createEvent,
+                      child: Text(
+                        isSaving ? 'Gönderiliyor...' : 'Etkinliği gönder',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isLoadingInitial)
+              const Padding(
+                padding: EdgeInsets.only(top: 60),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error.isNotEmpty && _items.isEmpty)
+              SurfaceCard(
+                child: ErrorView(
+                  message: _error,
+                  kind: ErrorViewKind.network,
+                  onRetry: () => _load(reset: true),
+                ),
+              )
+            else if (_items.isEmpty)
+              SurfaceCard(
+                child: EmptyStateView(
+                  icon: Icons.event_busy_outlined,
+                  title: l10n.eventsEmptyTitle,
+                  message: l10n.eventsEmptyMessage,
+                  actionLabel: l10n.refreshAction,
+                  onAction: () => _load(reset: true),
+                ),
+              )
+            else
+              ..._items.map(_buildEventCard),
+            if (_isLoadingMore)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+          ],
         ),
-      ],
-      child: ListView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(20),
-        children: [
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Yeni etkinlik öner',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Başlık',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _descriptionController,
-                  minLines: 4,
-                  maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Açıklama',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Konum',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _startsAtController,
-                        decoration: const InputDecoration(
-                          labelText: 'Başlangıç tarihi',
-                          hintText: '2026-04-04T19:30',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _endsAtController,
-                        decoration: const InputDecoration(
-                          labelText: 'Bitiş tarihi',
-                          hintText: '2026-04-04T22:00',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: isSaving
-                      ? null
-                      : () => _pickImage(ImageSource.gallery),
-                  icon: const Icon(Icons.photo_library_outlined),
-                  label: Text(
-                    _imageFile == null
-                        ? 'Kapak görseli ekle'
-                        : 'Kapak görselini değiştir',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: isSaving ? null : _createEvent,
-                    child: Text(
-                      isSaving ? 'Gönderiliyor...' : 'Etkinliği gönder',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_isLoadingInitial)
-            const Padding(
-              padding: EdgeInsets.only(top: 60),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error.isNotEmpty && _items.isEmpty)
-            SurfaceCard(
-              child: ErrorView(
-                message: _error,
-                kind: ErrorViewKind.network,
-                onRetry: () => _load(reset: true),
-              ),
-            )
-          else if (_items.isEmpty)
-            SurfaceCard(
-              child: EmptyStateView(
-                icon: Icons.event_busy_outlined,
-                title: l10n.eventsEmptyTitle,
-                message: l10n.eventsEmptyMessage,
-                actionLabel: l10n.refreshAction,
-                onAction: () => _load(reset: true),
-              ),
-            )
-          else
-            ..._items.map(_buildEventCard),
-          if (_isLoadingMore)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-        ],
       ),
     );
   }

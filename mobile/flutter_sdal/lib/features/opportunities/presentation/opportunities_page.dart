@@ -31,116 +31,115 @@ class _OpportunitiesPageState extends ConsumerState<OpportunitiesPage> {
   Widget build(BuildContext context) {
     return FeatureScaffold(
       title: 'Fırsatlar',
-      actions: [
-        IconButton(
-          onPressed: _isLoading ? null : () => _load(reset: true),
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final tab in const <(String, String)>[
-                ('all', 'Tümü'),
-                ('now', 'Şimdi'),
-                ('networking', 'Networking'),
-                ('jobs', 'İşler'),
-                ('updates', 'Güncellemeler'),
-              ])
-                ChoiceChip(
-                  label: Text(tab.$2),
-                  selected: _activeTab == tab.$1,
-                  onSelected: (_) {
-                    setState(() => _activeTab = tab.$1);
-                    _load(reset: true);
-                  },
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (_error.isNotEmpty)
-            SurfaceCard(child: Text(_error))
-          else if (_items.isEmpty)
-            const SurfaceCard(child: Text('Şu anda gösterilecek fırsat yok.'))
-          else
-            ..._items.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: SurfaceCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          Chip(
-                            label: Text(_priorityLabel(item.priorityBucket)),
-                          ),
-                          Chip(label: Text(_categoryLabel(item.category))),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        item.title,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      if (item.summary.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(item.summary),
-                      ],
-                      if (item.whyNow.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          item.whyNow,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).sdal.foregroundMuted,
-                          ),
-                        ),
-                      ],
-                      if (item.reasons.isNotEmpty) ...[
-                        const SizedBox(height: 10),
+      child: RefreshIndicator(
+        onRefresh: () => _load(reset: true),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tab in const <(String, String)>[
+                  ('all', 'Tümü'),
+                  ('now', 'Şimdi'),
+                  ('networking', 'Networking'),
+                  ('jobs', 'İşler'),
+                  ('updates', 'Güncellemeler'),
+                ])
+                  ChoiceChip(
+                    label: Text(tab.$2),
+                    selected: _activeTab == tab.$1,
+                    onSelected: (_) {
+                      setState(() => _activeTab = tab.$1);
+                      _load(reset: true);
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_error.isNotEmpty)
+              SurfaceCard(child: Text(_error))
+            else if (_items.isEmpty)
+              const SurfaceCard(child: Text('Şu anda gösterilecek fırsat yok.'))
+            else
+              ..._items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SurfaceCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: item.reasons
-                              .map((reason) => Chip(label: Text(reason)))
-                              .toList(growable: false),
+                          children: [
+                            Chip(
+                              label: Text(_priorityLabel(item.priorityBucket)),
+                            ),
+                            Chip(label: Text(_categoryLabel(item.category))),
+                          ],
                         ),
-                      ],
-                      if (item.targetHref.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        SelectableText(
-                          '${item.targetLabel}: ${item.targetHref}',
-                          style: TextStyle(
-                            color: Theme.of(context).sdal.info,
+                        const SizedBox(height: 10),
+                        Text(
+                          item.title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        if (item.summary.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(item.summary),
+                        ],
+                        if (item.whyNow.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            item.whyNow,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).sdal.foregroundMuted,
+                                ),
                           ),
-                        ),
+                        ],
+                        if (item.reasons.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: item.reasons
+                                .map((reason) => Chip(label: Text(reason)))
+                                .toList(growable: false),
+                          ),
+                        ],
+                        if (item.targetHref.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          SelectableText(
+                            '${item.targetLabel}: ${item.targetHref}',
+                            style: TextStyle(
+                              color: Theme.of(context).sdal.info,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          if (_hasMore) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.center,
-              child: FilledButton.tonal(
-                onPressed: _isLoadingMore ? null : () => _load(reset: false),
-                child: Text(
-                  _isLoadingMore ? 'Yükleniyor...' : 'Daha fazla yükle',
+            if (_hasMore) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.center,
+                child: FilledButton.tonal(
+                  onPressed: _isLoadingMore ? null : () => _load(reset: false),
+                  child: Text(
+                    _isLoadingMore ? 'Yükleniyor...' : 'Daha fazla yükle',
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -66,100 +66,120 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     return FeatureScaffold(
       title: l10n.exploreTitle,
       background: FeatureScaffoldBackground.editorial,
-      actions: [
-        IconButton(
-          tooltip: l10n.refreshAction,
-          onPressed: () {
-            ref.invalidate(latestMembersProvider);
-            ref.invalidate(suggestionMembersProvider);
-            ref.invalidate(directoryMembersProvider(_directoryQuery));
-          },
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            l10n.exploreLatestMembersTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          latestState.when(
-            loading: () => const _ExploreCarouselSkeleton(),
-            error: (error, _) =>
-                const ErrorView(compact: true, kind: ErrorViewKind.network),
-            data: (items) => items.isEmpty
-                ? const SizedBox.shrink()
-                : SizedBox(
-                    height: 220,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: items.length,
-                      separatorBuilder: (_, index) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        return SizedBox(
-                          width: 260,
-                          child: _MemberCard(
-                            member: item,
-                            compact: false,
-                            isFollowed: _isMemberFollowed(item),
-                            followInFlight: _followingInFlightIds.contains(
-                              item.id,
+      child: RefreshIndicator(
+        onRefresh: _refreshPage,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              l10n.exploreLatestMembersTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            latestState.when(
+              loading: () => const _ExploreCarouselSkeleton(),
+              error: (error, _) =>
+                  const ErrorView(compact: true, kind: ErrorViewKind.network),
+              data: (items) => items.isEmpty
+                  ? const SizedBox.shrink()
+                  : SizedBox(
+                      height: 220,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: items.length,
+                        separatorBuilder: (_, index) =>
+                            const SizedBox(width: 12),
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          return SizedBox(
+                            width: 260,
+                            child: _MemberCard(
+                              member: item,
+                              compact: false,
+                              isFollowed: _isMemberFollowed(item),
+                              followInFlight: _followingInFlightIds.contains(
+                                item.id,
+                              ),
+                              onTap: () => context.push('/members/${item.id}'),
+                              imageUrl: config
+                                  .resolveUrl(item.photo)
+                                  .toString(),
+                              onFollow: () => _followMember(item.id),
                             ),
-                            onTap: () => context.push('/members/${item.id}'),
-                            imageUrl: config.resolveUrl(item.photo).toString(),
-                            onFollow: () => _followMember(item.id),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            l10n.exploreSuggestionsTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          suggestionsState.when(
-            loading: () => const _ExploreGridSkeleton(),
-            error: (error, _) =>
-                const ErrorView(compact: true, kind: ErrorViewKind.network),
-            data: (items) {
-              _trackExploreSuggestions(items);
-              return items.isEmpty
-                  ? SurfaceCard(
-                      child: EmptyStateView(
-                        icon: Icons.person_search_outlined,
-                        title: l10n.exploreSuggestionsEmptyTitle,
-                        message: l10n.exploreSuggestionsEmptyMessage,
-                        actionLabel: l10n.refreshAction,
-                        onAction: () {
-                          ref.invalidate(latestMembersProvider);
-                          ref.invalidate(suggestionMembersProvider);
+                          );
                         },
                       ),
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final compact = constraints.maxWidth < 640;
-                        if (compact) {
-                          return SizedBox(
-                            height: 220,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: items.length,
-                              separatorBuilder: (_, index) =>
-                                  const SizedBox(width: 12),
-                              itemBuilder: (context, index) {
-                                final item = items[index];
-                                return SizedBox(
-                                  width: constraints.maxWidth.clamp(
-                                    240.0,
-                                    300.0,
-                                  ),
+                    ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              l10n.exploreSuggestionsTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            suggestionsState.when(
+              loading: () => const _ExploreGridSkeleton(),
+              error: (error, _) =>
+                  const ErrorView(compact: true, kind: ErrorViewKind.network),
+              data: (items) {
+                _trackExploreSuggestions(items);
+                return items.isEmpty
+                    ? SurfaceCard(
+                        child: EmptyStateView(
+                          icon: Icons.person_search_outlined,
+                          title: l10n.exploreSuggestionsEmptyTitle,
+                          message: l10n.exploreSuggestionsEmptyMessage,
+                          actionLabel: l10n.refreshAction,
+                          onAction: () {
+                            ref.invalidate(latestMembersProvider);
+                            ref.invalidate(suggestionMembersProvider);
+                          },
+                        ),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 640;
+                          if (compact) {
+                            return SizedBox(
+                              height: 220,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: items.length,
+                                separatorBuilder: (_, index) =>
+                                    const SizedBox(width: 12),
+                                itemBuilder: (context, index) {
+                                  final item = items[index];
+                                  return SizedBox(
+                                    width: constraints.maxWidth.clamp(
+                                      240.0,
+                                      300.0,
+                                    ),
+                                    child: _MemberCard(
+                                      member: item,
+                                      compact: false,
+                                      isFollowed: _isMemberFollowed(item),
+                                      followInFlight: _followingInFlightIds
+                                          .contains(item.id),
+                                      onTap: () =>
+                                          context.push('/members/${item.id}'),
+                                      imageUrl: config
+                                          .resolveUrl(item.photo)
+                                          .toString(),
+                                      onFollow: () => _followMember(item.id),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          }
+                          return Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              for (final item in items)
+                                SizedBox(
+                                  width: (constraints.maxWidth - 12) / 2,
                                   child: _MemberCard(
                                     member: item,
                                     compact: false,
@@ -173,176 +193,154 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                         .toString(),
                                     onFollow: () => _followMember(item.id),
                                   ),
-                                );
-                              },
-                            ),
-                          );
-                        }
-                        return Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            for (final item in items)
-                              SizedBox(
-                                width: (constraints.maxWidth - 12) / 2,
-                                child: _MemberCard(
-                                  member: item,
-                                  compact: false,
-                                  isFollowed: _isMemberFollowed(item),
-                                  followInFlight: _followingInFlightIds
-                                      .contains(item.id),
-                                  onTap: () =>
-                                      context.push('/members/${item.id}'),
-                                  imageUrl: config
-                                      .resolveUrl(item.photo)
-                                      .toString(),
-                                  onFollow: () => _followMember(item.id),
                                 ),
-                              ),
-                          ],
-                        );
-                      },
-                    );
-            },
-          ),
-          const SizedBox(height: 20),
-          Text(
-            l10n.exploreDirectoryTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.exploreDirectoryFiltersTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _queryController,
-                  decoration: InputDecoration(
-                    labelText: l10n.exploreSearchLabel,
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _yearController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: l10n.exploreGraduationYearLabel,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _cityController,
-                        decoration: InputDecoration(
-                          labelText: l10n.profileEditCityLabel,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    FilledButton.tonal(
-                      onPressed: () {
-                        setState(() {
-                          _directoryQuery = DirectoryMembersQuery(
-                            query: _queryController.text.trim(),
-                            year: _yearController.text.trim(),
-                            city: _cityController.text.trim(),
-                            page: 1,
+                            ],
                           );
-                        });
-                      },
-                      child: Text(l10n.exploreApplyFiltersAction),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        _queryController.clear();
-                        _yearController.clear();
-                        _cityController.clear();
-                        setState(() {
-                          _directoryQuery = const DirectoryMembersQuery();
-                        });
-                      },
-                      child: Text(l10n.exploreClearFiltersAction),
-                    ),
-                  ],
-                ),
-              ],
+                        },
+                      );
+              },
             ),
-          ),
-          const SizedBox(height: 12),
-          directoryState.when(
-            loading: () => const _ExploreDirectorySkeleton(),
-            error: (error, _) =>
-                const ErrorView(compact: true, kind: ErrorViewKind.network),
-            data: (items) => Column(
-              children: [
-                ...items.map(
-                  (member) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _MemberCard(
-                      member: member,
-                      compact: true,
-                      isFollowed: _isMemberFollowed(member),
-                      followInFlight: _followingInFlightIds.contains(member.id),
-                      onTap: () => context.push('/members/${member.id}'),
-                      imageUrl: config.resolveUrl(member.photo).toString(),
-                      onFollow: () => _followMember(member.id),
+            const SizedBox(height: 20),
+            Text(
+              l10n.exploreDirectoryTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.exploreDirectoryFiltersTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _queryController,
+                    decoration: InputDecoration(
+                      labelText: l10n.exploreSearchLabel,
+                      prefixIcon: Icon(Icons.search),
                     ),
                   ),
-                ),
-                if (items.isNotEmpty)
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      TextButton(
-                        onPressed: _directoryQuery.page > 1
-                            ? () => setState(() {
-                                _directoryQuery = DirectoryMembersQuery(
-                                  query: _directoryQuery.query,
-                                  year: _directoryQuery.year,
-                                  city: _directoryQuery.city,
-                                  page: _directoryQuery.page - 1,
-                                );
-                              })
-                            : null,
-                        child: Text(l10n.previousAction),
+                      Expanded(
+                        child: TextField(
+                          controller: _yearController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: l10n.exploreGraduationYearLabel,
+                          ),
+                        ),
                       ),
-                      const Spacer(),
-                      Text(l10n.explorePageLabel(_directoryQuery.page)),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: items.length >= 20
-                            ? () => setState(() {
-                                _directoryQuery = DirectoryMembersQuery(
-                                  query: _directoryQuery.query,
-                                  year: _directoryQuery.year,
-                                  city: _directoryQuery.city,
-                                  page: _directoryQuery.page + 1,
-                                );
-                              })
-                            : null,
-                        child: Text(l10n.nextAction),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _cityController,
+                          decoration: InputDecoration(
+                            labelText: l10n.profileEditCityLabel,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-              ],
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      FilledButton.tonal(
+                        onPressed: () {
+                          setState(() {
+                            _directoryQuery = DirectoryMembersQuery(
+                              query: _queryController.text.trim(),
+                              year: _yearController.text.trim(),
+                              city: _cityController.text.trim(),
+                              page: 1,
+                            );
+                          });
+                        },
+                        child: Text(l10n.exploreApplyFiltersAction),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          _queryController.clear();
+                          _yearController.clear();
+                          _cityController.clear();
+                          setState(() {
+                            _directoryQuery = const DirectoryMembersQuery();
+                          });
+                        },
+                        child: Text(l10n.exploreClearFiltersAction),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            directoryState.when(
+              loading: () => const _ExploreDirectorySkeleton(),
+              error: (error, _) =>
+                  const ErrorView(compact: true, kind: ErrorViewKind.network),
+              data: (items) => Column(
+                children: [
+                  ...items.map(
+                    (member) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _MemberCard(
+                        member: member,
+                        compact: true,
+                        isFollowed: _isMemberFollowed(member),
+                        followInFlight: _followingInFlightIds.contains(
+                          member.id,
+                        ),
+                        onTap: () => context.push('/members/${member.id}'),
+                        imageUrl: config.resolveUrl(member.photo).toString(),
+                        onFollow: () => _followMember(member.id),
+                      ),
+                    ),
+                  ),
+                  if (items.isNotEmpty)
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: _directoryQuery.page > 1
+                              ? () => setState(() {
+                                  _directoryQuery = DirectoryMembersQuery(
+                                    query: _directoryQuery.query,
+                                    year: _directoryQuery.year,
+                                    city: _directoryQuery.city,
+                                    page: _directoryQuery.page - 1,
+                                  );
+                                })
+                              : null,
+                          child: Text(l10n.previousAction),
+                        ),
+                        const Spacer(),
+                        Text(l10n.explorePageLabel(_directoryQuery.page)),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: items.length >= 20
+                              ? () => setState(() {
+                                  _directoryQuery = DirectoryMembersQuery(
+                                    query: _directoryQuery.query,
+                                    year: _directoryQuery.year,
+                                    city: _directoryQuery.city,
+                                    page: _directoryQuery.page + 1,
+                                  );
+                                })
+                              : null,
+                          child: Text(l10n.nextAction),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -398,6 +396,17 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 
   bool _isMemberFollowed(MemberSummary member) {
     return member.following || _followedMemberIds.contains(member.id);
+  }
+
+  Future<void> _refreshPage() async {
+    ref.invalidate(latestMembersProvider);
+    ref.invalidate(suggestionMembersProvider);
+    ref.invalidate(directoryMembersProvider(_directoryQuery));
+    await Future.wait([
+      ref.read(latestMembersProvider.future),
+      ref.read(suggestionMembersProvider.future),
+      ref.read(directoryMembersProvider(_directoryQuery).future),
+    ]);
   }
 }
 

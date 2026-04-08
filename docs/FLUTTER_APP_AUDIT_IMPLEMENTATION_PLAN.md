@@ -766,7 +766,13 @@ Definition of done:
 
 #### G2. Native refresh behavior
 
-Status: `Not started`
+Status: `Completed`
+
+Used skills in implementation:
+
+- `large-repo-context-guard`
+- `harden`
+- `adapt`
 
 Audit coverage:
 

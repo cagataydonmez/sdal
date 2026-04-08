@@ -52,17 +52,11 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
 
     return FeatureScaffold(
       title: l10n.followingTitle,
-      actions: [
-        IconButton(
-          tooltip: l10n.refreshAction,
-          onPressed: _isLoadingInitial ? null : () => _load(reset: true),
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       child: RefreshIndicator(
         onRefresh: () => _load(reset: true),
         child: ListView(
           controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
             if (_isLoadingInitial)

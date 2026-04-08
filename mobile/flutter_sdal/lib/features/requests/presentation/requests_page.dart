@@ -97,261 +97,266 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     return FeatureScaffold(
       title: l10n.requestsTitle,
       background: FeatureScaffoldBackground.utility,
-      actions: [
-        IconButton(
-          onPressed: () {
-            ref.invalidate(requestCategoriesProvider);
-            ref.invalidate(myRequestsProvider);
-          },
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-      child: ListView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(20),
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: tokens.accentMuted,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: tokens.panelBorder),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.requestsCreateTitle,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    l10n.requestsCreateHelper,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: tokens.foregroundMuted,
-                    ),
-                  ),
-                ],
+      child: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(requestCategoriesProvider);
+          ref.invalidate(myRequestsProvider);
+          await Future.wait([
+            ref.read(requestCategoriesProvider.future),
+            ref.read(myRequestsProvider.future),
+          ]);
+        },
+        child: ListView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: tokens.accentMuted,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: tokens.panelBorder),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                categoriesState.when(
-                  loading: () => const CircularProgressIndicator(),
-                  error: (error, _) => const ErrorView(
-                    compact: true,
-                    kind: ErrorViewKind.network,
-                  ),
-                  data: (categories) => DropdownButtonFormField<String>(
-                    initialValue:
-                        categories.any(
-                          (item) => item.categoryKey == _categoryKey,
-                        )
-                        ? _categoryKey
-                        : null,
-                    decoration: InputDecoration(
-                      labelText: l10n.requestsCategoryLabel,
-                      border: const OutlineInputBorder(),
-                    ),
-                    items: categories
-                        .map(
-                          (item) => DropdownMenuItem<String>(
-                            value: item.categoryKey,
-                            child: Text(item.label),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: isSubmitting
-                        ? null
-                        : (value) => setState(() => _categoryKey = value ?? ''),
-                  ),
-                ),
-                if (_categoryKey == 'graduation_year_change') ...[
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: _requestedGraduationYear.isEmpty
-                        ? null
-                        : _requestedGraduationYear,
-                    decoration: InputDecoration(
-                      labelText: l10n.requestsGraduationYearLabel,
-                      border: const OutlineInputBorder(),
-                    ),
-                    items: _graduationYearOptions
-                        .map(
-                          (year) => DropdownMenuItem<String>(
-                            value: year,
-                            child: Text(
-                              year == 'teacher'
-                                  ? l10n.requestsTeacherOption
-                                  : year,
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: isSubmitting
-                        ? null
-                        : (value) => setState(
-                            () => _requestedGraduationYear = value ?? '',
-                          ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _noteController,
-                  minLines: 3,
-                  maxLines: 5,
-                  enabled: !isSubmitting,
-                  decoration: InputDecoration(
-                    labelText: l10n.requestsDescriptionLabel,
-                    alignLabelWithHint: true,
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: isUploading || isSubmitting
-                          ? null
-                          : () => _pickAndUpload(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: Text(
-                        isUploading
-                            ? l10n.submitInProgress
-                            : l10n.requestsPickFromGallery,
-                      ),
+                    Text(
+                      l10n.requestsCreateTitle,
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                    OutlinedButton.icon(
-                      onPressed: isUploading || isSubmitting
-                          ? null
-                          : () => _pickAndUpload(ImageSource.camera),
-                      icon: const Icon(Icons.photo_camera_outlined),
-                      label: Text(l10n.requestsUseCamera),
+                    const SizedBox(height: 10),
+                    Text(
+                      l10n.requestsCreateHelper,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: tokens.foregroundMuted,
+                      ),
                     ),
                   ],
                 ),
-                if (_attachments.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  ..._attachments.map(
-                    (attachment) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _AttachmentChip(
-                        attachment: attachment,
-                        onRemove: isSubmitting
-                            ? null
-                            : () => setState(
-                                () => _attachments.remove(attachment),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  categoriesState.when(
+                    loading: () => const CircularProgressIndicator(),
+                    error: (error, _) => const ErrorView(
+                      compact: true,
+                      kind: ErrorViewKind.network,
+                    ),
+                    data: (categories) => DropdownButtonFormField<String>(
+                      initialValue:
+                          categories.any(
+                            (item) => item.categoryKey == _categoryKey,
+                          )
+                          ? _categoryKey
+                          : null,
+                      decoration: InputDecoration(
+                        labelText: l10n.requestsCategoryLabel,
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: categories
+                          .map(
+                            (item) => DropdownMenuItem<String>(
+                              value: item.categoryKey,
+                              child: Text(item.label),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: isSubmitting
+                          ? null
+                          : (value) =>
+                                setState(() => _categoryKey = value ?? ''),
+                    ),
+                  ),
+                  if (_categoryKey == 'graduation_year_change') ...[
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _requestedGraduationYear.isEmpty
+                          ? null
+                          : _requestedGraduationYear,
+                      decoration: InputDecoration(
+                        labelText: l10n.requestsGraduationYearLabel,
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: _graduationYearOptions
+                          .map(
+                            (year) => DropdownMenuItem<String>(
+                              value: year,
+                              child: Text(
+                                year == 'teacher'
+                                    ? l10n.requestsTeacherOption
+                                    : year,
                               ),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: isSubmitting
+                          ? null
+                          : (value) => setState(
+                              () => _requestedGraduationYear = value ?? '',
+                            ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _noteController,
+                    minLines: 3,
+                    maxLines: 5,
+                    enabled: !isSubmitting,
+                    decoration: InputDecoration(
+                      labelText: l10n.requestsDescriptionLabel,
+                      alignLabelWithHint: true,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: isUploading || isSubmitting
+                            ? null
+                            : () => _pickAndUpload(ImageSource.gallery),
+                        icon: const Icon(Icons.photo_library_outlined),
+                        label: Text(
+                          isUploading
+                              ? l10n.submitInProgress
+                              : l10n.requestsPickFromGallery,
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: isUploading || isSubmitting
+                            ? null
+                            : () => _pickAndUpload(ImageSource.camera),
+                        icon: const Icon(Icons.photo_camera_outlined),
+                        label: Text(l10n.requestsUseCamera),
+                      ),
+                    ],
+                  ),
+                  if (_attachments.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ..._attachments.map(
+                      (attachment) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _AttachmentChip(
+                          attachment: attachment,
+                          onRemove: isSubmitting
+                              ? null
+                              : () => setState(
+                                  () => _attachments.remove(attachment),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: isSubmitting ? null : _submit,
+                      child: Text(
+                        isSubmitting
+                            ? l10n.submitInProgress
+                            : l10n.requestsSendAction,
                       ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: isSubmitting ? null : _submit,
-                    child: Text(
-                      isSubmitting
-                          ? l10n.submitInProgress
-                          : l10n.requestsSendAction,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.requestsListTitle,
-                style: Theme.of(context).textTheme.headlineSmall,
               ),
-              const SizedBox(height: 12),
-              if (widget.notificationId > 0 &&
-                  widget.notificationStatus.trim().isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: tokens.infoMuted,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: tokens.panelBorder),
-                  ),
-                  child: Text(
-                    widget.notificationStatus.trim().toLowerCase() == 'approved'
-                        ? l10n.requestsNotificationApproved
-                        : l10n.requestsNotificationUpdated,
-                    style: TextStyle(color: tokens.foreground),
-                  ),
-                ),
-              if (widget.notificationId > 0 &&
-                  widget.notificationStatus.trim().isNotEmpty)
-                const SizedBox(height: 12),
-            ],
-          ),
-          SurfaceCard(
-            child: Column(
+            ),
+            const SizedBox(height: 16),
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                requestsState.when(
-                  loading: () => const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 18),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (error, _) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const ErrorView(
-                        compact: true,
-                        kind: ErrorViewKind.network,
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.tonal(
-                        onPressed: () => ref.invalidate(myRequestsProvider),
-                        child: Text(l10n.retryAction),
-                      ),
-                    ],
-                  ),
-                  data: (items) => items.isEmpty
-                      ? EmptyStateView(
-                          icon: Icons.assignment_outlined,
-                          title: l10n.requestsEmptyTitle,
-                          message: l10n.requestsEmptyMessage,
-                          compact: true,
-                        )
-                      : Column(
-                          children: items
-                              .map(
-                                (item) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _RequestCard(
-                                    key: _requestKeys.putIfAbsent(
-                                      item.id,
-                                      GlobalKey.new,
-                                    ),
-                                    item: item,
-                                    highlighted:
-                                        item.id == widget.highlightedRequestId,
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
-                        ),
+                Text(
+                  l10n.requestsListTitle,
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
+                const SizedBox(height: 12),
+                if (widget.notificationId > 0 &&
+                    widget.notificationStatus.trim().isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: tokens.infoMuted,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: tokens.panelBorder),
+                    ),
+                    child: Text(
+                      widget.notificationStatus.trim().toLowerCase() ==
+                              'approved'
+                          ? l10n.requestsNotificationApproved
+                          : l10n.requestsNotificationUpdated,
+                      style: TextStyle(color: tokens.foreground),
+                    ),
+                  ),
+                if (widget.notificationId > 0 &&
+                    widget.notificationStatus.trim().isNotEmpty)
+                  const SizedBox(height: 12),
               ],
             ),
-          ),
-        ],
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  requestsState.when(
+                    loading: () => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 18),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    error: (error, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const ErrorView(
+                          compact: true,
+                          kind: ErrorViewKind.network,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonal(
+                          onPressed: () => ref.invalidate(myRequestsProvider),
+                          child: Text(l10n.retryAction),
+                        ),
+                      ],
+                    ),
+                    data: (items) => items.isEmpty
+                        ? EmptyStateView(
+                            icon: Icons.assignment_outlined,
+                            title: l10n.requestsEmptyTitle,
+                            message: l10n.requestsEmptyMessage,
+                            compact: true,
+                          )
+                        : Column(
+                            children: items
+                                .map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _RequestCard(
+                                      key: _requestKeys.putIfAbsent(
+                                        item.id,
+                                        GlobalKey.new,
+                                      ),
+                                      item: item,
+                                      highlighted:
+                                          item.id ==
+                                          widget.highlightedRequestId,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

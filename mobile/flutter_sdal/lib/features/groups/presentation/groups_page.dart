@@ -21,12 +21,6 @@ class GroupsPage extends ConsumerWidget {
     final l10n = context.l10n;
     return FeatureScaffold(
       title: l10n.groupsTitle,
-      actions: [
-        IconButton(
-          onPressed: () => ref.invalidate(groupsListProvider),
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateSheet(context, ref),
         icon: const Icon(Icons.add),
@@ -39,6 +33,7 @@ class GroupsPage extends ConsumerWidget {
         data: (groups) => RefreshIndicator(
           onRefresh: () => ref.refresh(groupsListProvider.future),
           child: ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(20),
             itemCount: groups.length,
             separatorBuilder: (context, index) => const SizedBox(height: 14),
