@@ -7,8 +7,9 @@ String? mapNotificationWebRouteToApp(String rawRoute) {
 
   if (path.startsWith('/new/network/hub')) return '/network/hub$query';
   if (path.startsWith('/new/network/inbox')) return '/network/inbox$query';
-  if (path.startsWith('/new/profile/verification'))
+  if (path.startsWith('/new/profile/verification')) {
     return '/profile/verification';
+  }
   if (path.startsWith('/new/profile')) return '/profile$query';
   if (path.startsWith('/new/following')) return '/following$query';
   if (path.startsWith('/new/requests')) return '/requests$query';
