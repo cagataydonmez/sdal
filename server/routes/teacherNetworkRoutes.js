@@ -9,6 +9,7 @@ export function registerTeacherNetworkRoutes(app, {
   sqlGetAsync,
   sqlAllAsync,
   sqlRun,
+  sqlRunAsync,
   addNotification,
   recordNetworkingTelemetryEvent,
   apiSuccessEnvelope,
