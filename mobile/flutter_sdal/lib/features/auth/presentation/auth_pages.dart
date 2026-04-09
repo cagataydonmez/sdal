@@ -7,6 +7,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
+import '../../../core/widgets/sdal_logo_badge.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../application/auth_action_controller.dart';
@@ -79,7 +80,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             controller: _usernameController,
             textInputAction: TextInputAction.next,
             labelText: l10n.username,
-            prefixIcon: const _AuthBrandLogo(size: 20, frameSize: 36),
+            prefixIcon: const SdalLogoBadge(size: 20, frameSize: 36),
             autofillHints: const [AutofillHints.username],
           ),
           const SizedBox(height: 12),
@@ -107,13 +108,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: submitting ? null : () => _startOAuth('google'),
-            icon: const _AuthBrandLogo(size: 20, frameSize: 36),
+            icon: const _OAuthProviderLogo(provider: _OAuthProvider.google),
             label: Text(l10n.continueWithGoogle),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: submitting ? null : () => _startOAuth('x'),
-            icon: const _AuthBrandLogo(size: 20, frameSize: 36),
+            icon: const _OAuthProviderLogo(provider: _OAuthProvider.x),
             label: Text(l10n.continueWithX),
           ),
         ],
@@ -1139,53 +1140,30 @@ class OAuthCallbackPage extends StatelessWidget {
   }
 }
 
-class _AuthBrandLogo extends StatelessWidget {
-  const _AuthBrandLogo({required this.size, this.frameSize});
+enum _OAuthProvider { google, x }
 
-  final double size;
-  final double? frameSize;
+class _OAuthProviderLogo extends StatelessWidget {
+  const _OAuthProviderLogo({required this.provider});
+
+  final _OAuthProvider provider;
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    final brightness = Theme.of(context).brightness;
-    final effectiveFrameSize = frameSize ?? size;
-    final effectiveRadius = effectiveFrameSize >= 72
-        ? SdalThemeTokens.radiusXl
-        : SdalThemeTokens.radiusMd;
-    const borderWidth = 1.2;
-    final shadowOpacity = brightness == Brightness.dark ? 0.28 : 0.08;
-
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox.square(
-      dimension: effectiveFrameSize,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(effectiveRadius),
-          border: Border.all(color: tokens.panelBorder, width: borderWidth),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: shadowOpacity),
-              blurRadius: effectiveFrameSize >= 72 ? 18 : 10,
-              offset: Offset(0, effectiveFrameSize >= 72 ? 8 : 4),
-            ),
-          ],
+      dimension: 24,
+      child: switch (provider) {
+        _OAuthProvider.google => SvgPicture.string(
+          _googleLogoSvg,
+          width: 20,
+          height: 20,
         ),
-        child: Padding(
-          padding: EdgeInsets.all((effectiveFrameSize - size) / 2),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(
-              (effectiveRadius - borderWidth).clamp(0, effectiveRadius),
-            ),
-            child: Image.asset(
-              'icon.png',
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-            ),
-          ),
+        _OAuthProvider.x => SvgPicture.string(
+          _xLogoSvg(isDark ? Colors.white : const Color(0xFF111111)),
+          width: 18,
+          height: 18,
         ),
-      ),
+      },
     );
   }
 }
@@ -1213,6 +1191,16 @@ class _AuthFrame extends StatelessWidget {
               backgroundColor: tokens.accent,
               foregroundColor: tokens.foregroundOnAccent,
               elevation: 0,
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const ExcludeSemantics(
+                    child: SdalLogoBadge(size: 22, frameSize: 30),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
             )
           : null,
       body: Container(
@@ -1237,7 +1225,7 @@ class _AuthFrame extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Center(
-                          child: _AuthBrandLogo(size: 80, frameSize: 96),
+                          child: SdalLogoBadge(size: 80, frameSize: 96),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -1268,6 +1256,21 @@ class _AuthFrame extends StatelessWidget {
       ),
     );
   }
+}
+
+const String _googleLogoSvg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+    '<path fill="#EA4335" d="M12.24 10.285v3.818h5.445c-.233 1.227-.932 2.266-1.98 2.964l3.2 2.482c1.864-1.718 2.936-4.245 2.936-7.264 0-.691-.061-1.355-.176-2H12.24Z"/>'
+    '<path fill="#4285F4" d="M12 22c2.7 0 4.965-.894 6.62-2.42l-3.2-2.482c-.89.597-2.03.95-3.42.95-2.63 0-4.858-1.777-5.655-4.166H3.037v2.56A9.997 9.997 0 0 0 12 22Z"/>'
+    '<path fill="#FBBC05" d="M6.345 13.882A5.997 5.997 0 0 1 6.029 12c0-.654.113-1.29.316-1.882v-2.56H3.037A9.997 9.997 0 0 0 2 12c0 1.61.386 3.13 1.037 4.442l3.308-2.56Z"/>'
+    '<path fill="#34A853" d="M12 5.952c1.468 0 2.786.505 3.822 1.495l2.864-2.864C16.96 2.973 14.695 2 12 2A9.997 9.997 0 0 0 3.037 7.558l3.308 2.56C7.142 7.73 9.37 5.952 12 5.952Z"/>'
+    '</svg>';
+
+String _xLogoSvg(Color color) {
+  final hex = color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2);
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+      '<path fill="#$hex" d="M18.244 2H21.5l-7.11 8.128L22.75 22h-6.544l-5.124-6.706L5.214 22H1.955l7.606-8.693L1.5 2h6.71l4.632 6.117L18.244 2Zm-1.142 18h1.803L7.229 3.892H5.293L17.102 20Z"/>'
+      '</svg>';
 }
 
 Widget _twoColumn(Widget left, Widget right) {

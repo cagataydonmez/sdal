@@ -14,6 +14,7 @@ migrate_working_dir/
 .agent
 .claude
 .dart_skills
+.gradle-local
 
 # IntelliJ related
 *.iml

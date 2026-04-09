@@ -7,6 +7,7 @@ import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../theme/sdal_theme_tokens.dart';
 import 'remote_avatar.dart';
+import 'sdal_logo_badge.dart';
 
 enum FeatureScaffoldBackground { neutral, editorial, utility, immersive }
 
@@ -54,7 +55,16 @@ class FeatureScaffold extends ConsumerWidget {
             : (canPop ? const BackButton() : null),
         centerTitle: true,
         title: canPop
-            ? Text(title)
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const ExcludeSemantics(
+                    child: SdalLogoBadge(size: 24, frameSize: 32),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+                ],
+              )
             : Tooltip(
                 message: l10n.tabFeed,
                 child: Semantics(
@@ -63,20 +73,8 @@ class FeatureScaffold extends ConsumerWidget {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: () => context.go('/feed'),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: tokens.panelBorder,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10.5),
-                        child: ExcludeSemantics(
-                          child: Image.asset('icon.png', height: 32, width: 32),
-                        ),
-                      ),
+                    child: const ExcludeSemantics(
+                      child: SdalLogoBadge(size: 28, frameSize: 36),
                     ),
                   ),
                 ),
