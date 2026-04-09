@@ -202,9 +202,10 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
-				98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				01ED6FCBA1C4F4C14949D6E1 /* [CP] Embed Pods Frameworks */,
+				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
+				98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */,
 			);
 			buildRules = (
 			);
@@ -293,22 +294,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Strip Extended Attributes";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "find \"${TARGET_BUILD_DIR}\" -name \"*.framework\" -exec xattr -cr {} \\;\nfind \"${SRCROOT}/../build/native_assets\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\n";
-			showEnvVarsInLog = 0;
-		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -325,6 +310,23 @@
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
 		};
+		72984A24260C997F15464F39 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		9740EEB61CF901F6004384FC /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -338,7 +340,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+			shellScript = "export COPYFILE_DISABLE=1\nexport COPY_EXTENDED_ATTRIBUTES_DISABLE=1\nEXPANDED_CODE_SIGN_IDENTITY=\"\" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO /bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Strip Extended Attributes";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "find \"${TARGET_BUILD_DIR}\" -name \"*.framework\" -exec xattr -cr {} \\;\nxattr -cr \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" 2>/dev/null || true\nfind \"${SRCROOT}/../build/native_assets\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\n";
+			showEnvVarsInLog = 0;
 		};
 		C46EEE2730E417B36C0F709A /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
