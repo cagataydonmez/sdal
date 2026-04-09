@@ -90,6 +90,8 @@ export function createOpportunityInboxRuntime({
       primary_action: item.primary_action || null,
       entity_type: item.entity_type || '',
       entity_id: item.entity_id == null ? null : Number(item.entity_id || 0),
+      member_id: item.member_id == null ? null : Number(item.member_id || 0),
+      member_following: item.member_following === true,
       created_at: toIsoOrNull(item.created_at),
       read_at: toIsoOrNull(item.read_at)
     };
@@ -384,6 +386,8 @@ export function createOpportunityInboxRuntime({
         },
         entity_type: 'user',
         entity_id: item.id,
+        member_id: item.id,
+        member_following: Number(item.following || 0) > 0,
         created_at: new Date().toISOString()
       }));
     }

@@ -419,6 +419,9 @@ main() {
       fi
       ;;
     2)
+      if [[ "$build_mode" == "release" ]]; then
+        die "Flutter release mode is not supported on iOS Simulator. Use iPhone + Release, or iOS Simulator + Debug."
+      fi
       require_cmd open
       mapfile -t entries < <(get_ios_simulator_entries)
       local selected label udid

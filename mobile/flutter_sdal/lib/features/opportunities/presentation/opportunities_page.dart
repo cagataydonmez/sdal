@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/l10n/context_l10n.dart';
+import '../../../core/network/json_utils.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../explore/data/explore_repository.dart';
 import '../data/opportunities_repository.dart';
 
 class OpportunitiesPage extends ConsumerStatefulWidget {
@@ -14,6 +18,8 @@ class OpportunitiesPage extends ConsumerStatefulWidget {
 
 class _OpportunitiesPageState extends ConsumerState<OpportunitiesPage> {
   final List<OpportunityItem> _items = <OpportunityItem>[];
+  final Map<int, bool> _followOverrides = <int, bool>{};
+  final Set<int> _followingInFlightIds = <int>{};
   String _activeTab = 'all';
   String _cursor = '';
   bool _isLoading = true;
@@ -114,11 +120,102 @@ class _OpportunitiesPageState extends ConsumerState<OpportunitiesPage> {
                         ],
                         if (item.targetHref.isNotEmpty) ...[
                           const SizedBox(height: 12),
-                          SelectableText(
-                            '${item.targetLabel}: ${item.targetHref}',
-                            style: TextStyle(
-                              color: Theme.of(context).sdal.info,
+                          if (item.isMemberSuggestion) ...[
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                FilledButton.tonal(
+                                  onPressed: () =>
+                                      context.push('/members/${item.memberId}'),
+                                  child: Text(item.targetLabel),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed:
+                                      _followingInFlightIds.contains(
+                                        item.memberId,
+                                      )
+                                      ? null
+                                      : () => _toggleFollowSuggestion(item),
+                                  icon:
+                                      _followingInFlightIds.contains(
+                                        item.memberId,
+                                      )
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Icon(
+                                          _isMemberFollowed(item)
+                                              ? Icons
+                                                    .person_remove_alt_1_rounded
+                                              : Icons.person_add_alt_1_rounded,
+                                        ),
+                                  label: Text(
+                                    _followingInFlightIds.contains(
+                                          item.memberId,
+                                        )
+                                        ? context.l10n.submitInProgress
+                                        : _isMemberFollowed(item)
+                                        ? context.l10n.unfollowAction
+                                        : context.l10n.followAction,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ] else
+                            SelectableText(
+                              '${item.targetLabel}: ${item.targetHref}',
+                              style: TextStyle(
+                                color: Theme.of(context).sdal.info,
+                              ),
+                            ),
+                        ] else if (item.isMemberSuggestion) ...[
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              FilledButton.tonal(
+                                onPressed: () =>
+                                    context.push('/members/${item.memberId}'),
+                                child: const Text('Profili aç'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed:
+                                    _followingInFlightIds.contains(
+                                      item.memberId,
+                                    )
+                                    ? null
+                                    : () => _toggleFollowSuggestion(item),
+                                icon:
+                                    _followingInFlightIds.contains(
+                                      item.memberId,
+                                    )
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Icon(
+                                        _isMemberFollowed(item)
+                                            ? Icons.person_remove_alt_1_rounded
+                                            : Icons.person_add_alt_1_rounded,
+                                      ),
+                                label: Text(
+                                  _followingInFlightIds.contains(item.memberId)
+                                      ? context.l10n.submitInProgress
+                                      : _isMemberFollowed(item)
+                                      ? context.l10n.unfollowAction
+                                      : context.l10n.followAction,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ],
@@ -182,6 +279,39 @@ class _OpportunitiesPageState extends ConsumerState<OpportunitiesPage> {
         });
       }
     }
+  }
+
+  bool _isMemberFollowed(OpportunityItem item) {
+    return _followOverrides[item.memberId] ?? item.memberFollowing;
+  }
+
+  Future<void> _toggleFollowSuggestion(OpportunityItem item) async {
+    if (!item.isMemberSuggestion ||
+        _followingInFlightIds.contains(item.memberId)) {
+      return;
+    }
+    final currentFollowing = _isMemberFollowed(item);
+    setState(() => _followingInFlightIds.add(item.memberId));
+    final result = await ref
+        .read(exploreRepositoryProvider)
+        .follow(item.memberId);
+    if (!mounted) return;
+    final payload = asJsonMap(result.rawData);
+    final nextFollowing = asBool(payload['following']) ?? !currentFollowing;
+    setState(() {
+      _followingInFlightIds.remove(item.memberId);
+      if (result.ok) {
+        _followOverrides[item.memberId] = nextFollowing;
+      }
+    });
+    final message = result.message.isNotEmpty
+        ? result.message
+        : (result.ok
+              ? (nextFollowing ? 'Takip edildi.' : 'Takip bırakıldı.')
+              : context.l10n.actionFailedGeneric);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

@@ -112,6 +112,10 @@ class OpportunityItem {
     required this.targetHref,
     required this.targetLabel,
     required this.reasons,
+    required this.entityType,
+    required this.entityId,
+    required this.memberId,
+    required this.memberFollowing,
   });
 
   final String id;
@@ -124,9 +128,17 @@ class OpportunityItem {
   final String targetHref;
   final String targetLabel;
   final List<String> reasons;
+  final String entityType;
+  final int? entityId;
+  final int memberId;
+  final bool memberFollowing;
+
+  bool get isMemberSuggestion => entityType == 'user' && memberId > 0;
 
   factory OpportunityItem.fromMap(JsonMap map) {
     final target = asJsonMap(map['target']);
+    final entityType = coalesceText([map['entity_type']], fallback: '');
+    final entityId = asInt(map['entity_id']);
     return OpportunityItem(
       id: coalesceText([map['id']], fallback: ''),
       title: coalesceText([map['title']], fallback: 'Fırsat'),
@@ -145,6 +157,11 @@ class OpportunityItem {
                 .where((item) => item.isNotEmpty)
                 .toList(growable: false)
           : const <String>[],
+      entityType: entityType,
+      entityId: entityId,
+      memberId:
+          asInt(map['member_id']) ?? (entityType == 'user' ? entityId ?? 0 : 0),
+      memberFollowing: asBool(map['member_following']) ?? false,
     );
   }
 }

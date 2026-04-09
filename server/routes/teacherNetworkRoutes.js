@@ -31,6 +31,30 @@ export function registerTeacherNetworkRoutes(app, {
   scheduleEngagementRecalculation,
   invalidateFeedCache
 }) {
+  let followsRelation = 'follows';
+
+  function isMissingFollowsRelationError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return (
+      message.includes('no such table: follows')
+      || message.includes('relation "follows" does not exist')
+      || message.includes("relation 'follows' does not exist")
+      || message.includes('relation follows does not exist')
+    );
+  }
+
+  async function withFollowsRelation(runQuery) {
+    try {
+      return await runQuery(followsRelation);
+    } catch (error) {
+      if (followsRelation !== 'follows' || !isMissingFollowsRelationError(error)) {
+        throw error;
+      }
+      followsRelation = 'user_follows';
+      return runQuery(followsRelation);
+    }
+  }
+
   app.get('/api/new/teachers/network', requireAuth, async (req, res) => {
     try {
       ensureTeacherAlumniLinksTable();
@@ -282,9 +306,16 @@ export function registerTeacherNetworkRoutes(app, {
     try {
       const targetId = req.params.id;
       if (String(targetId) === String(req.session.userId)) return res.status(400).send('Kendini takip edemezsin.');
-      const existing = await sqlGetAsync('SELECT id FROM follows WHERE follower_id = ? AND following_id = ?', [req.session.userId, targetId]);
+      const existing = await withFollowsRelation((followTable) =>
+        sqlGetAsync(
+          `SELECT id FROM ${followTable} WHERE follower_id = ? AND following_id = ?`,
+          [req.session.userId, targetId]
+        )
+      );
       if (existing) {
-        await sqlRunAsync('DELETE FROM follows WHERE id = ?', [existing.id]);
+        await withFollowsRelation((followTable) =>
+          sqlRunAsync(`DELETE FROM ${followTable} WHERE id = ?`, [existing.id])
+        );
         recordNetworkingTelemetryEvent({
           userId: req.session.userId,
           eventName: 'follow_removed',
@@ -299,11 +330,12 @@ export function registerTeacherNetworkRoutes(app, {
         return res.json({ ok: true, following: false });
       }
 
-      await sqlRunAsync('INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)', [
-        req.session.userId,
-        targetId,
-        new Date().toISOString()
-      ]);
+      await withFollowsRelation((followTable) =>
+        sqlRunAsync(
+          `INSERT INTO ${followTable} (follower_id, following_id, created_at) VALUES (?, ?, ?)`,
+          [req.session.userId, targetId, new Date().toISOString()]
+        )
+      );
       addNotification({
         userId: Number(targetId),
         type: 'follow',
@@ -337,16 +369,18 @@ export function registerTeacherNetworkRoutes(app, {
       const orderBy = sort === 'followed_at'
         ? 'COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC'
         : 'COALESCE(es.score, 0) DESC, COALESCE(NULLIF(f.created_at, \'\'), datetime(\'now\')) DESC, f.id DESC';
-      const rows = await sqlAllAsync(
-        `SELECT f.following_id, f.created_at AS followed_at, u.kadi, u.isim, u.soyisim, u.resim,
-                COALESCE(es.score, 0) AS engagement_score
-         FROM follows f
-         LEFT JOIN uyeler u ON u.id = f.following_id
-         LEFT JOIN member_engagement_scores es ON es.user_id = f.following_id
-         WHERE f.follower_id = ?
-         ORDER BY ${orderBy}
-         LIMIT ? OFFSET ?`,
-        [req.session.userId, limit, offset]
+      const rows = await withFollowsRelation((followTable) =>
+        sqlAllAsync(
+          `SELECT f.following_id, f.created_at AS followed_at, u.kadi, u.isim, u.soyisim, u.resim,
+                  COALESCE(es.score, 0) AS engagement_score
+           FROM ${followTable} f
+           LEFT JOIN uyeler u ON u.id = f.following_id
+           LEFT JOIN member_engagement_scores es ON es.user_id = f.following_id
+           WHERE f.follower_id = ?
+           ORDER BY ${orderBy}
+           LIMIT ? OFFSET ?`,
+          [req.session.userId, limit, offset]
+        )
       );
       res.json({ items: rows, hasMore: rows.length === limit });
     } catch (err) {
@@ -365,15 +399,17 @@ export function registerTeacherNetworkRoutes(app, {
       const user = await sqlGetAsync('SELECT id, kadi, isim, soyisim FROM uyeler WHERE id = ?', [targetUserId]);
       if (!user) return res.status(404).send('Üye bulunamadı.');
 
-      const follows = await sqlAllAsync(
-        `SELECT f.id, f.following_id, f.created_at AS followed_at,
-                u.kadi, u.isim, u.soyisim, u.resim, u.verified
-         FROM follows f
-         LEFT JOIN uyeler u ON u.id = f.following_id
-         WHERE f.follower_id = ?
-         ORDER BY COALESCE(NULLIF(f.created_at, ''), datetime('now')) DESC, f.id DESC
-         LIMIT ? OFFSET ?`,
-        [targetUserId, limit, offset]
+      const follows = await withFollowsRelation((followTable) =>
+        sqlAllAsync(
+          `SELECT f.id, f.following_id, f.created_at AS followed_at,
+                  u.kadi, u.isim, u.soyisim, u.resim, u.verified
+           FROM ${followTable} f
+           LEFT JOIN uyeler u ON u.id = f.following_id
+           WHERE f.follower_id = ?
+           ORDER BY COALESCE(NULLIF(f.created_at, ''), datetime('now')) DESC, f.id DESC
+           LIMIT ? OFFSET ?`,
+          [targetUserId, limit, offset]
+        )
       );
 
       const followTargets = follows

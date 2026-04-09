@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
+import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/shell/shell_metadata_repository.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../following/application/following_action_controller.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../data/explore_repository.dart';
 
@@ -18,6 +20,7 @@ class MemberDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detailState = ref.watch(memberDetailProvider(memberId));
+    final followActionState = ref.watch(followingActionControllerProvider);
     final config = ref.watch(appConfigProvider);
     final session = ref.watch(sessionControllerProvider).valueOrNull;
     final quickAccess = ref.watch(quickAccessUsersProvider).valueOrNull;
@@ -37,10 +40,16 @@ class MemberDetailPage extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.person_off_outlined, size: 48, color: tokens.foregroundMuted),
+                Icon(
+                  Icons.person_off_outlined,
+                  size: 48,
+                  color: tokens.foregroundMuted,
+                ),
                 const SizedBox(height: 16),
-                Text('Üye bilgileri yüklenemedi.',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Üye bilgileri yüklenemedi.',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           ),
@@ -53,16 +62,26 @@ class MemberDetailPage extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.person_search_outlined, size: 48,
-                        color: tokens.foregroundMuted),
+                    Icon(
+                      Icons.person_search_outlined,
+                      size: 48,
+                      color: tokens.foregroundMuted,
+                    ),
                     const SizedBox(height: 16),
-                    Text('Üye bulunamadı.',
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Üye bulunamadı.',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ],
                 ),
               ),
             );
           }
+          final followScope = 'follow:$memberId';
+          final followInFlight =
+              followActionState.isLoading &&
+              followActionState.scope == followScope;
+          final isFollowing = detail.summary.following;
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             children: [
@@ -142,9 +161,10 @@ class MemberDetailPage extends ConsumerWidget {
                               detail.company.isNotEmpty) ...[
                             _HighlightChip(
                               icon: Icons.work_outline,
-                              label: [detail.title, detail.company]
-                                  .where((s) => s.isNotEmpty)
-                                  .join(', '),
+                              label: [
+                                detail.title,
+                                detail.company,
+                              ].where((s) => s.isNotEmpty).join(', '),
                               color: tokens.info,
                               bgColor: tokens.infoMuted,
                             ),
@@ -167,21 +187,81 @@ class MemberDetailPage extends ConsumerWidget {
                               color: tokens.foreground,
                               bgColor: tokens.panelMuted,
                             ),
-                          // Pin / unpin action
+                          // Follow + pin actions
                           if (!isSelf) ...[
                             const SizedBox(height: 16),
                             OutlinedButton.icon(
+                              onPressed: followInFlight
+                                  ? null
+                                  : () async {
+                                      final following = await ref
+                                          .read(
+                                            followingActionControllerProvider
+                                                .notifier,
+                                          )
+                                          .toggleFollow(memberId);
+                                      if (!context.mounted) return;
+                                      final actionState = ref.read(
+                                        followingActionControllerProvider,
+                                      );
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            actionState.message ??
+                                                (following == null
+                                                    ? context
+                                                          .l10n
+                                                          .actionFailedGeneric
+                                                    : following
+                                                    ? 'Takip edildi.'
+                                                    : 'Takip bırakıldı.'),
+                                          ),
+                                        ),
+                                      );
+                                      if (following == null) return;
+                                      ref.invalidate(
+                                        memberDetailProvider(memberId),
+                                      );
+                                      ref.invalidate(latestMembersProvider);
+                                      ref.invalidate(suggestionMembersProvider);
+                                    },
+                              icon: followInFlight
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      isFollowing
+                                          ? Icons.person_remove_alt_1_rounded
+                                          : Icons.person_add_alt_1_rounded,
+                                    ),
+                              label: Text(
+                                followInFlight
+                                    ? context.l10n.submitInProgress
+                                    : isFollowing
+                                    ? context.l10n.unfollowAction
+                                    : context.l10n.followAction,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
                               onPressed: () async {
-                                final messenger =
-                                    ScaffoldMessenger.of(context);
+                                final messenger = ScaffoldMessenger.of(context);
                                 final repository = ref.read(
                                   shellMetadataRepositoryProvider,
                                 );
                                 final result = isPinned
-                                    ? await repository
-                                          .removeQuickAccessUser(memberId)
-                                    : await repository
-                                          .addQuickAccessUser(memberId);
+                                    ? await repository.removeQuickAccessUser(
+                                        memberId,
+                                      )
+                                    : await repository.addQuickAccessUser(
+                                        memberId,
+                                      );
                                 ref.invalidate(quickAccessUsersProvider);
                                 if (!context.mounted) return;
                                 messenger.showSnackBar(
@@ -234,14 +314,8 @@ class MemberDetailPage extends ConsumerWidget {
                         icon: Icons.location_on_outlined,
                         value: detail.summary.city,
                       ),
-                      _InfoRow(
-                        icon: Icons.email_outlined,
-                        value: detail.email,
-                      ),
-                      _InfoRow(
-                        icon: Icons.link,
-                        value: detail.linkedinUrl,
-                      ),
+                      _InfoRow(icon: Icons.email_outlined, value: detail.email),
+                      _InfoRow(icon: Icons.link, value: detail.linkedinUrl),
                     ],
                   ),
                 ),
@@ -255,8 +329,11 @@ class MemberDetailPage extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.format_quote,
-                              size: 18, color: tokens.accent),
+                          Icon(
+                            Icons.format_quote,
+                            size: 18,
+                            color: tokens.accent,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'İmza',
@@ -268,9 +345,9 @@ class MemberDetailPage extends ConsumerWidget {
                       Text(
                         detail.signature,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontStyle: FontStyle.italic,
-                              color: tokens.foregroundMuted,
-                            ),
+                          fontStyle: FontStyle.italic,
+                          color: tokens.foregroundMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -321,9 +398,9 @@ class _HighlightChip extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

@@ -325,6 +325,7 @@ class NetworkDiscoverySuggestion {
     required this.profession,
     required this.photo,
     required this.verified,
+    required this.following,
   });
 
   final int id;
@@ -334,6 +335,7 @@ class NetworkDiscoverySuggestion {
   final String profession;
   final String photo;
   final bool verified;
+  final bool following;
 
   factory NetworkDiscoverySuggestion.fromMap(JsonMap map) {
     return NetworkDiscoverySuggestion(
@@ -351,6 +353,7 @@ class NetworkDiscoverySuggestion {
       ], fallback: ''),
       photo: coalesceText([map['resim'], map['photo']], fallback: ''),
       verified: asBool(map['verified']) ?? false,
+      following: asBool(map['following']) ?? false,
     );
   }
 }

@@ -6,12 +6,14 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/api_result.dart';
+import '../../../core/network/json_utils.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../explore/data/explore_repository.dart';
 import '../data/networking_repository.dart';
 
 class NetworkingHubPage extends ConsumerStatefulWidget {
@@ -23,6 +25,8 @@ class NetworkingHubPage extends ConsumerStatefulWidget {
 
 class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
   String _hubSuggestionTelemetryKey = '';
+  final Map<int, bool> _followOverrides = <int, bool>{};
+  final Set<int> _followingInFlightIds = <int>{};
 
   @override
   void initState() {
@@ -247,6 +251,35 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
                             ],
                           ),
                           const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _followingInFlightIds.contains(item.id)
+                                  ? null
+                                  : () => _toggleFollowSuggestion(item),
+                              icon: _followingInFlightIds.contains(item.id)
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _isSuggestionFollowed(item)
+                                          ? Icons.person_remove_alt_1_rounded
+                                          : Icons.person_add_alt_1_rounded,
+                                    ),
+                              label: Text(
+                                _followingInFlightIds.contains(item.id)
+                                    ? context.l10n.submitInProgress
+                                    : _isSuggestionFollowed(item)
+                                    ? context.l10n.unfollowAction
+                                    : context.l10n.followAction,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               Expanded(
@@ -310,6 +343,37 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
       });
     }
     return const SizedBox.shrink();
+  }
+
+  bool _isSuggestionFollowed(NetworkDiscoverySuggestion item) {
+    return _followOverrides[item.id] ?? item.following;
+  }
+
+  Future<void> _toggleFollowSuggestion(NetworkDiscoverySuggestion item) async {
+    if (_followingInFlightIds.contains(item.id)) return;
+    final currentFollowing = _isSuggestionFollowed(item);
+    setState(() => _followingInFlightIds.add(item.id));
+    final result = await ref.read(exploreRepositoryProvider).follow(item.id);
+    if (!mounted) return;
+    final payload = asJsonMap(result.rawData);
+    final nextFollowing = asBool(payload['following']) ?? !currentFollowing;
+    setState(() {
+      _followingInFlightIds.remove(item.id);
+      if (result.ok) {
+        _followOverrides[item.id] = nextFollowing;
+      }
+    });
+    if (result.ok) {
+      ref.invalidate(networkHubProvider);
+      ref.invalidate(networkInboxProvider);
+      return;
+    }
+    final message = result.message.isNotEmpty
+        ? result.message
+        : context.l10n.actionFailedGeneric;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
