@@ -2,6 +2,28 @@
 
 Flutter iOS client for SDAL, built directly against the existing SDAL backend.
 
+## Install / Run Matrix
+
+| Target | Build | Recommended command | What it does |
+| --- | --- | --- | --- |
+| iPhone over cable or wireless | Debug | `./tool/install_local.sh` | Choose `iPhone` then `Debug`. Runs `flutter run` with a cache-backed build dir so device builds do not fail from Desktop/iCloud xattrs. |
+| iPhone over cable or wireless | Release | `./tool/install_local.sh` | Choose `iPhone` then `Release`. Builds with `xcodebuild` into `~/Library/Caches`, re-signs embedded frameworks, installs, and launches automatically. |
+| iOS Simulator | Debug | `./tool/install_local.sh` | Choose `iOS Simulator` then `Debug`. Opens Simulator, boots the selected device, and runs `flutter run --debug`. |
+| iOS Simulator | Release | `./tool/install_local.sh` | Choose `iOS Simulator` then `Release`. Opens Simulator, boots the selected device, and runs `flutter run --release`. |
+| Android Emulator | Debug | `./tool/install_local.sh` | Choose `Android Emulator` then `Debug`. Launches the selected emulator and runs `flutter run --debug`. |
+| Android Emulator | Release | `./tool/install_local.sh` | Choose `Android Emulator` then `Release`. Launches the selected emulator and runs `flutter run --release`. |
+
+## Direct Commands
+
+| Target | Build | Direct command |
+| --- | --- | --- |
+| iPhone over cable or wireless | Debug | `flutter config --build-dir=../../../../Library/Caches/flutter_sdal_flutter_build && flutter run --debug -d <flutter-ios-device-id>` |
+| iPhone over cable or wireless | Release | `cd ios && xcodebuild -configuration Release -allowProvisioningUpdates -allowProvisioningDeviceRegistration -workspace Runner.xcworkspace -scheme Runner BUILD_DIR=$HOME/Library/Caches/flutter_sdal_ios_build OBJROOT=$HOME/Library/Caches/flutter_sdal_ios_build -sdk iphoneos -destination generic/platform=iOS FLUTTER_SUPPRESS_ANALYTICS=true COMPILER_INDEX_STORE_ENABLE=NO` |
+| iOS Simulator | Debug | `open -a Simulator && xcrun simctl boot <sim-udid> && flutter run --debug -d <sim-udid>` |
+| iOS Simulator | Release | `open -a Simulator && xcrun simctl boot <sim-udid> && flutter run --release -d <sim-udid>` |
+| Android Emulator | Debug | `flutter emulators --launch <android-emulator-id> && flutter run --debug -d <android-device-id>` |
+| Android Emulator | Release | `flutter emulators --launch <android-emulator-id> && flutter run --release -d <android-device-id>` |
+
 ## Local iOS Run Flow
 
 1. Start the SDAL backend separately.

@@ -203,6 +203,7 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */,
 				01ED6FCBA1C4F4C14949D6E1 /* [CP] Embed Pods Frameworks */,
 				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
 				98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */,
@@ -292,6 +293,22 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Strip Extended Attributes (Pre-embed)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "find \"${TARGET_BUILD_DIR}\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\nfind \"${SRCROOT}/../build/native_assets\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\n";
 			showEnvVarsInLog = 0;
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {

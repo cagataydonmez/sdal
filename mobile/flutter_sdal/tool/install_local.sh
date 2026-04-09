@@ -1,0 +1,457 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+IOS_DIR="$ROOT_DIR/ios"
+FLUTTER_BIN="${FLUTTER_BIN:-/Users/cagataydonmez/flutter/bin/flutter}"
+IOS_BUNDLE_ID="${IOS_BUNDLE_ID:-com.sdal.flutterSdal}"
+IOS_RELEASE_BUILD_DIR_ABS="${IOS_RELEASE_BUILD_DIR_ABS:-$HOME/Library/Caches/flutter_sdal_ios_build}"
+FLUTTER_BUILD_DIR_REL="${FLUTTER_BUILD_DIR_REL:-../../../../Library/Caches/flutter_sdal_flutter_build}"
+IOS_SIGNING_IDENTITY_SHA="${IOS_SIGNING_IDENTITY_SHA:-}"
+
+PREV_BUILD_DIR=""
+PREV_BUILD_DIR_SET=0
+
+print_help() {
+  cat <<'EOF'
+Usage: ./tool/install_local.sh
+
+Interactive launcher for:
+1. iPhone (cable or wireless) debug
+2. iPhone (cable or wireless) release install + launch
+3. iOS simulator debug/release
+4. Android emulator debug/release
+
+Behavior:
+- iPhone release builds into ~/Library/Caches to avoid Desktop/iCloud xattrs breaking codesign.
+- Debug, iOS simulator, and Android emulator flows use flutter run.
+- The script restores your previous global flutter build-dir setting on exit.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'Error: %s\n' "$*" >&2
+  exit 1
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+make_temp_json() {
+  mktemp -t "flutter_sdal.$1.XXXXXX.json"
+}
+
+cleanup() {
+  if [[ $PREV_BUILD_DIR_SET -eq 1 ]]; then
+    "$FLUTTER_BIN" config --build-dir="$PREV_BUILD_DIR" >/dev/null
+  else
+    "$FLUTTER_BIN" config --build-dir="" >/dev/null
+  fi
+}
+
+ensure_flutter_build_dir_override() {
+  if [[ -n "${PREV_BUILD_DIR:-}" || $PREV_BUILD_DIR_SET -eq 1 ]]; then
+    return
+  fi
+
+  local current
+  current="$("$FLUTTER_BIN" config --list 2>/dev/null | awk -F': ' '/^  build-dir: /{print $2}')"
+  if [[ -n "$current" && "$current" != "(Not set)" ]]; then
+    PREV_BUILD_DIR="$current"
+    PREV_BUILD_DIR_SET=1
+  fi
+
+  trap cleanup EXIT
+  "$FLUTTER_BIN" config --build-dir="$FLUTTER_BUILD_DIR_REL" >/dev/null
+}
+
+prepare_flutter() {
+  export COPYFILE_DISABLE=1
+  export COPY_EXTENDED_ATTRIBUTES_DISABLE=1
+  cd "$ROOT_DIR"
+  "$FLUTTER_BIN" pub get
+}
+
+prepare_ios() {
+  prepare_flutter
+  (
+    cd "$IOS_DIR"
+    pod install >/dev/null
+  )
+}
+
+prompt_number() {
+  local max="$1"
+  local prompt="${2:-Choose: }"
+  local choice
+  while true; do
+    read -r -p "$prompt" choice < /dev/tty
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= max )); then
+      printf '%s' "$choice"
+      return
+    fi
+    printf 'Enter a number between 1 and %s.\n' "$max" >&2
+  done
+}
+
+select_from_entries() {
+  local title="$1"
+  shift
+  local -a entries=("$@")
+  local total="${#entries[@]}"
+  (( total > 0 )) || die "No entries available for $title"
+
+  printf '\n%s\n' "$title" >&2
+  local index=1
+  local entry label
+  for entry in "${entries[@]}"; do
+    label="${entry%%|||*}"
+    printf '  %d. %s\n' "$index" "$label" >&2
+    ((index++))
+  done
+
+  local selected
+  selected="$(prompt_number "$total" "Choose: ")"
+  printf '%s' "${entries[$((selected - 1))]}"
+}
+
+json_to_entries() {
+  local script="$1"
+  local input_file="$2"
+  /usr/bin/python3 - "$input_file" "$script" <<'PY'
+import json
+import sys
+
+input_path = sys.argv[1]
+mode = sys.argv[2]
+
+with open(input_path, "r", encoding="utf-8") as fh:
+    payload = json.load(fh)
+
+if mode == "devicectl":
+    for device in payload.get("result", {}).get("devices", []):
+        props = device.get("deviceProperties", {})
+        hardware = device.get("hardwareProperties", {})
+        conn = device.get("connectionProperties", {})
+        label = " | ".join(
+            [
+                props.get("name", device.get("identifier", "unknown")),
+                hardware.get("marketingName", hardware.get("productType", "unknown")),
+                f"iOS {props.get('osVersionNumber', '?')}",
+                conn.get("transportType", "unknown"),
+            ]
+        )
+        print(f"{label}|||{device['identifier']}")
+elif mode == "flutter-ios":
+    for device in payload:
+        if device.get("targetPlatform") == "ios" and not device.get("emulator", False):
+            label = f"{device['name']} | {device['sdk']}"
+            print(f"{label}|||{device['id']}")
+elif mode == "flutter-android-running":
+    for device in payload:
+        if str(device.get("targetPlatform", "")).startswith("android") and device.get("emulator", False):
+            label = f"{device['name']} | {device['sdk']} | {device['id']}"
+            print(f"{label}|||{device['id']}")
+elif mode == "simctl":
+    devices = payload.get("devices", {})
+    for runtime, runtime_devices in sorted(devices.items()):
+        if ".iOS-" not in runtime:
+            continue
+        runtime_label = runtime.split(".iOS-")[-1].replace("-", ".")
+        for device in runtime_devices:
+            if not device.get("isAvailable"):
+                continue
+            label = " | ".join(
+                [
+                    device.get("name", device.get("udid", "unknown")),
+                    f"iOS {runtime_label}",
+                    device.get("state", "unknown"),
+                ]
+            )
+            print(f"{label}|||{device['udid']}")
+PY
+}
+
+get_ios_release_devices() {
+  local tmp
+  tmp="$(make_temp_json flutter-ios-release-devices)"
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" devices --machine > "$tmp"
+  )
+  json_to_entries "flutter-ios" "$tmp"
+  rm -f "$tmp"
+}
+
+get_ios_debug_devices() {
+  local tmp
+  tmp="$(make_temp_json flutter-ios-devices)"
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" devices --machine > "$tmp"
+  )
+  json_to_entries "flutter-ios" "$tmp"
+  rm -f "$tmp"
+}
+
+get_ios_simulator_entries() {
+  local tmp
+  tmp="$(make_temp_json simctl-devices)"
+  xcrun simctl list devices available --json > "$tmp"
+  json_to_entries "simctl" "$tmp"
+  rm -f "$tmp"
+}
+
+get_android_emulator_entries() {
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" emulators
+  ) | awk -F'•' '
+    NF >= 4 {
+      id=$1; name=$2; platform=$4;
+      gsub(/^[ \t]+|[ \t]+$/, "", id);
+      gsub(/^[ \t]+|[ \t]+$/, "", name);
+      gsub(/^[ \t]+|[ \t]+$/, "", platform);
+      if (platform == "android") {
+        printf "%s | %s|||%s\n", name, id, id;
+      }
+    }
+  '
+}
+
+boot_ios_simulator() {
+  local udid="$1"
+  log "Opening Simulator.app."
+  open -a Simulator >/dev/null 2>&1 || true
+  xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$udid" -b
+}
+
+wait_for_android_emulator() {
+  local attempts=60
+  local tmp entries
+  while (( attempts > 0 )); do
+    tmp="$(make_temp_json flutter-android-devices)"
+    (
+      cd "$ROOT_DIR"
+      "$FLUTTER_BIN" devices --machine > "$tmp"
+    )
+    entries="$(json_to_entries "flutter-android-running" "$tmp" || true)"
+    rm -f "$tmp"
+    if [[ -n "$entries" ]]; then
+      printf '%s' "$entries"
+      return
+    fi
+    attempts=$((attempts - 1))
+    sleep 2
+  done
+  die "Android emulator did not appear in flutter devices."
+}
+
+resolve_signing_identity_sha() {
+  if [[ -n "$IOS_SIGNING_IDENTITY_SHA" ]]; then
+    printf '%s' "$IOS_SIGNING_IDENTITY_SHA"
+    return
+  fi
+
+  local sha
+  sha="$(security find-identity -v -p codesigning | awk '/Apple Development:/ {print $2; exit}')"
+  [[ -n "$sha" ]] || die "No Apple Development signing identity found."
+  printf '%s' "$sha"
+}
+
+build_sign_install_launch_ios_release() {
+  local device_identifier="$1"
+  local sign_sha xcent_path framework
+
+  prepare_ios
+
+  log "Building signed iPhone release into $IOS_RELEASE_BUILD_DIR_ABS."
+  (
+    cd "$IOS_DIR"
+    xcodebuild \
+      -configuration Release \
+      -allowProvisioningUpdates \
+      -allowProvisioningDeviceRegistration \
+      -workspace Runner.xcworkspace \
+      -scheme Runner \
+      "BUILD_DIR=$IOS_RELEASE_BUILD_DIR_ABS" \
+      "OBJROOT=$IOS_RELEASE_BUILD_DIR_ABS" \
+      -sdk iphoneos \
+      -destination generic/platform=iOS \
+      FLUTTER_SUPPRESS_ANALYTICS=true \
+      COMPILER_INDEX_STORE_ENABLE=NO
+  )
+
+  sign_sha="$(resolve_signing_identity_sha)"
+  xcent_path="$IOS_RELEASE_BUILD_DIR_ABS/Runner.build/Release-iphoneos/Runner.build/Runner.app.xcent"
+  [[ -f "$xcent_path" ]] || die "Missing entitlements file: $xcent_path"
+
+  log "Re-signing embedded frameworks with $sign_sha."
+  while IFS= read -r framework; do
+    codesign --force --sign "$sign_sha" --timestamp=none "$framework"
+  done < <(find "$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app/Frameworks" -maxdepth 1 -type d -name '*.framework' | sort)
+
+  log "Re-signing app bundle."
+  codesign \
+    --force \
+    --sign "$sign_sha" \
+    --entitlements "$xcent_path" \
+    --timestamp=none \
+    --generate-entitlement-der \
+    "$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app"
+
+  log "Installing release app on device."
+  xcrun devicectl device install app \
+    --device "$device_identifier" \
+    "$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app"
+
+  log "Launching release app on device."
+  xcrun devicectl device process launch \
+    --device "$device_identifier" \
+    --terminate-existing \
+    "$IOS_BUNDLE_ID"
+}
+
+run_flutter_mode() {
+  local mode="$1"
+  local device_id="$2"
+  shift 2
+
+  ensure_flutter_build_dir_override
+  prepare_flutter
+
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" run "--$mode" --device-timeout 120 -d "$device_id" "$@"
+  )
+}
+
+run_ios_debug() {
+  local device_id="$1"
+  ensure_flutter_build_dir_override
+  prepare_ios
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" run --debug --device-timeout 120 -d "$device_id"
+  )
+}
+
+print_phone_instructions() {
+  cat <<'EOF'
+
+Before installing on iPhone:
+- Unlock the iPhone.
+- If using cable: connect it and trust this Mac if prompted.
+- If using wireless: keep Mac and iPhone on the same network and paired in Xcode > Window > Devices and Simulators.
+- If the device does not appear, open Xcode once and confirm Developer Mode / pairing.
+EOF
+}
+
+print_android_instructions() {
+  cat <<'EOF'
+
+Android emulator flow:
+- The script will launch the selected emulator automatically.
+- If emulator launch fails, open Android Studio > Device Manager and start an AVD manually, then rerun this script.
+EOF
+}
+
+main() {
+  require_cmd "$FLUTTER_BIN"
+  require_cmd /usr/bin/python3
+  require_cmd xcrun
+
+  if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    print_help
+    exit 0
+  fi
+
+  printf '\nTarget type\n'
+  printf '  1. iPhone (cable or wireless)\n'
+  printf '  2. iOS Simulator\n'
+  printf '  3. Android Emulator\n'
+  local target_choice
+  target_choice="$(prompt_number 3 "Choose target: ")"
+
+  printf '\nBuild type\n'
+  printf '  1. Debug\n'
+  printf '  2. Release\n'
+  local build_choice build_mode
+  build_choice="$(prompt_number 2 "Choose build: ")"
+  if [[ "$build_choice" == "1" ]]; then
+    build_mode="debug"
+  else
+    build_mode="release"
+  fi
+
+  case "$target_choice" in
+    1)
+      print_phone_instructions
+      if [[ "$build_mode" == "release" ]]; then
+        mapfile -t entries < <(get_ios_release_devices)
+        local selected label identifier
+        selected="$(select_from_entries "Available iPhone release targets" "${entries[@]}")"
+        label="${selected%%|||*}"
+        identifier="${selected##*|||}"
+        log "Selected: $label"
+        build_sign_install_launch_ios_release "$identifier"
+      else
+        mapfile -t entries < <(get_ios_debug_devices)
+        local selected label identifier
+        selected="$(select_from_entries "Available iPhone debug targets" "${entries[@]}")"
+        label="${selected%%|||*}"
+        identifier="${selected##*|||}"
+        log "Selected: $label"
+        run_ios_debug "$identifier"
+      fi
+      ;;
+    2)
+      require_cmd open
+      mapfile -t entries < <(get_ios_simulator_entries)
+      local selected label udid
+      selected="$(select_from_entries "Available iOS simulators" "${entries[@]}")"
+      label="${selected%%|||*}"
+      udid="${selected##*|||}"
+      log "Selected: $label"
+      boot_ios_simulator "$udid"
+      ensure_flutter_build_dir_override
+      prepare_ios
+      (
+        cd "$ROOT_DIR"
+        "$FLUTTER_BIN" run "--$build_mode" --device-timeout 120 -d "$udid"
+      )
+      ;;
+    3)
+      print_android_instructions
+      mapfile -t entries < <(get_android_emulator_entries)
+      local selected label emulator_id android_selected android_device_id
+      selected="$(select_from_entries "Available Android emulators" "${entries[@]}")"
+      label="${selected%%|||*}"
+      emulator_id="${selected##*|||}"
+      log "Selected: $label"
+      (
+        cd "$ROOT_DIR"
+        "$FLUTTER_BIN" emulators --launch "$emulator_id"
+      )
+      mapfile -t entries < <(wait_for_android_emulator)
+      android_selected="$(select_from_entries "Running Android emulator devices" "${entries[@]}")"
+      android_device_id="${android_selected##*|||}"
+      run_flutter_mode "$build_mode" "$android_device_id"
+      ;;
+  esac
+}
+
+main "$@"
