@@ -39,6 +39,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         .watch(myExpiredStoriesProvider(selectedFeedType))
         .valueOrNull;
     final expiredStoriesCount = expiredStories?.length ?? 0;
+    final requestsVisible = session?.isModuleVisible('requests') ?? false;
 
     return FeatureScaffold(
       title: l10n.profileTitle,
@@ -200,6 +201,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                 ],
               ),
+              if (requestsVisible) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => context.push('/requests'),
+                    icon: const Icon(Icons.assignment_outlined),
+                    label: Text(l10n.requestsListTitle),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               SurfaceCard(
                 child: Column(

@@ -40,6 +40,17 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   String _categoryKey = '';
   String _requestedGraduationYear = '';
   bool _categoryInitialized = false;
+  _RequestListTab _activeTab = _RequestListTab.pending;
+
+  @override
+  void initState() {
+    super.initState();
+    final notificationStatus = widget.notificationStatus.trim().toLowerCase();
+    if (notificationStatus.isNotEmpty &&
+        !_isPendingRequestStatus(notificationStatus)) {
+      _activeTab = _RequestListTab.completed;
+    }
+  }
 
   @override
   void dispose() {
@@ -59,6 +70,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         actionState.isLoading && actionState.scope == 'requests:upload';
     final isSubmitting =
         actionState.isLoading && actionState.scope == 'requests:create';
+    final requestItems =
+        requestsState.valueOrNull ?? const <MemberRequestItem>[];
+    final filteredRequests = _filteredRequests(requestItems);
 
     categoriesState.whenData((categories) {
       if (_categoryInitialized || categories.isEmpty) return;
@@ -77,11 +91,23 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
     requestsState.whenData((items) {
       if (widget.highlightedRequestId <= 0) return;
-      final target = items.any(
-        (item) => item.id == widget.highlightedRequestId,
-      );
-      if (!target) return;
+      MemberRequestItem? highlightedItem;
+      for (final item in items) {
+        if (item.id == widget.highlightedRequestId) {
+          highlightedItem = item;
+          break;
+        }
+      }
+      if (highlightedItem == null) return;
+      final targetTab = _isPendingRequestStatus(highlightedItem.status)
+          ? _RequestListTab.pending
+          : _RequestListTab.completed;
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_activeTab != targetTab) {
+          setState(() => _activeTab = targetTab);
+          return;
+        }
         final key = _requestKeys[widget.highlightedRequestId];
         final context = key?.currentContext;
         if (context != null) {
@@ -300,6 +326,17 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                 if (widget.notificationId > 0 &&
                     widget.notificationStatus.trim().isNotEmpty)
                   const SizedBox(height: 12),
+                _RequestListTabs(
+                  activeTab: _activeTab,
+                  pendingCount: requestItems
+                      .where((item) => _isPendingRequestStatus(item.status))
+                      .length,
+                  completedCount: requestItems
+                      .where((item) => !_isPendingRequestStatus(item.status))
+                      .length,
+                  onChanged: (tab) => setState(() => _activeTab = tab),
+                ),
+                const SizedBox(height: 12),
               ],
             ),
             SurfaceCard(
@@ -325,15 +362,17 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                         ),
                       ],
                     ),
-                    data: (items) => items.isEmpty
+                    data: (items) => filteredRequests.isEmpty
                         ? EmptyStateView(
-                            icon: Icons.assignment_outlined,
-                            title: l10n.requestsEmptyTitle,
-                            message: l10n.requestsEmptyMessage,
+                            icon: _activeTab == _RequestListTab.pending
+                                ? Icons.hourglass_top_rounded
+                                : Icons.task_alt_rounded,
+                            title: _requestsEmptyTitle(context, _activeTab),
+                            message: _requestsEmptyMessage(context, _activeTab),
                             compact: true,
                           )
                         : Column(
-                            children: items
+                            children: filteredRequests
                                 .map(
                                   (item) => Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
@@ -441,6 +480,109 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       _requestedGraduationYear = '';
       _attachments.clear();
     });
+  }
+
+  List<MemberRequestItem> _filteredRequests(List<MemberRequestItem> items) {
+    return items
+        .where(
+          (item) => _activeTab == _RequestListTab.pending
+              ? _isPendingRequestStatus(item.status)
+              : !_isPendingRequestStatus(item.status),
+        )
+        .toList(growable: false);
+  }
+}
+
+enum _RequestListTab { pending, completed }
+
+class _RequestListTabs extends StatelessWidget {
+  const _RequestListTabs({
+    required this.activeTab,
+    required this.pendingCount,
+    required this.completedCount,
+    required this.onChanged,
+  });
+
+  final _RequestListTab activeTab;
+  final int pendingCount;
+  final int completedCount;
+  final ValueChanged<_RequestListTab> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Container(
+      decoration: BoxDecoration(
+        color: tokens.panelMuted,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          Expanded(
+            child: _RequestTabButton(
+              label: _requestsTabLabel(
+                context,
+                _RequestListTab.pending,
+                pendingCount,
+              ),
+              selected: activeTab == _RequestListTab.pending,
+              onTap: () => onChanged(_RequestListTab.pending),
+            ),
+          ),
+          Expanded(
+            child: _RequestTabButton(
+              label: _requestsTabLabel(
+                context,
+                _RequestListTab.completed,
+                completedCount,
+              ),
+              selected: activeTab == _RequestListTab.completed,
+              onTap: () => onChanged(_RequestListTab.completed),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestTabButton extends StatelessWidget {
+  const _RequestTabButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Material(
+      color: selected ? tokens.panel : Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Center(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: selected ? tokens.foreground : tokens.foregroundMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -619,6 +761,46 @@ String _formatDate(String raw) {
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
   return '$day.$month.${local.year} $hour:$minute';
+}
+
+bool _isPendingRequestStatus(String status) {
+  final normalized = status.trim().toLowerCase();
+  return normalized.isEmpty || normalized == 'pending';
+}
+
+String _requestsTabLabel(BuildContext context, _RequestListTab tab, int count) {
+  final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+  final base = switch (tab) {
+    _RequestListTab.pending =>
+      isTurkish ? 'Bekleyen talepler' : 'Pending requests',
+    _RequestListTab.completed =>
+      isTurkish ? 'Tamamlanan talepler' : 'Completed requests',
+  };
+  return '$base ($count)';
+}
+
+String _requestsEmptyTitle(BuildContext context, _RequestListTab tab) {
+  final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+  return switch (tab) {
+    _RequestListTab.pending =>
+      isTurkish ? 'Bekleyen talep yok' : 'No pending requests',
+    _RequestListTab.completed =>
+      isTurkish ? 'Tamamlanan talep yok' : 'No completed requests',
+  };
+}
+
+String _requestsEmptyMessage(BuildContext context, _RequestListTab tab) {
+  final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+  return switch (tab) {
+    _RequestListTab.pending =>
+      isTurkish
+          ? 'Şu anda değerlendirme bekleyen bir talebin görünmüyor.'
+          : 'You have no requests waiting for review right now.',
+    _RequestListTab.completed =>
+      isTurkish
+          ? 'Sonuçlanmış taleplerin burada görünecek.'
+          : 'Completed requests will appear here.',
+  };
 }
 
 final List<String> _graduationYearOptions = <String>[

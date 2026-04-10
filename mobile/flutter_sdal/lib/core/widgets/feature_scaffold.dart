@@ -6,6 +6,7 @@ import '../shell/shell_metadata_repository.dart';
 import '../session/session_controller.dart';
 import '../session/session_models.dart';
 import '../theme/sdal_theme_tokens.dart';
+import '../version/app_version.dart';
 import 'remote_avatar.dart';
 import 'sdal_logo_badge.dart';
 
@@ -248,13 +249,6 @@ class _AppMenuSheet extends ConsumerWidget {
           label: menuLabelsByRoute['/announcements'] ?? l10n.announcementsTitle,
           moduleKey: 'announcements',
         ),
-      if (_isModuleVisible('requests'))
-        _MenuEntry(
-          route: '/requests',
-          icon: Icons.assignment_outlined,
-          label: menuLabelsByRoute['/requests'] ?? l10n.requestsTitle,
-          moduleKey: 'requests',
-        ),
       if (_isModuleVisible('networking'))
         _MenuEntry(
           route: '/network/hub',
@@ -431,6 +425,16 @@ class _AppMenuSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 18),
             ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                appVersionLabel,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).sdal.foregroundMuted,
+                ),
+              ),
+            ),
           ],
         ),
       ),
