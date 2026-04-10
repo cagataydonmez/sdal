@@ -16,6 +16,7 @@ import '../../features/feed/presentation/feed_page.dart';
 import '../../features/feed/data/feed_repository.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
 import '../../features/following/presentation/following_page.dart';
+import '../../features/following/presentation/following_detail_page.dart';
 import '../../features/groups/presentation/group_detail_page.dart';
 import '../../features/groups/presentation/groups_page.dart';
 import '../../features/live_chat/presentation/live_chat_page.dart';
@@ -289,6 +290,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/following',
         pageBuilder: (context, state) => _slidePage(const FollowingPage()),
+      ),
+      GoRoute(
+        path: '/following/member/:memberId/:section',
+        pageBuilder: (context, state) => _slidePage(
+          FollowingDetailPage(
+            memberId: int.tryParse(state.pathParameters['memberId'] ?? '') ?? 0,
+            sectionKey: state.pathParameters['section'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '/groups',

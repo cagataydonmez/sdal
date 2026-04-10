@@ -2,6 +2,37 @@ function escapeSqlLikeTerm(value) {
   return String(value || '').replace(/[\\%_]/g, '\\$&');
 }
 
+function stripHtmlToPlainText(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildMemberDisplayName(row) {
+  const fullName = `${String(row?.isim || '').trim()} ${String(row?.soyisim || '').trim()}`.trim();
+  if (fullName) return fullName;
+  const handle = String(row?.kadi || '').trim();
+  if (handle) return handle;
+  return 'SDAL Üyesi';
+}
+
+function normalizeFollowDetailSection(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['groups', 'events', 'announcements', 'jobs', 'teachers', 'following', 'photos'].includes(normalized)) {
+    return normalized;
+  }
+  return '';
+}
+
+function toBooleanFlag(value) {
+  if (value === true || value === false) return value;
+  if (typeof value === 'number') return value === 1;
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['1', 'true', 'evet', 'yes'].includes(normalized);
+}
+
 export function registerTeacherNetworkRoutes(app, {
   requireAuth,
   requireAdmin,
@@ -387,6 +418,212 @@ export function registerTeacherNetworkRoutes(app, {
     } catch (err) {
       console.error('follows.list failed:', err);
       res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/follows/:memberId/details/:section', requireAuth, async (req, res) => {
+    try {
+      const memberId = Number(req.params.memberId || 0);
+      const section = normalizeFollowDetailSection(req.params.section);
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 80);
+      if (!Number.isInteger(memberId) || memberId <= 0) {
+        return res.status(400).send('Geçersiz üye kimliği.');
+      }
+      if (!section) {
+        return res.status(400).send('Geçersiz detay bölümü.');
+      }
+
+      const isFollowing = await withFollowsRelation((followTable) =>
+        sqlGetAsync(
+          `SELECT 1 AS ok
+           FROM ${followTable}
+           WHERE follower_id = ? AND following_id = ?
+           LIMIT 1`,
+          [req.session.userId, memberId]
+        )
+      );
+      if (!isFollowing) {
+        return res.status(404).send('Takip edilen üye bulunamadı.');
+      }
+
+      const member = await sqlGetAsync(
+        `SELECT id, kadi, isim, soyisim, resim, verified
+         FROM uyeler
+         WHERE id = ?`,
+        [memberId]
+      );
+      if (!member) {
+        return res.status(404).send('Üye bulunamadı.');
+      }
+
+      let title = '';
+      let items = [];
+      const nowIso = new Date().toISOString();
+
+      if (section === 'groups') {
+        title = 'Dahil olduğu gruplar';
+        const rows = await sqlAllAsync(
+          `SELECT g.id, g.name, g.description, g.cover_image, m.role, m.created_at
+           FROM group_members m
+           JOIN groups g ON g.id = m.group_id
+           WHERE m.user_id = ?
+           ORDER BY COALESCE(NULLIF(m.created_at, ''), '1970-01-01T00:00:00.000Z') DESC, g.id DESC
+           LIMIT ?`,
+          [memberId, limit]
+        );
+        items = rows.map((row) => ({
+          id: Number(row.id || 0),
+          title: String(row.name || 'Grup').trim(),
+          subtitle: stripHtmlToPlainText(row.description || ''),
+          meta: String(row.role || '').trim(),
+          route: Number(row.id || 0) > 0 ? `/groups/${Number(row.id)}` : '',
+          image: String(row.cover_image || '').trim()
+        }));
+      } else if (section === 'events') {
+        title = 'Katılacağı etkinlikler';
+        const rows = await sqlAllAsync(
+          `SELECT e.id, e.title, e.body, e.starts_at, e.created_at
+           FROM event_responses er
+           JOIN events e ON e.id = er.event_id
+           WHERE er.user_id = ?
+             AND LOWER(COALESCE(er.response, '')) = 'attend'
+             AND (COALESCE(CAST(e.approved AS INTEGER), 1) = 1 OR LOWER(CAST(e.approved AS TEXT)) IN ('true', 'evet', 'yes'))
+             AND (
+               COALESCE(NULLIF(CAST(e.starts_at AS TEXT), ''), '') = ''
+               OR COALESCE(NULLIF(CAST(e.starts_at AS TEXT), ''), CAST(e.created_at AS TEXT), '9999-12-31T00:00:00.000Z') >= ?
+             )
+           ORDER BY COALESCE(NULLIF(CAST(e.starts_at AS TEXT), ''), CAST(e.created_at AS TEXT), '9999-12-31T00:00:00.000Z') ASC, e.id DESC
+           LIMIT ?`,
+          [memberId, nowIso, limit]
+        );
+        items = rows.map((row) => ({
+          id: Number(row.id || 0),
+          title: String(row.title || 'Etkinlik').trim(),
+          subtitle: stripHtmlToPlainText(row.body || ''),
+          meta: String(row.starts_at || row.created_at || '').trim(),
+          route: '',
+          image: ''
+        }));
+      } else if (section === 'announcements') {
+        title = 'Gönderdiği duyurular';
+        const rows = await sqlAllAsync(
+          `SELECT id, title, body, image, created_at
+           FROM announcements
+           WHERE created_by = ?
+             AND (COALESCE(CAST(approved AS INTEGER), 1) = 1 OR LOWER(CAST(approved AS TEXT)) IN ('true', 'evet', 'yes'))
+           ORDER BY id DESC
+           LIMIT ?`,
+          [memberId, limit]
+        );
+        items = rows.map((row) => ({
+          id: Number(row.id || 0),
+          title: String(row.title || 'Duyuru').trim(),
+          subtitle: stripHtmlToPlainText(row.body || ''),
+          meta: String(row.created_at || '').trim(),
+          route: '',
+          image: String(row.image || '').trim()
+        }));
+      } else if (section === 'jobs') {
+        title = 'Açtığı iş ilanları';
+        const rows = await sqlAllAsync(
+          `SELECT id, title, company, location, job_type, created_at, link
+           FROM jobs
+           WHERE poster_id = ?
+           ORDER BY id DESC
+           LIMIT ?`,
+          [memberId, limit]
+        );
+        items = rows.map((row) => ({
+          id: Number(row.id || 0),
+          title: String(row.title || 'İş ilanı').trim(),
+          subtitle: [row.company, row.location].map((value) => String(value || '').trim()).filter(Boolean).join(' • '),
+          meta: [row.job_type, row.created_at].map((value) => String(value || '').trim()).filter(Boolean).join(' • '),
+          route: '',
+          image: '',
+          externalUrl: String(row.link || '').trim()
+        }));
+      } else if (section === 'teachers') {
+        title = 'Bağlantı kurduğu öğretmenler';
+        const rows = await sqlAllAsync(
+          `SELECT l.id, l.relationship_type, l.class_year, l.created_at,
+                  u.id AS teacher_id, u.kadi, u.isim, u.soyisim, u.resim
+           FROM teacher_alumni_links l
+           JOIN uyeler u ON u.id = l.teacher_user_id
+           WHERE l.alumni_user_id = ?
+             AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')
+           ORDER BY COALESCE(NULLIF(l.created_at, ''), '1970-01-01T00:00:00.000Z') DESC, l.id DESC
+           LIMIT ?`,
+          [memberId, limit]
+        );
+        items = rows.map((row) => ({
+          id: Number(row.id || 0),
+          title: buildMemberDisplayName(row),
+          subtitle: String(row.kadi || '').trim() ? `@${String(row.kadi).trim()}` : '',
+          meta: [row.relationship_type, row.class_year, row.created_at]
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+            .join(' • '),
+          route: Number(row.teacher_id || 0) > 0 ? `/members/${Number(row.teacher_id)}` : '',
+          image: String(row.resim || '').trim()
+        }));
+      } else if (section === 'following') {
+        title = 'Takip ettiği üyeler';
+        const rows = await withFollowsRelation((followTable) =>
+          sqlAllAsync(
+            `SELECT f.following_id, f.created_at AS followed_at, u.kadi, u.isim, u.soyisim, u.resim
+             FROM ${followTable} f
+             LEFT JOIN uyeler u ON u.id = f.following_id
+             WHERE f.follower_id = ?
+             ORDER BY COALESCE(NULLIF(f.created_at, ''), '1970-01-01T00:00:00.000Z') DESC, f.id DESC
+             LIMIT ?`,
+            [memberId, limit]
+          )
+        );
+        items = rows.map((row) => ({
+          id: Number(row.following_id || 0),
+          title: buildMemberDisplayName(row),
+          subtitle: String(row.kadi || '').trim() ? `@${String(row.kadi).trim()}` : '',
+          meta: String(row.followed_at || '').trim(),
+          route: Number(row.following_id || 0) > 0 ? `/members/${Number(row.following_id)}` : '',
+          image: String(row.resim || '').trim()
+        }));
+      } else if (section === 'photos') {
+        title = 'Albüme eklediği fotoğraflar';
+        const rows = await sqlAllAsync(
+          `SELECT f.id, f.dosyaadi, f.baslik, f.tarih, k.kategori
+           FROM album_foto f
+           LEFT JOIN album_kat k ON k.id = f.katid
+           WHERE f.ekleyenid = ?
+             AND (COALESCE(CAST(f.aktif AS INTEGER), 0) = 1 OR LOWER(CAST(f.aktif AS TEXT)) IN ('true', 'evet', 'yes'))
+           ORDER BY COALESCE(NULLIF(f.tarih, ''), '1970-01-01T00:00:00.000Z') DESC, f.id DESC
+           LIMIT ?`,
+          [memberId, limit]
+        );
+        items = rows.map((row) => ({
+          id: Number(row.id || 0),
+          title: String(row.baslik || 'Fotoğraf').trim(),
+          subtitle: String(row.kategori || '').trim(),
+          meta: String(row.tarih || '').trim(),
+          route: Number(row.id || 0) > 0 ? `/albums/photo/${Number(row.id)}` : '',
+          image: String(row.dosyaadi || '').trim()
+        }));
+      }
+
+      return res.json({
+        member: {
+          id: Number(member.id || 0),
+          name: buildMemberDisplayName(member),
+          handle: String(member.kadi || '').trim(),
+          photo: String(member.resim || '').trim(),
+          verified: toBooleanFlag(member.verified)
+        },
+        section,
+        title,
+        items
+      });
+    } catch (err) {
+      console.error('follows.details failed:', err);
+      return res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
   });
 
