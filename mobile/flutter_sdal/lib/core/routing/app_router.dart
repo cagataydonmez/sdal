@@ -19,7 +19,6 @@ import '../../features/following/presentation/following_page.dart';
 import '../../features/following/presentation/following_detail_page.dart';
 import '../../features/groups/presentation/group_detail_page.dart';
 import '../../features/groups/presentation/groups_page.dart';
-import '../../features/live_chat/presentation/live_chat_page.dart';
 import '../../features/messenger/presentation/inbox_page.dart';
 import '../../features/messenger/presentation/thread_detail_page.dart';
 import '../../features/networking/presentation/networking_pages.dart';
@@ -198,7 +197,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/inbox',
+                path: '/messenger',
                 pageBuilder: (context, state) => _tabPage(const InboxPage()),
               ),
             ],
@@ -238,6 +237,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ),
       ),
+      GoRoute(path: '/inbox', redirect: (context, state) => '/messenger'),
       GoRoute(
         path: '/messages/:threadId',
         pageBuilder: (context, state) => _liftPage(
@@ -283,10 +283,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ),
       ),
-      GoRoute(
-        path: '/feed/live-chat',
-        pageBuilder: (context, state) => _slidePage(const LiveChatPage()),
-      ),
+      GoRoute(path: '/feed/live-chat', redirect: (context, state) => '/feed'),
       GoRoute(
         path: '/following',
         pageBuilder: (context, state) => _slidePage(const FollowingPage()),
@@ -455,7 +452,7 @@ String? moduleKeyForLocation(String location) {
   if (location == '/explore' || location.startsWith('/members/')) {
     return 'explore';
   }
-  if (location == '/inbox' || location.startsWith('/messages/')) {
+  if (location == '/messenger' || location.startsWith('/messages/')) {
     return 'messenger';
   }
   if (location == '/notifications') return 'notifications';
@@ -465,7 +462,6 @@ String? moduleKeyForLocation(String location) {
       location == '/profile/verification') {
     return 'profile';
   }
-  if (location == '/feed/live-chat') return 'feed';
   if (location == '/following') return 'following';
   if (location == '/requests') return 'requests';
   if (location == '/announcements') return 'announcements';
@@ -483,7 +479,9 @@ String? moduleKeyForLocation(String location) {
 }
 
 bool requiresVerificationGate(String location) {
-  if (location == '/inbox' || location.startsWith('/messages/')) return false;
+  if (location == '/messenger' || location.startsWith('/messages/')) {
+    return false;
+  }
   return location.startsWith('/network/');
 }
 

@@ -147,7 +147,7 @@ class ShellMetadataRepository {
 
     final topLevelFallbacks = <String, dynamic>{
       'messages': payload['newMessagesCount'],
-      'inbox': payload['newMessagesCount'],
+      'messenger': payload['newMessagesCount'],
       'notifications': payload['newNotificationsCount'],
     };
     topLevelFallbacks.forEach((key, value) {
@@ -256,7 +256,7 @@ String? normalizeShellMenuRoute(String raw) {
   if (value.startsWith('/new/messages') ||
       value.startsWith('/new/messenger') ||
       value == '/inbox') {
-    return '/inbox';
+    return '/messenger';
   }
   if (value.startsWith('/new/requests') || value == '/requests') {
     return '/requests';
@@ -288,7 +288,7 @@ String? normalizeShellMenuRoute(String raw) {
   }
   if (value == '/albums' || value.startsWith('/new/albums')) return '/albums';
   if (value == '/feed/live-chat' || value.startsWith('/new/live-chat')) {
-    return '/feed/live-chat';
+    return '/feed';
   }
   return null;
 }
@@ -296,7 +296,7 @@ String? normalizeShellMenuRoute(String raw) {
 IconData iconForShellRoute(String route) => switch (route) {
   '/feed' => Icons.dynamic_feed_outlined,
   '/explore' => Icons.explore_outlined,
-  '/inbox' => Icons.chat_bubble_outline,
+  '/messenger' => Icons.chat_bubble_outline,
   '/notifications' => Icons.notifications_outlined,
   '/profile' => Icons.person_outline,
   '/groups' => Icons.groups_outlined,
@@ -310,12 +310,11 @@ IconData iconForShellRoute(String route) => switch (route) {
   '/opportunities' => Icons.auto_awesome_outlined,
   '/albums' => Icons.photo_library_outlined,
   '/following' => Icons.favorite_border,
-  '/feed/live-chat' => Icons.forum_outlined,
   _ => Icons.link_rounded,
 };
 
 List<String> _routeBadgeKeys(String route) => switch (route) {
-  '/inbox' => const ['messages', 'inbox', 'messenger', 'newMessagesCount'],
+  '/messenger' => const ['messages', 'inbox', 'messenger', 'newMessagesCount'],
   '/notifications' => const [
     'notifications',
     'notification',

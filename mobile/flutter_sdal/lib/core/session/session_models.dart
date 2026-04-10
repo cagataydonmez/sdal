@@ -144,7 +144,7 @@ class SessionSnapshot {
     if (webPath.startsWith('/new/requests')) return '/requests';
     if (webPath.startsWith('/new/messages') ||
         webPath.startsWith('/new/messenger')) {
-      return '/inbox';
+      return '/messenger';
     }
     return '/feed';
   }

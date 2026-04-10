@@ -32,7 +32,9 @@ class AppTabShell extends ConsumerWidget {
     final shellSidebar = ref.watch(shellSidebarProvider).valueOrNull;
     final unreadMessages = math.max(
       localUnreadMessages,
-      shellMenu?.badgeForRoute('/inbox') ?? shellSidebar?.newMessagesCount ?? 0,
+      shellMenu?.badgeForRoute('/messenger') ??
+          shellSidebar?.newMessagesCount ??
+          0,
     );
     final unreadNotifications = math.max(
       localUnreadNotifications,
@@ -65,7 +67,7 @@ class AppTabShell extends ConsumerWidget {
               count: unreadMessages,
               unreadSemanticLabel: l10n.messagesUnreadCount(unreadMessages),
             ),
-            label: l10n.tabInbox,
+            label: l10n.messagesTitle,
           ),
           NavigationDestination(
             icon: _NavBadgeIcon(

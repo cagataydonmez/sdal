@@ -292,19 +292,12 @@ class _AppMenuSheet extends ConsumerWidget {
           label: menuLabelsByRoute['/following'] ?? l10n.followingTitle,
           moduleKey: 'following',
         ),
-      if (_isModuleVisible('feed'))
-        _MenuEntry(
-          route: '/feed/live-chat',
-          icon: Icons.forum_outlined,
-          label: menuLabelsByRoute['/feed/live-chat'] ?? l10n.liveChatTitle,
-          moduleKey: 'feed',
-        ),
     ]);
     final staticRoutes = {
       '/feed',
       '/explore',
       '/opportunities',
-      '/inbox',
+      '/messenger',
       '/notifications',
       '/profile',
       for (final entry in communityEntries) entry.route,
@@ -324,37 +317,6 @@ class _AppMenuSheet extends ConsumerWidget {
         )
         .toList(growable: false);
     final sections = <_MenuSection>[
-      _MenuSection(
-        title: l10n.mainNavigationTitle,
-        entries: [
-          _MenuEntry(
-            route: '/feed',
-            icon: Icons.dynamic_feed_outlined,
-            label: menuLabelsByRoute['/feed'] ?? l10n.feedTitle,
-          ),
-          _MenuEntry(
-            route: '/explore',
-            icon: Icons.explore_outlined,
-            label: menuLabelsByRoute['/explore'] ?? l10n.exploreTitle,
-          ),
-          _MenuEntry(
-            route: '/inbox',
-            icon: Icons.chat_bubble_outline,
-            label: menuLabelsByRoute['/inbox'] ?? l10n.tabInbox,
-          ),
-          _MenuEntry(
-            route: '/notifications',
-            icon: Icons.notifications_outlined,
-            label:
-                menuLabelsByRoute['/notifications'] ?? l10n.notificationsTitle,
-          ),
-          _MenuEntry(
-            route: '/profile',
-            icon: Icons.person_outline,
-            label: menuLabelsByRoute['/profile'] ?? l10n.profileTitle,
-          ),
-        ],
-      ),
       if (communityEntries.isNotEmpty)
         _MenuSection(
           title: l10n.communitySectionTitle,
@@ -638,22 +600,48 @@ class _SidebarHighlights extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = context.l10n;
-    final stats = <({IconData icon, String label})>[
-      (
-        icon: Icons.circle_rounded,
-        label: l10n.sidebarOnlineUsersCount(sidebar.onlineUsers.length),
-      ),
-      (
-        icon: Icons.markunread_outlined,
-        label: l10n.sidebarNewMessagesCount(sidebar.newMessagesCount),
-      ),
-      (
-        icon: Icons.person_add_alt_1_rounded,
-        label: l10n.sidebarNewMembersCount(sidebar.newMembers.length),
-      ),
+    final onlineTeachers = sidebar.onlineUsers
+        .where((user) => _isTeacherYear(user.graduationYear))
+        .length;
+    final newMembersWithPhoto = sidebar.newMembers
+        .where((user) => user.photo.trim().isNotEmpty)
+        .length;
+    final stats = <_SidebarHighlightAction>[
+      if (sidebar.onlineUsers.isNotEmpty)
+        _SidebarHighlightAction(
+          icon: Icons.circle_rounded,
+          label: l10n.sidebarOnlineUsersCount(sidebar.onlineUsers.length),
+          route: '/explore',
+        ),
+      if (sidebar.newMessagesCount > 0)
+        _SidebarHighlightAction(
+          icon: Icons.markunread_outlined,
+          label: l10n.sidebarNewMessagesCount(sidebar.newMessagesCount),
+          route: '/messenger',
+        ),
+      if (sidebar.newMembers.isNotEmpty)
+        _SidebarHighlightAction(
+          icon: Icons.person_add_alt_1_rounded,
+          label: l10n.sidebarNewMembersCount(sidebar.newMembers.length),
+          route: '/explore',
+        ),
+      if (onlineTeachers > 0)
+        _SidebarHighlightAction(
+          icon: Icons.school_rounded,
+          label: 'Çevrimiçi öğretmen $onlineTeachers',
+          route: '/network/teachers',
+        ),
+      if (newMembersWithPhoto > 0)
+        _SidebarHighlightAction(
+          icon: Icons.photo_camera_back_rounded,
+          label: 'Fotoğraflı yeni üye $newMembersWithPhoto',
+          route: '/explore',
+        ),
     ];
+    if (stats.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -663,31 +651,70 @@ class _SidebarHighlights extends StatelessWidget {
           runSpacing: 10,
           children: [
             for (final stat in stats)
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: theme.sdal.panelMuted,
-                  borderRadius: BorderRadius.circular(
-                    SdalThemeTokens.radiusPill,
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 9,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(stat.icon, size: 16),
-                      const SizedBox(width: 6),
-                      Text(stat.label),
-                    ],
-                  ),
-                ),
+              _SidebarHighlightButton(
+                icon: stat.icon,
+                label: stat.label,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.go(stat.route);
+                },
               ),
           ],
         ),
       ),
     );
   }
+}
+
+class _SidebarHighlightAction {
+  const _SidebarHighlightAction({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
+
+  final IconData icon;
+  final String label;
+  final String route;
+}
+
+class _SidebarHighlightButton extends StatelessWidget {
+  const _SidebarHighlightButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.sdal.panelMuted,
+      borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16),
+              const SizedBox(width: 6),
+              Text(label),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+bool _isTeacherYear(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized == 'teacher' || normalized == 'ogretmen';
 }
