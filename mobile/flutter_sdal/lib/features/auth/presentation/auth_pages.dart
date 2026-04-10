@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -37,6 +38,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           username: _usernameController.text.trim(),
           password: _passwordController.text,
         );
+    if (!mounted) return;
+    final actionState = ref.read(authActionControllerProvider);
+    if (!actionState.isSuccess) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    TextInput.finishAutofillContext(shouldSave: true);
   }
 
   Future<void> _startOAuth(String provider) async {
@@ -73,51 +79,54 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _AuthTextField(
-            controller: _usernameController,
-            textInputAction: TextInputAction.next,
-            labelText: l10n.username,
-            prefixIcon: const SdalLogoBadge(size: 20, frameSize: 36),
-            autofillHints: const [AutofillHints.username],
-          ),
-          const SizedBox(height: 12),
-          _AuthTextField(
-            controller: _passwordController,
-            obscureText: true,
-            onSubmitted: (_) => _submit(),
-            labelText: l10n.password,
-            prefixIcon: const Icon(Icons.lock_outline),
-            keyboardType: TextInputType.visiblePassword,
-            autofillHints: const [AutofillHints.password],
-          ),
-          if (error != null) ...[
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _AuthTextField(
+              controller: _usernameController,
+              textInputAction: TextInputAction.next,
+              labelText: l10n.username,
+              prefixIcon: const SdalLogoBadge(size: 20, frameSize: 36),
+              autofillHints: const [AutofillHints.username],
+            ),
             const SizedBox(height: 12),
-            Text(
-              error,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            _AuthTextField(
+              controller: _passwordController,
+              obscureText: true,
+              onSubmitted: (_) => _submit(),
+              textInputAction: TextInputAction.done,
+              labelText: l10n.password,
+              prefixIcon: const Icon(Icons.lock_outline),
+              keyboardType: TextInputType.visiblePassword,
+              autofillHints: const [AutofillHints.password],
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed: submitting ? null : _submit,
+              child: Text(submitting ? l10n.loginInProgress : l10n.loginAction),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: submitting ? null : () => _startOAuth('google'),
+              icon: const _OAuthProviderLogo(provider: _OAuthProvider.google),
+              label: Text(l10n.continueWithGoogle),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: submitting ? null : () => _startOAuth('x'),
+              icon: const _OAuthProviderLogo(provider: _OAuthProvider.x),
+              label: Text(l10n.continueWithX),
             ),
           ],
-          const SizedBox(height: 18),
-          FilledButton(
-            onPressed: submitting ? null : _submit,
-            child: Text(submitting ? l10n.loginInProgress : l10n.loginAction),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: submitting ? null : () => _startOAuth('google'),
-            icon: const _OAuthProviderLogo(provider: _OAuthProvider.google),
-            label: Text(l10n.continueWithGoogle),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: submitting ? null : () => _startOAuth('x'),
-            icon: const _OAuthProviderLogo(provider: _OAuthProvider.x),
-            label: Text(l10n.continueWithX),
-          ),
-        ],
+        ),
       ),
     );
   }

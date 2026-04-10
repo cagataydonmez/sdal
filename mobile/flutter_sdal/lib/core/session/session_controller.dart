@@ -33,6 +33,24 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
     state = await AsyncValue.guard(_repository.bootstrap);
   }
 
+  void expire() {
+    final snapshot = state.valueOrNull;
+    if (snapshot == null) {
+      ref.invalidateSelf();
+      return;
+    }
+    if (!snapshot.isAuthenticated) return;
+    state = AsyncData(
+      SessionSnapshot(
+        config: snapshot.config,
+        siteAccess: snapshot.siteAccess,
+        user: null,
+        menuVisibility: snapshot.menuVisibility,
+        moduleMenuOrder: snapshot.moduleMenuOrder,
+      ),
+    );
+  }
+
   Future<String?> logout() async {
     final result = await _repository.logout();
     if (!result.ok && result.statusCode != 204) {

@@ -10,6 +10,8 @@ import '../storage/app_support_directory.dart';
 import 'api_result.dart';
 import 'api_result_parser.dart';
 
+typedef UnauthorizedHandler = void Function();
+
 class ApiClient {
   ApiClient._({
     required this.config,
@@ -21,6 +23,7 @@ class ApiClient {
   final AppConfig config;
   final Dio _dio;
   final PersistCookieJar _cookieJar;
+  UnauthorizedHandler? onUnauthorized;
 
   static Future<ApiClient> create(AppConfig config) async {
     final supportDir = await getSdalAppSupportDirectory();
@@ -193,6 +196,10 @@ class ApiClient {
       );
     } on DioException catch (error) {
       if (error.response != null) {
+        await _handleUnauthorized(
+          error.response!.requestOptions,
+          error.response!.statusCode ?? 0,
+        );
         return _toApiResult<T>(
           error.response?.statusCode ?? 0,
           error.response?.data,
@@ -209,6 +216,37 @@ class ApiClient {
         rawData: null,
       );
     }
+  }
+
+  Future<void> _handleUnauthorized(
+    RequestOptions options,
+    int statusCode,
+  ) async {
+    if (options.responseType == ResponseType.stream ||
+        options.responseType == ResponseType.bytes) {
+      return;
+    }
+    if (options.method.toUpperCase() == 'OPTIONS') return;
+    if (!_shouldHandleUnauthorized(options)) return;
+    if (statusCode != 401) return;
+
+    await _cookieJar.deleteAll();
+    onUnauthorized?.call();
+  }
+
+  bool _shouldHandleUnauthorized(RequestOptions options) {
+    final uri = Uri.tryParse(options.path);
+    final path =
+        (uri?.path.isNotEmpty == true
+                ? uri!.path
+                : Uri.parse(buildApiUri(options.path).toString()).path)
+            .trim();
+
+    if (path.isEmpty) return false;
+    if (path == '/api/session' || path == '/api/site-access') return false;
+    if (path.startsWith('/api/auth/')) return false;
+    if (path.startsWith('/api/admin/')) return false;
+    return true;
   }
 
   ApiResult<T> _toApiResult<T>(
