@@ -11,7 +11,7 @@ import {
 describe('moduleNavigation helpers', () => {
   it('keeps configured order and appends missing menu modules', () => {
     expect(normalizeModuleOrder(['events', 'feed'])).toEqual([
-      'events', 'feed', 'groups', 'albums', 'announcements', 'networking', 'explore', 'following', 'jobs', 'opportunities', 'teachers_network', 'messenger', 'notifications', 'messages', 'profile', 'help', 'requests', 'games'
+      'events', 'feed', 'groups', 'albums', 'announcements', 'networking', 'explore', 'following', 'jobs', 'teachers_network', 'messenger', 'notifications', 'messages', 'profile', 'help', 'requests', 'games'
     ]);
   });
 

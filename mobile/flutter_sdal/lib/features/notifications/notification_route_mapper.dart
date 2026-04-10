@@ -21,7 +21,7 @@ String? mapNotificationWebRouteToApp(String rawRoute) {
   if (path.startsWith('/new/events')) return '/events$query';
   if (path.startsWith('/new/announcements')) return '/announcements$query';
   if (path.startsWith('/new/jobs')) return '/jobs$query';
-  if (path.startsWith('/new/opportunities')) return '/opportunities$query';
+  if (path.startsWith('/new/opportunities')) return '/explore$query';
   if (path.startsWith('/new/albums/photo/')) {
     final id = path.split('/').last;
     return '/albums/photo/$id$query';

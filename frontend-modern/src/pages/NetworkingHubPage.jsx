@@ -267,7 +267,7 @@ export default function NetworkingHubPage() {
     { to: '#incoming-connections', label: t('network_hub_incoming_title'), note: t('hub_section_incoming_kicker') },
     { to: '#incoming-mentorship', label: t('network_hub_mentorship_incoming_title'), note: t('hub_priority_mentorship_label') },
     { to: '/new/jobs', label: t('nav_jobs'), note: t('nav_opportunities') },
-    { to: '/new/opportunities', label: t('nav_opportunities'), note: t('hub_section_suggestions_desc') },
+    { to: '/new/explore?tab=networking', label: t('nav_opportunities'), note: t('hub_section_suggestions_desc') },
     { to: '/new/network/teachers', label: t('nav_teacher_network'), note: t('hub_priority_teacher_label') },
     { to: '/new/messenger', label: t('nav_messenger'), note: t('member_send_message') }
   ];

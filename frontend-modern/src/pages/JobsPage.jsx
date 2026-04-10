@@ -52,7 +52,7 @@ export default function JobsPage() {
         : Boolean(highlightedJobId ? highlightedJob : true)
   );
   const jobsCategoryLinks = useMemo(() => ([
-    { to: '/new/opportunities', label: t('nav_opportunities'), note: t('opportunity_hero_description') },
+    { to: '/new/explore?tab=jobs', label: t('nav_opportunities'), note: t('opportunity_hero_description') },
     { to: '/new/network/hub', label: t('network_hub_title'), note: t('hub_section_priority_desc') },
     { to: '/new/messenger', label: t('nav_messenger'), note: t('member_send_message') },
     { to: '/new/explore', label: t('nav_explore'), note: t('feed_discover_members') }
@@ -201,7 +201,7 @@ export default function JobsPage() {
           <p>{t('opportunity_category_job')} · {t('opportunity_hero_description')}</p>
         </div>
         <div className="network-hero-actions">
-          <Link className="btn ghost" to="/new/opportunities">{t('nav_opportunities')}</Link>
+          <Link className="btn ghost" to="/new/explore?tab=jobs">{t('nav_opportunities')}</Link>
           <Link className="btn ghost" to="/new/network/hub">{t('network_hub_title')}</Link>
         </div>
       </section>

@@ -278,13 +278,6 @@ class _AppMenuSheet extends ConsumerWidget {
           label: menuLabelsByRoute['/jobs'] ?? l10n.jobsTitle,
           moduleKey: 'jobs',
         ),
-      if (_isModuleVisible('opportunities'))
-        _MenuEntry(
-          route: '/opportunities',
-          icon: Icons.auto_awesome_outlined,
-          label: menuLabelsByRoute['/opportunities'] ?? l10n.opportunitiesTitle,
-          moduleKey: 'opportunities',
-        ),
       if (_isModuleVisible('albums'))
         _MenuEntry(
           route: '/albums',
@@ -310,6 +303,7 @@ class _AppMenuSheet extends ConsumerWidget {
     final staticRoutes = {
       '/feed',
       '/explore',
+      '/opportunities',
       '/inbox',
       '/notifications',
       '/profile',

@@ -212,6 +212,108 @@ abstract class AppLocalizations {
   /// **'Fırsatlar'**
   String get opportunitiesTitle;
 
+  /// No description provided for @exploreOpportunitySectionTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Öncelikli akış'**
+  String get exploreOpportunitySectionTitle;
+
+  /// No description provided for @exploreOpportunitySectionDescription.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kişiler, işler ve güncellemeler için tek akışta aksiyon sırası.'**
+  String get exploreOpportunitySectionDescription;
+
+  /// No description provided for @opportunitiesTabAll.
+  ///
+  /// In tr, this message translates to:
+  /// **'Tümü'**
+  String get opportunitiesTabAll;
+
+  /// No description provided for @opportunitiesTabNow.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şimdi'**
+  String get opportunitiesTabNow;
+
+  /// No description provided for @opportunitiesTabNetworking.
+  ///
+  /// In tr, this message translates to:
+  /// **'Kişiler'**
+  String get opportunitiesTabNetworking;
+
+  /// No description provided for @opportunitiesTabJobs.
+  ///
+  /// In tr, this message translates to:
+  /// **'İşler'**
+  String get opportunitiesTabJobs;
+
+  /// No description provided for @opportunitiesTabUpdates.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güncellemeler'**
+  String get opportunitiesTabUpdates;
+
+  /// No description provided for @opportunitiesPriorityNow.
+  ///
+  /// In tr, this message translates to:
+  /// **'Öncelikli'**
+  String get opportunitiesPriorityNow;
+
+  /// No description provided for @opportunitiesPrioritySoon.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yakında'**
+  String get opportunitiesPrioritySoon;
+
+  /// No description provided for @opportunitiesPriorityFollow.
+  ///
+  /// In tr, this message translates to:
+  /// **'Takip et'**
+  String get opportunitiesPriorityFollow;
+
+  /// No description provided for @opportunitiesCategoryNetworking.
+  ///
+  /// In tr, this message translates to:
+  /// **'Networking'**
+  String get opportunitiesCategoryNetworking;
+
+  /// No description provided for @opportunitiesCategoryJob.
+  ///
+  /// In tr, this message translates to:
+  /// **'İş'**
+  String get opportunitiesCategoryJob;
+
+  /// No description provided for @opportunitiesCategoryUpdate.
+  ///
+  /// In tr, this message translates to:
+  /// **'Güncelleme'**
+  String get opportunitiesCategoryUpdate;
+
+  /// No description provided for @opportunitiesEmptyTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Şu anda bekleyen bir şey yok'**
+  String get opportunitiesEmptyTitle;
+
+  /// No description provided for @opportunitiesEmptyDescription.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yeni kişi, iş ve güncellemeler için biraz sonra tekrar yenile.'**
+  String get opportunitiesEmptyDescription;
+
+  /// No description provided for @opportunitiesLoadMoreAction.
+  ///
+  /// In tr, this message translates to:
+  /// **'Daha fazla yükle'**
+  String get opportunitiesLoadMoreAction;
+
+  /// No description provided for @opportunitiesLoading.
+  ///
+  /// In tr, this message translates to:
+  /// **'Fırsatlar hazırlanıyor...'**
+  String get opportunitiesLoading;
+
   /// No description provided for @followingTitle.
   ///
   /// In tr, this message translates to:

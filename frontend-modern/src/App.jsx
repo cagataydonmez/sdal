@@ -45,7 +45,7 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage.jsx
 const JobsPage = React.lazy(() => import('./pages/JobsPage.jsx'));
 const TeachersNetworkPage = React.lazy(() => import('./pages/TeachersNetworkPage.jsx'));
 const NetworkingHubPage = React.lazy(() => import('./pages/NetworkingHubPage.jsx'));
-const OpportunityInboxPage = React.lazy(() => import('./pages/OpportunityInboxPage.jsx'));
+const LegacyOpportunitiesRedirect = React.lazy(() => import('./pages/LegacyOpportunitiesRedirect.jsx'));
 
 function buildAccessState(payload, moduleKey) {
   return {
@@ -89,6 +89,16 @@ function RequireModuleAccess({ moduleKey, accessPath, children }) {
   if (accessState.loading) return <RouteFallback />;
   if (!accessState.moduleOpen) return <ModuleInactivePage moduleKey={accessState.moduleKey} message={accessState.message} />;
   return children;
+}
+
+function LegacyOpportunityRoute() {
+  return (
+    <RequireAuth>
+      <RequireModuleAccess moduleKey="explore" accessPath="/new/explore">
+        <LegacyOpportunitiesRedirect />
+      </RequireModuleAccess>
+    </RequireAuth>
+  );
 }
 
 function RequireAuth({ children }) {
@@ -226,7 +236,7 @@ export const appRoutes = createRoutesFromElements(
     <Route path="/new/events" element={<RequireAuth><RequireModuleAccess moduleKey="events" accessPath="/new/events"><EventsPage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/announcements" element={<RequireAuth><RequireModuleAccess moduleKey="announcements" accessPath="/new/announcements"><AnnouncementsPage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/jobs" element={<RequireAuth><RequireModuleAccess moduleKey="jobs" accessPath="/new/jobs"><JobsPage /></RequireModuleAccess></RequireAuth>} />
-    <Route path="/new/opportunities" element={<RequireAuth><RequireModuleAccess moduleKey="opportunities" accessPath="/new/opportunities"><OpportunityInboxPage /></RequireModuleAccess></RequireAuth>} />
+    <Route path="/new/opportunities" element={<LegacyOpportunityRoute />} />
     <Route path="/new/network/hub" element={<RequireAuth><RequireModuleAccess moduleKey="networking" accessPath="/new/network/hub"><NetworkingHubPage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/network/inbox" element={<RequireAuth><RequireModuleAccess moduleKey="networking" accessPath="/new/network/hub"><NetworkingHubPage /></RequireModuleAccess></RequireAuth>} />
     <Route path="/new/network/teachers" element={<RequireAuth><RequireModuleAccess moduleKey="teachers_network" accessPath="/new/network/teachers"><TeachersNetworkPage /></RequireModuleAccess></RequireAuth>} />

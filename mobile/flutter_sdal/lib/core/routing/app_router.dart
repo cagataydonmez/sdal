@@ -30,7 +30,6 @@ import '../../features/profile/presentation/email_change_verify_page.dart';
 import '../../features/profile/presentation/profile_photo_page.dart';
 import '../../features/profile/presentation/profile_verification_page.dart';
 import '../../features/opportunities/presentation/jobs_page.dart';
-import '../../features/opportunities/presentation/opportunities_page.dart';
 import '../../features/requests/presentation/requests_page.dart';
 import '../../features/requests/presentation/module_access_request_page.dart';
 import '../../features/stories/presentation/expired_stories_page.dart';
@@ -336,7 +335,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/opportunities',
-        pageBuilder: (context, state) => _slidePage(const OpportunitiesPage()),
+        redirect: (context, state) {
+          final query = state.uri.hasQuery ? '?${state.uri.query}' : '';
+          return '/explore$query';
+        },
       ),
       GoRoute(
         path: '/albums',
@@ -459,7 +461,7 @@ String? moduleKeyForLocation(String location) {
   if (location == '/announcements') return 'announcements';
   if (location == '/events') return 'events';
   if (location == '/jobs') return 'jobs';
-  if (location == '/opportunities') return 'opportunities';
+  if (location == '/opportunities') return 'explore';
   if (location == '/groups' || location.startsWith('/groups/')) return 'groups';
   if (location == '/albums' || location.startsWith('/albums/')) return 'albums';
   if (location.startsWith('/network/hub') ||

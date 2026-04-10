@@ -10,7 +10,7 @@ export const MODULE_CONTROL_ITEMS = [
   { key: 'explore', path: '/new/explore', labelKey: 'nav_explore', defaultLabel: 'Keşfet', menu: true, category: 'network', icon: 'compass' },
   { key: 'following', path: '/new/following', labelKey: 'nav_following', defaultLabel: 'Takip', menu: true, category: 'network', icon: 'user' },
   { key: 'jobs', path: '/new/jobs', labelKey: 'nav_jobs', defaultLabel: 'İş İlanları', menu: true, category: 'network', icon: 'route' },
-  { key: 'opportunities', path: '/new/opportunities', labelKey: 'nav_opportunities', defaultLabel: 'Fırsatlar', menu: true, category: 'network', icon: 'sparkles' },
+  { key: 'opportunities', path: '/new/opportunities', labelKey: 'nav_opportunities', defaultLabel: 'Fırsatlar', menu: false, category: 'network', icon: 'sparkles' },
   { key: 'teachers_network', path: '/new/network/teachers', labelKey: 'nav_teacher_network', defaultLabel: 'Öğretmen Ağı', menu: true, category: 'network', icon: 'graduation-cap' },
   { key: 'messenger', path: '/new/messenger', labelKey: 'nav_messenger', defaultLabel: 'SDAL Mesajlaşma', menu: true, category: 'network', icon: 'message-square' },
   { key: 'notifications', path: '/new/notifications', labelKey: 'nav_notifications', defaultLabel: 'Bildirimler', menu: true, category: 'global', icon: 'bell' },
@@ -63,7 +63,10 @@ export function resolveLandingPathFromSiteAccess(siteAccess) {
   const modules = siteAccess?.modules || {};
   const order = normalizeModuleOrder(siteAccess?.moduleMenuOrder, MODULE_MENU_ITEMS.map((item) => item.key));
   const menuVisibility = normalizeMenuVisibility(siteAccess?.menuVisibility, MODULE_MENU_ITEMS.map((item) => item.key));
-  const preferredPath = String(siteAccess?.defaultLandingPage || '').trim();
+  const rawPreferredPath = String(siteAccess?.defaultLandingPage || '').trim();
+  const preferredPath = rawPreferredPath.startsWith('/new/opportunities')
+    ? rawPreferredPath.replace('/new/opportunities', '/new/explore')
+    : rawPreferredPath;
 
   function isAllowedPath(path) {
     const moduleKey = MODULE_KEY_BY_ROUTE[path];

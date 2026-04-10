@@ -13,6 +13,7 @@ import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../networking/data/networking_repository.dart';
+import '../../opportunities/data/opportunities_repository.dart';
 import '../data/explore_repository.dart';
 
 class ExplorePage extends ConsumerStatefulWidget {
@@ -201,6 +202,8 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                       );
               },
             ),
+            const SizedBox(height: 20),
+            const _ExploreOpportunitySection(),
             const SizedBox(height: 20),
             Text(
               l10n.exploreDirectoryTitle,
@@ -412,6 +415,370 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       ref.read(suggestionMembersProvider.future),
       ref.read(directoryMembersProvider(_directoryQuery).future),
     ]);
+  }
+}
+
+class _ExploreOpportunitySection extends ConsumerStatefulWidget {
+  const _ExploreOpportunitySection();
+
+  @override
+  ConsumerState<_ExploreOpportunitySection> createState() =>
+      _ExploreOpportunitySectionState();
+}
+
+class _ExploreOpportunitySectionState
+    extends ConsumerState<_ExploreOpportunitySection> {
+  final List<OpportunityItem> _items = <OpportunityItem>[];
+  final Map<int, bool> _followOverrides = <int, bool>{};
+  final Set<int> _followingInFlightIds = <int>{};
+  String _activeTab = 'all';
+  String _cursor = '';
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = false;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load(reset: true));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.opportunitiesTitle,
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.exploreOpportunitySectionTitle,
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.exploreOpportunitySectionDescription,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Chip(label: Text('${_items.length}')),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final tab in <(String, String)>[
+                ('all', l10n.opportunitiesTabAll),
+                ('now', l10n.opportunitiesTabNow),
+                ('networking', l10n.opportunitiesTabNetworking),
+                ('jobs', l10n.opportunitiesTabJobs),
+                ('updates', l10n.opportunitiesTabUpdates),
+              ])
+                ChoiceChip(
+                  label: Text(tab.$2),
+                  selected: _activeTab == tab.$1,
+                  onSelected: (_) {
+                    if (_activeTab == tab.$1) return;
+                    setState(() => _activeTab = tab.$1);
+                    _load(reset: true);
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_error.isNotEmpty)
+            ErrorView(compact: true, kind: ErrorViewKind.network)
+          else if (_items.isEmpty)
+            EmptyStateView(
+              icon: Icons.auto_awesome_outlined,
+              title: l10n.opportunitiesEmptyTitle,
+              message: l10n.opportunitiesEmptyDescription,
+              actionLabel: _activeTab == 'jobs'
+                  ? l10n.jobsTitle
+                  : _activeTab == 'updates'
+                  ? l10n.notificationsTitle
+                  : l10n.networkingTitle,
+              onAction: () {
+                if (_activeTab == 'jobs') {
+                  context.push('/jobs');
+                  return;
+                }
+                if (_activeTab == 'updates') {
+                  context.push('/notifications');
+                  return;
+                }
+                context.push('/network/hub');
+              },
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 880;
+                final cardWidth = wide
+                    ? (constraints.maxWidth - 12) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final item in _items)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _OpportunityCard(
+                          item: item,
+                          isFollowed: _isMemberFollowed(item),
+                          followInFlight: _followingInFlightIds.contains(
+                            item.memberId,
+                          ),
+                          onOpenMember: item.memberId > 0
+                              ? () => context.push('/members/${item.memberId}')
+                              : null,
+                          onFollow: item.isMemberSuggestion
+                              ? () => _toggleFollowSuggestion(item)
+                              : null,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          if (_hasMore) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonal(
+                onPressed: _isLoadingMore ? null : () => _load(reset: false),
+                child: Text(
+                  _isLoadingMore
+                      ? l10n.opportunitiesLoading
+                      : l10n.opportunitiesLoadMoreAction,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _load({required bool reset}) async {
+    if (reset) {
+      setState(() {
+        _isLoading = true;
+        _error = '';
+        _cursor = '';
+      });
+    } else {
+      if (_isLoadingMore || !_hasMore) return;
+      setState(() => _isLoadingMore = true);
+    }
+
+    try {
+      final page = await ref
+          .read(opportunitiesRepositoryProvider)
+          .fetchOpportunityInbox(tab: _activeTab, cursor: reset ? '' : _cursor);
+      if (!mounted) return;
+      setState(() {
+        if (reset) {
+          _items
+            ..clear()
+            ..addAll(page.items);
+        } else {
+          _items.addAll(page.items);
+        }
+        _cursor = page.nextCursor;
+        _hasMore = page.hasMore;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
+
+  bool _isMemberFollowed(OpportunityItem item) {
+    return _followOverrides[item.memberId] ?? item.memberFollowing;
+  }
+
+  Future<void> _toggleFollowSuggestion(OpportunityItem item) async {
+    if (!item.isMemberSuggestion ||
+        _followingInFlightIds.contains(item.memberId)) {
+      return;
+    }
+
+    final currentFollowing = _isMemberFollowed(item);
+    setState(() => _followingInFlightIds.add(item.memberId));
+    final result = await ref
+        .read(exploreRepositoryProvider)
+        .follow(item.memberId);
+    if (!mounted) return;
+
+    final payload = asJsonMap(result.rawData);
+    final nextFollowing = asBool(payload['following']) ?? !currentFollowing;
+    setState(() {
+      _followingInFlightIds.remove(item.memberId);
+      if (result.ok) {
+        _followOverrides[item.memberId] = nextFollowing;
+      }
+    });
+
+    final message = result.message.isNotEmpty
+        ? result.message
+        : (result.ok
+              ? (nextFollowing ? 'Takip edildi.' : 'Takip bırakıldı.')
+              : context.l10n.actionFailedGeneric);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _OpportunityCard extends StatelessWidget {
+  const _OpportunityCard({
+    required this.item,
+    required this.isFollowed,
+    required this.followInFlight,
+    this.onOpenMember,
+    this.onFollow,
+  });
+
+  final OpportunityItem item;
+  final bool isFollowed;
+  final bool followInFlight;
+  final VoidCallback? onOpenMember;
+  final VoidCallback? onFollow;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final muted = Theme.of(context).textTheme.bodySmall;
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Chip(label: Text(_priorityLabel(context, item.priorityBucket))),
+              Chip(label: Text(_categoryLabel(context, item.category))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(item.title, style: Theme.of(context).textTheme.titleMedium),
+          if (item.summary.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(item.summary),
+          ],
+          if (item.whyNow.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(item.whyNow, style: muted),
+          ],
+          if (item.reasons.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: item.reasons
+                  .map((reason) => Chip(label: Text(reason)))
+                  .toList(growable: false),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (item.isMemberSuggestion && onOpenMember != null) ...[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                FilledButton.tonal(
+                  onPressed: onOpenMember,
+                  child: Text(
+                    item.targetLabel.isNotEmpty
+                        ? item.targetLabel
+                        : l10n.openAction,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: followInFlight ? null : onFollow,
+                  icon: followInFlight
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          isFollowed
+                              ? Icons.person_remove_alt_1_rounded
+                              : Icons.person_add_alt_1_rounded,
+                        ),
+                  label: Text(
+                    followInFlight
+                        ? l10n.submitInProgress
+                        : isFollowed
+                        ? l10n.unfollowAction
+                        : l10n.followAction,
+                  ),
+                ),
+              ],
+            ),
+          ] else if (item.targetHref.isNotEmpty) ...[
+            SelectableText(item.targetHref),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String _priorityLabel(BuildContext context, String value) {
+  final l10n = context.l10n;
+  switch (value.trim().toLowerCase()) {
+    case 'now':
+      return l10n.opportunitiesPriorityNow;
+    case 'soon':
+      return l10n.opportunitiesPrioritySoon;
+    default:
+      return l10n.opportunitiesPriorityFollow;
+  }
+}
+
+String _categoryLabel(BuildContext context, String value) {
+  final l10n = context.l10n;
+  switch (value.trim().toLowerCase()) {
+    case 'jobs':
+      return l10n.opportunitiesCategoryJob;
+    case 'networking':
+      return l10n.opportunitiesCategoryNetworking;
+    default:
+      return l10n.opportunitiesCategoryUpdate;
   }
 }
 

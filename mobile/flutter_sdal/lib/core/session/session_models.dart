@@ -137,6 +137,7 @@ class SessionSnapshot {
   String get defaultHomePath {
     final webPath = siteAccess.defaultLandingPage;
     if (webPath.startsWith('/new/explore')) return '/explore';
+    if (webPath.startsWith('/new/opportunities')) return '/explore';
     if (webPath.startsWith('/new/notifications')) return '/notifications';
     if (webPath.startsWith('/new/profile')) return '/profile';
     if (webPath.startsWith('/new/following')) return '/following';

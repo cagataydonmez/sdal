@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '../router.jsx';
 import Layout from '../components/Layout.jsx';
 import AnimatedIcon from '../components/AnimatedIcon.jsx';
+import ExploreOpportunitySection from '../components/ExploreOpportunitySection.jsx';
 import { emitAppChange } from '../utils/live.js';
 import { readApiPayload, unwrapApiData } from '../utils/api.js';
 import { useI18n } from '../utils/i18n.jsx';
@@ -554,9 +555,11 @@ export default function ExplorePage({ fullMode = false }) {
           </div>
           <div className="network-hero-actions">
             <Link className="btn ghost" to="/new/network/hub">{t('network_hub_title')}</Link>
-            <Link className="btn ghost" to="/new/following">{t('nav_following')}</Link>
+            <Link className="btn ghost" to="/new/jobs">{t('nav_jobs')}</Link>
           </div>
         </section>
+
+        <ExploreOpportunitySection />
 
         <section className="panel category-map-panel">
           <div className="category-map-head">

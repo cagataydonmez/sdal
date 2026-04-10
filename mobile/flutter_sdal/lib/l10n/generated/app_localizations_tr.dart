@@ -74,6 +74,59 @@ class AppLocalizationsTr extends AppLocalizations {
   String get opportunitiesTitle => 'Fırsatlar';
 
   @override
+  String get exploreOpportunitySectionTitle => 'Öncelikli akış';
+
+  @override
+  String get exploreOpportunitySectionDescription =>
+      'Kişiler, işler ve güncellemeler için tek akışta aksiyon sırası.';
+
+  @override
+  String get opportunitiesTabAll => 'Tümü';
+
+  @override
+  String get opportunitiesTabNow => 'Şimdi';
+
+  @override
+  String get opportunitiesTabNetworking => 'Kişiler';
+
+  @override
+  String get opportunitiesTabJobs => 'İşler';
+
+  @override
+  String get opportunitiesTabUpdates => 'Güncellemeler';
+
+  @override
+  String get opportunitiesPriorityNow => 'Öncelikli';
+
+  @override
+  String get opportunitiesPrioritySoon => 'Yakında';
+
+  @override
+  String get opportunitiesPriorityFollow => 'Takip et';
+
+  @override
+  String get opportunitiesCategoryNetworking => 'Networking';
+
+  @override
+  String get opportunitiesCategoryJob => 'İş';
+
+  @override
+  String get opportunitiesCategoryUpdate => 'Güncelleme';
+
+  @override
+  String get opportunitiesEmptyTitle => 'Şu anda bekleyen bir şey yok';
+
+  @override
+  String get opportunitiesEmptyDescription =>
+      'Yeni kişi, iş ve güncellemeler için biraz sonra tekrar yenile.';
+
+  @override
+  String get opportunitiesLoadMoreAction => 'Daha fazla yükle';
+
+  @override
+  String get opportunitiesLoading => 'Fırsatlar hazırlanıyor...';
+
+  @override
   String get followingTitle => 'Takipler';
 
   @override

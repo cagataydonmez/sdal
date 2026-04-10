@@ -74,6 +74,59 @@ class AppLocalizationsEn extends AppLocalizations {
   String get opportunitiesTitle => 'Opportunities';
 
   @override
+  String get exploreOpportunitySectionTitle => 'What needs attention';
+
+  @override
+  String get exploreOpportunitySectionDescription =>
+      'People, jobs, and updates worth acting on from one stream.';
+
+  @override
+  String get opportunitiesTabAll => 'All';
+
+  @override
+  String get opportunitiesTabNow => 'Now';
+
+  @override
+  String get opportunitiesTabNetworking => 'People';
+
+  @override
+  String get opportunitiesTabJobs => 'Jobs';
+
+  @override
+  String get opportunitiesTabUpdates => 'Updates';
+
+  @override
+  String get opportunitiesPriorityNow => 'Priority';
+
+  @override
+  String get opportunitiesPrioritySoon => 'Soon';
+
+  @override
+  String get opportunitiesPriorityFollow => 'Follow up';
+
+  @override
+  String get opportunitiesCategoryNetworking => 'Networking';
+
+  @override
+  String get opportunitiesCategoryJob => 'Job';
+
+  @override
+  String get opportunitiesCategoryUpdate => 'Update';
+
+  @override
+  String get opportunitiesEmptyTitle => 'Nothing is waiting right now';
+
+  @override
+  String get opportunitiesEmptyDescription =>
+      'Refresh in a bit to see new people, jobs, and updates that need attention.';
+
+  @override
+  String get opportunitiesLoadMoreAction => 'Load more';
+
+  @override
+  String get opportunitiesLoading => 'Preparing opportunities...';
+
+  @override
   String get followingTitle => 'Following';
 
   @override
