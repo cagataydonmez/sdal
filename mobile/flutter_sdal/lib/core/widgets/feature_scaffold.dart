@@ -190,7 +190,7 @@ class _AppMenuButton extends StatelessWidget {
           context: context,
           isScrollControlled: true,
           useSafeArea: true,
-          showDragHandle: false,
+          showDragHandle: true,
           builder: (sheetContext) => _AppMenuSheet(
             session: session,
             currentLocation: currentLocation,
@@ -335,15 +335,39 @@ class _AppMenuSheet extends ConsumerWidget {
         ),
     ];
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        child: ListView(
-          shrinkWrap: true,
+    final estimatedRows =
+        (user != null ? 2 : 0) +
+        (shellSidebar != null ? 2 : 0) +
+        (quickAccessUsers.isNotEmpty ? quickAccessUsers.length + 1 : 0) +
+        sections.fold<int>(
+          0,
+          (count, section) => count + section.entries.length + 1,
+        ) +
+        1;
+    final initialChildSize = (0.18 + (estimatedRows * 0.065))
+        .clamp(0.42, 0.9)
+        .toDouble();
+    final minChildSize = (initialChildSize * 0.58).clamp(0.24, 0.4).toDouble();
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: initialChildSize,
+      minChildSize: minChildSize,
+      maxChildSize: 0.94,
+      shouldCloseOnMinExtent: true,
+      builder: (context, scrollController) {
+        return ListView(
+          controller: scrollController,
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
           children: [
-            const _SheetDismissHandle(),
-            const SizedBox(height: 12),
             if (user != null) ...[
               Text(
                 user.displayName,
@@ -440,8 +464,8 @@ class _AppMenuSheet extends ConsumerWidget {
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -471,28 +495,6 @@ class _AppMenuSheet extends ConsumerWidget {
       return leftIndex.compareTo(rightIndex);
     });
     return sorted;
-  }
-}
-
-class _SheetDismissHandle extends StatelessWidget {
-  const _SheetDismissHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return SizedBox(
-      height: 36,
-      child: Center(
-        child: Container(
-          width: 64,
-          height: 6,
-          decoration: BoxDecoration(
-            color: tokens.foregroundMuted.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        ),
-      ),
-    );
   }
 }
 

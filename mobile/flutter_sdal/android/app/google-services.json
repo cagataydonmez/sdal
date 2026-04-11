@@ -1,0 +1,30 @@
+
+{
+  "project_info": {
+    "project_number": "634606816770",
+    "project_id": "sdal-dev",
+    "storage_bucket": "sdal-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634606816770:android:b15185f8f97d305b5ea11b",
+        "android_client_info": {
+          "package_name": "com.sdal.flutter_sdal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvj_D4LorJ7IHSm_yjttpWIK9LpIR0TUg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
