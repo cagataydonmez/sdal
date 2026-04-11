@@ -35,6 +35,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   ProviderSubscription<AsyncValue<PagedResponse<MessengerMessage>>>?
   _messagesSubscription;
   Timer? _pollTimer;
+  bool _disposed = false;
   final List<MessengerMessage> _olderMessages = <MessengerMessage>[];
   bool _markReadInFlight = false;
   bool _loadingOlder = false;
@@ -51,13 +52,14 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
     final realtime = ref.read(messengerRealtimeServiceProvider);
     realtime.start();
     _eventsSubscription = realtime.events.listen((event) {
+      if (_disposed) return;
       if (event.threadId == widget.threadId) {
         ref.invalidate(messengerMessagesProvider(widget.threadId));
       }
       ref.invalidate(messengerThreadsProvider(''));
     });
     _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (!mounted) return;
+      if (_disposed) return;
       ref.invalidate(messengerMessagesProvider(widget.threadId));
       ref.invalidate(messengerThreadsProvider(''));
     });
@@ -77,6 +79,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
 
   @override
   void dispose() {
+    _disposed = true;
     _scheduleActiveThreadIdClear();
     _pollTimer?.cancel();
     _eventsSubscription?.cancel();

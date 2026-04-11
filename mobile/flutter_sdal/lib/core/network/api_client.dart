@@ -78,7 +78,7 @@ class ApiClient {
       scheme: site.scheme == 'https' ? 'wss' : 'ws',
       userInfo: site.userInfo.isEmpty ? null : site.userInfo,
       host: site.host,
-      port: site.hasPort && site.port > 0 ? site.port : null,
+      port: site.port > 0 ? site.port : null,
       path: site.path,
       query: site.hasQuery ? site.query : null,
     );
