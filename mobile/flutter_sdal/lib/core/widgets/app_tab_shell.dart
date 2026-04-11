@@ -29,13 +29,7 @@ class AppTabShell extends ConsumerWidget {
     final localUnreadNotifications =
         ref.watch(notificationUnreadCountProvider).valueOrNull ?? 0;
     final shellMenu = ref.watch(shellMenuProvider).valueOrNull;
-    final shellSidebar = ref.watch(shellSidebarProvider).valueOrNull;
-    final unreadMessages = math.max(
-      localUnreadMessages,
-      shellMenu?.badgeForRoute('/messenger') ??
-          shellSidebar?.newMessagesCount ??
-          0,
-    );
+    final unreadMessages = localUnreadMessages;
     final unreadNotifications = math.max(
       localUnreadNotifications,
       shellMenu?.badgeForRoute('/notifications') ?? 0,

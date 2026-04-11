@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:web_socket_channel/io.dart';
@@ -199,6 +200,8 @@ class MessengerRepository {
 class MessengerRealtimeService {
   MessengerRealtimeService(this._apiClient);
 
+  static const _rejectedUpgradeDelay = Duration(seconds: 30);
+
   final ApiClient _apiClient;
   final StreamController<MessengerRealtimeEvent> _eventsController =
       StreamController<MessengerRealtimeEvent>.broadcast();
@@ -228,12 +231,33 @@ class MessengerRealtimeService {
     await _connect();
   }
 
+  Future<void> stop() async {
+    _reconnectTimer?.cancel();
+    _reconnectIndicatorTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectIndicatorTimer = null;
+    _attempt = 0;
+    _connecting = false;
+    await _channel?.sink.close();
+    _channel = null;
+    _emitState(
+      const RealtimeConnectionState(
+        status: RealtimeConnectionStatus.disconnected,
+      ),
+    );
+  }
+
   Future<void> _connect() async {
     if (_disposed) return;
     _connecting = true;
 
     try {
       final uri = _apiClient.buildWebSocketUri('/ws/messenger');
+      if (kDebugMode) {
+        debugPrint(
+          '[messenger-ws] connecting uri=$uri apiBase=${_apiClient.config.apiBaseUrl} siteBase=${_apiClient.config.siteBaseUrl}',
+        );
+      }
       final cookieHeader = await _apiClient.cookieHeaderForUri(uri);
       final channel = IOWebSocketChannel.connect(
         uri,
@@ -241,6 +265,7 @@ class MessengerRealtimeService {
         pingInterval: const Duration(seconds: 25),
         connectTimeout: const Duration(seconds: 10),
       );
+      await channel.ready;
       _channel = channel;
       _connecting = false;
       _attempt = 0;
@@ -259,6 +284,9 @@ class MessengerRealtimeService {
         cancelOnError: true,
       );
     } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[messenger-ws] connect failed: $error');
+      }
       _connecting = false;
       _scheduleReconnect(error);
     }
@@ -291,7 +319,7 @@ class MessengerRealtimeService {
     if (_disposed) return;
 
     _attempt += 1;
-    final delay = Duration(seconds: _attempt > 5 ? 5 : _attempt);
+    final delay = _resolveReconnectDelay(error);
     final nextState = RealtimeConnectionState(
       status: _attempt >= 3
           ? RealtimeConnectionStatus.failed
@@ -317,12 +345,18 @@ class MessengerRealtimeService {
     });
   }
 
+  Duration _resolveReconnectDelay(Object? error) {
+    final message = error?.toString() ?? '';
+    if (message.contains('HTTP status code: 400') &&
+        message.contains('was not upgraded to websocket')) {
+      return _rejectedUpgradeDelay;
+    }
+    return Duration(seconds: _attempt > 5 ? 5 : _attempt);
+  }
+
   Future<void> dispose() async {
     _disposed = true;
-    _reconnectTimer?.cancel();
-    _reconnectIndicatorTimer?.cancel();
-    await _channel?.sink.close();
-    _channel = null;
+    await stop();
     await _eventsController.close();
     await _statesController.close();
   }
@@ -358,11 +392,18 @@ final messengerThreadsProvider = FutureProvider.autoDispose
           ref.watch(messengerRepositoryProvider).fetchThreads(query: query),
     );
 
+final activeMessengerThreadIdProvider = StateProvider<int?>((ref) => null);
+
 final messengerUnreadCountProvider = FutureProvider.autoDispose<int>((
   ref,
 ) async {
+  final activeThreadId = ref.watch(activeMessengerThreadIdProvider);
   final threads = await ref.watch(messengerThreadsProvider('').future);
-  return threads.fold<int>(0, (sum, thread) => sum + thread.unreadCount);
+  return threads.fold<int>(
+    0,
+    (sum, thread) =>
+        sum + (thread.id == activeThreadId ? 0 : thread.unreadCount),
+  );
 });
 
 final messengerMessagesProvider = FutureProvider.autoDispose

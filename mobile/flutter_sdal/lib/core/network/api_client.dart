@@ -74,7 +74,14 @@ class ApiClient {
 
   Uri buildWebSocketUri(String path, {Map<String, dynamic>? query}) {
     final site = buildApiUri(path, query: query);
-    return site.replace(scheme: site.scheme == 'https' ? 'wss' : 'ws');
+    return Uri(
+      scheme: site.scheme == 'https' ? 'wss' : 'ws',
+      userInfo: site.userInfo.isEmpty ? null : site.userInfo,
+      host: site.host,
+      port: site.hasPort && site.port > 0 ? site.port : null,
+      path: site.path,
+      query: site.hasQuery ? site.query : null,
+    );
   }
 
   Future<String?> cookieHeaderForUri(Uri uri) async {

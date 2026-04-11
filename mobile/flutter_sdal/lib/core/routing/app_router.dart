@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/auth_pages.dart';
@@ -184,6 +185,97 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/feed',
                 pageBuilder: (context, state) => _tabPage(const FeedPage()),
               ),
+              GoRoute(
+                path: '/posts/:postId',
+                pageBuilder: (context, state) => _liftPage(
+                  PostDetailPage(
+                    postId:
+                        int.tryParse(state.pathParameters['postId'] ?? '') ?? 0,
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/groups',
+                pageBuilder: (context, state) => _slidePage(const GroupsPage()),
+              ),
+              GoRoute(
+                path: '/groups/:groupId',
+                pageBuilder: (context, state) => _liftPage(
+                  GroupDetailPage(
+                    groupId:
+                        int.tryParse(state.pathParameters['groupId'] ?? '') ??
+                        0,
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/events',
+                pageBuilder: (context, state) => _slidePage(const EventsPage()),
+              ),
+              GoRoute(
+                path: '/announcements',
+                pageBuilder: (context, state) =>
+                    _slidePage(const AnnouncementsPage()),
+              ),
+              GoRoute(
+                path: '/following',
+                pageBuilder: (context, state) =>
+                    _slidePage(const FollowingPage()),
+              ),
+              GoRoute(
+                path: '/following/member/:memberId/:section',
+                pageBuilder: (context, state) => _slidePage(
+                  FollowingDetailPage(
+                    memberId:
+                        int.tryParse(state.pathParameters['memberId'] ?? '') ??
+                        0,
+                    sectionKey: state.pathParameters['section'] ?? '',
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/albums',
+                pageBuilder: (context, state) => _slidePage(const AlbumsPage()),
+              ),
+              GoRoute(
+                path: '/albums/:categoryId',
+                pageBuilder: (context, state) => _liftPage(
+                  AlbumCategoryPage(
+                    categoryId:
+                        int.tryParse(
+                          state.pathParameters['categoryId'] ?? '',
+                        ) ??
+                        0,
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/albums/photo/:photoId',
+                pageBuilder: (context, state) => _liftPage(
+                  AlbumPhotoPage(
+                    photoId:
+                        int.tryParse(state.pathParameters['photoId'] ?? '') ??
+                        0,
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/albums/upload',
+                pageBuilder: (context, state) =>
+                    _slidePage(const AlbumUploadPage()),
+              ),
+              GoRoute(
+                path: '/panolar',
+                pageBuilder: (context, state) => _slidePage(
+                  BulletinPage(
+                    initialCategoryId:
+                        int.tryParse(
+                          state.uri.queryParameters['mkatid'] ?? '',
+                        ) ??
+                        0,
+                  ),
+                ),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -192,6 +284,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/explore',
                 pageBuilder: (context, state) => _tabPage(const ExplorePage()),
               ),
+              GoRoute(
+                path: '/members/:memberId',
+                pageBuilder: (context, state) => _liftPage(
+                  MemberDetailPage(
+                    memberId:
+                        int.tryParse(state.pathParameters['memberId'] ?? '') ??
+                        0,
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/network/hub',
+                pageBuilder: (context, state) =>
+                    _slidePage(const NetworkingHubPage()),
+              ),
+              GoRoute(
+                path: '/network/inbox',
+                pageBuilder: (context, state) =>
+                    _slidePage(const NetworkingInboxPage()),
+              ),
+              GoRoute(
+                path: '/network/teachers',
+                pageBuilder: (context, state) =>
+                    _slidePage(const TeacherLinksPage()),
+              ),
+              GoRoute(
+                path: '/jobs',
+                pageBuilder: (context, state) => _slidePage(const JobsPage()),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -199,6 +320,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/messenger',
                 pageBuilder: (context, state) => _tabPage(const InboxPage()),
+              ),
+              GoRoute(
+                path: '/inbox',
+                redirect: (context, state) => '/messenger',
+              ),
+              GoRoute(
+                path: '/messages/:threadId',
+                pageBuilder: (context, state) => _liftPage(
+                  ThreadDetailPage(
+                    threadId:
+                        int.tryParse(state.pathParameters['threadId'] ?? '') ??
+                        0,
+                  ),
+                ),
               ),
             ],
           ),
@@ -209,6 +344,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 pageBuilder: (context, state) =>
                     _tabPage(const NotificationsPage()),
               ),
+              GoRoute(
+                path: '/requests',
+                pageBuilder: (context, state) => _slidePage(
+                  RequestsPage(
+                    initialCategoryKey:
+                        state.uri.queryParameters['category'] ?? '',
+                    highlightedRequestId:
+                        int.tryParse(
+                          state.uri.queryParameters['request'] ?? '',
+                        ) ??
+                        0,
+                    notificationId:
+                        int.tryParse(
+                          state.uri.queryParameters['notification'] ?? '',
+                        ) ??
+                        0,
+                    notificationStatus:
+                        state.uri.queryParameters['status'] ?? '',
+                  ),
+                ),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -217,174 +373,56 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/profile',
                 pageBuilder: (context, state) => _tabPage(const ProfilePage()),
               ),
+              GoRoute(
+                path: '/profile/edit',
+                pageBuilder: (context, state) =>
+                    _slidePage(const ProfileEditPage()),
+              ),
+              GoRoute(
+                path: '/profile/photo',
+                pageBuilder: (context, state) =>
+                    _slidePage(const ProfilePhotoPage()),
+              ),
+              GoRoute(
+                path: '/profile/verification',
+                pageBuilder: (context, state) =>
+                    _slidePage(const ProfileVerificationPage()),
+              ),
+              GoRoute(
+                path: '/profile/stories/expired',
+                pageBuilder: (context, state) => _slidePage(
+                  ExpiredStoriesPage(
+                    initialFeedType:
+                        state.uri.queryParameters['feedType'] == 'community'
+                        ? FeedType.community
+                        : FeedType.main,
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/admin',
+                pageBuilder: (context, state) =>
+                    _slidePage(const AdminHubPage()),
+              ),
+              GoRoute(
+                path: '/admin/:section',
+                pageBuilder: (context, state) => _liftPage(
+                  AdminSectionPage(
+                    sectionKey: state.pathParameters['section'] ?? '',
+                  ),
+                ),
+              ),
             ],
           ),
         ],
       ),
-      GoRoute(
-        path: '/posts/:postId',
-        pageBuilder: (context, state) => _liftPage(
-          PostDetailPage(
-            postId: int.tryParse(state.pathParameters['postId'] ?? '') ?? 0,
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/members/:memberId',
-        pageBuilder: (context, state) => _liftPage(
-          MemberDetailPage(
-            memberId: int.tryParse(state.pathParameters['memberId'] ?? '') ?? 0,
-          ),
-        ),
-      ),
-      GoRoute(path: '/inbox', redirect: (context, state) => '/messenger'),
-      GoRoute(
-        path: '/messages/:threadId',
-        pageBuilder: (context, state) => _liftPage(
-          ThreadDetailPage(
-            threadId: int.tryParse(state.pathParameters['threadId'] ?? '') ?? 0,
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/network/hub',
-        pageBuilder: (context, state) => _slidePage(const NetworkingHubPage()),
-      ),
-      GoRoute(
-        path: '/network/inbox',
-        pageBuilder: (context, state) =>
-            _slidePage(const NetworkingInboxPage()),
-      ),
-      GoRoute(
-        path: '/network/teachers',
-        pageBuilder: (context, state) => _slidePage(const TeacherLinksPage()),
-      ),
-      GoRoute(
-        path: '/profile/edit',
-        pageBuilder: (context, state) => _slidePage(const ProfileEditPage()),
-      ),
-      GoRoute(
-        path: '/profile/photo',
-        pageBuilder: (context, state) => _slidePage(const ProfilePhotoPage()),
-      ),
-      GoRoute(
-        path: '/profile/verification',
-        pageBuilder: (context, state) =>
-            _slidePage(const ProfileVerificationPage()),
-      ),
-      GoRoute(
-        path: '/profile/stories/expired',
-        pageBuilder: (context, state) => _slidePage(
-          ExpiredStoriesPage(
-            initialFeedType:
-                state.uri.queryParameters['feedType'] == 'community'
-                ? FeedType.community
-                : FeedType.main,
-          ),
-        ),
-      ),
       GoRoute(path: '/feed/live-chat', redirect: (context, state) => '/feed'),
-      GoRoute(
-        path: '/following',
-        pageBuilder: (context, state) => _slidePage(const FollowingPage()),
-      ),
-      GoRoute(
-        path: '/following/member/:memberId/:section',
-        pageBuilder: (context, state) => _slidePage(
-          FollowingDetailPage(
-            memberId: int.tryParse(state.pathParameters['memberId'] ?? '') ?? 0,
-            sectionKey: state.pathParameters['section'] ?? '',
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/groups',
-        pageBuilder: (context, state) => _slidePage(const GroupsPage()),
-      ),
-      GoRoute(
-        path: '/groups/:groupId',
-        pageBuilder: (context, state) => _liftPage(
-          GroupDetailPage(
-            groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/events',
-        pageBuilder: (context, state) => _slidePage(const EventsPage()),
-      ),
-      GoRoute(
-        path: '/announcements',
-        pageBuilder: (context, state) => _slidePage(const AnnouncementsPage()),
-      ),
-      GoRoute(
-        path: '/panolar',
-        pageBuilder: (context, state) => _slidePage(
-          BulletinPage(
-            initialCategoryId:
-                int.tryParse(state.uri.queryParameters['mkatid'] ?? '') ?? 0,
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/admin',
-        pageBuilder: (context, state) => _slidePage(const AdminHubPage()),
-      ),
-      GoRoute(
-        path: '/admin/:section',
-        pageBuilder: (context, state) => _liftPage(
-          AdminSectionPage(sectionKey: state.pathParameters['section'] ?? ''),
-        ),
-      ),
-      GoRoute(
-        path: '/jobs',
-        pageBuilder: (context, state) => _slidePage(const JobsPage()),
-      ),
       GoRoute(
         path: '/opportunities',
         redirect: (context, state) {
           final query = state.uri.hasQuery ? '?${state.uri.query}' : '';
           return '/explore$query';
         },
-      ),
-      GoRoute(
-        path: '/albums',
-        pageBuilder: (context, state) => _slidePage(const AlbumsPage()),
-      ),
-      GoRoute(
-        path: '/albums/:categoryId',
-        pageBuilder: (context, state) => _liftPage(
-          AlbumCategoryPage(
-            categoryId:
-                int.tryParse(state.pathParameters['categoryId'] ?? '') ?? 0,
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/albums/photo/:photoId',
-        pageBuilder: (context, state) => _liftPage(
-          AlbumPhotoPage(
-            photoId: int.tryParse(state.pathParameters['photoId'] ?? '') ?? 0,
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/albums/upload',
-        pageBuilder: (context, state) => _slidePage(const AlbumUploadPage()),
-      ),
-      GoRoute(
-        path: '/requests',
-        pageBuilder: (context, state) => _slidePage(
-          RequestsPage(
-            initialCategoryKey: state.uri.queryParameters['category'] ?? '',
-            highlightedRequestId:
-                int.tryParse(state.uri.queryParameters['request'] ?? '') ?? 0,
-            notificationId:
-                int.tryParse(state.uri.queryParameters['notification'] ?? '') ??
-                0,
-            notificationStatus: state.uri.queryParameters['status'] ?? '',
-          ),
-        ),
       ),
     ],
   );
@@ -491,7 +529,7 @@ const _kCurve = Curves.easeOutCubic;
 const _kDuration = Duration(milliseconds: 280);
 const _kTabDuration = Duration(milliseconds: 220);
 
-CustomTransitionPage<void> _tabPage(Widget child) => CustomTransitionPage<void>(
+Page<void> _tabPage(Widget child) => CustomTransitionPage<void>(
   child: child,
   transitionDuration: _kTabDuration,
   reverseTransitionDuration: _kTabDuration,
@@ -511,47 +549,71 @@ CustomTransitionPage<void> _tabPage(Widget child) => CustomTransitionPage<void>(
 );
 
 /// Slide from right + fade. Use for list / feature pages pushed from the tab shell.
-CustomTransitionPage<void> _slidePage(Widget child) =>
-    CustomTransitionPage<void>(
-      child: child,
-      transitionDuration: _kDuration,
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(parent: animation, curve: _kCurve);
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0.06, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: FadeTransition(opacity: curved, child: child),
-        );
-      },
-    );
+Page<void> _slidePage(Widget child) => _isCupertinoNavigationPlatform
+    ? CupertinoPage<void>(child: child)
+    : CustomTransitionPage<void>(
+        child: child,
+        transitionDuration: _kDuration,
+        reverseTransitionDuration: _kDuration,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return _buildPushPopTransition(
+            animation: animation,
+            child: child,
+            enterOffset: const Offset(0.06, 0),
+          );
+        },
+      );
 
 /// Lift from below + fade. Use for detail pages opened from a list item.
-CustomTransitionPage<void> _liftPage(Widget child) =>
-    CustomTransitionPage<void>(
-      child: child,
-      transitionDuration: _kDuration,
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(parent: animation, curve: _kCurve);
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 0.05),
-            end: Offset.zero,
-          ).animate(curved),
-          child: FadeTransition(opacity: curved, child: child),
-        );
-      },
-    );
+Page<void> _liftPage(Widget child) => _isCupertinoNavigationPlatform
+    ? CupertinoPage<void>(child: child)
+    : CustomTransitionPage<void>(
+        child: child,
+        transitionDuration: _kDuration,
+        reverseTransitionDuration: _kDuration,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return _buildPushPopTransition(
+            animation: animation,
+            child: child,
+            enterOffset: const Offset(0, 0.05),
+          );
+        },
+      );
 
 /// Cross-fade. Use for full-screen takeovers (auth, status screens).
-CustomTransitionPage<void> _fadePage(Widget child) =>
-    CustomTransitionPage<void>(
-      child: child,
-      transitionDuration: _kDuration,
-      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-          FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: _kCurve),
-            child: child,
-          ),
-    );
+Page<void> _fadePage(Widget child) => CustomTransitionPage<void>(
+  child: child,
+  transitionDuration: _kDuration,
+  transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+      FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: _kCurve),
+        child: child,
+      ),
+);
+
+Widget _buildPushPopTransition({
+  required Animation<double> animation,
+  required Widget child,
+  required Offset enterOffset,
+}) {
+  final curved = CurvedAnimation(
+    parent: animation,
+    curve: _kCurve,
+    reverseCurve: _kCurve,
+  );
+  final isPopping = animation.status == AnimationStatus.reverse;
+  final position = Tween<Offset>(
+    begin: isPopping ? Offset.zero : enterOffset,
+    end: isPopping ? const Offset(0.08, 0) : Offset.zero,
+  ).animate(curved);
+
+  final transitioningChild = SlideTransition(position: position, child: child);
+  if (isPopping) {
+    return transitioningChild;
+  }
+
+  return FadeTransition(opacity: curved, child: transitioningChild);
+}
+
+bool get _isCupertinoNavigationPlatform =>
+    defaultTargetPlatform == TargetPlatform.iOS;

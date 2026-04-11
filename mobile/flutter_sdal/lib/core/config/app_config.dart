@@ -61,8 +61,27 @@ class AppConfig {
   static String _normalizeUrl(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return 'https://sdalsosyal.mywire.org/api';
-    return trimmed.endsWith('/')
+    final normalizedInput = trimmed.endsWith('/')
         ? trimmed.substring(0, trimmed.length - 1)
         : trimmed;
+    final parsed = Uri.tryParse(normalizedInput);
+    if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
+      return normalizedInput;
+    }
+
+    final normalizedPath =
+        parsed.path.isNotEmpty &&
+            parsed.path.length > 1 &&
+            parsed.path.endsWith('/')
+        ? parsed.path.substring(0, parsed.path.length - 1)
+        : parsed.path;
+
+    return Uri(
+      scheme: parsed.scheme,
+      userInfo: parsed.userInfo.isEmpty ? null : parsed.userInfo,
+      host: parsed.host,
+      port: parsed.hasPort && parsed.port > 0 ? parsed.port : null,
+      path: normalizedPath,
+    ).toString();
   }
 }

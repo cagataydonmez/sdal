@@ -94,40 +94,18 @@ SQLite -> PostgreSQL data migration icin `ops/cutover-sqlite-to-postgres.sh` kul
 
 ## 6) Nginx Reverse Proxy
 
-`/etc/nginx/sites-available/sdal`:
+Use the repo helper so websocket-safe routes for both `/ws/chat` and `/ws/messenger` are generated consistently:
 
-```nginx
-server {
-    listen 80;
-    server_name senindomainin.com www.senindomainin.com;
-
-    client_max_body_size 20M;
-
-    location / {
-        proxy_pass http://127.0.0.1:8787;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /ws/chat {
-        proxy_pass http://127.0.0.1:8787/ws/chat;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+```bash
+sudo APP_DOMAIN="senindomainin.com" \
+  APP_DOMAIN_WWW="www.senindomainin.com" \
+  APP_PORT="8787" \
+  bash /var/www/sdal/ops/configure-nginx-site.sh
 ```
 
 Etkinlestir:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/sdal /etc/nginx/sites-enabled/sdal
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -136,6 +114,7 @@ sudo systemctl reload nginx
 
 ```bash
 sudo certbot --nginx -d senindomainin.com -d www.senindomainin.com
+sudo APP_DOMAIN="senindomainin.com" APP_DOMAIN_WWW="www.senindomainin.com" APP_PORT="8787" bash /var/www/sdal/ops/configure-nginx-site.sh
 ```
 
 ## 8) Ilk Build ve systemd Baslatma

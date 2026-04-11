@@ -189,7 +189,8 @@ class _AppMenuButton extends StatelessWidget {
         showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
-          showDragHandle: true,
+          useSafeArea: true,
+          showDragHandle: false,
           builder: (sheetContext) => _AppMenuSheet(
             session: session,
             currentLocation: currentLocation,
@@ -219,6 +220,7 @@ class _AppMenuSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
+    final session = this.session;
     final user = session?.user;
     final quickAccessUsers =
         ref.watch(quickAccessUsersProvider).valueOrNull ??
@@ -335,11 +337,14 @@ class _AppMenuSheet extends ConsumerWidget {
     ];
 
     return SafeArea(
+      top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: ListView(
           shrinkWrap: true,
           children: [
+            const _SheetDismissHandle(),
+            const SizedBox(height: 12),
             if (user != null) ...[
               Text(
                 user.displayName,
@@ -467,6 +472,28 @@ class _AppMenuSheet extends ConsumerWidget {
       return leftIndex.compareTo(rightIndex);
     });
     return sorted;
+  }
+}
+
+class _SheetDismissHandle extends StatelessWidget {
+  const _SheetDismissHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return SizedBox(
+      height: 36,
+      child: Center(
+        child: Container(
+          width: 64,
+          height: 6,
+          decoration: BoxDecoration(
+            color: tokens.foregroundMuted.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+      ),
+    );
   }
 }
 

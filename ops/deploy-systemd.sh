@@ -239,6 +239,12 @@ run_with_priv systemctl daemon-reload || true
 run_with_priv systemctl restart sdal-api.service
 run_with_priv systemctl restart sdal-worker.service
 
+if [[ -x "$APP_DIR/ops/configure-nginx-site.sh" ]] && command -v nginx >/dev/null 2>&1; then
+  log "refreshing nginx site config"
+  run_with_priv env SDAL_ENV_FILE="$ENV_FILE" APP_PORT="${PORT:-8787}" \
+    bash "$APP_DIR/ops/configure-nginx-site.sh"
+fi
+
 PORT_VALUE="${PORT:-8787}"
 log "health probe on 127.0.0.1:${PORT_VALUE} (retries=${HEALTH_RETRY_COUNT:-30}, delay=${HEALTH_RETRY_DELAY:-2}s)"
 wait_for_api_health "$PORT_VALUE"

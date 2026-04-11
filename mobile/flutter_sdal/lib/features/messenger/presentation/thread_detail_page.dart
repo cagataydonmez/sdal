@@ -27,13 +27,16 @@ class ThreadDetailPage extends ConsumerStatefulWidget {
 }
 
 class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
+  static const _pollInterval = Duration(seconds: 6);
+
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   StreamSubscription<MessengerRealtimeEvent>? _eventsSubscription;
   ProviderSubscription<AsyncValue<PagedResponse<MessengerMessage>>>?
   _messagesSubscription;
+  Timer? _pollTimer;
   final List<MessengerMessage> _olderMessages = <MessengerMessage>[];
-  bool _markedRead = false;
+  bool _markReadInFlight = false;
   bool _loadingOlder = false;
   bool _hasOlderMessages = false;
   bool _showJumpToLatest = false;
@@ -43,6 +46,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   @override
   void initState() {
     super.initState();
+    _scheduleActiveThreadIdSync(widget.threadId);
     _scrollController.addListener(_handleScroll);
     final realtime = ref.read(messengerRealtimeServiceProvider);
     realtime.start();
@@ -52,6 +56,11 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
       }
       ref.invalidate(messengerThreadsProvider(''));
     });
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (!mounted) return;
+      ref.invalidate(messengerMessagesProvider(widget.threadId));
+      ref.invalidate(messengerThreadsProvider(''));
+    });
     _messagesSubscription = ref.listenManual(
       messengerMessagesProvider(widget.threadId),
       (_, next) => next.whenData(_handleMessagesUpdate),
@@ -59,7 +68,17 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   }
 
   @override
+  void didUpdateWidget(covariant ThreadDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.threadId != widget.threadId) {
+      _scheduleActiveThreadIdSync(widget.threadId);
+    }
+  }
+
+  @override
   void dispose() {
+    _scheduleActiveThreadIdClear();
+    _pollTimer?.cancel();
     _eventsSubscription?.cancel();
     _messagesSubscription?.close();
     _messageController.dispose();
@@ -67,6 +86,22 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
       ..removeListener(_handleScroll)
       ..dispose();
     super.dispose();
+  }
+
+  void _scheduleActiveThreadIdSync(int threadId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(activeMessengerThreadIdProvider.notifier).state = threadId;
+    });
+  }
+
+  void _scheduleActiveThreadIdClear() {
+    final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
+    Future<void>.microtask(() {
+      if (notifier.state == widget.threadId) {
+        notifier.state = null;
+      }
+    });
   }
 
   void _handleScroll() {
@@ -110,6 +145,34 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
         });
       }
     }
+    _scheduleMarkThreadRead();
+  }
+
+  void _scheduleMarkThreadRead() {
+    if (_markReadInFlight) return;
+    final threads = ref.read(messengerThreadsProvider('')).valueOrNull;
+    MessengerThreadSummary? currentThread;
+    if (threads != null) {
+      for (final item in threads) {
+        if (item.id == widget.threadId) {
+          currentThread = item;
+          break;
+        }
+      }
+    }
+    if ((currentThread?.unreadCount ?? 0) <= 0) return;
+    _markReadInFlight = true;
+    Future<void>.microtask(() async {
+      try {
+        await ref
+            .read(messengerRepositoryProvider)
+            .markThreadRead(widget.threadId);
+        ref.invalidate(messengerThreadsProvider(''));
+        ref.invalidate(messengerUnreadCountProvider);
+      } finally {
+        _markReadInFlight = false;
+      }
+    });
   }
 
   void _scrollToBottom({bool force = false, bool animated = true}) {
@@ -233,11 +296,15 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                               Text(
                                 currentThread.peer.name,
                                 style: Theme.of(context).textTheme.titleMedium,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               if (currentThread.peer.handle.isNotEmpty)
                                 Text(
                                   '@${currentThread.peer.handle}',
                                   style: Theme.of(context).textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                             ],
                           ),
@@ -257,15 +324,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                 _hasOlderMessages = _olderMessages.isNotEmpty
                     ? _hasOlderMessages
                     : page.hasMore;
-                if (!_markedRead) {
-                  _markedRead = true;
-                  Future<void>.microtask(() async {
-                    await ref
-                        .read(messengerRepositoryProvider)
-                        .markThreadRead(widget.threadId);
-                    ref.invalidate(messengerThreadsProvider(''));
-                  });
-                }
+                _scheduleMarkThreadRead();
                 final messages = [..._olderMessages, ...latestMessages];
                 if (messages.isEmpty) {
                   return Center(

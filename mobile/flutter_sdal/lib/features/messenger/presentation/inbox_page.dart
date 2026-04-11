@@ -23,8 +23,11 @@ class InboxPage extends ConsumerStatefulWidget {
 }
 
 class _InboxPageState extends ConsumerState<InboxPage> {
+  static const _pollInterval = Duration(seconds: 8);
+
   final _searchController = TextEditingController();
   StreamSubscription<MessengerRealtimeEvent>? _eventsSubscription;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -34,10 +37,15 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     _eventsSubscription = realtime.events.listen((_) {
       ref.invalidate(messengerThreadsProvider(_searchController.text.trim()));
     });
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (!mounted) return;
+      ref.invalidate(messengerThreadsProvider(_searchController.text.trim()));
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _eventsSubscription?.cancel();
     _searchController.dispose();
     super.dispose();

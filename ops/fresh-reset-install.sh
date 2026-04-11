@@ -315,30 +315,11 @@ WantedBy=multi-user.target
 EOF
 
 echo "=== Configuring nginx (without touching other sites) ==="
-cat > /etc/nginx/sites-available/sdal <<EOF
-server {
-  listen 80;
-  server_name ${APP_DOMAIN} ${APP_DOMAIN_WWW};
-
-  client_max_body_size 20m;
-
-  location / {
-    proxy_pass http://127.0.0.1:${APP_PORT};
-    proxy_http_version 1.1;
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection "upgrade";
-  }
-}
-EOF
-
-ln -sf /etc/nginx/sites-available/sdal /etc/nginx/sites-enabled/sdal
 systemctl enable --now nginx
-nginx -t
-systemctl reload nginx
+APP_DOMAIN="${APP_DOMAIN}" \
+APP_DOMAIN_WWW="${APP_DOMAIN_WWW}" \
+APP_PORT="${APP_PORT}" \
+bash "${APP_DIR}/ops/configure-nginx-site.sh"
 
 if [[ "$RUN_CERTBOT" == "y" || "$RUN_CERTBOT" == "yes" ]]; then
   echo "=== Running certbot ==="
@@ -347,6 +328,10 @@ if [[ "$RUN_CERTBOT" == "y" || "$RUN_CERTBOT" == "yes" ]]; then
   else
     certbot --nginx -d "$APP_DOMAIN" -d "$APP_DOMAIN_WWW" --redirect --agree-tos -m "admin@${APP_DOMAIN}" --no-eff-email || true
   fi
+  APP_DOMAIN="${APP_DOMAIN}" \
+  APP_DOMAIN_WWW="${APP_DOMAIN_WWW}" \
+  APP_PORT="${APP_PORT}" \
+  bash "${APP_DIR}/ops/configure-nginx-site.sh"
 fi
 
 echo "=== Enabling firewall baseline (ssh/http/https) ==="

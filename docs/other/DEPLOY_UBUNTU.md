@@ -399,61 +399,10 @@ sudo systemctl enable --now nginx
 Create site config:
 
 ```bash
-sudo tee /etc/nginx/sites-available/sdal >/dev/null <<'EOF'
-map $http_upgrade $connection_upgrade {
-  default upgrade;
-  '' close;
-}
-
-server {
-  listen 80;
-  server_name example.com www.example.com;
-
-  client_max_body_size 20m;
-
-  # Keep Node as source of truth for classic + modern UI routing behavior.
-  location / {
-    proxy_pass http://127.0.0.1:8787;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location = /ws/chat {
-    proxy_pass http://127.0.0.1:8787;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-
-  location = /ws/messenger {
-    proxy_pass http://127.0.0.1:8787;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-EOF
-```
-
-Set domain in config and enable:
-
-```bash
-sudo sed -i "s/server_name example.com www.example.com;/server_name ${APP_DOMAIN} ${APP_DOMAIN_WWW};/" /etc/nginx/sites-available/sdal
-sudo ln -sf /etc/nginx/sites-available/sdal /etc/nginx/sites-enabled/sdal
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl reload nginx
+sudo APP_DOMAIN="$APP_DOMAIN" \
+  APP_DOMAIN_WWW="$APP_DOMAIN_WWW" \
+  APP_PORT="$APP_PORT" \
+  bash "$APP_DIR/ops/configure-nginx-site.sh"
 ```
 
 ## C.6 HTTPS with Let's Encrypt (certbot)
@@ -462,7 +411,10 @@ sudo systemctl reload nginx
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d "$APP_DOMAIN" -d "$APP_DOMAIN_WWW" --redirect --agree-tos -m "admin@$APP_DOMAIN" --no-eff-email
 sudo certbot renew --dry-run
+sudo APP_DOMAIN="$APP_DOMAIN" APP_DOMAIN_WWW="$APP_DOMAIN_WWW" APP_PORT="$APP_PORT" bash "$APP_DIR/ops/configure-nginx-site.sh"
 ```
+
+The second `configure-nginx-site.sh` run is intentional. It rewrites the final nginx site with explicit websocket routes for both `/ws/chat` and `/ws/messenger` after certbot has created TLS files, so 443 keeps the same upgrade-safe proxy behavior as 80.
 
 ## C.7 Log rotation
 
