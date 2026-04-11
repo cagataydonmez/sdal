@@ -4,7 +4,7 @@ import '../../../core/network/json_utils.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/requests_repository.dart';
 
-class RequestsActionController extends AutoDisposeNotifier<AsyncActionState> {
+class RequestsActionController extends Notifier<AsyncActionState> {
   RequestsRepository get _repository => ref.read(requestsRepositoryProvider);
 
   @override
@@ -66,6 +66,6 @@ class RequestsActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final requestsActionControllerProvider =
-    AutoDisposeNotifierProvider<RequestsActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<RequestsActionController, AsyncActionState>(
       RequestsActionController.new,
     );

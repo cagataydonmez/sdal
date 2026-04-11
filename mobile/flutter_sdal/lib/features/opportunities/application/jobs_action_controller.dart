@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/opportunities_repository.dart';
 
-class JobsActionController extends AutoDisposeNotifier<AsyncActionState> {
+class JobsActionController extends Notifier<AsyncActionState> {
   OpportunitiesRepository get _repository =>
       ref.read(opportunitiesRepositoryProvider);
 
@@ -102,6 +102,6 @@ class JobsActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final jobsActionControllerProvider =
-    AutoDisposeNotifierProvider<JobsActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<JobsActionController, AsyncActionState>(
       JobsActionController.new,
     );

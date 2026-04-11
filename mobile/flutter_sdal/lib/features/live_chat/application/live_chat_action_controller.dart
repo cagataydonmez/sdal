@@ -3,7 +3,7 @@ import '../../../core/network/json_utils.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/live_chat_repository.dart';
 
-class LiveChatActionController extends AutoDisposeNotifier<AsyncActionState> {
+class LiveChatActionController extends Notifier<AsyncActionState> {
   LiveChatRepository get _repository => ref.read(liveChatRepositoryProvider);
 
   @override
@@ -69,6 +69,6 @@ class LiveChatActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final liveChatActionControllerProvider =
-    AutoDisposeNotifierProvider<LiveChatActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<LiveChatActionController, AsyncActionState>(
       LiveChatActionController.new,
     );

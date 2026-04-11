@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/community_repository.dart';
 
-class CommunityActionController extends AutoDisposeNotifier<AsyncActionState> {
+class CommunityActionController extends Notifier<AsyncActionState> {
   CommunityRepository get _repository => ref.read(communityRepositoryProvider);
 
   @override
@@ -256,6 +256,6 @@ class CommunityActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final communityActionControllerProvider =
-    AutoDisposeNotifierProvider<CommunityActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<CommunityActionController, AsyncActionState>(
       CommunityActionController.new,
     );

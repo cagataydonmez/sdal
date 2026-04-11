@@ -34,7 +34,7 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
   }
 
   void expire() {
-    final snapshot = state.valueOrNull;
+    final snapshot = state.value;
     if (snapshot == null) {
       ref.invalidateSelf();
       return;

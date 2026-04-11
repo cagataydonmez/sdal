@@ -15,7 +15,7 @@ class AdminHubPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final user = session?.user;
     final adminAccessState = ref.watch(adminAccessProvider);
     final summaryState = ref.watch(adminSummaryProvider);
@@ -493,10 +493,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         ? ref.watch(adminAppLogFilesProvider)
         : const AsyncValue<List<AdminLogFileItem>>.data(<AdminLogFileItem>[]);
     final languagePreviewCode =
-        (languageConfigState.valueOrNull?.defaultOpen ?? '').trim().isNotEmpty
-        ? (languageConfigState.valueOrNull?.defaultOpen ?? '').trim()
-        : ((languagesState.valueOrNull?.isNotEmpty ?? false)
-              ? languagesState.valueOrNull!.first.code
+        (languageConfigState.value?.defaultOpen ?? '').trim().isNotEmpty
+        ? (languageConfigState.value?.defaultOpen ?? '').trim()
+        : ((languagesState.value?.isNotEmpty ?? false)
+              ? languagesState.value!.first.code
               : '');
     final languageStringsState = sectionKey == 'languages'
         ? ref.watch(adminLanguageStringsProvider(languagePreviewCode))

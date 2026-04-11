@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/albums_repository.dart';
 
-class AlbumsActionController extends AutoDisposeNotifier<AsyncActionState> {
+class AlbumsActionController extends Notifier<AsyncActionState> {
   AlbumsRepository get _repository => ref.read(albumsRepositoryProvider);
 
   @override
@@ -64,6 +64,6 @@ class AlbumsActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final albumsActionControllerProvider =
-    AutoDisposeNotifierProvider<AlbumsActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<AlbumsActionController, AsyncActionState>(
       AlbumsActionController.new,
     );

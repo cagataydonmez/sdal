@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/notifications_repository.dart';
 
-class NotificationsActionController
-    extends AutoDisposeNotifier<AsyncActionState> {
+class NotificationsActionController extends Notifier<AsyncActionState> {
   NotificationsRepository get _repository =>
       ref.read(notificationsRepositoryProvider);
 
@@ -216,7 +215,7 @@ class NotificationsActionController
 }
 
 final notificationsActionControllerProvider =
-    AutoDisposeNotifierProvider<
+    NotifierProvider.autoDispose<
       NotificationsActionController,
       AsyncActionState
     >(NotificationsActionController.new);

@@ -4,7 +4,7 @@ import '../../../core/network/json_utils.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/groups_repository.dart';
 
-class GroupsActionController extends AutoDisposeNotifier<AsyncActionState> {
+class GroupsActionController extends Notifier<AsyncActionState> {
   GroupsRepository get _repository => ref.read(groupsRepositoryProvider);
 
   @override
@@ -333,6 +333,6 @@ class GroupsActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final groupsActionControllerProvider =
-    AutoDisposeNotifierProvider<GroupsActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<GroupsActionController, AsyncActionState>(
       GroupsActionController.new,
     );

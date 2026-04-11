@@ -39,7 +39,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     final onlineMembersState = ref.watch(onlineMembersProvider);
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
 
     ref.listen<FeedQuery>(feedQueryProvider, (previous, next) {
       if (previous == next || !mounted) return;

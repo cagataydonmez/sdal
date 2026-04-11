@@ -32,9 +32,9 @@ class FeatureScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = Theme.of(context).sdal;
     final l10n = context.l10n;
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
-    final shellMenu = ref.watch(shellMenuProvider).valueOrNull;
-    final shellSidebar = ref.watch(shellSidebarProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
+    final shellMenu = ref.watch(shellMenuProvider).value;
+    final shellSidebar = ref.watch(shellSidebarProvider).value;
     final location = GoRouterState.of(context).uri.path;
     final canPop = Navigator.of(context).canPop();
     final resolvedActions = <Widget>[
@@ -223,8 +223,7 @@ class _AppMenuSheet extends ConsumerWidget {
     final session = this.session;
     final user = session?.user;
     final quickAccessUsers =
-        ref.watch(quickAccessUsersProvider).valueOrNull ??
-        const <QuickAccessUser>[];
+        ref.watch(quickAccessUsersProvider).value ?? const <QuickAccessUser>[];
     final menuLabelsByRoute = <String, String>{
       for (final item in shellMenu?.appItems ?? const <ShellMenuItem>[])
         if (item.appRoute != null) item.appRoute!: item.label,

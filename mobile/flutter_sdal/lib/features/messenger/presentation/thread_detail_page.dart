@@ -150,7 +150,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
 
   void _scheduleMarkThreadRead() {
     if (_markReadInFlight) return;
-    final threads = ref.read(messengerThreadsProvider('')).valueOrNull;
+    final threads = ref.read(messengerThreadsProvider('')).value;
     MessengerThreadSummary? currentThread;
     if (threads != null) {
       for (final item in threads) {
@@ -216,8 +216,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
         actionState.scope == 'messenger:send:${widget.threadId}';
 
     MessengerThreadSummary? thread;
-    final threadItems =
-        threadsState.valueOrNull ?? const <MessengerThreadSummary>[];
+    final threadItems = threadsState.value ?? const <MessengerThreadSummary>[];
     for (final item in threadItems) {
       if (item.id == widget.threadId) {
         thread = item;
@@ -551,7 +550,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
     if (_loadingOlder) return;
     final initialPage = ref
         .read(messengerMessagesProvider(widget.threadId))
-        .valueOrNull;
+        .value;
     final initialItems = initialPage?.items ?? const <MessengerMessage>[];
     final oldestId = _olderMessages.isNotEmpty
         ? _olderMessages.first.id

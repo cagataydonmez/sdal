@@ -38,7 +38,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final commentsState = ref.watch(postCommentsProvider(widget.postId));
     final actionState = ref.watch(feedActionControllerProvider);
     final config = ref.watch(appConfigProvider);
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final l10n = context.l10n;
     final submittingComment =
         actionState.isLoading &&

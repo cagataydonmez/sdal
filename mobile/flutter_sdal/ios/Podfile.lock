@@ -1,31 +1,31 @@
 PODS:
-  - Firebase/CoreOnly (11.15.0):
-    - FirebaseCore (~> 11.15.0)
-  - Firebase/Messaging (11.15.0):
+  - Firebase/CoreOnly (12.9.0):
+    - FirebaseCore (~> 12.9.0)
+  - Firebase/Messaging (12.9.0):
     - Firebase/CoreOnly
-    - FirebaseMessaging (~> 11.15.0)
-  - firebase_core (3.15.2):
-    - Firebase/CoreOnly (= 11.15.0)
+    - FirebaseMessaging (~> 12.9.0)
+  - firebase_core (4.6.0):
+    - Firebase/CoreOnly (= 12.9.0)
     - Flutter
-  - firebase_messaging (15.2.10):
-    - Firebase/Messaging (= 11.15.0)
+  - firebase_messaging (16.1.3):
+    - Firebase/Messaging (= 12.9.0)
     - firebase_core
     - Flutter
-  - FirebaseCore (11.15.0):
-    - FirebaseCoreInternal (~> 11.15.0)
+  - FirebaseCore (12.9.0):
+    - FirebaseCoreInternal (~> 12.9.0)
     - GoogleUtilities/Environment (~> 8.1)
     - GoogleUtilities/Logger (~> 8.1)
-  - FirebaseCoreInternal (11.15.0):
+  - FirebaseCoreInternal (12.9.0):
     - "GoogleUtilities/NSData+zlib (~> 8.1)"
-  - FirebaseInstallations (11.15.0):
-    - FirebaseCore (~> 11.15.0)
+  - FirebaseInstallations (12.9.0):
+    - FirebaseCore (~> 12.9.0)
     - GoogleUtilities/Environment (~> 8.1)
     - GoogleUtilities/UserDefaults (~> 8.1)
     - PromisesObjC (~> 2.4)
-  - FirebaseMessaging (11.15.0):
-    - FirebaseCore (~> 11.15.0)
-    - FirebaseInstallations (~> 11.0)
-    - GoogleDataTransport (~> 10.0)
+  - FirebaseMessaging (12.9.0):
+    - FirebaseCore (~> 12.9.0)
+    - FirebaseInstallations (~> 12.9.0)
+    - GoogleDataTransport (~> 10.1)
     - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
     - GoogleUtilities/Environment (~> 8.1)
     - GoogleUtilities/Reachability (~> 8.1)
@@ -34,7 +34,7 @@ PODS:
   - Flutter (1.0.0)
   - flutter_local_notifications (0.0.1):
     - Flutter
-  - flutter_web_auth_2 (3.0.0):
+  - flutter_web_auth_2 (5.0.0):
     - Flutter
   - GoogleDataTransport (10.1.0):
     - nanopb (~> 3.30910.0)
@@ -112,16 +112,16 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  Firebase: d99ac19b909cd2c548339c2241ecd0d1599ab02e
-  firebase_core: 995454a784ff288be5689b796deb9e9fa3601818
-  firebase_messaging: f4a41dd102ac18b840eba3f39d67e77922d3f707
-  FirebaseCore: efb3893e5b94f32b86e331e3bd6dadf18b66568e
-  FirebaseCoreInternal: 9afa45b1159304c963da48addb78275ef701c6b4
-  FirebaseInstallations: 317270fec08a5d418fdbc8429282238cab3ac843
-  FirebaseMessaging: 3b26e2cee503815e01c3701236b020aa9b576f09
+  Firebase: 065f2bb395062046623036d8e6dc857bc2521d56
+  firebase_core: 8e6f58412ca227827c366b92e7cee047a2148c60
+  firebase_messaging: c3aa897e0d40109cfb7927c40dc0dea799863f3b
+  FirebaseCore: 428912f751178b06bef0a1793effeb4a5e09a9b8
+  FirebaseCoreInternal: b321eafae5362113bc182956fafc9922cfc77b72
+  FirebaseInstallations: 7b64ffd006032b2b019a59b803858df5112d9eaa
+  FirebaseMessaging: 7d6cdbff969127c4151c824fe432f0e301210f15
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_local_notifications: 395056b3175ba4f08480a7c5de30cd36d69827e4
-  flutter_web_auth_2: 5c8d9dcd7848b5a9efb086d24e7a9adcae979c80
+  flutter_local_notifications: 643a3eda1ce1c0599413ca31672536d423dee214
+  flutter_web_auth_2: 646fc9df97a01c59e5eea99b237da2c6360f8439
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
@@ -129,6 +129,6 @@ SPEC CHECKSUMS:
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 
-PODFILE CHECKSUM: 78fc82c6814fd6d281b980fe6008d26f1d50b0e0
+PODFILE CHECKSUM: 54b8b82be13205d94fa5e570a8f68ff43cbd5a05
 
 COCOAPODS: 1.16.2

@@ -125,8 +125,7 @@ Future<void> _toggleJoin(
   WidgetRef ref,
   int groupId,
 ) async {
-  final groups =
-      ref.read(groupsListProvider).valueOrNull ?? const <GroupListItem>[];
+  final groups = ref.read(groupsListProvider).value ?? const <GroupListItem>[];
   GroupListItem? group;
   for (final item in groups) {
     if (item.id == groupId) {

@@ -1,4 +1,4 @@
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -26,6 +26,27 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+def dedupe_phase_files!(phase)
+  return if phase.nil?
+
+  seen = {}
+  phase.files.reverse_each do |build_file|
+    file_ref = build_file.file_ref
+    next if file_ref.nil?
+
+    normalized_path = file_ref.path.to_s.gsub(/ \d+(?=\.[^.]+\z)/, '')
+    if seen[normalized_path]
+      build_file.remove_from_project
+      if file_ref.path.to_s != normalized_path
+        file_ref.remove_from_project
+      end
+      next
+    end
+
+    seen[normalized_path] = true
+  end
+end
+
 target 'Runner' do
   use_frameworks!
 
@@ -38,6 +59,13 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    if target.respond_to?(:source_build_phase)
+      dedupe_phase_files!(target.source_build_phase)
+    end
+    if target.respond_to?(:headers_build_phase)
+      dedupe_phase_files!(target.headers_build_phase)
+    end
 
     target.build_configurations.each do |config|
       config.build_settings['CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]'] = 'NO'

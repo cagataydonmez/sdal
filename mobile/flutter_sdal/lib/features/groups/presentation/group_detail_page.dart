@@ -26,7 +26,7 @@ class GroupDetailPage extends ConsumerWidget {
     final detailState = ref.watch(groupDetailProvider(groupId));
     final postsState = ref.watch(groupPostsProvider(groupId));
     final config = ref.watch(appConfigProvider);
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final currentUserId = session?.user?.id ?? 0;
     final l10n = context.l10n;
 
@@ -225,7 +225,7 @@ Future<void> _toggleJoin(
   WidgetRef ref,
   int groupId,
 ) async {
-  final detail = ref.read(groupDetailProvider(groupId)).valueOrNull;
+  final detail = ref.read(groupDetailProvider(groupId)).value;
   final membershipStatus = detail?.membershipStatus ?? '';
   final notifier = ref.read(groupsActionControllerProvider.notifier);
   if (membershipStatus == 'member') {

@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/admin_repository.dart';
 
-class AdminActionController extends AutoDisposeNotifier<AsyncActionState> {
+class AdminActionController extends Notifier<AsyncActionState> {
   AdminRepository get _repository => ref.read(adminRepositoryProvider);
 
   @override
@@ -614,6 +614,6 @@ class AdminActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final adminActionControllerProvider =
-    AutoDisposeNotifierProvider<AdminActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<AdminActionController, AsyncActionState>(
       AdminActionController.new,
     );

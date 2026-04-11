@@ -26,7 +26,7 @@ class _ProfileVerificationPageState
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final actionState = ref.watch(profileActionControllerProvider);
     final user = session?.user;
     final l10n = context.l10n;

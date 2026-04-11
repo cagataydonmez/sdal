@@ -195,7 +195,7 @@ prepare_ios() {
   prepare_flutter
   (
     cd "$IOS_DIR"
-    pod install >/dev/null
+    pod install --repo-update
   )
 }
 

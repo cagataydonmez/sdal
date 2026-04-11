@@ -108,7 +108,7 @@ class PushNotificationsService {
     SessionSnapshot? snapshotOverride,
   }) async {
     final snapshot =
-        snapshotOverride ?? ref.read(sessionControllerProvider).valueOrNull;
+        snapshotOverride ?? ref.read(sessionControllerProvider).value;
     if (snapshot == null) return;
     if (!snapshot.isAuthenticated) {
       await _clearRegistration();
@@ -191,7 +191,7 @@ class PushNotificationsService {
       requestSoundPermission: false,
     );
     await _localNotifications.initialize(
-      const InitializationSettings(
+      settings: const InitializationSettings(
         android: androidSettings,
         iOS: darwinSettings,
       ),
@@ -223,10 +223,10 @@ class PushNotificationsService {
     if (!_localNotificationsReady) return;
     final route = _extractRoute(message);
     await _localNotifications.show(
-      message.hashCode,
-      _messageTitle(message),
-      _messageBody(message),
-      const NotificationDetails(
+      id: message.hashCode,
+      title: _messageTitle(message),
+      body: _messageBody(message),
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           _pushChannelId,
           _pushChannelName,

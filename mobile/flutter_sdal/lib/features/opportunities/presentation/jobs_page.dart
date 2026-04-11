@@ -493,7 +493,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
   }
 
   int get _currentUserId {
-    final session = ref.read(sessionControllerProvider).valueOrNull;
+    final session = ref.read(sessionControllerProvider).value;
     return session?.user?.id ?? 0;
   }
 

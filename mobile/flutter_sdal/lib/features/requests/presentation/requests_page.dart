@@ -70,8 +70,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         actionState.isLoading && actionState.scope == 'requests:upload';
     final isSubmitting =
         actionState.isLoading && actionState.scope == 'requests:create';
-    final requestItems =
-        requestsState.valueOrNull ?? const <MemberRequestItem>[];
+    final requestItems = requestsState.value ?? const <MemberRequestItem>[];
     final filteredRequests = _filteredRequests(requestItems);
 
     categoriesState.whenData((categories) {

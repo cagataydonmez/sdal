@@ -31,13 +31,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final profileState = ref.watch(profileProvider);
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
     final selectedFeedType = _storyFeedType.apiValue;
     final expiredStories = ref
         .watch(myExpiredStoriesProvider(selectedFeedType))
-        .valueOrNull;
+        .value;
     final expiredStoriesCount = expiredStories?.length ?? 0;
     final requestsVisible = session?.isModuleVisible('requests') ?? false;
 

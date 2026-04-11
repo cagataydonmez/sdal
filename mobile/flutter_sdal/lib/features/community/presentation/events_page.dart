@@ -213,7 +213,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     );
     final actionState = ref.watch(communityActionControllerProvider);
     final config = ref.watch(appConfigProvider);
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final isAdmin = session?.user?.isAdmin ?? false;
     final respondingScope = 'events:respond:${item.id}';
     final commentingScope = 'events:comment:${item.id}';

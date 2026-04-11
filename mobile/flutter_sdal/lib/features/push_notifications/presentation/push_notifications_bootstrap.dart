@@ -26,7 +26,7 @@ class _PushNotificationsBootstrapState
     super.initState();
     final service = ref.read(pushNotificationsServiceProvider);
     unawaited(service.initialize());
-    final snapshot = ref.read(sessionControllerProvider).valueOrNull;
+    final snapshot = ref.read(sessionControllerProvider).value;
     if (snapshot != null) {
       unawaited(service.syncSession(snapshot));
     }
@@ -34,7 +34,7 @@ class _PushNotificationsBootstrapState
       _,
       next,
     ) {
-      final session = next.valueOrNull;
+      final session = next.value;
       if (session != null) {
         unawaited(
           ref.read(pushNotificationsServiceProvider).syncSession(session),

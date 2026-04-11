@@ -203,7 +203,7 @@ class _LiveChatPageState extends ConsumerState<LiveChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final currentUserId = session?.user?.id ?? 0;
     final config = ref.watch(appConfigProvider);
     final actionState = ref.watch(liveChatActionControllerProvider);

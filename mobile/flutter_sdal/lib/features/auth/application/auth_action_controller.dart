@@ -21,7 +21,7 @@ final oauthAuthenticateProvider = Provider<OAuthAuthenticate>(
           ),
 );
 
-class AuthActionController extends AutoDisposeNotifier<AsyncActionState> {
+class AuthActionController extends Notifier<AsyncActionState> {
   @override
   AsyncActionState build() => const AsyncActionState.idle();
 
@@ -197,6 +197,6 @@ class AuthActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final authActionControllerProvider =
-    AutoDisposeNotifierProvider<AuthActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<AuthActionController, AsyncActionState>(
       AuthActionController.new,
     );

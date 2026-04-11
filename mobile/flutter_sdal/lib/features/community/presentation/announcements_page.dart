@@ -54,7 +54,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   @override
   Widget build(BuildContext context) {
     final actionState = ref.watch(communityActionControllerProvider);
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
     final isAdmin = session?.user?.isAdmin ?? false;
     final isSaving =
         actionState.isLoading && actionState.scope == 'announcements:create';

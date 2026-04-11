@@ -25,10 +25,10 @@ class AppTabShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final localUnreadMessages =
-        ref.watch(messengerUnreadCountProvider).valueOrNull ?? 0;
+        ref.watch(messengerUnreadCountProvider).value ?? 0;
     final localUnreadNotifications =
-        ref.watch(notificationUnreadCountProvider).valueOrNull ?? 0;
-    final shellMenu = ref.watch(shellMenuProvider).valueOrNull;
+        ref.watch(notificationUnreadCountProvider).value ?? 0;
+    final shellMenu = ref.watch(shellMenuProvider).value;
     final unreadMessages = localUnreadMessages;
     final unreadNotifications = math.max(
       localUnreadNotifications,

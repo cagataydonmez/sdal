@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/feed_repository.dart';
 
-class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
+class FeedActionController extends Notifier<AsyncActionState> {
   FeedRepository get _repository => ref.read(feedRepositoryProvider);
 
   @override
@@ -132,6 +132,6 @@ class FeedActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final feedActionControllerProvider =
-    AutoDisposeNotifierProvider<FeedActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<FeedActionController, AsyncActionState>(
       FeedActionController.new,
     );

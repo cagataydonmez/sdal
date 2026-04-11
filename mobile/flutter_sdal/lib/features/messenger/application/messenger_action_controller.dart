@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/messenger_repository.dart';
 
-class MessengerActionController extends AutoDisposeNotifier<AsyncActionState> {
+class MessengerActionController extends Notifier<AsyncActionState> {
   MessengerRepository get _repository => ref.read(messengerRepositoryProvider);
 
   @override
@@ -53,6 +53,6 @@ class MessengerActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final messengerActionControllerProvider =
-    AutoDisposeNotifierProvider<MessengerActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<MessengerActionController, AsyncActionState>(
       MessengerActionController.new,
     );

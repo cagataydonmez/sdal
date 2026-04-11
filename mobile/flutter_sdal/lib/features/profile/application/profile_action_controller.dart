@@ -4,7 +4,7 @@ import '../../../core/state/async_action_state.dart';
 import '../../../core/session/session_controller.dart';
 import '../data/profile_repository.dart';
 
-class ProfileActionController extends AutoDisposeNotifier<AsyncActionState> {
+class ProfileActionController extends Notifier<AsyncActionState> {
   ProfileRepository get _repository => ref.read(profileRepositoryProvider);
 
   @override
@@ -160,6 +160,6 @@ class ProfileActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final profileActionControllerProvider =
-    AutoDisposeNotifierProvider<ProfileActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<ProfileActionController, AsyncActionState>(
       ProfileActionController.new,
     );

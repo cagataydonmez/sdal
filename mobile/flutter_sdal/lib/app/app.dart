@@ -168,14 +168,14 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
       _messengerStatus = state.status;
       _syncLiveServices();
     });
-    final snapshot = ref.read(sessionControllerProvider).valueOrNull;
+    final snapshot = ref.read(sessionControllerProvider).value;
     _isAuthenticated = snapshot?.isAuthenticated ?? false;
     _syncLiveServices();
     _sessionSubscription = ref.listenManual(sessionControllerProvider, (
       _,
       next,
     ) {
-      _isAuthenticated = next.valueOrNull?.isAuthenticated ?? false;
+      _isAuthenticated = next.value?.isAuthenticated ?? false;
       _syncLiveServices();
     });
   }

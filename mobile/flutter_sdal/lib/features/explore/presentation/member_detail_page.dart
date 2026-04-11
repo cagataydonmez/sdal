@@ -22,8 +22,8 @@ class MemberDetailPage extends ConsumerWidget {
     final detailState = ref.watch(memberDetailProvider(memberId));
     final followActionState = ref.watch(followingActionControllerProvider);
     final config = ref.watch(appConfigProvider);
-    final session = ref.watch(sessionControllerProvider).valueOrNull;
-    final quickAccess = ref.watch(quickAccessUsersProvider).valueOrNull;
+    final session = ref.watch(sessionControllerProvider).value;
+    final quickAccess = ref.watch(quickAccessUsersProvider).value;
     final isPinned = (quickAccess ?? const <QuickAccessUser>[]).any(
       (item) => item.id == memberId,
     );

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/stories_repository.dart';
 
-class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
+class StoriesActionController extends Notifier<AsyncActionState> {
   StoriesRepository get _repository => ref.read(storiesRepositoryProvider);
 
   @override
@@ -89,6 +89,6 @@ class StoriesActionController extends AutoDisposeNotifier<AsyncActionState> {
 }
 
 final storiesActionControllerProvider =
-    AutoDisposeNotifierProvider<StoriesActionController, AsyncActionState>(
+    NotifierProvider.autoDispose<StoriesActionController, AsyncActionState>(
       StoriesActionController.new,
     );

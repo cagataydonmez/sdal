@@ -38,7 +38,7 @@ class StoriesRail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
-    final sessionUser = ref.watch(sessionControllerProvider).valueOrNull?.user;
+    final sessionUser = ref.watch(sessionControllerProvider).value?.user;
     final asyncItems = switch (mode) {
       StoryRailMode.feed => ref.watch(optimisticFeedStoriesProvider(feedType)),
       StoryRailMode.mine => ref.watch(myActiveStoriesProvider(feedType)),
@@ -984,7 +984,7 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
                         if (!context.mounted || ok == null) return;
                         final sessionUser = ref
                             .read(sessionControllerProvider)
-                            .valueOrNull
+                            .value
                             ?.user;
                         final optimistic = _buildOptimisticStory(
                           mutation: ok,

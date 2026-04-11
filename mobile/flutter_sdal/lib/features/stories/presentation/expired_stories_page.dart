@@ -185,7 +185,7 @@ class _ExpiredStoriesPageState extends ConsumerState<ExpiredStoriesPage> {
 
     final actionState = ref.read(storiesActionControllerProvider);
     if (ok != null) {
-      final current = ref.read(myExpiredStoriesProvider(feedType)).valueOrNull;
+      final current = ref.read(myExpiredStoriesProvider(feedType)).value;
       StoryItem? source;
       if (current != null) {
         for (final item in current) {
