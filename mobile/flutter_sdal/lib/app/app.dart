@@ -143,6 +143,7 @@ class LiveSyncBootstrap extends ConsumerStatefulWidget {
 class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
     with WidgetsBindingObserver {
   static const _connectedHeartbeatInterval = Duration(seconds: 30);
+  static const _failedHeartbeatInterval = Duration(seconds: 30);
   static const _fallbackHeartbeatInterval = Duration(seconds: 5);
 
   ProviderSubscription<AsyncValue<SessionSnapshot>>? _sessionSubscription;
@@ -223,9 +224,11 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
   }
 
   void _ensureHeartbeatTimer() {
-    final interval = _messengerStatus == RealtimeConnectionStatus.connected
-        ? _connectedHeartbeatInterval
-        : _fallbackHeartbeatInterval;
+    final interval = switch (_messengerStatus) {
+      RealtimeConnectionStatus.connected => _connectedHeartbeatInterval,
+      RealtimeConnectionStatus.failed => _failedHeartbeatInterval,
+      _ => _fallbackHeartbeatInterval,
+    };
     if (_heartbeatTimer != null &&
         _heartbeatTimer!.isActive &&
         _heartbeatInterval == interval) {

@@ -455,14 +455,13 @@ class _StoriesRailSkeleton extends StatelessWidget {
           const SizedBox(height: 12),
           SizedBox(
             height: 108,
-            child: Row(
-              children: List.generate(
-                4,
-                (index) => Padding(
-                  padding: EdgeInsets.only(right: index == 3 ? 0 : 12),
-                  child: const SkeletonBox(width: 78, height: 108),
-                ),
-              ),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 4,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (_, _) =>
+                  const SizedBox(width: 78, child: SkeletonBox(height: 108)),
             ),
           ),
         ],

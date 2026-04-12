@@ -45,6 +45,65 @@ run_with_priv() {
   fi
 }
 
+resolve_app_domain() {
+  local domain="${APP_DOMAIN:-}"
+  if [[ -z "$domain" && -n "${SDAL_BASE_URL:-}" ]]; then
+    domain="$(python3 -c 'from urllib.parse import urlparse; import os; print(urlparse(os.environ["SDAL_BASE_URL"]).hostname or "")')"
+  fi
+  printf '%s' "$domain"
+}
+
+verify_websocket_upgrade() {
+  local path_value="$1"
+  local domain_value="$2"
+  local response=""
+  local first_line=""
+  local ws_key="SGVsbG9Xb3JsZDEyMzQ1Ng=="
+
+  if [[ -n "$domain_value" ]]; then
+    response="$(
+      curl -skS -i --http1.1 --max-time 10 \
+        --resolve "${domain_value}:443:127.0.0.1" \
+        -H 'Connection: Upgrade' \
+        -H 'Upgrade: websocket' \
+        -H 'Sec-WebSocket-Version: 13' \
+        -H "Sec-WebSocket-Key: ${ws_key}" \
+        "https://${domain_value}${path_value}" || true
+    )"
+  fi
+
+  if [[ -z "$response" ]]; then
+    response="$(
+      curl -sS -i --http1.1 --max-time 10 \
+        -H "Host: ${domain_value}" \
+        -H 'Connection: Upgrade' \
+        -H 'Upgrade: websocket' \
+        -H 'Sec-WebSocket-Version: 13' \
+        -H "Sec-WebSocket-Key: ${ws_key}" \
+        "http://127.0.0.1${path_value}" || true
+    )"
+  fi
+
+  first_line="$(printf '%s\n' "$response" | awk 'NR==1 { gsub(/\r/, "", $0); print; exit }')"
+  if [[ "$first_line" == *"101 Switching Protocols"* ]]; then
+    log "websocket upgrade verified for ${path_value} via ${domain_value:-127.0.0.1}"
+    return 0
+  fi
+
+  log "websocket upgrade failed for ${path_value} via ${domain_value:-127.0.0.1}"
+  if [[ -n "$first_line" ]]; then
+    log "first response line: ${first_line}"
+  fi
+  printf '%s\n' "$response" | head -n 20 || true
+  return 1
+}
+
+verify_websocket_routes() {
+  local domain_value="$1"
+  verify_websocket_upgrade "/ws/chat" "$domain_value"
+  verify_websocket_upgrade "/ws/messenger" "$domain_value"
+}
+
 wait_for_api_health() {
   local port_value="$1"
   local retry_count="${HEALTH_RETRY_COUNT:-30}"
@@ -248,6 +307,8 @@ fi
 PORT_VALUE="${PORT:-8787}"
 log "health probe on 127.0.0.1:${PORT_VALUE} (retries=${HEALTH_RETRY_COUNT:-30}, delay=${HEALTH_RETRY_DELAY:-2}s)"
 wait_for_api_health "$PORT_VALUE"
+APP_DOMAIN_VALUE="$(resolve_app_domain)"
+verify_websocket_routes "$APP_DOMAIN_VALUE"
 
 capture_domain_statuses "$DOMAIN_STATUS_AFTER_FILE"
 if [[ "$CAPTURE_HOST_SNAPSHOT" == "1" ]]; then

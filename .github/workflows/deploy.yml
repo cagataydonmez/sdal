@@ -226,6 +226,42 @@ jobs:
               ENV_FILE="/etc/sdal/sdal.env"
             fi
             EXPECTED_DB_DRIVER="${{ vars.EXPECTED_DB_DRIVER }}"
+            HEALTH_OK=0
+
+            resolve_app_domain() {
+              local domain="${APP_DOMAIN:-}"
+              if [[ -z "$domain" && -n "${SDAL_BASE_URL:-}" ]]; then
+                domain="$(python3 -c 'from urllib.parse import urlparse; import os; print(urlparse(os.environ["SDAL_BASE_URL"]).hostname or "")')"
+              fi
+              printf '%s' "$domain"
+            }
+
+            verify_ws_upgrade() {
+              local path_value="$1"
+              local domain_value="$2"
+              local response=""
+              local first_line=""
+
+              response="$(
+                curl -skS -i --http1.1 --max-time 10 \
+                  --resolve "${domain_value}:443:127.0.0.1" \
+                  -H 'Connection: Upgrade' \
+                  -H 'Upgrade: websocket' \
+                  -H 'Sec-WebSocket-Version: 13' \
+                  -H 'Sec-WebSocket-Key: SGVsbG9Xb3JsZDEyMzQ1Ng==' \
+                  "https://${domain_value}${path_value}" || true
+              )"
+
+              first_line="$(printf '%s\n' "$response" | awk 'NR==1 { gsub(/\r/, "", $0); print; exit }')"
+              if [[ "$first_line" == *"101 Switching Protocols"* ]]; then
+                echo "Verified websocket upgrade for ${path_value}"
+                return 0
+              fi
+
+              echo "Websocket verification failed for ${path_value}"
+              printf '%s\n' "$response" | head -n 20 || true
+              return 1
+            }
 
             if [[ -f "$ENV_FILE" ]]; then
               set -a
@@ -245,25 +281,37 @@ jobs:
 
                 if node -e "const body=JSON.parse(process.argv[1]); const expectedDriver=String(process.argv[2]||'').trim(); if(!body.ok) process.exit(2); if(!body.dbReady) process.exit(3); if(expectedDriver && String(body.dbDriver||'')!==expectedDriver) process.exit(4);" "$HEALTH_BODY" "$EXPECTED_DB_DRIVER"; then
                   echo "$HEALTH_BODY"
-                  exit 0
+                  HEALTH_OK=1
+                  break 2
                 fi
               done
               sleep 2
             done
 
-            echo "Post-deploy health did not reach ready state on port ${PORT_TO_USE}"
-            if [[ -n "${HEALTH_BODY:-}" ]]; then
-              echo "Last /api/health body:"
-              echo "$HEALTH_BODY"
+            if [[ "$HEALTH_OK" != "1" ]]; then
+              echo "Post-deploy health did not reach ready state on port ${PORT_TO_USE}"
+              if [[ -n "${HEALTH_BODY:-}" ]]; then
+                echo "Last /api/health body:"
+                echo "$HEALTH_BODY"
+              fi
+              if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+                sudo -n systemctl status sdal-api.service --no-pager -l || true
+                sudo -n journalctl -u sdal-api.service -n 120 --no-pager || true
+              else
+                systemctl status sdal-api.service --no-pager -l || true
+                journalctl -u sdal-api.service -n 120 --no-pager || true
+              fi
+              exit 1
             fi
-            if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-              sudo -n systemctl status sdal-api.service --no-pager -l || true
-              sudo -n journalctl -u sdal-api.service -n 120 --no-pager || true
-            else
-              systemctl status sdal-api.service --no-pager -l || true
-              journalctl -u sdal-api.service -n 120 --no-pager || true
+
+            APP_DOMAIN_VALUE="$(resolve_app_domain)"
+            if [[ -z "$APP_DOMAIN_VALUE" ]]; then
+              echo "Could not resolve APP_DOMAIN or SDAL_BASE_URL for websocket verification."
+              exit 1
             fi
-            exit 1
+
+            verify_ws_upgrade "/ws/chat" "$APP_DOMAIN_VALUE"
+            verify_ws_upgrade "/ws/messenger" "$APP_DOMAIN_VALUE"
 
       - name: Post-Deploy Failure Diagnostics
         if: failure()
