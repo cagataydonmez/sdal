@@ -63,7 +63,7 @@ export function createWebSocketRuntime({
   }
 
   function attachWebSocketServers(server) {
-    const chatWss = new WebSocketServer({ server, path: '/ws/chat' });
+    const chatWss = new WebSocketServer({ noServer: true });
     setChatWss(chatWss);
     chatWss.on('connection', async (ws, req) => {
       const auth = await resolveWsUser(req);
@@ -112,7 +112,7 @@ export function createWebSocketRuntime({
       });
     });
 
-    const messengerWss = new WebSocketServer({ server, path: '/ws/messenger' });
+    const messengerWss = new WebSocketServer({ noServer: true });
     setMessengerWss(messengerWss);
     messengerWss.on('connection', async (ws, req) => {
       const auth = await resolveWsUser(req);
@@ -126,6 +126,31 @@ export function createWebSocketRuntime({
       } catch {
         // ignore
       }
+    });
+
+    server.on('upgrade', (req, socket, head) => {
+      let pathname = '';
+      try {
+        pathname = new URL(req.url || '', 'http://localhost').pathname;
+      } catch {
+        pathname = '';
+      }
+
+      const targetWss = pathname === '/ws/chat'
+        ? chatWss
+        : pathname === '/ws/messenger'
+        ? messengerWss
+        : null;
+
+      if (!targetWss) {
+        socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      targetWss.handleUpgrade(req, socket, head, (ws) => {
+        targetWss.emit('connection', ws, req);
+      });
     });
   }
 

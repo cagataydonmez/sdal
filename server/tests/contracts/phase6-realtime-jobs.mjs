@@ -235,6 +235,14 @@ function waitForWsClose(socket) {
   });
 }
 
+function waitForWsMessage(socket) {
+  return new Promise((resolve, reject) => {
+    socket.once('message', (payload) => resolve(String(payload || '')));
+    socket.once('error', reject);
+    socket.once('close', (code) => reject(new Error(`socket closed before message: ${code}`)));
+  });
+}
+
 try {
   const loginA = await login('phase6_user_a', 'phase6-pass-a');
   const loginB = await login('phase6_user_b', 'phase6-pass-b');
@@ -330,6 +338,21 @@ try {
   authWs.send(JSON.stringify({ userId: 999999, message: 'phase6 ws message' }));
   await new Promise((resolve) => setTimeout(resolve, 250));
   authWs.close();
+
+  const messengerWs = new WebSocket(`${wsBase}/ws/messenger`, {
+    headers: { Cookie: loginA.cookie }
+  });
+
+  await new Promise((resolve, reject) => {
+    messengerWs.once('open', resolve);
+    messengerWs.once('error', reject);
+  });
+
+  const messengerHelloRaw = await waitForWsMessage(messengerWs);
+  const messengerHello = JSON.parse(messengerHelloRaw);
+  assert.equal(messengerHello?.type, 'messenger:hello', 'messenger websocket should send hello frame');
+  assert.equal(Number(messengerHello?.userId || 0), userAId, 'messenger websocket should bind authenticated user');
+  messengerWs.close();
 
   console.log('phase6 realtime+jobs tests passed');
 } finally {
