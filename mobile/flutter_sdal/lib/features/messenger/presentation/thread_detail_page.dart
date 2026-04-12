@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
 import '../../../core/network/realtime_connection_state.dart';
@@ -37,6 +38,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   Timer? _pollTimer;
   bool _disposed = false;
   final List<MessengerMessage> _olderMessages = <MessengerMessage>[];
+  late final GoRouter _router;
   late final void Function() _clearActiveThreadId;
   bool _markReadInFlight = false;
   bool _loadingOlder = false;
@@ -48,6 +50,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   @override
   void initState() {
     super.initState();
+    _router = ref.read(appRouterProvider);
     final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
     _clearActiveThreadId = () {
       final threadId = widget.threadId;
@@ -68,8 +71,10 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
     });
     _pollTimer = Timer.periodic(_pollInterval, (_) {
       if (_disposed) return;
+      final currentPath =
+          _router.routeInformationProvider.value.uri.path;
+      if (currentPath != '/messages/${widget.threadId}') return;
       ref.invalidate(messengerMessagesProvider(widget.threadId));
-      ref.invalidate(messengerThreadsProvider(''));
     });
     _messagesSubscription = ref.listenManual(
       messengerMessagesProvider(widget.threadId),

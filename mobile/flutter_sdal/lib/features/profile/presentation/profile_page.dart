@@ -415,12 +415,15 @@ class _ProfileStoriesSkeleton extends StatelessWidget {
           const SizedBox(height: 16),
           SizedBox(
             height: 108,
-            child: Row(
-              children: List.generate(
-                4,
-                (index) => Padding(
-                  padding: EdgeInsets.only(right: index == 3 ? 0 : 12),
-                  child: const SkeletonBox(width: 78, height: 108),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: List.generate(
+                  4,
+                  (index) => Padding(
+                    padding: EdgeInsets.only(right: index == 3 ? 0 : 12),
+                    child: const SkeletonBox(width: 78, height: 108),
+                  ),
                 ),
               ),
             ),
