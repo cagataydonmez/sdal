@@ -173,6 +173,11 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
 
   void _scheduleMarkThreadRead() {
     if (_markReadInFlight) return;
+    // Only mark as read when the user is actively viewing this thread.
+    // The page stays mounted on tab switch (StatefulShellBranch), so incoming
+    // messages would otherwise be silently marked read while the user is gone.
+    final currentPath = _router.routeInformationProvider.value.uri.path;
+    if (currentPath != '/messages/${widget.threadId}') return;
     final threads = ref.read(messengerThreadsProvider('')).value;
     MessengerThreadSummary? currentThread;
     if (threads != null) {
@@ -187,6 +192,12 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
     _markReadInFlight = true;
     Future<void>.microtask(() async {
       try {
+        // Re-mark this thread as active so messengerUnreadCountProvider
+        // excludes it immediately, clearing the badge before the API responds.
+        final activeNotifier = ref.read(activeMessengerThreadIdProvider.notifier);
+        if (activeNotifier.state != widget.threadId) {
+          activeNotifier.state = widget.threadId;
+        }
         await ref
             .read(messengerRepositoryProvider)
             .markThreadRead(widget.threadId);

@@ -39,10 +39,22 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     // so that incoming messages show in the badge.
     if (_lastIndex != currentIndex) {
       if (_lastIndex == _messengerTabIndex && currentIndex != _messengerTabIndex) {
+        // Leaving messenger tab: clear the active thread so incoming messages
+        // show in the badge count.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
           if (notifier.state != null) notifier.state = null;
+        });
+      } else if (_lastIndex != -1 &&
+          _lastIndex != _messengerTabIndex &&
+          currentIndex == _messengerTabIndex) {
+        // Returning to messenger tab: the thread detail page is still mounted
+        // but won't rebuild on its own. Invalidating the threads provider
+        // forces a rebuild so _scheduleMarkThreadRead fires and clears the badge.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ref.invalidate(messengerThreadsProvider(''));
         });
       }
       _lastIndex = currentIndex;
