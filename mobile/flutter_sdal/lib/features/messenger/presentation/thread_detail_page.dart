@@ -40,6 +40,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   final List<MessengerMessage> _olderMessages = <MessengerMessage>[];
   late final GoRouter _router;
   late final void Function() _clearActiveThreadId;
+  late final void Function() _syncActiveThreadId;
   bool _markReadInFlight = false;
   bool _loadingOlder = false;
   bool _hasOlderMessages = false;
@@ -58,6 +59,16 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
         if (notifier.state == threadId) notifier.state = null;
       });
     };
+    _syncActiveThreadId = () {
+      if (_disposed) return;
+      final path = _router.routeInformationProvider.value.uri.path;
+      if (path == '/messages/${widget.threadId}') {
+        if (notifier.state != widget.threadId) notifier.state = widget.threadId;
+      } else if (notifier.state == widget.threadId) {
+        notifier.state = null;
+      }
+    };
+    _router.routerDelegate.addListener(_syncActiveThreadId);
     _scheduleActiveThreadIdSync(widget.threadId);
     _scrollController.addListener(_handleScroll);
     final realtime = ref.read(messengerRealtimeServiceProvider);
@@ -93,6 +104,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   @override
   void dispose() {
     _disposed = true;
+    _router.routerDelegate.removeListener(_syncActiveThreadId);
     _scheduleActiveThreadIdClear();
     _pollTimer?.cancel();
     _eventsSubscription?.cancel();

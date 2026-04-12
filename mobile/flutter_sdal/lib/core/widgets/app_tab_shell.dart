@@ -9,20 +9,45 @@ import '../l10n/context_l10n.dart';
 import '../shell/shell_metadata_repository.dart';
 import '../theme/sdal_theme_tokens.dart';
 
-class AppTabShell extends ConsumerWidget {
+class AppTabShell extends ConsumerStatefulWidget {
   const AppTabShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
+  @override
+  ConsumerState<AppTabShell> createState() => _AppTabShellState();
+}
+
+class _AppTabShellState extends ConsumerState<AppTabShell> {
+  static const _messengerTabIndex = 2;
+  int _lastIndex = -1;
+
   void _onTap(int index) {
-    navigationShell.goBranch(
+    widget.navigationShell.goBranch(
       index,
-      initialLocation: index == navigationShell.currentIndex,
+      initialLocation: index == widget.navigationShell.currentIndex,
     );
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final currentIndex = widget.navigationShell.currentIndex;
+
+    // When the user switches away from the messenger tab (e.g. by tapping
+    // another tab without pressing back), dispose() on ThreadDetailPage is
+    // never called. Detect the tab change here and clear activeMessengerThreadIdProvider
+    // so that incoming messages show in the badge.
+    if (_lastIndex != currentIndex) {
+      if (_lastIndex == _messengerTabIndex && currentIndex != _messengerTabIndex) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
+          if (notifier.state != null) notifier.state = null;
+        });
+      }
+      _lastIndex = currentIndex;
+    }
+
     final l10n = context.l10n;
     final localUnreadMessages =
         ref.watch(messengerUnreadCountProvider).value ?? 0;
@@ -35,9 +60,9 @@ class AppTabShell extends ConsumerWidget {
       shellMenu?.badgeForRoute('/notifications') ?? 0,
     );
     return Scaffold(
-      body: navigationShell,
+      body: widget.navigationShell,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
+        selectedIndex: widget.navigationShell.currentIndex,
         onDestinationSelected: _onTap,
         destinations: [
           NavigationDestination(
