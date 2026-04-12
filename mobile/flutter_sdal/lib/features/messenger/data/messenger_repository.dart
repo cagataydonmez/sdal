@@ -223,7 +223,12 @@ class MessengerRealtimeService {
   RealtimeConnectionState get currentState => _currentState;
 
   Future<void> start() async {
-    if (_disposed || _connecting || _channel != null) return;
+    if (_disposed ||
+        _connecting ||
+        _channel != null ||
+        _reconnectTimer != null) {
+      return;
+    }
     _emitState(
       const RealtimeConnectionState(
         status: RealtimeConnectionStatus.connecting,
@@ -251,6 +256,8 @@ class MessengerRealtimeService {
   Future<void> _connect() async {
     if (_disposed) return;
     _connecting = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
 
     try {
       final uri = _apiClient.buildWebSocketUri('/ws/messenger');

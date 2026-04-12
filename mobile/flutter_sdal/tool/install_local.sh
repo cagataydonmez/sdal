@@ -441,7 +441,6 @@ run_flutter_mode() {
   local device_id="$2"
   shift 2
 
-  ensure_flutter_build_dir_override
   prepare_flutter
 
   (

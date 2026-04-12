@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -z "${FLUTTER_APPLICATION_PATH:-}" || -z "${FLUTTER_BUILD_DIR:-}" ]]; then
+if [[ -z "${FLUTTER_BUILD_DIR:-}" ]]; then
   exit 0
 fi
 
-PROJECT_ROOT="${FLUTTER_APPLICATION_PATH}"
+SCRIPT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+PROJECT_ROOT="${FLUTTER_APPLICATION_PATH:-$SCRIPT_ROOT}"
 PROJECT_DART_TOOL_DIR="${PROJECT_ROOT}/.dart_tool"
 PROJECT_FLUTTER_BUILD_LINK="${PROJECT_DART_TOOL_DIR}/flutter_build"
 

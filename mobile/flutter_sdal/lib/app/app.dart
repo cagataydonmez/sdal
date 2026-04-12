@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/providers.dart';
+import '../core/network/api_client.dart';
 import '../core/l10n/context_l10n.dart';
 import '../core/network/realtime_connection_state.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -105,23 +106,23 @@ class _SessionExpiryBridge extends ConsumerStatefulWidget {
 }
 
 class _SessionExpiryBridgeState extends ConsumerState<_SessionExpiryBridge> {
+  late final ApiClient _apiClient;
   VoidCallback? _handler;
 
   @override
   void initState() {
     super.initState();
-    final apiClient = ref.read(apiClientProvider);
+    _apiClient = ref.read(apiClientProvider);
     _handler = () {
       ref.read(sessionControllerProvider.notifier).expire();
     };
-    apiClient.onUnauthorized = _handler;
+    _apiClient.onUnauthorized = _handler;
   }
 
   @override
   void dispose() {
-    final apiClient = ref.read(apiClientProvider);
-    if (identical(apiClient.onUnauthorized, _handler)) {
-      apiClient.onUnauthorized = null;
+    if (identical(_apiClient.onUnauthorized, _handler)) {
+      _apiClient.onUnauthorized = null;
     }
     super.dispose();
   }

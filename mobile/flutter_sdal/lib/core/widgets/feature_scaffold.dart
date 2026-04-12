@@ -50,7 +50,7 @@ class FeatureScaffold extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leadingWidth: session?.user != null ? (canPop ? 92 : 64) : null,
+        leadingWidth: session?.user != null ? (canPop ? 108 : 64) : null,
         leading: session?.user != null
             ? _ProfileLeading(session: session!, canPop: canPop)
             : (canPop ? const BackButton() : null),

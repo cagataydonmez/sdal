@@ -33,6 +33,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     final message = await ref
         .read(sessionControllerProvider.notifier)
         .login(username: username, password: password);
+    if (!ref.mounted) return;
     state = message == null
         ? const AsyncActionState.success(scope: 'login')
         : AsyncActionState.error(message: message, scope: 'login');
@@ -48,6 +49,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
             provider: provider,
             authenticate: ref.read(oauthAuthenticateProvider),
           );
+      if (!ref.mounted) return;
       if (!result.providerAvailable || result.errorMessage.isNotEmpty) {
         state = AsyncActionState.error(
           message: result.errorMessage,
@@ -58,10 +60,12 @@ class AuthActionController extends Notifier<AsyncActionState> {
       final message = await ref
           .read(sessionControllerProvider.notifier)
           .exchangeMobileOAuthToken(result.token);
+      if (!ref.mounted) return;
       state = message == null
           ? const AsyncActionState.success(scope: 'oauth')
           : AsyncActionState.error(message: message, scope: 'oauth');
     } catch (error) {
+      if (!ref.mounted) return;
       state = AsyncActionState.error(message: error.toString(), scope: 'oauth');
     }
   }
@@ -101,6 +105,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
           },
           decoder: asJsonMap,
         );
+    if (!ref.mounted) return;
     state = result.ok
         ? const AsyncActionState.success(
             message:
@@ -122,6 +127,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
           query: {'id': memberId, 'akt': code},
           decoder: asJsonMap,
         );
+    if (!ref.mounted) return;
     state = result.ok
         ? AsyncActionState.success(
             message: result.message.isNotEmpty
@@ -149,6 +155,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
           body: {'id': memberId, 'email': email},
           decoder: asJsonMap,
         );
+    if (!ref.mounted) return;
     state = result.ok
         ? AsyncActionState.success(
             message: result.message.isNotEmpty
@@ -176,6 +183,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
           body: {'kadi': username, 'email': email},
           decoder: asJsonMap,
         );
+    if (!ref.mounted) return;
     state = result.ok
         ? AsyncActionState.success(
             message: result.message.isNotEmpty

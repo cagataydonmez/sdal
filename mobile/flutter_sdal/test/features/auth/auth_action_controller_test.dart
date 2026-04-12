@@ -58,8 +58,7 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: _baseOverrides(
-          sessionControllerFactory: () =>
-              _FakeSessionController(oAuthProviders: const []),
+          apiClient: _FakeAuthApiClient(oAuthProviders: const []),
         ),
       );
       addTearDown(container.dispose);
@@ -191,9 +190,20 @@ class _FakeSessionController extends SessionController {
 }
 
 class _FakeAuthApiClient extends FakeApiClient {
-  _FakeAuthApiClient({this.registerOk = true});
+  _FakeAuthApiClient({
+    this.registerOk = true,
+    this.oAuthProviders = const [
+      {
+        'provider': 'google',
+        'title': 'Google',
+        'startUrl': '/api/auth/oauth/google/start',
+        'enabled': true,
+      },
+    ],
+  });
 
   final bool registerOk;
+  final List<Map<String, Object?>> oAuthProviders;
 
   @override
   Uri buildApiUri(String path, {Map<String, dynamic>? query}) {
@@ -202,6 +212,33 @@ class _FakeAuthApiClient extends FakeApiClient {
       (key, value) => MapEntry(key, value?.toString() ?? ''),
     );
     return normalized == null ? uri : uri.replace(queryParameters: normalized);
+  }
+
+  @override
+  Future<ApiResult<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? query,
+    ApiDecoder<T>? decoder,
+  }) async {
+    if (path == '/api/auth/oauth/providers') {
+      final payload = <String, dynamic>{'providers': oAuthProviders};
+      return ApiResult<T>(
+        ok: true,
+        statusCode: 200,
+        message: '',
+        code: '',
+        data: decoder == null ? null : decoder(payload),
+        rawData: payload,
+      );
+    }
+    return ApiResult<T>(
+      ok: false,
+      statusCode: 404,
+      message: 'unexpected path',
+      code: '',
+      data: null,
+      rawData: null,
+    );
   }
 
   @override
