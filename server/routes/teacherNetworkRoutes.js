@@ -482,7 +482,7 @@ export function registerTeacherNetworkRoutes(app, {
       } else if (section === 'events') {
         title = 'Katılacağı etkinlikler';
         const rows = await sqlAllAsync(
-          `SELECT e.id, e.title, e.body, e.starts_at, e.created_at
+          `SELECT e.id, e.title, e.description AS body, e.starts_at, e.created_at
            FROM event_responses er
            JOIN events e ON e.id = er.event_id
            WHERE er.user_id = ?

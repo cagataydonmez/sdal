@@ -292,38 +292,39 @@ Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          final contactsState = ref.watch(
-            messengerContactsProvider(controller.text.trim()),
-          );
-          final config = ref.watch(appConfigProvider);
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Consumer(
+          builder: (context, ref, _) {
+            final contactsState = ref.watch(
+              messengerContactsProvider(controller.text.trim()),
+            );
+            final config = ref.watch(appConfigProvider);
 
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.newChatTitle,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.searchPersonHint,
-                    prefixIcon: Icon(Icons.search),
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.newChatTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  onChanged: (_) => (context as Element).markNeedsBuild(),
-                ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: l10n.searchPersonHint,
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (_) => setSheetState(() {}),
+                  ),
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 320,
@@ -392,6 +393,7 @@ Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
             ),
           );
         },
+        ),
       ),
     );
   } finally {

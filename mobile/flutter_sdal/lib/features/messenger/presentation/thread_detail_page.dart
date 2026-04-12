@@ -37,6 +37,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   Timer? _pollTimer;
   bool _disposed = false;
   final List<MessengerMessage> _olderMessages = <MessengerMessage>[];
+  late final void Function() _clearActiveThreadId;
   bool _markReadInFlight = false;
   bool _loadingOlder = false;
   bool _hasOlderMessages = false;
@@ -47,6 +48,13 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   @override
   void initState() {
     super.initState();
+    final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
+    _clearActiveThreadId = () {
+      final threadId = widget.threadId;
+      Future<void>.microtask(() {
+        if (notifier.state == threadId) notifier.state = null;
+      });
+    };
     _scheduleActiveThreadIdSync(widget.threadId);
     _scrollController.addListener(_handleScroll);
     final realtime = ref.read(messengerRealtimeServiceProvider);
@@ -99,12 +107,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   }
 
   void _scheduleActiveThreadIdClear() {
-    final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
-    Future<void>.microtask(() {
-      if (notifier.state == widget.threadId) {
-        notifier.state = null;
-      }
-    });
+    _clearActiveThreadId();
   }
 
   void _handleScroll() {
