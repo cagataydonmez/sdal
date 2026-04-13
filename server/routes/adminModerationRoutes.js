@@ -10,6 +10,7 @@ export function registerAdminModerationRoutes(app, deps) {
     requireAuth,
     requireRole,
     requireScopedModeration,
+    getModerationScopeContext,
     phase1Domain,
     getUserRole,
     roleAtLeast,
@@ -202,14 +203,31 @@ export function registerAdminModerationRoutes(app, deps) {
     const user = req.authUser || getCurrentUser(req);
     if (!user) return res.status(401).send('Login required');
     const role = getUserRole(user);
+    const scopedGraduationYears = getModerationScopeContext(user).years;
     if (role === 'root' || role === 'admin') {
-      return res.json({ role, isSuperModerator: true, permissionKeys: Array.from(MODERATION_PERMISSION_KEY_SET).sort((a, b) => a.localeCompare(b)) });
+      return res.json({
+        role,
+        isSuperModerator: true,
+        permissionKeys: Array.from(MODERATION_PERMISSION_KEY_SET).sort((a, b) => a.localeCompare(b)),
+        scopedGraduationYears
+      });
     }
     if (role !== 'mod') {
-      return res.json({ role, isSuperModerator: false, permissionKeys: [] });
+      return res.json({
+        role,
+        isSuperModerator: false,
+        permissionKeys: [],
+        scopedGraduationYears
+      });
     }
     const summary = getModeratorPermissionSummary(user.id);
-    res.json({ role, isSuperModerator: false, permissionKeys: summary.assignedKeys, permissionMap: summary.permissionMap });
+    res.json({
+      role,
+      isSuperModerator: false,
+      permissionKeys: summary.assignedKeys,
+      permissionMap: summary.permissionMap,
+      scopedGraduationYears
+    });
   });
 
   app.post('/api/admin/login', (req, res) => {

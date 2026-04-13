@@ -73,6 +73,41 @@ void main() {
       );
       expect(redirectForSessionState(snapshot, Uri.parse('/inbox')), isNull);
     });
+
+    test('routes moderators from admin home to moderation workspace', () {
+      final snapshot = _snapshot(
+        user: const SessionUser(
+          id: 11,
+          kadi: 'mod2012',
+          isim: 'Moder',
+          soyisim: 'Ator',
+          photo: '',
+          role: 'mod',
+          isAdmin: false,
+          isVerified: true,
+          isBanned: false,
+          state: 'active',
+        ),
+      );
+
+      expect(
+        redirectForSessionState(snapshot, Uri.parse('/admin')),
+        '/moderation',
+      );
+      expect(
+        redirectForSessionState(snapshot, Uri.parse('/admin/requests')),
+        isNull,
+      );
+    });
+
+    test('blocks non-admin users from admin module management', () {
+      final snapshot = _snapshot(user: _verifiedUser);
+
+      expect(
+        redirectForSessionState(snapshot, Uri.parse('/admin/modules')),
+        '/feed',
+      );
+    });
   });
 
   group('route helpers', () {

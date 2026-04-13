@@ -407,19 +407,27 @@ class _OverlayPanel extends ConsumerWidget {
                           style: Theme.of(context).textTheme.titleSmall,
                         ),
                       ),
-                      IconButton(
-                        tooltip: monitorState.isExpanded ? 'Kucult' : 'Buyut',
-                        onPressed: controller.toggleExpanded,
-                        icon: Icon(
-                          monitorState.isExpanded
-                              ? Icons.unfold_less_outlined
-                              : Icons.unfold_more_outlined,
+                      Semantics(
+                        button: true,
+                        label: monitorState.isExpanded
+                            ? 'Paneli kucult'
+                            : 'Paneli buyut',
+                        child: IconButton(
+                          onPressed: controller.toggleExpanded,
+                          icon: Icon(
+                            monitorState.isExpanded
+                                ? Icons.unfold_less_outlined
+                                : Icons.unfold_more_outlined,
+                          ),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Kapat',
-                        onPressed: controller.deactivate,
-                        icon: const Icon(Icons.close),
+                      Semantics(
+                        button: true,
+                        label: 'Paneli kapat',
+                        child: IconButton(
+                          onPressed: controller.deactivate,
+                          icon: const Icon(Icons.close),
+                        ),
                       ),
                     ],
                   ),

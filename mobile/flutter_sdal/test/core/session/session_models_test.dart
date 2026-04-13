@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_sdal/core/config/app_config.dart';
 import 'package:flutter_sdal/core/session/session_models.dart';
 
 void main() {
@@ -38,5 +39,39 @@ void main() {
     expect(snapshot.maintenanceMessage, 'bakim');
     expect(snapshot.isModuleOpen('feed'), isTrue);
     expect(snapshot.isModuleOpen('notifications'), isFalse);
+  });
+
+  test('SessionSnapshot prefers moderation workspace for moderator users', () {
+    const user = SessionUser(
+      id: 44,
+      kadi: 'cohortmod',
+      isim: 'Cohort',
+      soyisim: 'Moderator',
+      photo: '',
+      role: 'mod',
+      isAdmin: false,
+      isVerified: true,
+      isBanned: false,
+      state: 'active',
+    );
+
+    final snapshot = SessionSnapshot(
+      config: const AppConfig(
+        apiBaseUrl: 'https://example.com/api',
+        siteBaseUrl: 'https://example.com',
+        appName: 'SDAL',
+        oauthCallbackScheme: 'sdalnative',
+      ),
+      siteAccess: const SiteAccessSnapshot(
+        siteOpen: true,
+        maintenanceMessage: '',
+        modules: <String, bool>{},
+        defaultLandingPage: '/new/feed',
+      ),
+      user: user,
+    );
+
+    expect(snapshot.isModerator, isTrue);
+    expect(snapshot.managementEntryPath, '/moderation');
   });
 }

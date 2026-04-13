@@ -297,6 +297,7 @@ class _AppMenuSheet extends ConsumerWidget {
       '/profile',
       for (final entry in communityEntries) entry.route,
       '/admin',
+      '/moderation',
     };
     final extraMenuEntries = (shellMenu?.appItems ?? const <ShellMenuItem>[])
         .where(
@@ -322,15 +323,22 @@ class _AppMenuSheet extends ConsumerWidget {
           title: l10n.extraPagesSectionTitle,
           entries: extraMenuEntries,
         ),
-      if (user?.isAdmin ?? false)
+      if ((user?.isAdmin ?? false) || (user?.isModerator ?? false))
         _MenuSection(
           title: l10n.adminSectionTitle,
           entries: [
-            _MenuEntry(
-              route: '/admin',
-              icon: Icons.admin_panel_settings_outlined,
-              label: l10n.adminPanelTitle,
-            ),
+            if (user?.isAdmin ?? false)
+              _MenuEntry(
+                route: '/admin',
+                icon: Icons.admin_panel_settings_outlined,
+                label: l10n.adminPanelTitle,
+              ),
+            if (user?.isModerator ?? false)
+              const _MenuEntry(
+                route: '/moderation',
+                icon: Icons.fact_check_outlined,
+                label: 'Moderasyon masasi',
+              ),
           ],
         ),
     ];

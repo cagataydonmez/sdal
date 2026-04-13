@@ -127,11 +127,13 @@ class AdminPermissionSnapshot {
     required this.role,
     required this.isSuperModerator,
     required this.permissionKeys,
+    required this.scopedGraduationYears,
   });
 
   final String role;
   final bool isSuperModerator;
   final List<String> permissionKeys;
+  final List<String> scopedGraduationYears;
 
   factory AdminPermissionSnapshot.fromMap(JsonMap map) {
     return AdminPermissionSnapshot(
@@ -140,6 +142,13 @@ class AdminPermissionSnapshot {
       permissionKeys:
           (map['permissionKeys'] is List
                   ? map['permissionKeys'] as List
+                  : const <dynamic>[])
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList(growable: false),
+      scopedGraduationYears:
+          (map['scopedGraduationYears'] is List
+                  ? map['scopedGraduationYears'] as List
                   : const <dynamic>[])
               .map((item) => item.toString().trim())
               .where((item) => item.isNotEmpty)
@@ -161,7 +170,8 @@ class AdminAccessSnapshot {
   final AdminPermissionSnapshot? permissions;
   final AdminRootStatusSnapshot? rootStatus;
 
-  bool get canOpenAdminShell => user != null && adminOk;
+  bool get canOpenAdminShell =>
+      user != null && (adminOk || user!.role.trim().toLowerCase() == 'mod');
 }
 
 class AdminUserListQuery {
@@ -565,6 +575,9 @@ class AdminSiteControlsSnapshot {
     required this.siteOpen,
     required this.maintenanceMessage,
     required this.defaultLandingPage,
+    required this.modules,
+    required this.menuVisibility,
+    required this.moduleMenuOrder,
     required this.openModuleCount,
     required this.totalModuleCount,
   });
@@ -572,11 +585,15 @@ class AdminSiteControlsSnapshot {
   final bool siteOpen;
   final String maintenanceMessage;
   final String defaultLandingPage;
+  final Map<String, bool> modules;
+  final Map<String, bool> menuVisibility;
+  final List<String> moduleMenuOrder;
   final int openModuleCount;
   final int totalModuleCount;
 
   factory AdminSiteControlsSnapshot.fromMap(JsonMap map) {
     final modules = asJsonMap(map['modules']);
+    final menuVisibility = asJsonMap(map['menuVisibility']);
     final openCount = modules.values
         .where((value) => asBool(value) ?? false)
         .length;
@@ -588,6 +605,19 @@ class AdminSiteControlsSnapshot {
       defaultLandingPage: coalesceText([
         map['defaultLandingPage'],
       ], fallback: ''),
+      modules: modules.map(
+        (key, value) => MapEntry(key, asBool(value) ?? true),
+      ),
+      menuVisibility: menuVisibility.map(
+        (key, value) => MapEntry(key, asBool(value) ?? true),
+      ),
+      moduleMenuOrder:
+          (map['moduleMenuOrder'] is List
+                  ? map['moduleMenuOrder'] as List
+                  : const <dynamic>[])
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList(growable: false),
       openModuleCount: openCount,
       totalModuleCount: modules.length,
     );
@@ -1000,7 +1030,18 @@ class AdminRepository {
     final userMap = asJsonMap(sessionMap['user']);
     final user = userMap.isEmpty ? null : AdminShellUser.fromMap(userMap);
     final adminOk = asBool(sessionMap['adminOk']) ?? false;
-    if (!adminOk || user == null) {
+    if (user == null) {
+      return AdminAccessSnapshot(
+        user: user,
+        adminOk: false,
+        permissions: null,
+        rootStatus: null,
+      );
+    }
+
+    final canLoadModerationAccess =
+        adminOk || user.role.trim().toLowerCase() == 'mod';
+    if (!canLoadModerationAccess) {
       return AdminAccessSnapshot(
         user: user,
         adminOk: adminOk,
@@ -1013,20 +1054,24 @@ class AdminRepository {
       '/api/admin/moderation/my-permissions',
       decoder: asJsonMap,
     );
-    final rootStatusResult = await _apiClient.get<JsonMap>(
-      '/api/admin/root-status',
-      decoder: asJsonMap,
-    );
+    AdminRootStatusSnapshot? rootStatus;
+    if (adminOk) {
+      final rootStatusResult = await _apiClient.get<JsonMap>(
+        '/api/admin/root-status',
+        decoder: asJsonMap,
+      );
+      rootStatus = AdminRootStatusSnapshot.fromMap(
+        asJsonMap(rootStatusResult.rawData),
+      );
+    }
 
     return AdminAccessSnapshot(
       user: user,
-      adminOk: true,
+      adminOk: adminOk,
       permissions: AdminPermissionSnapshot.fromMap(
         asJsonMap(permissionsResult.rawData),
       ),
-      rootStatus: AdminRootStatusSnapshot.fromMap(
-        asJsonMap(rootStatusResult.rawData),
-      ),
+      rootStatus: rootStatus,
     );
   }
 
@@ -1175,6 +1220,10 @@ class AdminRepository {
   Future<void> updateSiteControls({
     required bool siteOpen,
     String? maintenanceMessage,
+    String? defaultLandingPage,
+    Map<String, bool>? modules,
+    Map<String, bool>? menuVisibility,
+    List<String>? moduleMenuOrder,
   }) async {
     await _apiClient.put<dynamic>(
       '/api/admin/site-controls',
@@ -1183,6 +1232,14 @@ class AdminRepository {
         ...?maintenanceMessage == null
             ? null
             : {'maintenanceMessage': maintenanceMessage},
+        ...?defaultLandingPage == null
+            ? null
+            : {'defaultLandingPage': defaultLandingPage},
+        ...?modules == null ? null : {'modules': modules},
+        ...?menuVisibility == null ? null : {'menuVisibility': menuVisibility},
+        ...?moduleMenuOrder == null
+            ? null
+            : {'moduleMenuOrder': moduleMenuOrder},
       },
     );
   }

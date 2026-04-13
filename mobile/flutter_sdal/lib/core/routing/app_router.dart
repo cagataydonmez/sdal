@@ -10,6 +10,7 @@ import '../../features/albums/presentation/albums_page.dart';
 import '../../features/community/presentation/announcements_page.dart';
 import '../../features/community/presentation/events_page.dart';
 import '../../features/admin/presentation/admin_pages.dart';
+import '../../features/admin/presentation/admin_workspace_pages.dart';
 import '../../features/bulletin/presentation/bulletin_page.dart';
 import '../../features/explore/presentation/explore_page.dart';
 import '../../features/explore/presentation/member_detail_page.dart';
@@ -62,7 +63,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: initialSnapshot.isAuthenticated
-        ? initialSnapshot.defaultHomePath
+        ? initialSnapshot.managementEntryPath
         : '/login',
     refreshListenable: listenable,
     redirect: (context, state) {
@@ -76,7 +77,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) {
           final s = ref.read(sessionControllerProvider).value;
           return (s != null && s.isAuthenticated)
-              ? s.defaultHomePath
+              ? s.managementEntryPath
               : '/login';
         },
       ),
@@ -402,7 +403,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/admin',
                 pageBuilder: (context, state) =>
-                    _slidePage(const AdminHubPage()),
+                    _slidePage(const AdminWorkspacePage()),
+              ),
+              GoRoute(
+                path: '/moderation',
+                pageBuilder: (context, state) =>
+                    _slidePage(const ModeratorWorkspacePage()),
+              ),
+              GoRoute(
+                path: '/admin/modules',
+                pageBuilder: (context, state) =>
+                    _liftPage(const AdminModuleManagementPage()),
               ),
               GoRoute(
                 path: '/admin/:section',
@@ -455,12 +466,29 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
   if (publicRoutes.contains(location) ||
       location == '/site-closed' ||
       location == '/account-banned') {
-    return snapshot.defaultHomePath;
+    return snapshot.managementEntryPath;
+  }
+
+  if (location == '/admin' &&
+      snapshot.isModerator &&
+      !(snapshot.user?.isAdmin ?? false)) {
+    return '/moderation';
+  }
+
+  if (location == '/admin/modules' && !(snapshot.user?.isAdmin ?? false)) {
+    return snapshot.managementEntryPath;
   }
 
   if ((location == '/admin' || location.startsWith('/admin/')) &&
-      !(snapshot.user?.isAdmin ?? false)) {
-    return snapshot.defaultHomePath;
+      !(snapshot.user?.isAdmin ?? false) &&
+      !snapshot.isModerator) {
+    return snapshot.managementEntryPath;
+  }
+
+  if (location == '/moderation' &&
+      !(snapshot.user?.isAdmin ?? false) &&
+      !snapshot.isModerator) {
+    return snapshot.managementEntryPath;
   }
 
   final moduleKey = moduleKeyForLocation(location);
