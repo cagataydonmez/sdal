@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -44,19 +46,22 @@ class _AdminApiMonitorSectionState
     }
 
     final monitorState = ref.watch(adminApiMonitorControllerProvider);
+    final controller = ref.read(adminApiMonitorControllerProvider.notifier);
     final effectiveSelection = _effectiveSelection(monitorState, sessionUser);
-    final query = AdminUserListQuery(
+    final userQuery = AdminUserListQuery(
       query: _searchController.text.trim(),
       filter: 'all',
       page: _page,
       limit: 12,
     );
-    final userPreviewState = ref.watch(adminUserPreviewProvider(query));
+    final userPreviewState = ref.watch(adminUserPreviewProvider(userQuery));
     final activityState = ref.watch(
       adminUserApiActivityProvider(
-        AdminApiMonitorQuery(userId: effectiveSelection.id, limit: 32),
+        AdminApiMonitorQuery(userId: effectiveSelection.id, limit: 40),
       ),
     );
+    final visibleItems = _visibleItemsFromState(activityState, monitorState);
+    final availableCategories = _availableCategoriesFromState(activityState);
 
     return Column(
       children: [
@@ -80,11 +85,7 @@ class _AdminApiMonitorSectionState
                 runSpacing: 10,
                 children: [
                   FilledButton.icon(
-                    onPressed: () {
-                      ref
-                          .read(adminApiMonitorControllerProvider.notifier)
-                          .toggleEnabled();
-                    },
+                    onPressed: controller.toggleEnabled,
                     icon: Icon(
                       monitorState.isEnabled
                           ? Icons.visibility_off_outlined
@@ -96,31 +97,21 @@ class _AdminApiMonitorSectionState
                   ),
                   FilledButton.tonalIcon(
                     onPressed: monitorState.isEnabled
-                        ? () {
-                            ref
-                                .read(
-                                  adminApiMonitorControllerProvider.notifier,
-                                )
-                                .toggleExpanded();
-                          }
+                        ? controller.toggleExpanded
                         : null,
                     icon: Icon(
                       monitorState.isExpanded
-                          ? Icons.unfold_less_outlined
-                          : Icons.unfold_more_outlined,
+                          ? Icons.height_outlined
+                          : Icons.vertical_align_top_outlined,
                     ),
                     label: Text(
                       monitorState.isExpanded
-                          ? 'Overlay daralt'
-                          : 'Overlay genislet',
+                          ? 'Paneli kucult'
+                          : 'Paneli buyut',
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: () {
-                      ref
-                          .read(adminApiMonitorControllerProvider.notifier)
-                          .useSelfAsDefault();
-                    },
+                    onPressed: controller.useSelfAsDefault,
                     icon: const Icon(Icons.person_outline),
                     label: const Text('Kendime don'),
                   ),
@@ -129,12 +120,63 @@ class _AdminApiMonitorSectionState
               const SizedBox(height: 10),
               Text(
                 monitorState.isEnabled
-                    ? 'Overlay uygulamanin tum sayfalarinda alttan gorunur.'
-                    : 'Overlay su anda kapali. Activate ettiginizde tum sayfalarda canli gorunur.',
+                    ? 'Overlay tum sayfalarda gorunur. Ust cubugu yukari veya asagi surukleyerek boyutunu elle degistirebilirsiniz.'
+                    : 'Overlay su anda kapali.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).sdal.foregroundMuted,
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Log filtreleri',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile.adaptive(
+                value: monitorState.showPollingRequests,
+                onChanged: controller.setShowPollingRequests,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Periyodik GET isteklerini goster'),
+                subtitle: const Text(
+                  'Kapatirsan oturum, bildirim, liste yenileme gibi arka plan GET akislari gizlenir.',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final category in availableCategories)
+                    FilterChip(
+                      label: Text(_categoryLabel(category)),
+                      selected: !monitorState.disabledCategories.contains(
+                        category,
+                      ),
+                      onSelected: (_) => controller.toggleCategory(category),
+                    ),
+                  if (availableCategories.isNotEmpty)
+                    TextButton(
+                      onPressed: controller.showAllCategories,
+                      child: const Text('Tumunu goster'),
+                    ),
+                ],
+              ),
+              if (visibleItems.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Filtre sonrasinda ${visibleItems.length} kayit gorunuyor.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).sdal.foregroundMuted,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -150,9 +192,10 @@ class _AdminApiMonitorSectionState
               const SizedBox(height: 12),
               _ActivityFeed(
                 state: activityState,
-                maxItems: 8,
+                monitorState: monitorState,
+                maxItems: 10,
                 emptyLabel:
-                    '${effectiveSelection.displayLabel} icin son API akisi bulunmadi.',
+                    '${effectiveSelection.displayLabel} icin gosterilecek bir API kaydi bulunmadi.',
               ),
             ],
           ),
@@ -209,9 +252,6 @@ class _AdminApiMonitorSectionState
                             item: item,
                             isSelected: effectiveSelection.id == item.id,
                             onSelect: () {
-                              final controller = ref.read(
-                                adminApiMonitorControllerProvider.notifier,
-                              );
                               controller.selectUser(
                                 AdminApiMonitorSelection.fromUserPreview(item),
                               );
@@ -232,7 +272,7 @@ class _AdminApiMonitorSectionState
                           Text('Sayfa $_page'),
                           const Spacer(),
                           FilledButton.tonalIcon(
-                            onPressed: users.items.length >= query.limit
+                            onPressed: users.items.length >= userQuery.limit
                                 ? () => setState(() => _page += 1)
                                 : null,
                             icon: const Icon(Icons.chevron_right),
@@ -278,26 +318,27 @@ class AdminApiMonitorOverlayHost extends ConsumerWidget {
       adminUserApiActivityProvider(
         AdminApiMonitorQuery(
           userId: selection.id,
-          limit: monitorState.isExpanded ? 10 : 4,
+          limit: monitorState.isExpanded ? 80 : 28,
         ),
       ),
     );
-    final bottomOffset = MediaQuery.of(context).padding.bottom + 84;
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         child,
-        Positioned(
-          left: 12,
-          right: 12,
-          bottom: bottomOffset,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: _OverlayPanel(
-                selection: selection,
-                state: activityState,
-                isExpanded: monitorState.isExpanded,
+        SafeArea(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 72),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: _OverlayPanel(
+                  selection: selection,
+                  state: activityState,
+                  monitorState: monitorState,
+                ),
               ),
             ),
           ),
@@ -311,75 +352,129 @@ class _OverlayPanel extends ConsumerWidget {
   const _OverlayPanel({
     required this.selection,
     required this.state,
-    required this.isExpanded,
+    required this.monitorState,
   });
 
   final AdminApiMonitorSelection selection;
   final AsyncValue<AdminApiMonitorSnapshot> state;
-  final bool isExpanded;
+  final AdminApiMonitorState monitorState;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = Theme.of(context).sdal;
-    final itemCount = isExpanded ? 6 : 2;
+    final controller = ref.read(adminApiMonitorControllerProvider.notifier);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final panelHeight = (screenHeight * monitorState.panelHeightFactor).clamp(
+      150.0,
+      screenHeight * 0.8,
+    );
+    final categories = _availableCategoriesFromState(state);
 
     return Material(
       color: Colors.transparent,
-      child: SurfaceCard(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: state.hasError ? tokens.danger : tokens.success,
-                    shape: BoxShape.circle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        height: panelHeight,
+        child: SurfaceCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragUpdate: (details) {
+                  controller.adjustPanelHeightFactor(
+                    -(details.delta.dy / screenHeight),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).sdal.panelBorder,
+                          borderRadius: BorderRadius.circular(
+                            SdalThemeTokens.radiusPill,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Canli API akisi · ${selection.displayLabel}',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: monitorState.isExpanded ? 'Kucult' : 'Buyut',
+                        onPressed: controller.toggleExpanded,
+                        icon: Icon(
+                          monitorState.isExpanded
+                              ? Icons.unfold_less_outlined
+                              : Icons.unfold_more_outlined,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Kapat',
+                        onPressed: controller.deactivate,
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Canli API akisi · ${selection.displayLabel}',
-                    style: Theme.of(context).textTheme.titleSmall,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilterChip(
+                          label: const Text('Periyodik GET'),
+                          selected: monitorState.showPollingRequests,
+                          onSelected: controller.setShowPollingRequests,
+                        ),
+                        for (final category in categories)
+                          FilterChip(
+                            label: Text(_categoryLabel(category)),
+                            selected: !monitorState.disabledCategories.contains(
+                              category,
+                            ),
+                            onSelected: (_) =>
+                                controller.toggleCategory(category),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Kategori filtreleri acik/kapali yapilabilir. Log satirlarini yukari-asagi surukleyerek daha cok alan acabilirsiniz.',
+                      style: _logMetaStyle(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                  child: SingleChildScrollView(
+                    child: _ActivityFeed(
+                      state: state,
+                      monitorState: monitorState,
+                      maxItems: monitorState.isExpanded ? 18 : 5,
+                      compact: true,
+                      emptyLabel: 'Gosterilecek log bulunmadi.',
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: isExpanded ? 'Daralt' : 'Genislet',
-                  onPressed: () {
-                    ref
-                        .read(adminApiMonitorControllerProvider.notifier)
-                        .toggleExpanded();
-                  },
-                  icon: Icon(
-                    isExpanded
-                        ? Icons.unfold_less_outlined
-                        : Icons.unfold_more_outlined,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Kapat',
-                  onPressed: () {
-                    ref
-                        .read(adminApiMonitorControllerProvider.notifier)
-                        .deactivate();
-                  },
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _ActivityFeed(
-              state: state,
-              maxItems: itemCount,
-              compact: true,
-              emptyLabel: 'Henuz goruntulenecek bir API kaydi yok.',
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -476,7 +571,7 @@ class _UserSelectionRow extends StatelessWidget {
             icon: Icon(
               isSelected ? Icons.check_circle_outline : Icons.radar_outlined,
             ),
-            label: Text(isSelected ? 'Secili' : 'Bu kullaniciyi izle'),
+            label: Text(isSelected ? 'Secili' : 'Izle'),
           ),
         ],
       ),
@@ -487,12 +582,14 @@ class _UserSelectionRow extends StatelessWidget {
 class _ActivityFeed extends StatelessWidget {
   const _ActivityFeed({
     required this.state,
+    required this.monitorState,
     required this.maxItems,
     required this.emptyLabel,
     this.compact = false,
   });
 
   final AsyncValue<AdminApiMonitorSnapshot> state;
+  final AdminApiMonitorState monitorState;
   final int maxItems;
   final String emptyLabel;
   final bool compact;
@@ -501,10 +598,13 @@ class _ActivityFeed extends StatelessWidget {
   Widget build(BuildContext context) {
     return state.when(
       data: (snapshot) {
-        if (snapshot.items.isEmpty) return Text(emptyLabel);
+        final items = _filterItems(snapshot.items, monitorState);
+        if (items.isEmpty) {
+          return Text(emptyLabel, style: _logTextStyle(context));
+        }
         return Column(
           children: [
-            for (final item in snapshot.items.take(maxItems))
+            for (final item in items.take(maxItems))
               Padding(
                 padding: EdgeInsets.only(bottom: compact ? 8 : 10),
                 child: _ActivityRow(item: item, compact: compact),
@@ -516,7 +616,8 @@ class _ActivityFeed extends StatelessWidget {
         padding: EdgeInsets.symmetric(vertical: 16),
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
-      error: (error, _) => Text(error.toString()),
+      error: (error, _) =>
+          Text(error.toString(), style: _logTextStyle(context)),
     );
   }
 }
@@ -530,10 +631,12 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
-    final semantic = _describeActivity(item);
+    final description = _describeActivity(item);
     final statusColor = item.isSuccessful
         ? tokens.success
         : (item.status >= 400 ? tokens.danger : tokens.warning);
+    final payload = _bodyPreview(item.bodySummary);
+    final pollingLabel = _isPollingCandidate(item) ? ' · Periyodik GET' : '';
 
     return Container(
       width: double.infinity,
@@ -547,7 +650,7 @@ class _ActivityRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            margin: const EdgeInsets.only(top: 3),
+            margin: const EdgeInsets.only(top: 4),
             width: 9,
             height: 9,
             decoration: BoxDecoration(
@@ -560,27 +663,24 @@ class _ActivityRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  semantic.title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-                ),
+                Text(description.title, style: _logTitleStyle(context)),
                 const SizedBox(height: 4),
                 Text(
-                  '${semantic.subtitle} · ${item.method} ${item.path}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: tokens.foregroundMuted,
-                  ),
+                  '${description.subtitle}$pollingLabel',
+                  style: _logMetaStyle(context),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${item.method} ${item.path}',
+                  style: _logMonoStyle(context),
                 ),
                 if (item.query.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(
-                    'Query: ${item.query}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: tokens.foregroundMuted,
-                    ),
-                  ),
+                  Text('Query: ${item.query}', style: _logMetaStyle(context)),
+                ],
+                if (payload != null && payload.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text('Icerik: $payload', style: _logTextStyle(context)),
                 ],
               ],
             ),
@@ -591,22 +691,18 @@ class _ActivityRow extends StatelessWidget {
             children: [
               Text(
                 '${item.status}',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${item.durationMs} ms',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _timeLabel(item.at),
-                style: Theme.of(
+                style: _logTitleStyle(
                   context,
-                ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
+                ).copyWith(color: statusColor, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text('${item.durationMs} ms', style: _logMetaStyle(context)),
+              const SizedBox(height: 4),
+              Text(_timeLabel(item.at), style: _logMetaStyle(context)),
+              const SizedBox(height: 4),
+              Text(
+                _categoryLabel(_activityCategory(item)),
+                style: _logMetaStyle(context),
               ),
             ],
           ),
@@ -638,18 +734,137 @@ AdminApiMonitorSelection _effectiveSelection(
 
 _ApiActivityDescription _describeActivity(AdminApiMonitorActivityItem item) {
   final domain = _domainLabelForPath(item.path);
+  final payload = _bodyPreview(item.bodySummary);
   final action = switch (item.method) {
-    'GET' => '$domain verisi alindi',
-    'POST' => '$domain icin yeni istek gonderildi',
-    'PUT' => '$domain guncellemesi gonderildi',
-    'PATCH' => '$domain parcali guncellemesi gonderildi',
-    'DELETE' => '$domain silme istegi gonderildi',
+    'GET' => '$domain verisi cekildi',
+    'POST' => '$domain icin yeni islem gonderildi',
+    'PUT' => '$domain kaydi guncellendi',
+    'PATCH' => '$domain parcali guncellendi',
+    'DELETE' => '$domain kaydi silme istegi gonderildi',
     _ => '$domain istegi tamamlandi',
   };
   final statusText = item.status >= 400
-      ? 'Sunucu hata ya da red cevabi verdi'
-      : 'Sunucu yaniti basariyla alindi';
-  return _ApiActivityDescription(title: action, subtitle: statusText);
+      ? 'Sunucu bu istegi hata veya red ile cevapladi.'
+      : 'Sunucudan basarili cevap alindi.';
+  final subtitle = payload == null || payload.isEmpty
+      ? statusText
+      : '$statusText Icerik ozeti mevcut.';
+  return _ApiActivityDescription(title: action, subtitle: subtitle);
+}
+
+List<AdminApiMonitorActivityItem> _filterItems(
+  List<AdminApiMonitorActivityItem> items,
+  AdminApiMonitorState monitorState,
+) {
+  return items
+      .where((item) {
+        if (!monitorState.showPollingRequests && _isPollingCandidate(item)) {
+          return false;
+        }
+        if (monitorState.disabledCategories.contains(_activityCategory(item))) {
+          return false;
+        }
+        return true;
+      })
+      .toList(growable: false);
+}
+
+List<AdminApiMonitorActivityItem> _visibleItemsFromState(
+  AsyncValue<AdminApiMonitorSnapshot> state,
+  AdminApiMonitorState monitorState,
+) {
+  return state.maybeWhen(
+    data: (snapshot) => _filterItems(snapshot.items, monitorState),
+    orElse: () => const <AdminApiMonitorActivityItem>[],
+  );
+}
+
+List<String> _availableCategoriesFromState(
+  AsyncValue<AdminApiMonitorSnapshot> state,
+) {
+  return state.maybeWhen(
+    data: (snapshot) {
+      final categories =
+          snapshot.items.map(_activityCategory).toSet().toList(growable: false)
+            ..sort();
+      return categories;
+    },
+    orElse: () => const <String>[],
+  );
+}
+
+String _activityCategory(AdminApiMonitorActivityItem item) {
+  final path = item.path;
+  if (path.startsWith('/api/auth/') || path.startsWith('/api/login')) {
+    return 'auth';
+  }
+  if (path.startsWith('/api/profile')) return 'profile';
+  if (path.startsWith('/api/new/chat')) return 'chat';
+  if (path.startsWith('/api/new/messages') ||
+      path.startsWith('/api/messages')) {
+    return 'messaging';
+  }
+  if (path.startsWith('/api/new/notifications') ||
+      path.startsWith('/api/notifications') ||
+      path.startsWith('/api/new/mobile/push/')) {
+    return 'notifications';
+  }
+  if (path.startsWith('/api/new/requests') ||
+      path.startsWith('/api/module-access-requests')) {
+    return 'requests';
+  }
+  if (path.startsWith('/api/new/jobs') ||
+      path.startsWith('/api/new/opportunities')) {
+    return 'opportunities';
+  }
+  if (path.startsWith('/api/new/admin/') || path.startsWith('/api/admin/')) {
+    return 'admin';
+  }
+  if (path.startsWith('/api/new/groups') ||
+      path.startsWith('/api/groups') ||
+      path.startsWith('/api/feed') ||
+      path.startsWith('/api/new/posts')) {
+    return 'social';
+  }
+  if (path.startsWith('/api/media') || path.startsWith('/api/upload')) {
+    return 'media';
+  }
+  if (path == '/api/session' || path == '/api/site-access') return 'system';
+  return 'other';
+}
+
+String _categoryLabel(String category) {
+  return switch (category) {
+    'auth' => 'Kimlik',
+    'profile' => 'Profil',
+    'chat' => 'Canli sohbet',
+    'messaging' => 'Mesajlar',
+    'notifications' => 'Bildirimler',
+    'requests' => 'Talepler',
+    'opportunities' => 'Firsatlar',
+    'admin' => 'Admin',
+    'social' => 'Topluluk',
+    'media' => 'Medya',
+    'system' => 'Sistem',
+    _ => 'Diger',
+  };
+}
+
+bool _isPollingCandidate(AdminApiMonitorActivityItem item) {
+  if (item.method != 'GET') return false;
+  const pollingPrefixes = <String>[
+    '/api/session',
+    '/api/site-access',
+    '/api/new/chat/messages',
+    '/api/new/messages',
+    '/api/messages',
+    '/api/new/notifications',
+    '/api/notifications',
+    '/api/new/request-categories',
+    '/api/new/requests/my',
+    '/api/feed',
+  ];
+  return pollingPrefixes.any(item.path.startsWith);
 }
 
 String _domainLabelForPath(String path) {
@@ -698,6 +913,59 @@ String _humanizeSegment(String value) {
   return normalized[0].toUpperCase() + normalized.substring(1);
 }
 
+String? _bodyPreview(Object? raw) {
+  if (raw == null) return null;
+  if (raw is String) {
+    final text = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return text.isEmpty ? null : text;
+  }
+  if (raw is num || raw is bool) return raw.toString();
+  if (raw is List) {
+    final items = raw
+        .map(_bodyPreview)
+        .whereType<String>()
+        .toList(growable: false);
+    if (items.isEmpty) return null;
+    return items.join(', ');
+  }
+  if (raw is Map) {
+    const preferredKeys = <String>[
+      'message',
+      'body',
+      'content',
+      'text',
+      'caption',
+      'subject',
+      'title',
+      'html',
+      'status',
+    ];
+    for (final key in preferredKeys) {
+      final match = raw.entries.where(
+        (entry) => entry.key.toString().toLowerCase() == key,
+      );
+      for (final entry in match) {
+        final value = _bodyPreview(entry.value);
+        if (value != null && value.isNotEmpty) {
+          return '${entry.key}: $value';
+        }
+      }
+    }
+
+    final compact = <String>[];
+    for (final entry in raw.entries.take(5)) {
+      final value = _bodyPreview(entry.value);
+      if (value == null || value.isEmpty) continue;
+      compact.add('${entry.key}: $value');
+    }
+    if (compact.isEmpty) return null;
+    final joined = compact.join(' · ');
+    if (joined.length <= 220) return joined;
+    return jsonEncode(raw).replaceAll(RegExp(r'\s+'), ' ').substring(0, 220);
+  }
+  return raw.toString();
+}
+
 String _timeLabel(String raw) {
   final parsed = DateTime.tryParse(raw)?.toLocal();
   if (parsed == null) return raw;
@@ -705,4 +973,32 @@ String _timeLabel(String raw) {
   final mm = parsed.minute.toString().padLeft(2, '0');
   final ss = parsed.second.toString().padLeft(2, '0');
   return '$hh:$mm:$ss';
+}
+
+TextStyle _logTitleStyle(BuildContext context) {
+  return Theme.of(
+    context,
+  ).textTheme.bodyMedium!.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700);
+}
+
+TextStyle _logTextStyle(BuildContext context) {
+  return Theme.of(
+    context,
+  ).textTheme.bodySmall!.copyWith(fontSize: 11.5, height: 1.3);
+}
+
+TextStyle _logMetaStyle(BuildContext context) {
+  return Theme.of(context).textTheme.bodySmall!.copyWith(
+    fontSize: 10.8,
+    height: 1.25,
+    color: Theme.of(context).sdal.foregroundMuted,
+  );
+}
+
+TextStyle _logMonoStyle(BuildContext context) {
+  return Theme.of(context).textTheme.bodySmall!.copyWith(
+    fontSize: 10.8,
+    height: 1.2,
+    fontFamily: 'monospace',
+  );
 }

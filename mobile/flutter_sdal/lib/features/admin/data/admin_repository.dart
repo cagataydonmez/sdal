@@ -470,6 +470,7 @@ class AdminApiMonitorActivityItem {
     required this.query,
     required this.ip,
     required this.userAgent,
+    required this.bodySummary,
   });
 
   final String requestId;
@@ -481,6 +482,7 @@ class AdminApiMonitorActivityItem {
   final String query;
   final String ip;
   final String userAgent;
+  final Object? bodySummary;
 
   bool get isWrite =>
       method == 'POST' ||
@@ -501,6 +503,7 @@ class AdminApiMonitorActivityItem {
       query: coalesceText([map['query']], fallback: ''),
       ip: coalesceText([map['ip']], fallback: ''),
       userAgent: coalesceText([map['userAgent']], fallback: ''),
+      bodySummary: map['bodySummary'],
     );
   }
 }

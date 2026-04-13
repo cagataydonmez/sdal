@@ -99,7 +99,8 @@ export function registerAdminManagementRoutes(app, {
           durationMs: Number(entry?.durationMs || 0),
           query: String(entry?.query || '').trim(),
           ip: String(entry?.ip || '').trim(),
-          userAgent: String(entry?.userAgent || '').trim()
+          userAgent: String(entry?.userAgent || '').trim(),
+          bodySummary: entry?.bodySummary ?? null
         });
         if (rows.length >= Math.max(1, Math.min(Number(limit || 40), 100))) {
           break;

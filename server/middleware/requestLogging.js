@@ -7,6 +7,73 @@ function createRequestId() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+const REDACTED_KEYS = new Set([
+  'password',
+  'pass',
+  'sifre',
+  'token',
+  'authorization',
+  'cookie',
+  'refreshToken',
+  'accessToken',
+  'currentPassword',
+  'newPassword',
+  'oldPassword',
+  'secret',
+  'otp',
+  'code',
+]);
+
+function summarizeRequestBody(body, depth = 0) {
+  if (body == null) return null;
+  if (depth > 2) return '[nested]';
+
+  if (typeof body === 'string') {
+    const text = body.trim().replace(/\s+/g, ' ');
+    return text ? text.slice(0, 240) : null;
+  }
+
+  if (typeof body === 'number' || typeof body === 'boolean') {
+    return body;
+  }
+
+  if (Array.isArray(body)) {
+    return body
+      .slice(0, 6)
+      .map((item) => summarizeRequestBody(item, depth + 1))
+      .filter((item) => item != null);
+  }
+
+  if (typeof body === 'object') {
+    const out = {};
+    for (const [key, value] of Object.entries(body)) {
+      if (value == null) continue;
+      const normalizedKey = String(key || '').trim().toLowerCase();
+      if (!normalizedKey) continue;
+      if (REDACTED_KEYS.has(normalizedKey)) {
+        out[key] = '[redacted]';
+        continue;
+      }
+      if (
+        normalizedKey.includes('password') ||
+        normalizedKey.includes('token') ||
+        normalizedKey.includes('secret') ||
+        normalizedKey.includes('cookie')
+      ) {
+        out[key] = '[redacted]';
+        continue;
+      }
+      const summarized = summarizeRequestBody(value, depth + 1);
+      if (summarized != null && summarized !== '') {
+        out[key] = summarized;
+      }
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  return null;
+}
+
 export function requestLoggingMiddleware({ writeAppLog, writeLegacyLog }) {
   return (req, res, next) => {
     const incomingRequestId = String(req.headers['x-request-id'] || '').trim();
@@ -17,6 +84,7 @@ export function requestLoggingMiddleware({ writeAppLog, writeLegacyLog }) {
     const start = Date.now();
     res.on('finish', () => {
       const durationMs = Date.now() - start;
+      const bodySummary = summarizeRequestBody(req.body);
       const meta = {
         requestId,
         method: req.method,
@@ -27,7 +95,8 @@ export function requestLoggingMiddleware({ writeAppLog, writeLegacyLog }) {
         ip: req.ip,
         query: req.originalUrl?.includes('?') ? req.originalUrl.split('?')[1] : '',
         userAgent: req.headers['user-agent'] || '',
-        referer: req.headers.referer || ''
+        referer: req.headers.referer || '',
+        bodySummary
       };
 
       if (req.path.startsWith('/api/')) {

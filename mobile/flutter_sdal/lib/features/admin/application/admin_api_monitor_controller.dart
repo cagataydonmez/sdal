@@ -39,26 +39,39 @@ class AdminApiMonitorSelection {
 class AdminApiMonitorState {
   const AdminApiMonitorState({
     this.isEnabled = false,
-    this.isExpanded = false,
     this.selectedUser,
+    this.panelHeightFactor = 0.28,
+    this.showPollingRequests = true,
+    this.disabledCategories = const <String>{},
   });
 
+  static const minPanelHeightFactor = 0.18;
+  static const maxPanelHeightFactor = 0.76;
+
   final bool isEnabled;
-  final bool isExpanded;
   final AdminApiMonitorSelection? selectedUser;
+  final double panelHeightFactor;
+  final bool showPollingRequests;
+  final Set<String> disabledCategories;
+
+  bool get isExpanded => panelHeightFactor >= 0.45;
 
   AdminApiMonitorState copyWith({
     bool? isEnabled,
-    bool? isExpanded,
     AdminApiMonitorSelection? selectedUser,
     bool clearSelectedUser = false,
+    double? panelHeightFactor,
+    bool? showPollingRequests,
+    Set<String>? disabledCategories,
   }) {
     return AdminApiMonitorState(
       isEnabled: isEnabled ?? this.isEnabled,
-      isExpanded: isExpanded ?? this.isExpanded,
       selectedUser: clearSelectedUser
           ? null
           : (selectedUser ?? this.selectedUser),
+      panelHeightFactor: panelHeightFactor ?? this.panelHeightFactor,
+      showPollingRequests: showPollingRequests ?? this.showPollingRequests,
+      disabledCategories: disabledCategories ?? this.disabledCategories,
     );
   }
 }
@@ -72,23 +85,28 @@ class AdminApiMonitorController extends Notifier<AdminApiMonitorState> {
   }
 
   void deactivate() {
-    state = state.copyWith(isEnabled: false, isExpanded: false);
+    state = state.copyWith(isEnabled: false);
   }
 
   void toggleEnabled() {
-    if (state.isEnabled) {
-      deactivate();
-      return;
-    }
-    activate();
+    state.isEnabled ? deactivate() : activate();
   }
 
-  void setExpanded(bool value) {
-    state = state.copyWith(isExpanded: value);
+  void setPanelHeightFactor(double value) {
+    state = state.copyWith(
+      panelHeightFactor: value.clamp(
+        AdminApiMonitorState.minPanelHeightFactor,
+        AdminApiMonitorState.maxPanelHeightFactor,
+      ),
+    );
+  }
+
+  void adjustPanelHeightFactor(double delta) {
+    setPanelHeightFactor(state.panelHeightFactor + delta);
   }
 
   void toggleExpanded() {
-    state = state.copyWith(isExpanded: !state.isExpanded);
+    setPanelHeightFactor(state.isExpanded ? 0.28 : 0.62);
   }
 
   void selectUser(AdminApiMonitorSelection selection) {
@@ -97,6 +115,24 @@ class AdminApiMonitorController extends Notifier<AdminApiMonitorState> {
 
   void useSelfAsDefault() {
     state = state.copyWith(clearSelectedUser: true);
+  }
+
+  void setShowPollingRequests(bool value) {
+    state = state.copyWith(showPollingRequests: value);
+  }
+
+  void toggleCategory(String category) {
+    final next = <String>{...state.disabledCategories};
+    if (next.contains(category)) {
+      next.remove(category);
+    } else {
+      next.add(category);
+    }
+    state = state.copyWith(disabledCategories: next);
+  }
+
+  void showAllCategories() {
+    state = state.copyWith(disabledCategories: const <String>{});
   }
 }
 
