@@ -17,6 +17,7 @@ import '../core/theme/theme_mode_store.dart';
 import '../core/widgets/status_views.dart';
 import '../features/messenger/data/messenger_repository.dart';
 import '../features/notifications/data/notifications_repository.dart';
+import '../features/admin/presentation/admin_api_monitor_widgets.dart';
 import '../features/push_notifications/presentation/push_notifications_bootstrap.dart';
 
 class SdalFlutterApp extends ConsumerWidget {
@@ -83,8 +84,10 @@ class SdalFlutterApp extends ConsumerWidget {
           ],
           builder: (context, child) => _SessionExpiryBridge(
             child: LiveSyncBootstrap(
-              child: PushNotificationsBootstrap(
-                child: child ?? const SizedBox.shrink(),
+              child: AdminApiMonitorOverlayHost(
+                child: PushNotificationsBootstrap(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),

@@ -42,6 +42,76 @@ export function registerAdminManagementRoutes(app, {
   const albumInactivePredicate = dbDriver === 'postgres' ? 'aktif IS FALSE' : 'aktif = 0';
   const albumActiveParam = (value) => (dbDriver === 'postgres' ? !!value : (value ? 1 : 0));
 
+  function readRecentAppLogLines(maxLines = 400, maxBytes = 1024 * 1024) {
+    if (!appLogFile || !fs.existsSync(appLogFile)) return [];
+
+    const stat = fs.statSync(appLogFile);
+    if (!stat.size) return [];
+
+    const bytesToRead = Math.min(stat.size, Math.max(4096, Number(maxBytes) || 0));
+    const buffer = Buffer.alloc(bytesToRead);
+    const fd = fs.openSync(appLogFile, 'r');
+    try {
+      fs.readSync(fd, buffer, 0, bytesToRead, stat.size - bytesToRead);
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    return buffer
+      .toString('utf-8')
+      .split(/\r?\n/)
+      .filter((line) => line.trim() !== '')
+      .slice(-Math.max(1, Number(maxLines) || 0));
+  }
+
+  function parseRecentUserApiActivity({ userId, limit = 40 }) {
+    const safeUserId = Number(userId || 0);
+    if (!safeUserId) return [];
+
+    const rows = [];
+    const seenRequestIds = new Set();
+    const lines = readRecentAppLogLines(
+      Math.max(Number(limit || 40) * 20, 300),
+      1024 * 1024
+    );
+
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const rawLine = String(lines[index] || '').trim();
+      if (!rawLine) continue;
+      try {
+        const entry = JSON.parse(rawLine);
+        if (entry?.event !== 'http_request') continue;
+        if (Number(entry?.userId || 0) !== safeUserId) continue;
+        const path = String(entry?.path || '').trim();
+        if (!path.startsWith('/api/')) continue;
+        if (/^\/api\/new\/admin\/users\/\d+\/api-activity$/.test(path)) continue;
+
+        const requestId = String(entry?.requestId || '').trim();
+        if (requestId && seenRequestIds.has(requestId)) continue;
+        if (requestId) seenRequestIds.add(requestId);
+
+        rows.push({
+          requestId,
+          at: String(entry?.ts || '').trim(),
+          method: String(entry?.method || 'GET').trim().toUpperCase(),
+          path,
+          status: Number(entry?.status || 0),
+          durationMs: Number(entry?.durationMs || 0),
+          query: String(entry?.query || '').trim(),
+          ip: String(entry?.ip || '').trim(),
+          userAgent: String(entry?.userAgent || '').trim()
+        });
+        if (rows.length >= Math.max(1, Math.min(Number(limit || 40), 100))) {
+          break;
+        }
+      } catch {
+        // Ignore malformed lines so log parsing never breaks admin tools.
+      }
+    }
+
+    return rows;
+  }
+
   async function queryAdminUsers(rawQuery = {}) {
     const filter = String(rawQuery.filter || 'all').trim();
     const q = String(rawQuery.q || '').trim();
@@ -227,6 +297,45 @@ export function registerAdminManagementRoutes(app, {
       );
       if (!user) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
       res.json({ user });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/admin/users/:id/api-activity', requireAdmin, async (req, res) => {
+    try {
+      const userId = Number(req.params.id || 0);
+      if (!userId) return res.status(400).send('Geçersiz kullanıcı ID.');
+
+      const actorRole = getUserRole(req.authUser || req.adminUser);
+      const target = await sqlGetAsync(
+        'SELECT id, kadi, isim, soyisim, role, admin FROM uyeler WHERE id = ?',
+        [userId]
+      );
+      if (!target) return res.status(404).send('Böyle bir üye bulunmamaktadır.');
+      if (normalizeRole(target.role) === 'root' && actorRole !== 'root') {
+        return res.status(403).send('Root kullanıcı aktivitesine erişemezsiniz.');
+      }
+
+      const limit = Math.max(1, Math.min(parseInt(req.query.limit || '40', 10), 100));
+      const activity = parseRecentUserApiActivity({ userId, limit });
+      res.json({
+        user: {
+          id: Number(target.id || 0),
+          kadi: String(target.kadi || '').trim(),
+          isim: String(target.isim || '').trim(),
+          soyisim: String(target.soyisim || '').trim(),
+          role: String(target.role || 'user').trim(),
+          admin: Number(target.admin || 0) > 0
+        },
+        meta: {
+          limit,
+          returned: activity.length,
+          source: 'app_log'
+        },
+        activity
+      });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

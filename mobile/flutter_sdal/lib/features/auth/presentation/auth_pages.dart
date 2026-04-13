@@ -61,21 +61,25 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return _AuthFrame(
       title: l10n.loginTitle,
       subtitle: l10n.loginSubtitle,
+      showAppBar: false,
       footer: Wrap(
         spacing: 12,
         runSpacing: 12,
         children: [
-          TextButton(
+          OutlinedButton.icon(
             onPressed: () => context.push('/register'),
-            child: Text(l10n.register),
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            label: Text(l10n.register),
           ),
-          TextButton(
+          OutlinedButton.icon(
             onPressed: () => context.push('/activation/resend'),
-            child: Text(l10n.resendActivation),
+            icon: const Icon(Icons.mark_email_unread_outlined),
+            label: Text(l10n.resendActivation),
           ),
-          TextButton(
+          OutlinedButton.icon(
             onPressed: () => context.push('/password-reset'),
-            child: Text(l10n.resetPassword),
+            icon: const Icon(Icons.lock_reset_rounded),
+            label: Text(l10n.resetPassword),
           ),
         ],
       ),
@@ -87,7 +91,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               controller: _usernameController,
               textInputAction: TextInputAction.next,
               labelText: l10n.username,
-              prefixIcon: const SdalLogoBadge(size: 20, frameSize: 36),
+              prefixIcon: const Icon(Icons.person_outline_rounded),
               autofillHints: const [AutofillHints.username],
             ),
             const SizedBox(height: 12),
@@ -1183,19 +1187,21 @@ class _AuthFrame extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.footer,
+    this.showAppBar = true,
   });
 
   final String title;
   final String subtitle;
   final Widget child;
   final Widget? footer;
+  final bool showAppBar;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).sdal;
     final canPop = Navigator.of(context).canPop();
     return Scaffold(
-      appBar: canPop
+      appBar: showAppBar && canPop
           ? AppBar(
               backgroundColor: tokens.accent,
               foregroundColor: tokens.foregroundOnAccent,

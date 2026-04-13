@@ -423,6 +423,140 @@ class AdminUserPreviewItem {
   }
 }
 
+class AdminApiMonitorUser {
+  const AdminApiMonitorUser({
+    required this.id,
+    required this.handle,
+    required this.name,
+    required this.role,
+    required this.isAdmin,
+  });
+
+  final int id;
+  final String handle;
+  final String name;
+  final String role;
+  final bool isAdmin;
+
+  String get displayLabel => handle.isNotEmpty ? '@$handle' : name;
+
+  factory AdminApiMonitorUser.fromMap(JsonMap map) {
+    final handle = coalesceText([map['kadi']], fallback: '');
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    return AdminApiMonitorUser(
+      id: asInt(map['id']) ?? 0,
+      handle: handle,
+      name: fullName.isNotEmpty
+          ? fullName
+          : handle.isNotEmpty
+          ? '@$handle'
+          : 'SDAL Uyesi',
+      role: coalesceText([map['role']], fallback: 'user'),
+      isAdmin: asBool(map['admin']) ?? false,
+    );
+  }
+}
+
+class AdminApiMonitorActivityItem {
+  const AdminApiMonitorActivityItem({
+    required this.requestId,
+    required this.at,
+    required this.method,
+    required this.path,
+    required this.status,
+    required this.durationMs,
+    required this.query,
+    required this.ip,
+    required this.userAgent,
+  });
+
+  final String requestId;
+  final String at;
+  final String method;
+  final String path;
+  final int status;
+  final int durationMs;
+  final String query;
+  final String ip;
+  final String userAgent;
+
+  bool get isWrite =>
+      method == 'POST' ||
+      method == 'PUT' ||
+      method == 'PATCH' ||
+      method == 'DELETE';
+
+  bool get isSuccessful => status > 0 && status < 400;
+
+  factory AdminApiMonitorActivityItem.fromMap(JsonMap map) {
+    return AdminApiMonitorActivityItem(
+      requestId: coalesceText([map['requestId']], fallback: ''),
+      at: coalesceText([map['at']], fallback: ''),
+      method: coalesceText([map['method']], fallback: 'GET').toUpperCase(),
+      path: coalesceText([map['path']], fallback: ''),
+      status: asInt(map['status']) ?? 0,
+      durationMs: asInt(map['durationMs']) ?? 0,
+      query: coalesceText([map['query']], fallback: ''),
+      ip: coalesceText([map['ip']], fallback: ''),
+      userAgent: coalesceText([map['userAgent']], fallback: ''),
+    );
+  }
+}
+
+class AdminApiMonitorSnapshot {
+  const AdminApiMonitorSnapshot({
+    required this.user,
+    required this.items,
+    required this.returned,
+    required this.limit,
+    required this.source,
+  });
+
+  final AdminApiMonitorUser user;
+  final List<AdminApiMonitorActivityItem> items;
+  final int returned;
+  final int limit;
+  final String source;
+
+  factory AdminApiMonitorSnapshot.fromMap(JsonMap map) {
+    final meta = asJsonMap(map['meta']);
+    return AdminApiMonitorSnapshot(
+      user: AdminApiMonitorUser.fromMap(asJsonMap(map['user'])),
+      items: asJsonMapList(
+        map['activity'],
+      ).map(AdminApiMonitorActivityItem.fromMap).toList(growable: false),
+      returned: asInt(meta['returned']) ?? 0,
+      limit: asInt(meta['limit']) ?? 0,
+      source: coalesceText([meta['source']], fallback: ''),
+    );
+  }
+}
+
+class AdminApiMonitorQuery {
+  const AdminApiMonitorQuery({
+    required this.userId,
+    this.limit = 40,
+    this.pollInterval = const Duration(seconds: 3),
+  });
+
+  final int userId;
+  final int limit;
+  final Duration pollInterval;
+
+  @override
+  bool operator ==(Object other) {
+    return other is AdminApiMonitorQuery &&
+        other.userId == userId &&
+        other.limit == limit &&
+        other.pollInterval == pollInterval;
+  }
+
+  @override
+  int get hashCode => Object.hash(userId, limit, pollInterval);
+}
+
 class AdminSiteControlsSnapshot {
   const AdminSiteControlsSnapshot({
     required this.siteOpen,
@@ -1016,6 +1150,17 @@ class AdminRepository {
     );
   }
 
+  Future<AdminApiMonitorSnapshot> fetchUserApiActivity({
+    required AdminApiMonitorQuery query,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/users/${query.userId}/api-activity',
+      query: {'limit': query.limit},
+      decoder: asJsonMap,
+    );
+    return AdminApiMonitorSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
   Future<AdminSiteControlsSnapshot> fetchSiteControls() async {
     final result = await _apiClient.get<JsonMap>(
       '/api/admin/site-controls',
@@ -1573,6 +1718,19 @@ final adminUserPreviewProvider =
       (ref, query) =>
           ref.watch(adminRepositoryProvider).fetchUserPreview(query: query),
     );
+
+final adminUserApiActivityProvider = StreamProvider.autoDispose
+    .family<AdminApiMonitorSnapshot, AdminApiMonitorQuery>((ref, query) async* {
+      var disposed = false;
+      ref.onDispose(() => disposed = true);
+      final repository = ref.watch(adminRepositoryProvider);
+
+      while (!disposed) {
+        yield await repository.fetchUserApiActivity(query: query);
+        if (disposed) break;
+        await Future<void>.delayed(query.pollInterval);
+      }
+    });
 
 final adminSiteControlsProvider = FutureProvider<AdminSiteControlsSnapshot>(
   (ref) => ref.watch(adminRepositoryProvider).fetchSiteControls(),

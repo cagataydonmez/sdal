@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'admin_api_monitor_widgets.dart';
 import '../application/admin_action_controller.dart';
 import '../data/admin_repository.dart';
 import '../../../core/session/session_controller.dart';
@@ -515,6 +516,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         if (sectionKey == 'content' ||
             sectionKey == 'requests' ||
             sectionKey == 'management' ||
+            sectionKey == 'api-monitor' ||
             sectionKey == 'operations' ||
             sectionKey == 'database' ||
             sectionKey == 'languages')
@@ -531,6 +533,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               }
               if (sectionKey == 'management') {
                 ref.invalidate(adminUserPreviewProvider);
+              }
+              if (sectionKey == 'api-monitor') {
+                ref.invalidate(adminUserPreviewProvider);
+                ref.invalidate(adminUserApiActivityProvider);
               }
               if (sectionKey == 'operations') {
                 ref.invalidate(adminSiteControlsProvider);
@@ -868,6 +874,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                 );
               },
             ),
+          ],
+          if (sectionKey == 'api-monitor') ...[
+            const SizedBox(height: 16),
+            const AdminApiMonitorSection(),
           ],
           if (sectionKey == 'operations') ...[
             const SizedBox(height: 16),
@@ -3999,6 +4009,22 @@ const _adminSections = <_AdminSection>[
       'Admin oturumu ve root bootstrap durumu',
       'Kullanici rol guncelleme',
       'Moderator kapsam ve yetki atamalari',
+    ],
+  ),
+  _AdminSection(
+    key: 'api-monitor',
+    title: 'API monitoru',
+    summary:
+        'Secilen kullanici icin canli endpoint akislarini izleme overlayi.',
+    description:
+        'Admin kullanicinin sectigi uye icin son API akisini toplar ve tum sayfalarda alttan acilip kapanan bir izleme paneli sunar.',
+    icon: Icons.radar_outlined,
+    tone: _AdminTone.info,
+    routeFile: 'server/routes/adminManagementRoutes.js',
+    capabilities: [
+      'Kullanici bazli canli API akisi',
+      'Admin overlay activate / deactivate',
+      'Varsayilan hedef olarak kendini izleme',
     ],
   ),
   _AdminSection(

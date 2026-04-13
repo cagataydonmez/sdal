@@ -39,37 +39,20 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   bool _disposed = false;
   final List<MessengerMessage> _olderMessages = <MessengerMessage>[];
   late final GoRouter _router;
-  late final void Function() _clearActiveThreadId;
-  late final void Function() _syncActiveThreadId;
   bool _markReadInFlight = false;
   bool _loadingOlder = false;
   bool _hasOlderMessages = false;
   bool _showJumpToLatest = false;
   bool _hasPendingNewMessages = false;
   int? _lastNewestMessageId;
+  int? _lastMarkedReadMessageId;
 
   @override
   void initState() {
     super.initState();
     _router = ref.read(appRouterProvider);
-    final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
-    _clearActiveThreadId = () {
-      final threadId = widget.threadId;
-      Future<void>.microtask(() {
-        if (notifier.state == threadId) notifier.state = null;
-      });
-    };
-    _syncActiveThreadId = () {
-      if (_disposed) return;
-      final path = _router.routeInformationProvider.value.uri.path;
-      if (path == '/messages/${widget.threadId}') {
-        if (notifier.state != widget.threadId) notifier.state = widget.threadId;
-      } else if (notifier.state == widget.threadId) {
-        notifier.state = null;
-      }
-    };
-    _router.routerDelegate.addListener(_syncActiveThreadId);
-    _scheduleActiveThreadIdSync(widget.threadId);
+    _router.routerDelegate.addListener(_syncActiveThreadVisibility);
+    _scheduleActiveThreadVisibilitySync();
     _scrollController.addListener(_handleScroll);
     final realtime = ref.read(messengerRealtimeServiceProvider);
     realtime.start();
@@ -81,10 +64,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
       ref.invalidate(messengerThreadsProvider(''));
     });
     _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (_disposed) return;
-      final currentPath =
-          _router.routeInformationProvider.value.uri.path;
-      if (currentPath != '/messages/${widget.threadId}') return;
+      if (_disposed || !_isThreadVisible()) return;
       ref.invalidate(messengerMessagesProvider(widget.threadId));
     });
     _messagesSubscription = ref.listenManual(
@@ -94,18 +74,59 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scheduleActiveThreadVisibilitySync();
+  }
+
+  void _syncActiveThreadVisibility() {
+    if (_disposed || !mounted) return;
+    final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
+    if (_isThreadVisible()) {
+      if (notifier.state != widget.threadId) {
+        notifier.state = widget.threadId;
+      }
+      final newestMessageId = _lastNewestMessageId;
+      if (newestMessageId != null) {
+        _scheduleMarkThreadRead(newestMessageId: newestMessageId);
+      }
+      return;
+    }
+    if (notifier.state == widget.threadId) {
+      notifier.state = null;
+    }
+  }
+
+  bool _isThreadVisible() {
+    if (!mounted) return false;
+    final route = ModalRoute.of(context);
+    final isCurrentRoute = route?.isCurrent ?? true;
+    final tickerEnabled = TickerMode.valuesOf(context).enabled;
+    return isCurrentRoute && tickerEnabled;
+  }
+
+  void _scheduleActiveThreadVisibilitySync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncActiveThreadVisibility();
+    });
+  }
+
+  @override
   void didUpdateWidget(covariant ThreadDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.threadId != widget.threadId) {
-      _scheduleActiveThreadIdSync(widget.threadId);
+      _scheduleActiveThreadVisibilitySync();
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
-    _router.routerDelegate.removeListener(_syncActiveThreadId);
-    _scheduleActiveThreadIdClear();
+    _router.routerDelegate.removeListener(_syncActiveThreadVisibility);
+    final notifier = ref.read(activeMessengerThreadIdProvider.notifier);
+    if (notifier.state == widget.threadId) {
+      notifier.state = null;
+    }
     _pollTimer?.cancel();
     _eventsSubscription?.cancel();
     _messagesSubscription?.close();
@@ -114,17 +135,6 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
       ..removeListener(_handleScroll)
       ..dispose();
     super.dispose();
-  }
-
-  void _scheduleActiveThreadIdSync(int threadId) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(activeMessengerThreadIdProvider.notifier).state = threadId;
-    });
-  }
-
-  void _scheduleActiveThreadIdClear() {
-    _clearActiveThreadId();
   }
 
   void _handleScroll() {
@@ -156,9 +166,7 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
     _lastNewestMessageId = newestId;
     if (isFirstLoad) {
       _scrollToBottom(force: true, animated: false);
-      return;
-    }
-    if (hasNewMessage) {
+    } else if (hasNewMessage) {
       final shouldAutoScroll = _isNearBottom();
       _scrollToBottom(force: shouldAutoScroll);
       if (!shouldAutoScroll && mounted) {
@@ -168,43 +176,41 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
         });
       }
     }
-    _scheduleMarkThreadRead();
+    _scheduleMarkThreadRead(newestMessageId: newestId);
   }
 
-  void _scheduleMarkThreadRead() {
-    if (_markReadInFlight) return;
+  void _scheduleMarkThreadRead({required int? newestMessageId}) {
+    if (_markReadInFlight || newestMessageId == null) return;
     // Only mark as read when the user is actively viewing this thread.
     // The page stays mounted on tab switch (StatefulShellBranch), so incoming
     // messages would otherwise be silently marked read while the user is gone.
-    final currentPath = _router.routeInformationProvider.value.uri.path;
-    if (currentPath != '/messages/${widget.threadId}') return;
-    final threads = ref.read(messengerThreadsProvider('')).value;
-    MessengerThreadSummary? currentThread;
-    if (threads != null) {
-      for (final item in threads) {
-        if (item.id == widget.threadId) {
-          currentThread = item;
-          break;
-        }
-      }
-    }
-    if ((currentThread?.unreadCount ?? 0) <= 0) return;
+    if (!_isThreadVisible()) return;
+    if (_lastMarkedReadMessageId == newestMessageId) return;
     _markReadInFlight = true;
     Future<void>.microtask(() async {
       try {
-        // Re-mark this thread as active so messengerUnreadCountProvider
-        // excludes it immediately, clearing the badge before the API responds.
-        final activeNotifier = ref.read(activeMessengerThreadIdProvider.notifier);
-        if (activeNotifier.state != widget.threadId) {
-          activeNotifier.state = widget.threadId;
-        }
-        await ref
+        final result = await ref
             .read(messengerRepositoryProvider)
             .markThreadRead(widget.threadId);
+        if (!result.ok) {
+          if (_isThreadVisible()) {
+            ref.invalidate(messengerThreadsProvider(''));
+            ref.invalidate(messengerUnreadCountProvider);
+          }
+          return;
+        }
+        _lastMarkedReadMessageId = newestMessageId;
         ref.invalidate(messengerThreadsProvider(''));
         ref.invalidate(messengerUnreadCountProvider);
+      } catch (_) {
       } finally {
         _markReadInFlight = false;
+        final latestNewestId = _lastNewestMessageId;
+        if (_isThreadVisible() &&
+            latestNewestId != null &&
+            latestNewestId != newestMessageId) {
+          _scheduleMarkThreadRead(newestMessageId: latestNewestId);
+        }
       }
     });
   }
@@ -357,7 +363,6 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                 _hasOlderMessages = _olderMessages.isNotEmpty
                     ? _hasOlderMessages
                     : page.hasMore;
-                _scheduleMarkThreadRead();
                 final messages = [..._olderMessages, ...latestMessages];
                 if (messages.isEmpty) {
                   return Center(
