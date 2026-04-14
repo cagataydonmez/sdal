@@ -334,11 +334,9 @@ export function registerCommunityGroupRoutes(app, {
     }
   });
 
-  app.post('/api/new/groups/:id/invitations/respond', requireAuth, async (req, res) => {
+  async function _handleGroupInviteResponse(req, res, action) {
     try {
       const groupId = req.params.id;
-      const action = String(req.body?.action || '').toLowerCase();
-      if (!['accept', 'reject'].includes(action)) return res.status(400).send('Geçersiz işlem.');
       const invite = await sqlGetAsync(
         `SELECT id, invited_user_id, invited_by, status
          FROM group_invites
@@ -383,7 +381,21 @@ export function registerCommunityGroupRoutes(app, {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
+  }
+
+  app.post('/api/new/groups/:id/invitations/respond', requireAuth, async (req, res) => {
+    const action = String(req.body?.action || '').toLowerCase();
+    if (!['accept', 'reject'].includes(action)) return res.status(400).send('Geçersiz işlem.');
+    return _handleGroupInviteResponse(req, res, action);
   });
+
+  // Flutter-compatible aliases: no request body required
+  app.post('/api/new/groups/:id/invitations/accept', requireAuth, (req, res) =>
+    _handleGroupInviteResponse(req, res, 'accept')
+  );
+  app.post('/api/new/groups/:id/invitations/reject', requireAuth, (req, res) =>
+    _handleGroupInviteResponse(req, res, 'reject')
+  );
 
   app.post('/api/new/groups/:id/settings', requireAuth, async (req, res) => {
     try {

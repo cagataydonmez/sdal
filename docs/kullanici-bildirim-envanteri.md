@@ -4,11 +4,11 @@ Bu doküman, sistemde kullanıcıya giden bildirim tiplerini, bildirim kartında
 
 ## 1) Genel davranış
 
-- Her bildirim kartında varsayılan olarak **Aç** (target `href`’e git) aksiyonu vardır.
-- Okunmamış bildirimlerde **Okundu yap** aksiyonu vardır (`read_at` set edilir).
-- Bazı tiplerde ek iş aksiyonları vardır (kabul, reddet, yoksay vb.).
+- **Kart tıklaması** bildirimi açar, hedef sayfaya yönlendirir ve aynı anda okundu işaretler (`/api/new/notifications/:id/open` çağrılır).
+- Bazı tiplerde kart üzerinde ek **iş aksiyonu butonları** vardır (kabul, reddet, katılım vb.). Buton tıklaması hem aksiyonu hem de okundu işlemini tetikler.
+- Sayfanın üstündeki **Tümünü okundu yap** butonu tüm yüklü bildirimleri toplu okundu yapar.
 - Öncelik modeli: `informational`, `important`, `actionable`.
-- `actionable` tipler panelde “Aksiyon Gerekli” olarak öne alınır.
+- `actionable` tipler panelde önce listelenir (okunmamışsa en üste çıkar).
 
 ## 2) Bildirim tipi matrisi
 
@@ -31,7 +31,7 @@ Bu doküman, sistemde kullanıcıya giden bildirim tiplerini, bildirim kartında
 | `group_role_changed` | groups | important | Grup rolü değiştiğinde | `/new/groups/:entityId?tab=members&notification=:id` | - | Üye/rol görünümüne götürür |
 | `mention_event` | events | important | Etkinlikte etiketlenince | `/new/events?event=:entityId&focus=comments&notification=:id` | - | Etkinlik yorum odak alanını açar |
 | `event_comment` | events | important | Etkinliğe yorum geldiğinde | `/new/events?event=:entityId&focus=comments&notification=:id` | - | Yorum akışını açar |
-| `event_invite` | events | important | Etkinliğe davet edildiğinde | `/new/events?event=:entityId&focus=response&notification=:id` | - | Katılım cevabı alanına götürür |
+| `event_invite` | events | important | Etkinliğe davet edildiğinde | `/new/events?event=:entityId&focus=response&notification=:id` | `attend_event`, `decline_event` | Katılacağım/Katılmıyorum yanıtını kaydeder; etkinlik sahibine `event_response` bildirimi gider |
 | `event_response` | events | important | Etkinlik yanıt akışında değişim olduğunda | `/new/events?event=:entityId&focus=response&notification=:id` | - | Cevap/katılım bağlamını açar |
 | `event_reminder` | events | important | Etkinlik hatırlatması zamanı geldiğinde | `/new/events?event=:entityId&focus=details&notification=:id` | - | Etkinlik detayına götürür |
 | `event_starts_soon` | events | important | Etkinlik başlamak üzereyken | `/new/events?event=:entityId&focus=details&notification=:id` | - | Etkinlik detayına götürür |
@@ -39,7 +39,7 @@ Bu doküman, sistemde kullanıcıya giden bildirim tiplerini, bildirim kartında
 | `connection_accepted` | networking | important | Gönderilen bağlantı isteği kabul edilince | `/new/members/:sourceUserId?...` veya `/new/network/hub?section=outgoing-connections...` | - | Kabul bilgisini ve kullanıcı/istek bağlamını açar |
 | `mentorship_request` | networking | actionable | Mentorluk isteği geldiğinde | `/new/network/hub?section=incoming-mentorship&request=:entityId&notification=:id` | `accept_mentorship_request`, `decline_mentorship_request` | İsteği kabul/ret yapar (mentorship request status değişir) |
 | `mentorship_accepted` | networking | important | Gönderilen mentorluk isteği kabul edilince | `/new/members/:sourceUserId?...` veya `/new/network/hub?section=outgoing-mentorship...` | - | Kabul bilgisini ilgili profile/hub’a taşır |
-| `teacher_network_linked` | networking | important | Öğretmen ağı bağlantısı oluştuğunda | `/new/network/hub?section=teacher-notifications&notification=:id&link=:entityId` | `mark_teacher_notifications_read` | Öğretmen ağı bildirimlerini toplu okunduya alır |
+| `teacher_network_linked` | networking | important | Öğretmen ağı bağlantısı oluştuğunda | `/new/network/hub?section=teacher-notifications&notification=:id&link=:entityId` | - | Kart tıklaması okundu işlemi yapar ve hub'a götürür |
 | `teacher_link_review_confirmed` | networking | important | Öğretmen link incelemesi onaylandığında | `/new/network/teachers?notification=:id&link=:entityId&review=confirmed` | - | Review sonucunu ilgili öğretmen akışında gösterir |
 | `teacher_link_review_flagged` | networking | important | Öğretmen link incelemesi flaglendiğinde | `/new/network/teachers?notification=:id&link=:entityId&review=flagged` | - | Moderasyon/review bağlamına götürür |
 | `teacher_link_review_rejected` | networking | important | Öğretmen link incelemesi reddedildiğinde | `/new/network/teachers?notification=:id&link=:entityId&review=rejected` | - | Red sonucunu gösterir |
@@ -57,18 +57,34 @@ Bu doküman, sistemde kullanıcıya giden bildirim tiplerini, bildirim kartında
 
 ## 3) Kart aksiyonları ve etki özeti (teknik)
 
-| Aksiyon kind | HTTP | Endpoint | Etki |
+### 3.1 Sistem aksiyonları (her kart)
+
+| Aksiyon | HTTP | Endpoint | Etki |
 |---|---|---|---|
-| `open` | - (navigasyon + open API çağrısı) | Kart `href` + `/api/new/notifications/:id/open` | Bildirimi açar, genelde okunduya da düşer, open telemetrisi üretir |
-| `read` (UI butonu) | `POST` | `/api/new/notifications/:id/read` | Tek bildirimi okundu yapar |
-| `bulk_read` (sayfa akışı) | `POST` | `/api/new/notifications/bulk-read` | Çoklu bildirimi okundu yapar |
-| `accept_group_invite` | `POST` | `/api/new/groups/:groupId/invitations/respond` (`action=accept`) | Grup davetini kabul eder |
-| `reject_group_invite` | `POST` | `/api/new/groups/:groupId/invitations/respond` (`action=reject`) | Grup davetini reddeder |
-| `accept_connection_request` | `POST` | `/api/new/connections/accept/:requestId` | Bağlantı isteğini kabul eder |
-| `ignore_connection_request` | `POST` | `/api/new/connections/ignore/:requestId` | Bağlantı isteğini yoksayar |
-| `accept_mentorship_request` | `POST` | `/api/new/mentorship/accept/:requestId` | Mentorluk isteğini kabul eder |
-| `decline_mentorship_request` | `POST` | `/api/new/mentorship/decline/:requestId` | Mentorluk isteğini reddeder |
-| `mark_teacher_notifications_read` | `POST` | `/api/new/network/inbox/teacher-links/read` | Teacher network bildirimlerini okunduya çeker |
+| Kart tıklaması (open) | `POST` | `/api/new/notifications/:id/open` | Bildirimi okundu yapar + hedef rotayı döner; Flutter yönlendirir |
+| Tümünü okundu yap | `POST` | `/api/new/notifications/read` veya `/bulk-read` | Tüm/seçili bildirimleri okundu yapar |
+
+### 3.2 İş aksiyonu butonları (tip bazlı)
+
+| Aksiyon kind | HTTP | Endpoint | Koşul | Etki |
+|---|---|---|---|---|
+| `accept_group_invite` | `POST` | `/api/new/groups/:groupId/invitations/accept` | Davet `pending` iken | Grup davetini kabul eder; üyelik kaydedilir |
+| `reject_group_invite` | `POST` | `/api/new/groups/:groupId/invitations/reject` | Davet `pending` iken | Grup davetini reddeder |
+| `attend_event` | `POST` | `/api/new/events/:eventId/attend` | `event_invite` tipinde her zaman | Etkinliğe katılım kaydedilir; etkinlik sahibine bildirim gider |
+| `decline_event` | `POST` | `/api/new/events/:eventId/decline` | `event_invite` tipinde her zaman | Etkinliğe katılmama kaydedilir; etkinlik sahibine bildirim gider |
+| `accept_connection_request` | `POST` | `/api/new/connections/accept/:requestId` | İstek `pending` iken | Bağlantı isteğini kabul eder |
+| `ignore_connection_request` | `POST` | `/api/new/connections/ignore/:requestId` | İstek `pending` iken | Bağlantı isteğini yoksayar |
+| `accept_mentorship_request` | `POST` | `/api/new/mentorship/accept/:requestId` | İstek `requested` iken | Mentorluk isteğini kabul eder |
+| `decline_mentorship_request` | `POST` | `/api/new/mentorship/decline/:requestId` | İstek `requested` iken | Mentorluk isteğini reddeder |
+
+**Not:** Her iş aksiyonu butonuna basıldığında aksiyon API çağrısına ek olarak `/api/new/notifications/:id/read` da tetiklenir (okundu işlemi).
+
+### 3.3 Web uyumluluğu (body bazlı endpoint'ler — hâlâ aktif)
+
+| HTTP | Endpoint | Açıklama |
+|---|---|---|
+| `POST` | `/api/new/groups/:id/invitations/respond` | `body: { action: 'accept' \| 'reject' }` ile çalışır (web için korundu) |
+| `POST` | `/api/new/events/:id/respond` | `body: { response: 'attend' \| 'decline' }` ile çalışır (web için korundu) |
 
 ## 4) Tercih/öncelik etkisi
 
@@ -80,6 +96,8 @@ Bu doküman, sistemde kullanıcıya giden bildirim tiplerini, bildirim kartında
 ## 5) Not
 
 - Bu tablo, notification sunum ve yönetişim katmanındaki **aktif inventory** üzerinden hazırlanmıştır; yeni tip eklenirse bu dosya da güncellenmelidir.
+- Flutter rota eşleşmeleri: `mobile/flutter_sdal/lib/features/notifications/notification_route_mapper.dart`
+- Backend aksiyon tanımları: `server/src/notifications/createNotificationPresentationRuntime.js` → `buildNotificationActions()`
 
 ## 6) 2026-04-03 doğrulama/audit ve uygulanan düzenlemeler
 
@@ -125,3 +143,57 @@ Bu turda `docs` altındaki envanter dışı bildirim dokümanları yerine doğru
 - Grup detay:
   - `tab=posts` ve `tab=members` için section ref/scroll desteği.
   - İlgili panellerde notification-focus vurgusu.
+
+## 7) 2026-04-14 Flutter bildirim ekranı ve aksiyon düzeltmeleri
+
+### 7.1 Kart UX yeniden tasarımı (Flutter)
+
+**Sorun:** Her bildirim kartında hem `item.actions` listesinden "Aç" butonu hem de hardcoded "Aç" `FilledButton` vardı → her bildirimde iki "Aç" butonu görünüyordu.
+
+**Yapılan değişiklik** (`notifications_page.dart`):
+- Hardcoded "Aç" ve "Okundu yap" butonları kaldırıldı.
+- `SurfaceCard(onTap: ...)` eklendi: kart tıklaması `/open` API'sini çağırır, okundu işaretler ve hedef sayfaya yönlendirir.
+- İş aksiyonu butonları (Kabul Et, Reddet vb.) hâlâ kart üzerinde gösterilir; başarılı aksiyondan sonra bildirim yerel state'te de okundu işaretlenir.
+
+### 7.2 Kırık `group_invite` aksiyonları düzeltildi
+
+**Sorun:** Backend aksiyonlarda `body: { action: 'accept' }` gönderiyordu; Flutter `runAction` hiç body göndermediğinden endpoint action'ı bilemiyordu — butonlar sessizce başarısız oluyordu.
+
+**Yapılan değişiklik:**
+- `communityGroupRoutes.js`: `_handleGroupInviteResponse(req, res, action)` helper çıkartıldı.
+- Yeni endpoint'ler eklendi (body gereksiz, Flutter uyumlu):
+  - `POST /api/new/groups/:id/invitations/accept`
+  - `POST /api/new/groups/:id/invitations/reject`
+- Mevcut `POST /api/new/groups/:id/invitations/respond` (body: `action`) korundu (web uyumluluğu).
+- `buildNotificationActions`: `group_invite` aksiyonları yeni endpoint'lere güncellendi.
+
+### 7.3 `event_invite` aksiyon butonları eklendi
+
+**Sorun:** `event_invite` bildirimi aksiyonsuzdu; kullanıcı etkinliğe cevap vermek için sayfaya gitmek zorundaydı.
+
+**Yapılan değişiklik:**
+- `communityRoutes.js`: `_handleEventRespond(req, res, response)` helper çıkartıldı.
+- Yeni endpoint'ler eklendi:
+  - `POST /api/new/events/:id/attend`
+  - `POST /api/new/events/:id/decline`
+- Mevcut `POST /api/new/events/:id/respond` (body: `response`) korundu.
+- `buildNotificationActions`: `event_invite` tipine `attend_event` + `decline_event` aksiyonları eklendi.
+
+### 7.4 `teacher_network_linked` gereksiz aksiyon kaldırıldı
+
+**Sorun:** "Okundu yap" butonu artık gereksiz — kart tıklaması zaten okundu işlemini yapıyor.
+
+**Yapılan değişiklik:** `buildNotificationActions`'dan `mark_teacher_notifications_read` aksiyonu çıkartıldı.
+
+### 7.5 Flutter rota haritası tamamlandı
+
+**Sorun:** `like`, `comment`, `mention_post` bildirimleri için rota eşleşmesi (`/new/posts/:id`) ve öğretmen ağı bildirimleri için (`/new/network/teachers`) eksikti.
+
+**Yapılan değişiklik** (`notification_route_mapper.dart`):
+- `/new/posts/:id` → `/posts/:id` eklendi.
+- `/new/network/teachers` → `/network/teachers` eklendi.
+
+### 7.6 Aksiyon sonrası okundu işlemi
+
+**Yapılan değişiklik** (`notifications_action_controller.dart`):
+- `runAction` başarı durumunda `unawaited(_repository.markRead(notificationId))` çağrısı eklendi — iş aksiyonu (kabul/red) alındığında bildirim backend'de de okundu işaretlenir.

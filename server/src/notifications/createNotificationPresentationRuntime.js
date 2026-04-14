@@ -443,34 +443,31 @@ export function createNotificationPresentationRuntime({
   async function buildNotificationActions(row, prebuiltTarget) {
     const target = prebuiltTarget || await buildNotificationTarget(row);
     const type = String(row?.type || '').trim().toLowerCase();
-    const actions = [{ kind: 'open', label: 'Aç', href: target.href }];
+    const actions = [];
 
     if (type === 'group_invite' && String(row?.invite_status || 'pending') === 'pending' && Number(row?.entity_id || 0) > 0) {
       actions.push(
-        { kind: 'accept_group_invite', label: 'Kabul Et', method: 'POST', endpoint: `/api/new/groups/${Number(row.entity_id)}/invitations/respond`, body: { action: 'accept' } },
-        { kind: 'reject_group_invite', label: 'Reddet', method: 'POST', endpoint: `/api/new/groups/${Number(row.entity_id)}/invitations/respond`, body: { action: 'reject' } }
+        { kind: 'accept_group_invite', label: 'Kabul Et', method: 'POST', endpoint: `/api/new/groups/${Number(row.entity_id)}/invitations/accept` },
+        { kind: 'reject_group_invite', label: 'Reddet', method: 'POST', endpoint: `/api/new/groups/${Number(row.entity_id)}/invitations/reject` }
+      );
+    }
+    if (type === 'event_invite' && Number(row?.entity_id || 0) > 0) {
+      actions.push(
+        { kind: 'attend_event', label: 'Katılacağım', method: 'POST', endpoint: `/api/new/events/${Number(row.entity_id)}/attend` },
+        { kind: 'decline_event', label: 'Katılmıyorum', method: 'POST', endpoint: `/api/new/events/${Number(row.entity_id)}/decline` }
       );
     }
     if (type === 'connection_request' && String(row?.request_status || 'pending') === 'pending' && Number(row?.entity_id || 0) > 0) {
       actions.push(
-        { kind: 'accept_connection_request', label: 'Kabul Et', method: 'POST', endpoint: `/api/new/connections/accept/${Number(row.entity_id)}`, body: { source_surface: 'notifications_page' } },
-        { kind: 'ignore_connection_request', label: 'Yoksay', method: 'POST', endpoint: `/api/new/connections/ignore/${Number(row.entity_id)}`, body: { source_surface: 'notifications_page' } }
+        { kind: 'accept_connection_request', label: 'Kabul Et', method: 'POST', endpoint: `/api/new/connections/accept/${Number(row.entity_id)}` },
+        { kind: 'ignore_connection_request', label: 'Yoksay', method: 'POST', endpoint: `/api/new/connections/ignore/${Number(row.entity_id)}` }
       );
     }
     if (type === 'mentorship_request' && String(row?.request_status || 'requested') === 'requested' && Number(row?.entity_id || 0) > 0) {
       actions.push(
-        { kind: 'accept_mentorship_request', label: 'Kabul Et', method: 'POST', endpoint: `/api/new/mentorship/accept/${Number(row.entity_id)}`, body: { source_surface: 'notifications_page' } },
-        { kind: 'decline_mentorship_request', label: 'Reddet', method: 'POST', endpoint: `/api/new/mentorship/decline/${Number(row.entity_id)}`, body: { source_surface: 'notifications_page' } }
+        { kind: 'accept_mentorship_request', label: 'Kabul Et', method: 'POST', endpoint: `/api/new/mentorship/accept/${Number(row.entity_id)}` },
+        { kind: 'decline_mentorship_request', label: 'Reddet', method: 'POST', endpoint: `/api/new/mentorship/decline/${Number(row.entity_id)}` }
       );
-    }
-    if (type === 'teacher_network_linked' && !row?.read_at) {
-      actions.push({
-        kind: 'mark_teacher_notifications_read',
-        label: 'Okundu yap',
-        method: 'POST',
-        endpoint: '/api/new/network/inbox/teacher-links/read',
-        body: { source_surface: 'notifications_page' }
-      });
     }
     return actions;
   }

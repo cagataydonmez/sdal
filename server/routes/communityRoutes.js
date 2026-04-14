@@ -151,13 +151,11 @@ export function registerCommunityRoutes(app, {
     }
   });
 
-  app.post('/api/new/events/:id/respond', requireAuth, async (req, res) => {
+  async function _handleEventRespond(req, res, response) {
     try {
       const event = await sqlGetAsync('SELECT * FROM events WHERE id = ?', [req.params.id]);
       if (!event) return res.status(404).send('Etkinlik bulunamadı.');
       if (Number(event.approved || 1) !== 1) return res.status(400).send('Etkinlik henüz yayında değil.');
-      const response = normalizeEventResponse(req.body?.response);
-      if (!response) return res.status(400).send('Geçersiz yanıt.');
       const now = new Date().toISOString();
       const existing = await sqlGetAsync('SELECT id FROM event_responses WHERE event_id = ? AND user_id = ?', [req.params.id, req.session.userId]);
       if (existing) {
@@ -179,12 +177,26 @@ export function registerCommunityRoutes(app, {
       }
       const canSeePrivate = sameUserId(event.created_by, req.session.userId);
       const bundle = await getEventResponseBundle(event, req.session.userId, canSeePrivate);
-      res.json({ ok: true, myResponse: bundle.myResponse, counts: bundle.counts });
+      return res.json({ ok: true, myResponse: bundle.myResponse, counts: bundle.counts });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
+  }
+
+  app.post('/api/new/events/:id/respond', requireAuth, async (req, res) => {
+    const response = normalizeEventResponse(req.body?.response);
+    if (!response) return res.status(400).send('Geçersiz yanıt.');
+    return _handleEventRespond(req, res, response);
   });
+
+  // Flutter-compatible aliases: no request body required
+  app.post('/api/new/events/:id/attend', requireAuth, (req, res) =>
+    _handleEventRespond(req, res, 'attend')
+  );
+  app.post('/api/new/events/:id/decline', requireAuth, (req, res) =>
+    _handleEventRespond(req, res, 'decline')
+  );
 
   app.post('/api/new/events/:id/response-visibility', requireAuth, async (req, res) => {
     try {

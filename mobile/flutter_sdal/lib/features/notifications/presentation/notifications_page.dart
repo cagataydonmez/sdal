@@ -166,6 +166,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       (item) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: SurfaceCard(
+                          onTap: () => _openNotification(context, ref, item),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -201,7 +202,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                   ),
                                   if (item.isUnread)
                                     Padding(
-                                      padding: EdgeInsets.only(left: 12),
+                                      padding: const EdgeInsets.only(left: 12),
                                       child: Icon(
                                         Icons.circle,
                                         size: 10,
@@ -210,12 +211,19 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                     ),
                                 ],
                               ),
-                              if (item.actions.isNotEmpty) ...[
+                              if (item.actions
+                                  .where((a) =>
+                                      a.kind != 'open' &&
+                                      a.endpoint.trim().isNotEmpty)
+                                  .isNotEmpty) ...[
                                 const SizedBox(height: 12),
                                 Wrap(
                                   spacing: 10,
                                   runSpacing: 10,
                                   children: item.actions
+                                      .where((a) =>
+                                          a.kind != 'open' &&
+                                          a.endpoint.trim().isNotEmpty)
                                       .map(
                                         (action) => OutlinedButton(
                                           onPressed: () async {
@@ -232,6 +240,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                                   notificationType: item.type,
                                                 );
                                             if (!context.mounted) return;
+                                            if (ok) {
+                                              _markNotificationRead(item.id);
+                                            }
                                             final nextState = ref.read(
                                               notificationsActionControllerProvider,
                                             );
@@ -252,52 +263,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                       .toList(growable: false),
                                 ),
                               ],
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  TextButton(
-                                    onPressed: item.isUnread
-                                        ? () async {
-                                            final messenger =
-                                                ScaffoldMessenger.of(context);
-                                            final ok = await ref
-                                                .read(
-                                                  notificationsActionControllerProvider
-                                                      .notifier,
-                                                )
-                                                .markRead(
-                                                  item.id,
-                                                  notificationType: item.type,
-                                                );
-                                            if (!context.mounted) return;
-                                            if (ok) {
-                                              _markNotificationRead(item.id);
-                                            }
-                                            final nextState = ref.read(
-                                              notificationsActionControllerProvider,
-                                            );
-                                            messenger.showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  nextState.message ??
-                                                      (ok
-                                                          ? 'Bildirim okundu.'
-                                                          : l10n.notificationsActionFailed),
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        : null,
-                                    child: Text(l10n.notificationsReadAction),
-                                  ),
-                                  const Spacer(),
-                                  FilledButton.tonal(
-                                    onPressed: () =>
-                                        _openNotification(context, ref, item),
-                                    child: Text(l10n.openAction),
-                                  ),
-                                ],
-                              ),
                             ],
                           ),
                         ),

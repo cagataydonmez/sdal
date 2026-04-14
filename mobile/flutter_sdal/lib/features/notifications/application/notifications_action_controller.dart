@@ -148,6 +148,9 @@ class NotificationsActionController extends Notifier<AsyncActionState> {
           ),
         ]),
       );
+      if (notificationId != null) {
+        unawaited(_repository.markRead(notificationId));
+      }
       _refreshAll();
       state = AsyncActionState.success(
         scope: 'action:${action.kind}',
