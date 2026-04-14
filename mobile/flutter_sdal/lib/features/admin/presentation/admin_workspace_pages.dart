@@ -23,62 +23,23 @@ class AdminWorkspacePage extends ConsumerWidget {
     );
     final siteControlsState = ref.watch(adminSiteControlsProvider);
 
-    if (user == null || !user.isAdmin) {
+    if (user == null || !user.hasAdminAccess) {
       return _WorkspaceDeniedPage(
-        title: 'Yonetim',
-        message: 'Bu calisma alani yalnizca admin hesaplari icin acik.',
+        title: 'Yönetim',
+        message: 'Bu çalışma alanı yalnızca admin hesapları için açık.',
       );
     }
 
     return accessState.when(
       loading: () => const FeatureScaffold(
-        title: 'Yonetim',
+        title: 'Yönetim',
         child: Center(child: CircularProgressIndicator()),
       ),
       error: (error, _) => FeatureScaffold(
-        title: 'Yonetim',
+        title: 'Yönetim',
         child: Center(child: Text(error.toString())),
       ),
       data: (access) {
-        if (!access.adminOk) {
-          return FeatureScaffold(
-            title: 'Yonetim',
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: SurfaceCard(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.admin_panel_settings_outlined, size: 40),
-                      const SizedBox(height: 14),
-                      Text(
-                        'Yonetim islemlerini acmadan once admin sifresi ile ikinci adimi tamamla.',
-                        style: Theme.of(context).textTheme.titleMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Bu adim; moduller, roller ve kritik operasyonlar gibi alanlari korur.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).sdal.foregroundMuted,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 18),
-                      FilledButton.icon(
-                        onPressed: () => _showAdminLoginDialog(context, ref),
-                        icon: const Icon(Icons.lock_open_outlined),
-                        label: const Text('Admin oturumu ac'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
         final requestItems =
             requestNotificationsState.asData?.value ??
             const <AdminRequestNotificationItem>[];
@@ -90,7 +51,7 @@ class AdminWorkspacePage extends ConsumerWidget {
         final siteControls = siteControlsState.asData?.value;
 
         return FeatureScaffold(
-          title: 'Yonetim',
+          title: 'Yönetim',
           actions: [
             IconButton(
               tooltip: 'Yenile',
@@ -113,10 +74,10 @@ class AdminWorkspacePage extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             children: [
               _WorkspaceHeroCard(
-                eyebrow: 'Admin workspace',
-                title: 'Uygulamayi tek ekrandan yonet',
+                eyebrow: 'Admin çalışma alanı',
+                title: 'Uygulamayı tek ekrandan yönet',
                 description:
-                    'Teknik detaylar yerine is kuyruklarini, modulleri ve kritik durumlari one cikarir.',
+                    'Teknik detaylar yerine iş kuyruklarını, modülleri ve kritik durumları öne çıkarır.',
                 badges: [
                   _HeroBadge(
                     icon: Icons.pending_actions_outlined,
@@ -125,13 +86,13 @@ class AdminWorkspacePage extends ConsumerWidget {
                   _HeroBadge(
                     icon: Icons.groups_outlined,
                     label:
-                        '${summary?.counts['users'] ?? 0} uye · ${summary?.counts['pendingUsers'] ?? 0} onay bekliyor',
+                        '${summary?.counts['users'] ?? 0} üye · ${summary?.counts['pendingUsers'] ?? 0} onay bekliyor',
                   ),
                   _HeroBadge(
                     icon: Icons.dashboard_customize_outlined,
                     label: siteControls == null
-                        ? 'Modul durumu yukleniyor'
-                        : '${siteControls.openModuleCount}/${siteControls.totalModuleCount} modul acik',
+                        ? 'Modül durumu yükleniyor'
+                        : '${siteControls.openModuleCount}/${siteControls.totalModuleCount} modül açık',
                   ),
                 ],
               ),
@@ -143,58 +104,58 @@ class AdminWorkspacePage extends ConsumerWidget {
                   _WorkspaceNavCard(
                     title: 'Talepler',
                     summary:
-                        'Uyelik, mezuniyet yili degisikligi ve ogretmen agi incelemeleri.',
-                    countLabel: '$pendingRequestCount bekleyen is',
+                        'Üyelik, mezuniyet yılı değişikliği ve öğretmen ağı incelemeleri.',
+                    countLabel: '$pendingRequestCount bekleyen iş',
                     icon: Icons.assignment_turned_in_outlined,
                     tone: _WorkspaceTone.success,
                     onTap: () => context.go('/admin/requests'),
                   ),
                   _WorkspaceNavCard(
-                    title: 'Icerik guvenligi',
+                    title: 'İçerik güvenliği',
                     summary:
-                        'Post, yorum, hikaye, grup ve mesaj denetimini tek yerden ac.',
+                        'Post, yorum, hikâye, grup ve mesaj denetimini tek yerden aç.',
                     countLabel:
-                        '${summary?.counts['posts'] ?? 0} gonderi · ${summary?.counts['messages'] ?? 0} mesaj',
+                        '${summary?.counts['posts'] ?? 0} gönderi · ${summary?.counts['messages'] ?? 0} mesaj',
                     icon: Icons.shield_outlined,
                     tone: _WorkspaceTone.warning,
                     onTap: () => context.go('/admin/content'),
                   ),
                   _WorkspaceNavCard(
-                    title: 'Uyeler ve roller',
+                    title: 'Üyeler ve roller',
                     summary:
-                        'Admin atama, mod kurma ve cohort bazli yetki dagitimi.',
+                        'Admin atama, mod kurma ve cohort bazlı yetki dağıtımı.',
                     countLabel: access.rootStatus?.hasRoot == true
-                        ? 'Root hazir'
+                        ? 'Root hazır'
                         : 'Root kontrol et',
                     icon: Icons.manage_accounts_outlined,
                     tone: _WorkspaceTone.info,
                     onTap: () => context.go('/admin/management'),
                   ),
                   _WorkspaceNavCard(
-                    title: 'Modul yonetimi',
+                    title: 'Modül yönetimi',
                     summary:
-                        'Site acikligi, bakim mesaji, modul erisimi ve menu gorunurlugu.',
+                        'Site açıklığı, bakım mesajı, modül erişimi ve menü görünürlüğü.',
                     countLabel: siteControls?.siteOpen == true
-                        ? 'Site acik'
-                        : 'Bakim modu acik',
+                        ? 'Site açık'
+                        : 'Bakım modu açık',
                     icon: Icons.tune_outlined,
                     tone: _WorkspaceTone.accent,
                     onTap: () => context.go('/admin/modules'),
                   ),
                   _WorkspaceNavCard(
-                    title: 'API monitoru',
+                    title: 'API monitörü',
                     summary:
-                        'Secili uye uzerinden canli endpoint akislarini izle.',
-                    countLabel: 'Canli izleme araci',
+                        'Seçili üye üzerinden canlı endpoint akışlarını izle.',
+                    countLabel: 'Canlı izleme aracı',
                     icon: Icons.radar_outlined,
                     tone: _WorkspaceTone.info,
                     onTap: () => context.go('/admin/api-monitor'),
                   ),
                   _WorkspaceNavCard(
-                    title: 'Gelişmis araclar',
+                    title: 'Gelişmiş araçlar',
                     summary:
-                        'Operasyonlar, loglar, deneyler, diller ve veritabani isleri.',
-                    countLabel: 'Yuksek etki / yuksek risk',
+                        'Operasyonlar, loglar, deneyler, diller ve veritabanı işleri.',
+                    countLabel: 'Yüksek etki / yüksek risk',
                     icon: Icons.build_outlined,
                     tone: _WorkspaceTone.danger,
                     onTap: () => context.go('/admin/operations'),
@@ -203,12 +164,12 @@ class AdminWorkspacePage extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               _AsyncSurfaceCard<List<AdminRequestNotificationItem>>(
-                title: 'Bugunun kuyruk ozeti',
+                title: 'Bugünün kuyruk özeti',
                 asyncValue: requestNotificationsState,
                 builder: (items) {
                   if (items.isEmpty) {
                     return const Text(
-                      'Acik bekleyen talep yok. Kuyruk temiz gorunuyor.',
+                      'Açık bekleyen talep yok. Kuyruk temiz görünüyor.',
                     );
                   }
                   return Column(
@@ -228,7 +189,7 @@ class AdminWorkspacePage extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               _AsyncSurfaceCard<AdminSiteControlsSnapshot>(
-                title: 'Yayin durumu',
+                title: 'Yayın durumu',
                 asyncValue: siteControlsState,
                 builder: (controls) {
                   final visibleModules = controls.menuVisibility.entries
@@ -239,18 +200,18 @@ class AdminWorkspacePage extends ConsumerWidget {
                     children: [
                       _MetricRow(
                         label: 'Site durumu',
-                        value: controls.siteOpen ? 'Acik' : 'Kapali',
+                        value: controls.siteOpen ? 'Açık' : 'Kapalı',
                         hint: controls.maintenanceMessage.isEmpty
-                            ? 'Bakim mesaji yok'
-                            : 'Bakim mesaji hazir',
+                            ? 'Bakım mesajı yok'
+                            : 'Bakım mesajı hazır',
                       ),
                       const SizedBox(height: 10),
                       _MetricRow(
-                        label: 'Varsayilan giris',
+                        label: 'Varsayılan giriş',
                         value: controls.defaultLandingPage.isEmpty
                             ? '/new/feed'
                             : controls.defaultLandingPage,
-                        hint: '$visibleModules modul menude gorunur',
+                        hint: '$visibleModules modül menüde görünür',
                       ),
                       const SizedBox(height: 16),
                       Align(
@@ -258,7 +219,7 @@ class AdminWorkspacePage extends ConsumerWidget {
                         child: OutlinedButton.icon(
                           onPressed: () => context.go('/admin/modules'),
                           icon: const Icon(Icons.tune_outlined),
-                          label: const Text('Modul ayarlarini ac'),
+                          label: const Text('Modül ayarlarını aç'),
                         ),
                       ),
                     ],
@@ -282,10 +243,10 @@ class ModeratorWorkspacePage extends ConsumerWidget {
     final user = session?.user;
     final accessState = ref.watch(adminAccessProvider);
 
-    if (user == null || (!user.isModerator && !user.isAdmin)) {
+    if (user == null || (!user.isModerator && !user.hasAdminAccess)) {
       return _WorkspaceDeniedPage(
         title: 'Moderasyon',
-        message: 'Bu alan yalnizca moderator ve admin hesaplari icin acik.',
+        message: 'Bu alan yalnızca moderatör ve admin hesapları için açık.',
       );
     }
 
@@ -394,18 +355,18 @@ class ModeratorWorkspacePage extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             children: [
               _WorkspaceHeroCard(
-                eyebrow: 'Moderator workspace',
+                eyebrow: 'Moderasyon çalışma alanı',
                 title: scopedYears.isEmpty
-                    ? 'Kapsam bekleyen moderator'
-                    : 'Cohort bazli moderasyon masasi',
+                    ? 'Kapsam bekleyen moderatör'
+                    : 'Cohort bazlı moderasyon masası',
                 description: scopedYears.isEmpty
-                    ? 'Yetkilerin acik, ancak henuz mezuniyet yili kapsam atamasi tanimlanmamis.'
-                    : 'Yalnizca ${_formatYears(scopedYears)} cohortlari icindeki uye ve icerikleri gorebilir, inceleyebilir ve karar verebilirsin.',
+                    ? 'Yetkilerin açık, ancak henüz mezuniyet yılı kapsam ataması tanımlanmamış.'
+                    : 'Yalnızca ${_formatYears(scopedYears)} cohortları içindeki üye ve içerikleri görebilir, inceleyebilir ve karar verebilirsin.',
                 badges: [
                   _HeroBadge(
                     icon: Icons.school_outlined,
                     label: scopedYears.isEmpty
-                        ? 'Cohort atamasi yok'
+                        ? 'Cohort ataması yok'
                         : 'Cohort: ${scopedYears.join(', ')}',
                   ),
                   _HeroBadge(
@@ -414,11 +375,11 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                   ),
                   _HeroBadge(
                     icon: Icons.verified_user_outlined,
-                    label: '$verificationTotal dogrulama',
+                    label: '$verificationTotal doğrulama',
                   ),
                   _HeroBadge(
                     icon: Icons.shield_outlined,
-                    label: '$contentTotal icerik kaydi',
+                    label: '$contentTotal içerik kaydı',
                   ),
                 ],
               ),
@@ -426,7 +387,7 @@ class ModeratorWorkspacePage extends ConsumerWidget {
               if (permissionKeys.isEmpty)
                 SurfaceCard(
                   child: Text(
-                    'Bu hesapta aktif moderasyon yetkisi yok. Admin, once izin anahtarlarini sonra cohort kapsamlarini atamali.',
+                    'Bu hesapta aktif moderasyon yetkisi yok. Admin, önce izin anahtarlarını sonra cohort kapsamlarını atamalı.',
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 )
@@ -437,30 +398,30 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                   children: [
                     if (canReviewRequests)
                       _WorkspaceNavCard(
-                        title: 'Talep kuyrugu',
+                        title: 'Talep kuyruğu',
                         summary:
-                            'Uyelik ve mezuniyet yili degisikligi taleplerini hizli isleyin.',
-                        countLabel: '$requestTotal bekleyen kayit',
+                            'Üyelik ve mezuniyet yılı değişikliği taleplerini hızlı işleyin.',
+                        countLabel: '$requestTotal bekleyen kayıt',
                         icon: Icons.assignment_turned_in_outlined,
                         tone: _WorkspaceTone.success,
                         onTap: () => context.go('/admin/requests'),
                       ),
                     if (canReviewVerification)
                       _WorkspaceNavCard(
-                        title: 'Dogrulama kuyrugu',
+                        title: 'Doğrulama kuyruğu',
                         summary:
-                            'Cohort kapsamindaki profil dogrulama basvurularini inceleyin.',
-                        countLabel: '$verificationTotal bekleyen kayit',
+                            'Cohort kapsamındaki profil doğrulama başvurularını inceleyin.',
+                        countLabel: '$verificationTotal bekleyen kayıt',
                         icon: Icons.badge_outlined,
                         tone: _WorkspaceTone.info,
                         onTap: () => context.go('/admin/content'),
                       ),
                     if (contentTotal > 0)
                       _WorkspaceNavCard(
-                        title: 'Icerik inceleme',
+                        title: 'İçerik inceleme',
                         summary:
-                            'Post, yorum ve hikaye temizligi icin hizli silme akislarini ac.',
-                        countLabel: '$contentTotal kayit sirada',
+                            'Post, yorum ve hikâye temizliği için hızlı silme akışlarını aç.',
+                        countLabel: '$contentTotal kayıt sırada',
                         icon: Icons.shield_outlined,
                         tone: _WorkspaceTone.warning,
                         onTap: () => context.go('/admin/content'),
@@ -470,12 +431,12 @@ class ModeratorWorkspacePage extends ConsumerWidget {
               const SizedBox(height: 16),
               if (canReviewRequests)
                 _AsyncSurfaceCard<AdminPreviewList<AdminRequestQueueItem>>(
-                  title: 'Bekleyen uye talepleri',
+                  title: 'Bekleyen üye talepleri',
                   asyncValue: requestPreviewState,
                   builder: (preview) => _RequestPreviewList(
                     items: preview.items,
                     emptyMessage:
-                        'Senin cohort kapsaminda bekleyen uye talebi yok.',
+                        'Senin cohort kapsamında bekleyen üye talebi yok.',
                     onApprove: (item) => _reviewMemberRequest(
                       context,
                       ref,
@@ -496,12 +457,12 @@ class ModeratorWorkspacePage extends ConsumerWidget {
               if (canReviewRequests) const SizedBox(height: 16),
               if (canReviewVerification)
                 _AsyncSurfaceCard<AdminPreviewList<AdminVerificationQueueItem>>(
-                  title: 'Bekleyen profil dogrulamalari',
+                  title: 'Bekleyen profil doğrulamaları',
                   asyncValue: verificationPreviewState,
                   builder: (preview) => _VerificationPreviewList(
                     items: preview.items,
                     emptyMessage:
-                        'Senin cohort kapsaminda bekleyen dogrulama yok.',
+                        'Senin cohort kapsamında bekleyen doğrulama yok.',
                     onApprove: (item) => _reviewVerificationRequest(
                       context,
                       ref,
@@ -551,16 +512,21 @@ class AdminModuleManagementPage extends ConsumerWidget {
     final user = session?.user;
     final controlsState = ref.watch(adminSiteControlsProvider);
 
-    if (user == null || !user.isAdmin) {
+    if (user == null || !user.hasAdminAccess) {
       return _WorkspaceDeniedPage(
-        title: 'Modul yonetimi',
-        message: 'Bu alan yalnizca admin hesaplari icin acik.',
+        title: 'Modül yönetimi',
+        message: 'Bu alan yalnızca admin hesapları için açık.',
       );
     }
 
     return FeatureScaffold(
-      title: 'Modul yonetimi',
+      title: 'Modül yönetimi',
       actions: [
+        IconButton(
+          tooltip: 'Yönetim ana sayfasına dön',
+          onPressed: () => context.go('/admin'),
+          icon: const Icon(Icons.dashboard_outlined),
+        ),
         IconButton(
           tooltip: 'Yenile',
           onPressed: () => ref.invalidate(adminSiteControlsProvider),
@@ -578,19 +544,19 @@ class AdminModuleManagementPage extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             children: [
               _WorkspaceHeroCard(
-                eyebrow: 'Control center',
-                title: 'Site ve modul erisimini sade sekilde yonet',
+                eyebrow: 'Kontrol merkezi',
+                title: 'Site ve modül erişimini sade şekilde yönet',
                 description:
-                    'Her degisiklik aninda kaydedilir. “Acik” kullanici erisimini, “Menude gorunur” ise gezinme gorunurlugunu kontrol eder.',
+                    'Her değişiklik anında kaydedilir. “Açık” kullanıcı erişimini, “Menüde görünür” ise gezinme görünürlüğünü kontrol eder.',
                 badges: [
                   _HeroBadge(
                     icon: Icons.public_outlined,
-                    label: controls.siteOpen ? 'Site acik' : 'Site kapali',
+                    label: controls.siteOpen ? 'Site açık' : 'Site kapalı',
                   ),
                   _HeroBadge(
                     icon: Icons.grid_view_outlined,
                     label:
-                        '${controls.openModuleCount}/${controls.totalModuleCount} modul acik',
+                        '${controls.openModuleCount}/${controls.totalModuleCount} modül açık',
                   ),
                   _HeroBadge(
                     icon: Icons.login_outlined,
@@ -606,16 +572,16 @@ class AdminModuleManagementPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Genel yayin durumu',
+                      'Genel yayın durumu',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
                     SwitchListTile.adaptive(
                       value: controls.siteOpen,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Site acik'),
+                      title: const Text('Site açık'),
                       subtitle: const Text(
-                        'Kapattiginda tum kullanicilar bakim ekranina yonlenir.',
+                        'Kapattığında tüm kullanıcılar bakım ekranına yönlenir.',
                       ),
                       onChanged: (value) => _saveSiteControls(
                         context,
@@ -626,10 +592,10 @@ class AdminModuleManagementPage extends ConsumerWidget {
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Bakim mesaji'),
+                      title: const Text('Bakım mesajı'),
                       subtitle: Text(
                         controls.maintenanceMessage.isEmpty
-                            ? 'Mesaj tanimli degil'
+                            ? 'Mesaj tanımlı değil'
                             : controls.maintenanceMessage,
                       ),
                       trailing: const Icon(Icons.edit_outlined),
@@ -638,7 +604,7 @@ class AdminModuleManagementPage extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Varsayilan giris',
+                      'Varsayılan giriş',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 10),
@@ -698,7 +664,7 @@ class AdminModuleManagementPage extends ConsumerWidget {
                         SwitchListTile.adaptive(
                           value: module.value,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Kullanici erisimi acik'),
+                          title: const Text('Kullanıcı erişimi açık'),
                           onChanged: (value) {
                             final nextModules = {...controls.modules};
                             nextModules[module.key] = value;
@@ -713,7 +679,7 @@ class AdminModuleManagementPage extends ConsumerWidget {
                         SwitchListTile.adaptive(
                           value: controls.menuVisibility[module.key] ?? true,
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Menude gorunur'),
+                          title: const Text('Menüde görünür'),
                           onChanged: (value) {
                             final nextVisibility = {...controls.menuVisibility};
                             nextVisibility[module.key] = value;
@@ -764,7 +730,7 @@ class _WorkspaceDeniedPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => context.go('/feed'),
-                  child: const Text('Akisa don'),
+                  child: const Text('Akışa dön'),
                 ),
               ],
             ),
@@ -1204,12 +1170,12 @@ class _ContentModerationCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Hizli icerik temizligi',
+            'Hızlı içerik temizliği',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 14),
           if (items.isEmpty)
-            const Text('Cohort kapsaminda acik icerik kaydi yok.')
+            const Text('Cohort kapsamında açık içerik kaydı yok.')
           else
             for (final entry in items.take(6))
               Padding(
@@ -1250,7 +1216,7 @@ class _ContentModerationCard extends StatelessWidget {
                             onPressed: () =>
                                 onDelete(entry.type, entry.item.id),
                             icon: const Icon(Icons.delete_outline),
-                            label: const Text('Kaldir'),
+                            label: const Text('Kaldır'),
                           ),
                         ),
                       ],
@@ -1301,7 +1267,7 @@ Future<void> _reviewMemberRequest(
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(ok ? 'Talep guncellendi.' : 'Talep guncellenemedi.'),
+      content: Text(ok ? 'Talep güncellendi.' : 'Talep güncellenemedi.'),
     ),
   );
 }
@@ -1322,7 +1288,7 @@ Future<void> _reviewVerificationRequest(
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
-        ok ? 'Dogrulama talebi guncellendi.' : 'Islem tamamlanamadi.',
+        ok ? 'Doğrulama talebi güncellendi.' : 'İşlem tamamlanamadı.',
       ),
     ),
   );
@@ -1337,18 +1303,18 @@ Future<void> _deleteContent(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Icerigi kaldir'),
+      title: const Text('İçeriği kaldır'),
       content: const Text(
-        'Bu islem geri alinmaz. Gercekten kaldirmak istiyor musun?',
+        'Bu işlem geri alınmaz. Gerçekten kaldırmak istiyor musun?',
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('Vazgec'),
+          child: const Text('Vazgeç'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('Kaldir'),
+          child: const Text('Kaldır'),
         ),
       ],
     ),
@@ -1360,53 +1326,9 @@ Future<void> _deleteContent(
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(ok ? 'Icerik kaldirildi.' : 'Icerik kaldirilamadi.'),
+      content: Text(ok ? 'İçerik kaldırıldı.' : 'İçerik kaldırılamadı.'),
     ),
   );
-}
-
-Future<void> _showAdminLoginDialog(BuildContext context, WidgetRef ref) async {
-  final passwordController = TextEditingController();
-  try {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Admin oturumu ac'),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Admin sifresi'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Vazgec'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Ac'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await ref
-        .read(adminRepositoryProvider)
-        .loginToAdmin(passwordController.text.trim());
-    ref.invalidate(adminAccessProvider);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Admin oturumu acildi.')));
-  } catch (error) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(error.toString())));
-  } finally {
-    passwordController.dispose();
-  }
 }
 
 Future<void> _handleAdminLogout(BuildContext context, WidgetRef ref) async {
@@ -1416,7 +1338,7 @@ Future<void> _handleAdminLogout(BuildContext context, WidgetRef ref) async {
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Admin oturumu kapatildi.')));
+    ).showSnackBar(const SnackBar(content: Text('Admin oturumu kapatıldı.')));
   } catch (error) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(
@@ -1435,18 +1357,18 @@ Future<void> _editMaintenanceMessage(
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Bakim mesaji'),
+        title: const Text('Bakım mesajı'),
         content: TextField(
           controller: controller,
           maxLines: 4,
           decoration: const InputDecoration(
-            hintText: 'Kullanicilarin gorecegi bakim aciklamasi',
+            hintText: 'Kullanıcıların göreceği bakım açıklaması',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Vazgec'),
+            child: const Text('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),

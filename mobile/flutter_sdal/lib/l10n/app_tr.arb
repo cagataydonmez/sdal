@@ -208,6 +208,7 @@
   "feedTitle": "Ana Akış",
   "feedRefresh": "Yenile",
   "feedPostAction": "Gönderi",
+  "feedLoadMore": "Daha fazla gönderi",
   "feedEmptyContent": "Bu gönderi içerik taşımıyor.",
   "feedComposerTitle": "Yeni gönderi",
   "feedComposerHint": "Ne paylaşmak istiyorsun?",

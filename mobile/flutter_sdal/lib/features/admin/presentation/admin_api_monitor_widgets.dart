@@ -308,7 +308,7 @@ class AdminApiMonitorOverlayHost extends ConsumerWidget {
     final monitorState = ref.watch(adminApiMonitorControllerProvider);
 
     if (sessionUser == null ||
-        !sessionUser.isAdmin ||
+        !sessionUser.hasAdminAccess ||
         !monitorState.isEnabled) {
       return child;
     }

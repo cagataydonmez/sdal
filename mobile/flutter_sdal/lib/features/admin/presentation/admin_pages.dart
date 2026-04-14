@@ -26,7 +26,7 @@ class AdminHubPage extends ConsumerWidget {
       adminRequestNotificationsProvider,
     );
 
-    if (session == null || user == null || !user.isAdmin) {
+    if (session == null || user == null || !user.hasAdminAccess) {
       return FeatureScaffold(
         title: 'Admin paneli',
         child: Center(
@@ -39,14 +39,14 @@ class AdminHubPage extends ConsumerWidget {
                   const Icon(Icons.lock_outline, size: 36),
                   const SizedBox(height: 12),
                   Text(
-                    'Bu alan yalnizca admin hesaplari icin acik.',
+                    'Bu alan yalnızca admin hesapları için açık.',
                     style: Theme.of(context).textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () => context.go('/feed'),
-                    child: const Text('Akisa don'),
+                    child: const Text('Akışa dön'),
                   ),
                 ],
               ),
@@ -84,7 +84,7 @@ class AdminHubPage extends ConsumerWidget {
                   const Icon(Icons.admin_panel_settings_outlined, size: 36),
                   const SizedBox(height: 12),
                   Text(
-                    'Admin oturumu acik degil. Yonetim yuzeyleri icin ikinci adim admin dogrulamasini tamamla.',
+                    'Admin oturumu açık değil. Yönetim yüzeyleri için ikinci adım admin doğrulamasını tamamla.',
                     style: Theme.of(context).textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -92,15 +92,15 @@ class AdminHubPage extends ConsumerWidget {
                   if (adminAccess.rootStatus != null)
                     Text(
                       adminAccess.rootStatus!.hasRoot
-                          ? 'Root kullanici hazir: @${adminAccess.rootStatus!.rootHandle}'
-                          : 'Root kullanici henuz olusturulmamis',
+                          ? 'Root kullanıcı hazır: @${adminAccess.rootStatus!.rootHandle}'
+                          : 'Root kullanıcı henüz oluşturulmamış',
                       textAlign: TextAlign.center,
                     ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
                     onPressed: () => _showAdminLoginDialog(context, ref),
                     icon: const Icon(Icons.lock_open_outlined),
-                    label: const Text('Admin oturumu ac'),
+                    label: const Text('Admin oturumu aç'),
                   ),
                 ],
               ),
@@ -138,7 +138,7 @@ class AdminHubPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Yonetici ozeti',
+                  'Yönetici özeti',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 14),
@@ -153,24 +153,24 @@ class AdminHubPage extends ConsumerWidget {
                     _AdminStatChip(
                       icon: Icons.verified_user_outlined,
                       label: user.isVerified
-                          ? 'Dogrulanmis'
-                          : 'Dogrulama bekliyor',
+                          ? 'Doğrulanmış'
+                          : 'Doğrulama bekliyor',
                     ),
                     _AdminStatChip(
                       icon: Icons.home_outlined,
-                      label: 'Varsayilan: ${session.defaultHomePath}',
+                      label: 'Varsayılan: ${session.defaultHomePath}',
                     ),
                     _AdminStatChip(
                       icon: Icons.settings_ethernet_outlined,
                       label: session.siteAccess.siteOpen
-                          ? 'Site acik'
-                          : 'Bakim modu',
+                          ? 'Site açık'
+                          : 'Bakım modu',
                     ),
                     if (adminAccess.rootStatus != null)
                       _AdminStatChip(
                         icon: Icons.key_outlined,
                         label: adminAccess.rootStatus!.hasRoot
-                            ? 'Root hazir'
+                            ? 'Root hazır'
                             : 'Root bekleniyor',
                       ),
                   ],
@@ -180,7 +180,7 @@ class AdminHubPage extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _AdminAsyncCard(
-            title: 'Canli admin verisi',
+            title: 'Canlı admin verisi',
             states: [
               summaryState,
               liveState,
@@ -205,12 +205,12 @@ class AdminHubPage extends ConsumerWidget {
                     children: [
                       _AdminStatChip(
                         icon: Icons.groups_outlined,
-                        label: '${summary.counts['users'] ?? 0} uye',
+                        label: '${summary.counts['users'] ?? 0} üye',
                       ),
                       _AdminStatChip(
                         icon: Icons.pending_actions_outlined,
                         label:
-                            '${summary.counts['pendingUsers'] ?? 0} bekleyen uye',
+                            '${summary.counts['pendingUsers'] ?? 0} bekleyen üye',
                       ),
                       _AdminStatChip(
                         icon: Icons.chat_bubble_outline,
@@ -219,7 +219,7 @@ class AdminHubPage extends ConsumerWidget {
                       _AdminStatChip(
                         icon: Icons.wifi_tethering_outlined,
                         label:
-                            '${live.counts['onlineUsers'] ?? 0} cevrimici uye',
+                            '${live.counts['onlineUsers'] ?? 0} çevrim içi üye',
                       ),
                       _AdminStatChip(
                         icon: Icons.assignment_late_outlined,
@@ -234,7 +234,7 @@ class AdminHubPage extends ConsumerWidget {
                   const SizedBox(height: 16),
                   if (requestNotifications.isNotEmpty) ...[
                     Text(
-                      'Talep kuyrugu',
+                      'Talep kuyruğu',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
@@ -267,7 +267,7 @@ class AdminHubPage extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Yonetim yuzeyleri',
+            'Yönetim yüzeyleri',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
@@ -281,7 +281,7 @@ class AdminHubPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Modul durumu',
+                  'Modül durumu',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
@@ -299,7 +299,7 @@ class AdminHubPage extends ConsumerWidget {
                               : Theme.of(context).sdal.warning,
                         ),
                         label: Text(
-                          '${entry.key} · ${entry.value ? 'acik' : 'kapali'}',
+                          '${entry.key} · ${entry.value ? 'açık' : 'kapalı'}',
                         ),
                       ),
                   ],
@@ -338,24 +338,33 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
 
   @override
   Widget build(BuildContext context) {
+    IconButton buildBackButton() => IconButton(
+      tooltip: 'Yönetim ana sayfasına dön',
+      onPressed: () => context.go('/admin'),
+      icon: const Icon(Icons.arrow_back_outlined),
+    );
+
     final sectionKey = widget.sectionKey;
     final section = _sectionByKey(sectionKey);
     if (section == null) {
       return FeatureScaffold(
         title: 'Admin paneli',
-        child: const Center(child: Text('Bilinmeyen admin bolumu.')),
+        actions: [buildBackButton()],
+        child: const Center(child: Text('Bilinmeyen admin bölümü.')),
       );
     }
     final adminAccessState = ref.watch(adminAccessProvider);
     if (adminAccessState.isLoading) {
       return FeatureScaffold(
         title: section.title,
+        actions: [buildBackButton()],
         child: const Center(child: CircularProgressIndicator()),
       );
     }
     if (adminAccessState.hasError) {
       return FeatureScaffold(
         title: section.title,
+        actions: [buildBackButton()],
         child: Center(child: Text(adminAccessState.error.toString())),
       );
     }
@@ -367,6 +376,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     if (!adminAccess.canOpenAdminShell || !sectionAllowed) {
       return FeatureScaffold(
         title: section.title,
+        actions: [buildBackButton()],
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -377,14 +387,14 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                   const Icon(Icons.lock_outline, size: 36),
                   const SizedBox(height: 12),
                   Text(
-                    'Bu admin bolumu icin aktif admin oturumu veya yetki bulunmuyor.',
+                    'Bu admin bölümü için aktif yetki bulunmuyor.',
                     style: Theme.of(context).textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   FilledButton(
                     onPressed: () => context.go('/admin'),
-                    child: const Text('Admin ana sayfasina don'),
+                    child: const Text('Yönetim ana sayfasına dön'),
                   ),
                 ],
               ),
@@ -516,6 +526,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     return FeatureScaffold(
       title: section.title,
       actions: [
+        buildBackButton(),
         if (sectionKey == 'content' ||
             sectionKey == 'requests' ||
             sectionKey == 'management' ||
@@ -699,14 +710,14 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Kullanici arama ve filtreler',
+                    'Kullanıcı arama ve filtreler',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _userSearchController,
                     decoration: const InputDecoration(
-                      labelText: 'Kullanici, e-posta veya handle ara',
+                      labelText: 'Kullanıcı, e-posta veya handle ara',
                       prefixIcon: Icon(Icons.search),
                     ),
                     onSubmitted: (_) => setState(() => _userPage = 1),
@@ -717,11 +728,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                     runSpacing: 8,
                     children: [
                       for (final filter in const <(String, String)>[
-                        ('all', 'Tum'),
+                        ('all', 'Tüm'),
                         ('active', 'Aktif'),
                         ('pending', 'Bekleyen'),
-                        ('banned', 'Yasakli'),
-                        ('online', 'Cevrimici'),
+                        ('banned', 'Yasaklı'),
+                        ('online', 'Çevrim içi'),
                       ])
                         ChoiceChip(
                           label: Text(filter.$2),
@@ -739,7 +750,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                     runSpacing: 8,
                     children: [
                       FilterChip(
-                        label: const Text('Dogrulanmis'),
+                        label: const Text('Doğrulanmış'),
                         selected: _verifiedOnly,
                         onSelected: (value) => setState(() {
                           _verifiedOnly = value;
@@ -755,7 +766,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                         }),
                       ),
                       FilterChip(
-                        label: const Text('Fotografli'),
+                        label: const Text('Fotoğraflı'),
                         selected: _withPhotoOnly,
                         onSelected: (value) => setState(() {
                           _withPhotoOnly = value;
@@ -790,7 +801,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             ),
             const SizedBox(height: 16),
             _AdminAsyncCard(
-              title: 'Canli kullanici listesi',
+              title: 'Canlı kullanıcı listesi',
               states: [userPreviewState],
               builder: () {
                 final users = userPreviewState.value!;
@@ -798,7 +809,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _AdminPreviewListCard(
-                      title: 'Kullanicilar',
+                      title: 'Kullanıcılar',
                       total: users.total,
                       children: [
                         for (final item in users.items)
@@ -810,12 +821,12 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 '${item.email} · ${item.role} · ${item.engagementScore} puan',
                             trailing: item.graduationYear.isNotEmpty
                                 ? item.graduationYear
-                                : 'Yil yok',
+                                : 'Yıl yok',
                             action: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  tooltip: 'Detay / tam duzenle',
+                                  tooltip: 'Detay / tam düzenle',
                                   onPressed: () => _handleUserDetailEdit(
                                     context,
                                     ref,
@@ -824,7 +835,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                   icon: const Icon(Icons.visibility_outlined),
                                 ),
                                 IconButton(
-                                  tooltip: 'Mezuniyet yilini guncelle',
+                                  tooltip: 'Mezuniyet yılını güncelle',
                                   onPressed: () => _handleGraduationYearEdit(
                                     context,
                                     ref,
@@ -833,7 +844,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                   icon: const Icon(Icons.edit_outlined),
                                 ),
                                 _AdminDeleteButton(
-                                  label: 'Kullaniciyi sil',
+                                  label: 'Kullanıcıyı sil',
                                   onConfirm: () => _handleMemberDelete(
                                     context,
                                     ref,
@@ -853,7 +864,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                               ? () => setState(() => _userPage -= 1)
                               : null,
                           icon: const Icon(Icons.chevron_left),
-                          label: const Text('Onceki'),
+                          label: const Text('Önceki'),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -885,7 +896,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           if (sectionKey == 'operations') ...[
             const SizedBox(height: 16),
             _AdminAsyncCard(
-              title: 'Canli operasyon durumu',
+              title: 'Canlı operasyon durumu',
               states: [
                 siteControlsState,
                 pagesState,
@@ -900,15 +911,15 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                 final emailTemplates = emailTemplatesState.value!;
                 final logs = appLogsState.value!;
                 return _AdminPreviewListCard(
-                  title: 'Site kontrolu',
+                  title: 'Site kontrolü',
                   total: siteControls.totalModuleCount,
                   children: [
                     _AdminPreviewLine(
-                      title: siteControls.siteOpen ? 'Site acik' : 'Bakim modu',
+                      title: siteControls.siteOpen ? 'Site açık' : 'Bakım modu',
                       subtitle:
-                          'Varsayilan acilis: ${siteControls.defaultLandingPage.isNotEmpty ? siteControls.defaultLandingPage : '/feed'}',
+                          'Varsayılan açılış: ${siteControls.defaultLandingPage.isNotEmpty ? siteControls.defaultLandingPage : '/feed'}',
                       trailing:
-                          '${siteControls.openModuleCount}/${siteControls.totalModuleCount} modul acik',
+                          '${siteControls.openModuleCount}/${siteControls.totalModuleCount} modül açık',
                       action: Switch(
                         value: siteControls.siteOpen,
                         onChanged: (value) => _handleSiteOpenToggle(
@@ -921,7 +932,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                     ),
                     if (siteControls.maintenanceMessage.isNotEmpty)
                       _AdminPreviewLine(
-                        title: 'Bakim mesaji',
+                        title: 'Bakım mesajı',
                         subtitle: siteControls.maintenanceMessage,
                         trailing: '',
                       ),
@@ -942,7 +953,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              tooltip: 'Sayfayi duzenle',
+                              tooltip: 'Sayfayı düzenle',
                               onPressed: () =>
                                   _handleEditPage(context, ref, item),
                               icon: const Icon(Icons.edit_outlined),
@@ -1008,7 +1019,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             onPressed: () =>
                                 _handleAddEmailTemplate(context, ref),
                             icon: const Icon(Icons.article_outlined),
-                            label: const Text('Sablon ekle'),
+                            label: const Text('Şablon ekle'),
                           ),
                           FilledButton.tonalIcon(
                             onPressed: emailCategories.isEmpty
@@ -1034,13 +1045,13 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              tooltip: 'Sablonu duzenle',
+                              tooltip: 'Şablonu düzenle',
                               onPressed: () =>
                                   _handleEditEmailTemplate(context, ref, item),
                               icon: const Icon(Icons.edit_outlined),
                             ),
                             _AdminDeleteButton(
-                              label: 'Sablonu sil',
+                              label: 'Şablonu sil',
                               onConfirm: () => _handleDeleteEmailTemplate(
                                 context,
                                 ref,
@@ -1091,7 +1102,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           subtitle: driver.inProgress
                               ? 'Surucu gecisi devam ediyor'
                               : (driver.switchEnabled
-                                    ? 'Gecis hazir'
+                                    ? 'Geçiş hazır'
                                     : 'Gecis blokeli'),
                           trailing: '${driver.blockerCount} blocker',
                           action: Row(
@@ -1183,7 +1194,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Bu bolumde yer alan akislar',
+                  'Bu bölümde yer alan akışlar',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
@@ -1216,7 +1227,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _AdminPreviewListCard(
-                      title: 'Uye talepleri',
+                      title: 'Üye talepleri',
                       total: requests.total,
                       children: [
                         for (final item in requests.items)
@@ -1245,7 +1256,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                     ),
                     const SizedBox(height: 12),
                     _AdminPreviewListCard(
-                      title: 'Dogrulama talepleri',
+                      title: 'Doğrulama talepleri',
                       total: verifications.total,
                       children: [
                         for (final item in verifications.items)
@@ -1254,8 +1265,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ? '@${item.requesterHandle}'
                                 : item.requesterName,
                             subtitle: item.graduationYear.isNotEmpty
-                                ? 'Mezuniyet yili: ${item.graduationYear}'
-                                : 'Mezuniyet yili yok',
+                                ? 'Mezuniyet yılı: ${item.graduationYear}'
+                                : 'Mezuniyet yılı yok',
                             trailing: item.createdAt,
                             action: _AdminDecisionButtons(
                               onApprove: () => _handleVerificationReview(
@@ -1303,10 +1314,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       children: [
                         _AdminPreviewLine(
                           title: config.selectionEnabled
-                              ? 'Dil secimi acik'
-                              : 'Dil secimi kapali',
+                              ? 'Dil seçimi açık'
+                              : 'Dil seçimi kapalı',
                           subtitle:
-                              'Acik: ${config.defaultOpen} · Kapali: ${config.defaultClosed}',
+                              'Açık: ${config.defaultOpen} · Kapalı: ${config.defaultClosed}',
                           trailing: '',
                           action: Switch(
                             value: config.selectionEnabled,
@@ -1367,7 +1378,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           _AdminPreviewLine(
                             title: '${item.code.toUpperCase()} · ${item.name}',
                             subtitle:
-                                '${item.nativeName}${item.isDefault ? ' · Varsayilan' : ''}',
+                                '${item.nativeName}${item.isDefault ? ' · Varsayılan' : ''}',
                             trailing: item.isActive ? 'Aktif' : 'Pasif',
                             action: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -1402,7 +1413,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                               subtitle: item.value,
                               trailing: item.updatedAt,
                               action: IconButton(
-                                tooltip: 'Metni duzenle',
+                                tooltip: 'Metni düzenle',
                                 onPressed: () => _handleEditLanguageString(
                                   context,
                                   ref,
@@ -1537,8 +1548,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         content: Text(
           ok
               ? (status == 'approved'
-                    ? 'Dogrulama onaylandi.'
-                    : 'Dogrulama reddedildi.')
+                    ? 'Doğrulama onaylandı.'
+                    : 'Doğrulama reddedildi.')
               : (actionState.message ?? 'Islem tamamlanamadi.'),
         ),
       ),
@@ -1554,9 +1565,9 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Kullaniciyi sil'),
+          title: const Text('Kullanıcıyı sil'),
           content: const Text(
-            'Bu islem kullaniciyi ve ilgili verileri kalici olarak siler.',
+            'Bu işlem kullanıcıyı ve ilgili verileri kalıcı olarak siler.',
           ),
           actions: [
             TextButton(
@@ -1581,8 +1592,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Kullanici silindi.'
-              : (actionState.message ?? 'Kullanici silinemedi.'),
+              ? 'Kullanıcı silindi.'
+              : (actionState.message ?? 'Kullanıcı silinemedi.'),
         ),
       ),
     );
@@ -1593,34 +1604,12 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     WidgetRef ref,
     AdminUserPreviewItem item,
   ) async {
-    final controller = TextEditingController(text: item.graduationYear);
     final nextYear = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Mezuniyet yilini guncelle'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Mezuniyet yili veya Ogretmen',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Vazgec'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: const Text('Kaydet'),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => _GraduationYearDialog(
+        initialYear: item.graduationYear,
+      ),
     );
-    controller.dispose();
     if (nextYear == null || nextYear.isEmpty || !context.mounted) return;
     final ok = await ref
         .read(adminActionControllerProvider.notifier)
@@ -1631,8 +1620,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Mezuniyet yili guncellendi.'
-              : (actionState.message ?? 'Guncelleme yapilamadi.'),
+              ? 'Mezuniyet yılı güncellendi.'
+              : (actionState.message ?? 'Güncelleme yapılamadı.'),
         ),
       ),
     );
@@ -1656,8 +1645,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? (nextValue ? 'Site acildi.' : 'Site bakim moduna alindi.')
-              : (actionState.message ?? 'Site durumu guncellenemedi.'),
+              ? (nextValue ? 'Site açıldı.' : 'Site bakım moduna alındı.')
+              : (actionState.message ?? 'Site durumu güncellenemedi.'),
         ),
       ),
     );
@@ -1744,7 +1733,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                 Text('${driver.currentDriver} -> ${driver.targetDriver}'),
                 const SizedBox(height: 12),
                 const _AdminInfoBanner(
-                  title: 'Bakim penceresi onerilir',
+                  title: 'Bakım penceresi önerilir',
                   body:
                       'Buyuk veri setlerinde islem uzun surebilir. Canli ortamda trafik dusukken calistirin.',
                 ),
@@ -1803,7 +1792,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Dil secimi ayari guncellendi.'
+              ? 'Dil seçimi ayarı güncellendi.'
               : (actionState.message ?? 'Dil secimi ayari kaydedilemedi.'),
         ),
       ),
@@ -1825,7 +1814,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         content: Text(
           ok
               ? (item.isActive ? 'Dil pasife alindi.' : 'Dil aktive edildi.')
-              : (actionState.message ?? 'Dil guncellenemedi.'),
+              : (actionState.message ?? 'Dil güncellenemedi.'),
         ),
       ),
     );
@@ -1841,7 +1830,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Dili sil'),
-          content: Text('$code dili ve ilgili ceviri kayitlari silinecek.'),
+          content: Text('$code dili ve ilgili çeviri kayıtları silinecek.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -1949,8 +1938,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Eksik ceviriler dolduruldu.'
-              : (actionState.message ?? 'Eksik ceviriler doldurulamadi.'),
+              ? 'Eksik çeviriler dolduruldu.'
+              : (actionState.message ?? 'Eksik çeviriler doldurulamadı.'),
         ),
       ),
     );
@@ -2000,8 +1989,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Ceviri kaydedildi.'
-              : (actionState.message ?? 'Ceviri kaydedilemedi.'),
+              ? 'Çeviri kaydedildi.'
+              : (actionState.message ?? 'Çeviri kaydedilemedi.'),
         ),
       ),
     );
@@ -2124,7 +2113,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               const SizedBox(height: 12),
               TextField(
                 controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'Aciklama'),
+                decoration: const InputDecoration(labelText: 'Açıklama'),
               ),
             ],
           ),
@@ -2232,7 +2221,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             Chip(
                               label: Text(
                                 driver.switchEnabled
-                                    ? 'Gecis hazir'
+                                    ? 'Geçiş hazır'
                                     : 'Ek kontrol gerekli',
                               ),
                             ),
@@ -2493,7 +2482,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             return StatefulBuilder(
               builder: (dialogContext, setState) {
                 return AlertDialog(
-                  title: const Text('Sayfa duzenle'),
+                  title: const Text('Sayfa düzenle'),
                   content: SingleChildScrollView(
                     child: SizedBox(
                       width: 560,
@@ -2504,7 +2493,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           const _AdminDialogSection(
                             title: 'Yapi',
                             subtitle:
-                                'Gezinimde gorunum ve hiyerarsi ayarlarini birlikte duzenleyin.',
+                                'Gezinimde görünüm ve hiyerarşi ayarlarını birlikte düzenleyin.',
                             child: SizedBox.shrink(),
                           ),
                           TextField(
@@ -2555,7 +2544,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                             value: menuVisible,
                             onChanged: (value) =>
                                 setState(() => menuVisible = value ?? false),
-                            title: const Text('Menude gorunsun'),
+                            title: const Text('Menüde görünsün'),
                           ),
                           CheckboxListTile(
                             contentPadding: EdgeInsets.zero,
@@ -2617,8 +2606,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Sayfa guncellendi.'
-              : (actionState.message ?? 'Sayfa guncellenemedi.'),
+              ? 'Sayfa güncellendi.'
+              : (actionState.message ?? 'Sayfa güncellenemedi.'),
         ),
       ),
     );
@@ -2648,8 +2637,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Sayfa sirasi guncellendi.'
-              : (actionState.message ?? 'Sayfa sirasi guncellenemedi.'),
+              ? 'Sayfa sırası güncellendi.'
+              : (actionState.message ?? 'Sayfa sırası güncellenemedi.'),
         ),
       ),
     );
@@ -2686,7 +2675,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(existing == null ? 'Sablon ekle' : 'Sablon duzenle'),
+          title: Text(existing == null ? 'Şablon ekle' : 'Şablon düzenle'),
           content: SizedBox(
             width: 560,
             child: SingleChildScrollView(
@@ -2695,7 +2684,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _AdminDialogSection(
-                    title: 'Sablon kimligi',
+                    title: 'Şablon kimliği',
                     subtitle: 'Baslik ve konu, listede hizli ayrisim saglar.',
                     child: Column(
                       children: [
@@ -2770,8 +2759,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? (existing == null ? 'Sablon eklendi.' : 'Sablon guncellendi.')
-              : (actionState.message ?? 'Sablon kaydedilemedi.'),
+              ? (existing == null ? 'Şablon eklendi.' : 'Şablon güncellendi.')
+              : (actionState.message ?? 'Şablon kaydedilemedi.'),
         ),
       ),
     );
@@ -2791,8 +2780,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Sablon silindi.'
-              : (actionState.message ?? 'Sablon silinemedi.'),
+              ? 'Şablon silindi.'
+              : (actionState.message ?? 'Şablon silinemedi.'),
         ),
       ),
     );
@@ -2836,12 +2825,12 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           _AdminInfoBanner(
                             title: 'Toplu gonderim',
                             body:
-                                'Kategori secimi alicilari belirler. Sablon secmek sadece govdeyi hizli doldurur.',
+                                'Kategori seçimi alıcıları belirler. Şablon seçmek sadece gövdeyi hızlı doldurur.',
                             tone: Theme.of(dialogContext).sdal.info,
                           ),
                           const SizedBox(height: 20),
                           _AdminDialogSection(
-                            title: 'Alici ve sablon',
+                            title: 'Alıcı ve şablon',
                             child: Column(
                               children: [
                                 DropdownButtonFormField<int>(
@@ -2871,12 +2860,12 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 DropdownButtonFormField<int?>(
                                   initialValue: selectedTemplate?.id,
                                   decoration: const InputDecoration(
-                                    labelText: 'Sablon',
+                                    labelText: 'Şablon',
                                   ),
                                   items: [
                                     const DropdownMenuItem<int?>(
                                       value: null,
-                                      child: Text('Sablon kullanma'),
+                                      child: Text('Şablon kullanma'),
                                     ),
                                     for (final item in templates)
                                       DropdownMenuItem<int?>(
@@ -2987,60 +2976,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     WidgetRef ref,
     AdminLogFileItem item,
   ) async {
-    final snapshot = await ref.read(
-      adminLogContentProvider((type: item.type, file: item.name)).future,
-    );
-    if (!context.mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(item.name),
-          content: SizedBox(
-            width: 720,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Chip(label: Text('Toplam: ${snapshot.total}')),
-                    Chip(label: Text('Eslesen: ${snapshot.matched}')),
-                    Chip(label: Text('Donen: ${snapshot.returned}')),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 420),
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).sdal.panelRaised,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: SingleChildScrollView(
-                    child: SelectableText(
-                      snapshot.content,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Kapat'),
-            ),
-          ],
-        );
-      },
+    await Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(builder: (_) => _AdminLogContentPage(item: item)),
     );
   }
 
@@ -3154,305 +3091,12 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     WidgetRef ref,
     int userId,
   ) async {
-    final detail = await ref.read(adminUserDetailProvider(userId).future);
-    if (!context.mounted) return;
-    final firstNameController = TextEditingController(text: detail.firstName);
-    final lastNameController = TextEditingController(text: detail.lastName);
-    final emailController = TextEditingController(text: detail.email);
-    final activationController = TextEditingController(
-      text: detail.activationToken,
+    final nextDetail = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push<AdminUserDetail>(
+      MaterialPageRoute(builder: (_) => _AdminUserDetailPage(userId: userId)),
     );
-    final professionController = TextEditingController(text: detail.profession);
-    final cityController = TextEditingController(text: detail.city);
-    final websiteController = TextEditingController(text: detail.website);
-    final universityController = TextEditingController(text: detail.university);
-    final graduationController = TextEditingController(
-      text: detail.graduationYear,
-    );
-    final avatarController = TextEditingController(text: detail.avatar);
-    final signatureController = TextEditingController(text: detail.signature);
-    final hitController = TextEditingController(
-      text: detail.profileViewCount.toString(),
-    );
-    final birthDayController = TextEditingController(text: detail.birthDay);
-    final birthMonthController = TextEditingController(text: detail.birthMonth);
-    final birthYearController = TextEditingController(text: detail.birthYear);
-    var isActive = detail.isActive;
-    var isBanned = detail.isBanned;
-    var isProfileInitialized = detail.isProfileInitialized;
-    var isEmailHidden = detail.isEmailHidden;
-    var isVerified = detail.isVerified;
-    final nextDetail = await showDialog<AdminUserDetail?>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setState) {
-            return AlertDialog(
-              title: Text('@${detail.handle}'),
-              content: SizedBox(
-                width: 560,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          Chip(label: Text('@${detail.handle}')),
-                          Chip(
-                            label: Text(detail.isActive ? 'Aktif' : 'Pasif'),
-                          ),
-                          if (detail.isVerified)
-                            const Chip(label: Text('Dogrulanmis')),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      _AdminDialogSection(
-                        title: 'Kimlik',
-                        child: Column(
-                          children: [
-                            TextField(
-                              controller: firstNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Isim',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: lastNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Soyisim',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: emailController,
-                              decoration: const InputDecoration(
-                                labelText: 'E-posta',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: activationController,
-                              decoration: const InputDecoration(
-                                labelText: 'Aktivasyon kodu',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _AdminDialogSection(
-                        title: 'Profil',
-                        child: Column(
-                          children: [
-                            TextField(
-                              controller: professionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Meslek',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: cityController,
-                              decoration: const InputDecoration(
-                                labelText: 'Sehir',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: websiteController,
-                              decoration: const InputDecoration(
-                                labelText: 'Website',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: universityController,
-                              decoration: const InputDecoration(
-                                labelText: 'Universite',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: graduationController,
-                              decoration: const InputDecoration(
-                                labelText: 'Mezuniyet yili',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: avatarController,
-                              decoration: const InputDecoration(
-                                labelText: 'Avatar',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: signatureController,
-                              maxLines: 3,
-                              decoration: const InputDecoration(
-                                labelText: 'Imza',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _AdminDialogSection(
-                        title: 'Sayisal alanlar ve dogum tarihi',
-                        child: Column(
-                          children: [
-                            TextField(
-                              controller: hitController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Hit',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: birthDayController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Gun',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: birthMonthController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Ay',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: birthYearController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Yil',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _AdminDialogSection(
-                        title: 'Durum flagleri',
-                        child: Column(
-                          children: [
-                            CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              value: isActive,
-                              onChanged: (value) =>
-                                  setState(() => isActive = value ?? false),
-                              title: const Text('Aktif'),
-                            ),
-                            CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              value: isBanned,
-                              onChanged: (value) =>
-                                  setState(() => isBanned = value ?? false),
-                              title: const Text('Yasakli'),
-                            ),
-                            CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              value: isProfileInitialized,
-                              onChanged: (value) => setState(
-                                () => isProfileInitialized = value ?? false,
-                              ),
-                              title: const Text('Ilk profil adimi tamam'),
-                            ),
-                            CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              value: isEmailHidden,
-                              onChanged: (value) => setState(
-                                () => isEmailHidden = value ?? false,
-                              ),
-                              title: const Text('E-posta gizli'),
-                            ),
-                            CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              value: isVerified,
-                              onChanged: (value) =>
-                                  setState(() => isVerified = value ?? false),
-                              title: const Text('Dogrulanmis'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Vazgec'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(
-                    AdminUserDetail(
-                      id: detail.id,
-                      handle: detail.handle,
-                      firstName: firstNameController.text.trim(),
-                      lastName: lastNameController.text.trim(),
-                      email: emailController.text.trim(),
-                      activationToken: activationController.text.trim(),
-                      isActive: isActive,
-                      isBanned: isBanned,
-                      isProfileInitialized: isProfileInitialized,
-                      website: websiteController.text.trim(),
-                      signature: signatureController.text,
-                      profession: professionController.text.trim(),
-                      city: cityController.text.trim(),
-                      isEmailHidden: isEmailHidden,
-                      profileViewCount:
-                          int.tryParse(hitController.text.trim()) ?? 0,
-                      isVerified: isVerified,
-                      graduationYear: graduationController.text.trim(),
-                      university: universityController.text.trim(),
-                      birthDay: birthDayController.text.trim(),
-                      birthMonth: birthMonthController.text.trim(),
-                      birthYear: birthYearController.text.trim(),
-                      avatar: avatarController.text.trim().isEmpty
-                          ? 'yok'
-                          : avatarController.text.trim(),
-                    ),
-                  ),
-                  child: const Text('Kaydet'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-    firstNameController.dispose();
-    lastNameController.dispose();
-    emailController.dispose();
-    activationController.dispose();
-    professionController.dispose();
-    cityController.dispose();
-    websiteController.dispose();
-    universityController.dispose();
-    graduationController.dispose();
-    avatarController.dispose();
-    signatureController.dispose();
-    hitController.dispose();
-    birthDayController.dispose();
-    birthMonthController.dispose();
-    birthYearController.dispose();
     if (nextDetail == null || !context.mounted) return;
     final ok = await ref
         .read(adminActionControllerProvider.notifier)
@@ -3463,8 +3107,604 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       SnackBar(
         content: Text(
           ok
-              ? 'Kullanici guncellendi.'
-              : (actionState.message ?? 'Kullanici guncellenemedi.'),
+              ? 'Kullanıcı güncellendi.'
+              : (actionState.message ?? 'Kullanıcı güncellenemedi.'),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminUserDetailPage extends ConsumerWidget {
+  const _AdminUserDetailPage({required this.userId});
+
+  final int userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final detailState = ref.watch(adminUserDetailProvider(userId));
+    return detailState.when(
+      loading: () => const FeatureScaffold(
+        title: 'Kullanıcı yükleniyor',
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => FeatureScaffold(
+        title: 'Kullanıcı yüklenemedi',
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: SurfaceCard(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 36),
+                    const SizedBox(height: 16),
+                    Text(error.toString(), textAlign: TextAlign.center),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: () =>
+                          ref.invalidate(adminUserDetailProvider(userId)),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tekrar dene'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      data: (detail) => _AdminUserDetailOverviewPage(detail: detail),
+    );
+  }
+}
+
+class _AdminUserDetailOverviewPage extends StatelessWidget {
+  const _AdminUserDetailOverviewPage({required this.detail});
+
+  final AdminUserDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return FeatureScaffold(
+      title: '@${detail.handle}',
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FilledButton.tonalIcon(
+            onPressed: () async {
+              final nextDetail = await Navigator.of(
+                context,
+                rootNavigator: true,
+              ).push<AdminUserDetail>(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) =>
+                      _AdminUserDetailEditFormPage(detail: detail),
+                ),
+              );
+              if (nextDetail == null || !context.mounted) return;
+              Navigator.of(context, rootNavigator: true).pop(nextDetail);
+            },
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Düzenle'),
+          ),
+        ),
+      ],
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          SurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(label: Text('@${detail.handle}')),
+                    Chip(label: Text(detail.isActive ? 'Aktif' : 'Pasif')),
+                    Chip(label: Text(detail.isBanned ? 'Yasaklı' : 'Açık')),
+                    if (detail.isVerified)
+                      const Chip(label: Text('Doğrulanmış')),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _AdminDialogSection(
+                  title: 'Kimlik',
+                  child: Column(
+                    children: [
+                      _AdminDetailRow(label: 'İsim', value: detail.firstName),
+                      _AdminDetailRow(label: 'Soyisim', value: detail.lastName),
+                      _AdminDetailRow(label: 'E-posta', value: detail.email),
+                      _AdminDetailRow(
+                        label: 'Aktivasyon kodu',
+                        value: detail.activationToken,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _AdminDialogSection(
+                  title: 'Profil',
+                  child: Column(
+                    children: [
+                      _AdminDetailRow(
+                        label: 'Mezuniyet yılı',
+                        value: detail.graduationYear,
+                      ),
+                      _AdminDetailRow(
+                        label: 'Üniversite',
+                        value: detail.university,
+                      ),
+                      _AdminDetailRow(
+                        label: 'Meslek',
+                        value: detail.profession,
+                      ),
+                      _AdminDetailRow(label: 'Şehir', value: detail.city),
+                      _AdminDetailRow(label: 'Website', value: detail.website),
+                      _AdminDetailRow(label: 'Avatar', value: detail.avatar),
+                    ],
+                  ),
+                ),
+                if (detail.signature.trim().isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _AdminDialogSection(
+                    title: 'İmza özeti',
+                    subtitle:
+                        'Uzun metin alanları yalnızca düzenleme ekranında tam olarak açılır.',
+                    child: _AdminDetailMultilineValue(
+                      value: detail.signature,
+                      maxChars: 320,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                _AdminDialogSection(
+                  title: 'Durum',
+                  child: Column(
+                    children: [
+                      _AdminDetailRow(
+                        label: 'Profil başlangıcı tamam',
+                        value: detail.isProfileInitialized ? 'Evet' : 'Hayır',
+                      ),
+                      _AdminDetailRow(
+                        label: 'E-posta gizli',
+                        value: detail.isEmailHidden ? 'Evet' : 'Hayır',
+                      ),
+                      _AdminDetailRow(
+                        label: 'Profil hit',
+                        value: detail.profileViewCount.toString(),
+                      ),
+                      _AdminDetailRow(
+                        label: 'Doğum tarihi',
+                        value: [
+                          detail.birthDay,
+                          detail.birthMonth,
+                          detail.birthYear,
+                        ].where((item) => item.trim().isNotEmpty).join('/'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminUserDetailEditFormPage extends StatefulWidget {
+  const _AdminUserDetailEditFormPage({required this.detail});
+
+  final AdminUserDetail detail;
+
+  @override
+  State<_AdminUserDetailEditFormPage> createState() =>
+      _AdminUserDetailEditFormPageState();
+}
+
+class _AdminUserDetailEditFormPageState
+    extends State<_AdminUserDetailEditFormPage> {
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _activationController;
+  late final TextEditingController _professionController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _websiteController;
+  late final TextEditingController _universityController;
+  late final TextEditingController _graduationController;
+  late final TextEditingController _avatarController;
+  late final TextEditingController _signatureController;
+  late final TextEditingController _hitController;
+  late final TextEditingController _birthDayController;
+  late final TextEditingController _birthMonthController;
+  late final TextEditingController _birthYearController;
+
+  late bool _isActive;
+  late bool _isBanned;
+  late bool _isProfileInitialized;
+  late bool _isEmailHidden;
+  late bool _isVerified;
+
+  AdminUserDetail get _detail => widget.detail;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstNameController = TextEditingController(text: _detail.firstName);
+    _lastNameController = TextEditingController(text: _detail.lastName);
+    _emailController = TextEditingController(text: _detail.email);
+    _activationController = TextEditingController(
+      text: _detail.activationToken,
+    );
+    _professionController = TextEditingController(text: _detail.profession);
+    _cityController = TextEditingController(text: _detail.city);
+    _websiteController = TextEditingController(text: _detail.website);
+    _universityController = TextEditingController(text: _detail.university);
+    _graduationController = TextEditingController(text: _detail.graduationYear);
+    _avatarController = TextEditingController(text: _detail.avatar);
+    _signatureController = TextEditingController(text: _detail.signature);
+    _hitController = TextEditingController(
+      text: _detail.profileViewCount.toString(),
+    );
+    _birthDayController = TextEditingController(text: _detail.birthDay);
+    _birthMonthController = TextEditingController(text: _detail.birthMonth);
+    _birthYearController = TextEditingController(text: _detail.birthYear);
+
+    _isActive = _detail.isActive;
+    _isBanned = _detail.isBanned;
+    _isProfileInitialized = _detail.isProfileInitialized;
+    _isEmailHidden = _detail.isEmailHidden;
+    _isVerified = _detail.isVerified;
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _activationController.dispose();
+    _professionController.dispose();
+    _cityController.dispose();
+    _websiteController.dispose();
+    _universityController.dispose();
+    _graduationController.dispose();
+    _avatarController.dispose();
+    _signatureController.dispose();
+    _hitController.dispose();
+    _birthDayController.dispose();
+    _birthMonthController.dispose();
+    _birthYearController.dispose();
+    super.dispose();
+  }
+
+  void _close([AdminUserDetail? result]) {
+    Navigator.of(context).pop(result);
+  }
+
+  AdminUserDetail _buildResult() {
+    return AdminUserDetail(
+      id: _detail.id,
+      handle: _detail.handle,
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      email: _emailController.text.trim(),
+      activationToken: _activationController.text.trim(),
+      isActive: _isActive,
+      isBanned: _isBanned,
+      isProfileInitialized: _isProfileInitialized,
+      website: _websiteController.text.trim(),
+      signature: _signatureController.text,
+      profession: _professionController.text.trim(),
+      city: _cityController.text.trim(),
+      isEmailHidden: _isEmailHidden,
+      profileViewCount: int.tryParse(_hitController.text.trim()) ?? 0,
+      isVerified: _isVerified,
+      graduationYear: _graduationController.text.trim(),
+      university: _universityController.text.trim(),
+      birthDay: _birthDayController.text.trim(),
+      birthMonth: _birthMonthController.text.trim(),
+      birthYear: _birthYearController.text.trim(),
+      avatar: _avatarController.text.trim().isEmpty
+          ? 'yok'
+          : _avatarController.text.trim(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FeatureScaffold(
+      title: '@${_detail.handle}',
+      actions: [
+        TextButton(onPressed: () => _close(), child: const Text('Vazgeç')),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FilledButton(
+            onPressed: () => _close(_buildResult()),
+            child: const Text('Kaydet'),
+          ),
+        ),
+      ],
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          SurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(label: Text('@${_detail.handle}')),
+                    Chip(label: Text(_isActive ? 'Aktif' : 'Pasif')),
+                    if (_isVerified) const Chip(label: Text('Doğrulanmış')),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _AdminDialogSection(
+                  title: 'Kimlik',
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _firstNameController,
+                        decoration: const InputDecoration(labelText: 'İsim'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _lastNameController,
+                        decoration: const InputDecoration(labelText: 'Soyisim'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(labelText: 'E-posta'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _activationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Aktivasyon kodu',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _AdminDialogSection(
+                  title: 'Profil',
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _professionController,
+                        decoration: const InputDecoration(labelText: 'Meslek'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _cityController,
+                        decoration: const InputDecoration(labelText: 'Şehir'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _websiteController,
+                        decoration: const InputDecoration(labelText: 'Website'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _universityController,
+                        decoration: const InputDecoration(
+                          labelText: 'Üniversite',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _graduationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Mezuniyet yılı',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _avatarController,
+                        decoration: const InputDecoration(labelText: 'Avatar'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _signatureController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(labelText: 'İmza'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _AdminDialogSection(
+                  title: 'Sayısal alanlar ve doğum tarihi',
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _hitController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Hit'),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _birthDayController,
+                              decoration: const InputDecoration(
+                                labelText: 'Gün',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _birthMonthController,
+                              decoration: const InputDecoration(
+                                labelText: 'Ay',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _birthYearController,
+                              decoration: const InputDecoration(
+                                labelText: 'Yıl',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _AdminDialogSection(
+                  title: 'Durum flagleri',
+                  child: Column(
+                    children: [
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _isActive,
+                        onChanged: (value) =>
+                            setState(() => _isActive = value ?? false),
+                        title: const Text('Aktif'),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _isBanned,
+                        onChanged: (value) =>
+                            setState(() => _isBanned = value ?? false),
+                        title: const Text('Yasaklı'),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _isProfileInitialized,
+                        onChanged: (value) => setState(
+                          () => _isProfileInitialized = value ?? false,
+                        ),
+                        title: const Text('İlk profil adımı tamam'),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _isEmailHidden,
+                        onChanged: (value) =>
+                            setState(() => _isEmailHidden = value ?? false),
+                        title: const Text('E-posta gizli'),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _isVerified,
+                        onChanged: (value) =>
+                            setState(() => _isVerified = value ?? false),
+                        title: const Text('Doğrulanmış'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminLogContentPage extends ConsumerWidget {
+  const _AdminLogContentPage({required this.item});
+
+  final AdminLogFileItem item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final snapshotState = ref.watch(
+      adminLogContentProvider((type: item.type, file: item.name)),
+    );
+    return snapshotState.when(
+      loading: () => FeatureScaffold(
+        title: item.name,
+        child: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => FeatureScaffold(
+        title: item.name,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: SurfaceCard(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 36),
+                    const SizedBox(height: 16),
+                    Text(error.toString(), textAlign: TextAlign.center),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: () => ref.invalidate(
+                        adminLogContentProvider((
+                          type: item.type,
+                          file: item.name,
+                        )),
+                      ),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tekrar dene'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      data: (snapshot) => FeatureScaffold(
+        title: item.name,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(label: Text('Toplam: ${snapshot.total}')),
+                      Chip(label: Text('Eşleşen: ${snapshot.matched}')),
+                      Chip(label: Text('Dönen: ${snapshot.returned}')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).sdal.panelRaised,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: SelectableText(
+                      snapshot.content,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -3759,6 +3999,61 @@ class _AdminDialogSection extends StatelessWidget {
   }
 }
 
+class _AdminDetailRow extends StatelessWidget {
+  const _AdminDetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedValue = value.trim().isEmpty ? 'Belirtilmemiş' : value.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).sdal.foregroundMuted,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(resolvedValue)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminDetailMultilineValue extends StatelessWidget {
+  const _AdminDetailMultilineValue({required this.value, this.maxChars = 320});
+
+  final String value;
+  final int maxChars;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = value.trim();
+    final shortened = trimmed.characters.length > maxChars
+        ? '${trimmed.characters.take(maxChars).toString()}…'
+        : trimmed;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).sdal.panelRaised,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(shortened),
+    );
+  }
+}
+
 class _AdminInfoBanner extends StatelessWidget {
   const _AdminInfoBanner({
     required this.title,
@@ -3910,7 +4205,7 @@ Future<void> _showAdminLoginDialog(BuildContext context, WidgetRef ref) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Admin oturumu ac'),
+      title: const Text('Admin oturumu aç'),
       content: TextField(
         controller: passwordController,
         obscureText: true,
@@ -3940,7 +4235,7 @@ Future<void> _showAdminLoginDialog(BuildContext context, WidgetRef ref) async {
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Admin oturumu acildi.')));
+    ).showSnackBar(const SnackBar(content: Text('Admin oturumu açıldı.')));
   } catch (error) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(
@@ -3956,7 +4251,7 @@ Future<void> _handleAdminLogout(BuildContext context, WidgetRef ref) async {
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Admin oturumu kapatildi.')));
+    ).showSnackBar(const SnackBar(content: Text('Admin oturumu kapatıldı.')));
   } catch (error) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(
@@ -3967,6 +4262,7 @@ Future<void> _handleAdminLogout(BuildContext context, WidgetRef ref) async {
 
 List<_AdminSection> _visibleAdminSections(AdminAccessSnapshot access) {
   if (!access.canOpenAdminShell) return const <_AdminSection>[];
+  if (access.user?.hasAdminAccess ?? false) return _adminSections;
   final keys = access.permissions?.permissionKeys ?? const <String>[];
   final role = access.permissions?.role ?? access.user?.role ?? '';
   final isFullAccess =
@@ -4001,93 +4297,93 @@ List<_AdminSection> _visibleAdminSections(AdminAccessSnapshot access) {
 const _adminSections = <_AdminSection>[
   _AdminSection(
     key: 'management',
-    title: 'Roller ve yonetim',
-    summary: 'Admin oturumu, root durumu, moderator rolleri ve izinleri.',
+    title: 'Roller ve yönetim',
+    summary: 'Admin oturumu, root durumu, moderatör rolleri ve izinleri.',
     description:
-        'Kullanici rolleri, moderator kapsam atamalari ve temel admin oturum kontrolleri burada toplanir.',
+        'Kullanıcı rolleri, moderatör kapsam atamaları ve temel admin oturum kontrolleri burada toplanır.',
     icon: Icons.manage_accounts_outlined,
     tone: _AdminTone.info,
     routeFile: 'server/routes/adminManagementRoutes.js',
     capabilities: [
       'Admin oturumu ve root bootstrap durumu',
-      'Kullanici rol guncelleme',
-      'Moderator kapsam ve yetki atamalari',
+      'Kullanıcı rol güncelleme',
+      'Moderatör kapsam ve yetki atamaları',
     ],
   ),
   _AdminSection(
     key: 'api-monitor',
-    title: 'API monitoru',
+    title: 'API monitörü',
     summary:
-        'Secilen kullanici icin canli endpoint akislarini izleme overlayi.',
+        'Seçilen kullanıcı için canlı endpoint akışlarını izleme overlayi.',
     description:
-        'Admin kullanicinin sectigi uye icin son API akisini toplar ve tum sayfalarda alttan acilip kapanan bir izleme paneli sunar.',
+        'Admin kullanıcının seçtiği üye için son API akışını toplar ve tüm sayfalarda alttan açılıp kapanan bir izleme paneli sunar.',
     icon: Icons.radar_outlined,
     tone: _AdminTone.info,
     routeFile: 'server/routes/adminManagementRoutes.js',
     capabilities: [
-      'Kullanici bazli canli API akisi',
+      'Kullanıcı bazlı canlı API akışı',
       'Admin overlay activate / deactivate',
-      'Varsayilan hedef olarak kendini izleme',
+      'Varsayılan hedef olarak kendini izleme',
     ],
   ),
   _AdminSection(
     key: 'content',
-    title: 'Icerik moderasyonu',
-    summary: 'Gruplar, paylasimlar, yorumlar, hikayeler, sohbet ve filtreler.',
+    title: 'İçerik moderasyonu',
+    summary: 'Gruplar, paylaşımlar, yorumlar, hikâyeler, sohbet ve filtreler.',
     description:
-        'Topluluk icerigi uzerindeki denetim akislarini bir araya getirir.',
+        'Topluluk içeriği üzerindeki denetim akışlarını bir araya getirir.',
     icon: Icons.shield_outlined,
     tone: _AdminTone.warning,
     routeFile: 'server/routes/adminContentModerationRoutes.js',
     capabilities: [
-      'Dogrulama talepleri',
-      'Gruplar, postlar, yorumlar ve hikayeler',
-      'Canli sohbet ve mesaj denetimi',
-      'Icerik filtre kurallari',
+      'Doğrulama talepleri',
+      'Gruplar, postlar, yorumlar ve hikâyeler',
+      'Canlı sohbet ve mesaj denetimi',
+      'İçerik filtre kuralları',
     ],
   ),
   _AdminSection(
     key: 'requests',
     title: 'Talep moderasyonu',
-    summary: 'Uyelik talepleri ve ogretmen agi baglanti onaylari.',
+    summary: 'Üyelik talepleri ve öğretmen ağı bağlantı onayları.',
     description:
-        'Uyelik dogrulama, talep bildirimleri ve ogretmen baglantisi incelemeleri bu bolumdedir.',
+        'Üyelik doğrulama, talep bildirimleri ve öğretmen bağlantısı incelemeleri bu bölümdedir.',
     icon: Icons.assignment_turned_in_outlined,
     tone: _AdminTone.success,
     routeFile: 'server/routes/adminRequestModerationRoutes.js',
     capabilities: [
-      'Uyelik ve mezuniyet talepleri',
-      'Ogretmen agi baglanti review akislari',
-      'Admin dogrulama islemleri',
+      'Üyelik ve mezuniyet talepleri',
+      'Öğretmen ağı bağlantı review akışları',
+      'Admin doğrulama işlemleri',
     ],
   ),
   _AdminSection(
     key: 'operations',
-    title: 'Operasyonlar ve guvenlik',
-    summary: 'Operasyonel kontroller, guvenlik ve denetim yuzeyleri.',
+    title: 'Operasyonlar ve güvenlik',
+    summary: 'Operasyonel kontroller, güvenlik ve denetim yüzeyleri.',
     description:
-        'Bakim, operasyon ve guvenlik odakli admin akislarini tek yerde toplar.',
+        'Bakım, operasyon ve güvenlik odaklı admin akışlarını tek yerde toplar.',
     icon: Icons.security_outlined,
     tone: _AdminTone.danger,
     routeFile:
         'server/routes/adminOperationsRoutes.js + adminSecurityRoutes.js',
     capabilities: [
       'Operasyonel durum kontrolleri',
-      'Guvenlik odakli admin akislarina erisim',
-      'Denetim ve koruma yuzeyleri',
+      'Güvenlik odaklı admin akışlarına erişim',
+      'Denetim ve koruma yüzeyleri',
     ],
   ),
   _AdminSection(
     key: 'experiments',
     title: 'Deneyler ve dashboard',
-    summary: 'A/B testleri, engagement skorlari ve yonetici ozetleri.',
+    summary: 'A/B testleri, engagement skorları ve yönetici özetleri.',
     description:
-        'Deney varyantlari ile yonetici panelindeki ozet ve aktivite akislarini kapsar.',
+        'Deney varyantları ile yönetici panelindeki özet ve aktivite akışlarını kapsar.',
     icon: Icons.science_outlined,
     tone: _AdminTone.experiment,
     routeFile: 'server/routes/adminExperimentRoutes.js',
     capabilities: [
-      'Engagement A/B yonetimi',
+      'Engagement A/B yönetimi',
       'Network suggestion deneyleri',
       'Dashboard summary ve live activity',
       'Engagement score yeniden hesaplama',
@@ -4095,34 +4391,34 @@ const _adminSections = <_AdminSection>[
   ),
   _AdminSection(
     key: 'database',
-    title: 'Veritabani',
-    summary: 'Backup, restore ve aktif surucu gecisi.',
+    title: 'Veritabanı',
+    summary: 'Backup, restore ve aktif sürücü geçişi.',
     description:
-        'Veritabani surucu durumu, yedekleme ve veri tasima akislarini kapsar.',
+        'Veritabanı sürücü durumu, yedekleme ve veri taşıma akışlarını kapsar.',
     icon: Icons.storage_outlined,
     tone: _AdminTone.info,
     routeFile: 'server/routes/adminDbRoutes.js',
     capabilities: [
       'Backup listesi ve indirme',
-      'Restore yukleme',
-      'Driver status ve switch islemleri',
-      'Veri kopyalama akisleri',
+      'Restore yükleme',
+      'Driver status ve switch işlemleri',
+      'Veri kopyalama akışları',
     ],
   ),
   _AdminSection(
     key: 'languages',
     title: 'Diller',
-    summary: 'Dil listesi, anahtarlar ve ceviri metinleri.',
+    summary: 'Dil listesi, anahtarlar ve çeviri metinleri.',
     description:
-        'Dil konfigrasyonu ve metin yonetimi icin gerekli admin endpointlerini kapsar.',
+        'Dil konfigürasyonu ve metin yönetimi için gerekli admin endpointlerini kapsar.',
     icon: Icons.translate_outlined,
     tone: _AdminTone.accent,
     routeFile: 'server/routes/adminLanguageRoutes.js',
     capabilities: [
-      'Dil ekleme, guncelleme ve silme',
-      'Dil string anahtarlari ve toplu guncelleme',
-      'Eksik cevirileri doldurma',
-      'Dil ayarlari yonetimi',
+      'Dil ekleme, güncelleme ve silme',
+      'Dil string anahtarları ve toplu güncelleme',
+      'Eksik çevirileri doldurma',
+      'Dil ayarları yönetimi',
     ],
   ),
 ];
@@ -4132,4 +4428,55 @@ _AdminSection? _sectionByKey(String key) {
     if (section.key == key) return section;
   }
   return null;
+}
+
+// Dialog'un kendi State'i controller'ı yönetir; böylece dispose() exit
+// animasyonu bitmeden çağrılmaz (controller.dispose() crash'i önlenir).
+class _GraduationYearDialog extends StatefulWidget {
+  const _GraduationYearDialog({required this.initialYear});
+
+  final String initialYear;
+
+  @override
+  State<_GraduationYearDialog> createState() => _GraduationYearDialogState();
+}
+
+class _GraduationYearDialogState extends State<_GraduationYearDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialYear);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Mezuniyet yılını güncelle'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: 'Mezuniyet yılı veya Öğretmen',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
 }

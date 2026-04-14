@@ -168,7 +168,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                 child: Text(
                   _isLoadingMore
                       ? context.l10n.submitInProgress
-                      : context.l10n.albumsLoadMore,
+                      : context.l10n.feedLoadMore,
                 ),
               ),
             );

@@ -63,7 +63,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: initialSnapshot.isAuthenticated
-        ? initialSnapshot.managementEntryPath
+        ? initialSnapshot.defaultHomePath
         : '/login',
     refreshListenable: listenable,
     redirect: (context, state) {
@@ -77,7 +77,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) {
           final s = ref.read(sessionControllerProvider).value;
           return (s != null && s.isAuthenticated)
-              ? s.managementEntryPath
+              ? s.defaultHomePath
               : '/login';
         },
       ),
@@ -466,27 +466,27 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
   if (publicRoutes.contains(location) ||
       location == '/site-closed' ||
       location == '/account-banned') {
-    return snapshot.managementEntryPath;
+    return snapshot.defaultHomePath;
   }
 
   if (location == '/admin' &&
       snapshot.isModerator &&
-      !(snapshot.user?.isAdmin ?? false)) {
+      !snapshot.hasAdminAccess) {
     return '/moderation';
   }
 
-  if (location == '/admin/modules' && !(snapshot.user?.isAdmin ?? false)) {
+  if (location == '/admin/modules' && !snapshot.hasAdminAccess) {
     return snapshot.managementEntryPath;
   }
 
   if ((location == '/admin' || location.startsWith('/admin/')) &&
-      !(snapshot.user?.isAdmin ?? false) &&
+      !snapshot.hasAdminAccess &&
       !snapshot.isModerator) {
     return snapshot.managementEntryPath;
   }
 
   if (location == '/moderation' &&
-      !(snapshot.user?.isAdmin ?? false) &&
+      !snapshot.hasAdminAccess &&
       !snapshot.isModerator) {
     return snapshot.managementEntryPath;
   }

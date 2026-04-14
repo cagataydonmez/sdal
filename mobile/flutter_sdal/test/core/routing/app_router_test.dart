@@ -100,6 +100,56 @@ void main() {
       );
     });
 
+    test('routes authenticated admin away from login to normal home', () {
+      final snapshot = _snapshot(
+        user: const SessionUser(
+          id: 12,
+          kadi: 'admin1',
+          isim: 'Admin',
+          soyisim: 'User',
+          photo: '',
+          role: 'admin',
+          isAdmin: true,
+          isVerified: true,
+          isBanned: false,
+          state: 'active',
+        ),
+      );
+
+      expect(redirectForSessionState(snapshot, Uri.parse('/login')), '/feed');
+      expect(redirectForSessionState(snapshot, Uri.parse('/')), isNull);
+    });
+
+    test(
+      'allows admin role to access admin routes even if admin flag is false',
+      () {
+        final snapshot = _snapshot(
+          user: const SessionUser(
+            id: 13,
+            kadi: 'roleadmin',
+            isim: 'Role',
+            soyisim: 'Admin',
+            photo: '',
+            role: 'admin',
+            isAdmin: false,
+            isVerified: true,
+            isBanned: false,
+            state: 'active',
+          ),
+        );
+
+        expect(redirectForSessionState(snapshot, Uri.parse('/admin')), isNull);
+        expect(
+          redirectForSessionState(snapshot, Uri.parse('/admin/management')),
+          isNull,
+        );
+        expect(
+          redirectForSessionState(snapshot, Uri.parse('/admin/modules')),
+          isNull,
+        );
+      },
+    );
+
     test('blocks non-admin users from admin module management', () {
       final snapshot = _snapshot(user: _verifiedUser);
 

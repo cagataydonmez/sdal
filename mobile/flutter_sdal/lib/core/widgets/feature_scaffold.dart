@@ -35,7 +35,7 @@ class FeatureScaffold extends ConsumerWidget {
     final session = ref.watch(sessionControllerProvider).value;
     final shellMenu = ref.watch(shellMenuProvider).value;
     final shellSidebar = ref.watch(shellSidebarProvider).value;
-    final location = GoRouterState.of(context).uri.path;
+    final location = _resolveCurrentLocation(context);
     final canPop = Navigator.of(context).canPop();
     final resolvedActions = <Widget>[
       ...?actions,
@@ -109,6 +109,16 @@ class FeatureScaffold extends ConsumerWidget {
         child: SafeArea(top: false, child: child),
       ),
     );
+  }
+
+  String _resolveCurrentLocation(BuildContext context) {
+    try {
+      return GoRouterState.of(context).uri.path;
+    } catch (_) {
+      final route = ModalRoute.of(context);
+      final routeName = route?.settings.name?.trim() ?? '';
+      return routeName.isNotEmpty ? routeName : '/';
+    }
   }
 }
 
@@ -323,11 +333,11 @@ class _AppMenuSheet extends ConsumerWidget {
           title: l10n.extraPagesSectionTitle,
           entries: extraMenuEntries,
         ),
-      if ((user?.isAdmin ?? false) || (user?.isModerator ?? false))
+      if ((session?.hasAdminAccess ?? false) || (user?.isModerator ?? false))
         _MenuSection(
           title: l10n.adminSectionTitle,
           entries: [
-            if (user?.isAdmin ?? false)
+            if (session?.hasAdminAccess ?? false)
               _MenuEntry(
                 route: '/admin',
                 icon: Icons.admin_panel_settings_outlined,
@@ -337,7 +347,7 @@ class _AppMenuSheet extends ConsumerWidget {
               const _MenuEntry(
                 route: '/moderation',
                 icon: Icons.fact_check_outlined,
-                label: 'Moderasyon masasi',
+                label: 'Moderasyon masası',
               ),
           ],
         ),

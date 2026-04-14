@@ -512,6 +512,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedPostAction => 'Post';
 
   @override
+  String get feedLoadMore => 'Load more posts';
+
+  @override
   String get feedEmptyContent => 'This post has no content.';
 
   @override

@@ -55,7 +55,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   Widget build(BuildContext context) {
     final actionState = ref.watch(communityActionControllerProvider);
     final session = ref.watch(sessionControllerProvider).value;
-    final isAdmin = session?.user?.isAdmin ?? false;
+    final isAdmin = session?.hasAdminAccess ?? false;
     final isSaving =
         actionState.isLoading && actionState.scope == 'announcements:create';
     final l10n = context.l10n;

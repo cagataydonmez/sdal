@@ -81,6 +81,11 @@ class AdminShellUser {
   final String role;
   final bool isAdmin;
 
+  bool get hasAdminAccess {
+    final normalizedRole = role.trim().toLowerCase();
+    return isAdmin || normalizedRole == 'admin' || normalizedRole == 'root';
+  }
+
   factory AdminShellUser.fromMap(JsonMap map) {
     final firstName = coalesceText([map['isim']], fallback: '');
     final lastName = coalesceText([map['soyisim']], fallback: '');
@@ -95,7 +100,11 @@ class AdminShellUser {
           ? '@$handle'
           : 'Admin kullanici',
       role: coalesceText([map['role']], fallback: 'user'),
-      isAdmin: asBool(map['admin']) ?? false,
+      isAdmin:
+          (asBool(map['admin']) ?? false) ||
+          const {'admin', 'root'}.contains(
+            coalesceText([map['role']], fallback: 'user').trim().toLowerCase(),
+          ),
     );
   }
 }
@@ -171,7 +180,10 @@ class AdminAccessSnapshot {
   final AdminRootStatusSnapshot? rootStatus;
 
   bool get canOpenAdminShell =>
-      user != null && (adminOk || user!.role.trim().toLowerCase() == 'mod');
+      user != null &&
+      (user!.hasAdminAccess ||
+          adminOk ||
+          user!.role.trim().toLowerCase() == 'mod');
 }
 
 class AdminUserListQuery {
@@ -1029,7 +1041,9 @@ class AdminRepository {
     final sessionMap = asJsonMap(sessionResult.rawData);
     final userMap = asJsonMap(sessionMap['user']);
     final user = userMap.isEmpty ? null : AdminShellUser.fromMap(userMap);
-    final adminOk = asBool(sessionMap['adminOk']) ?? false;
+    final adminOk =
+        (asBool(sessionMap['adminOk']) ?? false) ||
+        (user?.hasAdminAccess ?? false);
     if (user == null) {
       return AdminAccessSnapshot(
         user: user,
@@ -1040,7 +1054,9 @@ class AdminRepository {
     }
 
     final canLoadModerationAccess =
-        adminOk || user.role.trim().toLowerCase() == 'mod';
+        user.hasAdminAccess ||
+        adminOk ||
+        user.role.trim().toLowerCase() == 'mod';
     if (!canLoadModerationAccess) {
       return AdminAccessSnapshot(
         user: user,
@@ -1055,7 +1071,7 @@ class AdminRepository {
       decoder: asJsonMap,
     );
     AdminRootStatusSnapshot? rootStatus;
-    if (adminOk) {
+    if (user.hasAdminAccess || adminOk) {
       final rootStatusResult = await _apiClient.get<JsonMap>(
         '/api/admin/root-status',
         decoder: asJsonMap,

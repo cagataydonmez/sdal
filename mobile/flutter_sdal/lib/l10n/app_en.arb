@@ -208,6 +208,7 @@
   "feedTitle": "Main feed",
   "feedRefresh": "Refresh",
   "feedPostAction": "Post",
+  "feedLoadMore": "Load more posts",
   "feedEmptyContent": "This post has no content.",
   "feedComposerTitle": "New post",
   "feedComposerHint": "What would you like to share?",

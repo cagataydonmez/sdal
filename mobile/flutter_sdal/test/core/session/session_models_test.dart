@@ -74,4 +74,22 @@ void main() {
     expect(snapshot.isModerator, isTrue);
     expect(snapshot.managementEntryPath, '/moderation');
   });
+
+  test('SessionUser treats admin role as admin access even without flag', () {
+    final user = SessionUser.fromMap({
+      'id': 99,
+      'kadi': 'roleadmin',
+      'isim': 'Role',
+      'soyisim': 'Admin',
+      'resim': '',
+      'role': 'admin',
+      'admin': 0,
+      'verified': 1,
+      'yasak': 0,
+      'state': 'active',
+    });
+
+    expect(user.isAdmin, isFalse);
+    expect(user.hasAdminAccess, isTrue);
+  });
 }

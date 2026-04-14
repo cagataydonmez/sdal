@@ -48,6 +48,11 @@ class SessionUser with _$SessionUser {
 
   bool get isModerator => role.trim().toLowerCase() == 'mod';
 
+  bool get hasAdminAccess {
+    final normalizedRole = role.trim().toLowerCase();
+    return isAdmin || normalizedRole == 'admin' || normalizedRole == 'root';
+  }
+
   String get displayName {
     final fullName = '${isim.trim()} ${soyisim.trim()}'.trim();
     if (fullName.isNotEmpty) return fullName;
@@ -127,6 +132,7 @@ class SessionSnapshot {
 
   bool get isAuthenticated => user != null;
   bool get isBanned => user?.isBanned ?? false;
+  bool get hasAdminAccess => user?.hasAdminAccess ?? false;
   bool get isModerator => user?.isModerator ?? false;
   bool get requiresProfileCompletion => user?.state == 'incomplete';
   bool get requiresVerification =>
@@ -138,7 +144,7 @@ class SessionSnapshot {
       (menuVisibility[moduleKey] ?? true) && isModuleOpen(moduleKey);
 
   String get managementEntryPath {
-    if (user?.isAdmin ?? false) return '/admin';
+    if (hasAdminAccess) return '/admin';
     if (isModerator) return '/moderation';
     return defaultHomePath;
   }

@@ -1010,6 +1010,12 @@ abstract class AppLocalizations {
   /// **'Gönderi'**
   String get feedPostAction;
 
+  /// No description provided for @feedLoadMore.
+  ///
+  /// In tr, this message translates to:
+  /// **'Daha fazla gönderi'**
+  String get feedLoadMore;
+
   /// No description provided for @feedEmptyContent.
   ///
   /// In tr, this message translates to:

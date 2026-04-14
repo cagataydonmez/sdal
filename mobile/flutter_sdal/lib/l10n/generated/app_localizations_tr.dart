@@ -509,6 +509,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get feedPostAction => 'Gönderi';
 
   @override
+  String get feedLoadMore => 'Daha fazla gönderi';
+
+  @override
   String get feedEmptyContent => 'Bu gönderi içerik taşımıyor.';
 
   @override
