@@ -4192,6 +4192,102 @@ app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
   });
 });
 
+app.post('/api/new/posts/:id/upload-image', requireAuth, uploadRateLimit, postUpload.single('image'), async (req, res) => {
+  try {
+    const postId = Number(req.params.id || 0);
+    if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
+    const postRow = sqlGet('SELECT id, user_id, image, image_record_id, group_id FROM posts WHERE id = ?', [postId]);
+    if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
+    if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
+
+    const content = req.body?.content !== undefined
+      ? formatUserText(req.body.content || '')
+      : null;
+
+    if (!req.file?.path) return res.status(400).send('Resim dosyası eksik.');
+
+    // Delete old image if present
+    if (postRow.image_record_id) {
+      deleteImageRecord(postRow.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+    }
+
+    const filter = req.body?.filter || '';
+    const processedUpload = await processDiskImageUpload({
+      req, res,
+      file: req.file,
+      bucket: postRow.group_id ? 'group_post_image' : 'post_image',
+      preset: uploadImagePresets.postImage,
+      filter
+    });
+    if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
+
+    let imageRecordId = null;
+    let variants = null;
+    try {
+      const fileBuffer = processedUpload?.path && fs.existsSync(processedUpload.path)
+        ? fs.readFileSync(processedUpload.path)
+        : null;
+      if (fileBuffer) {
+        const uploadResult = await processUpload({
+          buffer: fileBuffer,
+          mimeType: processedUpload?.mime || req.file?.mimetype || 'image/jpeg',
+          userId: req.session.userId,
+          entityType: 'post',
+          entityId: String(postId),
+          sqlGet, sqlRun, uploadsDir, writeAppLog
+        });
+        imageRecordId = uploadResult.imageId;
+        variants = uploadResult.variants;
+      }
+    } catch (err) {
+      writeAppLog('error', 'post_variant_generation_failed', { message: err?.message });
+    }
+
+    const updateFields = ['image = ?', 'image_record_id = ?', 'updated_at = ?'];
+    const updateValues = [processedUpload.url, imageRecordId, new Date().toISOString()];
+    if (content !== null) {
+      updateFields.push('content = ?');
+      updateValues.push(content);
+    }
+    updateValues.push(postId);
+    sqlRun(`UPDATE posts SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+
+    scheduleEngagementRecalculation('post_updated');
+    invalidateCacheNamespace(cacheNamespaces.feed);
+    res.json({ ok: true, image: processedUpload.url, variants });
+  } catch (err) {
+    writeAppLog('error', 'post_upload_image_failed', { message: err?.message });
+    res.status(500).send('Resim yüklenemedi.');
+  }
+});
+
+app.delete('/api/new/posts/:id/image', requireAuth, (req, res) => {
+  const postId = Number(req.params.id || 0);
+  if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
+  const postRow = sqlGet('SELECT id, user_id, image, image_record_id, group_id FROM posts WHERE id = ?', [postId]);
+  if (!postRow) return res.status(404).send('Gönderi bulunamadı.');
+  if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
+  if (!postRow.image && !postRow.image_record_id) return res.status(400).send('Bu gönderide resim yok.');
+
+  if (postRow.image_record_id) {
+    deleteImageRecord(postRow.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
+  }
+  const content = req.body?.content !== undefined
+    ? formatUserText(req.body.content || '')
+    : null;
+  if (content !== null) {
+    if (isFormattedContentEmpty(content)) return res.status(400).send('İçerik boş olamaz.');
+    sqlRun('UPDATE posts SET image = NULL, image_record_id = NULL, content = ?, updated_at = ? WHERE id = ?',
+      [content, new Date().toISOString(), postId]);
+  } else {
+    sqlRun('UPDATE posts SET image = NULL, image_record_id = NULL, updated_at = ? WHERE id = ?',
+      [new Date().toISOString(), postId]);
+  }
+  scheduleEngagementRecalculation('post_updated');
+  invalidateCacheNamespace(cacheNamespaces.feed);
+  res.json({ ok: true });
+});
+
 app.delete('/api/new/posts/:id', requireAuth, (req, res) => {
   const postId = Number(req.params.id || 0);
   if (!postId) return res.status(400).send('Geçersiz gönderi ID.');

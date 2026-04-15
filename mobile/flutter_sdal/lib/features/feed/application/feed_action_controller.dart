@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_result.dart';
 import '../../../core/state/async_action_state.dart';
 import '../data/feed_repository.dart';
 
@@ -130,9 +131,25 @@ class FeedActionController extends Notifier<AsyncActionState> {
   Future<bool> editPost({
     required int postId,
     required String content,
+    File? imageFile,
+    bool removeImage = false,
   }) async {
     state = AsyncActionState.loading(scope: 'edit-post:$postId');
-    final result = await _repository.editPost(postId: postId, content: content);
+    final ApiResult<dynamic> result;
+    if (imageFile != null) {
+      result = await _repository.editPostWithImage(
+        postId: postId,
+        content: content,
+        imageFile: imageFile,
+      );
+    } else if (removeImage) {
+      result = await _repository.deletePostImage(
+        postId: postId,
+        content: content,
+      );
+    } else {
+      result = await _repository.editPost(postId: postId, content: content);
+    }
     if (result.ok) {
       ref.invalidate(feedItemsProvider);
       ref.invalidate(feedPageProvider);

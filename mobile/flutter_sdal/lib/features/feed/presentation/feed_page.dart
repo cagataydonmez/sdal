@@ -19,6 +19,7 @@ import '../../stories/data/stories_repository.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
+import 'feed_edit_text_dialog.dart';
 
 class FeedPage extends ConsumerStatefulWidget {
   const FeedPage({super.key});
@@ -251,6 +252,46 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                           if (session?.user?.id != null &&
                               session!.user!.id == item.authorId)
                             _FeedPostMenuButton(
+                              onEdit: () async {
+                                final result =
+                                    await showModalBottomSheet<FeedEditPostResult>(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  builder: (ctx) => FeedEditPostSheet(
+                                    initialContent: plainTextFromRichContent(
+                                      item.content,
+                                    ),
+                                    currentImageUrl: item.imageUrl.isNotEmpty
+                                        ? config
+                                            .resolveUrl(item.imageUrl)
+                                            .toString()
+                                        : null,
+                                  ),
+                                );
+                                if (result == null || !context.mounted) return;
+                                final ok = await ref
+                                    .read(feedActionControllerProvider.notifier)
+                                    .editPost(
+                                      postId: item.id,
+                                      content: result.content,
+                                      imageFile: result.imageFile,
+                                      removeImage: result.removeImage,
+                                    );
+                                if (!context.mounted) return;
+                                if (!ok) {
+                                  final actionState = ref.read(
+                                    feedActionControllerProvider,
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        actionState.message ??
+                                            l10n.feedPostEditFailed,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
                               onDelete: () async {
                                 final ok = await ref
                                     .read(feedActionControllerProvider.notifier)
@@ -535,8 +576,9 @@ class _FeedPostSkeleton extends StatelessWidget {
 }
 
 class _FeedPostMenuButton extends StatelessWidget {
-  const _FeedPostMenuButton({required this.onDelete});
+  const _FeedPostMenuButton({required this.onEdit, required this.onDelete});
 
+  final Future<void> Function() onEdit;
   final Future<void> Function() onDelete;
 
   @override
@@ -545,22 +587,24 @@ class _FeedPostMenuButton extends StatelessWidget {
     return PopupMenuButton<String>(
       tooltip: l10n.moreActions,
       onSelected: (value) async {
+        if (value == 'edit') {
+          await onEdit();
+          return;
+        }
         if (value != 'delete') return;
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Gönderiyi sil'),
-            content: const Text(
-              'Bu gönderi kalıcı olarak silinecek. Devam etmek istiyor musun?',
-            ),
+            title: Text(l10n.feedPostDeleteTitle),
+            content: Text(l10n.feedPostDeleteMessage),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Vazgeç'),
+                child: Text(l10n.cancelAction),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Sil'),
+                child: Text(l10n.deleteAction),
               ),
             ],
           ),
@@ -569,8 +613,15 @@ class _FeedPostMenuButton extends StatelessWidget {
           await onDelete();
         }
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem<String>(value: 'delete', child: Text('Gönderiyi sil')),
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Text(l10n.feedPostEditTitle),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Text(l10n.feedPostDeleteTitle),
+        ),
       ],
     );
   }

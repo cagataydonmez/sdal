@@ -1,5 +1,54 @@
 # CLAUDE.md — AI Assistant Guide for SDAL
 
+# RTK-First Workflow (Token Optimization)
+
+## Core Rule
+Always prefer RTK-filtered commands over built-in tools when exploring or reading code.
+
+## Command Priority
+Use these commands in order:
+
+1. Search first:
+   - `rtk grep "<pattern>" <path>`
+   - `rg "<pattern>" <path>`
+
+2. Discover structure:
+   - `rtk ls <path>`
+   - `rtk find <path>`
+
+3. Read minimal content:
+   - `rtk read <file>`
+   - `head -n 200 <file>`
+   - `tail -n 200 <file>`
+
+4. Git context:
+   - `rtk git status`
+   - `rtk git diff`
+   - `rtk git log -n 20`
+
+## Strict Constraints
+- NEVER read full files blindly
+- NEVER scan entire repo with built-in tools
+- ALWAYS narrow down with search first
+- ALWAYS read only relevant sections
+
+## Avoid
+Avoid using:
+- Built-in Read tool for large files
+- Built-in Grep/Glob when RTK or rg is possible
+- Commands that return excessive output
+
+## Strategy
+Correct workflow:
+1. Search → find candidate files
+2. Narrow results
+3. Read only necessary parts
+
+## Example Good Flow
+```bash
+rtk grep "processBlock" .
+rtk read src/PluginProcessor.cpp
+
 ## Project Overview
 
 SDAL (Social Directory Application Layer) is a Node.js/React monorepo for a social networking platform. It includes an Express backend, two React frontends (classic and modern), and native mobile stubs for iOS/Android.

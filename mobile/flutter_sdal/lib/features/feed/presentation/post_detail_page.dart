@@ -14,6 +14,7 @@ import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
+import 'feed_edit_text_dialog.dart';
 
 class PostDetailPage extends ConsumerStatefulWidget {
   const PostDetailPage({super.key, required this.postId});
@@ -158,17 +159,25 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     );
   }
 
-  void _handlePostEdited(String content) {
+  void _handlePostEdited(FeedEditPostResult result) {
     final current =
         _postOverride ?? ref.read(postDetailProvider(widget.postId)).value;
     if (current == null) return;
-    setState(() {
-      _refreshFeedOnExit = true;
-      _postOverride = current.copyWith(
-        content: content,
-        updatedAt: DateTime.now().toIso8601String(),
-      );
-    });
+    _refreshFeedOnExit = true;
+    if (result.imageFile != null || result.removeImage) {
+      // Image changed — reload from server
+      ref.invalidate(postDetailProvider(widget.postId));
+      setState(() {
+        _postOverride = null;
+      });
+    } else {
+      setState(() {
+        _postOverride = current.copyWith(
+          content: result.content,
+          updatedAt: DateTime.now().toIso8601String(),
+        );
+      });
+    }
   }
 
   void _handleCommentEdited(int commentId, String content) {
@@ -228,7 +237,7 @@ class _PostCard extends ConsumerWidget {
   final FeedItem post;
   final int postId;
   final int? currentUserId;
-  final ValueChanged<String> onEdited;
+  final ValueChanged<FeedEditPostResult> onEdited;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -289,6 +298,9 @@ class _PostCard extends ConsumerWidget {
                 _PostMenuButton(
                   postId: postId,
                   currentContent: post.content,
+                  currentImageUrl: post.imageUrl.isNotEmpty
+                      ? config.resolveUrl(post.imageUrl).toString()
+                      : null,
                   onEdited: onEdited,
                 ),
             ],
@@ -362,11 +374,13 @@ class _PostMenuButton extends ConsumerStatefulWidget {
     required this.postId,
     required this.currentContent,
     required this.onEdited,
+    this.currentImageUrl,
   });
 
   final int postId;
   final String currentContent;
-  final ValueChanged<String> onEdited;
+  final String? currentImageUrl;
+  final ValueChanged<FeedEditPostResult> onEdited;
 
   @override
   ConsumerState<_PostMenuButton> createState() => _PostMenuButtonState();
@@ -380,7 +394,7 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
       tooltip: l10n.moreActions,
       onSelected: (value) async {
         if (value == 'edit') {
-          await _showEditDialog();
+          await _showEditSheet();
         } else if (value == 'delete') {
           await _confirmDelete();
         }
@@ -398,25 +412,29 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
     );
   }
 
-  Future<void> _showEditDialog() async {
+  Future<void> _showEditSheet() async {
     final l10n = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
-    final saved = await showDialog<String>(
+    final result = await showModalBottomSheet<FeedEditPostResult>(
       context: context,
-      builder: (ctx) => _FeedEditTextDialog(
-        title: l10n.feedPostEditTitle,
-        initialValue: plainTextFromRichContent(widget.currentContent),
-        minLines: 3,
-        maxLines: 8,
+      isScrollControlled: true,
+      builder: (ctx) => FeedEditPostSheet(
+        initialContent: plainTextFromRichContent(widget.currentContent),
+        currentImageUrl: widget.currentImageUrl,
       ),
     );
-    if (saved == null || !mounted) return;
+    if (result == null || !mounted) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
-        .editPost(postId: widget.postId, content: saved);
+        .editPost(
+          postId: widget.postId,
+          content: result.content,
+          imageFile: result.imageFile,
+          removeImage: result.removeImage,
+        );
     if (!mounted) return;
     if (ok) {
-      widget.onEdited(saved);
+      widget.onEdited(result);
     } else {
       final nextState = ref.read(feedActionControllerProvider);
       messenger.showSnackBar(
@@ -937,7 +955,7 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
     final messenger = ScaffoldMessenger.of(context);
     final saved = await showDialog<String>(
       context: context,
-      builder: (ctx) => _FeedEditTextDialog(
+      builder: (ctx) => FeedEditTextDialog(
         title: l10n.feedCommentEditTitle,
         initialValue: plainTextFromRichContent(widget.comment.text),
         minLines: 2,
@@ -1002,65 +1020,3 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
   }
 }
 
-class _FeedEditTextDialog extends StatefulWidget {
-  const _FeedEditTextDialog({
-    required this.title,
-    required this.initialValue,
-    required this.minLines,
-    required this.maxLines,
-  });
-
-  final String title;
-  final String initialValue;
-  final int minLines;
-  final int maxLines;
-
-  @override
-  State<_FeedEditTextDialog> createState() => _FeedEditTextDialogState();
-}
-
-class _FeedEditTextDialogState extends State<_FeedEditTextDialog> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _controller,
-        minLines: widget.minLines,
-        maxLines: widget.maxLines,
-        autofocus: true,
-        decoration: const InputDecoration(border: OutlineInputBorder()),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.cancelAction),
-        ),
-        FilledButton(
-          onPressed: () {
-            final text = _controller.text.trim();
-            if (text.isNotEmpty) {
-              Navigator.of(context).pop(text);
-            }
-          },
-          child: Text(l10n.saveAction),
-        ),
-      ],
-    );
-  }
-}

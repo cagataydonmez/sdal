@@ -399,6 +399,28 @@ class FeedRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> editPostWithImage({
+    required int postId,
+    required String content,
+    required File imageFile,
+  }) {
+    return _apiClient.multipart<dynamic>(
+      '/api/new/posts/$postId/upload-image',
+      fields: {'content': content},
+      files: {'image': imageFile},
+    );
+  }
+
+  Future<ApiResult<dynamic>> deletePostImage({
+    required int postId,
+    required String content,
+  }) {
+    return _apiClient.delete<dynamic>(
+      '/api/new/posts/$postId/image',
+      body: {'content': content},
+    );
+  }
+
   Future<ApiResult<dynamic>> editComment({
     required int postId,
     required int commentId,
