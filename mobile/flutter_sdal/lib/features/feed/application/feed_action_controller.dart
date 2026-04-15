@@ -65,8 +65,7 @@ class FeedActionController extends Notifier<AsyncActionState> {
     state = AsyncActionState.loading(scope: 'delete:$postId');
     final result = await _repository.deletePost(postId);
     if (result.ok) {
-      ref.invalidate(feedItemsProvider);
-      ref.invalidate(feedPageProvider);
+      // Feed list is updated directly in the UI; only invalidate detail page.
       ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'delete');
       return true;
@@ -151,8 +150,7 @@ class FeedActionController extends Notifier<AsyncActionState> {
       result = await _repository.editPost(postId: postId, content: content);
     }
     if (result.ok) {
-      ref.invalidate(feedItemsProvider);
-      ref.invalidate(feedPageProvider);
+      // Feed list is updated directly in the UI; only invalidate detail page.
       ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'edit-post');
       return true;
@@ -196,6 +194,6 @@ class FeedActionController extends Notifier<AsyncActionState> {
 }
 
 final feedActionControllerProvider =
-    NotifierProvider.autoDispose<FeedActionController, AsyncActionState>(
+    NotifierProvider<FeedActionController, AsyncActionState>(
       FeedActionController.new,
     );

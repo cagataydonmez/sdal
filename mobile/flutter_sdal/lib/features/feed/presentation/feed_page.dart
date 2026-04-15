@@ -278,7 +278,27 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                                       removeImage: result.removeImage,
                                     );
                                 if (!context.mounted) return;
-                                if (!ok) {
+                                if (ok) {
+                                  setState(() {
+                                    final idx = _items.indexWhere(
+                                      (i) => i.id == item.id,
+                                    );
+                                    if (idx != -1) {
+                                      final updated = _items[idx].copyWith(
+                                        content: result.content,
+                                        updatedAt:
+                                            DateTime.now().toIso8601String(),
+                                        image: result.removeImage
+                                            ? ''
+                                            : _items[idx].image,
+                                        variants: result.removeImage
+                                            ? null
+                                            : _items[idx].variants,
+                                      );
+                                      _items[idx] = updated;
+                                    }
+                                  });
+                                } else {
                                   final actionState = ref.read(
                                     feedActionControllerProvider,
                                   );
@@ -297,19 +317,23 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                                     .read(feedActionControllerProvider.notifier)
                                     .deletePost(item.id);
                                 if (!context.mounted) return;
-                                final actionState = ref.read(
-                                  feedActionControllerProvider,
-                                );
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      actionState.message ??
-                                          (ok
-                                              ? 'Gönderi silindi.'
-                                              : 'Gönderi silinemedi.'),
+                                if (ok) {
+                                  setState(() {
+                                    _items.removeWhere((i) => i.id == item.id);
+                                  });
+                                } else {
+                                  final actionState = ref.read(
+                                    feedActionControllerProvider,
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        actionState.message ??
+                                            'Gönderi silinemedi.',
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
                               },
                             ),
                         ],
