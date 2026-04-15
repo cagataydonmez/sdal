@@ -135,7 +135,6 @@ class FeedActionController extends Notifier<AsyncActionState> {
     if (result.ok) {
       ref.invalidate(feedItemsProvider);
       ref.invalidate(feedPageProvider);
-      ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'edit-post');
       return true;
     }
@@ -158,8 +157,6 @@ class FeedActionController extends Notifier<AsyncActionState> {
       comment: comment,
     );
     if (result.ok) {
-      ref.invalidate(postCommentsProvider(postId));
-      ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'edit-comment');
       return true;
     }

@@ -25,6 +25,8 @@ class PostDetailPage extends ConsumerStatefulWidget {
 
 class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   final _commentController = TextEditingController();
+  FeedItem? _postOverride;
+  final Map<int, FeedComment> _commentOverrides = <int, FeedComment>{};
 
   @override
   void dispose() {
@@ -43,6 +45,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final submittingComment =
         actionState.isLoading &&
         actionState.scope == 'comment:${widget.postId}';
+    final currentPost = _postOverride ?? postState.value;
 
     return FeatureScaffold(
       title: l10n.feedPostAction,
@@ -53,13 +56,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) =>
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
-            data: (post) => post == null
-                ? Text(l10n.feedPostNotFound)
-                : _PostCard(
-                    post: post,
-                    postId: widget.postId,
-                    currentUserId: currentUserId,
-                  ),
+            data: (post) {
+              final resolvedPost = _postOverride ?? post;
+              return resolvedPost == null
+                  ? Text(l10n.feedPostNotFound)
+                  : _PostCard(
+                      post: resolvedPost,
+                      postId: widget.postId,
+                      currentUserId: currentUserId,
+                      onEdited: _handlePostEdited,
+                    );
+            },
           ),
           const SizedBox(height: 18),
           SurfaceCard(
@@ -106,6 +113,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             error: (error, _) =>
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (comments) {
+              final resolvedComments = comments
+                  .map((comment) => _commentOverrides[comment.id] ?? comment)
+                  .toList(growable: false);
               if (comments.isEmpty) {
                 return SurfaceCard(
                   child: EmptyStateView(
@@ -118,7 +128,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: comments
+                children: resolvedComments
                     .map(
                       (comment) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -126,7 +136,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                           comment: comment,
                           postId: widget.postId,
                           currentUserId: currentUserId,
-                          postAuthorId: postState.value?.authorId,
+                          postAuthorId: currentPost?.authorId,
+                          onEdited: _handleCommentEdited,
                         ),
                       ),
                     )
@@ -137,6 +148,38 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         ],
       ),
     );
+  }
+
+  void _handlePostEdited(String content) {
+    final current =
+        _postOverride ?? ref.read(postDetailProvider(widget.postId)).value;
+    if (current == null) return;
+    setState(() {
+      _postOverride = current.copyWith(
+        content: content,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+    });
+  }
+
+  void _handleCommentEdited(int commentId, String content) {
+    final comments = ref.read(postCommentsProvider(widget.postId)).value;
+    if (comments == null) return;
+    FeedComment? current;
+    for (final comment in comments) {
+      if (comment.id == commentId) {
+        current = comment;
+        break;
+      }
+    }
+    if (current == null) return;
+    final currentComment = current;
+    setState(() {
+      _commentOverrides[commentId] = currentComment.copyWith(
+        comment: content,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+    });
   }
 
   Future<void> _submitComment() async {
@@ -169,11 +212,13 @@ class _PostCard extends ConsumerWidget {
     required this.post,
     required this.postId,
     required this.currentUserId,
+    required this.onEdited,
   });
 
   final FeedItem post;
   final int postId;
   final int? currentUserId;
+  final ValueChanged<String> onEdited;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -234,6 +279,7 @@ class _PostCard extends ConsumerWidget {
                 _PostMenuButton(
                   postId: postId,
                   currentContent: post.content,
+                  onEdited: onEdited,
                 ),
             ],
           ),
@@ -294,25 +340,32 @@ class _PostCard extends ConsumerWidget {
 // Post menu (edit + delete)
 // ---------------------------------------------------------------------------
 
-class _PostMenuButton extends ConsumerWidget {
+class _PostMenuButton extends ConsumerStatefulWidget {
   const _PostMenuButton({
     required this.postId,
     required this.currentContent,
+    required this.onEdited,
   });
 
   final int postId;
   final String currentContent;
+  final ValueChanged<String> onEdited;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PostMenuButton> createState() => _PostMenuButtonState();
+}
+
+class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
     return PopupMenuButton<String>(
       tooltip: l10n.moreActions,
       onSelected: (value) async {
         if (value == 'edit') {
-          await _showEditDialog(context, ref);
+          await _showEditDialog();
         } else if (value == 'delete') {
-          await _confirmDelete(context, ref);
+          await _confirmDelete();
         }
       },
       itemBuilder: (context) => [
@@ -328,14 +381,14 @@ class _PostMenuButton extends ConsumerWidget {
     );
   }
 
-  Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
+  Future<void> _showEditDialog() async {
     final l10n = context.l10n;
     final controller = TextEditingController(
-      text: plainTextFromRichContent(currentContent),
+      text: plainTextFromRichContent(widget.currentContent),
     );
     final saved = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: Text(l10n.feedPostEditTitle),
         content: TextField(
           controller: controller,
@@ -346,13 +399,13 @@ class _PostMenuButton extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: Text(l10n.cancelAction),
           ),
           FilledButton(
             onPressed: () {
               final text = controller.text.trim();
-              if (text.isNotEmpty) Navigator.of(context).pop(text);
+              if (text.isNotEmpty) Navigator.of(ctx).pop(text);
             },
             child: Text(l10n.saveAction),
           ),
@@ -360,11 +413,14 @@ class _PostMenuButton extends ConsumerWidget {
       ),
     );
     controller.dispose();
-    if (saved == null || !context.mounted) return;
+    if (saved == null || !mounted) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
-        .editPost(postId: postId, content: saved);
-    if (!context.mounted) return;
+        .editPost(postId: widget.postId, content: saved);
+    if (!mounted) return;
+    if (ok) {
+      widget.onEdited(saved);
+    }
     final nextState = ref.read(feedActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -376,30 +432,30 @@ class _PostMenuButton extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDelete() async {
     final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: Text(l10n.feedPostDeleteTitle),
         content: Text(l10n.feedPostDeleteMessage),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(l10n.cancelAction),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(l10n.deleteAction),
           ),
         ],
       ),
     );
-    if (confirmed != true || !context.mounted) return;
+    if (confirmed != true || !mounted) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
-        .deletePost(postId);
-    if (!context.mounted) return;
+        .deletePost(widget.postId);
+    if (!mounted) return;
     if (ok) {
       context.pop();
       return;
@@ -713,12 +769,14 @@ class _CommentCard extends ConsumerWidget {
     required this.postId,
     required this.currentUserId,
     required this.postAuthorId,
+    required this.onEdited,
   });
 
   final FeedComment comment;
   final int postId;
   final int? currentUserId;
   final int? postAuthorId;
+  final void Function(int commentId, String content) onEdited;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -796,6 +854,7 @@ class _CommentCard extends ConsumerWidget {
                   comment: comment,
                   postId: postId,
                   canEdit: canEdit,
+                  onEdited: onEdited,
                 ),
             ],
           ),
@@ -832,31 +891,38 @@ class _CommentCard extends ConsumerWidget {
 // Comment menu (edit + delete)
 // ---------------------------------------------------------------------------
 
-class _CommentMenuButton extends ConsumerWidget {
+class _CommentMenuButton extends ConsumerStatefulWidget {
   const _CommentMenuButton({
     required this.comment,
     required this.postId,
     required this.canEdit,
+    required this.onEdited,
   });
 
   final FeedComment comment;
   final int postId;
   final bool canEdit;
+  final void Function(int commentId, String content) onEdited;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CommentMenuButton> createState() => _CommentMenuButtonState();
+}
+
+class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
     return PopupMenuButton<String>(
       tooltip: l10n.moreActions,
       onSelected: (value) async {
         if (value == 'edit') {
-          await _showEditDialog(context, ref);
+          await _showEditDialog();
         } else if (value == 'delete') {
-          await _confirmDelete(context, ref);
+          await _confirmDelete();
         }
       },
       itemBuilder: (context) => [
-        if (canEdit)
+        if (widget.canEdit)
           PopupMenuItem<String>(
             value: 'edit',
             child: Text(l10n.feedCommentEditTitle),
@@ -869,14 +935,14 @@ class _CommentMenuButton extends ConsumerWidget {
     );
   }
 
-  Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
+  Future<void> _showEditDialog() async {
     final l10n = context.l10n;
     final controller = TextEditingController(
-      text: plainTextFromRichContent(comment.text),
+      text: plainTextFromRichContent(widget.comment.text),
     );
     final saved = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: Text(l10n.feedCommentEditTitle),
         content: TextField(
           controller: controller,
@@ -887,13 +953,13 @@ class _CommentMenuButton extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: Text(l10n.cancelAction),
           ),
           FilledButton(
             onPressed: () {
               final text = controller.text.trim();
-              if (text.isNotEmpty) Navigator.of(context).pop(text);
+              if (text.isNotEmpty) Navigator.of(ctx).pop(text);
             },
             child: Text(l10n.saveAction),
           ),
@@ -901,15 +967,18 @@ class _CommentMenuButton extends ConsumerWidget {
       ),
     );
     controller.dispose();
-    if (saved == null || !context.mounted) return;
+    if (saved == null || !mounted) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
         .editComment(
-          postId: postId,
-          commentId: comment.id,
+          postId: widget.postId,
+          commentId: widget.comment.id,
           comment: saved,
         );
-    if (!context.mounted) return;
+    if (!mounted) return;
+    if (ok) {
+      widget.onEdited(widget.comment.id, saved);
+    }
     final nextState = ref.read(feedActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -921,38 +990,36 @@ class _CommentMenuButton extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDelete() async {
     final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: Text(l10n.feedCommentDeleteTitle),
         content: Text(l10n.feedCommentDeleteMessage),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(l10n.cancelAction),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(l10n.deleteAction),
           ),
         ],
       ),
     );
-    if (confirmed != true || !context.mounted) return;
+    if (confirmed != true || !mounted) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
-        .deleteComment(postId: postId, commentId: comment.id);
-    if (!context.mounted) return;
+        .deleteComment(postId: widget.postId, commentId: widget.comment.id);
+    if (!mounted) return;
     final nextState = ref.read(feedActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           nextState.message ??
-              (ok
-                  ? l10n.feedCommentDeleted
-                  : l10n.feedCommentDeleteFailed),
+              (ok ? l10n.feedCommentDeleted : l10n.feedCommentDeleteFailed),
         ),
       ),
     );
