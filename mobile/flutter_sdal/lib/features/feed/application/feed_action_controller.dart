@@ -49,6 +49,7 @@ class FeedActionController extends Notifier<AsyncActionState> {
       ref.invalidate(feedItemsProvider);
       ref.invalidate(feedPageProvider);
       ref.invalidate(postDetailProvider(postId));
+      ref.invalidate(postLikesProvider(postId));
       state = const AsyncActionState.success(scope: 'like');
       return true;
     }
@@ -133,6 +134,9 @@ class FeedActionController extends Notifier<AsyncActionState> {
     state = AsyncActionState.loading(scope: 'edit-post:$postId');
     final result = await _repository.editPost(postId: postId, content: content);
     if (result.ok) {
+      ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'edit-post');
       return true;
     }
@@ -155,6 +159,10 @@ class FeedActionController extends Notifier<AsyncActionState> {
       comment: comment,
     );
     if (result.ok) {
+      ref.invalidate(postCommentsProvider(postId));
+      ref.invalidate(postDetailProvider(postId));
+      ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
       state = const AsyncActionState.success(scope: 'edit-comment');
       return true;
     }

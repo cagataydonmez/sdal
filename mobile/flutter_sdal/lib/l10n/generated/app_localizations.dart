@@ -500,12 +500,6 @@ abstract class AppLocalizations {
   /// **'Gönderi düzenlenemedi.'**
   String get feedPostEditFailed;
 
-  /// No description provided for @feedPostEditedAt.
-  ///
-  /// In tr, this message translates to:
-  /// **'{date} tarihinde düzenlendi'**
-  String feedPostEditedAt(Object date);
-
   /// No description provided for @feedCommentEditTitle.
   ///
   /// In tr, this message translates to:
@@ -523,12 +517,6 @@ abstract class AppLocalizations {
   /// In tr, this message translates to:
   /// **'Yorum düzenlenemedi.'**
   String get feedCommentEditFailed;
-
-  /// No description provided for @feedCommentEditedAt.
-  ///
-  /// In tr, this message translates to:
-  /// **'{date} tarihinde düzenlendi'**
-  String feedCommentEditedAt(Object date);
 
   /// No description provided for @feedLikedBy.
   ///

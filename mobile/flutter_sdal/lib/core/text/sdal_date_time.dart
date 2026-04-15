@@ -1,9 +1,43 @@
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
-String formatSdalTimestamp(BuildContext context, String raw, {DateTime? now}) {
+String formatSdalTimestamp(BuildContext context, String raw, {DateTime? now}) =>
+    _formatSdalDate(context, raw, now: now)?.text ?? raw;
+
+String formatSdalEditedLabel(
+  BuildContext context,
+  String raw, {
+  DateTime? now,
+}) {
+  final isTurkish =
+      Localizations.localeOf(context).languageCode.toLowerCase() == 'tr';
+  final result = _formatSdalDate(context, raw, now: now);
+  if (result == null) {
+    return isTurkish ? 'düzenlendi' : 'Edited';
+  }
+  if (isTurkish) {
+    return result.isAbsolute
+        ? '${result.text} tarihinde düzenlendi'
+        : '${result.text} düzenlendi';
+  }
+  return result.isAbsolute
+      ? 'Edited on ${result.text}'
+      : 'Edited ${result.text}';
+}
+
+class _SdalFormattedDate {
+  const _SdalFormattedDate(this.text, {required this.isAbsolute});
+  final String text;
+  final bool isAbsolute;
+}
+
+_SdalFormattedDate? _formatSdalDate(
+  BuildContext context,
+  String raw, {
+  DateTime? now,
+}) {
   final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
+  if (parsed == null) return null;
 
   final locale = Localizations.localeOf(context);
   final localeName = locale.countryCode?.isNotEmpty == true
@@ -13,7 +47,10 @@ String formatSdalTimestamp(BuildContext context, String raw, {DateTime? now}) {
   final currentTime = (now ?? DateTime.now()).toLocal();
 
   if (localTime.isAfter(currentTime)) {
-    return _formatAbsoluteDate(localTime, currentTime, localeName);
+    return _SdalFormattedDate(
+      _formatAbsoluteDate(localTime, currentTime, localeName),
+      isAbsolute: true,
+    );
   }
 
   final difference = currentTime.difference(localTime);
@@ -21,27 +58,45 @@ String formatSdalTimestamp(BuildContext context, String raw, {DateTime? now}) {
   final isTurkish = locale.languageCode.toLowerCase() == 'tr';
 
   if (difference.inSeconds < 30) {
-    return isTurkish ? 'Şimdi' : 'Now';
+    return _SdalFormattedDate(
+      isTurkish ? 'Şimdi' : 'Now',
+      isAbsolute: false,
+    );
   }
   if (difference.inMinutes < 60) {
     final minutes = difference.inMinutes.clamp(1, 59);
-    return isTurkish
-        ? '$minutes Dakika Önce'
-        : '$minutes minute${minutes == 1 ? '' : 's'} ago';
+    return _SdalFormattedDate(
+      isTurkish
+          ? '$minutes Dakika Önce'
+          : '$minutes minute${minutes == 1 ? '' : 's'} ago',
+      isAbsolute: false,
+    );
   }
   if (dayDifference == 0) {
-    return DateFormat('HH:mm', localeName).format(localTime);
+    return _SdalFormattedDate(
+      DateFormat('HH:mm', localeName).format(localTime),
+      isAbsolute: false,
+    );
   }
   if (dayDifference < 7) {
-    return isTurkish
-        ? '$dayDifference gün önce'
-        : '$dayDifference day${dayDifference == 1 ? '' : 's'} ago';
+    return _SdalFormattedDate(
+      isTurkish
+          ? '$dayDifference gün önce'
+          : '$dayDifference day${dayDifference == 1 ? '' : 's'} ago',
+      isAbsolute: false,
+    );
   }
   if (dayDifference < 14) {
-    return isTurkish ? '1 Hafta önce' : '1 week ago';
+    return _SdalFormattedDate(
+      isTurkish ? '1 Hafta önce' : '1 week ago',
+      isAbsolute: false,
+    );
   }
 
-  return _formatAbsoluteDate(localTime, currentTime, localeName);
+  return _SdalFormattedDate(
+    _formatAbsoluteDate(localTime, currentTime, localeName),
+    isAbsolute: true,
+  );
 }
 
 String _formatAbsoluteDate(

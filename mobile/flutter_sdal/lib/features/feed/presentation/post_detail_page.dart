@@ -305,9 +305,7 @@ class _PostCard extends ConsumerWidget {
           if (post.updatedAt != null && post.updatedAt!.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
-              l10n.feedPostEditedAt(
-                formatSdalTimestamp(context, post.updatedAt!),
-              ),
+              formatSdalEditedLabel(context, post.updatedAt!),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontStyle: FontStyle.italic,
               ),
@@ -873,9 +871,7 @@ class _CommentCard extends ConsumerWidget {
           if (comment.updatedAt != null && comment.updatedAt!.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
-              l10n.feedCommentEditedAt(
-                formatSdalTimestamp(context, comment.updatedAt!),
-              ),
+              formatSdalEditedLabel(context, comment.updatedAt!),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontStyle: FontStyle.italic,
               ),

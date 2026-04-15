@@ -87,21 +87,9 @@
   "feedPostEditTitle": "Gönderiyi düzenle",
   "feedPostEdited": "Gönderi düzenlendi.",
   "feedPostEditFailed": "Gönderi düzenlenemedi.",
-  "feedPostEditedAt": "{date} tarihinde düzenlendi",
-  "@feedPostEditedAt": {
-    "placeholders": {
-      "date": {}
-    }
-  },
   "feedCommentEditTitle": "Yorumu düzenle",
   "feedCommentEdited": "Yorum düzenlendi.",
   "feedCommentEditFailed": "Yorum düzenlenemedi.",
-  "feedCommentEditedAt": "{date} tarihinde düzenlendi",
-  "@feedCommentEditedAt": {
-    "placeholders": {
-      "date": {}
-    }
-  },
   "feedLikedBy": "Beğenenler",
   "feedLikedByNone": "Henüz beğenilmedi.",
   "sidebarOnlineUsersCount": "{count} çevrim içi üye",

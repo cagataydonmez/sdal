@@ -223,11 +223,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get feedPostEditFailed => 'Gönderi düzenlenemedi.';
 
   @override
-  String feedPostEditedAt(Object date) {
-    return '$date tarihinde düzenlendi';
-  }
-
-  @override
   String get feedCommentEditTitle => 'Yorumu düzenle';
 
   @override
@@ -235,11 +230,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get feedCommentEditFailed => 'Yorum düzenlenemedi.';
-
-  @override
-  String feedCommentEditedAt(Object date) {
-    return '$date tarihinde düzenlendi';
-  }
 
   @override
   String get feedLikedBy => 'Beğenenler';

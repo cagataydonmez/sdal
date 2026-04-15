@@ -87,21 +87,9 @@
   "feedPostEditTitle": "Edit post",
   "feedPostEdited": "Post updated.",
   "feedPostEditFailed": "Post could not be updated.",
-  "feedPostEditedAt": "Edited {date}",
-  "@feedPostEditedAt": {
-    "placeholders": {
-      "date": {}
-    }
-  },
   "feedCommentEditTitle": "Edit comment",
   "feedCommentEdited": "Comment updated.",
   "feedCommentEditFailed": "Comment could not be updated.",
-  "feedCommentEditedAt": "Edited {date}",
-  "@feedCommentEditedAt": {
-    "placeholders": {
-      "date": {}
-    }
-  },
   "feedLikedBy": "Likes",
   "feedLikedByNone": "No likes yet.",
   "sidebarOnlineUsersCount": "{count} users online",

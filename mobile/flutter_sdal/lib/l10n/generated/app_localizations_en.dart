@@ -223,11 +223,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedPostEditFailed => 'Post could not be updated.';
 
   @override
-  String feedPostEditedAt(Object date) {
-    return 'Edited $date';
-  }
-
-  @override
   String get feedCommentEditTitle => 'Edit comment';
 
   @override
@@ -235,11 +230,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get feedCommentEditFailed => 'Comment could not be updated.';
-
-  @override
-  String feedCommentEditedAt(Object date) {
-    return 'Edited $date';
-  }
 
   @override
   String get feedLikedBy => 'Likes';
