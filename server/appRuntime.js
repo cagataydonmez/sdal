@@ -4122,8 +4122,7 @@ app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
   const content = formatUserText(req.body?.content || '');
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
-  const updatedAtClause = isPostgresDb ? ', updated_at = NOW()' : '';
-  sqlRun(`UPDATE posts SET content = ?${updatedAtClause} WHERE id = ?`, [content, postId]);
+  sqlRun('UPDATE posts SET content = ?, updated_at = ? WHERE id = ?', [content, new Date().toISOString(), postId]);
   scheduleEngagementRecalculation('post_updated');
   invalidateCacheNamespace(cacheNamespaces.feed);
   const item = sqlGet(
@@ -4162,8 +4161,7 @@ app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
   const content = formatUserText(req.body?.content || '');
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
-  const updatedAtClause = isPostgresDb ? ', updated_at = NOW()' : '';
-  sqlRun(`UPDATE posts SET content = ?${updatedAtClause} WHERE id = ?`, [content, postId]);
+  sqlRun('UPDATE posts SET content = ?, updated_at = ? WHERE id = ?', [content, new Date().toISOString(), postId]);
   scheduleEngagementRecalculation('post_updated');
   invalidateCacheNamespace(cacheNamespaces.feed);
   const item = sqlGet(

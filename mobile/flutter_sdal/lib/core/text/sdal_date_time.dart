@@ -8,21 +8,47 @@ String formatSdalEditedLabel(
   BuildContext context,
   String raw, {
   DateTime? now,
+}) => _formatSdalLabeledDate(
+  context,
+  raw,
+  now: now,
+  turkishVerb: 'düzenlendi',
+  englishVerb: 'Edited',
+);
+
+String formatSdalCreatedLabel(
+  BuildContext context,
+  String raw, {
+  DateTime? now,
+}) => _formatSdalLabeledDate(
+  context,
+  raw,
+  now: now,
+  turkishVerb: 'oluşturuldu',
+  englishVerb: 'Created',
+);
+
+String _formatSdalLabeledDate(
+  BuildContext context,
+  String raw, {
+  required String turkishVerb,
+  required String englishVerb,
+  DateTime? now,
 }) {
   final isTurkish =
       Localizations.localeOf(context).languageCode.toLowerCase() == 'tr';
   final result = _formatSdalDate(context, raw, now: now);
   if (result == null) {
-    return isTurkish ? 'düzenlendi' : 'Edited';
+    return isTurkish ? turkishVerb : englishVerb;
   }
   if (isTurkish) {
     return result.isAbsolute
-        ? '${result.text} tarihinde düzenlendi'
-        : '${result.text} düzenlendi';
+        ? '${result.text} tarihinde $turkishVerb'
+        : '${result.text} $turkishVerb';
   }
   return result.isAbsolute
-      ? 'Edited on ${result.text}'
-      : 'Edited ${result.text}';
+      ? '$englishVerb on ${result.text}'
+      : '$englishVerb ${result.text}';
 }
 
 class _SdalFormattedDate {

@@ -316,6 +316,19 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                             onTap: () => context.push('/posts/${item.id}'),
                           ),
                           const Spacer(),
+                          if (item.updatedAt?.isNotEmpty ?? false) ...[
+                            Tooltip(
+                              message: l10n.feedPostEdited,
+                              child: Icon(
+                                Icons.edit_outlined,
+                                size: 14,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.color,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
                           Text(
                             formatSdalTimestamp(
                               context,

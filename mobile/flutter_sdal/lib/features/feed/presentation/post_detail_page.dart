@@ -298,7 +298,7 @@ class _PostCard extends ConsumerWidget {
           if (post.createdAt.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              formatSdalTimestamp(context, post.createdAt),
+              formatSdalCreatedLabel(context, post.createdAt),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -863,7 +863,7 @@ class _CommentCard extends ConsumerWidget {
           if (comment.createdAt.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              formatSdalTimestamp(context, comment.createdAt),
+              formatSdalCreatedLabel(context, comment.createdAt),
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.left,
             ),
