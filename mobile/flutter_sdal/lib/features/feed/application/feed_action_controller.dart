@@ -133,8 +133,6 @@ class FeedActionController extends Notifier<AsyncActionState> {
     state = AsyncActionState.loading(scope: 'edit-post:$postId');
     final result = await _repository.editPost(postId: postId, content: content);
     if (result.ok) {
-      ref.invalidate(feedItemsProvider);
-      ref.invalidate(feedPageProvider);
       state = const AsyncActionState.success(scope: 'edit-post');
       return true;
     }

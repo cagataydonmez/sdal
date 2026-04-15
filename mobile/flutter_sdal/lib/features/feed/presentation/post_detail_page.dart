@@ -27,9 +27,16 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   final _commentController = TextEditingController();
   FeedItem? _postOverride;
   final Map<int, FeedComment> _commentOverrides = <int, FeedComment>{};
+  bool _refreshFeedOnExit = false;
 
   @override
   void dispose() {
+    if (_refreshFeedOnExit) {
+      ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(postDetailProvider(widget.postId));
+      ref.invalidate(postCommentsProvider(widget.postId));
+    }
     _commentController.dispose();
     super.dispose();
   }
@@ -155,6 +162,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         _postOverride ?? ref.read(postDetailProvider(widget.postId)).value;
     if (current == null) return;
     setState(() {
+      _refreshFeedOnExit = true;
       _postOverride = current.copyWith(
         content: content,
         updatedAt: DateTime.now().toIso8601String(),
@@ -175,6 +183,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     if (current == null) return;
     final currentComment = current;
     setState(() {
+      _refreshFeedOnExit = true;
       _commentOverrides[commentId] = currentComment.copyWith(
         comment: content,
         updatedAt: DateTime.now().toIso8601String(),
@@ -383,36 +392,15 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
 
   Future<void> _showEditDialog() async {
     final l10n = context.l10n;
-    final controller = TextEditingController(
-      text: plainTextFromRichContent(widget.currentContent),
-    );
     final saved = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.feedPostEditTitle),
-        content: TextField(
-          controller: controller,
-          minLines: 3,
-          maxLines: 8,
-          autofocus: true,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) Navigator.of(ctx).pop(text);
-            },
-            child: Text(l10n.saveAction),
-          ),
-        ],
+      builder: (ctx) => _FeedEditTextDialog(
+        title: l10n.feedPostEditTitle,
+        initialValue: plainTextFromRichContent(widget.currentContent),
+        minLines: 3,
+        maxLines: 8,
       ),
     );
-    controller.dispose();
     if (saved == null || !mounted) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
@@ -937,36 +925,15 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
 
   Future<void> _showEditDialog() async {
     final l10n = context.l10n;
-    final controller = TextEditingController(
-      text: plainTextFromRichContent(widget.comment.text),
-    );
     final saved = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.feedCommentEditTitle),
-        content: TextField(
-          controller: controller,
-          minLines: 2,
-          maxLines: 6,
-          autofocus: true,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(l10n.cancelAction),
-          ),
-          FilledButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) Navigator.of(ctx).pop(text);
-            },
-            child: Text(l10n.saveAction),
-          ),
-        ],
+      builder: (ctx) => _FeedEditTextDialog(
+        title: l10n.feedCommentEditTitle,
+        initialValue: plainTextFromRichContent(widget.comment.text),
+        minLines: 2,
+        maxLines: 6,
       ),
     );
-    controller.dispose();
     if (saved == null || !mounted) return;
     final ok = await ref
         .read(feedActionControllerProvider.notifier)
@@ -1022,6 +989,69 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
               (ok ? l10n.feedCommentDeleted : l10n.feedCommentDeleteFailed),
         ),
       ),
+    );
+  }
+}
+
+class _FeedEditTextDialog extends StatefulWidget {
+  const _FeedEditTextDialog({
+    required this.title,
+    required this.initialValue,
+    required this.minLines,
+    required this.maxLines,
+  });
+
+  final String title;
+  final String initialValue;
+  final int minLines;
+  final int maxLines;
+
+  @override
+  State<_FeedEditTextDialog> createState() => _FeedEditTextDialogState();
+}
+
+class _FeedEditTextDialogState extends State<_FeedEditTextDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        minLines: widget.minLines,
+        maxLines: widget.maxLines,
+        autofocus: true,
+        decoration: const InputDecoration(border: OutlineInputBorder()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancelAction),
+        ),
+        FilledButton(
+          onPressed: () {
+            final text = _controller.text.trim();
+            if (text.isNotEmpty) {
+              Navigator.of(context).pop(text);
+            }
+          },
+          child: Text(l10n.saveAction),
+        ),
+      ],
     );
   }
 }

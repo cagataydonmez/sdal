@@ -19,6 +19,7 @@ export function toLegacyFeedItem(post) {
     content: post.content,
     image: post.imageUrl,
     createdAt: post.createdAt,
+    updatedAt: post.updatedAt || null,
     author: {
       id: post.author?.id || post.authorId,
       kadi: post.author?.username || '',
