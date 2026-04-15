@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -150,7 +151,7 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
                                     if (item.followedAt.isNotEmpty) ...[
                                       const SizedBox(height: 8),
                                       Text(
-                                        'Takip tarihi: ${_formatDate(item.followedAt)}',
+                                        'Takip tarihi: ${_formatDate(context, item.followedAt)}',
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
@@ -403,13 +404,5 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-String _formatDate(String raw) {
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  final local = parsed.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$day.$month.${local.year} $hour:$minute';
-}
+String _formatDate(BuildContext context, String raw) =>
+    formatSdalTimestamp(context, raw);

@@ -85,7 +85,7 @@ export class LegacyPostRepository extends PostRepository {
 
   async findCommentById(commentId) {
     const row = await this.queryGet(
-      `SELECT c.id, c.post_id, c.user_id, c.comment, c.created_at,
+      `SELECT c.id, c.post_id, c.user_id, c.comment, c.created_at, c.updated_at,
               u.kadi, u.isim, u.soyisim, u.resim, u.verified
        FROM post_comments c
        LEFT JOIN uyeler u ON u.id = c.user_id

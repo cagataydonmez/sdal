@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -301,7 +302,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                             if (item.category.isNotEmpty)
                                               item.category,
                                             if (item.createdAt.isNotEmpty)
-                                              item.createdAt,
+                                              formatSdalTimestamp(
+                                                context,
+                                                item.createdAt,
+                                              ),
                                           ].join(' · '),
                                           style: Theme.of(
                                             context,

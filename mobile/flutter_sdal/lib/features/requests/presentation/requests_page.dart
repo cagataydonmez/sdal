@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -669,7 +670,7 @@ class _RequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '#${item.id} • ${_formatDate(item.createdAt)}',
+            '#${item.id} • ${formatSdalTimestamp(context, item.createdAt)}',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: tokens.foregroundMuted),
@@ -749,17 +750,6 @@ class _StatusPill extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatDate(String raw) {
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  final local = parsed.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$day.$month.${local.year} $hour:$minute';
 }
 
 bool _isPendingRequestStatus(String status) {

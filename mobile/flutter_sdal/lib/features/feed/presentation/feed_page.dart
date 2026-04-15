@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
@@ -316,7 +317,12 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                           ),
                           const Spacer(),
                           Text(
-                            item.createdAt,
+                            formatSdalTimestamp(
+                              context,
+                              (item.updatedAt?.isNotEmpty ?? false)
+                                  ? item.updatedAt!
+                                  : item.createdAt,
+                            ),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],

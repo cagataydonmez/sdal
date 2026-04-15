@@ -7,6 +7,7 @@ import '../../../core/routing/app_router.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
 import '../../../core/network/realtime_connection_state.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/chat_jump_to_latest_button.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -471,7 +472,10 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          message.createdAt,
+                                          formatSdalTimestamp(
+                                            context,
+                                            message.createdAt,
+                                          ),
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodySmall

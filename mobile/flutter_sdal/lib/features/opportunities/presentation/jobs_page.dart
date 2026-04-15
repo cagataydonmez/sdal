@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/state/async_action_state.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -350,7 +351,7 @@ class _JobsPageState extends ConsumerState<JobsPage> {
             Row(
               children: [
                 Text(
-                  _formatDate(job.createdAt),
+                  _formatDate(context, job.createdAt),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: tokens.foregroundMuted,
                   ),
@@ -657,13 +658,5 @@ String _applicationStatusLabel(BuildContext context, String value) {
   }
 }
 
-String _formatDate(String raw) {
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  final local = parsed.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$day.$month.${local.year} $hour:$minute';
-}
+String _formatDate(BuildContext context, String raw) =>
+    formatSdalTimestamp(context, raw);

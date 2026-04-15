@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import 'package:image_picker/image_picker.dart';
@@ -283,7 +284,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
             Text(_plainText(item.description)),
             const SizedBox(height: 10),
             Text(
-              _eventMeta(item),
+              _eventMeta(context, item),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).sdal.foregroundMuted,
               ),
@@ -411,7 +412,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
                               ],
                             ),
                             Text(
-                              _formatDate(comment.createdAt),
+                              formatSdalTimestamp(context, comment.createdAt),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: Theme.of(
@@ -801,22 +802,13 @@ String _plainText(String raw) {
   return plainTextFromRichContent(raw);
 }
 
-String _eventMeta(EventItem item) {
+String _eventMeta(BuildContext context, EventItem item) {
   final parts = <String>[];
   if (item.location.isNotEmpty) parts.add(item.location);
-  if (item.startsAt.isNotEmpty) parts.add(_formatDate(item.startsAt));
+  if (item.startsAt.isNotEmpty) {
+    parts.add(formatSdalTimestamp(context, item.startsAt));
+  }
   if (item.creatorHandle.isNotEmpty) parts.add('@${item.creatorHandle}');
   if (!item.approved) parts.add('Onay bekliyor');
   return parts.join(' · ');
-}
-
-String _formatDate(String raw) {
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  final local = parsed.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$day.$month.${local.year} $hour:$minute';
 }

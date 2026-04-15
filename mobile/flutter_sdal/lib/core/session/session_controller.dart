@@ -23,7 +23,11 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
           ? result.message
           : 'Giriş başarısız oldu.';
     }
-    state = const AsyncLoading();
+    // Skip AsyncLoading here — setting it would swap MaterialApp.router to the
+    // splash MaterialApp and back, causing a Duplicate GlobalKey crash because
+    // _rootNavigatorKey is torn from the tree while GoRouter still holds it.
+    // The login page stays visible while bootstrap runs; GoRouter's redirect
+    // handles the /login → home navigation once the state is authenticated.
     state = await AsyncValue.guard(_repository.bootstrap);
     return state.hasError ? state.error.toString() : null;
   }
@@ -71,7 +75,8 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
           ? result.message
           : 'OAuth oturumu açılamadı.';
     }
-    state = const AsyncLoading();
+    // Same as login(): skip AsyncLoading to avoid the MaterialApp swap that
+    // causes a Duplicate GlobalKey crash.
     state = await AsyncValue.guard(_repository.bootstrap);
     return state.hasError ? state.error.toString() : null;
   }

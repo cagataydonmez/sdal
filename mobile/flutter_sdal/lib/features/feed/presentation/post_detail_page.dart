@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -294,10 +295,19 @@ class _PostCard extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(plainTextFromRichContent(post.content)),
+          if (post.createdAt.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              formatSdalTimestamp(context, post.createdAt),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           if (post.updatedAt != null && post.updatedAt!.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
-              l10n.feedPostEditedAt(post.updatedAt!),
+              l10n.feedPostEditedAt(
+                formatSdalTimestamp(context, post.updatedAt!),
+              ),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontStyle: FontStyle.italic,
               ),
@@ -392,6 +402,7 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
 
   Future<void> _showEditDialog() async {
     final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
     final saved = await showDialog<String>(
       context: context,
       builder: (ctx) => _FeedEditTextDialog(
@@ -408,20 +419,20 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
     if (!mounted) return;
     if (ok) {
       widget.onEdited(saved);
-    }
-    final nextState = ref.read(feedActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          nextState.message ??
-              (ok ? l10n.feedPostEdited : l10n.feedPostEditFailed),
+    } else {
+      final nextState = ref.read(feedActionControllerProvider);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(nextState.message ?? l10n.feedPostEditFailed),
         ),
-      ),
-    );
+      );
+    }
   }
 
   Future<void> _confirmDelete() async {
     final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -445,11 +456,11 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
         .deletePost(widget.postId);
     if (!mounted) return;
     if (ok) {
-      context.pop();
+      router.pop();
       return;
     }
     final nextState = ref.read(feedActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(nextState.message ?? l10n.feedPostDeleteFailed),
       ),
@@ -854,7 +865,7 @@ class _CommentCard extends ConsumerWidget {
           if (comment.createdAt.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              comment.createdAt,
+              formatSdalTimestamp(context, comment.createdAt),
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.left,
             ),
@@ -862,7 +873,9 @@ class _CommentCard extends ConsumerWidget {
           if (comment.updatedAt != null && comment.updatedAt!.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
-              l10n.feedCommentEditedAt(comment.updatedAt!),
+              l10n.feedCommentEditedAt(
+                formatSdalTimestamp(context, comment.updatedAt!),
+              ),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 fontStyle: FontStyle.italic,
               ),
@@ -925,6 +938,7 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
 
   Future<void> _showEditDialog() async {
     final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
     final saved = await showDialog<String>(
       context: context,
       builder: (ctx) => _FeedEditTextDialog(
@@ -945,20 +959,19 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
     if (!mounted) return;
     if (ok) {
       widget.onEdited(widget.comment.id, saved);
-    }
-    final nextState = ref.read(feedActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          nextState.message ??
-              (ok ? l10n.feedCommentEdited : l10n.feedCommentEditFailed),
+    } else {
+      final nextState = ref.read(feedActionControllerProvider);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(nextState.message ?? l10n.feedCommentEditFailed),
         ),
-      ),
-    );
+      );
+    }
   }
 
   Future<void> _confirmDelete() async {
     final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -982,7 +995,7 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
         .deleteComment(postId: widget.postId, commentId: widget.comment.id);
     if (!mounted) return;
     final nextState = ref.read(feedActionControllerProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           nextState.message ??

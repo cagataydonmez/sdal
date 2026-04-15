@@ -7,6 +7,7 @@ import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -467,7 +468,9 @@ class NetworkingInboxPage extends ConsumerWidget {
                             ),
                           ),
                           title: Text(item.message),
-                          subtitle: Text(item.createdAt),
+                          subtitle: Text(
+                            formatSdalTimestamp(context, item.createdAt),
+                          ),
                           trailing: item.isUnread
                               ? Icon(
                                   Icons.circle,
@@ -588,8 +591,8 @@ class _ConnectionRequestsBrowserState
                       child: _RequestTile(
                         member: item.member,
                         subtitle: item.updatedAt.isNotEmpty
-                            ? item.updatedAt
-                            : item.createdAt,
+                            ? formatSdalTimestamp(context, item.updatedAt)
+                            : formatSdalTimestamp(context, item.createdAt),
                         imageUrl: config
                             .resolveUrl(item.member.photo)
                             .toString(),
@@ -759,8 +762,14 @@ class _MentorshipRequestsBrowserState
                         subtitle: item.focusArea.isNotEmpty
                             ? item.focusArea
                             : (item.updatedAt.isNotEmpty
-                                  ? item.updatedAt
-                                  : item.createdAt),
+                                  ? formatSdalTimestamp(
+                                      context,
+                                      item.updatedAt,
+                                    )
+                                  : formatSdalTimestamp(
+                                      context,
+                                      item.createdAt,
+                                    )),
                         detail: item.message,
                         imageUrl: config
                             .resolveUrl(item.member.photo)

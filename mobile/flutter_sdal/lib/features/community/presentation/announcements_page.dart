@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -226,6 +227,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                         const SizedBox(height: 12),
                         Text(
                           _metaLine(
+                            context,
                             item.createdAt,
                             item.creatorHandle,
                             item.approved,
@@ -408,21 +410,17 @@ String _plainText(String raw) {
   return plainTextFromRichContent(raw);
 }
 
-String _metaLine(String createdAt, String handle, bool approved) {
+String _metaLine(
+  BuildContext context,
+  String createdAt,
+  String handle,
+  bool approved,
+) {
   final parts = <String>[];
-  if (createdAt.isNotEmpty) parts.add(_formatDate(createdAt));
+  if (createdAt.isNotEmpty) {
+    parts.add(formatSdalTimestamp(context, createdAt));
+  }
   if (handle.isNotEmpty) parts.add('@$handle');
   if (!approved) parts.add('Onay bekliyor');
   return parts.join(' · ');
-}
-
-String _formatDate(String raw) {
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  final local = parsed.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$day.$month.${local.year} $hour:$minute';
 }
