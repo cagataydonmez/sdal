@@ -37,9 +37,9 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final postState = ref.watch(postDetailProvider(widget.postId));
     final commentsState = ref.watch(postCommentsProvider(widget.postId));
     final actionState = ref.watch(feedActionControllerProvider);
-    final config = ref.watch(appConfigProvider);
     final session = ref.watch(sessionControllerProvider).value;
     final l10n = context.l10n;
+    final currentUserId = session?.user?.id;
     final submittingComment =
         actionState.isLoading &&
         actionState.scope == 'comment:${widget.postId}';
@@ -55,141 +55,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 const ErrorView(compact: true, kind: ErrorViewKind.network),
             data: (post) => post == null
                 ? Text(l10n.feedPostNotFound)
-                : SurfaceCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Builder(
-                              builder: (context) {
-                                final canOpenAuthorProfile =
-                                    post.authorId != null && post.authorId! > 0;
-                                return InkWell(
-                                  customBorder: const CircleBorder(),
-                                  onTap: canOpenAuthorProfile
-                                      ? () => context.push(
-                                          '/members/${post.authorId}',
-                                        )
-                                      : null,
-                                  child: Tooltip(
-                                    message: l10n.openMemberProfileForName(
-                                      post.authorName,
-                                    ),
-                                    child: Semantics(
-                                      button: canOpenAuthorProfile,
-                                      enabled: canOpenAuthorProfile,
-                                      label: l10n.openMemberProfileForName(
-                                        post.authorName,
-                                      ),
-                                      child: RemoteAvatar(
-                                        label: post.authorName,
-                                        imageUrl: config
-                                            .resolveUrl(post.authorPhoto)
-                                            .toString(),
-                                        radius: 22,
-                                        excludeFromSemantics: true,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    post.authorName,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleLarge,
-                                  ),
-                                  if (post.authorHandle.isNotEmpty)
-                                    Text(
-                                      '@${post.authorHandle}',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            if (session?.user?.id != null &&
-                                session!.user!.id == post.authorId)
-                              _FeedPostMenuButton(
-                                onDelete: () async {
-                                  final ok = await ref
-                                      .read(
-                                        feedActionControllerProvider.notifier,
-                                      )
-                                      .deletePost(widget.postId);
-                                  if (!context.mounted) return;
-                                  if (ok) {
-                                    context.pop();
-                                    return;
-                                  }
-                                  final nextState = ref.read(
-                                    feedActionControllerProvider,
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        nextState.message ??
-                                            (ok
-                                                ? l10n.feedPostDeleted
-                                                : l10n.feedPostDeleteFailed),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(plainTextFromRichContent(post.content)),
-                        if (post.imageUrl.isNotEmpty) ...[
-                          const SizedBox(height: 14),
-                          SdalNetworkImage(
-                            imageUrl: config
-                                .resolveUrl(post.imageUrl)
-                                .toString(),
-                            fit: BoxFit.cover,
-                            borderRadius: BorderRadius.circular(18),
-                            errorFallback: const SizedBox.shrink(),
-                          ),
-                        ],
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            FilledButton.tonalIcon(
-                              onPressed: () async {
-                                await ref
-                                    .read(feedActionControllerProvider.notifier)
-                                    .toggleLike(widget.postId);
-                              },
-                              icon: Icon(
-                                post.liked
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                              ),
-                              label: Text(l10n.feedLikesCount(post.likeCount)),
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: null,
-                              icon: const Icon(Icons.chat_bubble_outline),
-                              label: Text(
-                                l10n.feedCommentsCount(post.commentCount),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                : _PostCard(
+                    post: post,
+                    postId: widget.postId,
+                    currentUserId: currentUserId,
                   ),
           ),
           const SizedBox(height: 18),
@@ -253,161 +122,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     .map(
                       (comment) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: SurfaceCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Builder(
-                                    builder: (context) {
-                                      final canOpenAuthorProfile =
-                                          comment.userId != null &&
-                                          comment.userId! > 0;
-                                      return InkWell(
-                                        customBorder: const CircleBorder(),
-                                        onTap: canOpenAuthorProfile
-                                            ? () => context.push(
-                                                '/members/${comment.userId}',
-                                              )
-                                            : null,
-                                        child: Tooltip(
-                                          message: l10n
-                                              .openMemberProfileForName(
-                                                comment.authorName,
-                                              ),
-                                          child: Semantics(
-                                            button: canOpenAuthorProfile,
-                                            enabled: canOpenAuthorProfile,
-                                            label: l10n
-                                                .openMemberProfileForName(
-                                                  comment.authorName,
-                                                ),
-                                            child: RemoteAvatar(
-                                              label: comment.authorName,
-                                              imageUrl: config
-                                                  .resolveUrl(
-                                                    comment.authorPhoto,
-                                                  )
-                                                  .toString(),
-                                              radius: 18,
-                                              excludeFromSemantics: true,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          comment.authorName,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium,
-                                          textAlign: TextAlign.left,
-                                        ),
-                                        if (comment.authorHandle.isNotEmpty)
-                                          Text(
-                                            '@${comment.authorHandle}',
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                            textAlign: TextAlign.left,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (session?.user?.id != null &&
-                                      session!.user!.id == comment.userId)
-                                    PopupMenuButton<String>(
-                                      tooltip: l10n.moreActions,
-                                      onSelected: (value) async {
-                                        if (value != 'delete') return;
-                                        final approved = await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: Text(
-                                              l10n.feedCommentDeleteTitle,
-                                            ),
-                                            content: Text(
-                                              l10n.feedCommentDeleteMessage,
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.of(
-                                                  context,
-                                                ).pop(false),
-                                                child: Text(l10n.cancelAction),
-                                              ),
-                                              FilledButton(
-                                                onPressed: () => Navigator.of(
-                                                  context,
-                                                ).pop(true),
-                                                child: Text(l10n.deleteAction),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                        if (approved != true ||
-                                            !context.mounted) {
-                                          return;
-                                        }
-                                        final ok = await ref
-                                            .read(
-                                              feedActionControllerProvider
-                                                  .notifier,
-                                            )
-                                            .deleteComment(
-                                              postId: widget.postId,
-                                              commentId: comment.id,
-                                            );
-                                        if (!context.mounted) return;
-                                        final nextState = ref.read(
-                                          feedActionControllerProvider,
-                                        );
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              nextState.message ??
-                                                  (ok
-                                                      ? l10n.feedCommentDeleted
-                                                      : l10n.feedCommentDeleteFailed),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      itemBuilder: (context) => [
-                                        PopupMenuItem(
-                                          value: 'delete',
-                                          child: Text(l10n.deleteAction),
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                plainTextFromRichContent(comment.text),
-                                textAlign: TextAlign.left,
-                              ),
-                              if (comment.createdAt.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  comment.createdAt,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  textAlign: TextAlign.left,
-                                ),
-                              ],
-                            ],
-                          ),
+                        child: _CommentCard(
+                          comment: comment,
+                          postId: widget.postId,
+                          currentUserId: currentUserId,
+                          postAuthorId: postState.value?.authorId,
                         ),
                       ),
                     )
@@ -441,45 +160,801 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 }
 
-class _FeedPostMenuButton extends StatelessWidget {
-  const _FeedPostMenuButton({required this.onDelete});
+// ---------------------------------------------------------------------------
+// Post card
+// ---------------------------------------------------------------------------
 
-  final Future<void> Function() onDelete;
+class _PostCard extends ConsumerWidget {
+  const _PostCard({
+    required this.post,
+    required this.postId,
+    required this.currentUserId,
+  });
+
+  final FeedItem post;
+  final int postId;
+  final int? currentUserId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
+    final isOwner = currentUserId != null && currentUserId == post.authorId;
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Builder(
+                builder: (context) {
+                  final canOpen = post.authorId != null && post.authorId! > 0;
+                  return InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: canOpen
+                        ? () => context.push('/members/${post.authorId}')
+                        : null,
+                    child: Tooltip(
+                      message: l10n.openMemberProfileForName(post.authorName),
+                      child: Semantics(
+                        button: canOpen,
+                        enabled: canOpen,
+                        label: l10n.openMemberProfileForName(post.authorName),
+                        child: RemoteAvatar(
+                          label: post.authorName,
+                          imageUrl: config.resolveUrl(post.authorPhoto).toString(),
+                          radius: 22,
+                          excludeFromSemantics: true,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.authorName,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    if (post.authorHandle.isNotEmpty)
+                      Text(
+                        '@${post.authorHandle}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
+                ),
+              ),
+              if (isOwner)
+                _PostMenuButton(
+                  postId: postId,
+                  currentContent: post.content,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(plainTextFromRichContent(post.content)),
+          if (post.updatedAt != null && post.updatedAt!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              l10n.feedPostEditedAt(post.updatedAt!),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          if (post.imageUrl.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            SdalNetworkImage(
+              imageUrl: config.resolveUrl(post.imageUrl).toString(),
+              fit: BoxFit.cover,
+              borderRadius: BorderRadius.circular(18),
+              errorFallback: const SizedBox.shrink(),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () async {
+                  await ref
+                      .read(feedActionControllerProvider.notifier)
+                      .toggleLike(postId);
+                },
+                icon: Icon(
+                  post.liked ? Icons.favorite : Icons.favorite_border,
+                ),
+                label: Text(l10n.feedLikesCount(post.likeCount)),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: null,
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: Text(l10n.feedCommentsCount(post.commentCount)),
+              ),
+            ],
+          ),
+          if (post.likeCount > 0) ...[
+            const SizedBox(height: 12),
+            _LikedByAvatars(postId: postId),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Post menu (edit + delete)
+// ---------------------------------------------------------------------------
+
+class _PostMenuButton extends ConsumerWidget {
+  const _PostMenuButton({
+    required this.postId,
+    required this.currentContent,
+  });
+
+  final int postId;
+  final String currentContent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     return PopupMenuButton<String>(
       tooltip: l10n.moreActions,
       onSelected: (value) async {
-        if (value != 'delete') return;
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(l10n.feedPostDeleteTitle),
-            content: Text(l10n.feedPostDeleteMessage),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text(l10n.cancelAction),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(l10n.deleteAction),
-              ),
-            ],
-          ),
-        );
-        if (confirmed == true) {
-          await onDelete();
+        if (value == 'edit') {
+          await _showEditDialog(context, ref);
+        } else if (value == 'delete') {
+          await _confirmDelete(context, ref);
         }
       },
       itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Text(l10n.feedPostEditTitle),
+        ),
         PopupMenuItem<String>(
           value: 'delete',
           child: Text(l10n.feedPostDeleteTitle),
         ),
       ],
+    );
+  }
+
+  Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final controller = TextEditingController(
+      text: plainTextFromRichContent(currentContent),
+    );
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.feedPostEditTitle),
+        content: TextField(
+          controller: controller,
+          minLines: 3,
+          maxLines: 8,
+          autofocus: true,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty) Navigator.of(context).pop(text);
+            },
+            child: Text(l10n.saveAction),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (saved == null || !context.mounted) return;
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
+        .editPost(postId: postId, content: saved);
+    if (!context.mounted) return;
+    final nextState = ref.read(feedActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          nextState.message ??
+              (ok ? l10n.feedPostEdited : l10n.feedPostEditFailed),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.feedPostDeleteTitle),
+        content: Text(l10n.feedPostDeleteMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.deleteAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
+        .deletePost(postId);
+    if (!context.mounted) return;
+    if (ok) {
+      context.pop();
+      return;
+    }
+    final nextState = ref.read(feedActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(nextState.message ?? l10n.feedPostDeleteFailed),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Liked-by overlapping avatars
+// ---------------------------------------------------------------------------
+
+class _LikedByAvatars extends ConsumerWidget {
+  const _LikedByAvatars({required this.postId});
+
+  final int postId;
+
+  static const _avatarRadius = 13.0;
+  static const _overlap = 9.0;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final likesState = ref.watch(postLikesProvider(postId));
+    final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+
+    return likesState.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
+      data: (likes) {
+        if (likes.isEmpty) return const SizedBox.shrink();
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () => _showLikedBySheet(context, ref, likes),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant,
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _OverlappingAvatarRow(
+                    likes: likes,
+                    config: config,
+                    avatarRadius: _avatarRadius,
+                    overlap: _overlap,
+                    borderColor: theme.colorScheme.surface,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    l10n.feedLikedBy,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLikedBySheet(
+    BuildContext context,
+    WidgetRef ref,
+    List<LikeUser> likes,
+  ) {
+    final config = ref.read(appConfigProvider);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _LikedBySheet(likes: likes, config: config),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Overlapping avatar row (horizontal scroll for many likes)
+// ---------------------------------------------------------------------------
+
+class _OverlappingAvatarRow extends StatelessWidget {
+  const _OverlappingAvatarRow({
+    required this.likes,
+    required this.config,
+    required this.avatarRadius,
+    required this.overlap,
+    required this.borderColor,
+  });
+
+  final List<LikeUser> likes;
+  final dynamic config;
+  final double avatarRadius;
+  final double overlap;
+  final Color borderColor;
+
+  static const _maxVisible = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final display = likes.take(_maxVisible).toList();
+    final extra = likes.length - display.length;
+    final diameter = avatarRadius * 2;
+    final step = diameter - overlap;
+
+    final totalItems = display.length + (extra > 0 ? 1 : 0);
+    final stackWidth = diameter + (totalItems - 1) * step;
+
+    return SizedBox(
+      width: stackWidth,
+      height: diameter,
+      child: Stack(
+        children: [
+          for (var i = 0; i < display.length; i++)
+            Positioned(
+              left: i * step,
+              child: _AvatarCircle(
+                label: display[i].fullName,
+                imageUrl: config.resolveUrl(display[i].avatarUrl).toString(),
+                radius: avatarRadius,
+                borderColor: borderColor,
+              ),
+            ),
+          if (extra > 0)
+            Positioned(
+              left: display.length * step,
+              child: _ExtraCount(
+                count: extra,
+                radius: avatarRadius,
+                borderColor: borderColor,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvatarCircle extends StatelessWidget {
+  const _AvatarCircle({
+    required this.label,
+    required this.imageUrl,
+    required this.radius,
+    required this.borderColor,
+  });
+
+  final String label;
+  final String imageUrl;
+  final double radius;
+  final Color borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 1.5),
+      ),
+      child: RemoteAvatar(
+        label: label,
+        imageUrl: imageUrl,
+        radius: radius,
+        excludeFromSemantics: true,
+      ),
+    );
+  }
+}
+
+class _ExtraCount extends StatelessWidget {
+  const _ExtraCount({
+    required this.count,
+    required this.radius,
+    required this.borderColor,
+  });
+
+  final int count;
+  final double radius;
+  final Color borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: radius * 2,
+      height: radius * 2,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 1.5),
+      ),
+      child: Center(
+        child: Text(
+          '+$count',
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onPrimaryContainer,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Liked-by bottom sheet
+// ---------------------------------------------------------------------------
+
+class _LikedBySheet extends StatelessWidget {
+  const _LikedBySheet({required this.likes, required this.config});
+
+  final List<LikeUser> likes;
+  final dynamic config;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.5,
+      maxChildSize: 0.85,
+      builder: (context, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+            child: Row(
+              children: [
+                Text(
+                  l10n.feedLikedBy,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: likes.isEmpty
+                ? Center(child: Text(l10n.feedLikedByNone))
+                : ListView.builder(
+                    controller: scrollController,
+                    itemCount: likes.length,
+                    itemBuilder: (context, index) {
+                      final user = likes[index];
+                      return ListTile(
+                        leading: RemoteAvatar(
+                          label: user.fullName,
+                          imageUrl: config
+                              .resolveUrl(user.avatarUrl)
+                              .toString(),
+                          radius: 20,
+                        ),
+                        title: Text(user.fullName),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (user.username.isNotEmpty)
+                              Text('@${user.username}'),
+                            if (user.graduationYear != null)
+                              Text('${user.graduationYear}'),
+                          ],
+                        ),
+                        onTap: user.id > 0
+                            ? () {
+                                Navigator.of(context).pop();
+                                context.push('/members/${user.id}');
+                              }
+                            : null,
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Comment card
+// ---------------------------------------------------------------------------
+
+class _CommentCard extends ConsumerWidget {
+  const _CommentCard({
+    required this.comment,
+    required this.postId,
+    required this.currentUserId,
+    required this.postAuthorId,
+  });
+
+  final FeedComment comment;
+  final int postId;
+  final int? currentUserId;
+  final int? postAuthorId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
+    final l10n = context.l10n;
+
+    final isCommentAuthor =
+        currentUserId != null && currentUserId == comment.userId;
+    final isPostOwner =
+        currentUserId != null && currentUserId == postAuthorId;
+    final canEdit = isCommentAuthor;
+    final canDelete = isCommentAuthor || isPostOwner;
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Builder(
+                builder: (context) {
+                  final canOpen =
+                      comment.userId != null && comment.userId! > 0;
+                  return InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: canOpen
+                        ? () =>
+                            context.push('/members/${comment.userId}')
+                        : null,
+                    child: Tooltip(
+                      message: l10n.openMemberProfileForName(
+                        comment.authorName,
+                      ),
+                      child: Semantics(
+                        button: canOpen,
+                        enabled: canOpen,
+                        label: l10n.openMemberProfileForName(
+                          comment.authorName,
+                        ),
+                        child: RemoteAvatar(
+                          label: comment.authorName,
+                          imageUrl: config
+                              .resolveUrl(comment.authorPhoto)
+                              .toString(),
+                          radius: 18,
+                          excludeFromSemantics: true,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      comment.authorName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      textAlign: TextAlign.left,
+                    ),
+                    if (comment.authorHandle.isNotEmpty)
+                      Text(
+                        '@${comment.authorHandle}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: TextAlign.left,
+                      ),
+                  ],
+                ),
+              ),
+              if (canDelete)
+                _CommentMenuButton(
+                  comment: comment,
+                  postId: postId,
+                  canEdit: canEdit,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            plainTextFromRichContent(comment.text),
+            textAlign: TextAlign.left,
+          ),
+          if (comment.createdAt.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              comment.createdAt,
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.left,
+            ),
+          ],
+          if (comment.updatedAt != null && comment.updatedAt!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              l10n.feedCommentEditedAt(comment.updatedAt!),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.left,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Comment menu (edit + delete)
+// ---------------------------------------------------------------------------
+
+class _CommentMenuButton extends ConsumerWidget {
+  const _CommentMenuButton({
+    required this.comment,
+    required this.postId,
+    required this.canEdit,
+  });
+
+  final FeedComment comment;
+  final int postId;
+  final bool canEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    return PopupMenuButton<String>(
+      tooltip: l10n.moreActions,
+      onSelected: (value) async {
+        if (value == 'edit') {
+          await _showEditDialog(context, ref);
+        } else if (value == 'delete') {
+          await _confirmDelete(context, ref);
+        }
+      },
+      itemBuilder: (context) => [
+        if (canEdit)
+          PopupMenuItem<String>(
+            value: 'edit',
+            child: Text(l10n.feedCommentEditTitle),
+          ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Text(l10n.deleteAction),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final controller = TextEditingController(
+      text: plainTextFromRichContent(comment.text),
+    );
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.feedCommentEditTitle),
+        content: TextField(
+          controller: controller,
+          minLines: 2,
+          maxLines: 6,
+          autofocus: true,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty) Navigator.of(context).pop(text);
+            },
+            child: Text(l10n.saveAction),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (saved == null || !context.mounted) return;
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
+        .editComment(
+          postId: postId,
+          commentId: comment.id,
+          comment: saved,
+        );
+    if (!context.mounted) return;
+    final nextState = ref.read(feedActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          nextState.message ??
+              (ok ? l10n.feedCommentEdited : l10n.feedCommentEditFailed),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.feedCommentDeleteTitle),
+        content: Text(l10n.feedCommentDeleteMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.deleteAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final ok = await ref
+        .read(feedActionControllerProvider.notifier)
+        .deleteComment(postId: postId, commentId: comment.id);
+    if (!context.mounted) return;
+    final nextState = ref.read(feedActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          nextState.message ??
+              (ok
+                  ? l10n.feedCommentDeleted
+                  : l10n.feedCommentDeleteFailed),
+        ),
+      ),
     );
   }
 }

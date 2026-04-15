@@ -122,6 +122,7 @@ export function toDomainPost(row) {
     likeCount: Number(row.like_count || 0),
     commentCount: Number(row.comment_count || 0),
     likedByViewer: Number(row.liked_by_viewer || 0) === 1,
+    updatedAt: row.updated_at || null,
     legacy: row
   };
 }
@@ -134,6 +135,7 @@ export function toDomainComment(row) {
     authorId: Number(row.user_id),
     body: String(row.comment || ''),
     createdAt: String(row.created_at || ''),
+    updatedAt: row.updated_at || null,
     author: row.kadi || row.isim || row.soyisim || row.resim
       ? {
         id: Number(row.user_id),

@@ -482,6 +482,66 @@ abstract class AppLocalizations {
   /// **'Gönderi silinemedi.'**
   String get feedPostDeleteFailed;
 
+  /// No description provided for @feedPostEditTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönderiyi düzenle'**
+  String get feedPostEditTitle;
+
+  /// No description provided for @feedPostEdited.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönderi düzenlendi.'**
+  String get feedPostEdited;
+
+  /// No description provided for @feedPostEditFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Gönderi düzenlenemedi.'**
+  String get feedPostEditFailed;
+
+  /// No description provided for @feedPostEditedAt.
+  ///
+  /// In tr, this message translates to:
+  /// **'{date} tarihinde düzenlendi'**
+  String feedPostEditedAt(Object date);
+
+  /// No description provided for @feedCommentEditTitle.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorumu düzenle'**
+  String get feedCommentEditTitle;
+
+  /// No description provided for @feedCommentEdited.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorum düzenlendi.'**
+  String get feedCommentEdited;
+
+  /// No description provided for @feedCommentEditFailed.
+  ///
+  /// In tr, this message translates to:
+  /// **'Yorum düzenlenemedi.'**
+  String get feedCommentEditFailed;
+
+  /// No description provided for @feedCommentEditedAt.
+  ///
+  /// In tr, this message translates to:
+  /// **'{date} tarihinde düzenlendi'**
+  String feedCommentEditedAt(Object date);
+
+  /// No description provided for @feedLikedBy.
+  ///
+  /// In tr, this message translates to:
+  /// **'Beğenenler'**
+  String get feedLikedBy;
+
+  /// No description provided for @feedLikedByNone.
+  ///
+  /// In tr, this message translates to:
+  /// **'Henüz beğenilmedi.'**
+  String get feedLikedByNone;
+
   /// No description provided for @sidebarOnlineUsersCount.
   ///
   /// In tr, this message translates to:

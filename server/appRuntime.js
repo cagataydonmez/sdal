@@ -4010,7 +4010,7 @@ app.get('/api/new/posts/:id', requireAuth, async (req, res) => {
     if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
     const currentUser = getCurrentUser(req);
     const post = sqlGet(
-      `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.group_id,
+      `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.updated_at, p.group_id,
               u.kadi, u.isim, u.soyisim, u.resim, u.verified,
               COALESCE(plc.like_count, 0) AS like_count,
               COALESCE(pcc.comment_count, 0) AS comment_count,
@@ -4057,7 +4057,8 @@ app.get('/api/new/posts/:id', requireAuth, async (req, res) => {
       groupId: groupId || null,
       likeCount: Number(post.like_count || 0),
       commentCount: Number(post.comment_count || 0),
-      liked: Number(post.liked_by_viewer || 0) === 1
+      liked: Number(post.liked_by_viewer || 0) === 1,
+      updatedAt: post.updated_at || null
     };
     if (post.image_record_id) {
       const variants = getImageVariants(post.image_record_id, sqlGet, uploadsDir);
@@ -4101,7 +4102,13 @@ function deletePostById(postId) {
   if (post?.image_record_id) {
     deleteImageRecord(post.image_record_id, sqlGet, sqlRun, uploadsDir, writeAppLog).catch(() => {});
   }
-  sqlRun('DELETE FROM post_likes WHERE post_id = ?', [postId]);
+  // PostgreSQL: post_likes is a VIEW over post_reactions — delete from the underlying table
+  // SQLite: post_likes is the actual table
+  if (isPostgresDb) {
+    sqlRun('DELETE FROM post_reactions WHERE post_id = ?', [postId]);
+  } else {
+    sqlRun('DELETE FROM post_likes WHERE post_id = ?', [postId]);
+  }
   sqlRun('DELETE FROM post_comments WHERE post_id = ?', [postId]);
   sqlRun('DELETE FROM notifications WHERE type IN (?, ?) AND entity_id = ?', ['like', 'comment', postId]);
   sqlRun('DELETE FROM posts WHERE id = ?', [postId]);
@@ -4115,11 +4122,12 @@ app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
   const content = formatUserText(req.body?.content || '');
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
-  sqlRun('UPDATE posts SET content = ? WHERE id = ?', [content, postId]);
+  const updatedAtClause = isPostgresDb ? ', updated_at = NOW()' : '';
+  sqlRun(`UPDATE posts SET content = ?${updatedAtClause} WHERE id = ?`, [content, postId]);
   scheduleEngagementRecalculation('post_updated');
   invalidateCacheNamespace(cacheNamespaces.feed);
   const item = sqlGet(
-    `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
+    `SELECT p.id, p.user_id, p.content, p.image, p.created_at, p.updated_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
      LEFT JOIN uyeler u ON u.id = p.user_id
@@ -4133,6 +4141,7 @@ app.patch('/api/new/posts/:id', requireAuth, (req, res) => {
       content: item.content,
       image: item.image,
       createdAt: item.created_at,
+      updatedAt: item.updated_at || null,
       author: {
         id: item.user_id,
         kadi: item.kadi,
@@ -4153,11 +4162,12 @@ app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
   if (!canManagePost(req, postRow)) return res.status(403).send('Bu gönderiyi düzenleme yetkin yok.');
   const content = formatUserText(req.body?.content || '');
   if (isFormattedContentEmpty(content) && !postRow.image) return res.status(400).send('İçerik boş olamaz.');
-  sqlRun('UPDATE posts SET content = ? WHERE id = ?', [content, postId]);
+  const updatedAtClause = isPostgresDb ? ', updated_at = NOW()' : '';
+  sqlRun(`UPDATE posts SET content = ?${updatedAtClause} WHERE id = ?`, [content, postId]);
   scheduleEngagementRecalculation('post_updated');
   invalidateCacheNamespace(cacheNamespaces.feed);
   const item = sqlGet(
-    `SELECT p.id, p.user_id, p.content, p.image, p.created_at,
+    `SELECT p.id, p.user_id, p.content, p.image, p.created_at, p.updated_at,
             u.kadi, u.isim, u.soyisim, u.resim, u.verified
      FROM posts p
      LEFT JOIN uyeler u ON u.id = p.user_id
@@ -4171,6 +4181,7 @@ app.post('/api/new/posts/:id/edit', requireAuth, (req, res) => {
       content: item.content,
       image: item.image,
       createdAt: item.created_at,
+      updatedAt: item.updated_at || null,
       author: {
         id: item.user_id,
         kadi: item.kadi,
@@ -4214,6 +4225,12 @@ app.get('/api/new/posts/:id/comments', requireAuth, phase1Domain.controllers.pos
 app.post('/api/new/posts/:id/comments', requireAuth, commentWriteRateLimit, phase1Domain.controllers.posts.createComment);
 
 app.delete('/api/new/posts/:id/comments/:commentId', requireAuth, phase1Domain.controllers.posts.deleteComment);
+
+app.patch('/api/new/posts/:id/comments/:commentId', requireAuth, phase1Domain.controllers.posts.updateComment);
+
+app.post('/api/new/posts/:id/comments/:commentId/edit', requireAuth, phase1Domain.controllers.posts.updateComment);
+
+app.get('/api/new/posts/:id/likes', requireAuth, phase1Domain.controllers.posts.listLikes);
 
 registerNotificationRoutes(app, {
   requireAuth,

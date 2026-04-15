@@ -113,4 +113,32 @@ export class LegacyPostRepository extends PostRepository {
       [postId, userId, createdAt]
     );
   }
+
+  async updateCommentById(commentId, body, updatedAt) {
+    await this.queryRun(
+      'UPDATE post_comments SET comment = ?, updated_at = ? WHERE id = ?',
+      [body, updatedAt, commentId]
+    );
+    return this.findCommentById(commentId);
+  }
+
+  async listLikes(postId) {
+    const rows = await this.queryAll(
+      `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.mezuniyetyili
+       FROM post_likes pl
+       JOIN uyeler u ON u.id = pl.user_id
+       WHERE pl.post_id = ?
+       ORDER BY pl.created_at DESC
+       LIMIT 100`,
+      [postId]
+    );
+    return rows.map((r) => ({
+      id: Number(r.id),
+      username: String(r.kadi || ''),
+      firstName: String(r.isim || ''),
+      lastName: String(r.soyisim || ''),
+      avatarUrl: r.resim || null,
+      graduationYear: r.mezuniyetyili ? String(r.mezuniyetyili) : null
+    }));
+  }
 }

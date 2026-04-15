@@ -41,6 +41,7 @@ _$FeedItemImpl _$$FeedItemImplFromJson(Map<String, dynamic> json) =>
       likeCount: readRequiredInt(json['likeCount']),
       commentCount: readRequiredInt(json['commentCount']),
       liked: readRequiredBool(json['liked']),
+      updatedAt: readOptionalText(json['updatedAt']),
     );
 
 Map<String, dynamic> _$$FeedItemImplToJson(_$FeedItemImpl instance) =>
@@ -54,6 +55,7 @@ Map<String, dynamic> _$$FeedItemImplToJson(_$FeedItemImpl instance) =>
       'likeCount': instance.likeCount,
       'commentCount': instance.commentCount,
       'liked': instance.liked,
+      'updatedAt': instance.updatedAt,
     };
 
 _$FeedCommentImpl _$$FeedCommentImplFromJson(Map<String, dynamic> json) =>
@@ -67,6 +69,7 @@ _$FeedCommentImpl _$$FeedCommentImplFromJson(Map<String, dynamic> json) =>
       soyisim: readOptionalText(json['soyisim']),
       resim: readOptionalText(json['resim']),
       verified: readOptionalBool(json['verified']),
+      updatedAt: readOptionalText(json['updatedAt']),
     );
 
 Map<String, dynamic> _$$FeedCommentImplToJson(_$FeedCommentImpl instance) =>
@@ -80,4 +83,5 @@ Map<String, dynamic> _$$FeedCommentImplToJson(_$FeedCommentImpl instance) =>
       'soyisim': instance.soyisim,
       'resim': instance.resim,
       'verified': instance.verified,
+      'updatedAt': instance.updatedAt,
     };

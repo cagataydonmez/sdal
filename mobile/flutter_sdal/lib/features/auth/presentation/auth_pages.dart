@@ -93,6 +93,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               labelText: l10n.username,
               prefixIcon: const Icon(Icons.person_outline_rounded),
               autofillHints: const [AutofillHints.username],
+              autofocus: true,
             ),
             const SizedBox(height: 12),
             _AuthTextField(
@@ -147,6 +148,7 @@ class _AuthTextField extends StatelessWidget {
     this.keyboardType,
     this.autofillHints,
     this.validator,
+    this.autofocus = false,
   });
 
   final TextEditingController controller;
@@ -158,6 +160,7 @@ class _AuthTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final Iterable<String>? autofillHints;
   final String? Function(String?)? validator;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +172,7 @@ class _AuthTextField extends StatelessWidget {
       keyboardType: keyboardType,
       autofillHints: autofillHints,
       validator: validator,
+      autofocus: autofocus,
       autocorrect: false,
       enableSuggestions: false,
       textCapitalization: TextCapitalization.none,

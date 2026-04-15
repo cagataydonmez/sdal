@@ -214,6 +214,40 @@ class AppLocalizationsTr extends AppLocalizations {
   String get feedPostDeleteFailed => 'Gönderi silinemedi.';
 
   @override
+  String get feedPostEditTitle => 'Gönderiyi düzenle';
+
+  @override
+  String get feedPostEdited => 'Gönderi düzenlendi.';
+
+  @override
+  String get feedPostEditFailed => 'Gönderi düzenlenemedi.';
+
+  @override
+  String feedPostEditedAt(Object date) {
+    return '$date tarihinde düzenlendi';
+  }
+
+  @override
+  String get feedCommentEditTitle => 'Yorumu düzenle';
+
+  @override
+  String get feedCommentEdited => 'Yorum düzenlendi.';
+
+  @override
+  String get feedCommentEditFailed => 'Yorum düzenlenemedi.';
+
+  @override
+  String feedCommentEditedAt(Object date) {
+    return '$date tarihinde düzenlendi';
+  }
+
+  @override
+  String get feedLikedBy => 'Beğenenler';
+
+  @override
+  String get feedLikedByNone => 'Henüz beğenilmedi.';
+
+  @override
   String sidebarOnlineUsersCount(Object count) {
     return '$count çevrim içi üye';
   }

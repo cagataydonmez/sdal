@@ -107,6 +107,7 @@ class FeedItem with _$FeedItem {
     @JsonKey(fromJson: readRequiredInt) required int likeCount,
     @JsonKey(fromJson: readRequiredInt) required int commentCount,
     @JsonKey(fromJson: readRequiredBool) required bool liked,
+    @JsonKey(fromJson: readOptionalText) String? updatedAt,
   }) = _FeedItem;
 
   int? get authorId => author.id;
@@ -121,6 +122,7 @@ class FeedItem with _$FeedItem {
       'image': const [],
       'likeCount': const [],
       'commentCount': const [],
+      'updatedAt': ['updated_at'],
     }),
   );
 
@@ -141,6 +143,7 @@ class FeedComment with _$FeedComment {
     @JsonKey(fromJson: readOptionalText) String? soyisim,
     @JsonKey(fromJson: readOptionalText) String? resim,
     @JsonKey(fromJson: readOptionalBool) bool? verified,
+    @JsonKey(fromJson: readOptionalText) String? updatedAt,
   }) = _FeedComment;
 
   String get text => comment;
@@ -166,6 +169,7 @@ class FeedComment with _$FeedComment {
           'soyisim': const [],
           'resim': ['photo'],
           'verified': const [],
+          'updatedAt': ['updated_at'],
         }),
       );
 
@@ -196,6 +200,40 @@ class FeedOnlineMember {
           : coalesceText([map['name'], map['kadi']], fallback: 'SDAL Üyesi'),
       handle: coalesceText([map['kadi']], fallback: ''),
       photo: coalesceText([map['resim'], map['photo']], fallback: ''),
+    );
+  }
+}
+
+class LikeUser {
+  const LikeUser({
+    required this.id,
+    required this.username,
+    required this.firstName,
+    required this.lastName,
+    required this.avatarUrl,
+    this.graduationYear,
+  });
+
+  final int id;
+  final String username;
+  final String firstName;
+  final String lastName;
+  final String avatarUrl;
+  final int? graduationYear;
+
+  String get fullName {
+    final name = '$firstName $lastName'.trim();
+    return name.isNotEmpty ? name : username;
+  }
+
+  factory LikeUser.fromMap(JsonMap map) {
+    return LikeUser(
+      id: asInt(map['id']) ?? 0,
+      username: coalesceText([map['username'], map['kadi']], fallback: ''),
+      firstName: coalesceText([map['firstName'], map['isim']], fallback: ''),
+      lastName: coalesceText([map['lastName'], map['soyisim']], fallback: ''),
+      avatarUrl: coalesceText([map['avatarUrl'], map['resim'], map['photo']], fallback: ''),
+      graduationYear: asInt(map['graduationYear']),
     );
   }
 }
@@ -344,6 +382,52 @@ class FeedRepository {
     return _apiClient.post<dynamic>('/api/new/posts/$postId/delete');
   }
 
+  Future<ApiResult<dynamic>> editPost({
+    required int postId,
+    required String content,
+  }) async {
+    final canonical = await _apiClient.patch<dynamic>(
+      '/api/new/posts/$postId',
+      body: {'content': content},
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
+    return _apiClient.post<dynamic>(
+      '/api/new/posts/$postId/edit',
+      body: {'content': content},
+    );
+  }
+
+  Future<ApiResult<dynamic>> editComment({
+    required int postId,
+    required int commentId,
+    required String comment,
+  }) async {
+    final canonical = await _apiClient.patch<dynamic>(
+      '/api/new/posts/$postId/comments/$commentId',
+      body: {'comment': comment},
+    );
+    if (canonical.ok || !_shouldFallback(canonical.statusCode)) {
+      return canonical;
+    }
+    return _apiClient.post<dynamic>(
+      '/api/new/posts/$postId/comments/$commentId/edit',
+      body: {'comment': comment},
+    );
+  }
+
+  Future<List<LikeUser>> fetchLikes(int postId) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/posts/$postId/likes',
+      decoder: (raw) => asJsonMap(raw),
+    );
+    final payload = asJsonMap(result.rawData);
+    return asJsonMapList(
+      payload['items'] ?? payload['rows'],
+    ).map(LikeUser.fromMap).toList(growable: false);
+  }
+
   Future<List<FeedOnlineMember>> fetchOnlineMembers({int limit = 12}) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/online-members',
@@ -396,3 +480,7 @@ final onlineMembersProvider =
     FutureProvider.autoDispose<List<FeedOnlineMember>>(
       (ref) => ref.watch(feedRepositoryProvider).fetchOnlineMembers(),
     );
+
+final postLikesProvider = FutureProvider.autoDispose.family<List<LikeUser>, int>(
+  (ref, postId) => ref.watch(feedRepositoryProvider).fetchLikes(postId),
+);

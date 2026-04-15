@@ -174,11 +174,57 @@ export function createPostController({
     }
   }
 
+  async function updateComment(req, res) {
+    try {
+      const currentUser = getCurrentUser(req);
+      const postId = Number(req.params.id || 0);
+      const commentId = Number(req.params.commentId || 0);
+      if (!postId || !commentId) return res.status(400).send('Geçersiz yorum.');
+      const comment = formatUserText(req.body?.comment || '');
+      const body = isFormattedContentEmpty(comment) ? '' : comment;
+      await postService.updatePostComment({
+        postId,
+        commentId,
+        viewerId: req.session.userId,
+        isAdmin: hasAdminRole(currentUser),
+        body,
+        now: new Date().toISOString()
+      });
+      scheduleEngagementRecalculation('post_comment_updated');
+      Promise.resolve(invalidateFeedCache?.()).catch(() => {});
+      return res.json({ ok: true });
+    } catch (err) {
+      if (isHttpError(err)) return res.status(err.statusCode).send(err.message);
+      console.error('posts.updateComment failed:', err);
+      return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  }
+
+  async function listLikes(req, res) {
+    try {
+      const currentUser = getCurrentUser(req);
+      const postId = Number(req.params.id || 0);
+      if (!postId) return res.status(400).send('Geçersiz gönderi ID.');
+      const likes = await postService.listPostLikes({
+        postId,
+        viewerId: req.session.userId,
+        isAdmin: hasAdminRole(currentUser)
+      });
+      return res.json({ items: likes });
+    } catch (err) {
+      if (isHttpError(err)) return res.status(err.statusCode).send(err.message);
+      console.error('posts.listLikes failed:', err);
+      return res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  }
+
   return {
     createPost,
     listComments,
     createComment,
     deleteComment,
-    toggleLike
+    toggleLike,
+    updateComment,
+    listLikes
   };
 }

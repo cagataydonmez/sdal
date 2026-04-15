@@ -126,6 +126,50 @@ class FeedActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> editPost({
+    required int postId,
+    required String content,
+  }) async {
+    state = AsyncActionState.loading(scope: 'edit-post:$postId');
+    final result = await _repository.editPost(postId: postId, content: content);
+    if (result.ok) {
+      ref.invalidate(feedItemsProvider);
+      ref.invalidate(feedPageProvider);
+      ref.invalidate(postDetailProvider(postId));
+      state = const AsyncActionState.success(scope: 'edit-post');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'edit-post:$postId',
+      message: result.message.isNotEmpty ? result.message : 'Gönderi düzenlenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> editComment({
+    required int postId,
+    required int commentId,
+    required String comment,
+  }) async {
+    state = AsyncActionState.loading(scope: 'edit-comment:$commentId');
+    final result = await _repository.editComment(
+      postId: postId,
+      commentId: commentId,
+      comment: comment,
+    );
+    if (result.ok) {
+      ref.invalidate(postCommentsProvider(postId));
+      ref.invalidate(postDetailProvider(postId));
+      state = const AsyncActionState.success(scope: 'edit-comment');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'edit-comment:$commentId',
+      message: result.message.isNotEmpty ? result.message : 'Yorum düzenlenemedi.',
+    );
+    return false;
+  }
+
   void reset() {
     state = const AsyncActionState.idle();
   }

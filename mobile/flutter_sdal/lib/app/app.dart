@@ -82,11 +82,15 @@ class SdalFlutterApp extends ConsumerWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          builder: (context, child) => _SessionExpiryBridge(
-            child: LiveSyncBootstrap(
-              child: AdminApiMonitorOverlayHost(
-                child: PushNotificationsBootstrap(
-                  child: child ?? const SizedBox.shrink(),
+          builder: (context, child) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: _SessionExpiryBridge(
+              child: LiveSyncBootstrap(
+                child: AdminApiMonitorOverlayHost(
+                  child: PushNotificationsBootstrap(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               ),
             ),

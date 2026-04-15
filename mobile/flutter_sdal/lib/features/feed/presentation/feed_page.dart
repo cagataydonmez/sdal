@@ -73,17 +73,16 @@ class _FeedPageState extends ConsumerState<FeedPage> {
         label: Text(l10n.feedPostAction),
       ),
       child: feedState.when(
-        loading: () => _items.isEmpty
-            ? const _FeedLoadingList()
-            : _buildFeedList(
-                context: context,
-                ref: ref,
-                query: query,
-                onlineMembersState: onlineMembersState,
-                config: config,
-                l10n: l10n,
-                session: session,
-              ),
+        loading: () => _buildFeedList(
+          context: context,
+          ref: ref,
+          query: query,
+          onlineMembersState: onlineMembersState,
+          config: config,
+          l10n: l10n,
+          session: session,
+          isLoading: true,
+        ),
         error: (error, _) => _items.isEmpty
             ? ErrorView(
                 onRetry: () {
@@ -121,6 +120,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     required dynamic config,
     required dynamic l10n,
     required dynamic session,
+    bool isLoading = false,
   }) {
     return RefreshIndicator(
       onRefresh: () async {
@@ -134,11 +134,14 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: _items.length + 4,
+        itemCount: (isLoading && _items.isEmpty) ? 5 : _items.length + 4,
         separatorBuilder: (_, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _FeedControlsCard(query: query);
+            return _FeedControlsCard(
+              query: query,
+              graduationYear: session?.user?.graduationYear,
+            );
           }
           if (index == 1) {
             return _OnlineMembersCard(
@@ -153,6 +156,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
               title: _storiesTitleForFeedType(context, query.feedType),
               feedType: query.feedType.apiValue,
             );
+          }
+          if (isLoading && _items.isEmpty) {
+            return const _FeedPostSkeleton();
           }
           if (index == _items.length + 3) {
             if (_items.isEmpty) {
@@ -932,68 +938,184 @@ class _FeedEmptyState extends StatelessWidget {
 }
 
 class _FeedControlsCard extends ConsumerWidget {
-  const _FeedControlsCard({required this.query});
+  const _FeedControlsCard({required this.query, this.graduationYear});
 
   final FeedQuery query;
+  final String? graduationYear;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = Theme.of(context).sdal;
+    final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+    final communityName = (graduationYear?.isNotEmpty ?? false)
+        ? '$graduationYear ${isTurkish ? "Mezunları" : "Graduates"}'
+        : (isTurkish ? 'Topluluk' : 'Community');
+
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: tokens.panelBorder)),
       ),
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 14),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SegmentedButton<FeedType>(
-            style: ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          Align(
+            alignment: Alignment.center,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: _AnimatedFeedTabBar(
+                selected: query.feedType,
+                onChanged: (type) {
+                  ref.read(feedQueryProvider.notifier).state =
+                      query.copyWith(feedType: type);
+                },
+              ),
             ),
-            segments: [
-              ButtonSegment(
-                value: FeedType.main,
-                label: Text(_feedTypeLabel(context, FeedType.main)),
-                icon: const Icon(Icons.dynamic_feed_outlined),
-              ),
-              ButtonSegment(
-                value: FeedType.community,
-                label: Text(_feedTypeLabel(context, FeedType.community)),
-                icon: const Icon(Icons.groups_2_outlined),
-              ),
-            ],
-            selected: {query.feedType},
-            showSelectedIcon: false,
-            onSelectionChanged: (selection) {
-              ref.read(feedQueryProvider.notifier).state = query.copyWith(
-                feedType: selection.first,
-              );
-            },
           ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final filter in FeedFilter.values) ...[
-                  _FeedFilterChip(
-                    label: _feedFilterLabel(context, filter),
-                    selected: query.filter == filter,
-                    onTap: () {
-                      ref.read(feedQueryProvider.notifier).state = query
-                          .copyWith(filter: filter);
-                    },
+          ClipRect(
+            child: AnimatedAlign(
+              alignment: Alignment.center,
+              heightFactor: query.feedType == FeedType.community ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: query.feedType == FeedType.community ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: Text(
+                    communityName,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: tokens.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  if (filter != FeedFilter.values.last)
-                    const SizedBox(width: 8),
-                ],
-              ],
+                ),
+              ),
             ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final filter in FeedFilter.values)
+                _FeedFilterChip(
+                  label: _feedFilterLabel(context, filter),
+                  selected: query.filter == filter,
+                  onTap: () {
+                    ref.read(feedQueryProvider.notifier).state =
+                        query.copyWith(filter: filter);
+                  },
+                ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AnimatedFeedTabBar extends StatelessWidget {
+  const _AnimatedFeedTabBar({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final FeedType selected;
+  final ValueChanged<FeedType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        final tabWidth = totalWidth / FeedType.values.length;
+        return Container(
+          height: 50,
+          decoration: BoxDecoration(
+            color: tokens.panelMuted,
+            borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+            border: Border.all(color: tokens.panelBorder),
+          ),
+          child: Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                left: selected.index * tabWidth + 3,
+                top: 3,
+                bottom: 3,
+                width: tabWidth - 6,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: tokens.accentMuted,
+                    borderRadius: BorderRadius.circular(
+                      SdalThemeTokens.radiusPill - 3,
+                    ),
+                    border: Border.all(
+                      color: tokens.accent.withValues(alpha: 0.25),
+                    ),
+                  ),
+                ),
+              ),
+              Row(
+                children: FeedType.values.map((type) {
+                  final isSelected = selected == type;
+                  return Expanded(
+                    child: Semantics(
+                      button: true,
+                      selected: isSelected,
+                      label: _feedTypeLabel(context, type),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(
+                          SdalThemeTokens.radiusPill,
+                        ),
+                        onTap: () => onChanged(type),
+                        child: Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                type == FeedType.main
+                                    ? Icons.dynamic_feed_outlined
+                                    : Icons.groups_2_outlined,
+                                size: 17,
+                                color: isSelected
+                                    ? tokens.accent
+                                    : tokens.foreground,
+                              ),
+                              const SizedBox(width: 7),
+                              AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 200),
+                                style: (Theme.of(context)
+                                            .textTheme
+                                            .labelLarge ??
+                                        const TextStyle())
+                                    .copyWith(
+                                  color: isSelected
+                                      ? tokens.accent
+                                      : tokens.foreground,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                ),
+                                child: Text(_feedTypeLabel(context, type)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

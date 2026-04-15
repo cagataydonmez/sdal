@@ -44,7 +44,8 @@ export function toLegacyCommentItem(comment) {
     kadi: comment.author?.username || null,
     isim: comment.author?.firstName || null,
     soyisim: comment.author?.lastName || null,
-    resim: comment.author?.avatarUrl || null
+    resim: comment.author?.avatarUrl || null,
+    updated_at: comment.updatedAt || null
   };
 }
 

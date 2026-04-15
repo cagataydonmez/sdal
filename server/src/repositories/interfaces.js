@@ -28,6 +28,8 @@ export class PostRepository {
   findLike(_postId, _userId) { return notImplemented('PostRepository.findLike'); }
   deleteLikeById(_likeId) { return notImplemented('PostRepository.deleteLikeById'); }
   createLike(_input) { return notImplemented('PostRepository.createLike'); }
+  updateCommentById(_commentId, _body, _updatedAt) { return notImplemented('PostRepository.updateCommentById'); }
+  listLikes(_postId) { return notImplemented('PostRepository.listLikes'); }
 }
 
 export class StoryRepository {

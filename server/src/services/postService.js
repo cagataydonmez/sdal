@@ -62,16 +62,37 @@ export class PostService {
   }
 
   async deletePostComment({ postId, commentId, viewerId, isAdmin }) {
+    const post = await this.requireVisiblePost({ postId, viewerId, isAdmin });
+    const comment = await this.postRepository.findCommentById(commentId);
+    if (!comment || Number(comment.postId) !== Number(postId)) {
+      throw new HttpError(404, 'Yorum bulunamadı.');
+    }
+    const isCommentAuthor = Number(comment.authorId) === Number(viewerId);
+    const isPostOwner = Number(post.authorId) === Number(viewerId);
+    if (!isAdmin && !isCommentAuthor && !isPostOwner) {
+      throw new HttpError(403, 'Bu yorumu silme yetkin yok.');
+    }
+    await this.postRepository.deleteCommentById(commentId);
+    return { comment };
+  }
+
+  async updatePostComment({ postId, commentId, viewerId, isAdmin, body, now }) {
     await this.requireVisiblePost({ postId, viewerId, isAdmin });
     const comment = await this.postRepository.findCommentById(commentId);
     if (!comment || Number(comment.postId) !== Number(postId)) {
       throw new HttpError(404, 'Yorum bulunamadı.');
     }
     if (!isAdmin && Number(comment.authorId) !== Number(viewerId)) {
-      throw new HttpError(403, 'Bu yorumu silme yetkin yok.');
+      throw new HttpError(403, 'Bu yorumu düzenleme yetkin yok.');
     }
-    await this.postRepository.deleteCommentById(commentId);
-    return { comment };
+    if (!body) throw new HttpError(400, 'Yorum boş olamaz.');
+    const updated = await this.postRepository.updateCommentById(commentId, body, now);
+    return { comment: updated };
+  }
+
+  async listPostLikes({ postId, viewerId, isAdmin }) {
+    await this.requireVisiblePost({ postId, viewerId, isAdmin });
+    return this.postRepository.listLikes(postId);
   }
 
   async togglePostLike({ postId, viewerId, isAdmin }) {

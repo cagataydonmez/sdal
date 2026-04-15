@@ -226,6 +226,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       (item) => Dismissible(
                         key: ValueKey(item.id),
                         direction: DismissDirection.endToStart,
+                        background: const SizedBox.shrink(),
                         secondaryBackground: Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(

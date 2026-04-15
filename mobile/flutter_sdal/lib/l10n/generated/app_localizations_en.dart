@@ -214,6 +214,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedPostDeleteFailed => 'Post could not be deleted.';
 
   @override
+  String get feedPostEditTitle => 'Edit post';
+
+  @override
+  String get feedPostEdited => 'Post updated.';
+
+  @override
+  String get feedPostEditFailed => 'Post could not be updated.';
+
+  @override
+  String feedPostEditedAt(Object date) {
+    return 'Edited $date';
+  }
+
+  @override
+  String get feedCommentEditTitle => 'Edit comment';
+
+  @override
+  String get feedCommentEdited => 'Comment updated.';
+
+  @override
+  String get feedCommentEditFailed => 'Comment could not be updated.';
+
+  @override
+  String feedCommentEditedAt(Object date) {
+    return 'Edited $date';
+  }
+
+  @override
+  String get feedLikedBy => 'Likes';
+
+  @override
+  String get feedLikedByNone => 'No likes yet.';
+
+  @override
   String sidebarOnlineUsersCount(Object count) {
     return '$count users online';
   }
