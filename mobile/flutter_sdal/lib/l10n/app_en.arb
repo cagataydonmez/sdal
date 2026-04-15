@@ -232,6 +232,8 @@
     }
   },
   "notificationsMarkAllRead": "Mark all read",
+  "notificationsDeleteAll": "Delete All",
+  "notificationsDeleteAllConfirm": "All notifications will be permanently deleted.",
   "notificationsUpdatedAllRead": "Notifications marked as read.",
   "notificationsActionFailed": "The action failed.",
   "notificationsPreferencesUpdated": "Notification preferences updated.",

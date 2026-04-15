@@ -558,6 +558,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsMarkAllRead => 'Mark all read';
 
   @override
+  String get notificationsDeleteAll => 'Delete All';
+
+  @override
+  String get notificationsDeleteAllConfirm =>
+      'All notifications will be permanently deleted.';
+
+  @override
   String get notificationsUpdatedAllRead => 'Notifications marked as read.';
 
   @override

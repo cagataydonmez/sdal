@@ -104,6 +104,66 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     },
                     child: Text(l10n.notificationsMarkAllRead),
                   ),
+                  const SizedBox(width: 4),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) async {
+                      if (value != 'delete_all') return;
+                      final t = Theme.of(context).sdal;
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(l10n.notificationsDeleteAll),
+                          content: Text(l10n.notificationsDeleteAllConfirm),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: Text(l10n.cancelAction),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                foregroundColor: t.danger,
+                              ),
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: Text(l10n.deleteAction),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed != true || !context.mounted) return;
+                      final ok = await ref
+                          .read(notificationsActionControllerProvider.notifier)
+                          .deleteAll();
+                      if (!context.mounted) return;
+                      if (ok) {
+                        _clearAllItems();
+                      }
+                      final nextState = ref.read(
+                        notificationsActionControllerProvider,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            nextState.message ??
+                                (ok
+                                    ? l10n.notificationsDeleteAll
+                                    : l10n.notificationsActionFailed),
+                          ),
+                        ),
+                      );
+                    },
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem<String>(
+                        value: 'delete_all',
+                        child: Text(
+                          l10n.notificationsDeleteAll,
+                          style: TextStyle(
+                            color: Theme.of(ctx).sdal.danger,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -163,10 +223,51 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 return Column(
                   children: [
                     ...items.map(
-                      (item) => Padding(
+                      (item) => Dismissible(
+                        key: ValueKey(item.id),
+                        direction: DismissDirection.endToStart,
+                        secondaryBackground: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: tokens.danger,
+                            borderRadius: BorderRadius.circular(
+                              SdalThemeTokens.radiusMd,
+                            ),
+                          ),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          child: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        confirmDismiss: (_) async {
+                          final ok = await ref
+                              .read(
+                                notificationsActionControllerProvider.notifier,
+                              )
+                              .delete(item.id);
+                          if (!ok && context.mounted) {
+                            final nextState = ref.read(
+                              notificationsActionControllerProvider,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  nextState.message ?? 'Bildirim silinemedi.',
+                                ),
+                              ),
+                            );
+                          }
+                          return ok;
+                        },
+                        onDismissed: (_) => _deleteItem(item.id),
+                        child: Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: SurfaceCard(
                           onTap: () => _openNotification(context, ref, item),
+                          color: item.isUnread ? tokens.accentMuted : null,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -179,9 +280,17 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                       children: [
                                         Text(
                                           item.message,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: item.isUnread
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w400,
+                                                color: item.isUnread
+                                                    ? tokens.foreground
+                                                    : tokens.foregroundMuted,
+                                              ),
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
@@ -206,7 +315,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                       child: Icon(
                                         Icons.circle,
                                         size: 10,
-                                        color: tokens.info,
+                                        color: tokens.accent,
                                       ),
                                     ),
                                 ],
@@ -268,6 +377,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         ),
                       ),
                     ),
+                  ),
                     if (hasMore) ...[
                       const SizedBox(height: 4),
                       Align(
@@ -418,6 +528,21 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 : item,
           )
           .toList(growable: false);
+    });
+  }
+
+  void _deleteItem(int id) {
+    setState(() {
+      _items =
+          _items.where((item) => item.id != id).toList(growable: false);
+    });
+  }
+
+  void _clearAllItems() {
+    setState(() {
+      _items = const <AppNotification>[];
+      _hasMore = false;
+      _nextCursor = null;
     });
   }
 

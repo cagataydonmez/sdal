@@ -232,6 +232,8 @@
     }
   },
   "notificationsMarkAllRead": "Tümünü oku",
+  "notificationsDeleteAll": "Tümünü Sil",
+  "notificationsDeleteAllConfirm": "Tüm bildirimler kalıcı olarak silinecek.",
   "notificationsUpdatedAllRead": "Bildirimler okundu olarak işaretlendi.",
   "notificationsActionFailed": "İşlem başarısız oldu.",
   "notificationsPreferencesUpdated": "Bildirim tercihleri güncellendi.",

@@ -555,6 +555,13 @@ class AppLocalizationsTr extends AppLocalizations {
   String get notificationsMarkAllRead => 'Tümünü oku';
 
   @override
+  String get notificationsDeleteAll => 'Tümünü Sil';
+
+  @override
+  String get notificationsDeleteAllConfirm =>
+      'Tüm bildirimler kalıcı olarak silinecek.';
+
+  @override
   String get notificationsUpdatedAllRead =>
       'Bildirimler okundu olarak işaretlendi.';
 

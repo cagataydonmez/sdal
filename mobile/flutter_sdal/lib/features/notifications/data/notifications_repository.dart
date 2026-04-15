@@ -251,6 +251,18 @@ class NotificationsRepository {
     return _apiClient.post<dynamic>(action.endpoint);
   }
 
+  Future<ApiResult<dynamic>> deleteNotification(int notificationId) {
+    return _apiClient.delete<dynamic>(
+      '/api/new/notifications/$notificationId',
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteAllNotifications() {
+    return _apiClient.delete<dynamic>(
+      '/api/new/notifications',
+    );
+  }
+
   Future<ApiResult<dynamic>> savePreferences(
     NotificationPreferences preferences,
   ) {

@@ -169,6 +169,49 @@ class NotificationsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> delete(int notificationId) async {
+    state = AsyncActionState.loading(scope: 'delete:$notificationId');
+    final result = await _repository.deleteNotification(notificationId);
+    if (result.ok) {
+      ref.invalidate(notificationUnreadCountProvider);
+      state = AsyncActionState.success(
+        scope: 'delete:$notificationId',
+        message:
+            result.message.isNotEmpty ? result.message : 'Bildirim silindi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'delete:$notificationId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Bildirim silinemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteAll() async {
+    state = const AsyncActionState.loading(scope: 'deleteAll');
+    final result = await _repository.deleteAllNotifications();
+    if (result.ok) {
+      _refreshAll();
+      state = AsyncActionState.success(
+        scope: 'deleteAll',
+        message: result.message.isNotEmpty
+            ? result.message
+            : 'Tüm bildirimler silindi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'deleteAll',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Bildirimler silinemedi.',
+    );
+    return false;
+  }
+
   Future<bool> savePreferences(NotificationPreferences preferences) async {
     state = const AsyncActionState.loading(scope: 'preferences');
     final result = await _repository.savePreferences(preferences);

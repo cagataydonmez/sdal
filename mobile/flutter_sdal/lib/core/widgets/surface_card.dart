@@ -6,6 +6,7 @@ class SurfaceCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(18),
     this.onTap,
+    this.color,
     this.tooltip,
     this.semanticLabel,
     this.semanticContainer = false,
@@ -14,6 +15,7 @@ class SurfaceCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
   final VoidCallback? onTap;
+  final Color? color;
   final String? tooltip;
   final String? semanticLabel;
   final bool semanticContainer;
@@ -25,7 +27,7 @@ class SurfaceCard extends StatelessWidget {
       cardChild = InkWell(onTap: onTap, child: cardChild);
     }
 
-    Widget card = Card(clipBehavior: Clip.antiAlias, child: cardChild);
+    Widget card = Card(clipBehavior: Clip.antiAlias, color: color, child: cardChild);
     if (tooltip != null) {
       card = Tooltip(message: tooltip!, child: card);
     }

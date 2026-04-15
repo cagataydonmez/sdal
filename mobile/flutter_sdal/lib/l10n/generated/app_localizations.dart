@@ -1094,6 +1094,18 @@ abstract class AppLocalizations {
   /// **'Tümünü oku'**
   String get notificationsMarkAllRead;
 
+  /// No description provided for @notificationsDeleteAll.
+  ///
+  /// In tr, this message translates to:
+  /// **'Tümünü Sil'**
+  String get notificationsDeleteAll;
+
+  /// No description provided for @notificationsDeleteAllConfirm.
+  ///
+  /// In tr, this message translates to:
+  /// **'Tüm bildirimler kalıcı olarak silinecek.'**
+  String get notificationsDeleteAllConfirm;
+
   /// No description provided for @notificationsUpdatedAllRead.
   ///
   /// In tr, this message translates to:

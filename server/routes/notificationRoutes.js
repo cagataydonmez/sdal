@@ -105,6 +105,58 @@ export function registerNotificationRoutes(app, {
     }
   });
 
+  app.delete('/api/new/notifications', requireAuth, async (req, res) => {
+    try {
+      const ids = Array.isArray(req.body?.ids)
+        ? Array.from(new Set(req.body.ids.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0)))
+        : [];
+      let result;
+      if (ids.length > 0) {
+        result = await sqlRunAsync(
+          `DELETE FROM notifications WHERE user_id = ? AND id IN (${ids.map(() => '?').join(',')})`,
+          [req.session.userId, ...ids]
+        );
+      } else {
+        result = await sqlRunAsync(
+          'DELETE FROM notifications WHERE user_id = ?',
+          [req.session.userId]
+        );
+      }
+      return res.json(apiSuccessEnvelope(
+        'NOTIFICATIONS_DELETED',
+        'Bildirimler silindi.',
+        { deleted: Number(result?.changes || 0) },
+        { deleted: Number(result?.changes || 0) }
+      ));
+    } catch (err) {
+      console.error('notifications.deleteAll failed:', err);
+      return sendApiError(res, 500, 'NOTIFICATIONS_DELETE_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.delete('/api/new/notifications/:id', requireAuth, async (req, res) => {
+    try {
+      const notificationId = Number(req.params.id || 0);
+      if (!notificationId) return sendApiError(res, 400, 'INVALID_NOTIFICATION_ID', 'Geçersiz bildirim kimliği.');
+      const result = await sqlRunAsync(
+        'DELETE FROM notifications WHERE id = ? AND user_id = ?',
+        [notificationId, req.session.userId]
+      );
+      if (Number(result?.changes || 0) === 0) {
+        return sendApiError(res, 404, 'NOTIFICATION_NOT_FOUND', 'Bildirim bulunamadı.');
+      }
+      return res.json(apiSuccessEnvelope(
+        'NOTIFICATION_DELETED',
+        'Bildirim silindi.',
+        { deleted: 1 },
+        { deleted: 1 }
+      ));
+    } catch (err) {
+      console.error('notifications.deleteOne failed:', err);
+      return sendApiError(res, 500, 'NOTIFICATION_DELETE_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
   app.post('/api/new/notifications/bulk-read', requireAuth, async (req, res) => {
     try {
       const ids = Array.isArray(req.body?.ids)
