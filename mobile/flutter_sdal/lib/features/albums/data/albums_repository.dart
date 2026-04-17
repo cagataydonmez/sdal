@@ -46,7 +46,9 @@ class AlbumCategoryItem {
         map['aciklama'],
         map['description'],
       ], fallback: ''),
-      count: asInt(map['count']) ?? 0,
+      count:
+          asInt(map['count'] ?? map['photoCount'] ?? map['total'] ?? map['cnt']) ??
+          0,
       previews: (map['previews'] is List)
           ? (map['previews'] as List)
                 .map((item) => coalesceText([item], fallback: ''))
@@ -266,6 +268,7 @@ class AlbumPhotoDetail {
     required this.canToggleComments,
     required this.canBulkDeleteComments,
     required this.taggedUsers,
+    required this.editMetadata,
   });
 
   final int id;
@@ -286,6 +289,7 @@ class AlbumPhotoDetail {
   final bool canToggleComments;
   final bool canBulkDeleteComments;
   final List<AlbumTaggedMember> taggedUsers;
+  final JsonMap editMetadata;
 
   factory AlbumPhotoDetail.fromPayload(JsonMap payload) {
     final row = asJsonMap(payload['row']);
@@ -316,6 +320,7 @@ class AlbumPhotoDetail {
       taggedUsers: asJsonMapList(
         payload['taggedUsers'],
       ).map(AlbumTaggedMember.fromMap).toList(growable: false),
+      editMetadata: asJsonMap(payload['editMetadata']),
     );
   }
 }
@@ -537,9 +542,13 @@ class AlbumsRepository {
   Future<ApiResult<dynamic>> replacePhotoFile({
     required int photoId,
     required File file,
+    JsonMap editMetadata = const <String, dynamic>{},
   }) {
     return _apiClient.multipart<dynamic>(
       '/api/photos/$photoId/file',
+      fields: {
+        if (editMetadata.isNotEmpty) 'editMetadata': editMetadata,
+      },
       files: {'file': file},
     );
   }
@@ -555,6 +564,7 @@ class AlbumsRepository {
     required File file,
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
+    JsonMap editMetadata = const <String, dynamic>{},
   }) {
     return _apiClient.multipart<dynamic>(
       '/api/album/upload',
@@ -564,8 +574,33 @@ class AlbumsRepository {
         'aciklama': description,
         'yorumlaraIzin': allowComments ? '1' : '0',
         'taggedUserIds': taggedUserIds.join(','),
+        if (editMetadata.isNotEmpty) 'editMetadata': editMetadata,
       },
       files: {'file': file},
+    );
+  }
+
+  Future<ApiResult<dynamic>> uploadPhotosBatch({
+    required int categoryId,
+    required String description,
+    required bool allowComments,
+    required List<File> files,
+    required List<String> titles,
+    List<int> taggedUserIds = const <int>[],
+    List<JsonMap> metadataList = const <JsonMap>[],
+  }) {
+    return _apiClient.multipart<dynamic>(
+      '/api/album/upload-batch',
+      fields: {
+        'kat': categoryId,
+        'aciklama': description,
+        'yorumlaraIzin': allowComments ? '1' : '0',
+        'taggedUserIds': taggedUserIds.join(','),
+        'titles': titles,
+        'metadataList': metadataList,
+      },
+      files: const <String, File>{},
+      extraFiles: {'files': files},
     );
   }
 
@@ -575,6 +610,7 @@ class AlbumsRepository {
     required String description,
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
+    JsonMap editMetadata = const <String, dynamic>{},
   }) {
     return _apiClient.patch<dynamic>(
       '/api/photos/$photoId',
@@ -583,6 +619,7 @@ class AlbumsRepository {
         'aciklama': description,
         'yorumlaraIzin': allowComments,
         'taggedUserIds': taggedUserIds,
+        if (editMetadata.isNotEmpty) 'editMetadata': editMetadata,
       },
     );
   }

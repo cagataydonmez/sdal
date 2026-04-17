@@ -26,7 +26,7 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   List<AlbumCategoryItem> _categories = const <AlbumCategoryItem>[];
   final List<MemberSummary> _taggedMembers = <MemberSummary>[];
   int _selectedCategoryId = 0;
-  File? _file;
+  List<EditedMediaResult> _mediaItems = const <EditedMediaResult>[];
   bool _allowComments = true;
   bool _isLoading = true;
   String _error = '';
@@ -132,7 +132,9 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                   TextField(
                     controller: _titleController,
                     decoration: const InputDecoration(
-                      labelText: 'Başlık',
+                      labelText: 'Başlık öneki',
+                      helperText:
+                          'Boş bırakırsan dosya adı kullanılır. Çoklu seçimde otomatik numaralanır.',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -194,15 +196,32 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: isSaving ? null : _pickFile,
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: Text(
-                      _file == null
-                          ? 'Fotoğraf seç'
-                          : _file!.path.split('/').last,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: isSaving ? null : _pickSingleFile,
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Tek fotoğraf'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: isSaving ? null : _pickMultipleFiles,
+                          icon: const Icon(Icons.collections_outlined),
+                          label: const Text('Çoklu seç'),
+                        ),
+                      ),
+                    ],
                   ),
+                  if (_mediaItems.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '${_mediaItems.length} fotoğraf hazır',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -213,13 +232,58 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                       ),
                     ),
                   ),
-                  if (_file != null) ...[
+                  if (_mediaItems.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: AspectRatio(
-                        aspectRatio: 4 / 3,
-                        child: Image.file(_file!, fit: BoxFit.cover),
+                    SizedBox(
+                      height: 108,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _mediaItems.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final item = _mediaItems[index];
+                          return Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(18),
+                                child: SizedBox(
+                                  width: 144,
+                                  child: AspectRatio(
+                                    aspectRatio: 4 / 3,
+                                    child: Image.file(item.file, fit: BoxFit.cover),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 6,
+                                right: 6,
+                                child: InkWell(
+                                  onTap: isSaving
+                                      ? null
+                                      : () => setState(() {
+                                          _mediaItems = [
+                                            ..._mediaItems.take(index),
+                                            ..._mediaItems.skip(index + 1),
+                                          ];
+                                        }),
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -231,8 +295,8 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     );
   }
 
-  Future<void> _pickFile() async {
-    final picked = await pickAndCropImage(
+  Future<void> _pickSingleFile() async {
+    final picked = await pickAndEditImage(
       context,
       source: ImageSource.gallery,
       imageQuality: 94,
@@ -240,7 +304,18 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       title: 'Fotoğrafı kırp',
     );
     if (picked == null || !mounted) return;
-    setState(() => _file = picked);
+    setState(() => _mediaItems = [picked]);
+  }
+
+  Future<void> _pickMultipleFiles() async {
+    final picked = await pickAndEditImages(
+      context,
+      imageQuality: 94,
+      maxWidth: 2600,
+      title: 'Fotoğrafı düzenle',
+    );
+    if (!mounted || picked.isEmpty) return;
+    setState(() => _mediaItems = picked);
   }
 
   Future<void> _pickMembers() async {
@@ -258,22 +333,39 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   }
 
   Future<void> _upload() async {
-    if (_selectedCategoryId <= 0 || _file == null) {
+    if (_selectedCategoryId <= 0 || _mediaItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Albüm ve fotoğraf seçmelisin.')),
       );
       return;
     }
-    final ok = await ref
-        .read(albumsActionControllerProvider.notifier)
-        .uploadPhoto(
-          categoryId: _selectedCategoryId,
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          file: _file!,
-          allowComments: _allowComments,
-          taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
-        );
+    final titlePrefix = _titleController.text.trim();
+    final titles = <String>[
+      for (var index = 0; index < _mediaItems.length; index += 1)
+        _buildTitleForUpload(titlePrefix, _mediaItems[index].file, index, _mediaItems.length),
+    ];
+    final notifier = ref.read(albumsActionControllerProvider.notifier);
+    final ok = _mediaItems.length == 1
+        ? await notifier.uploadPhoto(
+            categoryId: _selectedCategoryId,
+            title: titles.first,
+            description: _descriptionController.text.trim(),
+            file: _mediaItems.first.file,
+            allowComments: _allowComments,
+            taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
+            editMetadata: _mediaItems.first.metadata,
+          )
+        : await notifier.uploadPhotosBatch(
+            categoryId: _selectedCategoryId,
+            description: _descriptionController.text.trim(),
+            allowComments: _allowComments,
+            files: _mediaItems.map((item) => item.file).toList(growable: false),
+            titles: titles,
+            taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
+            metadataList: _mediaItems
+                .map((item) => item.metadata)
+                .toList(growable: false),
+          );
     if (!mounted) return;
     final state = ref.read(albumsActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -288,10 +380,26 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     _titleController.clear();
     _descriptionController.clear();
     setState(() {
-      _file = null;
+      _mediaItems = const <EditedMediaResult>[];
       _allowComments = true;
       _taggedMembers.clear();
     });
+  }
+
+  String _buildTitleForUpload(
+    String prefix,
+    File file,
+    int index,
+    int total,
+  ) {
+    if (prefix.isNotEmpty) {
+      return total > 1 ? '$prefix ${index + 1}' : prefix;
+    }
+    final fileName = file.uri.pathSegments.isEmpty
+        ? 'Fotoğraf'
+        : file.uri.pathSegments.last.split('.').first;
+    final clean = fileName.trim();
+    return clean.isEmpty ? 'Fotoğraf ${index + 1}' : clean;
   }
 
   Future<void> _loadCategories() async {

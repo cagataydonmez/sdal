@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -395,7 +394,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
       text: _plainText(photo.description),
     );
     var allowComments = photo.allowComments;
-    File? replacementFile;
+    EditedMediaResult? replacementFile;
     final tagged = <MemberSummary>[
       for (final member in photo.taggedUsers)
         MemberSummary(
@@ -435,7 +434,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                 // Current / replacement photo preview
                 GestureDetector(
                   onTap: () async {
-                    final picked = await pickAndCropImage(
+                    final picked = await pickAndEditImage(
                       ctx,
                       source: ImageSource.gallery,
                       imageQuality: 94,
@@ -452,7 +451,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                         child: AspectRatio(
                           aspectRatio: 4 / 3,
                           child: replacementFile != null
-                              ? Image.file(replacementFile!, fit: BoxFit.cover)
+                              ? Image.file(replacementFile!.file, fit: BoxFit.cover)
                               : Image.network(
                                   config.siteBaseUri
                                       .resolve(
@@ -582,7 +581,8 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                     if (replacementFile != null) {
                       final fileOk = await notifier.replacePhotoFile(
                         photoId: widget.photoId,
-                        file: replacementFile!,
+                        file: replacementFile!.file,
+                        editMetadata: replacementFile!.metadata,
                       );
                       if (!mounted || !ctx.mounted) return;
                       if (!fileOk) {

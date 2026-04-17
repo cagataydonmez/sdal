@@ -24,6 +24,7 @@ export function registerAlbumRoutes(app, {
   const commentTable = isPostgres ? 'album_photo_comments' : 'album_fotoyorum';
   const likeTable = 'album_photo_likes';
   const permissionTable = 'album_category_permissions';
+  const editTable = 'album_photo_media_edits';
   const userTable = isPostgres ? 'users' : 'uyeler';
   const photoActiveSql = isPostgres
     ? 'COALESCE(p.is_active, TRUE) IS TRUE'
@@ -165,6 +166,31 @@ export function registerAlbumRoutes(app, {
     }
   }
 
+  function parseJsonObjectField(rawValue) {
+    if (!rawValue) return {};
+    if (typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+      return rawValue;
+    }
+    try {
+      const parsed = JSON.parse(String(rawValue || '{}'));
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function parseJsonArrayField(rawValue) {
+    if (Array.isArray(rawValue)) return rawValue;
+    try {
+      const parsed = JSON.parse(String(rawValue || '[]'));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
   async function ensureAlbumSchema() {
     if (isPostgres) return;
 
@@ -201,6 +227,11 @@ export function registerAlbumRoutes(app, {
        ON ${permissionTable} (category_id, group_id)`,
       `CREATE INDEX IF NOT EXISTS idx_album_photo_likes_photo_id
        ON ${likeTable} (photo_id, created_at DESC)`,
+      `CREATE TABLE IF NOT EXISTS ${editTable} (
+        photo_id ${isPostgres ? 'BIGINT PRIMARY KEY' : 'INTEGER PRIMARY KEY'},
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
     ];
 
     for (const statement of statements) {
@@ -558,6 +589,29 @@ export function registerAlbumRoutes(app, {
     }
   }
 
+  async function getPhotoEditMetadata(photoId) {
+    if (!photoId) return {};
+    const row = await sqlGetAsync(
+      `SELECT metadata_json FROM ${editTable} WHERE photo_id = ? LIMIT 1`,
+      [photoId],
+    );
+    return parseJsonObjectField(row?.metadata_json);
+  }
+
+  async function savePhotoEditMetadata(photoId, metadata) {
+    if (!photoId) return;
+    const payload = JSON.stringify(parseJsonObjectField(metadata));
+    const now = new Date().toISOString();
+    await sqlRunAsync(
+      `INSERT INTO ${editTable} (photo_id, metadata_json, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(photo_id) DO UPDATE SET
+         metadata_json = excluded.metadata_json,
+         updated_at = excluded.updated_at`,
+      [photoId, payload, now],
+    );
+  }
+
   app.get('/api/albums', async (req, res) => {
     try {
       await schemaReady;
@@ -759,12 +813,16 @@ export function registerAlbumRoutes(app, {
         String(req.body?.kat || req.body?.categoryId || '').trim(),
         10,
       );
-      const title = sanitizePlainUserText(String(req.body?.baslik || req.body?.title || '').trim(), 255);
+      const rawTitle = String(req.body?.baslik || req.body?.title || '').trim();
+      const fallbackTitle = String(req.file?.originalname || 'Fotoğraf')
+        .replace(/\.[^.]+$/, '')
+        .trim();
+      const title = sanitizePlainUserText(rawTitle || fallbackTitle || 'Fotoğraf', 255);
       const description = formatUserText(req.body?.aciklama || req.body?.description || '');
       const allowComments = isTruthy(req.body?.yorumlaraIzin ?? req.body?.allowComments ?? true);
       const taggedUserIds = parseIdArray(req.body?.taggedUserIds);
+      const editMetadata = parseJsonObjectField(req.body?.editMetadata);
 
-      if (!title) return res.status(400).send('Yüklemek üzere olduğun fotoğraf için bir başlık girmen gerekiyor.');
       if (!categoryId) return res.status(400).send('Albüm seçmelisin.');
       if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
 
@@ -844,6 +902,9 @@ export function registerAlbumRoutes(app, {
       }
 
       const photoId = Number(result?.lastInsertRowid || result?.insertId || 0);
+      if (Object.keys(editMetadata).length > 0) {
+        await savePhotoEditMetadata(photoId, editMetadata);
+      }
       await notifyTaggedUsers(taggedUserIds, [], req.session.userId, photoId);
 
       res.json({
@@ -853,6 +914,146 @@ export function registerAlbumRoutes(app, {
         categoryId,
         active: !requireApproval,
         requiresApproval: requireApproval,
+      });
+    } catch (error) {
+      console.error(error);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/album/upload-batch', (req, res, next) => {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    return albumUpload.array('files', 20)(req, res, (error) => {
+      if (error) return next(error);
+      next();
+    });
+  }, async (req, res) => {
+    try {
+      await schemaReady;
+      const viewer = await findViewer(req.session.userId);
+      const currentUser = getCurrentUser(req);
+      const categoryId = Number.parseInt(
+        String(req.body?.kat || req.body?.categoryId || '').trim(),
+        10,
+      );
+      const description = formatUserText(req.body?.aciklama || req.body?.description || '');
+      const allowComments = isTruthy(req.body?.yorumlaraIzin ?? req.body?.allowComments ?? true);
+      const taggedUserIds = parseIdArray(req.body?.taggedUserIds);
+      const titles = parseJsonArrayField(req.body?.titles).map((item) =>
+        sanitizePlainUserText(String(item || '').trim(), 255),
+      );
+      const metadataList = parseJsonArrayField(req.body?.metadataList).map((item) =>
+        parseJsonObjectField(item),
+      );
+      const files = Array.isArray(req.files) ? req.files : [];
+
+      if (!categoryId) return res.status(400).send('Albüm seçmelisin.');
+      if (!files.length) return res.status(400).send('En az bir görsel seçmelisin.');
+
+      const categoryContext = await loadCategoryContext(categoryId, viewer, currentUser);
+      if (categoryContext.error) {
+        return res.status(categoryContext.error.status).send(categoryContext.error.message);
+      }
+      if (!(await canUploadToCategory(categoryContext.category, viewer, currentUser))) {
+        return res.status(403).send('Bu albüme fotoğraf ekleme yetkin yok.');
+      }
+
+      const createdItems = [];
+      let lastStoredFilename = '';
+      const now = new Date().toISOString();
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        const processed = await processDiskImageUpload({
+          req,
+          res,
+          file,
+          bucket: 'album_photo',
+          preset: uploadImagePresets.albumPhoto,
+        });
+        if (!processed.ok) {
+          return res.status(processed.statusCode).send(processed.message);
+        }
+
+        const storedFilename = path.basename(processed.path || file.path);
+        lastStoredFilename = storedFilename;
+        const fallbackTitle = String(file.originalname || 'Fotoğraf')
+          .replace(/\.[^.]+$/, '')
+          .trim();
+        const title = titles[index] || fallbackTitle || `Fotoğraf ${index + 1}`;
+        let result;
+        if (isPostgres) {
+          result = await sqlRunAsync(
+            `INSERT INTO ${photoTable}
+              (category_id, file_name, title, description, is_active, uploaded_by_user_id, created_at, updated_at, view_count, allow_comments, tagged_user_ids_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              categoryId,
+              storedFilename,
+              title,
+              description,
+              true,
+              req.session.userId,
+              now,
+              now,
+              0,
+              boolValue(allowComments),
+              JSON.stringify(taggedUserIds),
+            ],
+          );
+        } else {
+          result = await sqlRunAsync(
+            `INSERT INTO ${photoTable}
+              (katid, dosyaadi, baslik, aciklama, aktif, ekleyenid, tarih, updated_at, hit, allow_comments, tagged_user_ids_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              categoryId,
+              storedFilename,
+              title,
+              description,
+              1,
+              req.session.userId,
+              now,
+              now,
+              0,
+              boolValue(allowComments),
+              JSON.stringify(taggedUserIds),
+            ],
+          );
+        }
+        const photoId = Number(result?.lastInsertRowid || result?.insertId || 0);
+        const metadata = metadataList[index] || {};
+        if (Object.keys(metadata).length > 0) {
+          await savePhotoEditMetadata(photoId, metadata);
+        }
+        await notifyTaggedUsers(taggedUserIds, [], req.session.userId, photoId);
+        createdItems.push({
+          id: photoId,
+          file: storedFilename,
+          title,
+        });
+      }
+
+      if (isPostgres) {
+        await sqlRunAsync(
+          `UPDATE ${categoryTable}
+           SET last_upload_at = ?, last_uploaded_by_user_id = ?, cover_file_name = COALESCE(?, cover_file_name)
+           WHERE id = ?`,
+          [now, req.session.userId, lastStoredFilename || null, categoryId],
+        );
+      } else {
+        await sqlRunAsync(
+          `UPDATE ${categoryTable}
+           SET sonekleme = ?, sonekleyen = ?, cover_file_name = COALESCE(?, cover_file_name)
+           WHERE id = ?`,
+          [now, req.session.userId, lastStoredFilename || null, categoryId],
+        );
+      }
+
+      res.json({
+        ok: true,
+        count: createdItems.length,
+        items: createdItems,
+        categoryId,
       });
     } catch (error) {
       console.error(error);
@@ -955,6 +1156,7 @@ export function registerAlbumRoutes(app, {
         [context.photo.id, req.session.userId],
       );
       const taggedUsers = await readTaggedUsers(parseStringArrayJson(context.photo.tagged_user_ids_json));
+      const editMetadata = await getPhotoEditMetadata(context.photo.id);
 
       res.json({
         row: {
@@ -985,6 +1187,7 @@ export function registerAlbumRoutes(app, {
           canToggleComments: canEditPhoto,
           canBulkDeleteComments: canEditPhoto,
         },
+        editMetadata,
       });
     } catch (error) {
       console.error(error);
@@ -1014,6 +1217,7 @@ export function registerAlbumRoutes(app, {
           ? parseStringArrayJson(context.photo.tagged_user_ids_json)
           : req.body?.taggedUserIds,
       );
+      const editMetadata = parseJsonObjectField(req.body?.editMetadata);
 
       if (!title) return res.status(400).send('Fotoğraf başlığı zorunlu.');
 
@@ -1053,6 +1257,9 @@ export function registerAlbumRoutes(app, {
         req.session.userId,
         context.photo.id,
       );
+      if (Object.keys(editMetadata).length > 0) {
+        await savePhotoEditMetadata(context.photo.id, editMetadata);
+      }
 
       res.json({ ok: true });
     } catch (error) {
@@ -1081,6 +1288,7 @@ export function registerAlbumRoutes(app, {
         hasCategoryManagementAccess(currentUser);
       if (!canEditPhoto) return res.status(403).send('Bu fotoğrafı düzenleme yetkin yok.');
       if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
+      const editMetadata = parseJsonObjectField(req.body?.editMetadata);
 
       const processed = await processDiskImageUpload({
         req,
@@ -1108,6 +1316,14 @@ export function registerAlbumRoutes(app, {
           `UPDATE ${photoTable} SET dosyaadi = ?, updated_at = ? WHERE id = ?`,
           [storedFilename, now, context.photo.id],
         );
+        await sqlRunAsync(
+          `UPDATE ${categoryTable} SET sonekleme = ?, sonekleyen = ?, cover_file_name = COALESCE(?, cover_file_name) WHERE id = ?`,
+          [now, req.session.userId, storedFilename, context.photo.category_id],
+        );
+      }
+
+      if (Object.keys(editMetadata).length > 0) {
+        await savePhotoEditMetadata(context.photo.id, editMetadata);
       }
 
       res.json({ ok: true, fileName: storedFilename });

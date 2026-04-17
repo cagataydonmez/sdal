@@ -38,6 +38,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     required File file,
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
+    Map<String, dynamic> editMetadata = const <String, dynamic>{},
   }) async {
     state = const AsyncActionState.loading(scope: 'albums:upload');
     final result = await _repository.uploadPhoto(
@@ -47,6 +48,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       file: file,
       allowComments: allowComments,
       taggedUserIds: taggedUserIds,
+      editMetadata: editMetadata,
     );
     if (result.ok) {
       state = AsyncActionState.success(
@@ -62,6 +64,43 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Fotoğraf yüklenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> uploadPhotosBatch({
+    required int categoryId,
+    required String description,
+    required bool allowComments,
+    required List<File> files,
+    required List<String> titles,
+    List<int> taggedUserIds = const <int>[],
+    List<Map<String, dynamic>> metadataList = const <Map<String, dynamic>>[],
+  }) async {
+    state = const AsyncActionState.loading(scope: 'albums:upload');
+    final result = await _repository.uploadPhotosBatch(
+      categoryId: categoryId,
+      description: description,
+      allowComments: allowComments,
+      files: files,
+      titles: titles,
+      taggedUserIds: taggedUserIds,
+      metadataList: metadataList,
+    );
+    if (result.ok) {
+      state = AsyncActionState.success(
+        scope: 'albums:upload',
+        message: result.message.isNotEmpty
+            ? result.message
+            : 'Fotoğraflar yüklendi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:upload',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Fotoğraflar yüklenemedi.',
     );
     return false;
   }
@@ -148,6 +187,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     required String description,
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
+    Map<String, dynamic> editMetadata = const <String, dynamic>{},
   }) async {
     state = AsyncActionState.loading(scope: 'albums:photo-edit:$photoId');
     final result = await _repository.updatePhoto(
@@ -156,6 +196,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       description: description,
       allowComments: allowComments,
       taggedUserIds: taggedUserIds,
+      editMetadata: editMetadata,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'albums:photo-edit');
@@ -173,11 +214,13 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
   Future<bool> replacePhotoFile({
     required int photoId,
     required File file,
+    Map<String, dynamic> editMetadata = const <String, dynamic>{},
   }) async {
     state = AsyncActionState.loading(scope: 'albums:photo-replace:$photoId');
     final result = await _repository.replacePhotoFile(
       photoId: photoId,
       file: file,
+      editMetadata: editMetadata,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'albums:photo-replace');

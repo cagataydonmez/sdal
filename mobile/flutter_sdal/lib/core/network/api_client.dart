@@ -147,12 +147,19 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? fields,
     required Map<String, File> files,
+    Map<String, List<File>> extraFiles = const <String, List<File>>{},
     ApiDecoder<T>? decoder,
   }) async {
     final formData = FormData();
     for (final entry in (fields ?? const <String, dynamic>{}).entries) {
       if (entry.value == null) continue;
-      formData.fields.add(MapEntry(entry.key, entry.value.toString()));
+      final value = entry.value;
+      formData.fields.add(
+        MapEntry(
+          entry.key,
+          value is Map || value is List ? jsonEncode(value) : value.toString(),
+        ),
+      );
     }
     for (final entry in files.entries) {
       final contentType = _guessMediaType(entry.value.path);
@@ -168,6 +175,23 @@ class ApiClient {
           ),
         ),
       );
+    }
+    for (final entry in extraFiles.entries) {
+      for (final file in entry.value) {
+        final contentType = _guessMediaType(file.path);
+        formData.files.add(
+          MapEntry(
+            entry.key,
+            await MultipartFile.fromFile(
+              file.path,
+              filename: file.uri.pathSegments.isEmpty
+                  ? entry.key
+                  : file.uri.pathSegments.last,
+              contentType: contentType,
+            ),
+          ),
+        );
+      }
     }
     return _request<T>('POST', path, body: formData, decoder: decoder);
   }
