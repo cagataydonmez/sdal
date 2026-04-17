@@ -35,13 +35,6 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
     return FeatureScaffold(
       title: _detail?.title ?? 'Albüm',
       actions: [
-        if (_detail?.canUpload ?? false)
-          IconButton(
-            tooltip: 'Bu albüme fotoğraf ekle',
-            onPressed: () =>
-                context.push('/albums/upload?albumId=${widget.categoryId}'),
-            icon: const Icon(Icons.upload_rounded),
-          ),
         if (_detail?.canEdit ?? false)
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -84,6 +77,16 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
                       '${_detail!.total} fotoğraf • ${_detail!.visibilityScope}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (_detail!.canUpload) ...[
+                      const SizedBox(height: 14),
+                      FilledButton.icon(
+                        onPressed: () => context.push(
+                          '/albums/upload?albumId=${widget.categoryId}',
+                        ),
+                        icon: const Icon(Icons.upload_rounded),
+                        label: const Text('Bu albüme fotoğraf yükle'),
+                      ),
+                    ],
                   ],
                 ),
               ),

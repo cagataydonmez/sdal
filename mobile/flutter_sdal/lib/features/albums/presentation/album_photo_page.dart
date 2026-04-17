@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../app/providers.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
+import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
-import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../explore/data/explore_repository.dart';
+import '../../social/presentation/member_mention_composer.dart';
+import '../../social/presentation/social_interaction_widgets.dart';
 import '../application/albums_action_controller.dart';
 import '../data/albums_repository.dart';
 import 'album_member_picker_sheet.dart';
@@ -24,6 +27,8 @@ class AlbumPhotoPage extends ConsumerStatefulWidget {
 
 class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   final TextEditingController _commentController = TextEditingController();
+  final List<MemberSummary> _selectedMentions = <MemberSummary>[];
+
   AlbumPhotoDetail? _photo;
   List<AlbumComment> _comments = const <AlbumComment>[];
   bool _commentsHidden = false;
@@ -46,14 +51,34 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   Widget build(BuildContext context) {
     final actionState = ref.watch(albumsActionControllerProvider);
     final config = ref.watch(appConfigProvider);
+    final likesState = ref.watch(albumPhotoLikesProvider(widget.photoId));
+    final submittingComment =
+        actionState.isLoading &&
+        actionState.scope == 'albums:comment:${widget.photoId}';
+
     return FeatureScaffold(
       title: _photo?.title ?? 'Fotoğraf',
       actions: [
         if (_photo?.canEditPhoto ?? false)
-          IconButton(
-            tooltip: 'Fotoğrafı düzenle',
-            onPressed: _showPhotoEditor,
-            icon: const Icon(Icons.edit_outlined),
+          PopupMenuButton<String>(
+            tooltip: 'Fotoğraf işlemleri',
+            onSelected: (value) async {
+              if (value == 'edit') {
+                await _showPhotoEditor();
+              } else if (value == 'delete') {
+                await _confirmDeletePhoto();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'edit',
+                child: Text('Fotoğrafı düzenle'),
+              ),
+              PopupMenuItem<String>(
+                value: 'delete',
+                child: Text('Fotoğrafı sil'),
+              ),
+            ],
           ),
         IconButton(
           tooltip: 'Yenile',
@@ -134,15 +159,6 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                           .map(
                             (member) => InputChip(
                               label: Text(member.displayName),
-                              avatar: CircleAvatar(
-                                backgroundImage: member.photo.trim().isEmpty
-                                    ? null
-                                    : NetworkImage(
-                                        config
-                                            .resolveUrl(member.photo)
-                                            .toString(),
-                                      ),
-                              ),
                               onPressed: member.id > 0
                                   ? () => context.push('/members/${member.id}')
                                   : null,
@@ -169,11 +185,6 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                     ),
                     label: Text('${_photo!.likeCount}'),
                   ),
-                  FilledButton.tonalIcon(
-                    onPressed: _showLikes,
-                    icon: const Icon(Icons.people_outline_rounded),
-                    label: const Text('Beğenenler'),
-                  ),
                   if (_photo!.canBulkDeleteComments)
                     FilledButton.tonalIcon(
                       onPressed: _comments.isEmpty
@@ -184,6 +195,42 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                     ),
                 ],
               ),
+            ),
+            likesState.when(
+              loading: () => const SizedBox.shrink(),
+              error: (error, stackTrace) => const SizedBox.shrink(),
+              data: (likes) {
+                if (likes.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: SocialLikePreviewButton(
+                    people: likes
+                        .map(
+                          (user) => SocialLikePerson(
+                            id: user.id,
+                            displayName: user.displayName,
+                            imageUrl: config
+                                .resolveUrl(user.avatarUrl)
+                                .toString(),
+                            subtitle: [
+                              if (user.username.isNotEmpty) '@${user.username}',
+                              if (user.graduationYear != null)
+                                '${user.graduationYear}',
+                            ].join(' • '),
+                          ),
+                        )
+                        .toList(growable: false),
+                    title: 'Beğenenler',
+                    ctaLabel: 'Beğenenler',
+                    onUserTap: (context, person) {
+                      Navigator.of(context).pop();
+                      if (person.id > 0) {
+                        context.push('/members/${person.id}');
+                      }
+                    },
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
             if (_photo!.allowComments) ...[
@@ -196,40 +243,30 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
-                    TextField(
+                    MemberMentionComposer(
                       controller: _commentController,
+                      selectedMembers: _selectedMentions,
+                      onSelectedMembersChanged: (members) => setState(() {
+                        _selectedMentions
+                          ..clear()
+                          ..addAll(members);
+                      }),
+                      labelText: 'Yorum',
+                      hintText: 'Yorumunu yaz, @ ile üye etiketle...',
                       minLines: 3,
                       maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Yorum',
-                        border: OutlineInputBorder(),
-                      ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _insertMention,
-                          icon: const Icon(Icons.alternate_email_rounded),
-                          label: const Text('Kişi etiketle'),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton(
+                        onPressed: submittingComment ? null : _submitComment,
+                        child: Text(
+                          submittingComment
+                              ? 'Gönderiliyor...'
+                              : 'Yorumu gönder',
                         ),
-                        const Spacer(),
-                        FilledButton(
-                          onPressed:
-                              actionState.isLoading &&
-                                  actionState.scope ==
-                                      'albums:comment:${widget.photoId}'
-                              ? null
-                              : _submitComment,
-                          child: Text(
-                            actionState.isLoading &&
-                                    actionState.scope ==
-                                        'albums:comment:${widget.photoId}'
-                                ? 'Gönderiliyor...'
-                                : 'Yorumu gönder',
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -258,68 +295,28 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
               ..._comments.map(
                 (comment) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: SurfaceCard(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        RemoteAvatar(
-                          label: comment.displayName,
-                          imageUrl: config.resolveUrl(comment.photo).toString(),
-                          radius: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      comment.displayName,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleSmall,
-                                    ),
-                                  ),
-                                  if (comment.canEdit || comment.canDelete)
-                                    PopupMenuButton<String>(
-                                      onSelected: (value) {
-                                        if (value == 'edit') {
-                                          _editComment(comment);
-                                        } else if (value == 'delete') {
-                                          _deleteComment(comment);
-                                        }
-                                      },
-                                      itemBuilder: (context) => [
-                                        if (comment.canEdit)
-                                          const PopupMenuItem(
-                                            value: 'edit',
-                                            child: Text('Yorumu düzenle'),
-                                          ),
-                                        if (comment.canDelete)
-                                          const PopupMenuItem(
-                                            value: 'delete',
-                                            child: Text('Yorumu sil'),
-                                          ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                              Text(
-                                [
-                                  _formatDate(comment.date),
-                                  if (comment.isEdited) 'düzenlendi',
-                                ].join(' • '),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(_plainText(comment.comment)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: SocialCommentCard(
+                    authorName: comment.displayName,
+                    authorHandle: comment.handle,
+                    authorPhotoUrl: config.resolveUrl(comment.photo).toString(),
+                    body: _plainText(comment.comment),
+                    createdLabel: formatSdalCreatedLabel(context, comment.date),
+                    editedLabel: comment.isEdited
+                        ? formatSdalEditedLabel(context, comment.updatedAt)
+                        : null,
+                    onAuthorTap: comment.userId > 0
+                        ? () => context.push('/members/${comment.userId}')
+                        : null,
+                    trailing: comment.canEdit || comment.canDelete
+                        ? SocialCommentActionMenuButton(
+                            canEdit: comment.canEdit,
+                            onEdit: () => _editComment(comment),
+                            onDelete: () => _deleteComment(comment),
+                            editLabel: 'Yorumu düzenle',
+                            deleteLabel: 'Yorumu sil',
+                            tooltip: 'Yorum işlemleri',
+                          )
+                        : null,
                   ),
                 ),
               ),
@@ -344,6 +341,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
         _comments = commentsPayload.$1;
         _commentsHidden = commentsPayload.$2;
       });
+      ref.invalidate(albumPhotoLikesProvider(widget.photoId));
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = error.toString());
@@ -353,7 +351,10 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   }
 
   Future<void> _submitComment() async {
-    final comment = _commentController.text.trim();
+    final comment = composeMentionText(
+      _commentController.text,
+      _selectedMentions,
+    );
     if (comment.isEmpty) return;
     final ok = await ref
         .read(albumsActionControllerProvider.notifier)
@@ -369,31 +370,8 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     );
     if (!ok) return;
     _commentController.clear();
+    setState(() => _selectedMentions.clear());
     await _load();
-  }
-
-  Future<void> _insertMention() async {
-    final result = await showModalBottomSheet<List<MemberSummary>>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) =>
-          const AlbumMemberPickerSheet(title: 'Yorumda kişiyi etiketle'),
-    );
-    if (result == null || result.isEmpty || !mounted) return;
-    final handles = result
-        .where((member) => member.handle.trim().isNotEmpty)
-        .map((member) => '@${member.handle.trim()}')
-        .join(' ');
-    if (handles.isEmpty) return;
-    setState(() {
-      final previous = _commentController.text.trim();
-      _commentController.text = previous.isEmpty
-          ? handles
-          : '$previous $handles';
-      _commentController.selection = TextSelection.collapsed(
-        offset: _commentController.text.length,
-      );
-    });
   }
 
   Future<void> _toggleLike() async {
@@ -401,51 +379,8 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
         .read(albumsActionControllerProvider.notifier)
         .toggleLike(widget.photoId);
     if (!mounted || !ok) return;
+    ref.invalidate(albumPhotoLikesProvider(widget.photoId));
     await _load();
-  }
-
-  Future<void> _showLikes() async {
-    final likes = await ref
-        .read(albumsRepositoryProvider)
-        .fetchLikes(widget.photoId);
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text('Beğenenler', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            if (likes.isEmpty)
-              const Text('Henüz beğeni yok.')
-            else
-              ...likes.map(
-                (user) => ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: user.avatarUrl.trim().isEmpty
-                        ? null
-                        : NetworkImage(
-                            ref
-                                .read(appConfigProvider)
-                                .resolveUrl(user.avatarUrl)
-                                .toString(),
-                          ),
-                  ),
-                  title: Text(user.displayName),
-                  subtitle: Text(
-                    [
-                      if (user.username.isNotEmpty) '@${user.username}',
-                      if (user.graduationYear != null) '${user.graduationYear}',
-                    ].join(' • '),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _showPhotoEditor() async {
@@ -548,7 +483,16 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                     spacing: 8,
                     runSpacing: 8,
                     children: tagged
-                        .map((member) => InputChip(label: Text(member.name)))
+                        .map(
+                          (member) => InputChip(
+                            label: Text(member.name),
+                            onDeleted: () => setModalState(
+                              () => tagged.removeWhere(
+                                (item) => item.id == member.id,
+                              ),
+                            ),
+                          ),
+                        )
                         .toList(growable: false),
                   ),
                 ],
@@ -578,10 +522,10 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                         ),
                       ),
                     );
-                    if (ok) {
-                      Navigator.of(context).pop();
-                      await _load();
-                    }
+                    if (!ok) return;
+                    ref.invalidate(albumPhotoLikesProvider(widget.photoId));
+                    Navigator.of(context).pop();
+                    await _load();
                   },
                   child: const Text('Kaydet'),
                 ),
@@ -597,30 +541,15 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   }
 
   Future<void> _editComment(AlbumComment comment) async {
-    final controller = TextEditingController(text: _plainText(comment.comment));
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Yorumu düzenle'),
-        content: TextField(
-          controller: controller,
-          minLines: 3,
-          maxLines: 5,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Kaydet'),
-          ),
-        ],
+      builder: (context) => SocialEditTextDialog(
+        title: 'Yorumu düzenle',
+        initialValue: _plainText(comment.comment),
+        minLines: 3,
+        maxLines: 5,
       ),
     );
-    controller.dispose();
     if (result == null || result.isEmpty || !mounted) return;
     final ok = await ref
         .read(albumsActionControllerProvider.notifier)
@@ -629,7 +558,17 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
           commentId: comment.id,
           comment: result,
         );
-    if (ok && mounted) await _load();
+    if (!mounted) return;
+    final state = ref.read(albumsActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok ? 'Yorum güncellendi.' : 'Yorum güncellenemedi.'),
+        ),
+      ),
+    );
+    if (ok) await _load();
   }
 
   Future<void> _deleteComment(AlbumComment comment) async {
@@ -654,7 +593,16 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     final ok = await ref
         .read(albumsActionControllerProvider.notifier)
         .deleteComment(photoId: widget.photoId, commentId: comment.id);
-    if (ok && mounted) await _load();
+    if (!mounted) return;
+    final state = ref.read(albumsActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ?? (ok ? 'Yorum silindi.' : 'Yorum silinemedi.'),
+        ),
+      ),
+    );
+    if (ok) await _load();
   }
 
   Future<void> _confirmDeleteAllComments() async {
@@ -681,7 +629,56 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     final ok = await ref
         .read(albumsActionControllerProvider.notifier)
         .deleteAllComments(widget.photoId);
-    if (ok && mounted) await _load();
+    if (!mounted) return;
+    final state = ref.read(albumsActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok ? 'Tüm yorumlar silindi.' : 'Yorumlar silinemedi.'),
+        ),
+      ),
+    );
+    if (ok) await _load();
+  }
+
+  Future<void> _confirmDeletePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Fotoğrafı sil'),
+        content: const Text(
+          'Bu fotoğraf ve altındaki yorumlar kaldırılacak. Bu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final ok = await ref
+        .read(albumsActionControllerProvider.notifier)
+        .deletePhoto(widget.photoId);
+    if (!mounted) return;
+    final state = ref.read(albumsActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ?? (ok ? 'Fotoğraf silindi.' : 'Fotoğraf silinemedi.'),
+        ),
+      ),
+    );
+    if (!ok) return;
+    ref.invalidate(albumsDashboardProvider);
+    ref.invalidate(myAlbumsProvider);
+    context.pop();
   }
 }
 
@@ -704,14 +701,3 @@ class _MetaChip extends StatelessWidget {
 }
 
 String _plainText(String raw) => plainTextFromRichContent(raw);
-
-String _formatDate(String raw) {
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  final local = parsed.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$day.$month.${local.year} $hour:$minute';
-}

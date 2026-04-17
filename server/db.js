@@ -201,7 +201,6 @@ function injectParams(sql, params = []) {
 function normalizePgForSqlite(sql) {
   return String(sql || '')
     .replace(/\bNOW\(\)/gi, "datetime('now')")
-    .replace(/\bCURRENT_TIMESTAMP\b/gi, "datetime('now')")
     .replace(/\bILIKE\b/gi, 'LIKE')
     .replace(/\bIS\s+TRUE\b/gi, '= 1')
     .replace(/\bIS\s+FALSE\b/gi, '= 0')

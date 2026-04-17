@@ -170,6 +170,22 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> deletePhoto(int photoId) async {
+    state = AsyncActionState.loading(scope: 'albums:photo-delete:$photoId');
+    final result = await _repository.deletePhoto(photoId);
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:photo-delete');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:photo-delete:$photoId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Fotoğraf silinemedi.',
+    );
+    return false;
+  }
+
   Future<bool> createAlbum({
     required String title,
     required String description,

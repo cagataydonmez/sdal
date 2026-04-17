@@ -25,6 +25,9 @@ export function registerAlbumRoutes(app, {
   const likeTable = 'album_photo_likes';
   const permissionTable = 'album_category_permissions';
   const userTable = isPostgres ? 'users' : 'uyeler';
+  const photoActiveSql = isPostgres
+    ? 'COALESCE(p.is_active, TRUE) IS TRUE'
+    : "(COALESCE(CAST(p.aktif AS INTEGER), 0) = 1 OR LOWER(CAST(p.aktif AS TEXT)) IN ('true','evet','yes'))";
 
   const categorySelect = (alias = 'c') => isPostgres
     ? `${alias}.id,
@@ -416,14 +419,14 @@ export function registerAlbumRoutes(app, {
       `SELECT COUNT(*) AS cnt
        FROM ${photoTable} p
        WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
-         AND ${isPostgres ? 'COALESCE(p.is_active, TRUE) IS TRUE' : 'COALESCE(p.aktif, 1) = 1'}`,
+         AND ${photoActiveSql}`,
       [category.id],
     );
     const previews = await sqlAllAsync(
       `SELECT COALESCE(p.${isPostgres ? 'file_name' : 'dosyaadi'}, '') AS file_name
        FROM ${photoTable} p
        WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
-         AND ${isPostgres ? 'COALESCE(p.is_active, TRUE) IS TRUE' : 'COALESCE(p.aktif, 1) = 1'}
+         AND ${photoActiveSql}
        ORDER BY p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC
        LIMIT 5`,
       [category.id],
@@ -481,7 +484,7 @@ export function registerAlbumRoutes(app, {
        FROM ${photoTable} p
        JOIN ${categoryTable} c ON c.id = p.${isPostgres ? 'category_id' : 'katid'}
        WHERE p.${isPostgres ? 'category_id' : 'katid'} IN (${placeholders})
-         AND ${isPostgres ? 'COALESCE(p.is_active, TRUE) IS TRUE' : 'COALESCE(p.aktif, 1) = 1'}
+         AND ${photoActiveSql}
        ORDER BY ${orderBy}
        LIMIT ?`,
       [...categoryIds, limit],
@@ -849,7 +852,7 @@ export function registerAlbumRoutes(app, {
         `SELECT COUNT(*) AS cnt
          FROM ${photoTable} p
          WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
-           AND ${isPostgres ? 'COALESCE(p.is_active, TRUE) IS TRUE' : 'COALESCE(p.aktif, 1) = 1'}`,
+           AND ${photoActiveSql}`,
         [req.params.id],
       );
       const total = Number(totalRow?.cnt || 0);
@@ -860,7 +863,7 @@ export function registerAlbumRoutes(app, {
         `SELECT ${photoSelect('p')}
          FROM ${photoTable} p
          WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
-           AND ${isPostgres ? 'COALESCE(p.is_active, TRUE) IS TRUE' : 'COALESCE(p.aktif, 1) = 1'}
+           AND ${photoActiveSql}
          ORDER BY p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC
          LIMIT ? OFFSET ?`,
         [req.params.id, pageSize, offset],
@@ -1027,6 +1030,45 @@ export function registerAlbumRoutes(app, {
         req.session.userId,
         context.photo.id,
       );
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error(error);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.delete('/api/photos/:id', async (req, res) => {
+    try {
+      await schemaReady;
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const viewer = await findViewer(req.session.userId);
+      const currentUser = getCurrentUser(req);
+      const context = await loadPhotoContext(
+        Number(req.params.id || 0),
+        viewer,
+        currentUser,
+      );
+      if (context.error) {
+        return res.status(context.error.status).send(context.error.message);
+      }
+
+      const canEditPhoto =
+        sameUserId(context.photo.uploaded_by_user_id, req.session.userId) ||
+        hasCategoryManagementAccess(currentUser);
+      if (!canEditPhoto) {
+        return res.status(403).send('Bu fotoğrafı silme yetkin yok.');
+      }
+
+      await sqlRunAsync(
+        `DELETE FROM ${likeTable} WHERE photo_id = ?`,
+        [context.photo.id],
+      );
+      await sqlRunAsync(
+        `DELETE FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} = ?`,
+        [context.photo.id],
+      );
+      await sqlRunAsync(`DELETE FROM ${photoTable} WHERE id = ?`, [context.photo.id]);
 
       res.json({ ok: true });
     } catch (error) {

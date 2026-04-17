@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
@@ -19,7 +20,6 @@ class ProfileVerificationPage extends ConsumerStatefulWidget {
 
 class _ProfileVerificationPageState
     extends ConsumerState<ProfileVerificationPage> {
-  final ImagePicker _picker = ImagePicker();
   File? _proofFile;
   String _proofPath = '';
   String _proofImageRecordId = '';
@@ -156,13 +156,15 @@ class _ProfileVerificationPageState
   }
 
   Future<void> _pick(ImageSource source) async {
-    final picked = await _picker.pickImage(
+    final picked = await pickAndCropImage(
+      context,
       source: source,
       imageQuality: 92,
       maxWidth: 2000,
+      title: 'Belgeyi kırp',
     );
     if (picked == null || !mounted) return;
-    setState(() => _proofFile = File(picked.path));
+    setState(() => _proofFile = picked);
   }
 
   Future<void> _uploadProof() async {

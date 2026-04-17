@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../explore/data/explore_repository.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/albums_action_controller.dart';
@@ -21,7 +21,6 @@ class AlbumUploadPage extends ConsumerStatefulWidget {
 class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final ImagePicker _picker = ImagePicker();
 
   List<AlbumCategoryItem> _categories = const <AlbumCategoryItem>[];
   final List<MemberSummary> _taggedMembers = <MemberSummary>[];
@@ -30,6 +29,13 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   bool _allowComments = true;
   bool _isLoading = true;
   String _error = '';
+
+  AlbumCategoryItem? get _selectedCategory {
+    for (final category in _categories) {
+      if (category.id == _selectedCategoryId) return category;
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -55,7 +61,7 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
         _selectedCategoryId == widget.initialCategoryId;
 
     return FeatureScaffold(
-      title: 'Albüme yükle',
+      title: 'Fotoğraf yükle',
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -68,33 +74,59 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: _selectedCategoryId == 0
-                        ? null
-                        : _selectedCategoryId,
-                    decoration: const InputDecoration(
-                      labelText: 'Albüm',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _categories
-                        .map(
-                          (category) => DropdownMenuItem<int>(
-                            value: category.id,
-                            child: Text(category.title),
-                          ),
-                        )
-                        .toList(growable: false),
-                    onChanged: isSaving || albumLocked
-                        ? null
-                        : (value) =>
-                              setState(() => _selectedCategoryId = value ?? 0),
+                  Text(
+                    albumLocked ? 'Seçili albüm' : 'Albüm seç',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  if (albumLocked) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Bu ekrandan albüm içinden geldin; yükleme doğrudan seçili albüme gidecek.',
+                  const SizedBox(height: 10),
+                  if (albumLocked)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Theme.of(context).dividerColor,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _selectedCategory?.title ?? 'Albüm yükleniyor...',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Buradan yüklenen fotoğraf doğrudan bu albüme eklenecek.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    DropdownButtonFormField<int>(
+                      initialValue: _selectedCategoryId == 0
+                          ? null
+                          : _selectedCategoryId,
+                      decoration: const InputDecoration(
+                        labelText: 'Albüm',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _categories
+                          .map(
+                            (category) => DropdownMenuItem<int>(
+                              value: category.id,
+                              child: Text(category.title),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: isSaving
+                          ? null
+                          : (value) => setState(
+                              () => _selectedCategoryId = value ?? 0,
+                            ),
                     ),
-                  ],
                   const SizedBox(height: 12),
                   TextField(
                     controller: _titleController,
@@ -156,6 +188,11 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                     ),
                   ],
                   const SizedBox(height: 12),
+                  Text(
+                    'Fotoğraf',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: isSaving ? null : _pickFile,
                     icon: const Icon(Icons.photo_library_outlined),
@@ -175,6 +212,16 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                       ),
                     ),
                   ),
+                  if (_file != null) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: Image.file(_file!, fit: BoxFit.cover),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -184,13 +231,15 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   }
 
   Future<void> _pickFile() async {
-    final picked = await _picker.pickImage(
+    final picked = await pickAndCropImage(
+      context,
       source: ImageSource.gallery,
       imageQuality: 94,
       maxWidth: 2600,
+      title: 'Fotoğrafı kırp',
     );
     if (picked == null || !mounted) return;
-    setState(() => _file = File(picked.path));
+    setState(() => _file = picked);
   }
 
   Future<void> _pickMembers() async {
@@ -256,7 +305,12 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       if (!mounted) return;
       setState(() {
         _categories = categories;
+        final initialExists = categories.any(
+          (category) => category.id == _selectedCategoryId,
+        );
         if (_selectedCategoryId == 0) {
+          _selectedCategoryId = categories.isNotEmpty ? categories.first.id : 0;
+        } else if (!initialExists) {
           _selectedCategoryId = categories.isNotEmpty ? categories.first.id : 0;
         }
       });

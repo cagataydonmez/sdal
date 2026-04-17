@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
@@ -31,7 +32,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   final TextEditingController _startsAtController = TextEditingController();
   final TextEditingController _endsAtController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final ImagePicker _picker = ImagePicker();
   final List<EventItem> _items = <EventItem>[];
   final Map<int, List<EventComment>> _commentsByEvent =
       <int, List<EventComment>>{};
@@ -437,13 +437,15 @@ class _EventsPageState extends ConsumerState<EventsPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(
+    final picked = await pickAndCropImage(
+      context,
       source: source,
       imageQuality: 92,
       maxWidth: 2200,
+      title: 'Etkinlik görselini kırp',
     );
     if (picked == null || !mounted) return;
-    setState(() => _imageFile = File(picked.path));
+    setState(() => _imageFile = picked);
   }
 
   Future<void> _createEvent() async {

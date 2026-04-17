@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
@@ -26,7 +27,6 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _bodyController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final ImagePicker _picker = ImagePicker();
   final List<AnnouncementItem> _items = <AnnouncementItem>[];
 
   File? _imageFile;
@@ -254,13 +254,15 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(
+    final picked = await pickAndCropImage(
+      context,
       source: source,
       imageQuality: 92,
       maxWidth: 2200,
+      title: 'Duyuru görselini kırp',
     );
     if (picked == null || !mounted) return;
-    setState(() => _imageFile = File(picked.path));
+    setState(() => _imageFile = picked);
   }
 
   Future<void> _create() async {

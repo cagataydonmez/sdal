@@ -32,9 +32,9 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       title: 'Albümler',
       background: FeatureScaffoldBackground.immersive,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showActions,
+        onPressed: () => context.push('/albums/upload'),
         icon: const Icon(Icons.add_photo_alternate_outlined),
-        label: const Text('Albüm işlemleri'),
+        label: const Text('Fotoğraf yükle'),
       ),
       child: RefreshIndicator(
         onRefresh: _load,
@@ -102,52 +102,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _showActions() async {
-    final dashboard = _dashboard;
-    if (dashboard == null) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.upload_rounded),
-              title: const Text('Fotoğraf yükle'),
-              subtitle: const Text('Ana sayfadan girince önce albüm seçersin.'),
-              onTap: () {
-                Navigator.of(context).pop();
-                this.context.push('/albums/upload');
-              },
-            ),
-            if (dashboard.canCreateAlbum)
-              ListTile(
-                leading: const Icon(Icons.photo_album_outlined),
-                title: const Text('Albüm oluştur'),
-                subtitle: Text(
-                  dashboard.canManageCategories
-                      ? 'Genel, cohort veya profil albümü oluştur.'
-                      : 'Profilinde görünecek yeni albüm oluştur.',
-                ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  this.context.push(
-                    dashboard.canManageCategories
-                        ? '/albums/new'
-                        : '/albums/new?profile=1',
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-    if (mounted) {
-      ref.invalidate(albumsDashboardProvider);
-      await _load();
     }
   }
 

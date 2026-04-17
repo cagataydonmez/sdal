@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/text/sdal_date_time.dart';
@@ -836,8 +837,7 @@ class _ComposerSheet extends ConsumerStatefulWidget {
 
 class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
   final _contentController = TextEditingController();
-  final _picker = ImagePicker();
-  XFile? _selectedImage;
+  File? _selectedImage;
 
   @override
   void dispose() {
@@ -895,8 +895,8 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.file(
-                        File(_selectedImage!.path),
+                        child: Image.file(
+                        _selectedImage!,
                         height: 160,
                         width: double.infinity,
                         fit: BoxFit.cover,
@@ -954,12 +954,15 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
   }
 
   Future<void> _pickImage() async {
-    final file = await _picker.pickImage(
+    final file = await pickAndCropImage(
+      context,
       source: ImageSource.gallery,
+      aspectPreset: CropAspectPreset.portrait45,
       imageQuality: 92,
       maxWidth: 1800,
+      title: 'Gönderi görselini kırp',
     );
-    if (!mounted) return;
+    if (file == null || !mounted) return;
     setState(() => _selectedImage = file);
   }
 
@@ -971,7 +974,7 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
         .createPost(
           content: content,
           feedType: ref.read(feedQueryProvider).feedType.apiValue,
-          imageFile: _selectedImage == null ? null : File(_selectedImage!.path),
+          imageFile: _selectedImage,
         );
     if (!mounted) return;
     final nextState = ref.read(feedActionControllerProvider);

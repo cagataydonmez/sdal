@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/text/sdal_date_time.dart';
@@ -32,7 +33,6 @@ class RequestsPage extends ConsumerStatefulWidget {
 }
 
 class _RequestsPageState extends ConsumerState<RequestsPage> {
-  final ImagePicker _picker = ImagePicker();
   final TextEditingController _noteController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _requestKeys = <int, GlobalKey>{};
@@ -401,15 +401,17 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   }
 
   Future<void> _pickAndUpload(ImageSource source) async {
-    final picked = await _picker.pickImage(
+    final picked = await pickAndCropImage(
+      context,
       source: source,
       imageQuality: 92,
       maxWidth: 2200,
+      title: 'Eki kırp',
     );
     if (picked == null || !mounted) return;
     final attachment = await ref
         .read(requestsActionControllerProvider.notifier)
-        .uploadAttachment(File(picked.path));
+        .uploadAttachment(picked);
     if (!mounted) return;
     final actionState = ref.read(requestsActionControllerProvider);
     if (attachment == null) {

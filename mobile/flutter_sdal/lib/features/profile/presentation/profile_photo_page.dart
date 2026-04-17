@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -19,7 +20,6 @@ class ProfilePhotoPage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
-  final ImagePicker _picker = ImagePicker();
   File? _selectedFile;
 
   @override
@@ -115,14 +115,17 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
   }
 
   Future<void> _pick(ImageSource source) async {
-    final picked = await _picker.pickImage(
+    final picked = await pickAndCropImage(
+      context,
       source: source,
+      aspectPreset: CropAspectPreset.square,
       imageQuality: 90,
       maxWidth: 1800,
+      title: 'Profil fotoğrafını kırp',
     );
     if (picked == null || !mounted) return;
     setState(() {
-      _selectedFile = File(picked.path);
+      _selectedFile = picked;
     });
   }
 

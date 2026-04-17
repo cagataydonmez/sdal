@@ -534,6 +534,10 @@ class AlbumsRepository {
     ).map(AlbumLikeUser.fromMap).toList(growable: false);
   }
 
+  Future<ApiResult<dynamic>> deletePhoto(int photoId) {
+    return _apiClient.delete<dynamic>('/api/photos/$photoId');
+  }
+
   Future<ApiResult<dynamic>> uploadPhoto({
     required int categoryId,
     required String title,
@@ -615,3 +619,8 @@ final myAlbumsProvider = FutureProvider.autoDispose<List<AlbumCategoryItem>>((
   final dashboard = await ref.watch(albumsRepositoryProvider).fetchDashboard();
   return dashboard.mine;
 });
+
+final albumPhotoLikesProvider = FutureProvider.autoDispose
+    .family<List<AlbumLikeUser>, int>(
+      (ref, photoId) => ref.watch(albumsRepositoryProvider).fetchLikes(photoId),
+    );

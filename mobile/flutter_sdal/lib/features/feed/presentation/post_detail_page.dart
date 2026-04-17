@@ -12,9 +12,12 @@ import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../explore/data/explore_repository.dart';
 import '../application/feed_action_controller.dart';
 import '../data/feed_repository.dart';
 import 'feed_edit_text_dialog.dart';
+import '../../social/presentation/member_mention_composer.dart';
+import '../../social/presentation/social_interaction_widgets.dart';
 
 class PostDetailPage extends ConsumerStatefulWidget {
   const PostDetailPage({super.key, required this.postId});
@@ -27,6 +30,7 @@ class PostDetailPage extends ConsumerStatefulWidget {
 
 class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   final _commentController = TextEditingController();
+  final List<MemberSummary> _selectedMentions = <MemberSummary>[];
   FeedItem? _postOverride;
   final Map<int, FeedComment> _commentOverrides = <int, FeedComment>{};
   bool _refreshFeedOnExit = false;
@@ -87,14 +91,18 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                MemberMentionComposer(
                   controller: _commentController,
+                  selectedMembers: _selectedMentions,
+                  onSelectedMembersChanged: (members) => setState(() {
+                    _selectedMentions
+                      ..clear()
+                      ..addAll(members);
+                  }),
+                  labelText: l10n.feedCommentFieldLabel,
+                  hintText: l10n.feedCommentFieldLabel,
                   minLines: 2,
                   maxLines: 5,
-                  decoration: InputDecoration(
-                    labelText: l10n.feedCommentFieldLabel,
-                    alignLabelWithHint: true,
-                  ),
                 ),
                 const SizedBox(height: 12),
                 Align(
@@ -202,7 +210,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 
   Future<void> _submitComment() async {
-    final comment = _commentController.text.trim();
+    final comment = composeMentionText(
+      _commentController.text,
+      _selectedMentions,
+    );
     final l10n = context.l10n;
     if (comment.isEmpty) return;
     final ok = await ref
@@ -211,6 +222,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     if (!mounted) return;
     if (ok) {
       _commentController.clear();
+      setState(() => _selectedMentions.clear());
       return;
     }
     final actionState = ref.read(feedActionControllerProvider);
@@ -268,7 +280,9 @@ class _PostCard extends ConsumerWidget {
                         label: l10n.openMemberProfileForName(post.authorName),
                         child: RemoteAvatar(
                           label: post.authorName,
-                          imageUrl: config.resolveUrl(post.authorPhoto).toString(),
+                          imageUrl: config
+                              .resolveUrl(post.authorPhoto)
+                              .toString(),
                           radius: 22,
                           excludeFromSemantics: true,
                         ),
@@ -318,9 +332,9 @@ class _PostCard extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               formatSdalEditedLabel(context, post.updatedAt!),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontStyle: FontStyle.italic,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
             ),
           ],
           if (post.imageUrl.isNotEmpty) ...[
@@ -343,9 +357,7 @@ class _PostCard extends ConsumerWidget {
                       .read(feedActionControllerProvider.notifier)
                       .toggleLike(postId);
                 },
-                icon: Icon(
-                  post.liked ? Icons.favorite : Icons.favorite_border,
-                ),
+                icon: Icon(post.liked ? Icons.favorite : Icons.favorite_border),
                 label: Text(l10n.feedLikesCount(post.likeCount)),
               ),
               FilledButton.tonalIcon(
@@ -438,9 +450,7 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
     } else {
       final nextState = ref.read(feedActionControllerProvider);
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(nextState.message ?? l10n.feedPostEditFailed),
-        ),
+        SnackBar(content: Text(nextState.message ?? l10n.feedPostEditFailed)),
       );
     }
   }
@@ -477,9 +487,7 @@ class _PostMenuButtonState extends ConsumerState<_PostMenuButton> {
     }
     final nextState = ref.read(feedActionControllerProvider);
     messenger.showSnackBar(
-      SnackBar(
-        content: Text(nextState.message ?? l10n.feedPostDeleteFailed),
-      ),
+      SnackBar(content: Text(nextState.message ?? l10n.feedPostDeleteFailed)),
     );
   }
 }
@@ -493,283 +501,40 @@ class _LikedByAvatars extends ConsumerWidget {
 
   final int postId;
 
-  static const _avatarRadius = 13.0;
-  static const _overlap = 9.0;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final likesState = ref.watch(postLikesProvider(postId));
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-
     return likesState.when(
       loading: () => const SizedBox.shrink(),
       error: (e, s) => const SizedBox.shrink(),
       data: (likes) {
         if (likes.isEmpty) return const SizedBox.shrink();
-
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () => _showLikedBySheet(context, ref, likes),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: theme.colorScheme.outlineVariant,
+        return SocialLikePreviewButton(
+          people: likes
+              .map(
+                (user) => SocialLikePerson(
+                  id: user.id,
+                  displayName: user.fullName,
+                  imageUrl: config.resolveUrl(user.avatarUrl).toString(),
+                  subtitle: [
+                    if (user.username.isNotEmpty) '@${user.username}',
+                    if (user.graduationYear != null) '${user.graduationYear}',
+                  ].join(' • '),
                 ),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _OverlappingAvatarRow(
-                    likes: likes,
-                    config: config,
-                    avatarRadius: _avatarRadius,
-                    overlap: _overlap,
-                    borderColor: theme.colorScheme.surface,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n.feedLikedBy,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 16,
-                    color: theme.colorScheme.primary,
-                  ),
-                ],
-              ),
-            ),
-          ),
+              )
+              .toList(growable: false),
+          title: l10n.feedLikedBy,
+          ctaLabel: l10n.feedLikedBy,
+          onUserTap: (context, person) {
+            Navigator.of(context).pop();
+            if (person.id > 0) {
+              context.push('/members/${person.id}');
+            }
+          },
         );
       },
-    );
-  }
-
-  void _showLikedBySheet(
-    BuildContext context,
-    WidgetRef ref,
-    List<LikeUser> likes,
-  ) {
-    final config = ref.read(appConfigProvider);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => _LikedBySheet(likes: likes, config: config),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Overlapping avatar row (horizontal scroll for many likes)
-// ---------------------------------------------------------------------------
-
-class _OverlappingAvatarRow extends StatelessWidget {
-  const _OverlappingAvatarRow({
-    required this.likes,
-    required this.config,
-    required this.avatarRadius,
-    required this.overlap,
-    required this.borderColor,
-  });
-
-  final List<LikeUser> likes;
-  final dynamic config;
-  final double avatarRadius;
-  final double overlap;
-  final Color borderColor;
-
-  static const _maxVisible = 12;
-
-  @override
-  Widget build(BuildContext context) {
-    final display = likes.take(_maxVisible).toList();
-    final extra = likes.length - display.length;
-    final diameter = avatarRadius * 2;
-    final step = diameter - overlap;
-
-    final totalItems = display.length + (extra > 0 ? 1 : 0);
-    final stackWidth = diameter + (totalItems - 1) * step;
-
-    return SizedBox(
-      width: stackWidth,
-      height: diameter,
-      child: Stack(
-        children: [
-          for (var i = 0; i < display.length; i++)
-            Positioned(
-              left: i * step,
-              child: _AvatarCircle(
-                label: display[i].fullName,
-                imageUrl: config.resolveUrl(display[i].avatarUrl).toString(),
-                radius: avatarRadius,
-                borderColor: borderColor,
-              ),
-            ),
-          if (extra > 0)
-            Positioned(
-              left: display.length * step,
-              child: _ExtraCount(
-                count: extra,
-                radius: avatarRadius,
-                borderColor: borderColor,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AvatarCircle extends StatelessWidget {
-  const _AvatarCircle({
-    required this.label,
-    required this.imageUrl,
-    required this.radius,
-    required this.borderColor,
-  });
-
-  final String label;
-  final String imageUrl;
-  final double radius;
-  final Color borderColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: borderColor, width: 1.5),
-      ),
-      child: RemoteAvatar(
-        label: label,
-        imageUrl: imageUrl,
-        radius: radius,
-        excludeFromSemantics: true,
-      ),
-    );
-  }
-}
-
-class _ExtraCount extends StatelessWidget {
-  const _ExtraCount({
-    required this.count,
-    required this.radius,
-    required this.borderColor,
-  });
-
-  final int count;
-  final double radius;
-  final Color borderColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: radius * 2,
-      height: radius * 2,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        shape: BoxShape.circle,
-        border: Border.all(color: borderColor, width: 1.5),
-      ),
-      child: Center(
-        child: Text(
-          '+$count',
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Liked-by bottom sheet
-// ---------------------------------------------------------------------------
-
-class _LikedBySheet extends StatelessWidget {
-  const _LikedBySheet({required this.likes, required this.config});
-
-  final List<LikeUser> likes;
-  final dynamic config;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.5,
-      maxChildSize: 0.85,
-      builder: (context, scrollController) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-            child: Row(
-              children: [
-                Text(
-                  l10n.feedLikedBy,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: likes.isEmpty
-                ? Center(child: Text(l10n.feedLikedByNone))
-                : ListView.builder(
-                    controller: scrollController,
-                    itemCount: likes.length,
-                    itemBuilder: (context, index) {
-                      final user = likes[index];
-                      return ListTile(
-                        leading: RemoteAvatar(
-                          label: user.fullName,
-                          imageUrl: config
-                              .resolveUrl(user.avatarUrl)
-                              .toString(),
-                          radius: 20,
-                        ),
-                        title: Text(user.fullName),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (user.username.isNotEmpty)
-                              Text('@${user.username}'),
-                            if (user.graduationYear != null)
-                              Text('${user.graduationYear}'),
-                          ],
-                        ),
-                        onTap: user.id > 0
-                            ? () {
-                                Navigator.of(context).pop();
-                                context.push('/members/${user.id}');
-                              }
-                            : null,
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -796,108 +561,33 @@ class _CommentCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
-    final l10n = context.l10n;
 
     final isCommentAuthor =
         currentUserId != null && currentUserId == comment.userId;
-    final isPostOwner =
-        currentUserId != null && currentUserId == postAuthorId;
+    final isPostOwner = currentUserId != null && currentUserId == postAuthorId;
     final canEdit = isCommentAuthor;
     final canDelete = isCommentAuthor || isPostOwner;
 
-    return SurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Builder(
-                builder: (context) {
-                  final canOpen =
-                      comment.userId != null && comment.userId! > 0;
-                  return InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: canOpen
-                        ? () =>
-                            context.push('/members/${comment.userId}')
-                        : null,
-                    child: Tooltip(
-                      message: l10n.openMemberProfileForName(
-                        comment.authorName,
-                      ),
-                      child: Semantics(
-                        button: canOpen,
-                        enabled: canOpen,
-                        label: l10n.openMemberProfileForName(
-                          comment.authorName,
-                        ),
-                        child: RemoteAvatar(
-                          label: comment.authorName,
-                          imageUrl: config
-                              .resolveUrl(comment.authorPhoto)
-                              .toString(),
-                          radius: 18,
-                          excludeFromSemantics: true,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      comment.authorName,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      textAlign: TextAlign.left,
-                    ),
-                    if (comment.authorHandle.isNotEmpty)
-                      Text(
-                        '@${comment.authorHandle}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                        textAlign: TextAlign.left,
-                      ),
-                  ],
-                ),
-              ),
-              if (canDelete)
-                _CommentMenuButton(
-                  comment: comment,
-                  postId: postId,
-                  canEdit: canEdit,
-                  onEdited: onEdited,
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            plainTextFromRichContent(comment.text),
-            textAlign: TextAlign.left,
-          ),
-          if (comment.createdAt.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              formatSdalCreatedLabel(context, comment.createdAt),
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.left,
-            ),
-          ],
-          if (comment.updatedAt != null && comment.updatedAt!.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              formatSdalEditedLabel(context, comment.updatedAt!),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontStyle: FontStyle.italic,
-              ),
-              textAlign: TextAlign.left,
-            ),
-          ],
-        ],
-      ),
+    return SocialCommentCard(
+      authorName: comment.authorName,
+      authorHandle: comment.authorHandle,
+      authorPhotoUrl: config.resolveUrl(comment.authorPhoto).toString(),
+      body: plainTextFromRichContent(comment.text),
+      createdLabel: formatSdalCreatedLabel(context, comment.createdAt),
+      editedLabel: comment.updatedAt != null && comment.updatedAt!.isNotEmpty
+          ? formatSdalEditedLabel(context, comment.updatedAt!)
+          : null,
+      onAuthorTap: comment.userId != null && comment.userId! > 0
+          ? () => context.push('/members/${comment.userId}')
+          : null,
+      trailing: canDelete
+          ? _CommentMenuButton(
+              comment: comment,
+              postId: postId,
+              canEdit: canEdit,
+              onEdited: onEdited,
+            )
+          : null,
     );
   }
 }
@@ -927,26 +617,13 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return PopupMenuButton<String>(
+    return SocialCommentActionMenuButton(
+      canEdit: widget.canEdit,
+      onEdit: _showEditDialog,
+      onDelete: _confirmDelete,
+      editLabel: l10n.feedCommentEditTitle,
+      deleteLabel: l10n.deleteAction,
       tooltip: l10n.moreActions,
-      onSelected: (value) async {
-        if (value == 'edit') {
-          await _showEditDialog();
-        } else if (value == 'delete') {
-          await _confirmDelete();
-        }
-      },
-      itemBuilder: (context) => [
-        if (widget.canEdit)
-          PopupMenuItem<String>(
-            value: 'edit',
-            child: Text(l10n.feedCommentEditTitle),
-          ),
-        PopupMenuItem<String>(
-          value: 'delete',
-          child: Text(l10n.deleteAction),
-        ),
-      ],
     );
   }
 
@@ -955,7 +632,7 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
     final messenger = ScaffoldMessenger.of(context);
     final saved = await showDialog<String>(
       context: context,
-      builder: (ctx) => FeedEditTextDialog(
+      builder: (ctx) => SocialEditTextDialog(
         title: l10n.feedCommentEditTitle,
         initialValue: plainTextFromRichContent(widget.comment.text),
         minLines: 2,
@@ -1019,4 +696,3 @@ class _CommentMenuButtonState extends ConsumerState<_CommentMenuButton> {
     );
   }
 }
-
