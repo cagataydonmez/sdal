@@ -70,7 +70,11 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
             const Center(child: CircularProgressIndicator())
           else if (_error.isNotEmpty)
             SurfaceCard(child: Text(_error))
-          else
+          else if (_categories.isEmpty)
+            const SurfaceCard(
+              child: Text('Fotoğraf yükleyebileceğin bir albüm bulunamadı.'),
+            )
+          else ...[
             SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,7 +83,14 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                     albumLocked ? 'Seçili albüm' : 'Albüm seç',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
+                  Text(
+                    albumLocked
+                        ? 'Yükleme doğrudan bu albüme gidecek.'
+                        : 'Fotoğrafı eklemek istediğin albümü seç.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 14),
                   if (albumLocked)
                     Container(
                       width: double.infinity,
@@ -128,7 +139,19 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                               () => _selectedCategoryId = value ?? 0,
                             ),
                     ),
-                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Fotoğraf ayrıntıları',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 14),
                   TextField(
                     controller: _titleController,
                     decoration: const InputDecoration(
@@ -190,12 +213,24 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                           .toList(growable: false),
                     ),
                   ],
-                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'Fotoğraf',
+                    'Görsel seç ve düzenle',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tek fotoğraf ya da bir seri seçebilirsin. Seçimden sonra düzenleme ekranı açılır.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       Expanded(
@@ -216,23 +251,11 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                     ],
                   ),
                   if (_mediaItems.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Text(
                       '${_mediaItems.length} fotoğraf hazır',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ],
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: isSaving ? null : _upload,
-                      child: Text(
-                        isSaving ? 'Yükleniyor...' : 'Fotoğrafı yükle',
-                      ),
-                    ),
-                  ),
-                  if (_mediaItems.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     SizedBox(
                       height: 108,
@@ -293,6 +316,12 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: isSaving ? null : _upload,
+              child: Text(isSaving ? 'Yükleniyor...' : 'Fotoğrafı yükle'),
+            ),
+          ],
         ],
       ),
     );

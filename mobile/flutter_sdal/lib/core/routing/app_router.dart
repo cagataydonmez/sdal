@@ -240,12 +240,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 pageBuilder: (context, state) => _slidePage(const AlbumsPage()),
               ),
               GoRoute(
-                path: '/albums/:categoryId',
-                pageBuilder: (context, state) => _liftPage(
-                  AlbumCategoryPage(
-                    categoryId:
+                path: '/albums/upload',
+                pageBuilder: (context, state) => _slidePage(
+                  AlbumUploadPage(
+                    initialCategoryId:
                         int.tryParse(
-                          state.pathParameters['categoryId'] ?? '',
+                          state.uri.queryParameters['albumId'] ?? '',
                         ) ??
                         0,
                   ),
@@ -262,23 +262,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ),
               GoRoute(
-                path: '/albums/upload',
-                pageBuilder: (context, state) => _slidePage(
-                  AlbumUploadPage(
-                    initialCategoryId:
-                        int.tryParse(
-                          state.uri.queryParameters['albumId'] ?? '',
-                        ) ??
-                        0,
-                  ),
-                ),
-              ),
-              GoRoute(
                 path: '/albums/new',
                 pageBuilder: (context, state) => _slidePage(
                   AlbumEditPage(
                     profileMode:
                         (state.uri.queryParameters['profile'] ?? '0') == '1',
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/albums/:categoryId',
+                pageBuilder: (context, state) => _liftPage(
+                  AlbumCategoryPage(
+                    categoryId:
+                        int.tryParse(
+                          state.pathParameters['categoryId'] ?? '',
+                        ) ??
+                        0,
                   ),
                 ),
               ),

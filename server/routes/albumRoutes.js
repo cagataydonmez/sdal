@@ -654,37 +654,49 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const categories = await listAccessibleCategories(viewer, currentUser);
 
-      // Recompute counts with a reliable batch query (summarizeCategory's per-row
-      // count can return 0 due to pg BIGINT id coercion; batch GROUP BY is reliable).
       const validIds = categories.map((item) => item.id).filter(Boolean);
       if (validIds.length > 0) {
-        const placeholders = validIds.map(() => '?').join(', ');
-        const countRows = await sqlAllAsync(
-          `SELECT p.${isPostgres ? 'category_id' : 'katid'} AS cid, COUNT(*) AS cnt
-           FROM ${photoTable} p
-           WHERE p.${isPostgres ? 'category_id' : 'katid'} IN (${placeholders})
-             AND ${photoActiveSql}
-           GROUP BY p.${isPostgres ? 'category_id' : 'katid'}`,
-          validIds,
-        );
-        const countsMap = {};
-        for (const row of countRows) {
-          countsMap[String(row.cid)] = Number(row.cnt || 0);
-        }
-        for (const cat of categories) {
-          cat.count = countsMap[String(cat.id)] ?? 0;
+        try {
+          const placeholders = validIds.map(() => '?').join(', ');
+          const countRows = await sqlAllAsync(
+            `SELECT p.${isPostgres ? 'category_id' : 'katid'} AS cid, COUNT(*) AS cnt
+             FROM ${photoTable} p
+             WHERE p.${isPostgres ? 'category_id' : 'katid'} IN (${placeholders})
+               AND ${photoActiveSql}
+             GROUP BY p.${isPostgres ? 'category_id' : 'katid'}`,
+            validIds,
+          );
+          const countsMap = {};
+          for (const row of countRows) {
+            countsMap[String(row.cid)] = Number(row.cnt || 0);
+          }
+          for (const cat of categories) {
+            cat.count = countsMap[String(cat.id)] ?? 0;
+          }
+        } catch (error) {
+          console.error('album_dashboard_counts_failed', error);
         }
       }
 
       const categoryIds = validIds.filter((value) => Number(value) > 0);
-      const latest = await listPhotoCards(categoryIds, req.session.userId, {
-        orderBy: `p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC`,
-        limit: 10,
-      });
-      const popular = await listPhotoCards(categoryIds, req.session.userId, {
-        orderBy: `COALESCE(p.${isPostgres ? 'view_count' : 'hit'}, 0) DESC, p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC`,
-        limit: 10,
-      });
+      let latest = [];
+      let popular = [];
+      try {
+        latest = await listPhotoCards(categoryIds, req.session.userId, {
+          orderBy: `p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC`,
+          limit: 10,
+        });
+      } catch (error) {
+        console.error('album_dashboard_latest_failed', error);
+      }
+      try {
+        popular = await listPhotoCards(categoryIds, req.session.userId, {
+          orderBy: `COALESCE(p.${isPostgres ? 'view_count' : 'hit'}, 0) DESC, p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC`,
+          limit: 10,
+        });
+      } catch (error) {
+        console.error('album_dashboard_popular_failed', error);
+      }
       const mine = categories.filter((item) => sameUserId(item.ownerUserId, req.session.userId));
       res.json({
         items: categories,

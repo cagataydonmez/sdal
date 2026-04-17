@@ -49,13 +49,26 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
             else if (_dashboard == null)
               const SurfaceCard(child: Text('Albüm verisi alınamadı.'))
             else ...[
-              if (_dashboard!.latest.isNotEmpty)
+              _AlbumCategorySection(
+                title: 'Albüm kategorileri',
+                items: _dashboard!.categories,
+                onDelete: _deleteAlbum,
+              ),
+              if (_dashboard!.categories.isEmpty) ...[
+                const SizedBox(height: 12),
+                const SurfaceCard(
+                  child: Text('Henüz görüntülenebilir albüm bulunmuyor.'),
+                ),
+              ],
+              if (_dashboard!.latest.isNotEmpty) ...[
+                const SizedBox(height: 16),
                 _AlbumBarSection(
                   title: 'En yeni fotoğraflar',
                   subtitle:
                       'Son eklenen 10 fotoğraf. Sağa kaydırarak göz atabilirsin.',
                   items: _dashboard!.latest,
                 ),
+              ],
               if (_dashboard!.popular.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _AlbumBarSection(
@@ -64,12 +77,6 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                   items: _dashboard!.popular,
                 ),
               ],
-              const SizedBox(height: 16),
-              _AlbumCategorySection(
-                title: 'Albüm kategorileri',
-                items: _dashboard!.categories,
-                onDelete: _deleteAlbum,
-              ),
               if (_dashboard!.mine.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _AlbumCategorySection(

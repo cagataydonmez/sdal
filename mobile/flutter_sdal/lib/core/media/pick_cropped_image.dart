@@ -347,10 +347,14 @@ class _CropImagePageState extends State<_CropImagePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
     final ratio = _selectedAspectRatio ?? _rotatedImageRatio ?? 1;
     final canTransformImage = _activePanel == _EditorPanel.crop;
     final selectedSticker = _selectedSticker;
     final selectedHideRegion = _selectedHideRegion;
+    final toolbarMaxHeight = math
+        .min(math.max(mediaQuery.size.height * 0.28, 188), 300.0)
+        .toDouble();
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -376,7 +380,7 @@ class _CropImagePageState extends State<_CropImagePage> {
           _updateViewport(viewport);
           return Column(
             children: [
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
@@ -387,7 +391,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
               Expanded(
                 child: Center(
                   child: _decodedImage == null
@@ -482,87 +486,95 @@ class _CropImagePageState extends State<_CropImagePage> {
                         ),
                 ),
               ),
-              _EditorToolbar(
-                activePanel: _activePanel,
-                onPanelChanged: _decodedImage == null || _isSaving
-                    ? null
-                    : _changePanel,
-                aspectChoices: _aspectChoices,
-                selectedRatio: _selectedAspectRatio,
-                onAspectSelected: _decodedImage == null || _isSaving
-                    ? null
-                    : _selectAspectRatio,
-                onRotate: _decodedImage == null || _isSaving
-                    ? null
-                    : _rotateImage,
-                onAddText: _decodedImage == null || _isSaving
-                    ? null
-                    : _addSticker,
-                selectedSticker: selectedSticker,
-                stickerColors: _stickerColors,
-                stickerFonts: _stickerFonts,
-                onEditSelectedSticker: selectedSticker == null || _isSaving
-                    ? null
-                    : _editSelectedSticker,
-                onDeleteSelectedSticker: selectedSticker == null || _isSaving
-                    ? null
-                    : _deleteSelectedSticker,
-                onStickerScaleChanged: selectedSticker == null || _isSaving
-                    ? null
-                    : _updateSelectedStickerScale,
-                onStickerColorChanged: selectedSticker == null || _isSaving
-                    ? null
-                    : _updateSelectedStickerColor,
-                onStickerBackgroundChanged: selectedSticker == null || _isSaving
-                    ? null
-                    : _updateSelectedStickerBackground,
-                onStickerFontChanged: selectedSticker == null || _isSaving
-                    ? null
-                    : _updateSelectedStickerFont,
-                onStickerAlignChanged: selectedSticker == null || _isSaving
-                    ? null
-                    : _updateSelectedStickerAlign,
-                onStickerBoldChanged: selectedSticker == null || _isSaving
-                    ? null
-                    : _updateSelectedStickerBold,
-                drawColor: _drawColor,
-                drawWidth: _drawWidth,
-                brushMode: _brushMode,
-                onDrawColorChanged: _isSaving ? null : _changeDrawColor,
-                onDrawWidthChanged: _isSaving ? null : _changeDrawWidth,
-                onBrushModeChanged: _isSaving ? null : _changeBrushMode,
-                onClearDrawings: _strokes.isEmpty || _isSaving
-                    ? null
-                    : _clearDrawings,
-                selectedHideRegion: selectedHideRegion,
-                onAddHideRegion: _decodedImage == null || _isSaving
-                    ? null
-                    : _addHideRegion,
-                onDeleteHideRegion: selectedHideRegion == null || _isSaving
-                    ? null
-                    : _deleteSelectedHideRegion,
-                onHideRegionStyleChanged:
-                    selectedHideRegion == null || _isSaving
-                    ? null
-                    : _updateSelectedHideStyle,
-                brightness: _brightness,
-                contrast: _contrast,
-                warmth: _warmth,
-                saturation: _saturation,
-                onBrightnessChanged: _isSaving ? null : _setBrightness,
-                onContrastChanged: _isSaving ? null : _setContrast,
-                onWarmthChanged: _isSaving ? null : _setWarmth,
-                onSaturationChanged: _isSaving ? null : _setSaturation,
-                presets: _filterPresets,
-                onApplyPreset: _isSaving ? null : _applyFilterPreset,
-                onResetFilters:
-                    (_brightness == 0 &&
-                            _contrast == 1 &&
-                            _warmth == 0 &&
-                            _saturation == 1) ||
-                        _isSaving
-                    ? null
-                    : _resetFilters,
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: toolbarMaxHeight),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: _EditorToolbar(
+                    activePanel: _activePanel,
+                    onPanelChanged: _decodedImage == null || _isSaving
+                        ? null
+                        : _changePanel,
+                    aspectChoices: _aspectChoices,
+                    selectedRatio: _selectedAspectRatio,
+                    onAspectSelected: _decodedImage == null || _isSaving
+                        ? null
+                        : _selectAspectRatio,
+                    onRotate: _decodedImage == null || _isSaving
+                        ? null
+                        : _rotateImage,
+                    onAddText: _decodedImage == null || _isSaving
+                        ? null
+                        : _addSticker,
+                    selectedSticker: selectedSticker,
+                    stickerColors: _stickerColors,
+                    stickerFonts: _stickerFonts,
+                    onEditSelectedSticker: selectedSticker == null || _isSaving
+                        ? null
+                        : _editSelectedSticker,
+                    onDeleteSelectedSticker:
+                        selectedSticker == null || _isSaving
+                        ? null
+                        : _deleteSelectedSticker,
+                    onStickerScaleChanged: selectedSticker == null || _isSaving
+                        ? null
+                        : _updateSelectedStickerScale,
+                    onStickerColorChanged: selectedSticker == null || _isSaving
+                        ? null
+                        : _updateSelectedStickerColor,
+                    onStickerBackgroundChanged:
+                        selectedSticker == null || _isSaving
+                        ? null
+                        : _updateSelectedStickerBackground,
+                    onStickerFontChanged: selectedSticker == null || _isSaving
+                        ? null
+                        : _updateSelectedStickerFont,
+                    onStickerAlignChanged: selectedSticker == null || _isSaving
+                        ? null
+                        : _updateSelectedStickerAlign,
+                    onStickerBoldChanged: selectedSticker == null || _isSaving
+                        ? null
+                        : _updateSelectedStickerBold,
+                    drawColor: _drawColor,
+                    drawWidth: _drawWidth,
+                    brushMode: _brushMode,
+                    onDrawColorChanged: _isSaving ? null : _changeDrawColor,
+                    onDrawWidthChanged: _isSaving ? null : _changeDrawWidth,
+                    onBrushModeChanged: _isSaving ? null : _changeBrushMode,
+                    onClearDrawings: _strokes.isEmpty || _isSaving
+                        ? null
+                        : _clearDrawings,
+                    selectedHideRegion: selectedHideRegion,
+                    onAddHideRegion: _decodedImage == null || _isSaving
+                        ? null
+                        : _addHideRegion,
+                    onDeleteHideRegion: selectedHideRegion == null || _isSaving
+                        ? null
+                        : _deleteSelectedHideRegion,
+                    onHideRegionStyleChanged:
+                        selectedHideRegion == null || _isSaving
+                        ? null
+                        : _updateSelectedHideStyle,
+                    brightness: _brightness,
+                    contrast: _contrast,
+                    warmth: _warmth,
+                    saturation: _saturation,
+                    onBrightnessChanged: _isSaving ? null : _setBrightness,
+                    onContrastChanged: _isSaving ? null : _setContrast,
+                    onWarmthChanged: _isSaving ? null : _setWarmth,
+                    onSaturationChanged: _isSaving ? null : _setSaturation,
+                    presets: _filterPresets,
+                    onApplyPreset: _isSaving ? null : _applyFilterPreset,
+                    onResetFilters:
+                        (_brightness == 0 &&
+                                _contrast == 1 &&
+                                _warmth == 0 &&
+                                _saturation == 1) ||
+                            _isSaving
+                        ? null
+                        : _resetFilters,
+                  ),
+                ),
               ),
               SafeArea(
                 top: false,
@@ -1519,6 +1531,7 @@ class _CropImagePageState extends State<_CropImagePage> {
   Future<void> _saveCrop() async {
     setState(() => _isSaving = true);
     try {
+      await WidgetsBinding.instance.endOfFrame;
       if (_selectedStickerId != null || _selectedHideRegionId != null) {
         setState(() {
           _selectedStickerId = null;
@@ -1529,7 +1542,13 @@ class _CropImagePageState extends State<_CropImagePage> {
       final boundary =
           _boundaryKey.currentContext?.findRenderObject()
               as RenderRepaintBoundary?;
-      if (boundary == null) return;
+      if (boundary == null) {
+        throw StateError('capture-boundary-missing');
+      }
+      if (boundary.debugNeedsPaint) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await WidgetsBinding.instance.endOfFrame;
+      }
       final image = _decodedImage;
       final display = _displayImageSize;
       final viewport = _viewportSize;
@@ -1558,6 +1577,15 @@ class _CropImagePageState extends State<_CropImagePage> {
           file: output,
           sourceFile: widget.sourceFile,
           metadata: _buildEditMetadata(),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Görsel şu an kaydedilemedi. Düzenlemeyi korumak için tekrar dene.',
+          ),
         ),
       );
     } finally {
