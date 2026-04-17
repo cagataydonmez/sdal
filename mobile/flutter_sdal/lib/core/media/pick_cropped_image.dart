@@ -104,27 +104,31 @@ class _CropImagePageState extends State<_CropImagePage> {
         builder: (context, constraints) {
           final viewport = _computeViewportSize(constraints.biggest, ratio);
           _updateViewport(viewport);
-          return Stack(
+          return Column(
             children: [
-              Positioned.fill(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'İki parmakla yakınlaştır, sürükleyerek kadrajı ayarla. Kaydettiğinde kırpılmış hali yüklenecek.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white70,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const Spacer(),
-                    Center(
-                      child: _decodedImage == null
-                          ? const CircularProgressIndicator()
-                          : RepaintBoundary(
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'İki parmakla yakınlaştır, sürükleyerek kadrajı ayarla. Kaydettiğinde kırpılmış hali yüklenecek.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white70,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: Center(
+                  child: _decodedImage == null
+                      ? const CircularProgressIndicator()
+                      : Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            IgnorePointer(
+                              child: _CropMask(viewportSize: viewport),
+                            ),
+                            RepaintBoundary(
                               key: _boundaryKey,
                               child: ClipRect(
                                 child: SizedBox(
@@ -150,38 +154,34 @@ class _CropImagePageState extends State<_CropImagePage> {
                                 ),
                               ),
                             ),
-                    ),
-                    const Spacer(),
-                    SafeArea(
-                      top: false,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _decodedImage == null || _isSaving
-                                ? null
-                                : _saveCrop,
-                            icon: _isSaving
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.check_rounded),
-                            label: Text(_isSaving ? 'Kaydediliyor...' : 'Kırp ve devam et'),
-                          ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: _CropMask(viewportSize: viewport),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _decodedImage == null || _isSaving
+                          ? null
+                          : _saveCrop,
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.check_rounded),
+                      label: Text(
+                        _isSaving ? 'Kaydediliyor...' : 'Kırp ve devam et',
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -211,8 +211,8 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   Size _computeViewportSize(Size available, double ratio) {
-    final maxWidth = available.width - 32;
-    final maxHeight = available.height - 220;
+    final maxWidth = math.max(available.width - 32, 160.0);
+    final maxHeight = math.max(available.height - 220, 160.0);
     var width = maxWidth;
     var height = width / ratio;
     if (height > maxHeight) {
@@ -224,7 +224,9 @@ class _CropImagePageState extends State<_CropImagePage> {
 
   void _updateViewport(Size nextViewport) {
     if (_decodedImage == null) return;
-    if ((nextViewport - _viewportSize as Offset).distance < 0.5 && _displayImageSize != Size.zero) {
+    final widthDelta = (nextViewport.width - _viewportSize.width).abs();
+    final heightDelta = (nextViewport.height - _viewportSize.height).abs();
+    if (widthDelta < 0.5 && heightDelta < 0.5 && _displayImageSize != Size.zero) {
       return;
     }
     _viewportSize = nextViewport;
@@ -247,9 +249,8 @@ class _CropImagePageState extends State<_CropImagePage> {
     if (_displayImageSize == Size.zero || _viewportSize == Size.zero) return;
     final dx = (_viewportSize.width - _displayImageSize.width * _baseScale) / 2;
     final dy = (_viewportSize.height - _displayImageSize.height * _baseScale) / 2;
-    _controller.value = Matrix4.identity()
-      ..translate(dx, dy)
-      ..scale(_baseScale);
+    _controller.value = Matrix4.diagonal3Values(_baseScale, _baseScale, 1)
+      ..setTranslationRaw(dx, dy, 0);
   }
 
   Future<void> _saveCrop() async {
@@ -301,31 +302,22 @@ class _CropMask extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final left = (size.width - viewportSize.width) / 2;
-    final top = (size.height - viewportSize.height) / 2;
-    final right = left + viewportSize.width;
-    final bottom = top + viewportSize.height;
-    final paint = BoxDecoration(
-      border: Border.all(color: Colors.white, width: 2),
-      borderRadius: BorderRadius.circular(24),
-    );
-    return Stack(
-      children: [
-        Positioned(left: 0, top: 0, right: 0, height: top, child: Container(color: Colors.black45)),
-        Positioned(left: 0, top: bottom, right: 0, bottom: 0, child: Container(color: Colors.black45)),
-        Positioned(left: 0, top: top, width: left, height: viewportSize.height, child: Container(color: Colors.black45)),
-        Positioned(left: right, top: top, right: 0, height: viewportSize.height, child: Container(color: Colors.black45)),
-        Positioned(
-          left: left,
-          top: top,
-          width: viewportSize.width,
-          height: viewportSize.height,
-          child: Container(
-            decoration: paint,
-          ),
+    return SizedBox(
+      width: viewportSize.width,
+      height: viewportSize.height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white, width: 2),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 0,
+              spreadRadius: 1600,
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

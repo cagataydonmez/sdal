@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
@@ -280,12 +281,18 @@ Future<void> _pickCover(BuildContext context, WidgetRef ref) async {
   final route = GoRouterState.of(context);
   final groupId = int.tryParse(route.pathParameters['groupId'] ?? '') ?? 0;
   if (groupId <= 0) return;
-  final picker = ImagePicker();
-  final file = await picker.pickImage(source: ImageSource.gallery);
+  final file = await pickAndCropImage(
+    context,
+    source: ImageSource.gallery,
+    aspectPreset: CropAspectPreset.wide169,
+    imageQuality: 94,
+    maxWidth: 2600,
+    title: 'Grup kapağını kırp',
+  );
   if (file == null) return;
   final ok = await ref
       .read(groupsActionControllerProvider.notifier)
-      .uploadCover(groupId: groupId, imageFile: File(file.path));
+      .uploadCover(groupId: groupId, imageFile: file);
   if (!ok) return;
   ref.invalidate(groupsListProvider);
   ref.invalidate(groupDetailProvider(groupId));
@@ -1338,8 +1345,7 @@ class _PostSheet extends ConsumerStatefulWidget {
 
 class _PostSheetState extends ConsumerState<_PostSheet> {
   final _contentController = TextEditingController();
-  final _picker = ImagePicker();
-  XFile? _imageFile;
+  File? _imageFile;
 
   @override
   void dispose() {
@@ -1375,8 +1381,13 @@ class _PostSheetState extends ConsumerState<_PostSheet> {
             const SizedBox(height: 12),
             FilledButton.tonalIcon(
               onPressed: () async {
-                final file = await _picker.pickImage(
+                final file = await pickAndCropImage(
+                  context,
                   source: ImageSource.gallery,
+                  aspectPreset: CropAspectPreset.portrait45,
+                  imageQuality: 92,
+                  maxWidth: 2200,
+                  title: 'Gönderi görselini kırp',
                 );
                 if (file != null) setState(() => _imageFile = file);
               },
@@ -1384,7 +1395,7 @@ class _PostSheetState extends ConsumerState<_PostSheet> {
               label: Text(
                 _imageFile == null
                     ? l10n.groupAddImageAction
-                    : _imageFile!.name,
+                    : _imageFile!.path.split('/').last,
               ),
             ),
             const SizedBox(height: 16),
@@ -1399,9 +1410,7 @@ class _PostSheetState extends ConsumerState<_PostSheet> {
                             .createPost(
                               groupId: widget.groupId,
                               content: _contentController.text.trim(),
-                              imageFile: _imageFile == null
-                                  ? null
-                                  : File(_imageFile!.path),
+                              imageFile: _imageFile,
                             );
                         if (!context.mounted || !ok) return;
                         ref.invalidate(groupDetailProvider(widget.groupId));

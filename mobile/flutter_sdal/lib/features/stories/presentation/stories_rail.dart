@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/session/session_models.dart';
@@ -919,9 +920,8 @@ class _StoryUploadSheet extends ConsumerStatefulWidget {
 }
 
 class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
-  final _picker = ImagePicker();
   final _captionController = TextEditingController();
-  XFile? _pickedFile;
+  File? _pickedFile;
 
   @override
   void dispose() {
@@ -948,14 +948,21 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
             const SizedBox(height: 16),
             FilledButton.tonalIcon(
               onPressed: () async {
-                final file = await _picker.pickImage(
+                final file = await pickAndCropImage(
+                  context,
                   source: ImageSource.gallery,
+                  aspectPreset: CropAspectPreset.story916,
+                  imageQuality: 92,
+                  maxWidth: 2200,
+                  title: 'Hikayeyi kırp',
                 );
                 if (file != null) setState(() => _pickedFile = file);
               },
               icon: const Icon(Icons.photo_library_outlined),
               label: Text(
-                _pickedFile == null ? l10n.pickFromGallery : _pickedFile!.name,
+                _pickedFile == null
+                    ? l10n.pickFromGallery
+                    : _pickedFile!.path.split('/').last,
               ),
             ),
             const SizedBox(height: 12),
@@ -977,7 +984,7 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
                         final ok = await ref
                             .read(storiesActionControllerProvider.notifier)
                             .uploadStory(
-                              imageFile: File(_pickedFile!.path),
+                              imageFile: _pickedFile!,
                               caption: _captionController.text.trim(),
                               feedType: widget.feedType,
                             );

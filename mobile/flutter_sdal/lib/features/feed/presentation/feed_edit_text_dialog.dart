@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 
@@ -32,8 +33,7 @@ class FeedEditPostSheet extends StatefulWidget {
 
 class _FeedEditPostSheetState extends State<FeedEditPostSheet> {
   late final TextEditingController _controller;
-  final _picker = ImagePicker();
-  XFile? _newImage;
+  File? _newImage;
   bool _removeExistingImage = false;
 
   @override
@@ -52,10 +52,13 @@ class _FeedEditPostSheetState extends State<FeedEditPostSheet> {
       (widget.currentImageUrl?.isNotEmpty ?? false) && !_removeExistingImage;
 
   Future<void> _pickImage() async {
-    final file = await _picker.pickImage(
+    final file = await pickAndCropImage(
+      context,
       source: ImageSource.gallery,
+      aspectPreset: CropAspectPreset.portrait45,
       imageQuality: 92,
       maxWidth: 1800,
+      title: 'Gönderi görselini kırp',
     );
     if (!mounted) return;
     if (file != null) {
@@ -89,7 +92,7 @@ class _FeedEditPostSheetState extends State<FeedEditPostSheet> {
     Navigator.of(context).pop(
       FeedEditPostResult(
         content: text,
-        imageFile: _newImage != null ? File(_newImage!.path) : null,
+        imageFile: _newImage,
         removeImage: _removeExistingImage && _newImage == null,
       ),
     );
@@ -133,7 +136,7 @@ class _FeedEditPostSheetState extends State<FeedEditPostSheet> {
                   onRemove: _removeNewImage,
                   removeTooltip: l10n.removeImageAction,
                   child: Image.file(
-                    File(_newImage!.path),
+                    _newImage!,
                     height: 160,
                     width: double.infinity,
                     fit: BoxFit.cover,
