@@ -460,12 +460,13 @@ export function registerAlbumRoutes(app, {
   }
 
   async function summarizeCategory(category, viewer, currentUser) {
+    const categoryIdParam = String(category.id);
     const countRow = await sqlGetAsync(
       `SELECT COUNT(*) AS cnt
        FROM ${photoTable} p
        WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
          AND ${photoActiveSql}`,
-      [category.id],
+      [categoryIdParam],
     );
     const previews = await sqlAllAsync(
       `SELECT COALESCE(p.${isPostgres ? 'file_name' : 'dosyaadi'}, '') AS file_name
@@ -474,7 +475,7 @@ export function registerAlbumRoutes(app, {
          AND ${photoActiveSql}
        ORDER BY p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC
        LIMIT 5`,
-      [category.id],
+      [categoryIdParam],
     );
 
     return {
@@ -522,17 +523,18 @@ export function registerAlbumRoutes(app, {
     limit = 10,
   }) {
     if (!categoryIds.length) return [];
-    const placeholders = categoryIds.map(() => '?').join(', ');
+    const idStrings = categoryIds.map(String);
+    const placeholders = idStrings.map(() => '?').join(', ');
     const rows = await sqlAllAsync(
       `SELECT ${photoSelect('p')},
               COALESCE(${isPostgres ? 'c.name' : 'c.kategori'}, '') AS category_title
        FROM ${photoTable} p
-       JOIN ${categoryTable} c ON c.id = p.${isPostgres ? 'category_id' : 'katid'}
+       JOIN ${categoryTable} c ON ${isPostgres ? 'c.id = p.category_id' : 'CAST(c.id AS TEXT) = CAST(p.katid AS TEXT)'}
        WHERE p.${isPostgres ? 'category_id' : 'katid'} IN (${placeholders})
          AND ${photoActiveSql}
        ORDER BY ${orderBy}
        LIMIT ?`,
-      [...categoryIds, limit],
+      [...idStrings, limit],
     );
 
     const cards = [];
@@ -655,6 +657,7 @@ export function registerAlbumRoutes(app, {
       const categories = await listAccessibleCategories(viewer, currentUser);
 
       const validIds = categories.map((item) => item.id).filter(Boolean);
+      const validIdStrings = validIds.map(String);
       if (validIds.length > 0) {
         try {
           const placeholders = validIds.map(() => '?').join(', ');
@@ -664,7 +667,7 @@ export function registerAlbumRoutes(app, {
              WHERE p.${isPostgres ? 'category_id' : 'katid'} IN (${placeholders})
                AND ${photoActiveSql}
              GROUP BY p.${isPostgres ? 'category_id' : 'katid'}`,
-            validIds,
+            validIdStrings,
           );
           const countsMap = {};
           for (const row of countRows) {
