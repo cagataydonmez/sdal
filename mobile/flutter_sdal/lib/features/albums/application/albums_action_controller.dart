@@ -170,6 +170,28 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> replacePhotoFile({
+    required int photoId,
+    required File file,
+  }) async {
+    state = AsyncActionState.loading(scope: 'albums:photo-replace:$photoId');
+    final result = await _repository.replacePhotoFile(
+      photoId: photoId,
+      file: file,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:photo-replace');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:photo-replace:$photoId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Fotoğraf değiştirilemedi.',
+    );
+    return false;
+  }
+
   Future<bool> deletePhoto(int photoId) async {
     state = AsyncActionState.loading(scope: 'albums:photo-delete:$photoId');
     final result = await _repository.deletePhoto(photoId);

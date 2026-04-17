@@ -565,7 +565,30 @@ export function registerAlbumRoutes(app, {
       const viewer = await findViewer(req.session.userId);
       const currentUser = getCurrentUser(req);
       const categories = await listAccessibleCategories(viewer, currentUser);
-      const categoryIds = categories.map((item) => item.id).filter((value) => value > 0);
+
+      // Recompute counts with a reliable batch query (summarizeCategory's per-row
+      // count can return 0 due to pg BIGINT id coercion; batch GROUP BY is reliable).
+      const validIds = categories.map((item) => item.id).filter(Boolean);
+      if (validIds.length > 0) {
+        const placeholders = validIds.map(() => '?').join(', ');
+        const countRows = await sqlAllAsync(
+          `SELECT p.${isPostgres ? 'category_id' : 'katid'} AS cid, COUNT(*) AS cnt
+           FROM ${photoTable} p
+           WHERE p.${isPostgres ? 'category_id' : 'katid'} IN (${placeholders})
+             AND ${photoActiveSql}
+           GROUP BY p.${isPostgres ? 'category_id' : 'katid'}`,
+          validIds,
+        );
+        const countsMap = {};
+        for (const row of countRows) {
+          countsMap[String(row.cid)] = Number(row.cnt || 0);
+        }
+        for (const cat of categories) {
+          cat.count = countsMap[String(cat.id)] ?? 0;
+        }
+      }
+
+      const categoryIds = validIds.filter((value) => Number(value) > 0);
       const latest = await listPhotoCards(categoryIds, req.session.userId, {
         orderBy: `p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC`,
         limit: 10,
@@ -1032,6 +1055,62 @@ export function registerAlbumRoutes(app, {
       );
 
       res.json({ ok: true });
+    } catch (error) {
+      console.error(error);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  // Replace the actual photo file while keeping all metadata/comments/likes.
+  app.put('/api/photos/:id/file', (req, res, next) => {
+    if (!req.session.userId) return res.status(401).send('Login required');
+    return albumUpload.single('file')(req, res, (error) => {
+      if (error) return next(error);
+      next();
+    });
+  }, async (req, res) => {
+    try {
+      await schemaReady;
+      const viewer = await findViewer(req.session.userId);
+      const currentUser = getCurrentUser(req);
+      const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
+      if (context.error) return res.status(context.error.status).send(context.error.message);
+
+      const canEditPhoto =
+        sameUserId(context.photo.uploaded_by_user_id, req.session.userId) ||
+        hasCategoryManagementAccess(currentUser);
+      if (!canEditPhoto) return res.status(403).send('Bu fotoğrafı düzenleme yetkin yok.');
+      if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
+
+      const processed = await processDiskImageUpload({
+        req,
+        res,
+        file: req.file,
+        bucket: 'album_photo',
+        preset: uploadImagePresets.albumPhoto,
+      });
+      if (!processed.ok) return res.status(processed.statusCode).send(processed.message);
+
+      const storedFilename = path.basename(processed.path || req.file.path);
+      const now = new Date().toISOString();
+
+      if (isPostgres) {
+        await sqlRunAsync(
+          `UPDATE ${photoTable} SET file_name = ?, updated_at = ? WHERE id = ?`,
+          [storedFilename, now, context.photo.id],
+        );
+        await sqlRunAsync(
+          `UPDATE ${categoryTable} SET last_upload_at = ?, last_uploaded_by_user_id = ?, cover_file_name = COALESCE(?, cover_file_name) WHERE id = ?`,
+          [now, req.session.userId, storedFilename, context.photo.category_id],
+        );
+      } else {
+        await sqlRunAsync(
+          `UPDATE ${photoTable} SET dosyaadi = ?, updated_at = ? WHERE id = ?`,
+          [storedFilename, now, context.photo.id],
+        );
+      }
+
+      res.json({ ok: true, fileName: storedFilename });
     } catch (error) {
       console.error(error);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

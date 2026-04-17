@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../app/providers.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -386,11 +389,13 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   Future<void> _showPhotoEditor() async {
     final photo = _photo;
     if (photo == null) return;
+    final config = ref.read(appConfigProvider);
     final titleController = TextEditingController(text: photo.title);
     final descriptionController = TextEditingController(
       text: _plainText(photo.description),
     );
     var allowComments = photo.allowComments;
+    File? replacementFile;
     final tagged = <MemberSummary>[
       for (final member in photo.taggedUsers)
         MemberSummary(
@@ -410,21 +415,92 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => SafeArea(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => SafeArea(
           child: Padding(
             padding: EdgeInsets.fromLTRB(
               20,
               20,
               20,
-              20 + MediaQuery.of(context).viewInsets.bottom,
+              20 + MediaQuery.of(ctx).viewInsets.bottom,
             ),
             child: ListView(
               shrinkWrap: true,
               children: [
                 Text(
                   'Fotoğrafı düzenle',
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(ctx).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                // Current / replacement photo preview
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await pickAndCropImage(
+                      ctx,
+                      source: ImageSource.gallery,
+                      imageQuality: 94,
+                      maxWidth: 2600,
+                      title: 'Yeni fotoğrafı kırp',
+                    );
+                    if (picked == null) return;
+                    setModalState(() => replacementFile = picked);
+                  },
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: AspectRatio(
+                          aspectRatio: 4 / 3,
+                          child: replacementFile != null
+                              ? Image.file(replacementFile!, fit: BoxFit.cover)
+                              : Image.network(
+                                  config.siteBaseUri
+                                      .resolve(
+                                        '/api/media/kucukresim?width=800&file=${Uri.encodeComponent(photo.fileName)}',
+                                      )
+                                      .toString(),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) =>
+                                      const SizedBox.shrink(),
+                                ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 10,
+                        bottom: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.edit_outlined,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                replacementFile != null
+                                    ? 'Değiştirilecek'
+                                    : 'Fotoğrafı değiştir',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -458,7 +534,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                   onPressed: () async {
                     final result =
                         await showModalBottomSheet<List<MemberSummary>>(
-                          context: context,
+                          context: ctx,
                           isScrollControlled: true,
                           builder: (context) =>
                               AlbumMemberPickerSheet(initial: tagged),
@@ -499,20 +575,40 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () async {
-                    final ok = await ref
-                        .read(albumsActionControllerProvider.notifier)
-                        .updatePhoto(
-                          photoId: widget.photoId,
-                          title: titleController.text.trim(),
-                          description: descriptionController.text.trim(),
-                          allowComments: allowComments,
-                          taggedUserIds: tagged
-                              .map((member) => member.id)
-                              .toList(),
+                    final notifier = ref.read(
+                      albumsActionControllerProvider.notifier,
+                    );
+                    // Replace file first if a new one was picked.
+                    if (replacementFile != null) {
+                      final fileOk = await notifier.replacePhotoFile(
+                        photoId: widget.photoId,
+                        file: replacementFile!,
+                      );
+                      if (!mounted || !ctx.mounted) return;
+                      if (!fileOk) {
+                        final st = ref.read(albumsActionControllerProvider);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              st.message ?? 'Fotoğraf değiştirilemedi.',
+                            ),
+                          ),
                         );
-                    if (!mounted || !context.mounted) return;
+                        return;
+                      }
+                    }
+                    final ok = await notifier.updatePhoto(
+                      photoId: widget.photoId,
+                      title: titleController.text.trim(),
+                      description: descriptionController.text.trim(),
+                      allowComments: allowComments,
+                      taggedUserIds: tagged
+                          .map((member) => member.id)
+                          .toList(),
+                    );
+                    if (!mounted || !ctx.mounted) return;
                     final state = ref.read(albumsActionControllerProvider);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
                           state.message ??
@@ -524,7 +620,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                     );
                     if (!ok) return;
                     ref.invalidate(albumPhotoLikesProvider(widget.photoId));
-                    Navigator.of(context).pop();
+                    Navigator.of(ctx).pop();
                     await _load();
                   },
                   child: const Text('Kaydet'),

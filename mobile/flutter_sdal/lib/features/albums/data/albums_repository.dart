@@ -534,6 +534,16 @@ class AlbumsRepository {
     ).map(AlbumLikeUser.fromMap).toList(growable: false);
   }
 
+  Future<ApiResult<dynamic>> replacePhotoFile({
+    required int photoId,
+    required File file,
+  }) {
+    return _apiClient.multipart<dynamic>(
+      '/api/photos/$photoId/file',
+      files: {'file': file},
+    );
+  }
+
   Future<ApiResult<dynamic>> deletePhoto(int photoId) {
     return _apiClient.delete<dynamic>('/api/photos/$photoId');
   }

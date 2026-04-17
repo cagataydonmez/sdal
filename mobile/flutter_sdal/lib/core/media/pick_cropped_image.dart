@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -223,7 +224,7 @@ class _CropImagePageState extends State<_CropImagePage> {
 
   void _updateViewport(Size nextViewport) {
     if (_decodedImage == null) return;
-    if ((nextViewport - _viewportSize).distance < 0.5 && _displayImageSize != Size.zero) {
+    if ((nextViewport - _viewportSize as Offset).distance < 0.5 && _displayImageSize != Size.zero) {
       return;
     }
     _viewportSize = nextViewport;

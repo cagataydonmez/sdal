@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../explore/data/explore_repository.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/widgets/feature_scaffold.dart';
