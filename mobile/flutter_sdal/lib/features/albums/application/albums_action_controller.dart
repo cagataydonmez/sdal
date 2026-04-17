@@ -36,6 +36,8 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     required String title,
     required String description,
     required File file,
+    required bool allowComments,
+    List<int> taggedUserIds = const <int>[],
   }) async {
     state = const AsyncActionState.loading(scope: 'albums:upload');
     final result = await _repository.uploadPhoto(
@@ -43,6 +45,8 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       title: title,
       description: description,
       file: file,
+      allowComments: allowComments,
+      taggedUserIds: taggedUserIds,
     );
     if (result.ok) {
       state = AsyncActionState.success(
@@ -58,6 +62,161 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Fotoğraf yüklenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> toggleLike(int photoId) async {
+    state = AsyncActionState.loading(scope: 'albums:like:$photoId');
+    final result = await _repository.toggleLike(photoId);
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:like');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:like:$photoId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Beğeni kaydedilemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> editComment({
+    required int photoId,
+    required int commentId,
+    required String comment,
+  }) async {
+    state = AsyncActionState.loading(scope: 'albums:comment-edit:$commentId');
+    final result = await _repository.editComment(
+      photoId: photoId,
+      commentId: commentId,
+      comment: comment,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:comment-edit');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:comment-edit:$commentId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Yorum güncellenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteComment({
+    required int photoId,
+    required int commentId,
+  }) async {
+    state = AsyncActionState.loading(scope: 'albums:comment-delete:$commentId');
+    final result = await _repository.deleteComment(
+      photoId: photoId,
+      commentId: commentId,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:comment-delete');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:comment-delete:$commentId',
+      message: result.message.isNotEmpty ? result.message : 'Yorum silinemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteAllComments(int photoId) async {
+    state = AsyncActionState.loading(scope: 'albums:comments-clear:$photoId');
+    final result = await _repository.deleteAllComments(photoId);
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:comments-clear');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:comments-clear:$photoId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Yorumlar silinemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> updatePhoto({
+    required int photoId,
+    required String title,
+    required String description,
+    required bool allowComments,
+    List<int> taggedUserIds = const <int>[],
+  }) async {
+    state = AsyncActionState.loading(scope: 'albums:photo-edit:$photoId');
+    final result = await _repository.updatePhoto(
+      photoId: photoId,
+      title: title,
+      description: description,
+      allowComments: allowComments,
+      taggedUserIds: taggedUserIds,
+    );
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:photo-edit');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:photo-edit:$photoId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Fotoğraf güncellenemedi.',
+    );
+    return false;
+  }
+
+  Future<bool> createAlbum({
+    required String title,
+    required String description,
+    required String visibilityScope,
+    bool isProfileAlbum = false,
+    String cohortYear = '',
+    List<int> allowedUserIds = const <int>[],
+    List<int> allowedGroupIds = const <int>[],
+  }) async {
+    state = const AsyncActionState.loading(scope: 'albums:create');
+    final result = await _repository.createAlbum(
+      title: title,
+      description: description,
+      visibilityScope: visibilityScope,
+      isProfileAlbum: isProfileAlbum,
+      cohortYear: cohortYear,
+      allowedUserIds: allowedUserIds,
+      allowedGroupIds: allowedGroupIds,
+    );
+    if (result.ok) {
+      state = AsyncActionState.success(
+        scope: 'albums:create',
+        message: result.message.isNotEmpty
+            ? result.message
+            : 'Albüm oluşturuldu.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:create',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Albüm oluşturulamadı.',
+    );
+    return false;
+  }
+
+  Future<bool> deleteAlbum(int categoryId) async {
+    state = AsyncActionState.loading(scope: 'albums:delete:$categoryId');
+    final result = await _repository.deleteAlbum(categoryId);
+    if (result.ok) {
+      state = const AsyncActionState.success(scope: 'albums:delete');
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:delete:$categoryId',
+      message: result.message.isNotEmpty ? result.message : 'Albüm silinemedi.',
     );
     return false;
   }

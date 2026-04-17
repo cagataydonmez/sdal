@@ -2,13 +2,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../explore/data/explore_repository.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/albums_action_controller.dart';
 import '../data/albums_repository.dart';
+import 'album_member_picker_sheet.dart';
 
 class AlbumUploadPage extends ConsumerStatefulWidget {
-  const AlbumUploadPage({super.key});
+  const AlbumUploadPage({super.key, this.initialCategoryId = 0});
+
+  final int initialCategoryId;
 
   @override
   ConsumerState<AlbumUploadPage> createState() => _AlbumUploadPageState();
@@ -20,14 +24,17 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   final ImagePicker _picker = ImagePicker();
 
   List<AlbumCategoryItem> _categories = const <AlbumCategoryItem>[];
+  final List<MemberSummary> _taggedMembers = <MemberSummary>[];
   int _selectedCategoryId = 0;
   File? _file;
+  bool _allowComments = true;
   bool _isLoading = true;
   String _error = '';
 
   @override
   void initState() {
     super.initState();
+    _selectedCategoryId = widget.initialCategoryId;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadCategories());
   }
 
@@ -43,6 +50,9 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     final actionState = ref.watch(albumsActionControllerProvider);
     final isSaving =
         actionState.isLoading && actionState.scope == 'albums:upload';
+    final albumLocked =
+        widget.initialCategoryId > 0 &&
+        _selectedCategoryId == widget.initialCategoryId;
 
     return FeatureScaffold(
       title: 'Albüme yükle',
@@ -63,7 +73,7 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                         ? null
                         : _selectedCategoryId,
                     decoration: const InputDecoration(
-                      labelText: 'Kategori',
+                      labelText: 'Albüm',
                       border: OutlineInputBorder(),
                     ),
                     items: _categories
@@ -74,11 +84,17 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                           ),
                         )
                         .toList(growable: false),
-                    onChanged: isSaving
+                    onChanged: isSaving || albumLocked
                         ? null
                         : (value) =>
                               setState(() => _selectedCategoryId = value ?? 0),
                   ),
+                  if (albumLocked) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Bu ekrandan albüm içinden geldin; yükleme doğrudan seçili albüme gidecek.',
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   TextField(
                     controller: _titleController,
@@ -98,6 +114,47 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    value: _allowComments,
+                    title: const Text('Yorumlara izin ver'),
+                    subtitle: const Text(
+                      'Sonradan kapatırsan mevcut yorumlar gizlenir, yeniden açınca geri gelir.',
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: isSaving
+                        ? null
+                        : (value) => setState(() => _allowComments = value),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: isSaving ? null : _pickMembers,
+                    icon: const Icon(Icons.alternate_email_rounded),
+                    label: Text(
+                      _taggedMembers.isEmpty
+                          ? 'Fotoğrafta kişi etiketle'
+                          : '${_taggedMembers.length} kişi etiketli',
+                    ),
+                  ),
+                  if (_taggedMembers.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _taggedMembers
+                          .map(
+                            (member) => InputChip(
+                              label: Text(member.name),
+                              onDeleted: () => setState(() {
+                                _taggedMembers.removeWhere(
+                                  (item) => item.id == member.id,
+                                );
+                              }),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: isSaving ? null : _pickFile,
@@ -136,10 +193,24 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     setState(() => _file = File(picked.path));
   }
 
+  Future<void> _pickMembers() async {
+    final result = await showModalBottomSheet<List<MemberSummary>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => AlbumMemberPickerSheet(initial: _taggedMembers),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _taggedMembers
+        ..clear()
+        ..addAll(result);
+    });
+  }
+
   Future<void> _upload() async {
     if (_selectedCategoryId <= 0 || _file == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kategori ve fotoğraf seçmelisin.')),
+        const SnackBar(content: Text('Albüm ve fotoğraf seçmelisin.')),
       );
       return;
     }
@@ -150,6 +221,8 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
           file: _file!,
+          allowComments: _allowComments,
+          taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
         );
     if (!mounted) return;
     final state = ref.read(albumsActionControllerProvider);
@@ -164,7 +237,11 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     if (!ok) return;
     _titleController.clear();
     _descriptionController.clear();
-    setState(() => _file = null);
+    setState(() {
+      _file = null;
+      _allowComments = true;
+      _taggedMembers.clear();
+    });
   }
 
   Future<void> _loadCategories() async {
@@ -179,7 +256,9 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       if (!mounted) return;
       setState(() {
         _categories = categories;
-        _selectedCategoryId = categories.isNotEmpty ? categories.first.id : 0;
+        if (_selectedCategoryId == 0) {
+          _selectedCategoryId = categories.isNotEmpty ? categories.first.id : 0;
+        }
       });
     } catch (error) {
       if (!mounted) return;

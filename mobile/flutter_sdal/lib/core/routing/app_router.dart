@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/auth_pages.dart';
 import '../../features/albums/presentation/album_category_page.dart';
+import '../../features/albums/presentation/album_edit_page.dart';
 import '../../features/albums/presentation/album_photo_page.dart';
 import '../../features/albums/presentation/album_upload_page.dart';
 import '../../features/albums/presentation/albums_page.dart';
@@ -262,8 +263,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: '/albums/upload',
-                pageBuilder: (context, state) =>
-                    _slidePage(const AlbumUploadPage()),
+                pageBuilder: (context, state) => _slidePage(
+                  AlbumUploadPage(
+                    initialCategoryId:
+                        int.tryParse(
+                          state.uri.queryParameters['albumId'] ?? '',
+                        ) ??
+                        0,
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/albums/new',
+                pageBuilder: (context, state) => _slidePage(
+                  AlbumEditPage(
+                    profileMode:
+                        (state.uri.queryParameters['profile'] ?? '0') == '1',
+                  ),
+                ),
               ),
               GoRoute(
                 path: '/panolar',

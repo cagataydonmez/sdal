@@ -254,20 +254,24 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                             _FeedPostMenuButton(
                               onEdit: () async {
                                 final result =
-                                    await showModalBottomSheet<FeedEditPostResult>(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  builder: (ctx) => FeedEditPostSheet(
-                                    initialContent: plainTextFromRichContent(
-                                      item.content,
-                                    ),
-                                    currentImageUrl: item.imageUrl.isNotEmpty
-                                        ? config
-                                            .resolveUrl(item.imageUrl)
-                                            .toString()
-                                        : null,
-                                  ),
-                                );
+                                    await showModalBottomSheet<
+                                      FeedEditPostResult
+                                    >(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      builder: (ctx) => FeedEditPostSheet(
+                                        initialContent:
+                                            plainTextFromRichContent(
+                                              item.content,
+                                            ),
+                                        currentImageUrl:
+                                            item.imageUrl.isNotEmpty
+                                            ? config
+                                                  .resolveUrl(item.imageUrl)
+                                                  .toString()
+                                            : null,
+                                      ),
+                                    );
                                 if (result == null || !context.mounted) return;
                                 final ok = await ref
                                     .read(feedActionControllerProvider.notifier)
@@ -279,23 +283,26 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                                     );
                                 if (!context.mounted) return;
                                 if (ok) {
+                                  final FeedItem? refreshedPost =
+                                      result.imageFile != null ||
+                                          result.removeImage
+                                      ? await ref.refresh(
+                                          postDetailProvider(item.id).future,
+                                        )
+                                      : null;
+                                  if (!context.mounted) return;
                                   setState(() {
                                     final idx = _items.indexWhere(
                                       (i) => i.id == item.id,
                                     );
                                     if (idx != -1) {
-                                      final updated = _items[idx].copyWith(
-                                        content: result.content,
-                                        updatedAt:
-                                            DateTime.now().toIso8601String(),
-                                        image: result.removeImage
-                                            ? ''
-                                            : _items[idx].image,
-                                        variants: result.removeImage
-                                            ? null
-                                            : _items[idx].variants,
-                                      );
-                                      _items[idx] = updated;
+                                      _items[idx] =
+                                          refreshedPost ??
+                                          _items[idx].copyWith(
+                                            content: result.content,
+                                            updatedAt: DateTime.now()
+                                                .toIso8601String(),
+                                          );
                                     }
                                   });
                                 } else {
@@ -1060,8 +1067,9 @@ class _FeedControlsCard extends ConsumerWidget {
               child: _AnimatedFeedTabBar(
                 selected: query.feedType,
                 onChanged: (type) {
-                  ref.read(feedQueryProvider.notifier).state =
-                      query.copyWith(feedType: type);
+                  ref.read(feedQueryProvider.notifier).state = query.copyWith(
+                    feedType: type,
+                  );
                 },
               ),
             ),
@@ -1099,8 +1107,9 @@ class _FeedControlsCard extends ConsumerWidget {
                   label: _feedFilterLabel(context, filter),
                   selected: query.filter == filter,
                   onTap: () {
-                    ref.read(feedQueryProvider.notifier).state =
-                        query.copyWith(filter: filter);
+                    ref.read(feedQueryProvider.notifier).state = query.copyWith(
+                      filter: filter,
+                    );
                   },
                 ),
             ],
@@ -1112,10 +1121,7 @@ class _FeedControlsCard extends ConsumerWidget {
 }
 
 class _AnimatedFeedTabBar extends StatelessWidget {
-  const _AnimatedFeedTabBar({
-    required this.selected,
-    required this.onChanged,
-  });
+  const _AnimatedFeedTabBar({required this.selected, required this.onChanged});
 
   final FeedType selected;
   final ValueChanged<FeedType> onChanged;
@@ -1184,18 +1190,17 @@ class _AnimatedFeedTabBar extends StatelessWidget {
                               const SizedBox(width: 7),
                               AnimatedDefaultTextStyle(
                                 duration: const Duration(milliseconds: 200),
-                                style: (Theme.of(context)
-                                            .textTheme
-                                            .labelLarge ??
-                                        const TextStyle())
-                                    .copyWith(
-                                  color: isSelected
-                                      ? tokens.accent
-                                      : tokens.foreground,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                ),
+                                style:
+                                    (Theme.of(context).textTheme.labelLarge ??
+                                            const TextStyle())
+                                        .copyWith(
+                                          color: isSelected
+                                              ? tokens.accent
+                                              : tokens.foreground,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w600
+                                              : FontWeight.w500,
+                                        ),
                                 child: Text(_feedTypeLabel(context, type)),
                               ),
                             ],

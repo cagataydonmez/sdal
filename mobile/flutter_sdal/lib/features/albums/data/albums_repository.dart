@@ -12,6 +12,13 @@ class AlbumCategoryItem {
     required this.description,
     required this.count,
     required this.previews,
+    required this.visibilityScope,
+    required this.cohortYear,
+    required this.albumType,
+    required this.ownerUserId,
+    required this.isSystemAlbum,
+    required this.canUpload,
+    required this.canEdit,
   });
 
   final int id;
@@ -19,12 +26,26 @@ class AlbumCategoryItem {
   final String description;
   final int count;
   final List<String> previews;
+  final String visibilityScope;
+  final String cohortYear;
+  final String albumType;
+  final int? ownerUserId;
+  final bool isSystemAlbum;
+  final bool canUpload;
+  final bool canEdit;
+
+  bool get isProfileAlbum => albumType == 'profile';
+  bool get isCohortAlbum =>
+      albumType == 'cohort' || visibilityScope == 'cohort';
 
   factory AlbumCategoryItem.fromMap(JsonMap map) {
     return AlbumCategoryItem(
       id: asInt(map['id']) ?? 0,
-      title: coalesceText([map['kategori']], fallback: 'Albüm'),
-      description: coalesceText([map['aciklama']], fallback: ''),
+      title: coalesceText([map['kategori'], map['title']], fallback: 'Albüm'),
+      description: coalesceText([
+        map['aciklama'],
+        map['description'],
+      ], fallback: ''),
       count: asInt(map['count']) ?? 0,
       previews: (map['previews'] is List)
           ? (map['previews'] as List)
@@ -32,75 +53,195 @@ class AlbumCategoryItem {
                 .where((item) => item.isNotEmpty)
                 .toList(growable: false)
           : const <String>[],
+      visibilityScope: coalesceText([
+        map['visibilityScope'],
+        map['visibility_scope'],
+      ], fallback: 'public'),
+      cohortYear: coalesceText([
+        map['cohortYear'],
+        map['cohort_year'],
+      ], fallback: ''),
+      albumType: coalesceText([
+        map['albumType'],
+        map['album_type'],
+      ], fallback: 'general'),
+      ownerUserId: asInt(map['ownerUserId'] ?? map['owner_user_id']),
+      isSystemAlbum:
+          asBool(map['isSystemAlbum'] ?? map['is_system_album']) ?? false,
+      canUpload: asBool(map['canUpload']) ?? false,
+      canEdit: asBool(map['canEdit']) ?? false,
     );
   }
 }
 
-class AlbumLatestPhoto {
-  const AlbumLatestPhoto({
+class AlbumPhotoCard {
+  const AlbumPhotoCard({
     required this.id,
     required this.categoryId,
     required this.fileName,
+    required this.title,
     required this.date,
     required this.categoryTitle,
+    required this.viewCount,
+    required this.likeCount,
+    required this.commentCount,
+    required this.liked,
+    required this.allowComments,
   });
 
   final int id;
   final int categoryId;
   final String fileName;
+  final String title;
   final String date;
   final String categoryTitle;
+  final int viewCount;
+  final int likeCount;
+  final int commentCount;
+  final bool liked;
+  final bool allowComments;
 
-  factory AlbumLatestPhoto.fromMap(JsonMap map) {
-    return AlbumLatestPhoto(
+  factory AlbumPhotoCard.fromMap(JsonMap map) {
+    return AlbumPhotoCard(
       id: asInt(map['id']) ?? 0,
-      categoryId: asInt(map['katid']) ?? 0,
-      fileName: coalesceText([map['dosyaadi']], fallback: ''),
-      date: coalesceText([map['tarih']], fallback: ''),
-      categoryTitle: coalesceText([map['kategori']], fallback: ''),
+      categoryId: asInt(map['katid'] ?? map['categoryId']) ?? 0,
+      fileName: coalesceText([map['dosyaadi'], map['file_name']], fallback: ''),
+      title: coalesceText([map['baslik'], map['title']], fallback: 'Fotoğraf'),
+      date: coalesceText([map['tarih'], map['created_at']], fallback: ''),
+      categoryTitle: coalesceText([
+        map['kategori'],
+        map['category_title'],
+      ], fallback: ''),
+      viewCount: asInt(map['viewCount'] ?? map['hit']) ?? 0,
+      likeCount: asInt(map['likeCount']) ?? 0,
+      commentCount: asInt(map['commentCount']) ?? 0,
+      liked: asBool(map['liked']) ?? false,
+      allowComments: asBool(map['allowComments']) ?? true,
     );
   }
 }
 
-class AlbumCategoryDetail {
-  const AlbumCategoryDetail({
+class AlbumTaggedMember {
+  const AlbumTaggedMember({
     required this.id,
-    required this.title,
-    required this.description,
-    required this.photos,
-    required this.page,
-    required this.pages,
+    required this.handle,
+    required this.firstName,
+    required this.lastName,
+    required this.photo,
   });
 
   final int id;
-  final String title;
-  final String description;
-  final List<AlbumPhotoSummary> photos;
-  final int page;
-  final int pages;
+  final String handle;
+  final String firstName;
+  final String lastName;
+  final String photo;
 
-  bool get hasMore => page < pages;
+  String get displayName {
+    final fullName = '$firstName $lastName'.trim();
+    if (fullName.isNotEmpty) return fullName;
+    if (handle.isNotEmpty) return '@$handle';
+    return 'SDAL Üyesi';
+  }
+
+  factory AlbumTaggedMember.fromMap(JsonMap map) {
+    return AlbumTaggedMember(
+      id: asInt(map['id']) ?? 0,
+      handle: coalesceText([map['kadi']], fallback: ''),
+      firstName: coalesceText([map['isim']], fallback: ''),
+      lastName: coalesceText([map['soyisim']], fallback: ''),
+      photo: coalesceText([map['resim'], map['photo']], fallback: ''),
+    );
+  }
 }
 
-class AlbumPhotoSummary {
-  const AlbumPhotoSummary({
+class AlbumComment {
+  const AlbumComment({
     required this.id,
-    required this.fileName,
-    required this.title,
+    required this.userId,
+    required this.handle,
+    required this.displayName,
+    required this.comment,
     required this.date,
+    required this.updatedAt,
+    required this.verified,
+    required this.photo,
+    required this.canEdit,
+    required this.canDelete,
   });
 
   final int id;
-  final String fileName;
-  final String title;
+  final int userId;
+  final String handle;
+  final String displayName;
+  final String comment;
   final String date;
+  final String updatedAt;
+  final bool verified;
+  final String photo;
+  final bool canEdit;
+  final bool canDelete;
 
-  factory AlbumPhotoSummary.fromMap(JsonMap map) {
-    return AlbumPhotoSummary(
+  bool get isEdited => updatedAt.trim().isNotEmpty && updatedAt != date;
+
+  factory AlbumComment.fromMap(JsonMap map) {
+    final handle = coalesceText([map['kadi'], map['uyeadi']], fallback: '');
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    return AlbumComment(
       id: asInt(map['id']) ?? 0,
-      fileName: coalesceText([map['dosyaadi']], fallback: ''),
-      title: coalesceText([map['baslik']], fallback: 'Fotoğraf'),
-      date: coalesceText([map['tarih']], fallback: ''),
+      userId: asInt(map['user_id']) ?? 0,
+      handle: handle,
+      displayName: coalesceText([fullName, handle], fallback: 'SDAL Üyesi'),
+      comment: coalesceText([map['yorum'], map['comment']], fallback: ''),
+      date: coalesceText([map['tarih'], map['created_at']], fallback: ''),
+      updatedAt: coalesceText([
+        map['updatedAt'],
+        map['updated_at'],
+      ], fallback: ''),
+      verified: asBool(map['verified']) ?? false,
+      photo: coalesceText([map['resim'], map['photo']], fallback: ''),
+      canEdit: asBool(map['canEdit']) ?? false,
+      canDelete: asBool(map['canDelete']) ?? false,
+    );
+  }
+}
+
+class AlbumLikeUser {
+  const AlbumLikeUser({
+    required this.id,
+    required this.username,
+    required this.firstName,
+    required this.lastName,
+    required this.avatarUrl,
+    this.graduationYear,
+  });
+
+  final int id;
+  final String username;
+  final String firstName;
+  final String lastName;
+  final String avatarUrl;
+  final int? graduationYear;
+
+  String get displayName {
+    final fullName = '$firstName $lastName'.trim();
+    if (fullName.isNotEmpty) return fullName;
+    return username.isNotEmpty ? username : 'SDAL Üyesi';
+  }
+
+  factory AlbumLikeUser.fromMap(JsonMap map) {
+    return AlbumLikeUser(
+      id: asInt(map['id']) ?? 0,
+      username: coalesceText([map['username'], map['kadi']], fallback: ''),
+      firstName: coalesceText([map['firstName'], map['isim']], fallback: ''),
+      lastName: coalesceText([map['lastName'], map['soyisim']], fallback: ''),
+      avatarUrl: coalesceText([
+        map['avatarUrl'],
+        map['resim'],
+        map['photo'],
+      ], fallback: ''),
+      graduationYear: asInt(map['graduationYear']),
     );
   }
 }
@@ -113,7 +254,18 @@ class AlbumPhotoDetail {
     required this.title,
     required this.description,
     required this.date,
+    required this.updatedAt,
     required this.categoryTitle,
+    required this.viewCount,
+    required this.likeCount,
+    required this.commentCount,
+    required this.liked,
+    required this.allowComments,
+    required this.uploadedByUserId,
+    required this.canEditPhoto,
+    required this.canToggleComments,
+    required this.canBulkDeleteComments,
+    required this.taggedUsers,
   });
 
   final int id;
@@ -122,54 +274,155 @@ class AlbumPhotoDetail {
   final String title;
   final String description;
   final String date;
+  final String updatedAt;
   final String categoryTitle;
-}
+  final int viewCount;
+  final int likeCount;
+  final int commentCount;
+  final bool liked;
+  final bool allowComments;
+  final int? uploadedByUserId;
+  final bool canEditPhoto;
+  final bool canToggleComments;
+  final bool canBulkDeleteComments;
+  final List<AlbumTaggedMember> taggedUsers;
 
-class AlbumComment {
-  const AlbumComment({
-    required this.id,
-    required this.userId,
-    required this.handle,
-    required this.displayName,
-    required this.comment,
-    required this.date,
-    required this.verified,
-    required this.photo,
-  });
-
-  final int id;
-  final int userId;
-  final String handle;
-  final String displayName;
-  final String comment;
-  final String date;
-  final bool verified;
-  final String photo;
-
-  factory AlbumComment.fromMap(JsonMap map) {
-    return AlbumComment(
-      id: asInt(map['id']) ?? 0,
-      userId: asInt(map['user_id']) ?? 0,
-      handle: coalesceText([map['kadi'], map['uyeadi']], fallback: ''),
-      displayName: coalesceText([
-        '${asString(map['isim']) ?? ''} ${asString(map['soyisim']) ?? ''}'
-            .trim(),
-        map['kadi'],
-        map['uyeadi'],
-      ], fallback: 'SDAL Üyesi'),
-      comment: coalesceText([map['yorum']], fallback: ''),
-      date: coalesceText([map['tarih']], fallback: ''),
-      verified: asBool(map['verified']) ?? false,
-      photo: coalesceText([map['resim']], fallback: ''),
+  factory AlbumPhotoDetail.fromPayload(JsonMap payload) {
+    final row = asJsonMap(payload['row']);
+    final category = asJsonMap(payload['category']);
+    final permissions = asJsonMap(payload['permissions']);
+    return AlbumPhotoDetail(
+      id: asInt(row['id']) ?? 0,
+      categoryId: asInt(row['katid']) ?? 0,
+      fileName: coalesceText([row['dosyaadi']], fallback: ''),
+      title: coalesceText([row['baslik']], fallback: 'Fotoğraf'),
+      description: coalesceText([row['aciklama']], fallback: ''),
+      date: coalesceText([row['tarih']], fallback: ''),
+      updatedAt: coalesceText([row['updatedAt']], fallback: ''),
+      categoryTitle: coalesceText([
+        category['kategori'],
+        category['title'],
+      ], fallback: ''),
+      viewCount: asInt(row['hit']) ?? 0,
+      likeCount: asInt(row['likeCount']) ?? 0,
+      commentCount: asInt(row['commentCount']) ?? 0,
+      liked: asBool(row['liked']) ?? false,
+      allowComments: asBool(row['allowComments']) ?? true,
+      uploadedByUserId: asInt(row['ekleyenid']),
+      canEditPhoto: asBool(permissions['canEditPhoto']) ?? false,
+      canToggleComments: asBool(permissions['canToggleComments']) ?? false,
+      canBulkDeleteComments:
+          asBool(permissions['canBulkDeleteComments']) ?? false,
+      taggedUsers: asJsonMapList(
+        payload['taggedUsers'],
+      ).map(AlbumTaggedMember.fromMap).toList(growable: false),
     );
   }
 }
 
-class AlbumsPageData {
-  const AlbumsPageData({required this.items, required this.hasMore});
+class AlbumCategoryDetail {
+  const AlbumCategoryDetail({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.photos,
+    required this.page,
+    required this.pages,
+    required this.total,
+    required this.visibilityScope,
+    required this.cohortYear,
+    required this.albumType,
+    required this.canUpload,
+    required this.canEdit,
+  });
 
-  final List<AlbumLatestPhoto> items;
-  final bool hasMore;
+  final int id;
+  final String title;
+  final String description;
+  final List<AlbumPhotoCard> photos;
+  final int page;
+  final int pages;
+  final int total;
+  final String visibilityScope;
+  final String cohortYear;
+  final String albumType;
+  final bool canUpload;
+  final bool canEdit;
+
+  bool get hasMore => page < pages;
+
+  factory AlbumCategoryDetail.fromPayload(JsonMap payload) {
+    final category = asJsonMap(payload['category']);
+    return AlbumCategoryDetail(
+      id: asInt(category['id']) ?? 0,
+      title: coalesceText([
+        category['kategori'],
+        category['title'],
+      ], fallback: 'Albüm'),
+      description: coalesceText([
+        category['aciklama'],
+        category['description'],
+      ], fallback: ''),
+      photos: asJsonMapList(
+        payload['photos'],
+      ).map(AlbumPhotoCard.fromMap).toList(growable: false),
+      page: asInt(payload['page']) ?? 1,
+      pages: asInt(payload['pages']) ?? 1,
+      total: asInt(payload['total']) ?? 0,
+      visibilityScope: coalesceText([
+        category['visibilityScope'],
+        category['visibility_scope'],
+      ], fallback: 'public'),
+      cohortYear: coalesceText([
+        category['cohortYear'],
+        category['cohort_year'],
+      ], fallback: ''),
+      albumType: coalesceText([
+        category['albumType'],
+        category['album_type'],
+      ], fallback: 'general'),
+      canUpload: asBool(category['canUpload']) ?? false,
+      canEdit: asBool(category['canEdit']) ?? false,
+    );
+  }
+}
+
+class AlbumsDashboardData {
+  const AlbumsDashboardData({
+    required this.categories,
+    required this.latest,
+    required this.popular,
+    required this.mine,
+    required this.canCreateAlbum,
+    required this.canManageCategories,
+  });
+
+  final List<AlbumCategoryItem> categories;
+  final List<AlbumPhotoCard> latest;
+  final List<AlbumPhotoCard> popular;
+  final List<AlbumCategoryItem> mine;
+  final bool canCreateAlbum;
+  final bool canManageCategories;
+
+  factory AlbumsDashboardData.fromPayload(JsonMap payload) {
+    final permissions = asJsonMap(payload['permissions']);
+    return AlbumsDashboardData(
+      categories: asJsonMapList(
+        payload['categories'] ?? payload['items'],
+      ).map(AlbumCategoryItem.fromMap).toList(growable: false),
+      latest: asJsonMapList(
+        payload['latest'],
+      ).map(AlbumPhotoCard.fromMap).toList(growable: false),
+      popular: asJsonMapList(
+        payload['popular'],
+      ).map(AlbumPhotoCard.fromMap).toList(growable: false),
+      mine: asJsonMapList(
+        payload['mine'],
+      ).map(AlbumCategoryItem.fromMap).toList(growable: false),
+      canCreateAlbum: asBool(permissions['canCreateAlbum']) ?? false,
+      canManageCategories: asBool(permissions['canManageCategories']) ?? false,
+    );
+  }
 }
 
 class AlbumsRepository {
@@ -177,29 +430,22 @@ class AlbumsRepository {
 
   final ApiClient _apiClient;
 
-  Future<List<AlbumCategoryItem>> fetchCategories() async {
+  Future<AlbumsDashboardData> fetchDashboard() async {
     final result = await _apiClient.get<JsonMap>(
       '/api/albums',
       decoder: asJsonMap,
     );
-    return asJsonMapList(
-      asJsonMap(result.rawData)['items'],
-    ).map(AlbumCategoryItem.fromMap).toList(growable: false);
+    return AlbumsDashboardData.fromPayload(asJsonMap(result.rawData));
   }
 
-  Future<AlbumsPageData> fetchLatest({int limit = 24, int offset = 0}) async {
+  Future<List<AlbumCategoryItem>> fetchUploadCategories() async {
     final result = await _apiClient.get<JsonMap>(
-      '/api/album/latest',
-      query: {'limit': limit, 'offset': offset},
+      '/api/album/categories/active',
       decoder: asJsonMap,
     );
-    final payload = asJsonMap(result.rawData);
-    return AlbumsPageData(
-      items: asJsonMapList(
-        payload['items'],
-      ).map(AlbumLatestPhoto.fromMap).toList(growable: false),
-      hasMore: asBool(payload['hasMore']) ?? false,
-    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['categories'],
+    ).map(AlbumCategoryItem.fromMap).toList(growable: false);
   }
 
   Future<AlbumCategoryDetail> fetchCategoryDetail(
@@ -212,18 +458,7 @@ class AlbumsRepository {
       query: {'page': page, 'pageSize': pageSize},
       decoder: asJsonMap,
     );
-    final payload = asJsonMap(result.rawData);
-    final category = asJsonMap(payload['category']);
-    return AlbumCategoryDetail(
-      id: asInt(category['id']) ?? categoryId,
-      title: coalesceText([category['kategori']], fallback: 'Albüm'),
-      description: coalesceText([category['aciklama']], fallback: ''),
-      photos: asJsonMapList(
-        payload['photos'],
-      ).map(AlbumPhotoSummary.fromMap).toList(growable: false),
-      page: asInt(payload['page']) ?? 1,
-      pages: asInt(payload['pages']) ?? 1,
-    );
+    return AlbumCategoryDetail.fromPayload(asJsonMap(result.rawData));
   }
 
   Future<AlbumPhotoDetail> fetchPhotoDetail(int photoId) async {
@@ -231,30 +466,23 @@ class AlbumsRepository {
       '/api/photos/$photoId',
       decoder: asJsonMap,
     );
-    final payload = asJsonMap(result.rawData);
-    final row = asJsonMap(payload['row']);
-    final category = asJsonMap(payload['category']);
-    return AlbumPhotoDetail(
-      id: asInt(row['id']) ?? photoId,
-      categoryId: asInt(row['katid']) ?? 0,
-      fileName: coalesceText([row['dosyaadi']], fallback: ''),
-      title: coalesceText([row['baslik']], fallback: 'Fotoğraf'),
-      description: coalesceText([row['aciklama']], fallback: ''),
-      date: coalesceText([row['tarih']], fallback: ''),
-      categoryTitle: coalesceText([category['kategori']], fallback: ''),
-    );
+    return AlbumPhotoDetail.fromPayload(asJsonMap(result.rawData));
   }
 
-  Future<List<AlbumComment>> fetchComments(int photoId) async {
+  Future<(List<AlbumComment> comments, bool hidden)> fetchComments(
+    int photoId,
+  ) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/photos/$photoId/comments',
       decoder: asJsonMap,
     );
     final payload = asJsonMap(result.rawData);
-    final items = payload['comments'] ?? payload['items'];
-    return asJsonMapList(
-      items,
-    ).map(AlbumComment.fromMap).toList(growable: false);
+    return (
+      asJsonMapList(
+        payload['comments'],
+      ).map(AlbumComment.fromMap).toList(growable: false),
+      asBool(payload['hidden']) ?? false,
+    );
   }
 
   Future<ApiResult<dynamic>> addComment({
@@ -267,22 +495,43 @@ class AlbumsRepository {
     );
   }
 
-  Future<List<AlbumCategoryItem>> fetchUploadCategories() async {
+  Future<ApiResult<dynamic>> editComment({
+    required int photoId,
+    required int commentId,
+    required String comment,
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/photos/$photoId/comments/$commentId',
+      body: {'yorum': comment},
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteComment({
+    required int photoId,
+    required int commentId,
+  }) {
+    return _apiClient.delete<dynamic>(
+      '/api/photos/$photoId/comments/$commentId',
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteAllComments(int photoId) {
+    return _apiClient.delete<dynamic>('/api/photos/$photoId/comments');
+  }
+
+  Future<ApiResult<dynamic>> toggleLike(int photoId) {
+    return _apiClient.post<dynamic>('/api/photos/$photoId/like');
+  }
+
+  Future<List<AlbumLikeUser>> fetchLikes(int photoId) async {
     final result = await _apiClient.get<JsonMap>(
-      '/api/album/categories/active',
+      '/api/photos/$photoId/likes',
       decoder: asJsonMap,
     );
-    return asJsonMapList(asJsonMap(result.rawData)['categories'])
-        .map(
-          (map) => AlbumCategoryItem(
-            id: asInt(map['id']) ?? 0,
-            title: coalesceText([map['kategori']], fallback: 'Kategori'),
-            description: '',
-            count: 0,
-            previews: const <String>[],
-          ),
-        )
-        .toList(growable: false);
+    final payload = asJsonMap(result.rawData);
+    return asJsonMapList(
+      payload['items'],
+    ).map(AlbumLikeUser.fromMap).toList(growable: false);
   }
 
   Future<ApiResult<dynamic>> uploadPhoto({
@@ -290,15 +539,79 @@ class AlbumsRepository {
     required String title,
     required String description,
     required File file,
+    required bool allowComments,
+    List<int> taggedUserIds = const <int>[],
   }) {
     return _apiClient.multipart<dynamic>(
       '/api/album/upload',
-      fields: {'kat': categoryId, 'baslik': title, 'aciklama': description},
+      fields: {
+        'kat': categoryId,
+        'baslik': title,
+        'aciklama': description,
+        'yorumlaraIzin': allowComments ? '1' : '0',
+        'taggedUserIds': taggedUserIds.join(','),
+      },
       files: {'file': file},
     );
+  }
+
+  Future<ApiResult<dynamic>> updatePhoto({
+    required int photoId,
+    required String title,
+    required String description,
+    required bool allowComments,
+    List<int> taggedUserIds = const <int>[],
+  }) {
+    return _apiClient.patch<dynamic>(
+      '/api/photos/$photoId',
+      body: {
+        'baslik': title,
+        'aciklama': description,
+        'yorumlaraIzin': allowComments,
+        'taggedUserIds': taggedUserIds,
+      },
+    );
+  }
+
+  Future<ApiResult<dynamic>> createAlbum({
+    required String title,
+    required String description,
+    required String visibilityScope,
+    bool isProfileAlbum = false,
+    String cohortYear = '',
+    List<int> allowedUserIds = const <int>[],
+    List<int> allowedGroupIds = const <int>[],
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/albums',
+      body: {
+        'title': title,
+        'description': description,
+        'visibilityScope': visibilityScope,
+        'isProfileAlbum': isProfileAlbum,
+        if (cohortYear.trim().isNotEmpty) 'cohortYear': cohortYear.trim(),
+        if (allowedUserIds.isNotEmpty) 'allowedUserIds': allowedUserIds,
+        if (allowedGroupIds.isNotEmpty) 'allowedGroupIds': allowedGroupIds,
+      },
+    );
+  }
+
+  Future<ApiResult<dynamic>> deleteAlbum(int categoryId) {
+    return _apiClient.delete<dynamic>('/api/albums/$categoryId');
   }
 }
 
 final albumsRepositoryProvider = Provider<AlbumsRepository>(
   (ref) => AlbumsRepository(ref.watch(apiClientProvider)),
 );
+
+final albumsDashboardProvider = FutureProvider.autoDispose<AlbumsDashboardData>(
+  (ref) => ref.watch(albumsRepositoryProvider).fetchDashboard(),
+);
+
+final myAlbumsProvider = FutureProvider.autoDispose<List<AlbumCategoryItem>>((
+  ref,
+) async {
+  final dashboard = await ref.watch(albumsRepositoryProvider).fetchDashboard();
+  return dashboard.mine;
+});

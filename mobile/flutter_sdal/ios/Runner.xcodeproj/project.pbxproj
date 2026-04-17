@@ -204,9 +204,9 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */,
-				01ED6FCBA1C4F4C14949D6E1 /* [CP] Embed Pods Frameworks */,
 				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
 				98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */,
+				28ED53E47F4B1F47B8242A19 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -278,7 +278,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		01ED6FCBA1C4F4C14949D6E1 /* [CP] Embed Pods Frameworks */ = {
+		28ED53E47F4B1F47B8242A19 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -293,22 +293,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Strip Extended Attributes (Pre-embed)";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "find \"${TARGET_BUILD_DIR}\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\nfind \"${SRCROOT}/../build/native_assets\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\n";
 			showEnvVarsInLog = 0;
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
@@ -326,6 +310,22 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"${SRCROOT}/../tool/ios_prepare_flutter_build_dir.sh\"\n/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
+		};
+		5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Strip Extended Attributes (Pre-embed)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "find \"${TARGET_BUILD_DIR}\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\nfind \"${SRCROOT}/../build/native_assets\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\n";
+			showEnvVarsInLog = 0;
 		};
 		72984A24260C997F15464F39 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -525,16 +525,16 @@
 		249021D4217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 8B6E2B7A4D3F4A4C9E1D0A12 /* Profile.xcconfig */;
-				buildSettings = {
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					CLANG_ENABLE_MODULES = YES;
-					"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
-					"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
-					CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-					DEVELOPMENT_TEAM = 4P293R4B47;
-					"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
-					ENABLE_BITCODE = NO;
-					INFOPLIST_FILE = Runner/Info.plist;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				ENABLE_BITCODE = NO;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
+				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -711,16 +711,16 @@
 		97C147061CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
-				buildSettings = {
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					CLANG_ENABLE_MODULES = YES;
-					"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
-					"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
-					CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-					DEVELOPMENT_TEAM = 4P293R4B47;
-					"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
-					ENABLE_BITCODE = NO;
-					INFOPLIST_FILE = Runner/Info.plist;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				ENABLE_BITCODE = NO;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
+				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -737,16 +737,16 @@
 		97C147071CF9000F007C117D /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
-				buildSettings = {
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					CLANG_ENABLE_MODULES = YES;
-					"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
-					"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
-					CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-					DEVELOPMENT_TEAM = 4P293R4B47;
-					"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
-					ENABLE_BITCODE = NO;
-					INFOPLIST_FILE = Runner/Info.plist;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				ENABLE_BITCODE = NO;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
+				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

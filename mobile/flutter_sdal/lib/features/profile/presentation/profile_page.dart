@@ -13,6 +13,7 @@ import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../feed/data/feed_repository.dart';
+import '../../albums/data/albums_repository.dart';
 import '../../stories/data/stories_repository.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../application/profile_action_controller.dart';
@@ -40,6 +41,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         .value;
     final expiredStoriesCount = expiredStories?.length ?? 0;
     final requestsVisible = session?.isModuleVisible('requests') ?? false;
+    final myAlbumsState = ref.watch(myAlbumsProvider);
 
     return FeatureScaffold(
       title: l10n.profileTitle,
@@ -177,6 +179,99 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               )
                             : _expiredStoriesTitle(context, _storyFeedType),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Profil albümleri',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        FilledButton.tonal(
+                          onPressed: () =>
+                              context.push('/albums/new?profile=1'),
+                          child: const Text('Albüm ekle'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    myAlbumsState.when(
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                      error: (error, _) => Text(error.toString()),
+                      data: (albums) {
+                        if (albums.isEmpty) {
+                          return const Text(
+                            'Henüz profiline bağlı bir albüm yok.',
+                          );
+                        }
+                        return Column(
+                          children: albums
+                              .map(
+                                (album) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(18),
+                                    onTap: () =>
+                                        context.push('/albums/${album.id}'),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: Theme.of(context).dividerColor,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  album.title,
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.titleMedium,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  album.description.isNotEmpty
+                                                      ? album.description
+                                                      : album.visibilityScope,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodySmall,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text('${album.count}'),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                        );
+                      },
                     ),
                   ],
                 ),

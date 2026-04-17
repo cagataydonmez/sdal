@@ -73,5 +73,15 @@ post_install do |installer|
       config.build_settings['CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]'] = 'NO'
       config.build_settings['EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]'] = ''
     end
+
+    # Xcode 16+ WMO breaks `internal import GoogleUtilities` in FirebaseCoreInternal.
+    # Disabling WMO only for this target lets per-file compilation resolve the module
+    # through Clang's implicit module system without needing pre-built explicit modules.
+    if target.name == 'FirebaseCoreInternal'
+      target.build_configurations.each do |config|
+        config.build_settings['SWIFT_COMPILATION_MODE'] = 'singlefile'
+        config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+      end
+    end
   end
 end

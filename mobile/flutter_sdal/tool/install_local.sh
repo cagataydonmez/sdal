@@ -9,6 +9,15 @@ IOS_RELEASE_BUILD_DIR_ABS="${IOS_RELEASE_BUILD_DIR_ABS:-$HOME/Library/Caches/flu
 FLUTTER_BUILD_DIR_REL="${FLUTTER_BUILD_DIR_REL:-../../../../Library/Caches/flutter_sdal_flutter_build}"
 IOS_SIGNING_IDENTITY_SHA="${IOS_SIGNING_IDENTITY_SHA:-}"
 
+# TestFlight / App Store Connect
+IOS_TEAM_ID="${IOS_TEAM_ID:-}"
+ASC_KEY_ID="${ASC_KEY_ID:-}"
+ASC_ISSUER_ID="${ASC_ISSUER_ID:-}"
+IOS_ARCHIVE_DIR="${IOS_ARCHIVE_DIR:-$HOME/Library/Caches/flutter_sdal_ios_archives}"
+
+# Android GitHub Release
+GITHUB_REPO="${GITHUB_REPO:-}"
+
 PREV_BUILD_DIR=""
 PREV_BUILD_DIR_SET=0
 VERSION_MAJOR_SELECTED=""
@@ -21,15 +30,28 @@ print_help() {
 Usage: ./tool/install_local.sh
 
 Interactive launcher for:
-1. iPhone (cable or wireless) debug
-2. iPhone (cable or wireless) release install + launch
-3. iOS simulator debug/release
-4. Android emulator debug/release
+1. iPhone (cable or wireless) — debug or release install
+2. iOS Simulator — debug
+3. Android Emulator — debug or release
+4. TestFlight — archive, export IPA, upload to App Store Connect  [no version bump]
+5. Android GitHub Release — flutter build apk + gh release create  [no version bump]
 
 Behavior:
+- Options 1-3: prompts for version bump before building.
+- Options 4-5 (distribution): use the current version as-is, no build number change.
 - iPhone release builds into ~/Library/Caches to avoid Desktop/iCloud xattrs breaking codesign.
-- Debug, iOS simulator, and Android emulator flows use flutter run.
 - The script restores your previous global flutter build-dir setting on exit.
+
+TestFlight required env vars:
+  IOS_TEAM_ID    — Apple Developer Team ID (Membership → Team ID)
+  ASC_KEY_ID     — App Store Connect API Key ID
+  ASC_ISSUER_ID  — App Store Connect API Issuer ID
+  ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8 must exist
+
+Android GitHub Release required:
+  gh CLI installed and authenticated (gh auth login)
+  GITHUB_REPO=owner/repo  (or auto-detected from git remote origin)
+  Android signing configured in android/key.properties (optional for sideload APKs)
 EOF
 }
 
@@ -479,6 +501,363 @@ Android emulator flow:
 EOF
 }
 
+print_testflight_instructions() {
+  cat <<'EOF'
+
+TestFlight build & upload flow:
+  1. flutter pub get + pod install
+  2. xcodebuild archive  (Release, App Store SDK)
+  3. xcodebuild -exportArchive  (app-store-connect method)
+  4. xcrun altool --upload-app  (App Store Connect API)
+
+One-time prerequisites (script will check each):
+  a) Active Apple Developer Program membership
+  b) App record created in App Store Connect (appstoreconnect.apple.com)
+  c) Distribution certificate installed in your Keychain
+     → Xcode → Settings → Accounts → Manage Certificates → + → Apple Distribution
+  d) IOS_TEAM_ID env var set  (developer.apple.com → Account → Membership)
+  e) ASC_KEY_ID + ASC_ISSUER_ID env vars set
+     → App Store Connect → Users and Access → Integrations → App Store Connect API
+  f) AuthKey_<ASC_KEY_ID>.p8 placed at:
+     ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8
+
+Add to your ~/.zshrc (or ~/.bash_profile):
+  export IOS_TEAM_ID=XXXXXXXXXX
+  export ASC_KEY_ID=XXXXXXXXXX
+  export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+EOF
+}
+
+check_testflight_prereqs() {
+  local ok=1
+
+  if [[ -z "$IOS_TEAM_ID" ]]; then
+    printf '\n[MISSING] IOS_TEAM_ID is not set.\n'
+    printf '  1. Go to: https://developer.apple.com/account\n'
+    printf '  2. Click "Membership Details"\n'
+    printf '  3. Copy "Team ID"\n'
+    printf '  4. Add to ~/.zshrc:  export IOS_TEAM_ID=<your-team-id>\n'
+    printf '  5. Run: source ~/.zshrc\n'
+    ok=0
+  else
+    printf '[OK] IOS_TEAM_ID = %s\n' "$IOS_TEAM_ID"
+  fi
+
+  if [[ -z "$ASC_KEY_ID" ]]; then
+    printf '\n[MISSING] ASC_KEY_ID is not set.\n'
+    printf '  1. Go to: https://appstoreconnect.apple.com/access/integrations/api\n'
+    printf '  2. Click "+" to create a new key (Role: App Manager or Developer)\n'
+    printf '  3. Copy the "Key ID"\n'
+    printf '  4. Add to ~/.zshrc:  export ASC_KEY_ID=<key-id>\n'
+    ok=0
+  else
+    printf '[OK] ASC_KEY_ID = %s\n' "$ASC_KEY_ID"
+  fi
+
+  if [[ -z "$ASC_ISSUER_ID" ]]; then
+    printf '\n[MISSING] ASC_ISSUER_ID is not set.\n'
+    printf '  1. Go to: https://appstoreconnect.apple.com/access/integrations/api\n'
+    printf '  2. Copy the "Issuer ID" shown at the top of the page\n'
+    printf '  3. Add to ~/.zshrc:  export ASC_ISSUER_ID=<issuer-id>\n'
+    ok=0
+  else
+    printf '[OK] ASC_ISSUER_ID = %s\n' "$ASC_ISSUER_ID"
+  fi
+
+  if [[ -n "$ASC_KEY_ID" ]]; then
+    local key_path="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+    if [[ ! -f "$key_path" ]]; then
+      printf '\n[MISSING] API private key file not found at:\n'
+      printf '  %s\n' "$key_path"
+      printf '  Steps:\n'
+      printf '  1. Go to: https://appstoreconnect.apple.com/access/integrations/api\n'
+      printf '  2. Download the .p8 file for key %s\n' "$ASC_KEY_ID"
+      printf '     (Download is only available once — if missed, revoke and create a new key)\n'
+      printf '  3. mkdir -p ~/.appstoreconnect/private_keys\n'
+      printf '  4. mv ~/Downloads/AuthKey_%s.p8 ~/.appstoreconnect/private_keys/\n' "$ASC_KEY_ID"
+      printf '  5. chmod 600 ~/.appstoreconnect/private_keys/AuthKey_%s.p8\n' "$ASC_KEY_ID"
+      ok=0
+    else
+      printf '[OK] API key file found: %s\n' "$key_path"
+    fi
+  fi
+
+  local dist_cert
+  dist_cert="$(security find-identity -v -p codesigning 2>/dev/null | grep -c 'Apple Distribution:' || true)"
+  if [[ "$dist_cert" -lt 1 ]]; then
+    printf '\n[MISSING] No Apple Distribution certificate found in Keychain.\n'
+    printf '  1. Open Xcode\n'
+    printf '  2. Xcode → Settings → Accounts → select your Apple ID → Manage Certificates\n'
+    printf '  3. Click "+" → "Apple Distribution"\n'
+    printf '  4. Xcode will generate and install the certificate.\n'
+    ok=0
+  else
+    printf '[OK] Apple Distribution certificate found (%s).\n' "$dist_cert"
+  fi
+
+  # Hard stop for any missing env/cert issues before asking the interactive question.
+  if [[ $ok -eq 0 ]]; then
+    printf '\n---\nFix the items above, then re-run this script.\n'
+    return 1
+  fi
+
+  # App Store Connect app record check.
+  # xcrun altool will fail with error 19 if the app does not exist in App Store Connect.
+  # We cannot verify this automatically without a JWT call, so we ask the user explicitly.
+  printf '\n[CHECK] App record in App Store Connect\n'
+  printf '  The upload will fail if the app has not been created in App Store Connect yet.\n'
+  printf '  Bundle ID that will be uploaded: %s\n' "$IOS_BUNDLE_ID"
+  printf '\n  If you have NOT created the app yet:\n'
+  printf '  1. Go to: https://appstoreconnect.apple.com\n'
+  printf '  2. Click "+" → "New App"\n'
+  printf '  3. Platform: iOS\n'
+  printf '  4. Bundle ID: %s\n' "$IOS_BUNDLE_ID"
+  printf '     (If it does not appear in the dropdown, first register it at\n'
+  printf '      https://developer.apple.com/account/resources/identifiers/list)\n'
+  printf '  5. Fill in name and SKU, click "Create"\n'
+  printf '\n'
+  local app_confirmed
+  read -r -p "Is the app already created in App Store Connect? [y/N] " app_confirmed < /dev/tty
+  if [[ ! "$app_confirmed" =~ ^[Yy]$ ]]; then
+    printf '\nCreate the app record first, then re-run this script.\n'
+    return 1
+  fi
+  printf '[OK] App record confirmed by user.\n'
+
+  printf '\nAll prerequisites OK. Proceeding with TestFlight build.\n'
+  return 0
+}
+
+build_archive_export_upload_testflight() {
+  # The simulator/debug flows point FLUTTER_BUILD_DIR at a custom cache so debug
+  # artefacts don't blow up the project directory. That cache contains native_assets
+  # built for the iOS Simulator (LC_BUILD_VERSION platform = IOSSIMULATOR). If the
+  # archive picks those up, App Store validation rejects the IPA (error 91169).
+  # Reset build-dir to project default and drop Generated.xcconfig so the Xcode
+  # Flutter build phase regenerates it and rebuilds native_assets fresh for iOS.
+  log "Resetting flutter build-dir for archive (avoids stale simulator native_assets)..."
+  "$FLUTTER_BIN" config --build-dir="" >/dev/null 2>&1 || true
+  rm -f "$ROOT_DIR/ios/Flutter/Generated.xcconfig"
+  rm -rf "$ROOT_DIR/build/native_assets"
+
+  prepare_ios
+
+  mkdir -p "$IOS_ARCHIVE_DIR"
+
+  local timestamp archive_path export_path export_options_plist
+  timestamp="$(date +%Y%m%d_%H%M%S)"
+  archive_path="$IOS_ARCHIVE_DIR/Runner_${timestamp}.xcarchive"
+  export_path="$IOS_ARCHIVE_DIR/Runner_${timestamp}_ipa"
+  export_options_plist="$IOS_ARCHIVE_DIR/ExportOptions_${timestamp}.plist"
+
+  /usr/bin/python3 - "$export_options_plist" "$IOS_TEAM_ID" <<'PY'
+from pathlib import Path
+import sys
+
+plist_path = Path(sys.argv[1])
+team_id = sys.argv[2]
+plist_path.parent.mkdir(parents=True, exist_ok=True)
+plist_path.write_text(
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"'
+    ' "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+    '<plist version="1.0">\n'
+    '<dict>\n'
+    '    <key>method</key>\n'
+    '    <string>app-store-connect</string>\n'
+    '    <key>teamID</key>\n'
+    f'    <string>{team_id}</string>\n'
+    '    <key>uploadBitcode</key>\n'
+    '    <false/>\n'
+    '    <key>uploadSymbols</key>\n'
+    '    <true/>\n'
+    '    <key>signingStyle</key>\n'
+    '    <string>automatic</string>\n'
+    '</dict>\n'
+    '</plist>\n',
+    encoding="utf-8",
+)
+PY
+
+  log ""
+  log "Step 1/3: Archiving for App Store (this may take a few minutes)..."
+  log "Archive path: $archive_path"
+  (
+    cd "$IOS_DIR"
+    xcodebuild \
+      -workspace Runner.xcworkspace \
+      -scheme Runner \
+      -configuration Release \
+      -sdk iphoneos \
+      -destination 'generic/platform=iOS' \
+      -archivePath "$archive_path" \
+      -allowProvisioningUpdates \
+      FLUTTER_SUPPRESS_ANALYTICS=true \
+      COMPILER_INDEX_STORE_ENABLE=NO \
+      DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+      "OBJROOT=$IOS_ARCHIVE_DIR/build_objroot" \
+      archive
+  )
+
+  log ""
+  log "Step 2/3: Exporting IPA from archive..."
+  xcodebuild \
+    -exportArchive \
+    -archivePath "$archive_path" \
+    -exportPath "$export_path" \
+    -exportOptionsPlist "$export_options_plist" \
+    -allowProvisioningUpdates
+
+  local ipa_path
+  ipa_path="$(find "$export_path" -name '*.ipa' | head -1)"
+  [[ -f "$ipa_path" ]] || die "IPA not found after export in: $export_path"
+
+  log ""
+  log "Step 3/3: Uploading to App Store Connect / TestFlight..."
+  log "IPA: $ipa_path"
+  log "(Upload may take several minutes depending on app size)"
+  xcrun altool \
+    --upload-app \
+    -f "$ipa_path" \
+    -t ios \
+    --apiKey "$ASC_KEY_ID" \
+    --apiIssuer "$ASC_ISSUER_ID"
+
+  log ""
+  log "Upload complete!"
+  log ""
+  log "Next steps:"
+  log "  1. Go to: https://appstoreconnect.apple.com → Your App → TestFlight"
+  log "  2. Wait for Apple to finish processing (typically 15–30 minutes)"
+  log "  3. The build will appear under 'iOS Builds'"
+  log "  4. Add internal or external testers as needed"
+  log ""
+  log "Artifacts saved at:"
+  log "  Archive : $archive_path"
+  log "  IPA     : $ipa_path"
+}
+
+print_android_github_release_instructions() {
+  cat <<'EOF'
+
+Android GitHub Release flow:
+  1. flutter pub get
+  2. flutter build apk --release
+  3. gh release create <tag> <apk>  (creates tag + release on GitHub)
+
+One-time prerequisites (script will check each):
+  a) gh CLI installed  (brew install gh)
+  b) gh authenticated  (gh auth login)
+  c) GitHub repo accessible (auto-detected from git remote, or set GITHUB_REPO=owner/repo)
+  d) Android signing configured  (optional — unsigned APK works for sideloading)
+     → android/key.properties + android/app/build.gradle signingConfigs
+
+Note: Build number is NOT incremented for this flow. Bump the version manually
+      via options 1–3, or edit pubspec.yaml before running this option.
+EOF
+}
+
+check_github_release_prereqs() {
+  local ok=1
+
+  if ! command -v gh >/dev/null 2>&1; then
+    printf '\n[MISSING] gh CLI is not installed.\n'
+    printf '  Install: brew install gh\n'
+    ok=0
+  else
+    printf '[OK] gh CLI found: %s\n' "$(gh --version | head -1)"
+
+    if ! gh auth status >/dev/null 2>&1; then
+      printf '\n[MISSING] gh is not authenticated.\n'
+      printf '  Run: gh auth login\n'
+      printf '  Then re-run this script.\n'
+      ok=0
+    else
+      printf '[OK] gh authenticated.\n'
+    fi
+  fi
+
+  local repo
+  repo="$GITHUB_REPO"
+  if [[ -z "$repo" ]]; then
+    repo="$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null \
+      | sed -E 's|.*github\.com[:/]||; s|\.git$||' || true)"
+  fi
+  if [[ -z "$repo" ]]; then
+    printf '\n[MISSING] Cannot determine GitHub repo.\n'
+    printf '  Option A: Set env var:  export GITHUB_REPO=owner/repo\n'
+    printf '  Option B: Ensure git remote origin points to a GitHub URL.\n'
+    ok=0
+  else
+    printf '[OK] GitHub repo: %s\n' "$repo"
+  fi
+
+  if [[ $ok -eq 0 ]]; then
+    printf '\n---\nFix the items above, then re-run this script.\n'
+    return 1
+  fi
+
+  printf '\nAll prerequisites OK. Proceeding with Android release build.\n'
+  return 0
+}
+
+build_upload_android_github_release() {
+  prepare_flutter
+
+  log ""
+  log "Step 1/2: Building Android release APK..."
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" build apk --release
+  )
+
+  # Locate the APK — search standard path first, then fallback to find
+  local apk_path="$ROOT_DIR/build/app/outputs/flutter-apk/app-release.apk"
+  if [[ ! -f "$apk_path" ]]; then
+    apk_path="$(find "$ROOT_DIR/build" "$HOME/Library/Caches/flutter_sdal_flutter_build" \
+      -name 'app-release.apk' -path '*/flutter-apk/*' 2>/dev/null | head -1 || true)"
+  fi
+  [[ -f "$apk_path" ]] || die "APK not found after build. Run 'flutter build apk --release' manually to diagnose."
+
+  log "APK: $apk_path"
+
+  # Determine version from pubspec
+  local major minor patch build_num
+  read -r major minor patch build_num <<< "$(current_version_parts)"
+  local tag="v${major}.${minor}.${build_num}"
+
+  # Determine GitHub repo
+  local repo="$GITHUB_REPO"
+  if [[ -z "$repo" ]]; then
+    repo="$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null \
+      | sed -E 's|.*github\.com[:/]||; s|\.git$||' || true)"
+  fi
+  [[ -n "$repo" ]] || die "Could not determine GitHub repo. Set GITHUB_REPO=owner/repo"
+
+  # Prompt for release notes
+  printf '\nRelease notes (press Enter to auto-generate from recent commits):\n> '
+  local notes
+  read -r notes < /dev/tty
+  if [[ -z "$notes" ]]; then
+    notes="$(git -C "$ROOT_DIR" log --oneline -8 2>/dev/null \
+      | sed 's/^[a-f0-9]* /- /' || true)"
+    [[ -n "$notes" ]] || notes="Release $tag"
+  fi
+
+  log ""
+  log "Step 2/2: Creating GitHub release $tag in $repo..."
+  gh release create "$tag" \
+    --repo "$repo" \
+    --title "$tag" \
+    --notes "$notes" \
+    "$apk_path#app-release.apk"
+
+  log ""
+  log "Release published!"
+  log "  URL : https://github.com/$repo/releases/tag/$tag"
+  log "  APK : $apk_path"
+}
+
 main() {
   require_cmd "$FLUTTER_BIN"
   require_cmd /usr/bin/python3
@@ -489,24 +868,40 @@ main() {
     exit 0
   fi
 
-  prompt_app_version_update
-
+  # Select target first so version prompt can be skipped for distribution flows.
   printf '\nTarget type\n'
   printf '  1. iPhone (cable or wireless)\n'
   printf '  2. iOS Simulator\n'
   printf '  3. Android Emulator\n'
+  printf '  4. TestFlight (archive + upload to App Store Connect)  [no version bump]\n'
+  printf '  5. Android GitHub Release (build APK + gh release)     [no version bump]\n'
   local target_choice
-  target_choice="$(prompt_number 3 "Choose target: ")"
+  target_choice="$(prompt_number 5 "Choose target: ")"
 
-  printf '\nBuild type\n'
-  printf '  1. Debug\n'
-  printf '  2. Release\n'
-  local build_choice build_mode
-  build_choice="$(prompt_number 2 "Choose build: ")"
-  if [[ "$build_choice" == "1" ]]; then
-    build_mode="debug"
+  # Version bump: only for local install flows (1-3).
+  # Distribution flows (4-5) use the current version as-is.
+  if [[ "$target_choice" =~ ^[123]$ ]]; then
+    prompt_app_version_update
   else
-    build_mode="release"
+    local _cur_maj _cur_min _cur_patch _cur_build
+    read -r _cur_maj _cur_min _cur_patch _cur_build <<< "$(current_version_parts)"
+    printf '\nCurrent version: v.%s.%s.%s (build number unchanged)\n' \
+      "$_cur_maj" "$_cur_min" "$_cur_build"
+  fi
+
+  # Build type prompt: only for local flows that support debug/release.
+  local build_mode=""
+  if [[ "$target_choice" =~ ^[123]$ ]]; then
+    local build_choice
+    printf '\nBuild type\n'
+    printf '  1. Debug\n'
+    printf '  2. Release\n'
+    build_choice="$(prompt_number 2 "Choose build: ")"
+    if [[ "$build_choice" == "1" ]]; then
+      build_mode="debug"
+    else
+      build_mode="release"
+    fi
   fi
 
   case "$target_choice" in
@@ -569,6 +964,24 @@ main() {
       android_device_id="${android_selected##*|||}"
       apply_app_version_update
       run_flutter_mode "$build_mode" "$android_device_id"
+      ;;
+    4)
+      print_testflight_instructions
+      printf '\nChecking prerequisites...\n'
+      check_testflight_prereqs || exit 1
+      local confirm
+      read -r -p "Proceed with TestFlight build and upload? [y/N] " confirm < /dev/tty
+      [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+      build_archive_export_upload_testflight
+      ;;
+    5)
+      print_android_github_release_instructions
+      printf '\nChecking prerequisites...\n'
+      check_github_release_prereqs || exit 1
+      local confirm
+      read -r -p "Proceed with Android release build and GitHub upload? [y/N] " confirm < /dev/tty
+      [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+      build_upload_android_github_release
       ;;
   esac
 }

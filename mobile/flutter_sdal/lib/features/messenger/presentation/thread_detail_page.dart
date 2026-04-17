@@ -218,29 +218,43 @@ class _ThreadDetailPageState extends ConsumerState<ThreadDetailPage> {
 
   void _scrollToBottom({bool force = false, bool animated = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      if (!force && !_isNearBottom()) {
-        if (mounted) {
-          setState(() => _showJumpToLatest = true);
-        }
+      if (_disposed || !mounted) return;
+      if (!_scrollController.hasClients) {
+        // ListView henüz mount edilmemiş olabilir (ör. provider cache'den
+        // veri anında geldi, initState sırasında çağrıldı). Bir frame sonra
+        // tekrar dene.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_disposed || !mounted || !_scrollController.hasClients) return;
+          _performScroll(force: force, animated: animated);
+        });
         return;
       }
-      if (animated) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      } else {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
-      if (mounted) {
-        setState(() {
-          _showJumpToLatest = false;
-          _hasPendingNewMessages = false;
-        });
-      }
+      _performScroll(force: force, animated: animated);
     });
+  }
+
+  void _performScroll({required bool force, required bool animated}) {
+    if (!force && !_isNearBottom()) {
+      if (mounted) {
+        setState(() => _showJumpToLatest = true);
+      }
+      return;
+    }
+    if (animated) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    }
+    if (mounted) {
+      setState(() {
+        _showJumpToLatest = false;
+        _hasPendingNewMessages = false;
+      });
+    }
   }
 
   @override
