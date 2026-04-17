@@ -145,6 +145,7 @@ class ApiClient {
 
   Future<ApiResult<T>> multipart<T>(
     String path, {
+    String method = 'POST',
     Map<String, dynamic>? fields,
     required Map<String, File> files,
     Map<String, List<File>> extraFiles = const <String, List<File>>{},
@@ -193,7 +194,7 @@ class ApiClient {
         );
       }
     }
-    return _request<T>('POST', path, body: formData, decoder: decoder);
+    return _request<T>(method, path, body: formData, decoder: decoder);
   }
 
   Future<ApiResult<T>> _request<T>(

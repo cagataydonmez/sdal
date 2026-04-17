@@ -47,7 +47,9 @@ class AlbumCategoryItem {
         map['description'],
       ], fallback: ''),
       count:
-          asInt(map['count'] ?? map['photoCount'] ?? map['total'] ?? map['cnt']) ??
+          asInt(
+            map['count'] ?? map['photoCount'] ?? map['total'] ?? map['cnt'],
+          ) ??
           0,
       previews: (map['previews'] is List)
           ? (map['previews'] as List)
@@ -269,6 +271,7 @@ class AlbumPhotoDetail {
     required this.canBulkDeleteComments,
     required this.taggedUsers,
     required this.editMetadata,
+    required this.editSourceFileName,
   });
 
   final int id;
@@ -290,6 +293,7 @@ class AlbumPhotoDetail {
   final bool canBulkDeleteComments;
   final List<AlbumTaggedMember> taggedUsers;
   final JsonMap editMetadata;
+  final String editSourceFileName;
 
   factory AlbumPhotoDetail.fromPayload(JsonMap payload) {
     final row = asJsonMap(payload['row']);
@@ -321,6 +325,9 @@ class AlbumPhotoDetail {
         payload['taggedUsers'],
       ).map(AlbumTaggedMember.fromMap).toList(growable: false),
       editMetadata: asJsonMap(payload['editMetadata']),
+      editSourceFileName: coalesceText([
+        payload['editSourceFileName'],
+      ], fallback: ''),
     );
   }
 }
@@ -542,14 +549,18 @@ class AlbumsRepository {
   Future<ApiResult<dynamic>> replacePhotoFile({
     required int photoId,
     required File file,
+    File? sourceFile,
     JsonMap editMetadata = const <String, dynamic>{},
   }) {
+    final files = <String, File>{'file': file};
+    if (sourceFile != null) {
+      files['sourceFile'] = sourceFile;
+    }
     return _apiClient.multipart<dynamic>(
       '/api/photos/$photoId/file',
-      fields: {
-        if (editMetadata.isNotEmpty) 'editMetadata': editMetadata,
-      },
-      files: {'file': file},
+      method: 'PUT',
+      fields: {if (editMetadata.isNotEmpty) 'editMetadata': editMetadata},
+      files: files,
     );
   }
 
@@ -562,10 +573,15 @@ class AlbumsRepository {
     required String title,
     required String description,
     required File file,
+    File? sourceFile,
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
     JsonMap editMetadata = const <String, dynamic>{},
   }) {
+    final files = <String, File>{'file': file};
+    if (sourceFile != null) {
+      files['sourceFile'] = sourceFile;
+    }
     return _apiClient.multipart<dynamic>(
       '/api/album/upload',
       fields: {
@@ -576,7 +592,7 @@ class AlbumsRepository {
         'taggedUserIds': taggedUserIds.join(','),
         if (editMetadata.isNotEmpty) 'editMetadata': editMetadata,
       },
-      files: {'file': file},
+      files: files,
     );
   }
 
@@ -585,6 +601,7 @@ class AlbumsRepository {
     required String description,
     required bool allowComments,
     required List<File> files,
+    List<File> sourceFiles = const <File>[],
     required List<String> titles,
     List<int> taggedUserIds = const <int>[],
     List<JsonMap> metadataList = const <JsonMap>[],
@@ -600,7 +617,10 @@ class AlbumsRepository {
         'metadataList': metadataList,
       },
       files: const <String, File>{},
-      extraFiles: {'files': files},
+      extraFiles: {
+        'files': files,
+        if (sourceFiles.isNotEmpty) 'sourceFiles': sourceFiles,
+      },
     );
   }
 

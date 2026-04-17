@@ -36,6 +36,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     required String title,
     required String description,
     required File file,
+    File? sourceFile,
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
     Map<String, dynamic> editMetadata = const <String, dynamic>{},
@@ -46,6 +47,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       title: title,
       description: description,
       file: file,
+      sourceFile: sourceFile,
       allowComments: allowComments,
       taggedUserIds: taggedUserIds,
       editMetadata: editMetadata,
@@ -73,6 +75,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     required String description,
     required bool allowComments,
     required List<File> files,
+    List<File> sourceFiles = const <File>[],
     required List<String> titles,
     List<int> taggedUserIds = const <int>[],
     List<Map<String, dynamic>> metadataList = const <Map<String, dynamic>>[],
@@ -83,6 +86,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       description: description,
       allowComments: allowComments,
       files: files,
+      sourceFiles: sourceFiles,
       titles: titles,
       taggedUserIds: taggedUserIds,
       metadataList: metadataList,
@@ -214,12 +218,14 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
   Future<bool> replacePhotoFile({
     required int photoId,
     required File file,
+    File? sourceFile,
     Map<String, dynamic> editMetadata = const <String, dynamic>{},
   }) async {
     state = AsyncActionState.loading(scope: 'albums:photo-replace:$photoId');
     final result = await _repository.replacePhotoFile(
       photoId: photoId,
       file: file,
+      sourceFile: sourceFile,
       editMetadata: editMetadata,
     );
     if (result.ok) {

@@ -1,7 +1,11 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/media/pick_cropped_image.dart';
@@ -431,75 +435,98 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                   style: Theme.of(ctx).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
-                // Current / replacement photo preview
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await pickAndEditImage(
-                      ctx,
-                      source: ImageSource.gallery,
-                      imageQuality: 94,
-                      maxWidth: 2600,
-                      title: 'Yeni fotoğrafı kırp',
-                    );
-                    if (picked == null) return;
-                    setModalState(() => replacementFile = picked);
-                  },
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: AspectRatio(
-                          aspectRatio: 4 / 3,
-                          child: replacementFile != null
-                              ? Image.file(replacementFile!.file, fit: BoxFit.cover)
-                              : Image.network(
-                                  config.siteBaseUri
-                                      .resolve(
-                                        '/api/media/kucukresim?width=800&file=${Uri.encodeComponent(photo.fileName)}',
-                                      )
-                                      .toString(),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      const SizedBox.shrink(),
-                                ),
-                        ),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: replacementFile != null
+                            ? Image.file(
+                                replacementFile!.file,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.network(
+                                config.siteBaseUri
+                                    .resolve(
+                                      '/api/media/kucukresim?width=800&file=${Uri.encodeComponent(photo.fileName)}',
+                                    )
+                                    .toString(),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              ),
                       ),
-                      Positioned(
-                        right: 10,
-                        bottom: 10,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.edit_outlined,
+                    ),
+                    Positioned(
+                      right: 10,
+                      bottom: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.edit_outlined,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              replacementFile != null
+                                  ? 'Kayda hazır'
+                                  : 'Mevcut fotoğraf',
+                              style: const TextStyle(
                                 color: Colors.white,
-                                size: 16,
+                                fontSize: 13,
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                replacementFile != null
-                                    ? 'Değiştirilecek'
-                                    : 'Fotoğrafı değiştir',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final picked = await pickAndEditImage(
+                            ctx,
+                            source: ImageSource.gallery,
+                            imageQuality: 94,
+                            maxWidth: 2600,
+                            title: 'Yeni fotoğrafı kırp',
+                          );
+                          if (picked == null) return;
+                          setModalState(() => replacementFile = picked);
+                        },
+                        icon: const Icon(Icons.photo_library_outlined),
+                        label: const Text('Galeriden değiştir'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final edited = await _editCurrentPhotoSource(photo);
+                          if (!ctx.mounted || edited == null) return;
+                          setModalState(() => replacementFile = edited);
+                        },
+                        icon: const Icon(Icons.tune_rounded),
+                        label: const Text('Mevcut görseli aç'),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -582,6 +609,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                       final fileOk = await notifier.replacePhotoFile(
                         photoId: widget.photoId,
                         file: replacementFile!.file,
+                        sourceFile: replacementFile!.sourceFile,
                         editMetadata: replacementFile!.metadata,
                       );
                       if (!mounted || !ctx.mounted) return;
@@ -602,9 +630,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                       title: titleController.text.trim(),
                       description: descriptionController.text.trim(),
                       allowComments: allowComments,
-                      taggedUserIds: tagged
-                          .map((member) => member.id)
-                          .toList(),
+                      taggedUserIds: tagged.map((member) => member.id).toList(),
                     );
                     if (!mounted || !ctx.mounted) return;
                     final state = ref.read(albumsActionControllerProvider);
@@ -634,6 +660,73 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
 
     titleController.dispose();
     descriptionController.dispose();
+  }
+
+  Future<EditedMediaResult?> _editCurrentPhotoSource(
+    AlbumPhotoDetail photo,
+  ) async {
+    final sourceFile = await _downloadPhotoEditorSource(photo);
+    if (!mounted || sourceFile == null) return null;
+    return editImageFile(
+      context,
+      sourceFile: sourceFile,
+      title: 'Fotoğrafı düzenle',
+      initialMetadata: photo.editSourceFileName.isNotEmpty
+          ? photo.editMetadata
+          : const <String, dynamic>{},
+    );
+  }
+
+  Future<File?> _downloadPhotoEditorSource(AlbumPhotoDetail photo) async {
+    final apiClient = ref.read(apiClientProvider);
+    final sourceFileName = photo.editSourceFileName.isNotEmpty
+        ? photo.editSourceFileName
+        : photo.fileName;
+    if (sourceFileName.isEmpty) return null;
+
+    final uri = apiClient.buildApiUri(
+      '/uploads/album/${Uri.encodeComponent(sourceFileName)}',
+    );
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(uri);
+      final cookieHeader = await apiClient.cookieHeaderForUri(uri);
+      if (cookieHeader != null && cookieHeader.isNotEmpty) {
+        request.headers.set(HttpHeaders.cookieHeader, cookieHeader);
+      }
+      final response = await request.close();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Fotoğraf düzenleme kaynağı indirilemedi.'),
+            ),
+          );
+        }
+        return null;
+      }
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      final tempDir = await getTemporaryDirectory();
+      final extension = sourceFileName.contains('.')
+          ? '.${sourceFileName.split('.').last}'
+          : '.jpg';
+      final file = File(
+        '${tempDir.path}/album-edit-source-${photo.id}-${DateTime.now().microsecondsSinceEpoch}$extension',
+      );
+      await file.writeAsBytes(bytes, flush: true);
+      return file;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fotoğraf düzenleme kaynağı indirilemedi.'),
+          ),
+        );
+      }
+      return null;
+    } finally {
+      client.close(force: true);
+    }
   }
 
   Future<void> _editComment(AlbumComment comment) async {

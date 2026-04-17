@@ -137,11 +137,7 @@ class _HideRegion {
   final Size size;
   final _HideRegionStyle style;
 
-  _HideRegion copyWith({
-    Offset? center,
-    Size? size,
-    _HideRegionStyle? style,
-  }) {
+  _HideRegion copyWith({Offset? center, Size? size, _HideRegionStyle? style}) {
     return _HideRegion(
       id: id,
       center: center ?? this.center,
@@ -154,10 +150,12 @@ class _HideRegion {
 class EditedMediaResult {
   const EditedMediaResult({
     required this.file,
+    required this.sourceFile,
     required this.metadata,
   });
 
   final File file;
+  final File sourceFile;
   final Map<String, dynamic> metadata;
 }
 
@@ -223,7 +221,9 @@ Future<List<EditedMediaResult>> pickAndEditImages(
       context,
       sourceFile: File(picked[index].path),
       aspectPreset: aspectPreset,
-      title: picked.length == 1 ? title : '$title ${index + 1}/${picked.length}',
+      title: picked.length == 1
+          ? title
+          : '$title ${index + 1}/${picked.length}',
     );
     if (edited != null) results.add(edited);
   }
@@ -235,6 +235,7 @@ Future<EditedMediaResult?> editImageFile(
   required File sourceFile,
   CropAspectPreset? aspectPreset,
   String title = 'Fotoğrafı düzenle',
+  Map<String, dynamic> initialMetadata = const <String, dynamic>{},
 }) {
   return Navigator.of(context).push<EditedMediaResult>(
     MaterialPageRoute(
@@ -243,6 +244,7 @@ Future<EditedMediaResult?> editImageFile(
         sourceFile: sourceFile,
         title: title,
         initialAspectRatio: aspectPreset?.ratio,
+        initialMetadata: initialMetadata,
       ),
     ),
   );
@@ -253,11 +255,13 @@ class _CropImagePage extends StatefulWidget {
     required this.sourceFile,
     required this.title,
     required this.initialAspectRatio,
+    required this.initialMetadata,
   });
 
   final File sourceFile;
   final String title;
   final double? initialAspectRatio;
+  final Map<String, dynamic> initialMetadata;
 
   @override
   State<_CropImagePage> createState() => _CropImagePageState();
@@ -329,6 +333,7 @@ class _CropImagePageState extends State<_CropImagePage> {
   void initState() {
     super.initState();
     _selectedAspectRatio = widget.initialAspectRatio;
+    _restoreInitialMetadata();
     _loadImage();
   }
 
@@ -406,7 +411,9 @@ class _CropImagePageState extends State<_CropImagePage> {
                                         constrained: false,
                                         minScale: _baseScale,
                                         maxScale: math.max(_baseScale * 6, 6),
-                                        boundaryMargin: const EdgeInsets.all(1200),
+                                        boundaryMargin: const EdgeInsets.all(
+                                          1200,
+                                        ),
                                         clipBehavior: Clip.none,
                                         panEnabled: canTransformImage,
                                         scaleEnabled: canTransformImage,
@@ -416,8 +423,10 @@ class _CropImagePageState extends State<_CropImagePage> {
                                           child: RotatedBox(
                                             quarterTurns: _quarterTurns,
                                             child: SizedBox(
-                                              width: _unrotatedDisplaySize.width,
-                                              height: _unrotatedDisplaySize.height,
+                                              width:
+                                                  _unrotatedDisplaySize.width,
+                                              height:
+                                                  _unrotatedDisplaySize.height,
                                               child: ColorFiltered(
                                                 colorFilter: ColorFilter.matrix(
                                                   _buildColorMatrix(),
@@ -425,7 +434,8 @@ class _CropImagePageState extends State<_CropImagePage> {
                                                 child: Image.file(
                                                   widget.sourceFile,
                                                   fit: BoxFit.fill,
-                                                  filterQuality: FilterQuality.high,
+                                                  filterQuality:
+                                                      FilterQuality.high,
                                                 ),
                                               ),
                                             ),
@@ -445,7 +455,10 @@ class _CropImagePageState extends State<_CropImagePage> {
                                           clipBehavior: Clip.none,
                                           children: [
                                             for (final region in _hideRegions)
-                                              _buildHideRegion(region, viewport),
+                                              _buildHideRegion(
+                                                region,
+                                                viewport,
+                                              ),
                                             for (final sticker in _stickers)
                                               _buildSticker(sticker, viewport),
                                           ],
@@ -479,41 +492,59 @@ class _CropImagePageState extends State<_CropImagePage> {
                 onAspectSelected: _decodedImage == null || _isSaving
                     ? null
                     : _selectAspectRatio,
-                onRotate: _decodedImage == null || _isSaving ? null : _rotateImage,
-                onAddText: _decodedImage == null || _isSaving ? null : _addSticker,
+                onRotate: _decodedImage == null || _isSaving
+                    ? null
+                    : _rotateImage,
+                onAddText: _decodedImage == null || _isSaving
+                    ? null
+                    : _addSticker,
                 selectedSticker: selectedSticker,
                 stickerColors: _stickerColors,
                 stickerFonts: _stickerFonts,
-                onEditSelectedSticker:
-                    selectedSticker == null || _isSaving ? null : _editSelectedSticker,
-                onDeleteSelectedSticker:
-                    selectedSticker == null || _isSaving ? null : _deleteSelectedSticker,
-                onStickerScaleChanged:
-                    selectedSticker == null || _isSaving ? null : _updateSelectedStickerScale,
-                onStickerColorChanged:
-                    selectedSticker == null || _isSaving ? null : _updateSelectedStickerColor,
-                onStickerBackgroundChanged:
-                    selectedSticker == null || _isSaving ? null : _updateSelectedStickerBackground,
-                onStickerFontChanged:
-                    selectedSticker == null || _isSaving ? null : _updateSelectedStickerFont,
-                onStickerAlignChanged:
-                    selectedSticker == null || _isSaving ? null : _updateSelectedStickerAlign,
-                onStickerBoldChanged:
-                    selectedSticker == null || _isSaving ? null : _updateSelectedStickerBold,
+                onEditSelectedSticker: selectedSticker == null || _isSaving
+                    ? null
+                    : _editSelectedSticker,
+                onDeleteSelectedSticker: selectedSticker == null || _isSaving
+                    ? null
+                    : _deleteSelectedSticker,
+                onStickerScaleChanged: selectedSticker == null || _isSaving
+                    ? null
+                    : _updateSelectedStickerScale,
+                onStickerColorChanged: selectedSticker == null || _isSaving
+                    ? null
+                    : _updateSelectedStickerColor,
+                onStickerBackgroundChanged: selectedSticker == null || _isSaving
+                    ? null
+                    : _updateSelectedStickerBackground,
+                onStickerFontChanged: selectedSticker == null || _isSaving
+                    ? null
+                    : _updateSelectedStickerFont,
+                onStickerAlignChanged: selectedSticker == null || _isSaving
+                    ? null
+                    : _updateSelectedStickerAlign,
+                onStickerBoldChanged: selectedSticker == null || _isSaving
+                    ? null
+                    : _updateSelectedStickerBold,
                 drawColor: _drawColor,
                 drawWidth: _drawWidth,
                 brushMode: _brushMode,
                 onDrawColorChanged: _isSaving ? null : _changeDrawColor,
                 onDrawWidthChanged: _isSaving ? null : _changeDrawWidth,
                 onBrushModeChanged: _isSaving ? null : _changeBrushMode,
-                onClearDrawings: _strokes.isEmpty || _isSaving ? null : _clearDrawings,
+                onClearDrawings: _strokes.isEmpty || _isSaving
+                    ? null
+                    : _clearDrawings,
                 selectedHideRegion: selectedHideRegion,
-                onAddHideRegion:
-                    _decodedImage == null || _isSaving ? null : _addHideRegion,
-                onDeleteHideRegion:
-                    selectedHideRegion == null || _isSaving ? null : _deleteSelectedHideRegion,
+                onAddHideRegion: _decodedImage == null || _isSaving
+                    ? null
+                    : _addHideRegion,
+                onDeleteHideRegion: selectedHideRegion == null || _isSaving
+                    ? null
+                    : _deleteSelectedHideRegion,
                 onHideRegionStyleChanged:
-                    selectedHideRegion == null || _isSaving ? null : _updateSelectedHideStyle,
+                    selectedHideRegion == null || _isSaving
+                    ? null
+                    : _updateSelectedHideStyle,
                 brightness: _brightness,
                 contrast: _contrast,
                 warmth: _warmth,
@@ -547,9 +578,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.check_rounded),
                       label: Text(
@@ -655,7 +684,9 @@ class _CropImagePageState extends State<_CropImagePage> {
     if (_decodedImage == null) return;
     final widthDelta = (nextViewport.width - _viewportSize.width).abs();
     final heightDelta = (nextViewport.height - _viewportSize.height).abs();
-    if (widthDelta < 0.5 && heightDelta < 0.5 && _displayImageSize != Size.zero) {
+    if (widthDelta < 0.5 &&
+        heightDelta < 0.5 &&
+        _displayImageSize != Size.zero) {
       return;
     }
     _viewportSize = nextViewport;
@@ -676,7 +707,8 @@ class _CropImagePageState extends State<_CropImagePage> {
   void _resetImageTransform() {
     if (_displayImageSize == Size.zero || _viewportSize == Size.zero) return;
     final dx = (_viewportSize.width - _displayImageSize.width * _baseScale) / 2;
-    final dy = (_viewportSize.height - _displayImageSize.height * _baseScale) / 2;
+    final dy =
+        (_viewportSize.height - _displayImageSize.height * _baseScale) / 2;
     _controller.value = Matrix4.diagonal3Values(_baseScale, _baseScale, 1)
       ..setTranslationRaw(dx, dy, 0);
   }
@@ -769,7 +801,9 @@ class _CropImagePageState extends State<_CropImagePage> {
     final selectedId = _selectedStickerId;
     if (selectedId == null) return;
     setState(() {
-      _stickers = _stickers.where((sticker) => sticker.id != selectedId).toList();
+      _stickers = _stickers
+          .where((sticker) => sticker.id != selectedId)
+          .toList();
       _selectedStickerId = null;
     });
   }
@@ -862,7 +896,9 @@ class _CropImagePageState extends State<_CropImagePage> {
     setState(() {
       _stickers = [
         for (final sticker in _stickers)
-          sticker.id == selected.id ? sticker.copyWith(fontKind: kind) : sticker,
+          sticker.id == selected.id
+              ? sticker.copyWith(fontKind: kind)
+              : sticker,
       ];
     });
   }
@@ -912,7 +948,8 @@ class _CropImagePageState extends State<_CropImagePage> {
           });
           _stickerBaseScale = sticker.scale;
         },
-        onScaleUpdate: (details) => _transformSticker(sticker.id, details, viewport),
+        onScaleUpdate: (details) =>
+            _transformSticker(sticker.id, details, viewport),
         onScaleEnd: (_) => _stickerBaseScale = null,
         child: Transform.translate(
           offset: const Offset(-38, -20),
@@ -928,14 +965,19 @@ class _CropImagePageState extends State<_CropImagePage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 220),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 child: Text(
                   sticker.text,
                   textAlign: sticker.textAlign,
                   style: TextStyle(
                     color: sticker.textColor,
                     fontSize: 20 * sticker.scale,
-                    fontWeight: sticker.bold ? FontWeight.w800 : FontWeight.w500,
+                    fontWeight: sticker.bold
+                        ? FontWeight.w800
+                        : FontWeight.w500,
                     height: 1.08,
                     fontFamily: _fontFamilyFor(sticker.fontKind),
                     shadows: [
@@ -965,11 +1007,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     return null;
   }
 
-  void _transformSticker(
-    int id,
-    ScaleUpdateDetails details,
-    Size viewport,
-  ) {
+  void _transformSticker(int id, ScaleUpdateDetails details, Size viewport) {
     final width = viewport.width <= 0 ? 1.0 : viewport.width;
     final height = viewport.height <= 0 ? 1.0 : viewport.height;
     final baseScale = _stickerBaseScale;
@@ -980,8 +1018,10 @@ class _CropImagePageState extends State<_CropImagePage> {
           if (sticker.id == id)
             sticker.copyWith(
               anchor: Offset(
-                (sticker.anchor.dx + (details.focalPointDelta.dx / width)).clamp(0.08, 0.92),
-                (sticker.anchor.dy + (details.focalPointDelta.dy / height)).clamp(0.08, 0.92),
+                (sticker.anchor.dx + (details.focalPointDelta.dx / width))
+                    .clamp(0.08, 0.92),
+                (sticker.anchor.dy + (details.focalPointDelta.dy / height))
+                    .clamp(0.08, 0.92),
               ),
               scale: (baseScale * details.scale).clamp(0.7, 2.8),
             )
@@ -1056,7 +1096,9 @@ class _CropImagePageState extends State<_CropImagePage> {
     final selectedId = _selectedHideRegionId;
     if (selectedId == null) return;
     setState(() {
-      _hideRegions = _hideRegions.where((region) => region.id != selectedId).toList();
+      _hideRegions = _hideRegions
+          .where((region) => region.id != selectedId)
+          .toList();
       _selectedHideRegionId = null;
     });
   }
@@ -1097,7 +1139,8 @@ class _CropImagePageState extends State<_CropImagePage> {
           });
           _hideRegionBaseSize = region.size;
         },
-        onScaleUpdate: (details) => _transformHideRegion(region.id, details, viewport),
+        onScaleUpdate: (details) =>
+            _transformHideRegion(region.id, details, viewport),
         onScaleEnd: (_) => _hideRegionBaseSize = null,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
@@ -1116,9 +1159,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                 ),
               ),
               if (region.style == _HideRegionStyle.mosaic)
-                CustomPaint(
-                  painter: _MosaicOverlayPainter(),
-                ),
+                CustomPaint(painter: _MosaicOverlayPainter()),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -1135,11 +1176,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     );
   }
 
-  void _transformHideRegion(
-    int id,
-    ScaleUpdateDetails details,
-    Size viewport,
-  ) {
+  void _transformHideRegion(int id, ScaleUpdateDetails details, Size viewport) {
     final selected = _selectedHideRegion;
     final baseSize = _hideRegionBaseSize;
     if (selected == null || baseSize == null) return;
@@ -1151,8 +1188,12 @@ class _CropImagePageState extends State<_CropImagePage> {
           if (region.id == id)
             region.copyWith(
               center: Offset(
-                (region.center.dx + (details.focalPointDelta.dx / width)).clamp(0.12, 0.88),
-                (region.center.dy + (details.focalPointDelta.dy / height)).clamp(0.12, 0.88),
+                (region.center.dx + (details.focalPointDelta.dx / width)).clamp(
+                  0.12,
+                  0.88,
+                ),
+                (region.center.dy + (details.focalPointDelta.dy / height))
+                    .clamp(0.12, 0.88),
               ),
               size: Size(
                 (baseSize.width * details.scale).clamp(0.12, 0.82),
@@ -1252,6 +1293,175 @@ class _CropImagePageState extends State<_CropImagePage> {
     return Colors.black87;
   }
 
+  void _restoreInitialMetadata() {
+    final metadata = widget.initialMetadata;
+    if (metadata.isEmpty) return;
+
+    final restoredAspectRatio = _readDouble(metadata['aspectRatio']);
+    if (restoredAspectRatio != null) {
+      _selectedAspectRatio = restoredAspectRatio;
+    }
+
+    final restoredQuarterTurns = _readInt(metadata['quarterTurns']) ?? 0;
+    _quarterTurns = ((restoredQuarterTurns % 4) + 4) % 4;
+
+    final filters = _readMap(metadata['filters']);
+    _brightness = _readDouble(filters['brightness']) ?? 0;
+    _contrast = _readDouble(filters['contrast']) ?? 1;
+    _warmth = _readDouble(filters['warmth']) ?? 0;
+    _saturation = _readDouble(filters['saturation']) ?? 1;
+
+    final restoredStickers = <_OverlaySticker>[];
+    for (final item in _readList(metadata['stickers'])) {
+      final map = _readMap(item);
+      final id =
+          _readInt(map['id']) ?? (_nextStickerId + restoredStickers.length);
+      restoredStickers.add(
+        _OverlaySticker(
+          id: id,
+          text: _readString(map['text']) ?? '',
+          anchor: Offset(
+            _readDouble(map['anchorX']) ?? 0.5,
+            _readDouble(map['anchorY']) ?? 0.22,
+          ),
+          scale: _readDouble(map['scale']) ?? 1,
+          textColor: _colorFromValue(map['textColor'], fallback: Colors.white),
+          backgroundStyle: _enumByName(
+            _StickerBackgroundStyle.values,
+            _readString(map['backgroundStyle']),
+            _StickerBackgroundStyle.soft,
+          ),
+          fontKind: _enumByName(
+            _StickerFontKind.values,
+            _readString(map['fontKind']),
+            _StickerFontKind.sans,
+          ),
+          textAlign: _enumByName(
+            TextAlign.values,
+            _readString(map['textAlign']),
+            TextAlign.center,
+          ),
+          bold: _readBool(map['bold']) ?? true,
+        ),
+      );
+    }
+    if (restoredStickers.isNotEmpty) {
+      _stickers = restoredStickers;
+      _nextStickerId =
+          restoredStickers.map((item) => item.id).fold<int>(0, math.max) + 1;
+    }
+
+    final restoredStrokes = <_DrawStroke>[];
+    for (final item in _readList(metadata['strokes'])) {
+      final map = _readMap(item);
+      final points = <Offset>[
+        for (final point in _readList(map['points']))
+          Offset(
+            _readDouble(_readMap(point)['x']) ?? 0,
+            _readDouble(_readMap(point)['y']) ?? 0,
+          ),
+      ];
+      if (points.length < 2) continue;
+      restoredStrokes.add(
+        _DrawStroke(
+          points: points,
+          color: _colorFromValue(map['color'], fallback: Colors.white),
+          width: _readDouble(map['width']) ?? 8,
+          mode: _enumByName(
+            _BrushMode.values,
+            _readString(map['mode']),
+            _BrushMode.pen,
+          ),
+        ),
+      );
+    }
+    if (restoredStrokes.isNotEmpty) {
+      _strokes = restoredStrokes;
+    }
+
+    final restoredHideRegions = <_HideRegion>[];
+    for (final item in _readList(metadata['hideRegions'])) {
+      final map = _readMap(item);
+      final id =
+          _readInt(map['id']) ??
+          (_nextHideRegionId + restoredHideRegions.length);
+      restoredHideRegions.add(
+        _HideRegion(
+          id: id,
+          center: Offset(
+            _readDouble(map['centerX']) ?? 0.5,
+            _readDouble(map['centerY']) ?? 0.5,
+          ),
+          size: Size(
+            _readDouble(map['width']) ?? 0.32,
+            _readDouble(map['height']) ?? 0.18,
+          ),
+          style: _enumByName(
+            _HideRegionStyle.values,
+            _readString(map['style']),
+            _HideRegionStyle.blur,
+          ),
+        ),
+      );
+    }
+    if (restoredHideRegions.isNotEmpty) {
+      _hideRegions = restoredHideRegions;
+      _nextHideRegionId =
+          restoredHideRegions.map((item) => item.id).fold<int>(0, math.max) + 1;
+    }
+  }
+
+  Map<String, dynamic> _readMap(Object? value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, item) => MapEntry(key.toString(), item));
+    }
+    return const <String, dynamic>{};
+  }
+
+  List<dynamic> _readList(Object? value) {
+    return value is List ? value : const <dynamic>[];
+  }
+
+  String? _readString(Object? value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  int? _readInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  double? _readDouble(Object? value) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  bool? _readBool(Object? value) {
+    if (value is bool) return value;
+    final raw = value?.toString().toLowerCase();
+    if (raw == 'true' || raw == '1') return true;
+    if (raw == 'false' || raw == '0') return false;
+    return null;
+  }
+
+  T _enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
+    if (name == null) return fallback;
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return fallback;
+  }
+
+  Color _colorFromValue(Object? value, {required Color fallback}) {
+    final raw = _readInt(value);
+    if (raw == null) return fallback;
+    return Color(raw & 0xFFFFFFFF);
+  }
+
   Map<String, dynamic> _buildEditMetadata() {
     return {
       'version': 1,
@@ -1286,12 +1496,7 @@ class _CropImagePageState extends State<_CropImagePage> {
               'width': stroke.width,
               'mode': stroke.mode.name,
               'points': stroke.points
-                  .map(
-                    (point) => {
-                      'x': point.dx,
-                      'y': point.dy,
-                    },
-                  )
+                  .map((point) => {'x': point.dx, 'y': point.dy})
                   .toList(growable: false),
             },
           )
@@ -1322,12 +1527,14 @@ class _CropImagePageState extends State<_CropImagePage> {
         await WidgetsBinding.instance.endOfFrame;
       }
       final boundary =
-          _boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+          _boundaryKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
       if (boundary == null) return;
       final image = _decodedImage;
       final display = _displayImageSize;
       final viewport = _viewportSize;
-      final pixelRatio = image == null || display.width == 0 || viewport.width == 0
+      final pixelRatio =
+          image == null || display.width == 0 || viewport.width == 0
           ? 3.0
           : math.min(
               4.0,
@@ -1349,6 +1556,7 @@ class _CropImagePageState extends State<_CropImagePage> {
       Navigator.of(context).pop(
         EditedMediaResult(
           file: output,
+          sourceFile: widget.sourceFile,
           metadata: _buildEditMetadata(),
         ),
       );
@@ -1380,11 +1588,7 @@ class _CropMask extends StatelessWidget {
           border: Border.all(color: Colors.white, width: 2),
           borderRadius: BorderRadius.circular(24),
           boxShadow: const [
-            BoxShadow(
-              color: Colors.black54,
-              blurRadius: 0,
-              spreadRadius: 1600,
-            ),
+            BoxShadow(color: Colors.black54, blurRadius: 0, spreadRadius: 1600),
           ],
         ),
       ),
@@ -1403,12 +1607,10 @@ class _DrawOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final stroke in [
-      ...strokes,
-      ?currentStroke,
-    ]) {
+    for (final stroke in [...strokes, ?currentStroke]) {
       if (stroke.points.length < 2) continue;
-      final path = Path()..moveTo(stroke.points.first.dx, stroke.points.first.dy);
+      final path = Path()
+        ..moveTo(stroke.points.first.dx, stroke.points.first.dy);
       for (final point in stroke.points.skip(1)) {
         path.lineTo(point.dx, point.dy);
       }
@@ -1566,7 +1768,8 @@ class _EditorToolbar extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final choice = aspectChoices[index];
-                final selected = (choice.ratio == null && selectedRatio == null) ||
+                final selected =
+                    (choice.ratio == null && selectedRatio == null) ||
                     (choice.ratio != null &&
                         selectedRatio != null &&
                         (choice.ratio! - selectedRatio!).abs() < 0.001);
@@ -1921,31 +2124,43 @@ class _TextPanel extends StatelessWidget {
               children: [
                 _PanelChip(
                   label: 'Şeffaf',
-                  selected: sticker.backgroundStyle == _StickerBackgroundStyle.none,
+                  selected:
+                      sticker.backgroundStyle == _StickerBackgroundStyle.none,
                   onTap: onStickerBackgroundChanged == null
                       ? null
-                      : () => onStickerBackgroundChanged!(_StickerBackgroundStyle.none),
+                      : () => onStickerBackgroundChanged!(
+                          _StickerBackgroundStyle.none,
+                        ),
                 ),
                 _PanelChip(
                   label: 'Yumuşak',
-                  selected: sticker.backgroundStyle == _StickerBackgroundStyle.soft,
+                  selected:
+                      sticker.backgroundStyle == _StickerBackgroundStyle.soft,
                   onTap: onStickerBackgroundChanged == null
                       ? null
-                      : () => onStickerBackgroundChanged!(_StickerBackgroundStyle.soft),
+                      : () => onStickerBackgroundChanged!(
+                          _StickerBackgroundStyle.soft,
+                        ),
                 ),
                 _PanelChip(
                   label: 'Koyu',
-                  selected: sticker.backgroundStyle == _StickerBackgroundStyle.dark,
+                  selected:
+                      sticker.backgroundStyle == _StickerBackgroundStyle.dark,
                   onTap: onStickerBackgroundChanged == null
                       ? null
-                      : () => onStickerBackgroundChanged!(_StickerBackgroundStyle.dark),
+                      : () => onStickerBackgroundChanged!(
+                          _StickerBackgroundStyle.dark,
+                        ),
                 ),
                 _PanelChip(
                   label: 'Açık',
-                  selected: sticker.backgroundStyle == _StickerBackgroundStyle.light,
+                  selected:
+                      sticker.backgroundStyle == _StickerBackgroundStyle.light,
                   onTap: onStickerBackgroundChanged == null
                       ? null
-                      : () => onStickerBackgroundChanged!(_StickerBackgroundStyle.light),
+                      : () => onStickerBackgroundChanged!(
+                          _StickerBackgroundStyle.light,
+                        ),
                 ),
               ],
             ),
@@ -2009,34 +2224,37 @@ class _DrawPanel extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: const [
-              Colors.white,
-              Color(0xFFFACC15),
-              Color(0xFF93C5FD),
-              Color(0xFFF9A8D4),
-              Color(0xFF86EFAC),
-              Color(0xFFFCA5A5),
-            ]
-                .map(
-                  (swatch) => GestureDetector(
-                    onTap: onColorChanged == null
-                        ? null
-                        : () => onColorChanged!(swatch),
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: swatch,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: color == swatch ? Colors.white : Colors.white24,
-                          width: color == swatch ? 2 : 1,
+            children:
+                const [
+                      Colors.white,
+                      Color(0xFFFACC15),
+                      Color(0xFF93C5FD),
+                      Color(0xFFF9A8D4),
+                      Color(0xFF86EFAC),
+                      Color(0xFFFCA5A5),
+                    ]
+                    .map(
+                      (swatch) => GestureDetector(
+                        onTap: onColorChanged == null
+                            ? null
+                            : () => onColorChanged!(swatch),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: swatch,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: color == swatch
+                                  ? Colors.white
+                                  : Colors.white24,
+                              width: color == swatch ? 2 : 1,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                )
-                .toList(),
+                    )
+                    .toList(),
           ),
           Row(
             children: [

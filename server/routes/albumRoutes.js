@@ -191,6 +191,18 @@ export function registerAlbumRoutes(app, {
     }
   }
 
+  function getUploadFieldFiles(req, fieldName) {
+    if (Array.isArray(req.files)) {
+      return fieldName === 'file' || fieldName === 'files' ? req.files : [];
+    }
+    const files = req.files?.[fieldName];
+    return Array.isArray(files) ? files : [];
+  }
+
+  function getUploadFieldFile(req, fieldName) {
+    return getUploadFieldFiles(req, fieldName)[0] || req.file || null;
+  }
+
   async function ensureAlbumSchema() {
     if (isPostgres) return;
 
@@ -230,8 +242,10 @@ export function registerAlbumRoutes(app, {
       `CREATE TABLE IF NOT EXISTS ${editTable} (
         photo_id ${isPostgres ? 'BIGINT PRIMARY KEY' : 'INTEGER PRIMARY KEY'},
         metadata_json TEXT NOT NULL DEFAULT '{}',
+        source_file_name TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
+      `ALTER TABLE ${editTable} ADD COLUMN source_file_name TEXT`,
     ];
 
     for (const statement of statements) {
@@ -589,26 +603,46 @@ export function registerAlbumRoutes(app, {
     }
   }
 
-  async function getPhotoEditMetadata(photoId) {
-    if (!photoId) return {};
+  async function getPhotoEditState(photoId) {
+    if (!photoId) {
+      return { metadata: {}, sourceFileName: '' };
+    }
     const row = await sqlGetAsync(
-      `SELECT metadata_json FROM ${editTable} WHERE photo_id = ? LIMIT 1`,
+      `SELECT metadata_json, COALESCE(source_file_name, '') AS source_file_name
+       FROM ${editTable}
+       WHERE photo_id = ?
+       LIMIT 1`,
       [photoId],
     );
-    return parseJsonObjectField(row?.metadata_json);
+    return {
+      metadata: parseJsonObjectField(row?.metadata_json),
+      sourceFileName: String(row?.source_file_name || '').trim(),
+    };
   }
 
-  async function savePhotoEditMetadata(photoId, metadata) {
+  async function savePhotoEditMetadata(photoId, metadata, { sourceFileName = '' } = {}) {
     if (!photoId) return;
     const payload = JSON.stringify(parseJsonObjectField(metadata));
     const now = new Date().toISOString();
+    let effectiveSourceFileName = String(sourceFileName || '').trim();
+    if (!effectiveSourceFileName) {
+      const existing = await sqlGetAsync(
+        `SELECT COALESCE(source_file_name, '') AS source_file_name
+         FROM ${editTable}
+         WHERE photo_id = ?
+         LIMIT 1`,
+        [photoId],
+      );
+      effectiveSourceFileName = String(existing?.source_file_name || '').trim();
+    }
     await sqlRunAsync(
-      `INSERT INTO ${editTable} (photo_id, metadata_json, updated_at)
-       VALUES (?, ?, ?)
+      `INSERT INTO ${editTable} (photo_id, metadata_json, source_file_name, updated_at)
+       VALUES (?, ?, ?, ?)
        ON CONFLICT(photo_id) DO UPDATE SET
          metadata_json = excluded.metadata_json,
+         source_file_name = excluded.source_file_name,
          updated_at = excluded.updated_at`,
-      [photoId, payload, now],
+      [photoId, payload, effectiveSourceFileName || null, now],
     );
   }
 
@@ -800,7 +834,10 @@ export function registerAlbumRoutes(app, {
 
   app.post('/api/album/upload', (req, res, next) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    return albumUpload.single('file')(req, res, (error) => {
+    return albumUpload.fields([
+      { name: 'file', maxCount: 1 },
+      { name: 'sourceFile', maxCount: 1 },
+    ])(req, res, (error) => {
       if (error) return next(error);
       next();
     });
@@ -813,8 +850,10 @@ export function registerAlbumRoutes(app, {
         String(req.body?.kat || req.body?.categoryId || '').trim(),
         10,
       );
+      const uploadFile = getUploadFieldFile(req, 'file');
+      const sourceUploadFile = getUploadFieldFile(req, 'sourceFile');
       const rawTitle = String(req.body?.baslik || req.body?.title || '').trim();
-      const fallbackTitle = String(req.file?.originalname || 'Fotoğraf')
+      const fallbackTitle = String(uploadFile?.originalname || 'Fotoğraf')
         .replace(/\.[^.]+$/, '')
         .trim();
       const title = sanitizePlainUserText(rawTitle || fallbackTitle || 'Fotoğraf', 255);
@@ -824,7 +863,7 @@ export function registerAlbumRoutes(app, {
       const editMetadata = parseJsonObjectField(req.body?.editMetadata);
 
       if (!categoryId) return res.status(400).send('Albüm seçmelisin.');
-      if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
+      if (!uploadFile?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
 
       const categoryContext = await loadCategoryContext(categoryId, viewer, currentUser);
       if (categoryContext.error) {
@@ -837,13 +876,13 @@ export function registerAlbumRoutes(app, {
       const processed = await processDiskImageUpload({
         req,
         res,
-        file: req.file,
+        file: uploadFile,
         bucket: 'album_photo',
         preset: uploadImagePresets.albumPhoto,
       });
       if (!processed.ok) return res.status(processed.statusCode).send(processed.message);
 
-      const storedFilename = path.basename(processed.path || req.file.path);
+      const storedFilename = path.basename(processed.path || uploadFile.path);
       const requireApproval = false;
       const activeValue = boolValue(!requireApproval);
       const now = new Date().toISOString();
@@ -902,8 +941,13 @@ export function registerAlbumRoutes(app, {
       }
 
       const photoId = Number(result?.lastInsertRowid || result?.insertId || 0);
-      if (Object.keys(editMetadata).length > 0) {
-        await savePhotoEditMetadata(photoId, editMetadata);
+      const sourceStoredFilename = path.basename(
+        sourceUploadFile?.path || processed.path || uploadFile.path,
+      );
+      if (Object.keys(editMetadata).length > 0 || sourceStoredFilename) {
+        await savePhotoEditMetadata(photoId, editMetadata, {
+          sourceFileName: sourceStoredFilename,
+        });
       }
       await notifyTaggedUsers(taggedUserIds, [], req.session.userId, photoId);
 
@@ -923,7 +967,10 @@ export function registerAlbumRoutes(app, {
 
   app.post('/api/album/upload-batch', (req, res, next) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    return albumUpload.array('files', 20)(req, res, (error) => {
+    return albumUpload.fields([
+      { name: 'files', maxCount: 20 },
+      { name: 'sourceFiles', maxCount: 20 },
+    ])(req, res, (error) => {
       if (error) return next(error);
       next();
     });
@@ -945,7 +992,8 @@ export function registerAlbumRoutes(app, {
       const metadataList = parseJsonArrayField(req.body?.metadataList).map((item) =>
         parseJsonObjectField(item),
       );
-      const files = Array.isArray(req.files) ? req.files : [];
+      const files = getUploadFieldFiles(req, 'files');
+      const sourceFiles = getUploadFieldFiles(req, 'sourceFiles');
 
       if (!categoryId) return res.status(400).send('Albüm seçmelisin.');
       if (!files.length) return res.status(400).send('En az bir görsel seçmelisin.');
@@ -1022,8 +1070,13 @@ export function registerAlbumRoutes(app, {
         }
         const photoId = Number(result?.lastInsertRowid || result?.insertId || 0);
         const metadata = metadataList[index] || {};
-        if (Object.keys(metadata).length > 0) {
-          await savePhotoEditMetadata(photoId, metadata);
+        const sourceStoredFilename = path.basename(
+          sourceFiles[index]?.path || processed.path || file.path,
+        );
+        if (Object.keys(metadata).length > 0 || sourceStoredFilename) {
+          await savePhotoEditMetadata(photoId, metadata, {
+            sourceFileName: sourceStoredFilename,
+          });
         }
         await notifyTaggedUsers(taggedUserIds, [], req.session.userId, photoId);
         createdItems.push({
@@ -1156,7 +1209,7 @@ export function registerAlbumRoutes(app, {
         [context.photo.id, req.session.userId],
       );
       const taggedUsers = await readTaggedUsers(parseStringArrayJson(context.photo.tagged_user_ids_json));
-      const editMetadata = await getPhotoEditMetadata(context.photo.id);
+      const editState = await getPhotoEditState(context.photo.id);
 
       res.json({
         row: {
@@ -1187,7 +1240,8 @@ export function registerAlbumRoutes(app, {
           canToggleComments: canEditPhoto,
           canBulkDeleteComments: canEditPhoto,
         },
-        editMetadata,
+        editMetadata: editState.metadata,
+        editSourceFileName: editState.sourceFileName,
       });
     } catch (error) {
       console.error(error);
@@ -1271,7 +1325,10 @@ export function registerAlbumRoutes(app, {
   // Replace the actual photo file while keeping all metadata/comments/likes.
   app.put('/api/photos/:id/file', (req, res, next) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    return albumUpload.single('file')(req, res, (error) => {
+    return albumUpload.fields([
+      { name: 'file', maxCount: 1 },
+      { name: 'sourceFile', maxCount: 1 },
+    ])(req, res, (error) => {
       if (error) return next(error);
       next();
     });
@@ -1287,19 +1344,21 @@ export function registerAlbumRoutes(app, {
         sameUserId(context.photo.uploaded_by_user_id, req.session.userId) ||
         hasCategoryManagementAccess(currentUser);
       if (!canEditPhoto) return res.status(403).send('Bu fotoğrafı düzenleme yetkin yok.');
-      if (!req.file?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
+      const uploadFile = getUploadFieldFile(req, 'file');
+      const sourceUploadFile = getUploadFieldFile(req, 'sourceFile');
+      if (!uploadFile?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
       const editMetadata = parseJsonObjectField(req.body?.editMetadata);
 
       const processed = await processDiskImageUpload({
         req,
         res,
-        file: req.file,
+        file: uploadFile,
         bucket: 'album_photo',
         preset: uploadImagePresets.albumPhoto,
       });
       if (!processed.ok) return res.status(processed.statusCode).send(processed.message);
 
-      const storedFilename = path.basename(processed.path || req.file.path);
+      const storedFilename = path.basename(processed.path || uploadFile.path);
       const now = new Date().toISOString();
 
       if (isPostgres) {
@@ -1322,8 +1381,13 @@ export function registerAlbumRoutes(app, {
         );
       }
 
-      if (Object.keys(editMetadata).length > 0) {
-        await savePhotoEditMetadata(context.photo.id, editMetadata);
+      const sourceStoredFilename = path.basename(
+        sourceUploadFile?.path || processed.path || uploadFile.path,
+      );
+      if (Object.keys(editMetadata).length > 0 || sourceStoredFilename) {
+        await savePhotoEditMetadata(context.photo.id, editMetadata, {
+          sourceFileName: sourceStoredFilename,
+        });
       }
 
       res.json({ ok: true, fileName: storedFilename });
@@ -1357,6 +1421,10 @@ export function registerAlbumRoutes(app, {
 
       await sqlRunAsync(
         `DELETE FROM ${likeTable} WHERE photo_id = ?`,
+        [context.photo.id],
+      );
+      await sqlRunAsync(
+        `DELETE FROM ${editTable} WHERE photo_id = ?`,
         [context.photo.id],
       );
       await sqlRunAsync(

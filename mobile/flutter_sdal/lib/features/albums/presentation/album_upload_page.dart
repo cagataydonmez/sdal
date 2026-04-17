@@ -250,7 +250,10 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                                   width: 144,
                                   child: AspectRatio(
                                     aspectRatio: 4 / 3,
-                                    child: Image.file(item.file, fit: BoxFit.cover),
+                                    child: Image.file(
+                                      item.file,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -342,7 +345,12 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     final titlePrefix = _titleController.text.trim();
     final titles = <String>[
       for (var index = 0; index < _mediaItems.length; index += 1)
-        _buildTitleForUpload(titlePrefix, _mediaItems[index].file, index, _mediaItems.length),
+        _buildTitleForUpload(
+          titlePrefix,
+          _mediaItems[index].file,
+          index,
+          _mediaItems.length,
+        ),
     ];
     final notifier = ref.read(albumsActionControllerProvider.notifier);
     final ok = _mediaItems.length == 1
@@ -351,6 +359,7 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
             title: titles.first,
             description: _descriptionController.text.trim(),
             file: _mediaItems.first.file,
+            sourceFile: _mediaItems.first.sourceFile,
             allowComments: _allowComments,
             taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
             editMetadata: _mediaItems.first.metadata,
@@ -360,6 +369,9 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
             description: _descriptionController.text.trim(),
             allowComments: _allowComments,
             files: _mediaItems.map((item) => item.file).toList(growable: false),
+            sourceFiles: _mediaItems
+                .map((item) => item.sourceFile)
+                .toList(growable: false),
             titles: titles,
             taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
             metadataList: _mediaItems
@@ -386,12 +398,7 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     });
   }
 
-  String _buildTitleForUpload(
-    String prefix,
-    File file,
-    int index,
-    int total,
-  ) {
+  String _buildTitleForUpload(String prefix, File file, int index, int total) {
     if (prefix.isNotEmpty) {
       return total > 1 ? '$prefix ${index + 1}' : prefix;
     }
