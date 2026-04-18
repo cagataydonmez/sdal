@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
@@ -8,7 +9,9 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../albums/data/albums_repository.dart';
 import '../../following/application/following_action_controller.dart';
+import '../../profile/presentation/profile_album_section.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../data/explore_repository.dart';
 
@@ -28,6 +31,7 @@ class MemberDetailPage extends ConsumerWidget {
       (item) => item.id == memberId,
     );
     final isSelf = session?.user?.id == memberId;
+    final profileAlbumsState = ref.watch(memberProfileAlbumsProvider(memberId));
     final tokens = Theme.of(context).sdal;
 
     return FeatureScaffold(
@@ -359,6 +363,15 @@ class MemberDetailPage extends ConsumerWidget {
                 mode: StoryRailMode.member,
                 memberId: memberId,
                 title: 'Üyenin hikayeleri',
+              ),
+              const SizedBox(height: 14),
+              ProfileAlbumSection(
+                title: 'Profil albümleri',
+                subtitle: isSelf
+                    ? 'Profilinde görünen albümler burada da görünür.'
+                    : 'Bu üyenin profiline ayırdığı albümler burada toplanır.',
+                albumsState: profileAlbumsState,
+                onOpenAlbum: (album) => context.push('/albums/${album.id}'),
               ),
             ],
           );

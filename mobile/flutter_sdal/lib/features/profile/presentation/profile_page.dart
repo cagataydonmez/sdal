@@ -13,11 +13,13 @@ import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../feed/data/feed_repository.dart';
+import '../../albums/application/albums_action_controller.dart';
 import '../../albums/data/albums_repository.dart';
 import '../../stories/data/stories_repository.dart';
 import '../../stories/presentation/stories_rail.dart';
 import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
+import 'profile_album_section.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -135,6 +137,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (profile.graduationYear.isNotEmpty)
+                                _ProfileFactChip(
+                                  icon: Icons.school_outlined,
+                                  label: '${profile.graduationYear} mezunu',
+                                ),
+                              if (profile.city.isNotEmpty)
+                                _ProfileFactChip(
+                                  icon: Icons.location_on_outlined,
+                                  label: profile.city,
+                                ),
+                              if (profile.profession.isNotEmpty)
+                                _ProfileFactChip(
+                                  icon: Icons.work_outline_rounded,
+                                  label: profile.profession,
+                                ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -184,97 +208,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
               ),
               const SizedBox(height: 16),
-              SurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Profil albümleri',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                        FilledButton.tonal(
-                          onPressed: () =>
-                              context.push('/albums/new?profile=1'),
-                          child: const Text('Albüm ekle'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    myAlbumsState.when(
-                      loading: () => const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      error: (error, _) => Text(error.toString()),
-                      data: (albums) {
-                        if (albums.isEmpty) {
-                          return const Text(
-                            'Henüz profiline bağlı bir albüm yok.',
-                          );
-                        }
-                        return Column(
-                          children: albums
-                              .map(
-                                (album) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(18),
-                                    onTap: () =>
-                                        context.push('/albums/${album.id}'),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(18),
-                                        border: Border.all(
-                                          color: Theme.of(context).dividerColor,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  album.title,
-                                                  style: Theme.of(
-                                                    context,
-                                                  ).textTheme.titleMedium,
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  album.description.isNotEmpty
-                                                      ? album.description
-                                                      : album.visibilityScope,
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: Theme.of(
-                                                    context,
-                                                  ).textTheme.bodySmall,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Text('${album.count}'),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+              ProfileAlbumSection(
+                title: 'Profil albümleri',
+                subtitle:
+                    'Profiline bakanlar anılarını ve seçtiğin koleksiyonları burada görür.',
+                albumsState: myAlbumsState,
+                isOwner: true,
+                onCreateAlbum: () async {
+                  await context.push('/albums/new?profile=1');
+                  if (!mounted) return;
+                  ref.invalidate(albumsDashboardProvider);
+                  ref.invalidate(myAlbumsProvider);
+                  ref.invalidate(memberProfileAlbumsProvider(profile.id));
+                },
+                onOpenAlbum: (album) async {
+                  await context.push('/albums/${album.id}');
+                  if (!mounted) return;
+                  ref.invalidate(albumsDashboardProvider);
+                  ref.invalidate(myAlbumsProvider);
+                  ref.invalidate(memberProfileAlbumsProvider(profile.id));
+                },
+                onDeleteAlbum: _deleteProfileAlbum,
               ),
               const SizedBox(height: 16),
               Row(
@@ -436,6 +390,46 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         },
       ),
     );
+  }
+
+  Future<void> _deleteProfileAlbum(AlbumCategoryItem album) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${album.title} silinsin mi?'),
+        content: const Text(
+          'Bu profil albümü kaldırılacak. İçindeki fotoğraflar da erişilemez hale gelir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final ok = await ref
+        .read(albumsActionControllerProvider.notifier)
+        .deleteAlbum(album.id);
+    if (!mounted) return;
+    final state = ref.read(albumsActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok ? 'Profil albümü silindi.' : 'Profil albümü silinemedi.'),
+        ),
+      ),
+    );
+    if (!ok) return;
+    ref.invalidate(albumsDashboardProvider);
+    ref.invalidate(myAlbumsProvider);
+    ref.invalidate(memberProfileAlbumsProvider(album.ownerUserId ?? 0));
   }
 }
 
@@ -729,6 +723,40 @@ class _StatusChip extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(color: color, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _ProfileFactChip extends StatelessWidget {
+  const _ProfileFactChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: tokens.panelRaised,
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: tokens.foregroundMuted),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: tokens.foreground,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

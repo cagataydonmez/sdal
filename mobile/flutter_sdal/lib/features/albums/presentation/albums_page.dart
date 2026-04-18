@@ -49,43 +49,79 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
             else if (_dashboard == null)
               const SurfaceCard(child: Text('Albüm verisi alınamadı.'))
             else ...[
-              _AlbumCategorySection(
-                title: 'Albüm kategorileri',
-                items: _dashboard!.categories,
-                onDelete: _deleteAlbum,
+              Builder(
+                builder: (context) {
+                  final profileAlbumIds = <int>{
+                    for (final item in [
+                      ..._dashboard!.categories,
+                      ..._dashboard!.mine,
+                    ])
+                      if (item.isProfileAlbum) item.id,
+                  };
+                  final visibleCategories = _dashboard!.categories
+                      .where((item) => !item.isProfileAlbum)
+                      .toList(growable: false);
+                  final managedAlbums = _dashboard!.mine
+                      .where((item) => !item.isProfileAlbum)
+                      .toList(growable: false);
+                  final latestPhotos = _dashboard!.latest
+                      .where(
+                        (item) => !profileAlbumIds.contains(item.categoryId),
+                      )
+                      .toList(growable: false);
+                  final popularPhotos = _dashboard!.popular
+                      .where(
+                        (item) => !profileAlbumIds.contains(item.categoryId),
+                      )
+                      .toList(growable: false);
+
+                  return Column(
+                    children: [
+                      _AlbumCategorySection(
+                        title: 'Albüm kategorileri',
+                        items: visibleCategories,
+                        onDelete: _deleteAlbum,
+                      ),
+                      if (visibleCategories.isEmpty) ...[
+                        const SizedBox(height: 12),
+                        SurfaceCard(
+                          child: Text(
+                            profileAlbumIds.isNotEmpty
+                                ? 'Profil albümleri artık genel albüm sayfasında değil, doğrudan profil sayfalarında görünüyor.'
+                                : 'Henüz görüntülenebilir albüm bulunmuyor.',
+                          ),
+                        ),
+                      ],
+                      if (latestPhotos.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _AlbumBarSection(
+                          title: 'En yeni fotoğraflar',
+                          subtitle:
+                              'Son eklenen 10 fotoğraf. Sağa kaydırarak göz atabilirsin.',
+                          items: latestPhotos,
+                        ),
+                      ],
+                      if (popularPhotos.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _AlbumBarSection(
+                          title: 'En çok görüntülenenler',
+                          subtitle: 'En çok bakılan fotoğraflar.',
+                          items: popularPhotos,
+                        ),
+                      ],
+                      if (managedAlbums.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _AlbumCategorySection(
+                          title: 'Yönettiğin albümler',
+                          items: managedAlbums,
+                          compact: true,
+                          onDelete: _deleteAlbum,
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
-              if (_dashboard!.categories.isEmpty) ...[
-                const SizedBox(height: 12),
-                const SurfaceCard(
-                  child: Text('Henüz görüntülenebilir albüm bulunmuyor.'),
-                ),
-              ],
-              if (_dashboard!.latest.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _AlbumBarSection(
-                  title: 'En yeni fotoğraflar',
-                  subtitle:
-                      'Son eklenen 10 fotoğraf. Sağa kaydırarak göz atabilirsin.',
-                  items: _dashboard!.latest,
-                ),
-              ],
-              if (_dashboard!.popular.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _AlbumBarSection(
-                  title: 'En çok görüntülenenler',
-                  subtitle: 'En çok bakılan fotoğraflar.',
-                  items: _dashboard!.popular,
-                ),
-              ],
-              if (_dashboard!.mine.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _AlbumCategorySection(
-                  title: 'Albümün ve profil albümlerin',
-                  items: _dashboard!.mine,
-                  compact: true,
-                  onDelete: _deleteAlbum,
-                ),
-              ],
             ],
           ],
         ),

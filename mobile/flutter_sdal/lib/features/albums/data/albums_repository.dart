@@ -688,8 +688,28 @@ final myAlbumsProvider = FutureProvider.autoDispose<List<AlbumCategoryItem>>((
   ref,
 ) async {
   final dashboard = await ref.watch(albumsRepositoryProvider).fetchDashboard();
-  return dashboard.mine;
+  return dashboard.mine
+      .where((item) => item.isProfileAlbum)
+      .toList(growable: false);
 });
+
+final memberProfileAlbumsProvider = FutureProvider.autoDispose
+    .family<List<AlbumCategoryItem>, int>((ref, memberId) async {
+      final dashboard = await ref
+          .watch(albumsRepositoryProvider)
+          .fetchDashboard();
+      final seen = <int>{};
+      final candidates = <AlbumCategoryItem>[
+        ...dashboard.categories,
+        ...dashboard.mine,
+      ];
+      return candidates
+          .where((item) {
+            if (item.id <= 0 || !seen.add(item.id)) return false;
+            return item.isProfileAlbum && item.ownerUserId == memberId;
+          })
+          .toList(growable: false);
+    });
 
 final albumPhotoLikesProvider = FutureProvider.autoDispose
     .family<List<AlbumLikeUser>, int>(
