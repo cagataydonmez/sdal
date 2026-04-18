@@ -191,6 +191,48 @@ export function registerAlbumRoutes(app, {
     }
   }
 
+  function normalizeIntegerId(value) {
+    const text = String(value ?? '').trim();
+    if (!text) return 0;
+    const parsed = Number.parseFloat(text.replace(',', '.'));
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.trunc(parsed));
+  }
+
+  function resolveRequestedCategoryId(req) {
+    return normalizeIntegerId(
+      req.body?.kat ||
+        req.body?.categoryId ||
+        req.body?.albumId ||
+        req.body?.category_id ||
+        req.query?.kat ||
+        req.query?.categoryId ||
+        req.query?.albumId ||
+        req.query?.category_id ||
+        '',
+    );
+  }
+
+  async function ensurePhotoCategory(photoId, categoryId) {
+    if (!photoId || !categoryId) return;
+    const categoryColumn = isPostgres ? 'category_id' : 'katid';
+    const normalizedCategoryId = normalizeIntegerId(categoryId);
+    const existing = await sqlGetAsync(
+      `SELECT ${categoryColumn} AS category_id
+       FROM ${photoTable}
+       WHERE id = ?
+       LIMIT 1`,
+      [photoId],
+    );
+    if (normalizeIntegerId(existing?.category_id) === normalizedCategoryId) return;
+    await sqlRunAsync(
+      `UPDATE ${photoTable}
+       SET ${categoryColumn} = ${isPostgres ? '?' : 'CAST(? AS INTEGER)'}
+       WHERE id = ?`,
+      [normalizedCategoryId, photoId],
+    );
+  }
+
   function getUploadFieldFiles(req, fieldName) {
     if (Array.isArray(req.files)) {
       return fieldName === 'file' || fieldName === 'files' ? req.files : [];
@@ -861,10 +903,7 @@ export function registerAlbumRoutes(app, {
       await schemaReady;
       const viewer = await findViewer(req.session.userId);
       const currentUser = getCurrentUser(req);
-      const categoryId = Number.parseInt(
-        String(req.body?.kat || req.body?.categoryId || '').trim(),
-        10,
-      );
+      const categoryId = normalizeIntegerId(resolveRequestedCategoryId(req));
       const uploadFile = getUploadFieldFile(req, 'file');
       const sourceUploadFile = getUploadFieldFile(req, 'sourceFile');
       const rawTitle = String(req.body?.baslik || req.body?.title || '').trim();
@@ -932,7 +971,7 @@ export function registerAlbumRoutes(app, {
         result = await sqlRunAsync(
           `INSERT INTO ${photoTable}
             (katid, dosyaadi, baslik, aciklama, aktif, ekleyenid, tarih, updated_at, hit, allow_comments, tagged_user_ids_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             categoryId,
             storedFilename,
@@ -956,6 +995,7 @@ export function registerAlbumRoutes(app, {
       }
 
       const photoId = Number(result?.lastInsertRowid || result?.insertId || 0);
+      await ensurePhotoCategory(photoId, categoryId);
       const sourceStoredFilename = path.basename(
         sourceUploadFile?.path || processed.path || uploadFile.path,
       );
@@ -994,10 +1034,7 @@ export function registerAlbumRoutes(app, {
       await schemaReady;
       const viewer = await findViewer(req.session.userId);
       const currentUser = getCurrentUser(req);
-      const categoryId = Number.parseInt(
-        String(req.body?.kat || req.body?.categoryId || '').trim(),
-        10,
-      );
+      const categoryId = normalizeIntegerId(resolveRequestedCategoryId(req));
       const description = formatUserText(req.body?.aciklama || req.body?.description || '');
       const allowComments = isTruthy(req.body?.yorumlaraIzin ?? req.body?.allowComments ?? true);
       const taggedUserIds = parseIdArray(req.body?.taggedUserIds);
@@ -1067,7 +1104,7 @@ export function registerAlbumRoutes(app, {
           result = await sqlRunAsync(
             `INSERT INTO ${photoTable}
               (katid, dosyaadi, baslik, aciklama, aktif, ekleyenid, tarih, updated_at, hit, allow_comments, tagged_user_ids_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               categoryId,
               storedFilename,
@@ -1084,6 +1121,7 @@ export function registerAlbumRoutes(app, {
           );
         }
         const photoId = Number(result?.lastInsertRowid || result?.insertId || 0);
+        await ensurePhotoCategory(photoId, categoryId);
         const metadata = metadataList[index] || {};
         const sourceStoredFilename = path.basename(
           sourceFiles[index]?.path || processed.path || file.path,

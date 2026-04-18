@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../explore/data/explore_repository.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -335,9 +334,6 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   Future<void> _pickSingleFile() async {
     final picked = await pickAndEditImage(
       context,
-      source: ImageSource.gallery,
-      imageQuality: 94,
-      maxWidth: 2600,
       title: 'Fotoğrafı kırp',
     );
     if (picked == null || !mounted) return;
@@ -347,8 +343,6 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   Future<void> _pickMultipleFiles() async {
     final picked = await pickAndEditImages(
       context,
-      imageQuality: 94,
-      maxWidth: 2600,
       title: 'Fotoğrafı düzenle',
     );
     if (!mounted || picked.isEmpty) return;

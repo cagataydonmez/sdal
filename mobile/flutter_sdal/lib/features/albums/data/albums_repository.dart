@@ -585,7 +585,9 @@ class AlbumsRepository {
     return _apiClient.multipart<dynamic>(
       '/api/album/upload',
       fields: {
-        'kat': categoryId,
+        'kat': categoryId.toString(),
+        'categoryId': categoryId.toString(),
+        'albumId': categoryId.toString(),
         'baslik': title,
         'aciklama': description,
         'yorumlaraIzin': allowComments ? '1' : '0',
@@ -609,7 +611,9 @@ class AlbumsRepository {
     return _apiClient.multipart<dynamic>(
       '/api/album/upload-batch',
       fields: {
-        'kat': categoryId,
+        'kat': categoryId.toString(),
+        'categoryId': categoryId.toString(),
+        'albumId': categoryId.toString(),
         'aciklama': description,
         'yorumlaraIzin': allowComments ? '1' : '0',
         'taggedUserIds': taggedUserIds.join(','),

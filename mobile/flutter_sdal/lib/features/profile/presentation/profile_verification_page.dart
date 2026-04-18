@@ -159,8 +159,6 @@ class _ProfileVerificationPageState
     final picked = await pickAndCropImage(
       context,
       source: source,
-      imageQuality: 92,
-      maxWidth: 2000,
       title: 'Belgeyi kırp',
     );
     if (picked == null || !mounted) return;

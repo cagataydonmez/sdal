@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/widgets/image_lightbox.dart';
@@ -55,10 +54,7 @@ class _FeedEditPostSheetState extends State<FeedEditPostSheet> {
   Future<void> _pickImage() async {
     final file = await pickAndCropImage(
       context,
-      source: ImageSource.gallery,
       aspectPreset: CropAspectPreset.portrait45,
-      imageQuality: 92,
-      maxWidth: 1800,
       title: 'Gönderi görselini kırp',
     );
     if (!mounted) return;

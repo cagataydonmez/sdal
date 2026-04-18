@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
@@ -848,10 +847,7 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
   Future<void> _pickImage() async {
     final file = await pickAndCropImage(
       context,
-      source: ImageSource.gallery,
       aspectPreset: CropAspectPreset.portrait45,
-      imageQuality: 92,
-      maxWidth: 1800,
       title: 'Gönderi görselini kırp',
     );
     if (file == null || !mounted) return;

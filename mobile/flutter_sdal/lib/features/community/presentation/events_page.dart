@@ -440,8 +440,6 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     final picked = await pickAndCropImage(
       context,
       source: source,
-      imageQuality: 92,
-      maxWidth: 2200,
       title: 'Etkinlik görselini kırp',
     );
     if (picked == null || !mounted) return;

@@ -119,8 +119,6 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
       context,
       source: source,
       aspectPreset: CropAspectPreset.square,
-      imageQuality: 90,
-      maxWidth: 1800,
       title: 'Profil fotoğrafını kırp',
     );
     if (picked == null || !mounted) return;

@@ -80,9 +80,12 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
                     if (_detail!.canUpload) ...[
                       const SizedBox(height: 14),
                       FilledButton.icon(
-                        onPressed: () => context.push(
-                          '/albums/upload?albumId=${widget.categoryId}',
-                        ),
+                        onPressed: () async {
+                          await context.push(
+                            '/albums/upload?albumId=${widget.categoryId}',
+                          );
+                          if (mounted) _load(reset: true);
+                        },
                         icon: const Icon(Icons.upload_rounded),
                         label: const Text('Bu albüme fotoğraf yükle'),
                       ),

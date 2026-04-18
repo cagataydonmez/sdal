@@ -257,8 +257,6 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     final picked = await pickAndCropImage(
       context,
       source: source,
-      imageQuality: 92,
-      maxWidth: 2200,
       title: 'Duyuru görselini kırp',
     );
     if (picked == null || !mounted) return;

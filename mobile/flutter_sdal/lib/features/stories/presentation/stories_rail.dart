@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
@@ -950,10 +949,7 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
               onPressed: () async {
                 final file = await pickAndCropImage(
                   context,
-                  source: ImageSource.gallery,
                   aspectPreset: CropAspectPreset.story916,
-                  imageQuality: 92,
-                  maxWidth: 2200,
                   title: 'Hikayeyi kırp',
                 );
                 if (file != null) setState(() => _pickedFile = file);

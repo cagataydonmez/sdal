@@ -162,20 +162,68 @@ class EditedMediaResult {
   final Map<String, dynamic> metadata;
 }
 
+Future<ImageSource?> _chooseImageSource(BuildContext context) {
+  return showModalBottomSheet<ImageSource>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.photo_library_outlined, color: Colors.white),
+                    title: const Text('Galeri', style: TextStyle(color: Colors.white)),
+                    onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+                  ),
+                  const Divider(height: 1, color: Color(0xFF3A3A3C)),
+                  ListTile(
+                    leading: const Icon(Icons.camera_alt_outlined, color: Colors.white),
+                    title: const Text('Kamera', style: TextStyle(color: Colors.white)),
+                    onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF1C1C1E),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Vazgeç', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 Future<File?> pickAndCropImage(
   BuildContext context, {
-  required ImageSource source,
+  ImageSource? source,
   CropAspectPreset? aspectPreset,
-  int imageQuality = 92,
-  double? maxWidth = 2200,
   String title = 'Fotoğrafı düzenle',
 }) async {
   final result = await pickAndEditImage(
     context,
     source: source,
     aspectPreset: aspectPreset,
-    imageQuality: imageQuality,
-    maxWidth: maxWidth,
     title: title,
   );
   return result?.file;
@@ -183,18 +231,14 @@ Future<File?> pickAndCropImage(
 
 Future<EditedMediaResult?> pickAndEditImage(
   BuildContext context, {
-  required ImageSource source,
+  ImageSource? source,
   CropAspectPreset? aspectPreset,
-  int imageQuality = 92,
-  double? maxWidth = 2200,
   String title = 'Fotoğrafı düzenle',
 }) async {
+  final resolvedSource = source ?? await _chooseImageSource(context);
+  if (resolvedSource == null || !context.mounted) return null;
   final picker = ImagePicker();
-  final picked = await picker.pickImage(
-    source: source,
-    imageQuality: imageQuality,
-    maxWidth: maxWidth,
-  );
+  final picked = await picker.pickImage(source: resolvedSource);
   if (picked == null || !context.mounted) return null;
   return editImageFile(
     context,
@@ -207,15 +251,10 @@ Future<EditedMediaResult?> pickAndEditImage(
 Future<List<EditedMediaResult>> pickAndEditImages(
   BuildContext context, {
   CropAspectPreset? aspectPreset,
-  int imageQuality = 92,
-  double? maxWidth = 2200,
   String title = 'Fotoğrafı düzenle',
 }) async {
   final picker = ImagePicker();
-  final picked = await picker.pickMultiImage(
-    imageQuality: imageQuality,
-    maxWidth: maxWidth,
-  );
+  final picked = await picker.pickMultiImage();
   if (picked.isEmpty || !context.mounted) return const <EditedMediaResult>[];
   final results = <EditedMediaResult>[];
   for (var index = 0; index < picked.length; index += 1) {
@@ -305,7 +344,6 @@ class _CropImagePageState extends State<_CropImagePage> {
   ];
 
   final TransformationController _controller = TransformationController();
-  final GlobalKey _boundaryKey = GlobalKey();
   final GlobalKey _captureRegionKey = GlobalKey();
 
   ui.Image? _decodedImage;
@@ -313,10 +351,8 @@ class _CropImagePageState extends State<_CropImagePage> {
   Size _displayImageSize = Size.zero;
   double _baseScale = 1;
   bool _isSaving = false;
-  bool _isFocusMode = false;
-  bool _isToolbarCollapsed = false;
+  bool _isCapturing = false;
   bool _showOriginalPreview = false;
-  double _toolbarHeight = 174;
   double _freeformWidthFactor = 1;
   double _freeformHeightFactor = 1;
   double? _selectedAspectRatio;
@@ -361,681 +397,755 @@ class _CropImagePageState extends State<_CropImagePage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = theme.sdal;
-    final ratio = _selectedAspectRatio ?? _rotatedImageRatio ?? 1;
+    final ratio = _selectedAspectRatio ??
+        _rotatedImageRatio ??
+        MediaQuery.sizeOf(context).aspectRatio;
     final canTransformImage =
         _activePanel == _EditorPanel.crop && !_showOriginalPreview;
     final selectedSticker = _selectedSticker;
     final selectedHideRegion = _selectedHideRegion;
-    final toolbarVisible = !_isFocusMode && !_isToolbarCollapsed;
-    final editorBackground = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        tokens.canvas,
-        Color.lerp(tokens.canvasSubtle, tokens.panelRaised, 0.36)!,
-      ],
-    );
+
     return Scaffold(
-      backgroundColor: tokens.canvas,
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: Colors.transparent,
-        foregroundColor: tokens.foreground,
-        actions: [
-          IconButton(
-            onPressed: _decodedImage == null || _isSaving
-                ? null
-                : _toggleFocusMode,
-            icon: Icon(
-              _isFocusMode
-                  ? Icons.fullscreen_exit_rounded
-                  : Icons.fullscreen_rounded,
-            ),
-            tooltip: _isFocusMode ? 'Düzenlemeye dön' : 'Odak modu',
-          ),
-          IconButton(
-            onPressed: _decodedImage == null || _isSaving ? null : _rotateImage,
-            icon: const Icon(Icons.rotate_90_degrees_ccw_rounded),
-            tooltip: 'Döndür',
-          ),
-          TextButton(
-            onPressed: _decodedImage == null || _isSaving ? null : _resetAll,
-            child: const Text('Sıfırla'),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: DecoratedBox(
-        decoration: BoxDecoration(gradient: editorBackground),
-        child: LayoutBuilder(
-          builder: (context, bodyConstraints) {
-            final toolbarMinHeight = 132.0;
-            final toolbarMaxHeight = math.max(
-              toolbarMinHeight,
-              bodyConstraints.maxHeight * 0.46,
-            );
-            final toolbarHeight = _resolvedToolbarHeight(
-              toolbarMinHeight,
-              toolbarMaxHeight,
-            );
-            return Column(
-              children: [
-                if (!_isFocusMode) const SizedBox(height: 8),
-                if (!_isFocusMode)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: tokens.panel.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(
-                          SdalThemeTokens.radiusXl,
-                        ),
-                        border: Border.all(color: tokens.panelBorder),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        child: Text(
-                          _instructionText(),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: tokens.foregroundMuted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (!_isFocusMode) const SizedBox(height: 12),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final viewport = _computeViewportSize(
-                        constraints.biggest,
-                        ratio,
-                      );
-                      _updateViewport(viewport);
-                      return Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          12,
-                          _isFocusMode ? 8 : 0,
-                          12,
-                          _isFocusMode ? 8 : 4,
-                        ),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.deferToChild,
-                          onLongPressStart: _decodedImage == null || _isSaving
-                              ? null
-                              : (_) => _setOriginalPreview(true),
-                          onLongPressEnd: _decodedImage == null || _isSaving
-                              ? null
-                              : (_) => _setOriginalPreview(false),
-                          onLongPressCancel: () => _setOriginalPreview(false),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(
-                                    _isFocusMode
-                                        ? SdalThemeTokens.radius2xl
-                                        : SdalThemeTokens.radiusXl,
-                                  ),
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      tokens.storyOverlay,
-                                      tokens.panel.withValues(alpha: 0.94),
-                                    ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: tokens.storyOverlay.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      blurRadius: 30,
-                                      offset: const Offset(0, 18),
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: tokens.panelBorder.withValues(
-                                      alpha: 0.45,
-                                    ),
-                                  ),
-                                ),
-                                child: RepaintBoundary(
-                                  key: _boundaryKey,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(
-                                      _isFocusMode
-                                          ? SdalThemeTokens.radius2xl
-                                          : SdalThemeTokens.radiusXl,
-                                    ),
-                                    child: SizedBox(
-                                      width: viewport.width,
-                                      height: viewport.height,
-                                      child: Stack(
-                                        children: [
-                                          Positioned.fill(
-                                            child: ColoredBox(
-                                              color: tokens.storyOverlay,
-                                            ),
-                                          ),
-                                          IgnorePointer(
-                                            child: _CropMask(
-                                              viewportSize: viewport,
-                                            ),
-                                          ),
-                                          RepaintBoundary(
-                                            child: ClipRect(
-                                              key: _captureRegionKey,
-                                              child: SizedBox(
-                                                width: viewport.width,
-                                                height: viewport.height,
-                                                child: Stack(
-                                                  children: [
-                                                    InteractiveViewer(
-                                                      transformationController:
-                                                          _controller,
-                                                      constrained: false,
-                                                      minScale: _baseScale,
-                                                      maxScale: math.max(
-                                                        _baseScale * 6,
-                                                        6,
-                                                      ),
-                                                      boundaryMargin:
-                                                          const EdgeInsets.all(
-                                                            1200,
-                                                          ),
-                                                      clipBehavior: Clip.none,
-                                                      panEnabled:
-                                                          canTransformImage,
-                                                      scaleEnabled:
-                                                          canTransformImage,
-                                                      child: SizedBox(
-                                                        width: _displayImageSize
-                                                            .width,
-                                                        height:
-                                                            _displayImageSize
-                                                                .height,
-                                                        child: RotatedBox(
-                                                          quarterTurns:
-                                                              _quarterTurns,
-                                                          child: SizedBox(
-                                                            width:
-                                                                _unrotatedDisplaySize
-                                                                    .width,
-                                                            height:
-                                                                _unrotatedDisplaySize
-                                                                    .height,
-                                                            child:
-                                                                _showOriginalPreview
-                                                                ? Image.file(
-                                                                    widget
-                                                                        .sourceFile,
-                                                                    fit: BoxFit
-                                                                        .fill,
-                                                                    filterQuality:
-                                                                        FilterQuality
-                                                                            .medium,
-                                                                    cacheWidth:
-                                                                        _cacheWidth,
-                                                                    cacheHeight:
-                                                                        _cacheHeight,
-                                                                  )
-                                                                : ColorFiltered(
-                                                                    colorFilter:
-                                                                        ColorFilter.matrix(
-                                                                          _buildColorMatrix(),
-                                                                        ),
-                                                                    child: Image.file(
-                                                                      widget
-                                                                          .sourceFile,
-                                                                      fit: BoxFit
-                                                                          .fill,
-                                                                      filterQuality:
-                                                                          FilterQuality
-                                                                              .medium,
-                                                                      cacheWidth:
-                                                                          _cacheWidth,
-                                                                      cacheHeight:
-                                                                          _cacheHeight,
-                                                                    ),
-                                                                  ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Positioned.fill(
-                                                      child: IgnorePointer(
-                                                        child: CustomPaint(
-                                                          painter: _DrawOverlayPainter(
-                                                            strokes:
-                                                                _showOriginalPreview
-                                                                ? const <
-                                                                    _DrawStroke
-                                                                  >[]
-                                                                : _strokes,
-                                                            currentStroke:
-                                                                _showOriginalPreview
-                                                                ? null
-                                                                : _currentStroke,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Positioned.fill(
-                                                      child: IgnorePointer(
-                                                        ignoring:
-                                                            _activePanel ==
-                                                                _EditorPanel
-                                                                    .crop ||
-                                                            _showOriginalPreview,
-                                                        child: Stack(
-                                                          clipBehavior:
-                                                              Clip.none,
-                                                          children: [
-                                                            if (!_showOriginalPreview)
-                                                              for (final region
-                                                                  in _hideRegions)
-                                                                _buildHideRegion(
-                                                                  region,
-                                                                  viewport,
-                                                                ),
-                                                            if (!_showOriginalPreview)
-                                                              for (final sticker
-                                                                  in _stickers)
-                                                                _buildSticker(
-                                                                  sticker,
-                                                                  viewport,
-                                                                ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (_activePanel ==
-                                                            _EditorPanel.draw &&
-                                                        !_showOriginalPreview)
-                                                      Positioned.fill(
-                                                        child: GestureDetector(
-                                                          behavior:
-                                                              HitTestBehavior
-                                                                  .opaque,
-                                                          onPanStart:
-                                                              _startStroke,
-                                                          onPanUpdate:
-                                                              _extendStroke,
-                                                          onPanEnd:
-                                                              _finishStroke,
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 14,
-                                left: 14,
-                                right: 14,
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: _StageHintChip(
-                                        label: _showOriginalPreview
-                                            ? 'Orijinal görünüyor'
-                                            : 'Fotoğrafa basılı tut: orijinal',
-                                        icon: _showOriginalPreview
-                                            ? Icons.visibility_rounded
-                                            : Icons.touch_app_rounded,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    if (!_isFocusMode)
-                                      _StageActionButton(
-                                        icon: _isToolbarCollapsed
-                                            ? Icons.keyboard_arrow_up_rounded
-                                            : Icons.keyboard_arrow_down_rounded,
-                                        tooltip: _isToolbarCollapsed
-                                            ? 'Araçları aç'
-                                            : 'Araçları kapat',
-                                        onTap:
-                                            _decodedImage == null || _isSaving
-                                            ? null
-                                            : _toggleToolbarCollapsed,
-                                      ),
-                                    const SizedBox(width: 10),
-                                    _StageActionButton(
-                                      icon: _isFocusMode
-                                          ? Icons.fullscreen_exit_rounded
-                                          : Icons.fullscreen_rounded,
-                                      tooltip: _isFocusMode
-                                          ? 'Düzenlemeye dön'
-                                          : 'Odak modu',
-                                      onTap: _decodedImage == null || _isSaving
-                                          ? null
-                                          : _toggleFocusMode,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (_isFocusMode)
-                                Positioned(
-                                  left: 18,
-                                  right: 18,
-                                  bottom: 18,
-                                  child: FilledButton.icon(
-                                    onPressed:
-                                        _decodedImage == null || _isSaving
-                                        ? null
-                                        : _saveCrop,
-                                    icon: _isSaving
-                                        ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Icon(Icons.check_rounded),
-                                    label: Text(
-                                      _isSaving
-                                          ? 'Kaydediliyor...'
-                                          : 'Kaydet ve devam et',
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: toolbarVisible
-                      ? AnimatedContainer(
-                          key: const ValueKey('toolbar-open'),
-                          duration: const Duration(milliseconds: 140),
-                          curve: Curves.easeOutCubic,
-                          height: toolbarHeight,
-                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                          decoration: BoxDecoration(
-                            color: tokens.panelRaised.withValues(alpha: 0.97),
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(SdalThemeTokens.radius2xl),
-                            ),
-                            border: Border.all(color: tokens.panelBorder),
-                            boxShadow: [
-                              BoxShadow(
-                                color: tokens.storyOverlay.withValues(
-                                  alpha: 0.12,
-                                ),
-                                blurRadius: 18,
-                                offset: const Offset(0, -6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onVerticalDragUpdate: (details) {
-                                  _resizeToolbarByDelta(
-                                    -details.delta.dy,
-                                    minHeight: toolbarMinHeight,
-                                    maxHeight: toolbarMaxHeight,
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    18,
-                                    10,
-                                    18,
-                                    8,
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        width: 48,
-                                        height: 6,
-                                        decoration: BoxDecoration(
-                                          color: tokens.panelBorder,
-                                          borderRadius: BorderRadius.circular(
-                                            SdalThemeTokens.radiusPill,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.unfold_less_rounded,
-                                            size: 18,
-                                            color: tokens.foregroundMuted,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Araçlar',
-                                            style: theme.textTheme.labelLarge
-                                                ?.copyWith(
-                                                  color: tokens.foreground,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                          ),
-                                          const Spacer(),
-                                          Text(
-                                            'Sürükleyerek büyüt',
-                                            style: theme.textTheme.bodySmall
-                                                ?.copyWith(
-                                                  color: tokens.foregroundMuted,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: _EditorToolbar(
-                                    activePanel: _activePanel,
-                                    onPanelChanged:
-                                        _decodedImage == null || _isSaving
-                                        ? null
-                                        : _changePanel,
-                                    aspectChoices: _aspectChoices,
-                                    selectedRatio: _selectedAspectRatio,
-                                    freeformWidthFactor: _freeformWidthFactor,
-                                    freeformHeightFactor: _freeformHeightFactor,
-                                    onAspectSelected:
-                                        _decodedImage == null || _isSaving
-                                        ? null
-                                        : _selectAspectRatio,
-                                    onFreeformWidthChanged:
-                                        _decodedImage == null || _isSaving
-                                        ? null
-                                        : _setFreeformWidthFactor,
-                                    onFreeformHeightChanged:
-                                        _decodedImage == null || _isSaving
-                                        ? null
-                                        : _setFreeformHeightFactor,
-                                    onRotate: _decodedImage == null || _isSaving
-                                        ? null
-                                        : _rotateImage,
-                                    onAddText:
-                                        _decodedImage == null || _isSaving
-                                        ? null
-                                        : _addSticker,
-                                    selectedSticker: selectedSticker,
-                                    stickerColors: _stickerColors,
-                                    stickerFonts: _stickerFonts,
-                                    onEditSelectedSticker:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _editSelectedSticker,
-                                    onDeleteSelectedSticker:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _deleteSelectedSticker,
-                                    onStickerScaleChanged:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _updateSelectedStickerScale,
-                                    onStickerColorChanged:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _updateSelectedStickerColor,
-                                    onStickerBackgroundChanged:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _updateSelectedStickerBackground,
-                                    onStickerFontChanged:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _updateSelectedStickerFont,
-                                    onStickerAlignChanged:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _updateSelectedStickerAlign,
-                                    onStickerBoldChanged:
-                                        selectedSticker == null || _isSaving
-                                        ? null
-                                        : _updateSelectedStickerBold,
-                                    drawColor: _drawColor,
-                                    drawWidth: _drawWidth,
-                                    brushMode: _brushMode,
-                                    onDrawColorChanged: _isSaving
-                                        ? null
-                                        : _changeDrawColor,
-                                    onDrawWidthChanged: _isSaving
-                                        ? null
-                                        : _changeDrawWidth,
-                                    onBrushModeChanged: _isSaving
-                                        ? null
-                                        : _changeBrushMode,
-                                    onClearDrawings:
-                                        _strokes.isEmpty || _isSaving
-                                        ? null
-                                        : _clearDrawings,
-                                    selectedHideRegion: selectedHideRegion,
-                                    onAddHideRegion:
-                                        _decodedImage == null || _isSaving
-                                        ? null
-                                        : _addHideRegion,
-                                    onDeleteHideRegion:
-                                        selectedHideRegion == null || _isSaving
-                                        ? null
-                                        : _deleteSelectedHideRegion,
-                                    onHideRegionStyleChanged:
-                                        selectedHideRegion == null || _isSaving
-                                        ? null
-                                        : _updateSelectedHideStyle,
-                                    brightness: _brightness,
-                                    contrast: _contrast,
-                                    warmth: _warmth,
-                                    saturation: _saturation,
-                                    onBrightnessChanged: _isSaving
-                                        ? null
-                                        : _setBrightness,
-                                    onContrastChanged: _isSaving
-                                        ? null
-                                        : _setContrast,
-                                    onWarmthChanged: _isSaving
-                                        ? null
-                                        : _setWarmth,
-                                    onSaturationChanged: _isSaving
-                                        ? null
-                                        : _setSaturation,
-                                    presets: _filterPresets,
-                                    onApplyPreset: _isSaving
-                                        ? null
-                                        : _applyFilterPreset,
-                                    onResetFilters:
-                                        (_brightness == 0 &&
-                                                _contrast == 1 &&
-                                                _warmth == 0 &&
-                                                _saturation == 1) ||
-                                            _isSaving
-                                        ? null
-                                        : _resetFilters,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : const SizedBox(
-                          key: ValueKey('toolbar-closed'),
-                          height: 12,
-                        ),
-                ),
-                if (!_isFocusMode)
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      backgroundColor: Colors.black,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final screen = constraints.biggest;
+          final viewport = _computeViewportSize(screen, ratio);
+          _updateViewport(viewport);
+
+          return Stack(
+            children: [
+              const Positioned.fill(child: ColoredBox(color: Colors.black)),
+
+              // Image canvas — the region that gets captured
+              Align(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.deferToChild,
+                  onLongPressStart: _decodedImage == null || _isSaving
+                      ? null
+                      : (_) => _setOriginalPreview(true),
+                  onLongPressEnd: _decodedImage == null || _isSaving
+                      ? null
+                      : (_) => _setOriginalPreview(false),
+                  onLongPressCancel: () => _setOriginalPreview(false),
+                  child: RepaintBoundary(
+                    child: ClipRect(
+                      key: _captureRegionKey,
                       child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _decodedImage == null || _isSaving
-                              ? null
-                              : _saveCrop,
-                          icon: _isSaving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                        width: viewport.width,
+                        height: viewport.height,
+                        child: Stack(
+                          children: [
+                            const Positioned.fill(
+                              child: ColoredBox(color: Colors.black),
+                            ),
+                            InteractiveViewer(
+                              transformationController: _controller,
+                              constrained: false,
+                              minScale: _baseScale,
+                              maxScale: math.max(_baseScale * 6, 6),
+                              boundaryMargin: const EdgeInsets.all(1200),
+                              clipBehavior: Clip.none,
+                              panEnabled: canTransformImage,
+                              scaleEnabled: canTransformImage,
+                              child: SizedBox(
+                                width: _displayImageSize.width,
+                                height: _displayImageSize.height,
+                                child: RotatedBox(
+                                  quarterTurns: _quarterTurns,
+                                  child: SizedBox(
+                                    width: _unrotatedDisplaySize.width,
+                                    height: _unrotatedDisplaySize.height,
+                                    child: _showOriginalPreview
+                                        ? Image.file(
+                                            widget.sourceFile,
+                                            fit: BoxFit.fill,
+                                            filterQuality:
+                                                FilterQuality.medium,
+                                            cacheWidth: _cacheWidth,
+                                            cacheHeight: _cacheHeight,
+                                          )
+                                        : ColorFiltered(
+                                            colorFilter:
+                                                ColorFilter.matrix(
+                                              _buildColorMatrix(),
+                                            ),
+                                            child: Image.file(
+                                              widget.sourceFile,
+                                              fit: BoxFit.fill,
+                                              filterQuality:
+                                                  FilterQuality.medium,
+                                              cacheWidth: _cacheWidth,
+                                              cacheHeight: _cacheHeight,
+                                            ),
+                                          ),
                                   ),
-                                )
-                              : const Icon(Icons.check_rounded),
-                          label: Text(
-                            _isSaving
-                                ? 'Kaydediliyor...'
-                                : 'Kaydet ve devam et',
-                          ),
+                                ),
+                              ),
+                            ),
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: CustomPaint(
+                                  painter: _DrawOverlayPainter(
+                                    strokes: _showOriginalPreview
+                                        ? const <_DrawStroke>[]
+                                        : _strokes,
+                                    currentStroke: _showOriginalPreview
+                                        ? null
+                                        : _currentStroke,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: _activePanel ==
+                                        _EditorPanel.crop ||
+                                    _showOriginalPreview,
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    if (!_showOriginalPreview)
+                                      for (final region in _hideRegions)
+                                        _buildHideRegion(region, viewport),
+                                    if (!_showOriginalPreview)
+                                      for (final sticker in _stickers)
+                                        _buildSticker(sticker, viewport),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (_activePanel == _EditorPanel.draw &&
+                                !_showOriginalPreview)
+                              Positioned.fill(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onPanStart: _startStroke,
+                                  onPanUpdate: _extendStroke,
+                                  onPanEnd: _finishStroke,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-              ],
-            );
-          },
+                ),
+              ),
+
+              // Top bar — hidden during capture
+              if (!_isCapturing)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: _buildTopBar(context),
+                ),
+
+              // Bottom tools — hidden during capture
+              if (!_isCapturing)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _buildBottomOverlay(
+                    context,
+                    viewport: viewport,
+                    selectedSticker: selectedSticker,
+                    selectedHideRegion: selectedHideRegion,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTopBar(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.72),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: _isSaving
+                    ? null
+                    : () => Navigator.of(context).pop(),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                tooltip: 'Vazgeç',
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed:
+                    _decodedImage == null || _isSaving ? null : _rotateImage,
+                icon: const Icon(
+                  Icons.rotate_90_degrees_ccw_rounded,
+                  color: Colors.white,
+                ),
+                tooltip: 'Döndür',
+              ),
+              IconButton(
+                onPressed:
+                    _decodedImage == null || _isSaving ? null : _resetAll,
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                tooltip: 'Sıfırla',
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : FilledButton(
+                        onPressed:
+                            _decodedImage == null ? null : _saveCrop,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                        ),
+                        child: const Text(
+                          'İleri',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  String _instructionText() {
-    return switch (_activePanel) {
-      _EditorPanel.crop =>
-        'İki parmakla yakınlaştır, sürükleyerek kadrajı ayarla ve oran seç.',
-      _EditorPanel.text =>
-        'Yazı veya emoji ekle. Sticker seçiliyken sürükleyebilir, büyütebilir ve stilini değiştirebilirsin.',
-      _EditorPanel.draw =>
-        'Parmağınla çiz. Vurgulayıcı modu daha yumuşak ve yarı saydam iz bırakır.',
-      _EditorPanel.hide =>
-        'Gizleme bölgesi ekle. Bölgeyi sürükleyebilir, pinch ile büyütüp küçültebilir ve blur/mosaic seçebilirsin.',
-      _EditorPanel.filter =>
-        'Parlaklık, kontrast, sıcaklık ve doygunluk ayarlarını bu panelden düzenle.',
-    };
+  Widget _buildBottomOverlay(
+    BuildContext context, {
+    required Size viewport,
+    required _OverlaySticker? selectedSticker,
+    required _HideRegion? selectedHideRegion,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.black.withValues(alpha: 0.82),
+          ],
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildPanelControls(
+              context,
+              viewport: viewport,
+              selectedSticker: selectedSticker,
+              selectedHideRegion: selectedHideRegion,
+            ),
+            const SizedBox(height: 4),
+            _buildPanelTabRow(context),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPanelTabRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildTabIcon(_EditorPanel.crop, Icons.crop_rounded, 'Kırp'),
+          _buildTabIcon(
+              _EditorPanel.text, Icons.text_fields_rounded, 'Yazı'),
+          _buildTabIcon(_EditorPanel.draw, Icons.brush_rounded, 'Çiz'),
+          _buildTabIcon(
+              _EditorPanel.hide, Icons.hide_image_outlined, 'Gizle'),
+          _buildTabIcon(_EditorPanel.filter, Icons.tune_rounded, 'Filtre'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabIcon(
+      _EditorPanel panel, IconData icon, String label) {
+    final selected = _activePanel == panel;
+    final active = _decodedImage != null && !_isSaving;
+    final color = selected
+        ? Colors.white
+        : active
+            ? Colors.white60
+            : Colors.white30;
+    return GestureDetector(
+      onTap: active ? () => _changePanel(panel) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight:
+                    selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: selected ? Colors.white : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPanelControls(
+    BuildContext context, {
+    required Size viewport,
+    required _OverlaySticker? selectedSticker,
+    required _HideRegion? selectedHideRegion,
+  }) {
+    if (_decodedImage == null) return const SizedBox.shrink();
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: KeyedSubtree(
+        key: ValueKey(_activePanel),
+        child: switch (_activePanel) {
+          _EditorPanel.crop => _buildCropControls(context),
+          _EditorPanel.text =>
+            _buildTextControls(context, selectedSticker),
+          _EditorPanel.draw => _buildDrawControls(context),
+          _EditorPanel.hide =>
+            _buildHideControls(context, selectedHideRegion),
+          _EditorPanel.filter => _buildFilterControls(context),
+        },
+      ),
+    );
+  }
+
+  Widget _buildCropControls(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _aspectChoices.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final choice = _aspectChoices[index];
+                final selected = (choice.ratio == null &&
+                        _selectedAspectRatio == null) ||
+                    (choice.ratio != null &&
+                        _selectedAspectRatio != null &&
+                        (choice.ratio! - _selectedAspectRatio!).abs() <
+                            0.001);
+                return _OverlayChip(
+                  label: choice.label,
+                  selected: selected,
+                  onTap: _isSaving
+                      ? null
+                      : () => _selectAspectRatio(choice.ratio),
+                );
+              },
+            ),
+          ),
+          if (_isFreeformCrop) ...[
+            const SizedBox(height: 8),
+            _OverlaySlider(
+              label: 'Gen',
+              value: _freeformWidthFactor,
+              min: 0.35,
+              max: 1,
+              onChanged: _isSaving ? null : _setFreeformWidthFactor,
+            ),
+            _OverlaySlider(
+              label: 'Yük',
+              value: _freeformHeightFactor,
+              min: 0.35,
+              max: 1,
+              onChanged: _isSaving ? null : _setFreeformHeightFactor,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextControls(
+      BuildContext context, _OverlaySticker? sticker) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 40,
+            child: Row(
+              children: [
+                _OverlayChip(
+                  label: '+ Yazı',
+                  selected: false,
+                  onTap: _isSaving ? null : _addSticker,
+                ),
+                if (sticker != null) ...[
+                  const SizedBox(width: 10),
+                  _OverlayIconBtn(
+                    icon: Icons.edit_outlined,
+                    tooltip: 'Düzenle',
+                    onTap: _isSaving ? null : _editSelectedSticker,
+                  ),
+                  const SizedBox(width: 8),
+                  _OverlayIconBtn(
+                    icon: Icons.close_rounded,
+                    tooltip: 'Sil',
+                    onTap: _isSaving ? null : _deleteSelectedSticker,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (sticker != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _stickerColors.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final choice = _stickerColors[index];
+                  final sel = sticker.textColor == choice.color;
+                  return GestureDetector(
+                    onTap: _isSaving
+                        ? null
+                        : () =>
+                            _updateSelectedStickerColor(choice.color),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: choice.color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: sel ? Colors.white : Colors.white30,
+                          width: sel ? 3 : 1,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemCount: _stickerFonts.length + 4,
+                itemBuilder: (context, index) {
+                  if (index < _stickerFonts.length) {
+                    final font = _stickerFonts[index];
+                    return _OverlayChip(
+                      label: font.label,
+                      selected: sticker.fontKind == font.kind,
+                      onTap: _isSaving
+                          ? null
+                          : () => _updateSelectedStickerFont(font.kind),
+                    );
+                  }
+                  const bgs = <(_StickerBackgroundStyle, String)>[
+                    (_StickerBackgroundStyle.none, 'Şeffaf'),
+                    (_StickerBackgroundStyle.soft, 'Yumuşak'),
+                    (_StickerBackgroundStyle.dark, 'Koyu'),
+                    (_StickerBackgroundStyle.light, 'Açık'),
+                  ];
+                  final (style, lbl) =
+                      bgs[index - _stickerFonts.length];
+                  return _OverlayChip(
+                    label: lbl,
+                    selected: sticker.backgroundStyle == style,
+                    onTap: _isSaving
+                        ? null
+                        : () =>
+                            _updateSelectedStickerBackground(style),
+                  );
+                },
+              ),
+            ),
+            _OverlaySlider(
+              label: 'Boyut',
+              value: sticker.scale.clamp(0.7, 2.8),
+              min: 0.7,
+              max: 2.8,
+              onChanged:
+                  _isSaving ? null : _updateSelectedStickerScale,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawControls(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 40,
+            child: Row(
+              children: [
+                _OverlayChip(
+                  label: 'Kalem',
+                  selected: _brushMode == _BrushMode.pen,
+                  onTap: _isSaving
+                      ? null
+                      : () => _changeBrushMode(_BrushMode.pen),
+                ),
+                const SizedBox(width: 8),
+                _OverlayChip(
+                  label: 'Vurgulayıcı',
+                  selected: _brushMode == _BrushMode.highlighter,
+                  onTap: _isSaving
+                      ? null
+                      : () =>
+                          _changeBrushMode(_BrushMode.highlighter),
+                ),
+                const Spacer(),
+                if (_strokes.isNotEmpty)
+                  _OverlayIconBtn(
+                    icon: Icons.delete_outline,
+                    tooltip: 'Çizimleri temizle',
+                    onTap: _isSaving ? null : _clearDrawings,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemCount: 6,
+              itemBuilder: (context, index) {
+                const swatches = <Color>[
+                  Colors.white,
+                  Color(0xFFFACC15),
+                  Color(0xFF93C5FD),
+                  Color(0xFFF9A8D4),
+                  Color(0xFF86EFAC),
+                  Color(0xFFFCA5A5),
+                ];
+                final swatch = swatches[index];
+                final sel = _drawColor == swatch;
+                return GestureDetector(
+                  onTap: _isSaving
+                      ? null
+                      : () => _changeDrawColor(swatch),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: swatch,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: sel ? Colors.white : Colors.white30,
+                        width: sel ? 3 : 1,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          _OverlaySlider(
+            label: 'Kalın',
+            value: _drawWidth.clamp(2.0, 26.0),
+            min: 2,
+            max: 26,
+            onChanged: _isSaving ? null : _changeDrawWidth,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHideControls(
+      BuildContext context, _HideRegion? region) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: SizedBox(
+        height: 40,
+        child: Row(
+          children: [
+            _OverlayChip(
+              label: '+ Gizle',
+              selected: false,
+              onTap: _isSaving ? null : _addHideRegion,
+            ),
+            if (region != null) ...[
+              const SizedBox(width: 8),
+              _OverlayChip(
+                label: 'Blur',
+                selected: region.style == _HideRegionStyle.blur,
+                onTap: _isSaving
+                    ? null
+                    : () =>
+                        _updateSelectedHideStyle(_HideRegionStyle.blur),
+              ),
+              const SizedBox(width: 8),
+              _OverlayChip(
+                label: 'Mozaik',
+                selected: region.style == _HideRegionStyle.mosaic,
+                onTap: _isSaving
+                    ? null
+                    : () => _updateSelectedHideStyle(
+                          _HideRegionStyle.mosaic,
+                        ),
+              ),
+              const Spacer(),
+              _OverlayIconBtn(
+                icon: Icons.delete_outline,
+                tooltip: 'Sil',
+                onTap: _isSaving ? null : _deleteSelectedHideRegion,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterControls(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemCount: _filterPresets.length + 1,
+              itemBuilder: (context, index) {
+                if (index == _filterPresets.length) {
+                  return _OverlayChip(
+                    label: 'Sıfırla',
+                    selected: false,
+                    onTap: _isSaving ? null : _resetFilters,
+                  );
+                }
+                final preset = _filterPresets[index];
+                return _OverlayChip(
+                  label: preset.label,
+                  selected: false,
+                  onTap: _isSaving
+                      ? null
+                      : () => _applyFilterPreset(preset),
+                );
+              },
+            ),
+          ),
+          _OverlaySlider(
+            label: 'Prlk',
+            value: _brightness,
+            min: -0.35,
+            max: 0.35,
+            onChanged: _isSaving ? null : _setBrightness,
+          ),
+          _OverlaySlider(
+            label: 'Krst',
+            value: _contrast,
+            min: 0.7,
+            max: 1.4,
+            onChanged: _isSaving ? null : _setContrast,
+          ),
+          _OverlaySlider(
+            label: 'Scklk',
+            value: _warmth,
+            min: -0.4,
+            max: 0.4,
+            onChanged: _isSaving ? null : _setWarmth,
+          ),
+          _OverlaySlider(
+            label: 'Dygn',
+            value: _saturation,
+            min: 0,
+            max: 1.5,
+            onChanged: _isSaving ? null : _setSaturation,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _changePanel(_EditorPanel panel) {
+    setState(() {
+      _activePanel = panel;
+      _showOriginalPreview = false;
+      if (panel != _EditorPanel.text) _selectedStickerId = null;
+      if (panel != _EditorPanel.hide) _selectedHideRegionId = null;
+    });
   }
 
   _DrawStroke? get _currentStroke {
@@ -1121,8 +1231,8 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   Size _computeViewportSize(Size available, double ratio) {
-    final maxWidth = math.max(available.width - 12, 160.0);
-    final maxHeight = math.max(available.height - 12, 160.0);
+    final maxWidth = math.max(available.width, 160.0);
+    final maxHeight = math.max(available.height, 160.0);
     if (_isFreeformCrop) {
       return Size(
         maxWidth * _freeformWidthFactor,
@@ -1157,7 +1267,7 @@ class _CropImagePageState extends State<_CropImagePage> {
       nextViewport.height / _displayImageSize.height,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || _isSaving) return;
       _resetImageTransform();
     });
   }
@@ -1176,10 +1286,7 @@ class _CropImagePageState extends State<_CropImagePage> {
       _selectedAspectRatio = widget.initialAspectRatio;
       _quarterTurns = 0;
       _activePanel = _EditorPanel.crop;
-      _isFocusMode = false;
-      _isToolbarCollapsed = false;
       _showOriginalPreview = false;
-      _toolbarHeight = 174;
       _freeformWidthFactor = 1;
       _freeformHeightFactor = 1;
       _selectedStickerId = null;
@@ -1197,56 +1304,6 @@ class _CropImagePageState extends State<_CropImagePage> {
       _brushMode = _BrushMode.pen;
       _viewportSize = Size.zero;
     });
-  }
-
-  void _changePanel(_EditorPanel panel) {
-    setState(() {
-      _activePanel = panel;
-      _showOriginalPreview = false;
-      if (panel != _EditorPanel.text) _selectedStickerId = null;
-      if (panel != _EditorPanel.hide) _selectedHideRegionId = null;
-    });
-  }
-
-  void _toggleFocusMode() {
-    setState(() {
-      _isFocusMode = !_isFocusMode;
-      if (_isFocusMode) {
-        _isToolbarCollapsed = true;
-      }
-    });
-  }
-
-  void _toggleToolbarCollapsed() {
-    setState(() {
-      _isToolbarCollapsed = !_isToolbarCollapsed;
-    });
-  }
-
-  double _resolvedToolbarHeight(double minHeight, double maxHeight) {
-    return _toolbarHeight.clamp(minHeight, maxHeight);
-  }
-
-  void _setToolbarHeight(
-    double value, {
-    required double minHeight,
-    required double maxHeight,
-  }) {
-    setState(() {
-      _toolbarHeight = value.clamp(minHeight, maxHeight);
-    });
-  }
-
-  void _resizeToolbarByDelta(
-    double delta, {
-    required double minHeight,
-    required double maxHeight,
-  }) {
-    _setToolbarHeight(
-      _toolbarHeight + delta,
-      minHeight: minHeight,
-      maxHeight: maxHeight,
-    );
   }
 
   void _setOriginalPreview(bool visible) {
@@ -1439,30 +1496,6 @@ class _CropImagePageState extends State<_CropImagePage> {
           sticker.id == selected.id
               ? sticker.copyWith(fontKind: kind)
               : sticker,
-      ];
-    });
-  }
-
-  void _updateSelectedStickerAlign(TextAlign align) {
-    final selected = _selectedSticker;
-    if (selected == null) return;
-    setState(() {
-      _stickers = [
-        for (final sticker in _stickers)
-          sticker.id == selected.id
-              ? sticker.copyWith(textAlign: align)
-              : sticker,
-      ];
-    });
-  }
-
-  void _updateSelectedStickerBold(bool value) {
-    final selected = _selectedSticker;
-    if (selected == null) return;
-    setState(() {
-      _stickers = [
-        for (final sticker in _stickers)
-          sticker.id == selected.id ? sticker.copyWith(bold: value) : sticker,
       ];
     });
   }
@@ -2067,21 +2100,19 @@ class _CropImagePageState extends State<_CropImagePage> {
     setState(() => _isSaving = true);
     try {
       _logSaveStage('save-start');
-      // Selection chrome must be removed before taking the snapshot.
-      if (_selectedStickerId != null ||
-          _selectedHideRegionId != null ||
-          _showOriginalPreview) {
-        setState(() {
-          _selectedStickerId = null;
-          _selectedHideRegionId = null;
-          _showOriginalPreview = false;
-        });
-      }
+      // Selection chrome and overlay UI must be removed before taking the snapshot.
+      setState(() {
+        _selectedStickerId = null;
+        _selectedHideRegionId = null;
+        _showOriginalPreview = false;
+        _isCapturing = true;
+      });
 
       await _waitForCaptureFrame();
       if (!mounted) return;
       _logSaveStage('capture-begin');
       final imageBytes = await _captureEditedImageBytes();
+      if (mounted) setState(() => _isCapturing = false);
       _logSaveStage('capture-done', details: 'bytes=${imageBytes.length}');
 
       _logSaveStage('tempdir-begin');
@@ -2114,7 +2145,7 @@ class _CropImagePageState extends State<_CropImagePage> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted) setState(() { _isSaving = false; _isCapturing = false; });
     }
   }
 
@@ -2569,103 +2600,6 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 }
 
-class _CropMask extends StatelessWidget {
-  const _CropMask({required this.viewportSize});
-
-  final Size viewportSize;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return SizedBox(
-      width: viewportSize.width,
-      height: viewportSize.height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: tokens.foregroundOnAccent, width: 2),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: tokens.storyOverlay.withValues(alpha: 0.82),
-              blurRadius: 0,
-              spreadRadius: 1600,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StageHintChip extends StatelessWidget {
-  const _StageHintChip({required this.label, required this.icon});
-
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = theme.sdal;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: tokens.panel.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
-        border: Border.all(color: tokens.panelBorder),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: tokens.foreground),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: tokens.foreground,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StageActionButton extends StatelessWidget {
-  const _StageActionButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return Tooltip(
-      message: tooltip,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: tokens.panel.withValues(alpha: 0.88),
-          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
-          border: Border.all(color: tokens.panelBorder),
-        ),
-        child: IconButton(
-          onPressed: onTap,
-          icon: Icon(icon, color: tokens.foreground),
-        ),
-      ),
-    );
-  }
-}
-
 class _DrawOverlayPainter extends CustomPainter {
   const _DrawOverlayPainter({
     required this.strokes,
@@ -2739,249 +2673,9 @@ class _FilterPreset {
   final double saturation;
 }
 
-class _EditorToolbar extends StatelessWidget {
-  const _EditorToolbar({
-    required this.activePanel,
-    required this.onPanelChanged,
-    required this.aspectChoices,
-    required this.selectedRatio,
-    required this.freeformWidthFactor,
-    required this.freeformHeightFactor,
-    required this.onAspectSelected,
-    required this.onFreeformWidthChanged,
-    required this.onFreeformHeightChanged,
-    required this.onRotate,
-    required this.onAddText,
-    required this.selectedSticker,
-    required this.stickerColors,
-    required this.stickerFonts,
-    required this.onEditSelectedSticker,
-    required this.onDeleteSelectedSticker,
-    required this.onStickerScaleChanged,
-    required this.onStickerColorChanged,
-    required this.onStickerBackgroundChanged,
-    required this.onStickerFontChanged,
-    required this.onStickerAlignChanged,
-    required this.onStickerBoldChanged,
-    required this.drawColor,
-    required this.drawWidth,
-    required this.brushMode,
-    required this.onDrawColorChanged,
-    required this.onDrawWidthChanged,
-    required this.onBrushModeChanged,
-    required this.onClearDrawings,
-    required this.selectedHideRegion,
-    required this.onAddHideRegion,
-    required this.onDeleteHideRegion,
-    required this.onHideRegionStyleChanged,
-    required this.brightness,
-    required this.contrast,
-    required this.warmth,
-    required this.saturation,
-    required this.onBrightnessChanged,
-    required this.onContrastChanged,
-    required this.onWarmthChanged,
-    required this.onSaturationChanged,
-    required this.presets,
-    required this.onApplyPreset,
-    required this.onResetFilters,
-  });
 
-  final _EditorPanel activePanel;
-  final ValueChanged<_EditorPanel>? onPanelChanged;
-  final List<_AspectChoice> aspectChoices;
-  final double? selectedRatio;
-  final double freeformWidthFactor;
-  final double freeformHeightFactor;
-  final ValueChanged<double?>? onAspectSelected;
-  final ValueChanged<double>? onFreeformWidthChanged;
-  final ValueChanged<double>? onFreeformHeightChanged;
-  final VoidCallback? onRotate;
-  final VoidCallback? onAddText;
-  final _OverlaySticker? selectedSticker;
-  final List<_StickerColorChoice> stickerColors;
-  final List<_StickerFontChoice> stickerFonts;
-  final VoidCallback? onEditSelectedSticker;
-  final VoidCallback? onDeleteSelectedSticker;
-  final ValueChanged<double>? onStickerScaleChanged;
-  final ValueChanged<Color>? onStickerColorChanged;
-  final ValueChanged<_StickerBackgroundStyle>? onStickerBackgroundChanged;
-  final ValueChanged<_StickerFontKind>? onStickerFontChanged;
-  final ValueChanged<TextAlign>? onStickerAlignChanged;
-  final ValueChanged<bool>? onStickerBoldChanged;
-  final Color drawColor;
-  final double drawWidth;
-  final _BrushMode brushMode;
-  final ValueChanged<Color>? onDrawColorChanged;
-  final ValueChanged<double>? onDrawWidthChanged;
-  final ValueChanged<_BrushMode>? onBrushModeChanged;
-  final VoidCallback? onClearDrawings;
-  final _HideRegion? selectedHideRegion;
-  final VoidCallback? onAddHideRegion;
-  final VoidCallback? onDeleteHideRegion;
-  final ValueChanged<_HideRegionStyle>? onHideRegionStyleChanged;
-  final double brightness;
-  final double contrast;
-  final double warmth;
-  final double saturation;
-  final ValueChanged<double>? onBrightnessChanged;
-  final ValueChanged<double>? onContrastChanged;
-  final ValueChanged<double>? onWarmthChanged;
-  final ValueChanged<double>? onSaturationChanged;
-  final List<_FilterPreset> presets;
-  final ValueChanged<_FilterPreset>? onApplyPreset;
-  final VoidCallback? onResetFilters;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 42,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: aspectChoices.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final choice = aspectChoices[index];
-                final selected =
-                    (choice.ratio == null && selectedRatio == null) ||
-                    (choice.ratio != null &&
-                        selectedRatio != null &&
-                        (choice.ratio! - selectedRatio!).abs() < 0.001);
-                return ChoiceChip(
-                  label: Text(choice.label),
-                  selected: selected,
-                  onSelected: onAspectSelected == null
-                      ? null
-                      : (_) => onAspectSelected!(choice.ratio),
-                  selectedColor: tokens.accentMuted,
-                  labelStyle: TextStyle(
-                    color: selected
-                        ? tokens.foreground
-                        : tokens.foregroundMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  backgroundColor: tokens.panel,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
-                    side: BorderSide(
-                      color: selected ? tokens.accent : tokens.panelBorder,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _PanelChip(
-                label: 'Kırp',
-                selected: activePanel == _EditorPanel.crop,
-                onTap: onPanelChanged == null
-                    ? null
-                    : () => onPanelChanged!(_EditorPanel.crop),
-              ),
-              _PanelChip(
-                label: 'Yazı',
-                selected: activePanel == _EditorPanel.text,
-                onTap: onPanelChanged == null
-                    ? null
-                    : () => onPanelChanged!(_EditorPanel.text),
-              ),
-              _PanelChip(
-                label: 'Çiz',
-                selected: activePanel == _EditorPanel.draw,
-                onTap: onPanelChanged == null
-                    ? null
-                    : () => onPanelChanged!(_EditorPanel.draw),
-              ),
-              _PanelChip(
-                label: 'Gizle',
-                selected: activePanel == _EditorPanel.hide,
-                onTap: onPanelChanged == null
-                    ? null
-                    : () => onPanelChanged!(_EditorPanel.hide),
-              ),
-              _PanelChip(
-                label: 'Filtre',
-                selected: activePanel == _EditorPanel.filter,
-                onTap: onPanelChanged == null
-                    ? null
-                    : () => onPanelChanged!(_EditorPanel.filter),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (activePanel == _EditorPanel.crop)
-            _CropPanel(
-              onRotate: onRotate,
-              isFreeform: selectedRatio == null,
-              freeformWidthFactor: freeformWidthFactor,
-              freeformHeightFactor: freeformHeightFactor,
-              onFreeformWidthChanged: onFreeformWidthChanged,
-              onFreeformHeightChanged: onFreeformHeightChanged,
-            )
-          else if (activePanel == _EditorPanel.text)
-            _TextPanel(
-              onAddText: onAddText,
-              selectedSticker: selectedSticker,
-              colors: stickerColors,
-              fonts: stickerFonts,
-              onEditSelectedSticker: onEditSelectedSticker,
-              onDeleteSelectedSticker: onDeleteSelectedSticker,
-              onStickerScaleChanged: onStickerScaleChanged,
-              onStickerColorChanged: onStickerColorChanged,
-              onStickerBackgroundChanged: onStickerBackgroundChanged,
-              onStickerFontChanged: onStickerFontChanged,
-              onStickerAlignChanged: onStickerAlignChanged,
-              onStickerBoldChanged: onStickerBoldChanged,
-            )
-          else if (activePanel == _EditorPanel.draw)
-            _DrawPanel(
-              color: drawColor,
-              width: drawWidth,
-              brushMode: brushMode,
-              onColorChanged: onDrawColorChanged,
-              onWidthChanged: onDrawWidthChanged,
-              onBrushModeChanged: onBrushModeChanged,
-              onClear: onClearDrawings,
-            )
-          else if (activePanel == _EditorPanel.hide)
-            _HidePanel(
-              selectedRegion: selectedHideRegion,
-              onAddRegion: onAddHideRegion,
-              onDeleteRegion: onDeleteHideRegion,
-              onStyleChanged: onHideRegionStyleChanged,
-            )
-          else
-            _FilterPanel(
-              presets: presets,
-              brightness: brightness,
-              contrast: contrast,
-              warmth: warmth,
-              saturation: saturation,
-              onApplyPreset: onApplyPreset,
-              onBrightnessChanged: onBrightnessChanged,
-              onContrastChanged: onContrastChanged,
-              onWarmthChanged: onWarmthChanged,
-              onSaturationChanged: onSaturationChanged,
-              onReset: onResetFilters,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PanelChip extends StatelessWidget {
-  const _PanelChip({
+class _OverlayChip extends StatelessWidget {
+  const _OverlayChip({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -2993,571 +2687,66 @@ class _PanelChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: onTap == null ? null : (_) => onTap!(),
-      selectedColor: tokens.accentMuted,
-      backgroundColor: tokens.panel,
-      labelStyle: TextStyle(
-        color: selected ? tokens.foreground : tokens.foregroundMuted,
-        fontWeight: FontWeight.w600,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(999),
-        side: BorderSide(color: selected ? tokens.accent : tokens.panelBorder),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.white : Colors.white30,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.black : Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
       ),
     );
   }
 }
 
-class _ToolbarCard extends StatelessWidget {
-  const _ToolbarCard({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      decoration: BoxDecoration(
-        color: tokens.panel.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: tokens.panelBorder),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _CropPanel extends StatelessWidget {
-  const _CropPanel({
-    required this.onRotate,
-    required this.isFreeform,
-    required this.freeformWidthFactor,
-    required this.freeformHeightFactor,
-    required this.onFreeformWidthChanged,
-    required this.onFreeformHeightChanged,
+class _OverlayIconBtn extends StatelessWidget {
+  const _OverlayIconBtn({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
   });
 
-  final VoidCallback? onRotate;
-  final bool isFreeform;
-  final double freeformWidthFactor;
-  final double freeformHeightFactor;
-  final ValueChanged<double>? onFreeformWidthChanged;
-  final ValueChanged<double>? onFreeformHeightChanged;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return _ToolbarCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onRotate,
-                  icon: const Icon(Icons.rotate_90_degrees_ccw_rounded),
-                  label: const Text('Görseli döndür'),
-                ),
-              ),
-            ],
+    return Tooltip(
+      message: tooltip ?? '',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white30),
           ),
-          if (isFreeform) ...[
-            const SizedBox(height: 10),
-            _FilterSlider(
-              label: 'Genişlik',
-              value: freeformWidthFactor,
-              min: 0.35,
-              max: 1,
-              onChanged: onFreeformWidthChanged,
-            ),
-            _FilterSlider(
-              label: 'Yükseklik',
-              value: freeformHeightFactor,
-              min: 0.35,
-              max: 1,
-              onChanged: onFreeformHeightChanged,
-            ),
-          ],
-        ],
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
       ),
     );
   }
 }
 
-class _TextPanel extends StatelessWidget {
-  const _TextPanel({
-    required this.onAddText,
-    required this.selectedSticker,
-    required this.colors,
-    required this.fonts,
-    required this.onEditSelectedSticker,
-    required this.onDeleteSelectedSticker,
-    required this.onStickerScaleChanged,
-    required this.onStickerColorChanged,
-    required this.onStickerBackgroundChanged,
-    required this.onStickerFontChanged,
-    required this.onStickerAlignChanged,
-    required this.onStickerBoldChanged,
-  });
-
-  final VoidCallback? onAddText;
-  final _OverlaySticker? selectedSticker;
-  final List<_StickerColorChoice> colors;
-  final List<_StickerFontChoice> fonts;
-  final VoidCallback? onEditSelectedSticker;
-  final VoidCallback? onDeleteSelectedSticker;
-  final ValueChanged<double>? onStickerScaleChanged;
-  final ValueChanged<Color>? onStickerColorChanged;
-  final ValueChanged<_StickerBackgroundStyle>? onStickerBackgroundChanged;
-  final ValueChanged<_StickerFontKind>? onStickerFontChanged;
-  final ValueChanged<TextAlign>? onStickerAlignChanged;
-  final ValueChanged<bool>? onStickerBoldChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    final sticker = selectedSticker;
-    return _ToolbarCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onAddText,
-                  icon: const Icon(Icons.emoji_emotions_outlined),
-                  label: const Text('Yeni yazı / emoji'),
-                ),
-              ),
-              if (sticker != null) ...[
-                const SizedBox(width: 10),
-                IconButton(
-                  onPressed: onEditSelectedSticker,
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                IconButton(
-                  onPressed: onDeleteSelectedSticker,
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ],
-          ),
-          if (sticker != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Text('Boyut', style: TextStyle(color: tokens.foregroundMuted)),
-                Expanded(
-                  child: Slider(
-                    value: sticker.scale.clamp(0.7, 2.8),
-                    min: 0.7,
-                    max: 2.8,
-                    divisions: 21,
-                    label: sticker.scale.toStringAsFixed(1),
-                    onChanged: onStickerScaleChanged,
-                  ),
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final choice in colors)
-                  GestureDetector(
-                    onTap: onStickerColorChanged == null
-                        ? null
-                        : () => onStickerColorChanged!(choice.color),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: choice.color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: sticker.textColor == choice.color
-                              ? tokens.accent
-                              : tokens.panelBorder,
-                          width: sticker.textColor == choice.color ? 2 : 1,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final choice in fonts)
-                  _PanelChip(
-                    label: choice.label,
-                    selected: sticker.fontKind == choice.kind,
-                    onTap: onStickerFontChanged == null
-                        ? null
-                        : () => onStickerFontChanged!(choice.kind),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _PanelChip(
-                  label: 'Sola',
-                  selected: sticker.textAlign == TextAlign.left,
-                  onTap: onStickerAlignChanged == null
-                      ? null
-                      : () => onStickerAlignChanged!(TextAlign.left),
-                ),
-                _PanelChip(
-                  label: 'Ortala',
-                  selected: sticker.textAlign == TextAlign.center,
-                  onTap: onStickerAlignChanged == null
-                      ? null
-                      : () => onStickerAlignChanged!(TextAlign.center),
-                ),
-                _PanelChip(
-                  label: 'Sağa',
-                  selected: sticker.textAlign == TextAlign.right,
-                  onTap: onStickerAlignChanged == null
-                      ? null
-                      : () => onStickerAlignChanged!(TextAlign.right),
-                ),
-                _PanelChip(
-                  label: sticker.bold ? 'Kalın' : 'Normal',
-                  selected: sticker.bold,
-                  onTap: onStickerBoldChanged == null
-                      ? null
-                      : () => onStickerBoldChanged!(!sticker.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _PanelChip(
-                  label: 'Şeffaf',
-                  selected:
-                      sticker.backgroundStyle == _StickerBackgroundStyle.none,
-                  onTap: onStickerBackgroundChanged == null
-                      ? null
-                      : () => onStickerBackgroundChanged!(
-                          _StickerBackgroundStyle.none,
-                        ),
-                ),
-                _PanelChip(
-                  label: 'Yumuşak',
-                  selected:
-                      sticker.backgroundStyle == _StickerBackgroundStyle.soft,
-                  onTap: onStickerBackgroundChanged == null
-                      ? null
-                      : () => onStickerBackgroundChanged!(
-                          _StickerBackgroundStyle.soft,
-                        ),
-                ),
-                _PanelChip(
-                  label: 'Koyu',
-                  selected:
-                      sticker.backgroundStyle == _StickerBackgroundStyle.dark,
-                  onTap: onStickerBackgroundChanged == null
-                      ? null
-                      : () => onStickerBackgroundChanged!(
-                          _StickerBackgroundStyle.dark,
-                        ),
-                ),
-                _PanelChip(
-                  label: 'Açık',
-                  selected:
-                      sticker.backgroundStyle == _StickerBackgroundStyle.light,
-                  onTap: onStickerBackgroundChanged == null
-                      ? null
-                      : () => onStickerBackgroundChanged!(
-                          _StickerBackgroundStyle.light,
-                        ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _DrawPanel extends StatelessWidget {
-  const _DrawPanel({
-    required this.color,
-    required this.width,
-    required this.brushMode,
-    required this.onColorChanged,
-    required this.onWidthChanged,
-    required this.onBrushModeChanged,
-    required this.onClear,
-  });
-
-  final Color color;
-  final double width;
-  final _BrushMode brushMode;
-  final ValueChanged<Color>? onColorChanged;
-  final ValueChanged<double>? onWidthChanged;
-  final ValueChanged<_BrushMode>? onBrushModeChanged;
-  final VoidCallback? onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
-    return _ToolbarCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _PanelChip(
-                label: 'Kalem',
-                selected: brushMode == _BrushMode.pen,
-                onTap: onBrushModeChanged == null
-                    ? null
-                    : () => onBrushModeChanged!(_BrushMode.pen),
-              ),
-              const SizedBox(width: 8),
-              _PanelChip(
-                label: 'Vurgulayıcı',
-                selected: brushMode == _BrushMode.highlighter,
-                onTap: onBrushModeChanged == null
-                    ? null
-                    : () => onBrushModeChanged!(_BrushMode.highlighter),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: onClear,
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Temizle'),
-              ),
-            ],
-          ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children:
-                const [
-                      Colors.white,
-                      Color(0xFFFACC15),
-                      Color(0xFF93C5FD),
-                      Color(0xFFF9A8D4),
-                      Color(0xFF86EFAC),
-                      Color(0xFFFCA5A5),
-                    ]
-                    .map(
-                      (swatch) => GestureDetector(
-                        onTap: onColorChanged == null
-                            ? null
-                            : () => onColorChanged!(swatch),
-                        child: Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: swatch,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: color == swatch
-                                  ? tokens.accent
-                                  : tokens.panelBorder,
-                              width: color == swatch ? 2 : 1,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-          ),
-          Row(
-            children: [
-              Text('Kalınlık', style: TextStyle(color: tokens.foregroundMuted)),
-              Expanded(
-                child: Slider(
-                  value: width.clamp(2, 26),
-                  min: 2,
-                  max: 26,
-                  divisions: 24,
-                  label: width.toStringAsFixed(0),
-                  onChanged: onWidthChanged,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HidePanel extends StatelessWidget {
-  const _HidePanel({
-    required this.selectedRegion,
-    required this.onAddRegion,
-    required this.onDeleteRegion,
-    required this.onStyleChanged,
-  });
-
-  final _HideRegion? selectedRegion;
-  final VoidCallback? onAddRegion;
-  final VoidCallback? onDeleteRegion;
-  final ValueChanged<_HideRegionStyle>? onStyleChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ToolbarCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onAddRegion,
-                  icon: const Icon(Icons.shield_outlined),
-                  label: const Text('Bölge ekle'),
-                ),
-              ),
-              if (selectedRegion != null) ...[
-                const SizedBox(width: 10),
-                IconButton(
-                  onPressed: onDeleteRegion,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ],
-          ),
-          if (selectedRegion != null) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _PanelChip(
-                  label: 'Blur',
-                  selected: selectedRegion!.style == _HideRegionStyle.blur,
-                  onTap: onStyleChanged == null
-                      ? null
-                      : () => onStyleChanged!(_HideRegionStyle.blur),
-                ),
-                _PanelChip(
-                  label: 'Mosaic',
-                  selected: selectedRegion!.style == _HideRegionStyle.mosaic,
-                  onTap: onStyleChanged == null
-                      ? null
-                      : () => onStyleChanged!(_HideRegionStyle.mosaic),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterPanel extends StatelessWidget {
-  const _FilterPanel({
-    required this.presets,
-    required this.brightness,
-    required this.contrast,
-    required this.warmth,
-    required this.saturation,
-    required this.onApplyPreset,
-    required this.onBrightnessChanged,
-    required this.onContrastChanged,
-    required this.onWarmthChanged,
-    required this.onSaturationChanged,
-    required this.onReset,
-  });
-
-  final List<_FilterPreset> presets;
-  final double brightness;
-  final double contrast;
-  final double warmth;
-  final double saturation;
-  final ValueChanged<_FilterPreset>? onApplyPreset;
-  final ValueChanged<double>? onBrightnessChanged;
-  final ValueChanged<double>? onContrastChanged;
-  final ValueChanged<double>? onWarmthChanged;
-  final ValueChanged<double>? onSaturationChanged;
-  final VoidCallback? onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ToolbarCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final preset in presets)
-                _PanelChip(
-                  label: preset.label,
-                  selected: false,
-                  onTap: onApplyPreset == null
-                      ? null
-                      : () => onApplyPreset!(preset),
-                ),
-              TextButton.icon(
-                onPressed: onReset,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Sıfırla'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _FilterSlider(
-            label: 'Parlaklık',
-            value: brightness,
-            min: -0.35,
-            max: 0.35,
-            onChanged: onBrightnessChanged,
-          ),
-          _FilterSlider(
-            label: 'Kontrast',
-            value: contrast,
-            min: 0.7,
-            max: 1.4,
-            onChanged: onContrastChanged,
-          ),
-          _FilterSlider(
-            label: 'Sıcaklık',
-            value: warmth,
-            min: -0.4,
-            max: 0.4,
-            onChanged: onWarmthChanged,
-          ),
-          _FilterSlider(
-            label: 'Doygunluk',
-            value: saturation,
-            min: 0,
-            max: 1.5,
-            onChanged: onSaturationChanged,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterSlider extends StatelessWidget {
-  const _FilterSlider({
+class _OverlaySlider extends StatelessWidget {
+  const _OverlaySlider({
     required this.label,
     required this.value,
     required this.min,
@@ -3573,19 +2762,37 @@ class _FilterSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context).sdal;
     return Row(
       children: [
         SizedBox(
-          width: 76,
-          child: Text(label, style: TextStyle(color: tokens.foregroundMuted)),
+          width: 48,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
         Expanded(
-          child: Slider(
-            value: value.clamp(min, max),
-            min: min,
-            max: max,
-            onChanged: onChanged,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Colors.white,
+              inactiveTrackColor: Colors.white30,
+              thumbColor: Colors.white,
+              overlayColor: Colors.white24,
+              trackHeight: 2,
+              thumbShape: const RoundSliderThumbShape(
+                enabledThumbRadius: 7,
+              ),
+            ),
+            child: Slider(
+              value: value.clamp(min, max),
+              min: min,
+              max: max,
+              onChanged: onChanged,
+            ),
           ),
         ),
       ],

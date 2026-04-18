@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../app/providers.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
@@ -283,10 +282,7 @@ Future<void> _pickCover(BuildContext context, WidgetRef ref) async {
   if (groupId <= 0) return;
   final file = await pickAndCropImage(
     context,
-    source: ImageSource.gallery,
     aspectPreset: CropAspectPreset.wide169,
-    imageQuality: 94,
-    maxWidth: 2600,
     title: 'Grup kapağını kırp',
   );
   if (file == null) return;
@@ -1383,10 +1379,7 @@ class _PostSheetState extends ConsumerState<_PostSheet> {
               onPressed: () async {
                 final file = await pickAndCropImage(
                   context,
-                  source: ImageSource.gallery,
                   aspectPreset: CropAspectPreset.portrait45,
-                  imageQuality: 92,
-                  maxWidth: 2200,
                   title: 'Gönderi görselini kırp',
                 );
                 if (file != null) setState(() => _imageFile = file);

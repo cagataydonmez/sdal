@@ -403,8 +403,6 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final picked = await pickAndCropImage(
       context,
       source: source,
-      imageQuality: 92,
-      maxWidth: 2200,
       title: 'Eki kırp',
     );
     if (picked == null || !mounted) return;
