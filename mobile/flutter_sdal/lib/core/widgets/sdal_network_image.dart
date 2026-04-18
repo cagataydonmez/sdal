@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'image_lightbox.dart';
 import '../network/legacy_media_value.dart';
 import '../theme/sdal_theme_tokens.dart';
 
@@ -16,6 +17,7 @@ class SdalNetworkImage extends StatelessWidget {
     this.placeholder,
     this.errorFallback,
     this.enableFade = true,
+    this.enableLightbox = true,
   });
 
   final String imageUrl;
@@ -29,6 +31,7 @@ class SdalNetworkImage extends StatelessWidget {
   final Widget? placeholder;
   final Widget? errorFallback;
   final bool enableFade;
+  final bool enableLightbox;
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +100,13 @@ class SdalNetworkImage extends StatelessWidget {
     if (borderRadius != null) {
       child = ClipRRect(borderRadius: borderRadius!, child: child);
     }
+
+    child = SdalLightboxImage(
+      imageProvider: NetworkImage(trimmed),
+      semanticLabel: semanticLabel,
+      enabled: enableLightbox,
+      child: child,
+    );
 
     return SizedBox(width: width, height: height, child: child);
   }

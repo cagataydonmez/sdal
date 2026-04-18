@@ -14,6 +14,8 @@ import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/image_lightbox.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../explore/data/explore_repository.dart';
 import '../../social/presentation/member_mention_composer.dart';
@@ -119,17 +121,14 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
+                  SdalNetworkImage(
+                    imageUrl: config.siteBaseUri
+                        .resolve(
+                          '/api/media/kucukresim?width=1400&file=${Uri.encodeComponent(_photo!.fileName)}',
+                        )
+                        .toString(),
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      config.siteBaseUri
-                          .resolve(
-                            '/api/media/kucukresim?width=1400&file=${Uri.encodeComponent(_photo!.fileName)}',
-                          )
-                          .toString(),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
+                    semanticLabel: _photo!.title,
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -442,19 +441,22 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                       child: AspectRatio(
                         aspectRatio: 4 / 3,
                         child: replacementFile != null
-                            ? Image.file(
-                                replacementFile!.file,
-                                fit: BoxFit.cover,
+                            ? SdalLightboxImage(
+                                imageProvider: FileImage(replacementFile!.file),
+                                semanticLabel: 'Düzenlenen fotoğraf önizlemesi',
+                                child: Image.file(
+                                  replacementFile!.file,
+                                  fit: BoxFit.cover,
+                                ),
                               )
-                            : Image.network(
-                                config.siteBaseUri
+                            : SdalNetworkImage(
+                                imageUrl: config.siteBaseUri
                                     .resolve(
                                       '/api/media/kucukresim?width=800&file=${Uri.encodeComponent(photo.fileName)}',
                                     )
                                     .toString(),
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    const SizedBox.shrink(),
+                                semanticLabel: photo.title,
                               ),
                       ),
                     ),

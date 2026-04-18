@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../explore/data/explore_repository.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/image_lightbox.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/albums_action_controller.dart';
 import '../data/albums_repository.dart';
@@ -273,9 +274,13 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                                   width: 144,
                                   child: AspectRatio(
                                     aspectRatio: 4 / 3,
-                                    child: Image.file(
-                                      item.file,
-                                      fit: BoxFit.cover,
+                                    child: SdalLightboxImage(
+                                      imageProvider: FileImage(item.file),
+                                      semanticLabel: 'Yüklenecek fotoğraf',
+                                      child: Image.file(
+                                        item.file,
+                                        fit: BoxFit.cover,
+                                      ),
                                     ),
                                   ),
                                 ),

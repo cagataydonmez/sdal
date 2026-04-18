@@ -1,11 +1,14 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
+
+import '../theme/sdal_theme_tokens.dart';
 
 enum CropAspectPreset {
   square(1),
@@ -268,6 +271,11 @@ class _CropImagePage extends StatefulWidget {
 }
 
 class _CropImagePageState extends State<_CropImagePage> {
+  static const MethodChannel _nativeCaptureChannel = MethodChannel(
+    'sdal/photo_editor_capture',
+  );
+  static const double _maxDecodedDimension = 2048;
+  static const double _maxExportDimension = 1800;
   static const List<_AspectChoice> _aspectChoices = [
     _AspectChoice('Serbest', null),
     _AspectChoice('1:1', 1),
@@ -298,12 +306,19 @@ class _CropImagePageState extends State<_CropImagePage> {
 
   final TransformationController _controller = TransformationController();
   final GlobalKey _boundaryKey = GlobalKey();
+  final GlobalKey _captureRegionKey = GlobalKey();
 
   ui.Image? _decodedImage;
   Size _viewportSize = Size.zero;
   Size _displayImageSize = Size.zero;
   double _baseScale = 1;
   bool _isSaving = false;
+  bool _isFocusMode = false;
+  bool _isToolbarCollapsed = false;
+  bool _showOriginalPreview = false;
+  double _toolbarHeight = 174;
+  double _freeformWidthFactor = 1;
+  double _freeformHeightFactor = 1;
   double? _selectedAspectRatio;
   int _quarterTurns = 0;
   _EditorPanel _activePanel = _EditorPanel.crop;
@@ -347,21 +362,39 @@ class _CropImagePageState extends State<_CropImagePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mediaQuery = MediaQuery.of(context);
+    final tokens = theme.sdal;
     final ratio = _selectedAspectRatio ?? _rotatedImageRatio ?? 1;
-    final canTransformImage = _activePanel == _EditorPanel.crop;
+    final canTransformImage =
+        _activePanel == _EditorPanel.crop && !_showOriginalPreview;
     final selectedSticker = _selectedSticker;
     final selectedHideRegion = _selectedHideRegion;
-    final toolbarMaxHeight = math
-        .min(math.max(mediaQuery.size.height * 0.28, 188), 300.0)
-        .toDouble();
+    final toolbarVisible = !_isFocusMode && !_isToolbarCollapsed;
+    final editorBackground = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        tokens.canvas,
+        Color.lerp(tokens.canvasSubtle, tokens.panelRaised, 0.36)!,
+      ],
+    );
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: tokens.canvas,
       appBar: AppBar(
         title: Text(widget.title),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        foregroundColor: tokens.foreground,
         actions: [
+          IconButton(
+            onPressed: _decodedImage == null || _isSaving
+                ? null
+                : _toggleFocusMode,
+            icon: Icon(
+              _isFocusMode
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+            ),
+            tooltip: _isFocusMode ? 'Düzenlemeye dön' : 'Odak modu',
+          ),
           IconButton(
             onPressed: _decodedImage == null || _isSaving ? null : _rotateImage,
             icon: const Icon(Icons.rotate_90_degrees_ccw_rounded),
@@ -374,235 +407,618 @@ class _CropImagePageState extends State<_CropImagePage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final viewport = _computeViewportSize(constraints.biggest, ratio);
-          _updateViewport(viewport);
-          return Column(
-            children: [
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  _instructionText(),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white70,
+      body: DecoratedBox(
+        decoration: BoxDecoration(gradient: editorBackground),
+        child: LayoutBuilder(
+          builder: (context, bodyConstraints) {
+            final toolbarMinHeight = 132.0;
+            final toolbarMaxHeight = math.max(
+              toolbarMinHeight,
+              bodyConstraints.maxHeight * 0.46,
+            );
+            final toolbarHeight = _resolvedToolbarHeight(
+              toolbarMinHeight,
+              toolbarMaxHeight,
+            );
+            return Column(
+              children: [
+                if (!_isFocusMode) const SizedBox(height: 8),
+                if (!_isFocusMode)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: tokens.panel.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(
+                          SdalThemeTokens.radiusXl,
+                        ),
+                        border: Border.all(color: tokens.panelBorder),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        child: Text(
+                          _instructionText(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: tokens.foregroundMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Center(
-                  child: _decodedImage == null
-                      ? const CircularProgressIndicator()
-                      : Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            IgnorePointer(
-                              child: _CropMask(viewportSize: viewport),
-                            ),
-                            RepaintBoundary(
-                              key: _boundaryKey,
-                              child: ClipRect(
-                                child: SizedBox(
-                                  width: viewport.width,
-                                  height: viewport.height,
-                                  child: Stack(
-                                    children: [
-                                      InteractiveViewer(
-                                        transformationController: _controller,
-                                        constrained: false,
-                                        minScale: _baseScale,
-                                        maxScale: math.max(_baseScale * 6, 6),
-                                        boundaryMargin: const EdgeInsets.all(
-                                          1200,
-                                        ),
-                                        clipBehavior: Clip.none,
-                                        panEnabled: canTransformImage,
-                                        scaleEnabled: canTransformImage,
-                                        child: SizedBox(
-                                          width: _displayImageSize.width,
-                                          height: _displayImageSize.height,
-                                          child: RotatedBox(
-                                            quarterTurns: _quarterTurns,
-                                            child: SizedBox(
-                                              width:
-                                                  _unrotatedDisplaySize.width,
-                                              height:
-                                                  _unrotatedDisplaySize.height,
-                                              child: ColorFiltered(
-                                                colorFilter: ColorFilter.matrix(
-                                                  _buildColorMatrix(),
-                                                ),
-                                                child: Image.file(
-                                                  widget.sourceFile,
-                                                  fit: BoxFit.fill,
-                                                  filterQuality:
-                                                      FilterQuality.high,
+                if (!_isFocusMode) const SizedBox(height: 12),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final viewport = _computeViewportSize(
+                        constraints.biggest,
+                        ratio,
+                      );
+                      _updateViewport(viewport);
+                      return Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          _isFocusMode ? 8 : 0,
+                          12,
+                          _isFocusMode ? 8 : 4,
+                        ),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.deferToChild,
+                          onLongPressStart: _decodedImage == null || _isSaving
+                              ? null
+                              : (_) => _setOriginalPreview(true),
+                          onLongPressEnd: _decodedImage == null || _isSaving
+                              ? null
+                              : (_) => _setOriginalPreview(false),
+                          onLongPressCancel: () => _setOriginalPreview(false),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(
+                                    _isFocusMode
+                                        ? SdalThemeTokens.radius2xl
+                                        : SdalThemeTokens.radiusXl,
+                                  ),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      tokens.storyOverlay,
+                                      tokens.panel.withValues(alpha: 0.94),
+                                    ],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: tokens.storyOverlay.withValues(
+                                        alpha: 0.18,
+                                      ),
+                                      blurRadius: 30,
+                                      offset: const Offset(0, 18),
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: tokens.panelBorder.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                  ),
+                                ),
+                                child: RepaintBoundary(
+                                  key: _boundaryKey,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                      _isFocusMode
+                                          ? SdalThemeTokens.radius2xl
+                                          : SdalThemeTokens.radiusXl,
+                                    ),
+                                    child: SizedBox(
+                                      width: viewport.width,
+                                      height: viewport.height,
+                                      child: Stack(
+                                        children: [
+                                          Positioned.fill(
+                                            child: ColoredBox(
+                                              color: tokens.storyOverlay,
+                                            ),
+                                          ),
+                                          IgnorePointer(
+                                            child: _CropMask(
+                                              viewportSize: viewport,
+                                            ),
+                                          ),
+                                          RepaintBoundary(
+                                            child: ClipRect(
+                                              key: _captureRegionKey,
+                                              child: SizedBox(
+                                                width: viewport.width,
+                                                height: viewport.height,
+                                                child: Stack(
+                                                  children: [
+                                                    InteractiveViewer(
+                                                      transformationController:
+                                                          _controller,
+                                                      constrained: false,
+                                                      minScale: _baseScale,
+                                                      maxScale: math.max(
+                                                        _baseScale * 6,
+                                                        6,
+                                                      ),
+                                                      boundaryMargin:
+                                                          const EdgeInsets.all(
+                                                            1200,
+                                                          ),
+                                                      clipBehavior: Clip.none,
+                                                      panEnabled:
+                                                          canTransformImage,
+                                                      scaleEnabled:
+                                                          canTransformImage,
+                                                      child: SizedBox(
+                                                        width: _displayImageSize
+                                                            .width,
+                                                        height:
+                                                            _displayImageSize
+                                                                .height,
+                                                        child: RotatedBox(
+                                                          quarterTurns:
+                                                              _quarterTurns,
+                                                          child: SizedBox(
+                                                            width:
+                                                                _unrotatedDisplaySize
+                                                                    .width,
+                                                            height:
+                                                                _unrotatedDisplaySize
+                                                                    .height,
+                                                            child:
+                                                                _showOriginalPreview
+                                                                ? Image.file(
+                                                                    widget
+                                                                        .sourceFile,
+                                                                    fit: BoxFit
+                                                                        .fill,
+                                                                    filterQuality:
+                                                                        FilterQuality
+                                                                            .medium,
+                                                                    cacheWidth:
+                                                                        _cacheWidth,
+                                                                    cacheHeight:
+                                                                        _cacheHeight,
+                                                                  )
+                                                                : ColorFiltered(
+                                                                    colorFilter:
+                                                                        ColorFilter.matrix(
+                                                                          _buildColorMatrix(),
+                                                                        ),
+                                                                    child: Image.file(
+                                                                      widget
+                                                                          .sourceFile,
+                                                                      fit: BoxFit
+                                                                          .fill,
+                                                                      filterQuality:
+                                                                          FilterQuality
+                                                                              .medium,
+                                                                      cacheWidth:
+                                                                          _cacheWidth,
+                                                                      cacheHeight:
+                                                                          _cacheHeight,
+                                                                    ),
+                                                                  ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Positioned.fill(
+                                                      child: IgnorePointer(
+                                                        child: CustomPaint(
+                                                          painter: _DrawOverlayPainter(
+                                                            strokes:
+                                                                _showOriginalPreview
+                                                                ? const <
+                                                                    _DrawStroke
+                                                                  >[]
+                                                                : _strokes,
+                                                            currentStroke:
+                                                                _showOriginalPreview
+                                                                ? null
+                                                                : _currentStroke,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Positioned.fill(
+                                                      child: IgnorePointer(
+                                                        ignoring:
+                                                            _activePanel ==
+                                                                _EditorPanel
+                                                                    .crop ||
+                                                            _showOriginalPreview,
+                                                        child: Stack(
+                                                          clipBehavior:
+                                                              Clip.none,
+                                                          children: [
+                                                            if (!_showOriginalPreview)
+                                                              for (final region
+                                                                  in _hideRegions)
+                                                                _buildHideRegion(
+                                                                  region,
+                                                                  viewport,
+                                                                ),
+                                                            if (!_showOriginalPreview)
+                                                              for (final sticker
+                                                                  in _stickers)
+                                                                _buildSticker(
+                                                                  sticker,
+                                                                  viewport,
+                                                                ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (_activePanel ==
+                                                            _EditorPanel.draw &&
+                                                        !_showOriginalPreview)
+                                                      Positioned.fill(
+                                                        child: GestureDetector(
+                                                          behavior:
+                                                              HitTestBehavior
+                                                                  .opaque,
+                                                          onPanStart:
+                                                              _startStroke,
+                                                          onPanUpdate:
+                                                              _extendStroke,
+                                                          onPanEnd:
+                                                              _finishStroke,
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                               ),
                                             ),
                                           ),
-                                        ),
+                                        ],
                                       ),
-                                      Positioned.fill(
-                                        child: CustomPaint(
-                                          painter: _DrawOverlayPainter(
-                                            strokes: _strokes,
-                                            currentStroke: _currentStroke,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 14,
+                                left: 14,
+                                right: 14,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _StageHintChip(
+                                        label: _showOriginalPreview
+                                            ? 'Orijinal görünüyor'
+                                            : 'Fotoğrafa basılı tut: orijinal',
+                                        icon: _showOriginalPreview
+                                            ? Icons.visibility_rounded
+                                            : Icons.touch_app_rounded,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    if (!_isFocusMode)
+                                      _StageActionButton(
+                                        icon: _isToolbarCollapsed
+                                            ? Icons.keyboard_arrow_up_rounded
+                                            : Icons.keyboard_arrow_down_rounded,
+                                        tooltip: _isToolbarCollapsed
+                                            ? 'Araçları aç'
+                                            : 'Araçları kapat',
+                                        onTap:
+                                            _decodedImage == null || _isSaving
+                                            ? null
+                                            : _toggleToolbarCollapsed,
+                                      ),
+                                    const SizedBox(width: 10),
+                                    _StageActionButton(
+                                      icon: _isFocusMode
+                                          ? Icons.fullscreen_exit_rounded
+                                          : Icons.fullscreen_rounded,
+                                      tooltip: _isFocusMode
+                                          ? 'Düzenlemeye dön'
+                                          : 'Odak modu',
+                                      onTap: _decodedImage == null || _isSaving
+                                          ? null
+                                          : _toggleFocusMode,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_isFocusMode)
+                                Positioned(
+                                  left: 18,
+                                  right: 18,
+                                  bottom: 18,
+                                  child: FilledButton.icon(
+                                    onPressed:
+                                        _decodedImage == null || _isSaving
+                                        ? null
+                                        : _saveCrop,
+                                    icon: _isSaving
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.check_rounded),
+                                    label: Text(
+                                      _isSaving
+                                          ? 'Kaydediliyor...'
+                                          : 'Kaydet ve devam et',
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: toolbarVisible
+                      ? AnimatedContainer(
+                          key: const ValueKey('toolbar-open'),
+                          duration: const Duration(milliseconds: 140),
+                          curve: Curves.easeOutCubic,
+                          height: toolbarHeight,
+                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                          decoration: BoxDecoration(
+                            color: tokens.panelRaised.withValues(alpha: 0.97),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(SdalThemeTokens.radius2xl),
+                            ),
+                            border: Border.all(color: tokens.panelBorder),
+                            boxShadow: [
+                              BoxShadow(
+                                color: tokens.storyOverlay.withValues(
+                                  alpha: 0.12,
+                                ),
+                                blurRadius: 18,
+                                offset: const Offset(0, -6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onVerticalDragUpdate: (details) {
+                                  _resizeToolbarByDelta(
+                                    -details.delta.dy,
+                                    minHeight: toolbarMinHeight,
+                                    maxHeight: toolbarMaxHeight,
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    18,
+                                    10,
+                                    18,
+                                    8,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        width: 48,
+                                        height: 6,
+                                        decoration: BoxDecoration(
+                                          color: tokens.panelBorder,
+                                          borderRadius: BorderRadius.circular(
+                                            SdalThemeTokens.radiusPill,
                                           ),
                                         ),
                                       ),
-                                      Positioned.fill(
-                                        child: Stack(
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            for (final region in _hideRegions)
-                                              _buildHideRegion(
-                                                region,
-                                                viewport,
-                                              ),
-                                            for (final sticker in _stickers)
-                                              _buildSticker(sticker, viewport),
-                                          ],
-                                        ),
-                                      ),
-                                      if (_activePanel == _EditorPanel.draw)
-                                        Positioned.fill(
-                                          child: GestureDetector(
-                                            behavior: HitTestBehavior.opaque,
-                                            onPanStart: _startStroke,
-                                            onPanUpdate: _extendStroke,
-                                            onPanEnd: _finishStroke,
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.unfold_less_rounded,
+                                            size: 18,
+                                            color: tokens.foregroundMuted,
                                           ),
-                                        ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Araçlar',
+                                            style: theme.textTheme.labelLarge
+                                                ?.copyWith(
+                                                  color: tokens.foreground,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                          const Spacer(),
+                                          Text(
+                                            'Sürükleyerek büyüt',
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: tokens.foregroundMuted,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: _EditorToolbar(
+                                    activePanel: _activePanel,
+                                    onPanelChanged:
+                                        _decodedImage == null || _isSaving
+                                        ? null
+                                        : _changePanel,
+                                    aspectChoices: _aspectChoices,
+                                    selectedRatio: _selectedAspectRatio,
+                                    freeformWidthFactor: _freeformWidthFactor,
+                                    freeformHeightFactor: _freeformHeightFactor,
+                                    onAspectSelected:
+                                        _decodedImage == null || _isSaving
+                                        ? null
+                                        : _selectAspectRatio,
+                                    onFreeformWidthChanged:
+                                        _decodedImage == null || _isSaving
+                                        ? null
+                                        : _setFreeformWidthFactor,
+                                    onFreeformHeightChanged:
+                                        _decodedImage == null || _isSaving
+                                        ? null
+                                        : _setFreeformHeightFactor,
+                                    onRotate: _decodedImage == null || _isSaving
+                                        ? null
+                                        : _rotateImage,
+                                    onAddText:
+                                        _decodedImage == null || _isSaving
+                                        ? null
+                                        : _addSticker,
+                                    selectedSticker: selectedSticker,
+                                    stickerColors: _stickerColors,
+                                    stickerFonts: _stickerFonts,
+                                    onEditSelectedSticker:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _editSelectedSticker,
+                                    onDeleteSelectedSticker:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _deleteSelectedSticker,
+                                    onStickerScaleChanged:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _updateSelectedStickerScale,
+                                    onStickerColorChanged:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _updateSelectedStickerColor,
+                                    onStickerBackgroundChanged:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _updateSelectedStickerBackground,
+                                    onStickerFontChanged:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _updateSelectedStickerFont,
+                                    onStickerAlignChanged:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _updateSelectedStickerAlign,
+                                    onStickerBoldChanged:
+                                        selectedSticker == null || _isSaving
+                                        ? null
+                                        : _updateSelectedStickerBold,
+                                    drawColor: _drawColor,
+                                    drawWidth: _drawWidth,
+                                    brushMode: _brushMode,
+                                    onDrawColorChanged: _isSaving
+                                        ? null
+                                        : _changeDrawColor,
+                                    onDrawWidthChanged: _isSaving
+                                        ? null
+                                        : _changeDrawWidth,
+                                    onBrushModeChanged: _isSaving
+                                        ? null
+                                        : _changeBrushMode,
+                                    onClearDrawings:
+                                        _strokes.isEmpty || _isSaving
+                                        ? null
+                                        : _clearDrawings,
+                                    selectedHideRegion: selectedHideRegion,
+                                    onAddHideRegion:
+                                        _decodedImage == null || _isSaving
+                                        ? null
+                                        : _addHideRegion,
+                                    onDeleteHideRegion:
+                                        selectedHideRegion == null || _isSaving
+                                        ? null
+                                        : _deleteSelectedHideRegion,
+                                    onHideRegionStyleChanged:
+                                        selectedHideRegion == null || _isSaving
+                                        ? null
+                                        : _updateSelectedHideStyle,
+                                    brightness: _brightness,
+                                    contrast: _contrast,
+                                    warmth: _warmth,
+                                    saturation: _saturation,
+                                    onBrightnessChanged: _isSaving
+                                        ? null
+                                        : _setBrightness,
+                                    onContrastChanged: _isSaving
+                                        ? null
+                                        : _setContrast,
+                                    onWarmthChanged: _isSaving
+                                        ? null
+                                        : _setWarmth,
+                                    onSaturationChanged: _isSaving
+                                        ? null
+                                        : _setSaturation,
+                                    presets: _filterPresets,
+                                    onApplyPreset: _isSaving
+                                        ? null
+                                        : _applyFilterPreset,
+                                    onResetFilters:
+                                        (_brightness == 0 &&
+                                                _contrast == 1 &&
+                                                _warmth == 0 &&
+                                                _saturation == 1) ||
+                                            _isSaving
+                                        ? null
+                                        : _resetFilters,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox(
+                          key: ValueKey('toolbar-closed'),
+                          height: 12,
                         ),
                 ),
-              ),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: toolbarMaxHeight),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: _EditorToolbar(
-                    activePanel: _activePanel,
-                    onPanelChanged: _decodedImage == null || _isSaving
-                        ? null
-                        : _changePanel,
-                    aspectChoices: _aspectChoices,
-                    selectedRatio: _selectedAspectRatio,
-                    onAspectSelected: _decodedImage == null || _isSaving
-                        ? null
-                        : _selectAspectRatio,
-                    onRotate: _decodedImage == null || _isSaving
-                        ? null
-                        : _rotateImage,
-                    onAddText: _decodedImage == null || _isSaving
-                        ? null
-                        : _addSticker,
-                    selectedSticker: selectedSticker,
-                    stickerColors: _stickerColors,
-                    stickerFonts: _stickerFonts,
-                    onEditSelectedSticker: selectedSticker == null || _isSaving
-                        ? null
-                        : _editSelectedSticker,
-                    onDeleteSelectedSticker:
-                        selectedSticker == null || _isSaving
-                        ? null
-                        : _deleteSelectedSticker,
-                    onStickerScaleChanged: selectedSticker == null || _isSaving
-                        ? null
-                        : _updateSelectedStickerScale,
-                    onStickerColorChanged: selectedSticker == null || _isSaving
-                        ? null
-                        : _updateSelectedStickerColor,
-                    onStickerBackgroundChanged:
-                        selectedSticker == null || _isSaving
-                        ? null
-                        : _updateSelectedStickerBackground,
-                    onStickerFontChanged: selectedSticker == null || _isSaving
-                        ? null
-                        : _updateSelectedStickerFont,
-                    onStickerAlignChanged: selectedSticker == null || _isSaving
-                        ? null
-                        : _updateSelectedStickerAlign,
-                    onStickerBoldChanged: selectedSticker == null || _isSaving
-                        ? null
-                        : _updateSelectedStickerBold,
-                    drawColor: _drawColor,
-                    drawWidth: _drawWidth,
-                    brushMode: _brushMode,
-                    onDrawColorChanged: _isSaving ? null : _changeDrawColor,
-                    onDrawWidthChanged: _isSaving ? null : _changeDrawWidth,
-                    onBrushModeChanged: _isSaving ? null : _changeBrushMode,
-                    onClearDrawings: _strokes.isEmpty || _isSaving
-                        ? null
-                        : _clearDrawings,
-                    selectedHideRegion: selectedHideRegion,
-                    onAddHideRegion: _decodedImage == null || _isSaving
-                        ? null
-                        : _addHideRegion,
-                    onDeleteHideRegion: selectedHideRegion == null || _isSaving
-                        ? null
-                        : _deleteSelectedHideRegion,
-                    onHideRegionStyleChanged:
-                        selectedHideRegion == null || _isSaving
-                        ? null
-                        : _updateSelectedHideStyle,
-                    brightness: _brightness,
-                    contrast: _contrast,
-                    warmth: _warmth,
-                    saturation: _saturation,
-                    onBrightnessChanged: _isSaving ? null : _setBrightness,
-                    onContrastChanged: _isSaving ? null : _setContrast,
-                    onWarmthChanged: _isSaving ? null : _setWarmth,
-                    onSaturationChanged: _isSaving ? null : _setSaturation,
-                    presets: _filterPresets,
-                    onApplyPreset: _isSaving ? null : _applyFilterPreset,
-                    onResetFilters:
-                        (_brightness == 0 &&
-                                _contrast == 1 &&
-                                _warmth == 0 &&
-                                _saturation == 1) ||
+                if (!_isFocusMode)
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _decodedImage == null || _isSaving
+                              ? null
+                              : _saveCrop,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.check_rounded),
+                          label: Text(
                             _isSaving
-                        ? null
-                        : _resetFilters,
-                  ),
-                ),
-              ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _decodedImage == null || _isSaving
-                          ? null
-                          : _saveCrop,
-                      icon: _isSaving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.check_rounded),
-                      label: Text(
-                        _isSaving ? 'Kaydediliyor...' : 'Kaydet ve devam et',
+                                ? 'Kaydediliyor...'
+                                : 'Kaydet ve devam et',
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -667,10 +1083,34 @@ class _CropImagePageState extends State<_CropImagePage> {
     );
   }
 
+  int? get _cacheWidth {
+    final width = _unrotatedDisplaySize.width.toInt();
+    return width > 0 ? width : null;
+  }
+
+  int? get _cacheHeight {
+    final height = _unrotatedDisplaySize.height.toInt();
+    return height > 0 ? height : null;
+  }
+
+  bool get _isFreeformCrop => _selectedAspectRatio == null;
+
   Future<void> _loadImage() async {
     final bytes = await widget.sourceFile.readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    final descriptor = await ui.ImageDescriptor.encoded(buffer);
+    final largestSide = math.max(descriptor.width, descriptor.height);
+    final scale = largestSide <= _maxDecodedDimension
+        ? 1.0
+        : _maxDecodedDimension / largestSide;
+    final codec = await descriptor.instantiateCodec(
+      targetWidth: math.max(1, (descriptor.width * scale).round()),
+      targetHeight: math.max(1, (descriptor.height * scale).round()),
+    );
     final frame = await codec.getNextFrame();
+    codec.dispose();
+    descriptor.dispose();
+    buffer.dispose();
     if (!mounted) {
       frame.image.dispose();
       return;
@@ -681,8 +1121,14 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   Size _computeViewportSize(Size available, double ratio) {
-    final maxWidth = math.max(available.width - 32, 160.0);
-    final maxHeight = math.max(available.height - 320, 160.0);
+    final maxWidth = math.max(available.width - 12, 160.0);
+    final maxHeight = math.max(available.height - 12, 160.0);
+    if (_isFreeformCrop) {
+      return Size(
+        maxWidth * _freeformWidthFactor,
+        maxHeight * _freeformHeightFactor,
+      );
+    }
     var width = maxWidth;
     var height = width / ratio;
     if (height > maxHeight) {
@@ -730,6 +1176,12 @@ class _CropImagePageState extends State<_CropImagePage> {
       _selectedAspectRatio = widget.initialAspectRatio;
       _quarterTurns = 0;
       _activePanel = _EditorPanel.crop;
+      _isFocusMode = false;
+      _isToolbarCollapsed = false;
+      _showOriginalPreview = false;
+      _toolbarHeight = 174;
+      _freeformWidthFactor = 1;
+      _freeformHeightFactor = 1;
       _selectedStickerId = null;
       _stickers = const [];
       _strokes = const [];
@@ -750,8 +1202,61 @@ class _CropImagePageState extends State<_CropImagePage> {
   void _changePanel(_EditorPanel panel) {
     setState(() {
       _activePanel = panel;
+      _showOriginalPreview = false;
       if (panel != _EditorPanel.text) _selectedStickerId = null;
       if (panel != _EditorPanel.hide) _selectedHideRegionId = null;
+    });
+  }
+
+  void _toggleFocusMode() {
+    setState(() {
+      _isFocusMode = !_isFocusMode;
+      if (_isFocusMode) {
+        _isToolbarCollapsed = true;
+      }
+    });
+  }
+
+  void _toggleToolbarCollapsed() {
+    setState(() {
+      _isToolbarCollapsed = !_isToolbarCollapsed;
+    });
+  }
+
+  double _resolvedToolbarHeight(double minHeight, double maxHeight) {
+    return _toolbarHeight.clamp(minHeight, maxHeight);
+  }
+
+  void _setToolbarHeight(
+    double value, {
+    required double minHeight,
+    required double maxHeight,
+  }) {
+    setState(() {
+      _toolbarHeight = value.clamp(minHeight, maxHeight);
+    });
+  }
+
+  void _resizeToolbarByDelta(
+    double delta, {
+    required double minHeight,
+    required double maxHeight,
+  }) {
+    _setToolbarHeight(
+      _toolbarHeight + delta,
+      minHeight: minHeight,
+      maxHeight: maxHeight,
+    );
+  }
+
+  void _setOriginalPreview(bool visible) {
+    if (!mounted || _showOriginalPreview == visible) return;
+    setState(() {
+      _showOriginalPreview = visible;
+      if (visible) {
+        _selectedStickerId = null;
+        _selectedHideRegionId = null;
+      }
     });
   }
 
@@ -767,6 +1272,26 @@ class _CropImagePageState extends State<_CropImagePage> {
   void _selectAspectRatio(double? ratio) {
     setState(() {
       _selectedAspectRatio = ratio;
+      if (ratio == null) {
+        _freeformWidthFactor = _freeformWidthFactor.clamp(0.35, 1.0);
+        _freeformHeightFactor = _freeformHeightFactor.clamp(0.35, 1.0);
+      }
+      _viewportSize = Size.zero;
+    });
+  }
+
+  void _setFreeformWidthFactor(double value) {
+    setState(() {
+      _selectedAspectRatio = null;
+      _freeformWidthFactor = value.clamp(0.35, 1.0);
+      _viewportSize = Size.zero;
+    });
+  }
+
+  void _setFreeformHeightFactor(double value) {
+    setState(() {
+      _selectedAspectRatio = null;
+      _freeformHeightFactor = value.clamp(0.35, 1.0);
       _viewportSize = Size.zero;
     });
   }
@@ -825,40 +1350,43 @@ class _CropImagePageState extends State<_CropImagePage> {
     try {
       return showDialog<String>(
         context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF171717),
-          title: Text(
-            initialValue == null ? 'Yazı veya emoji ekle' : 'Yazıyı düzenle',
-            style: const TextStyle(color: Colors.white),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            maxLength: 60,
-            maxLines: 3,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Merhaba, 🎉, Yeni ürün...',
-              hintStyle: const TextStyle(color: Colors.white54),
-              filled: true,
-              fillColor: Colors.white10,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+        builder: (context) {
+          final tokens = Theme.of(context).sdal;
+          return AlertDialog(
+            backgroundColor: tokens.panelRaised,
+            title: Text(
+              initialValue == null ? 'Yazı veya emoji ekle' : 'Yazıyı düzenle',
+              style: TextStyle(color: tokens.foreground),
+            ),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 60,
+              maxLines: 3,
+              style: TextStyle(color: tokens.foreground),
+              decoration: InputDecoration(
+                hintText: 'Merhaba, 🎉, Yeni ürün...',
+                hintStyle: TextStyle(color: tokens.foregroundMuted),
+                filled: true,
+                fillColor: tokens.panel,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Vazgeç'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Kaydet'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Vazgeç'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(controller.text),
+                child: const Text('Kaydet'),
+              ),
+            ],
+          );
+        },
       );
     } finally {
       controller.dispose();
@@ -1313,6 +1841,10 @@ class _CropImagePageState extends State<_CropImagePage> {
     if (restoredAspectRatio != null) {
       _selectedAspectRatio = restoredAspectRatio;
     }
+    _freeformWidthFactor = (_readDouble(metadata['freeformWidthFactor']) ?? 1)
+        .clamp(0.35, 1.0);
+    _freeformHeightFactor = (_readDouble(metadata['freeformHeightFactor']) ?? 1)
+        .clamp(0.35, 1.0);
 
     final restoredQuarterTurns = _readInt(metadata['quarterTurns']) ?? 0;
     _quarterTurns = ((restoredQuarterTurns % 4) + 4) % 4;
@@ -1478,6 +2010,8 @@ class _CropImagePageState extends State<_CropImagePage> {
     return {
       'version': 1,
       'aspectRatio': _selectedAspectRatio,
+      'freeformWidthFactor': _freeformWidthFactor,
+      'freeformHeightFactor': _freeformHeightFactor,
       'quarterTurns': _quarterTurns,
       'filters': {
         'brightness': _brightness,
@@ -1529,49 +2063,38 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   Future<void> _saveCrop() async {
+    if (_isSaving) return;
     setState(() => _isSaving = true);
     try {
-      await WidgetsBinding.instance.endOfFrame;
-      if (_selectedStickerId != null || _selectedHideRegionId != null) {
+      _logSaveStage('save-start');
+      // Selection chrome must be removed before taking the snapshot.
+      if (_selectedStickerId != null ||
+          _selectedHideRegionId != null ||
+          _showOriginalPreview) {
         setState(() {
           _selectedStickerId = null;
           _selectedHideRegionId = null;
+          _showOriginalPreview = false;
         });
-        await WidgetsBinding.instance.endOfFrame;
       }
-      final boundary =
-          _boundaryKey.currentContext?.findRenderObject()
-              as RenderRepaintBoundary?;
-      if (boundary == null) {
-        throw StateError('capture-boundary-missing');
-      }
-      if (boundary.debugNeedsPaint) {
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-        await WidgetsBinding.instance.endOfFrame;
-      }
-      final image = _decodedImage;
-      final display = _displayImageSize;
-      final viewport = _viewportSize;
-      final pixelRatio =
-          image == null || display.width == 0 || viewport.width == 0
-          ? 3.0
-          : math.min(
-              4.0,
-              math.max(
-                image.width / display.width,
-                image.height / display.height,
-              ),
-            );
-      final raster = await boundary.toImage(pixelRatio: pixelRatio);
-      final byteData = await raster.toByteData(format: ui.ImageByteFormat.png);
-      raster.dispose();
-      if (byteData == null) return;
-      final tempDir = await getTemporaryDirectory();
-      final output = File(
-        '${tempDir.path}/crop-${DateTime.now().microsecondsSinceEpoch}.png',
-      );
-      await output.writeAsBytes(byteData.buffer.asUint8List(), flush: true);
+
+      await _waitForCaptureFrame();
       if (!mounted) return;
+      _logSaveStage('capture-begin');
+      final imageBytes = await _captureEditedImageBytes();
+      _logSaveStage('capture-done', details: 'bytes=${imageBytes.length}');
+
+      _logSaveStage('tempdir-begin');
+      final tempDir = await Directory.systemTemp.createTemp('sdal-photo-edit-');
+      final output = File(
+        '${tempDir.path}/crop-${DateTime.now().microsecondsSinceEpoch}.jpg',
+      );
+      _logSaveStage('write-begin', details: output.path);
+      await output.writeAsBytes(imageBytes, flush: true);
+      _logSaveStage('write-done', details: output.path);
+
+      if (!mounted) return;
+      _logSaveStage('navigator-pop');
       Navigator.of(context).pop(
         EditedMediaResult(
           file: output,
@@ -1579,18 +2102,463 @@ class _CropImagePageState extends State<_CropImagePage> {
           metadata: _buildEditMetadata(),
         ),
       );
-    } catch (_) {
+    } catch (e, st) {
+      _logSaveError(e, st);
+      debugPrint('Save crop failed: $e');
+      debugPrintStack(stackTrace: st);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Görsel şu an kaydedilemedi. Düzenlemeyi korumak için tekrar dene.',
-          ),
+          content: Text('Görsel şu an kaydedilemedi. Lütfen tekrar dene.'),
+          duration: Duration(seconds: 4),
         ),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _waitForCaptureFrame() async {
+    await Future<void>.delayed(const Duration(milliseconds: 32));
+    if (!mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
+  Future<Uint8List> _captureEditedImageBytes() async {
+    if (Platform.isIOS) {
+      try {
+        _logSaveStage('native-capture-begin');
+        final imageBytes = await _captureEditedImageBytesFromNative();
+        _logSaveStage(
+          'native-capture-done',
+          details: '${imageBytes.length} bytes',
+        );
+        return imageBytes;
+      } catch (error, stackTrace) {
+        _logSaveStage('native-capture-failed', details: '$error');
+        _logSaveError(error, stackTrace);
+      }
+    }
+    _logSaveStage('image-encode-begin');
+    final bitmap = await _buildExportBitmap();
+    final bytes = Uint8List.fromList(img.encodeJpg(bitmap, quality: 90));
+    _logSaveStage(
+      'image-encode-done',
+      details: '${bitmap.width}x${bitmap.height} -> ${bytes.length} bytes',
+    );
+    return bytes;
+  }
+
+  Future<Uint8List> _captureEditedImageBytesFromNative() async {
+    final renderBox =
+        _captureRegionKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) {
+      throw StateError('Native capture alani bulunamadi.');
+    }
+
+    final origin = renderBox.localToGlobal(Offset.zero);
+    final captureRect = origin & renderBox.size;
+    if (captureRect.isEmpty) {
+      throw StateError('Native capture alani bos.');
+    }
+
+    _logSaveStage(
+      'native-capture-rect',
+      details:
+          'x=${captureRect.left.toStringAsFixed(1)} y=${captureRect.top.toStringAsFixed(1)} '
+          'w=${captureRect.width.toStringAsFixed(1)} h=${captureRect.height.toStringAsFixed(1)}',
+    );
+
+    final result = await _nativeCaptureChannel
+        .invokeMethod<Uint8List>('captureRegion', <String, double>{
+          'x': captureRect.left,
+          'y': captureRect.top,
+          'width': captureRect.width,
+          'height': captureRect.height,
+        });
+    if (result == null || result.isEmpty) {
+      throw StateError('Native capture bos dondu.');
+    }
+    return result;
+  }
+
+  Future<img.Image> _buildExportBitmap() async {
+    _logSaveStage('bitmap-build-begin');
+    final baseImage = await _decodeEditableBitmap();
+    _logSaveStage(
+      'bitmap-base-ready',
+      details: '${baseImage.width}x${baseImage.height}',
+    );
+    final rotatedImage = _applyQuarterTurns(baseImage, _quarterTurns % 4);
+    final cropRect = _resolveCropRectInRotatedBitmap(rotatedImage);
+    _logSaveStage(
+      'crop-rect-resolved',
+      details:
+          'x=${cropRect.left.round()} y=${cropRect.top.round()} w=${cropRect.width.round()} h=${cropRect.height.round()}',
+    );
+    var cropped = img.copyCrop(
+      rotatedImage,
+      x: cropRect.left.round(),
+      y: cropRect.top.round(),
+      width: cropRect.width.round(),
+      height: cropRect.height.round(),
+    );
+    final constrainedOutputSize = _constrainSize(
+      Size(cropped.width.toDouble(), cropped.height.toDouble()),
+      maxDimension: _maxExportDimension,
+    );
+    final outputWidth = math.max(1, constrainedOutputSize.width.round());
+    final outputHeight = math.max(1, constrainedOutputSize.height.round());
+    if (cropped.width != outputWidth || cropped.height != outputHeight) {
+      cropped = img.copyResize(
+        cropped,
+        width: outputWidth,
+        height: outputHeight,
+        interpolation: img.Interpolation.linear,
+      );
+    }
+
+    _logSaveStage(
+      'bitmap-cropped',
+      details: '${cropped.width}x${cropped.height}',
+    );
+    _applyColorMatrixToBitmap(cropped);
+    _paintStrokesOnBitmap(cropped);
+    _paintHideRegionsOnBitmap(cropped);
+    _paintStickersOnBitmap(cropped);
+    _logSaveStage('bitmap-build-done');
+    return cropped;
+  }
+
+  Future<img.Image> _decodeEditableBitmap() async {
+    _logSaveStage('decode-begin', details: widget.sourceFile.path);
+    final sourceBytes = await widget.sourceFile.readAsBytes();
+    _logSaveStage('decode-bytes-read', details: '${sourceBytes.length} bytes');
+    final decoded = img.decodeImage(sourceBytes);
+    if (decoded == null) {
+      throw StateError('Gorsel decode edilemedi.');
+    }
+    var oriented = img.bakeOrientation(decoded);
+    final largestSide = math.max(oriented.width, oriented.height).toDouble();
+    if (largestSide > _maxDecodedDimension) {
+      final scale = _maxDecodedDimension / largestSide;
+      oriented = img.copyResize(
+        oriented,
+        width: math.max(1, (oriented.width * scale).round()),
+        height: math.max(1, (oriented.height * scale).round()),
+        interpolation: img.Interpolation.linear,
+      );
+    }
+    _logSaveStage(
+      'decode-done',
+      details: 'source ${oriented.width}x${oriented.height}',
+    );
+    return oriented;
+  }
+
+  void _logSaveStage(String stage, {String? details}) {
+    final message = details == null ? stage : '$stage | $details';
+    developer.log(message, name: 'photo_editor.save');
+    debugPrint('photo_editor.save: $message');
+  }
+
+  void _logSaveError(Object error, StackTrace stackTrace) {
+    developer.log(
+      '$error',
+      name: 'photo_editor.save',
+      error: error,
+      stackTrace: stackTrace,
+      level: 1000,
+    );
+  }
+
+  img.Image _applyQuarterTurns(img.Image source, int turns) {
+    return switch (turns % 4) {
+      1 => img.copyRotate(source, angle: 90),
+      2 => img.copyRotate(source, angle: 180),
+      3 => img.copyRotate(source, angle: -90),
+      _ => img.Image.from(source),
+    };
+  }
+
+  Rect _resolveCropRectInRotatedBitmap(img.Image rotatedImage) {
+    if (_viewportSize == Size.zero || _displayImageSize == Size.zero) {
+      throw StateError('Kirpma alani hazir degil.');
+    }
+
+    final topLeft = _controller.toScene(Offset.zero);
+    final bottomRight = _controller.toScene(
+      Offset(_viewportSize.width, _viewportSize.height),
+    );
+    final left = math
+        .min(topLeft.dx, bottomRight.dx)
+        .clamp(0.0, _displayImageSize.width);
+    final top = math
+        .min(topLeft.dy, bottomRight.dy)
+        .clamp(0.0, _displayImageSize.height);
+    final right = math
+        .max(topLeft.dx, bottomRight.dx)
+        .clamp(0.0, _displayImageSize.width);
+    final bottom = math
+        .max(topLeft.dy, bottomRight.dy)
+        .clamp(0.0, _displayImageSize.height);
+    final displayRect = Rect.fromLTRB(left, top, right, bottom);
+    if (displayRect.width <= 0 || displayRect.height <= 0) {
+      throw StateError('Kirpma alani hesaplanamadi.');
+    }
+
+    final scaleX = rotatedImage.width / _displayImageSize.width;
+    final scaleY = rotatedImage.height / _displayImageSize.height;
+    return Rect.fromLTRB(
+      displayRect.left * scaleX,
+      displayRect.top * scaleY,
+      displayRect.right * scaleX,
+      displayRect.bottom * scaleY,
+    ).intersect(
+      Rect.fromLTWH(
+        0,
+        0,
+        rotatedImage.width.toDouble(),
+        rotatedImage.height.toDouble(),
+      ),
+    );
+  }
+
+  void _applyColorMatrixToBitmap(img.Image image) {
+    final matrix = _buildColorMatrix();
+    final isIdentity =
+        _brightness == 0 && _contrast == 1 && _warmth == 0 && _saturation == 1;
+    if (isIdentity) return;
+
+    for (final pixel in image) {
+      final r = pixel.r.toDouble();
+      final g = pixel.g.toDouble();
+      final b = pixel.b.toDouble();
+      final nextR =
+          (matrix[0] * r) + (matrix[1] * g) + (matrix[2] * b) + matrix[4];
+      final nextG =
+          (matrix[5] * r) + (matrix[6] * g) + (matrix[7] * b) + matrix[9];
+      final nextB =
+          (matrix[10] * r) + (matrix[11] * g) + (matrix[12] * b) + matrix[14];
+      pixel
+        ..r = nextR.clamp(0, 255).round()
+        ..g = nextG.clamp(0, 255).round()
+        ..b = nextB.clamp(0, 255).round();
+    }
+  }
+
+  void _paintStrokesOnBitmap(img.Image image) {
+    if (_viewportSize == Size.zero) return;
+    final scaleX = image.width / _viewportSize.width;
+    final scaleY = image.height / _viewportSize.height;
+    final widthScale = (scaleX + scaleY) / 2;
+
+    for (final stroke in _strokes) {
+      if (stroke.points.length < 2) continue;
+      final color = stroke.mode == _BrushMode.highlighter
+          ? stroke.color.withValues(alpha: 0.34)
+          : stroke.color;
+      for (final segment in stroke.points.skip(1).indexed) {
+        final start = stroke.points[segment.$1];
+        final end = segment.$2;
+        img.drawLine(
+          image,
+          x1: (start.dx * scaleX).round(),
+          y1: (start.dy * scaleY).round(),
+          x2: (end.dx * scaleX).round(),
+          y2: (end.dy * scaleY).round(),
+          color: _toImgColor(color),
+          thickness: math.max(1, (stroke.width * widthScale).round()),
+          antialias: true,
+        );
+      }
+    }
+  }
+
+  void _paintHideRegionsOnBitmap(img.Image image) {
+    if (_viewportSize == Size.zero) return;
+    if (image.isEmpty) return;
+    final radius =
+        18 *
+        ((image.width / _viewportSize.width) +
+            (image.height / _viewportSize.height)) /
+        2;
+
+    for (final region in _hideRegions) {
+      final regionRect = Rect.fromCenter(
+        center: Offset(
+          region.center.dx * image.width,
+          region.center.dy * image.height,
+        ),
+        width: image.width * region.size.width,
+        height: image.height * region.size.height,
+      );
+      final clippedRegion = regionRect.intersect(
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      );
+      if (clippedRegion.isEmpty) continue;
+      if (region.style == _HideRegionStyle.blur) {
+        final sample = img.copyCrop(
+          image,
+          x: clippedRegion.left.round(),
+          y: clippedRegion.top.round(),
+          width: math.max(1, clippedRegion.width.round()),
+          height: math.max(1, clippedRegion.height.round()),
+          radius: radius,
+        );
+        img.gaussianBlur(sample, radius: 14);
+        img.compositeImage(
+          image,
+          sample,
+          dstX: clippedRegion.left.round(),
+          dstY: clippedRegion.top.round(),
+        );
+        img.fillRect(
+          image,
+          x1: clippedRegion.left.round(),
+          y1: clippedRegion.top.round(),
+          x2: clippedRegion.right.round(),
+          y2: clippedRegion.bottom.round(),
+          color: _toImgColor(Colors.black.withValues(alpha: 0.16)),
+          radius: radius,
+        );
+        continue;
+      }
+      img.fillRect(
+        image,
+        x1: clippedRegion.left.round(),
+        y1: clippedRegion.top.round(),
+        x2: clippedRegion.right.round(),
+        y2: clippedRegion.bottom.round(),
+        color: _toImgColor(Colors.black.withValues(alpha: 0.28)),
+        radius: radius,
+      );
+      _paintMosaicRegion(image, clippedRegion);
+    }
+  }
+
+  void _paintMosaicRegion(img.Image image, Rect rect) {
+    const step = 10.0;
+    final color = _toImgColor(Colors.white.withValues(alpha: 0.16));
+    for (double x = rect.left; x < rect.right; x += step) {
+      img.drawLine(
+        image,
+        x1: x.round(),
+        y1: rect.top.round(),
+        x2: x.round(),
+        y2: rect.bottom.round(),
+        color: color,
+      );
+    }
+    for (double y = rect.top; y < rect.bottom; y += step) {
+      img.drawLine(
+        image,
+        x1: rect.left.round(),
+        y1: y.round(),
+        x2: rect.right.round(),
+        y2: y.round(),
+        color: color,
+      );
+    }
+  }
+
+  void _paintStickersOnBitmap(img.Image image) {
+    if (_viewportSize == Size.zero) return;
+    final scaleX = image.width / _viewportSize.width;
+    final scaleY = image.height / _viewportSize.height;
+    final visualScale = (scaleX + scaleY) / 2;
+
+    for (final sticker in _stickers) {
+      if (sticker.text.trim().isEmpty) continue;
+      final font = _fontForSticker(sticker, visualScale);
+      final lines = sticker.text.split(RegExp(r'\r?\n'));
+      final textWidths = [
+        for (final line in lines) _measureBitmapTextWidth(font, line),
+      ];
+      final textWidth = textWidths.fold<int>(0, math.max);
+      final lineHeight = font.lineHeight > 0 ? font.lineHeight : font.base;
+      final textHeight = math.max(lineHeight, lineHeight * lines.length);
+      final paddingX = math.max(6, (14 * scaleX).round());
+      final paddingY = math.max(4, (8 * scaleY).round());
+      final backgroundRect = Rect.fromLTWH(
+        (sticker.anchor.dx * image.width) + (-38 * scaleX),
+        (sticker.anchor.dy * image.height) + (-20 * scaleY),
+        (textWidth + (paddingX * 2)).toDouble(),
+        (textHeight + (paddingY * 2)).toDouble(),
+      );
+      final backgroundColor = _stickerBackgroundColor(sticker.backgroundStyle);
+      if (backgroundColor.toARGB32() != 0) {
+        img.fillRect(
+          image,
+          x1: backgroundRect.left.round(),
+          y1: backgroundRect.top.round(),
+          x2: backgroundRect.right.round(),
+          y2: backgroundRect.bottom.round(),
+          color: _toImgColor(backgroundColor),
+          radius: 18 * visualScale,
+        );
+      }
+
+      final shadowColor = _toImgColor(
+        _shadowColorFor(sticker.textColor, sticker.backgroundStyle),
+      );
+      final textColor = _toImgColor(sticker.textColor);
+      for (final line in lines.indexed) {
+        final textY =
+            backgroundRect.top.round() + paddingY + (line.$1 * lineHeight);
+        final lineWidth = textWidths[line.$1];
+        final textX = switch (sticker.textAlign) {
+          TextAlign.right ||
+          TextAlign.end => backgroundRect.right.round() - paddingX - lineWidth,
+          TextAlign.center =>
+            backgroundRect.left.round() +
+                ((backgroundRect.width - lineWidth) / 2).round(),
+          _ => backgroundRect.left.round() + paddingX,
+        };
+        img.drawString(
+          image,
+          line.$2,
+          font: font,
+          x: textX + math.max(1, visualScale.round()),
+          y: textY + math.max(1, (visualScale * 0.8).round()),
+          color: shadowColor,
+        );
+        img.drawString(
+          image,
+          line.$2,
+          font: font,
+          x: textX,
+          y: textY,
+          color: textColor,
+        );
+      }
+    }
+  }
+
+  img.BitmapFont _fontForSticker(_OverlaySticker sticker, double visualScale) {
+    final targetSize =
+        20 * sticker.scale * visualScale * (sticker.bold ? 1.08 : 1);
+    if (targetSize >= 36) return img.arial48;
+    if (targetSize >= 19) return img.arial24;
+    return img.arial14;
+  }
+
+  int _measureBitmapTextWidth(img.BitmapFont font, String text) {
+    var width = 0;
+    for (final rune in text.runes) {
+      width += font.characterXAdvance(String.fromCharCode(rune));
+    }
+    return width;
+  }
+
+  img.Color _toImgColor(Color color) {
+    final argb = color.toARGB32();
+    return img.ColorRgba8(
+      (argb >> 16) & 0xFF,
+      (argb >> 8) & 0xFF,
+      argb & 0xFF,
+      (argb >> 24) & 0xFF,
+    );
   }
 
   Size _constrainSize(Size input, {required double maxDimension}) {
@@ -1608,16 +2576,90 @@ class _CropMask extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return SizedBox(
       width: viewportSize.width,
       height: viewportSize.height,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white, width: 2),
+          border: Border.all(color: tokens.foregroundOnAccent, width: 2),
           borderRadius: BorderRadius.circular(24),
-          boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 0, spreadRadius: 1600),
+          boxShadow: [
+            BoxShadow(
+              color: tokens.storyOverlay.withValues(alpha: 0.82),
+              blurRadius: 0,
+              spreadRadius: 1600,
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StageHintChip extends StatelessWidget {
+  const _StageHintChip({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.sdal;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: tokens.panel.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: tokens.foreground),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: tokens.foreground,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StageActionButton extends StatelessWidget {
+  const _StageActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Tooltip(
+      message: tooltip,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: tokens.panel.withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+          border: Border.all(color: tokens.panelBorder),
+        ),
+        child: IconButton(
+          onPressed: onTap,
+          icon: Icon(icon, color: tokens.foreground),
         ),
       ),
     );
@@ -1703,7 +2745,11 @@ class _EditorToolbar extends StatelessWidget {
     required this.onPanelChanged,
     required this.aspectChoices,
     required this.selectedRatio,
+    required this.freeformWidthFactor,
+    required this.freeformHeightFactor,
     required this.onAspectSelected,
+    required this.onFreeformWidthChanged,
+    required this.onFreeformHeightChanged,
     required this.onRotate,
     required this.onAddText,
     required this.selectedSticker,
@@ -1745,7 +2791,11 @@ class _EditorToolbar extends StatelessWidget {
   final ValueChanged<_EditorPanel>? onPanelChanged;
   final List<_AspectChoice> aspectChoices;
   final double? selectedRatio;
+  final double freeformWidthFactor;
+  final double freeformHeightFactor;
   final ValueChanged<double?>? onAspectSelected;
+  final ValueChanged<double>? onFreeformWidthChanged;
+  final ValueChanged<double>? onFreeformHeightChanged;
   final VoidCallback? onRotate;
   final VoidCallback? onAddText;
   final _OverlaySticker? selectedSticker;
@@ -1784,6 +2834,7 @@ class _EditorToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: Column(
@@ -1807,16 +2858,18 @@ class _EditorToolbar extends StatelessWidget {
                   onSelected: onAspectSelected == null
                       ? null
                       : (_) => onAspectSelected!(choice.ratio),
-                  selectedColor: Colors.white,
+                  selectedColor: tokens.accentMuted,
                   labelStyle: TextStyle(
-                    color: selected ? Colors.black : Colors.white,
+                    color: selected
+                        ? tokens.foreground
+                        : tokens.foregroundMuted,
                     fontWeight: FontWeight.w600,
                   ),
-                  backgroundColor: Colors.white10,
+                  backgroundColor: tokens.panel,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                     side: BorderSide(
-                      color: selected ? Colors.white : Colors.white24,
+                      color: selected ? tokens.accent : tokens.panelBorder,
                     ),
                   ),
                 );
@@ -1867,7 +2920,14 @@ class _EditorToolbar extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           if (activePanel == _EditorPanel.crop)
-            _CropPanel(onRotate: onRotate)
+            _CropPanel(
+              onRotate: onRotate,
+              isFreeform: selectedRatio == null,
+              freeformWidthFactor: freeformWidthFactor,
+              freeformHeightFactor: freeformHeightFactor,
+              onFreeformWidthChanged: onFreeformWidthChanged,
+              onFreeformHeightChanged: onFreeformHeightChanged,
+            )
           else if (activePanel == _EditorPanel.text)
             _TextPanel(
               onAddText: onAddText,
@@ -1933,19 +2993,20 @@ class _PanelChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: onTap == null ? null : (_) => onTap!(),
-      selectedColor: Colors.white,
-      backgroundColor: Colors.white10,
+      selectedColor: tokens.accentMuted,
+      backgroundColor: tokens.panel,
       labelStyle: TextStyle(
-        color: selected ? Colors.black : Colors.white,
+        color: selected ? tokens.foreground : tokens.foregroundMuted,
         fontWeight: FontWeight.w600,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(999),
-        side: BorderSide(color: selected ? Colors.white : Colors.white24),
+        side: BorderSide(color: selected ? tokens.accent : tokens.panelBorder),
       ),
     );
   }
@@ -1958,13 +3019,14 @@ class _ToolbarCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
       decoration: BoxDecoration(
-        color: Colors.white10,
+        color: tokens.panel.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: tokens.panelBorder),
       ),
       child: child,
     );
@@ -1972,22 +3034,56 @@ class _ToolbarCard extends StatelessWidget {
 }
 
 class _CropPanel extends StatelessWidget {
-  const _CropPanel({required this.onRotate});
+  const _CropPanel({
+    required this.onRotate,
+    required this.isFreeform,
+    required this.freeformWidthFactor,
+    required this.freeformHeightFactor,
+    required this.onFreeformWidthChanged,
+    required this.onFreeformHeightChanged,
+  });
 
   final VoidCallback? onRotate;
+  final bool isFreeform;
+  final double freeformWidthFactor;
+  final double freeformHeightFactor;
+  final ValueChanged<double>? onFreeformWidthChanged;
+  final ValueChanged<double>? onFreeformHeightChanged;
 
   @override
   Widget build(BuildContext context) {
     return _ToolbarCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onRotate,
-              icon: const Icon(Icons.rotate_90_degrees_ccw_rounded),
-              label: const Text('Görseli döndür'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onRotate,
+                  icon: const Icon(Icons.rotate_90_degrees_ccw_rounded),
+                  label: const Text('Görseli döndür'),
+                ),
+              ),
+            ],
           ),
+          if (isFreeform) ...[
+            const SizedBox(height: 10),
+            _FilterSlider(
+              label: 'Genişlik',
+              value: freeformWidthFactor,
+              min: 0.35,
+              max: 1,
+              onChanged: onFreeformWidthChanged,
+            ),
+            _FilterSlider(
+              label: 'Yükseklik',
+              value: freeformHeightFactor,
+              min: 0.35,
+              max: 1,
+              onChanged: onFreeformHeightChanged,
+            ),
+          ],
         ],
       ),
     );
@@ -2025,6 +3121,7 @@ class _TextPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     final sticker = selectedSticker;
     return _ToolbarCard(
       child: Column(
@@ -2056,7 +3153,7 @@ class _TextPanel extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Text('Boyut', style: TextStyle(color: Colors.white70)),
+                Text('Boyut', style: TextStyle(color: tokens.foregroundMuted)),
                 Expanded(
                   child: Slider(
                     value: sticker.scale.clamp(0.7, 2.8),
@@ -2086,8 +3183,8 @@ class _TextPanel extends StatelessWidget {
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: sticker.textColor == choice.color
-                              ? Colors.white
-                              : Colors.white24,
+                              ? tokens.accent
+                              : tokens.panelBorder,
                           width: sticker.textColor == choice.color ? 2 : 1,
                         ),
                       ),
@@ -2220,6 +3317,7 @@ class _DrawPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return _ToolbarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2274,8 +3372,8 @@ class _DrawPanel extends StatelessWidget {
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: color == swatch
-                                  ? Colors.white
-                                  : Colors.white24,
+                                  ? tokens.accent
+                                  : tokens.panelBorder,
                               width: color == swatch ? 2 : 1,
                             ),
                           ),
@@ -2286,7 +3384,7 @@ class _DrawPanel extends StatelessWidget {
           ),
           Row(
             children: [
-              const Text('Kalınlık', style: TextStyle(color: Colors.white70)),
+              Text('Kalınlık', style: TextStyle(color: tokens.foregroundMuted)),
               Expanded(
                 child: Slider(
                   value: width.clamp(2, 26),
@@ -2475,11 +3573,12 @@ class _FilterSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
     return Row(
       children: [
         SizedBox(
           width: 76,
-          child: Text(label, style: const TextStyle(color: Colors.white70)),
+          child: Text(label, style: TextStyle(color: tokens.foregroundMuted)),
         ),
         Expanded(
           child: Slider(

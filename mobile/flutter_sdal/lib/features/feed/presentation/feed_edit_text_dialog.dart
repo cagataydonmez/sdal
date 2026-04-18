@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/widgets/image_lightbox.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 
 class FeedEditPostResult {
@@ -135,11 +136,15 @@ class _FeedEditPostSheetState extends State<FeedEditPostSheet> {
                 child: _ImagePreview(
                   onRemove: _removeNewImage,
                   removeTooltip: l10n.removeImageAction,
-                  child: Image.file(
-                    _newImage!,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                  child: SdalLightboxImage(
+                    imageProvider: FileImage(_newImage!),
+                    semanticLabel: 'Seçilen gönderi görseli',
+                    child: Image.file(
+                      _newImage!,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               )
@@ -198,10 +203,7 @@ class _ImagePreview extends StatelessWidget {
     return Stack(
       alignment: Alignment.topRight,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: child,
-        ),
+        ClipRRect(borderRadius: BorderRadius.circular(14), child: child),
         Padding(
           padding: const EdgeInsets.all(6),
           child: Material(

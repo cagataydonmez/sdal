@@ -12,6 +12,7 @@ import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/image_lightbox.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/skeleton_view.dart';
@@ -782,11 +783,15 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
+                      child: SdalLightboxImage(
+                        imageProvider: FileImage(_selectedImage!),
+                        semanticLabel: 'Seçilen gönderi fotoğrafı',
                         child: Image.file(
-                        _selectedImage!,
-                        height: 160,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
+                          _selectedImage!,
+                          height: 160,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                     Padding(

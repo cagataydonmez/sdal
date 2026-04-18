@@ -114,7 +114,11 @@ class FeedItem with _$FeedItem {
   String get authorName => author.isim.isNotEmpty ? author.isim : 'SDAL Üyesi';
   String get authorHandle => author.kadi;
   String get authorPhoto => author.resim;
-  String get imageUrl => image.isNotEmpty ? image : (variants?.feedUrl ?? '');
+  String get imageUrl {
+    final variantUrl = variants?.feedUrl ?? '';
+    if (variantUrl.isNotEmpty) return variantUrl;
+    return image;
+  }
 
   factory FeedItem.fromJson(Map<String, dynamic> json) => _$FeedItemFromJson(
     normalizeJsonAliases(json, {
@@ -232,7 +236,11 @@ class LikeUser {
       username: coalesceText([map['username'], map['kadi']], fallback: ''),
       firstName: coalesceText([map['firstName'], map['isim']], fallback: ''),
       lastName: coalesceText([map['lastName'], map['soyisim']], fallback: ''),
-      avatarUrl: coalesceText([map['avatarUrl'], map['resim'], map['photo']], fallback: ''),
+      avatarUrl: coalesceText([
+        map['avatarUrl'],
+        map['resim'],
+        map['photo'],
+      ], fallback: ''),
       graduationYear: asInt(map['graduationYear']),
     );
   }
@@ -503,6 +511,7 @@ final onlineMembersProvider =
       (ref) => ref.watch(feedRepositoryProvider).fetchOnlineMembers(),
     );
 
-final postLikesProvider = FutureProvider.autoDispose.family<List<LikeUser>, int>(
-  (ref, postId) => ref.watch(feedRepositoryProvider).fetchLikes(postId),
-);
+final postLikesProvider = FutureProvider.autoDispose
+    .family<List<LikeUser>, int>(
+      (ref, postId) => ref.watch(feedRepositoryProvider).fetchLikes(postId),
+    );

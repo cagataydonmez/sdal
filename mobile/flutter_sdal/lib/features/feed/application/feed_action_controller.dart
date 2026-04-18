@@ -134,22 +134,34 @@ class FeedActionController extends Notifier<AsyncActionState> {
     bool removeImage = false,
   }) async {
     state = AsyncActionState.loading(scope: 'edit-post:$postId');
-    final ApiResult<dynamic> result;
-    if (imageFile != null) {
-      result = await _repository.editPostWithImage(
-        postId: postId,
-        content: content,
-        imageFile: imageFile,
+    ApiResult<dynamic>? result;
+    try {
+      if (imageFile != null) {
+        result = await _repository.editPostWithImage(
+          postId: postId,
+          content: content,
+          imageFile: imageFile,
+        );
+      } else if (removeImage) {
+        result = await _repository.deletePostImage(
+          postId: postId,
+          content: content,
+        );
+      } else {
+        result = await _repository.editPost(postId: postId, content: content);
+      }
+    } catch (e) {
+            result = ApiResult<dynamic>(
+        ok: false,
+        statusCode: 500,
+        message: 'Beklenmedik bir hata oluştu: $e',
+        code: 'error',
+        data: null,
+        rawData: null,
       );
-    } else if (removeImage) {
-      result = await _repository.deletePostImage(
-        postId: postId,
-        content: content,
-      );
-    } else {
-      result = await _repository.editPost(postId: postId, content: content);
     }
-    if (result.ok) {
+
+    if (result != null && result.ok) {
       // Feed list is updated directly in the UI; only invalidate detail page.
       ref.invalidate(postDetailProvider(postId));
       state = const AsyncActionState.success(scope: 'edit-post');
@@ -157,7 +169,7 @@ class FeedActionController extends Notifier<AsyncActionState> {
     }
     state = AsyncActionState.error(
       scope: 'edit-post:$postId',
-      message: result.message.isNotEmpty ? result.message : 'Gönderi düzenlenemedi.',
+      message: result?.message ?? 'Gönderi düzenlenemedi.',
     );
     return false;
   }
