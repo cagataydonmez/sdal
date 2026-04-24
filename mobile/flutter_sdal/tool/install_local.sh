@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 IOS_DIR="$ROOT_DIR/ios"
-FLUTTER_BIN="${FLUTTER_BIN:-/Users/cagataydonmez/flutter/bin/flutter}"
+FLUTTER_BIN="${FLUTTER_BIN:-$HOME/Developer/flutter/bin/flutter}"
 IOS_BUNDLE_ID="${IOS_BUNDLE_ID:-com.sdal.flutterSdal}"
 IOS_RELEASE_BUILD_DIR_ABS="${IOS_RELEASE_BUILD_DIR_ABS:-$HOME/Library/Caches/flutter_sdal_ios_build}"
 FLUTTER_BUILD_DIR_REL="${FLUTTER_BUILD_DIR_REL:-../../../../Library/Caches/flutter_sdal_flutter_build}"
@@ -258,6 +258,14 @@ select_from_entries() {
   local selected
   selected="$(prompt_number "$total" "Choose: ")"
   printf '%s' "${entries[$((selected - 1))]}"
+}
+
+load_entries() {
+  entries=()
+  local line
+  while IFS= read -r line; do
+    entries+=("$line")
+  done < <("$@")
 }
 
 json_to_entries() {
@@ -908,7 +916,7 @@ main() {
     1)
       print_phone_instructions
       if [[ "$build_mode" == "release" ]]; then
-        mapfile -t entries < <(get_ios_release_devices)
+        load_entries get_ios_release_devices
         local selected label identifier
         selected="$(select_from_entries "Available iPhone release targets" "${entries[@]}")"
         label="${selected%%|||*}"
@@ -917,7 +925,7 @@ main() {
         apply_app_version_update
         build_sign_install_launch_ios_release "$identifier"
       else
-        mapfile -t entries < <(get_ios_debug_devices)
+        load_entries get_ios_debug_devices
         local selected label identifier
         selected="$(select_from_entries "Available iPhone debug targets" "${entries[@]}")"
         label="${selected%%|||*}"
@@ -932,7 +940,7 @@ main() {
         die "Flutter release mode is not supported on iOS Simulator. Use iPhone + Release, or iOS Simulator + Debug."
       fi
       require_cmd open
-      mapfile -t entries < <(get_ios_simulator_entries)
+      load_entries get_ios_simulator_entries
       local selected label udid
       selected="$(select_from_entries "Available iOS simulators" "${entries[@]}")"
       label="${selected%%|||*}"
@@ -949,7 +957,7 @@ main() {
       ;;
     3)
       print_android_instructions
-      mapfile -t entries < <(get_android_emulator_entries)
+      load_entries get_android_emulator_entries
       local selected label emulator_id android_selected android_device_id
       selected="$(select_from_entries "Available Android emulators" "${entries[@]}")"
       label="${selected%%|||*}"
@@ -959,7 +967,7 @@ main() {
         cd "$ROOT_DIR"
         "$FLUTTER_BIN" emulators --launch "$emulator_id"
       )
-      mapfile -t entries < <(wait_for_android_emulator)
+      load_entries wait_for_android_emulator
       android_selected="$(select_from_entries "Running Android emulator devices" "${entries[@]}")"
       android_device_id="${android_selected##*|||}"
       apply_app_version_update

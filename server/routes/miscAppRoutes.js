@@ -417,6 +417,9 @@ export function registerMiscAppRoutes(app, {
       const suffix = req.path.replace(/^\/sdal_new/, '') || '/';
       res.redirect(302, `/new${suffix}`);
     });
+    app.get('/new', (_req, res) => {
+      res.sendFile(path.join(modernDist, 'index.html'));
+    });
     app.get('/new/*', (_req, res) => {
       res.sendFile(path.join(modernDist, 'index.html'));
     });
