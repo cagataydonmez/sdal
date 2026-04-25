@@ -659,13 +659,13 @@ abstract class AppLocalizations {
   /// No description provided for @registerTitle.
   ///
   /// In tr, this message translates to:
-  /// **'Kayıt ol'**
+  /// **'Kaydol'**
   String get registerTitle;
 
   /// No description provided for @registerSubtitle.
   ///
   /// In tr, this message translates to:
-  /// **'V1 için yeni Flutter istemcisinden hesap oluşturun.'**
+  /// **'Yeni SDAL Sosyal hesabı oluştur.'**
   String get registerSubtitle;
 
   /// No description provided for @activationTitle.
@@ -725,7 +725,7 @@ abstract class AppLocalizations {
   /// No description provided for @register.
   ///
   /// In tr, this message translates to:
-  /// **'Kayıt ol'**
+  /// **'Kaydol'**
   String get register;
 
   /// No description provided for @resendActivation.
@@ -791,13 +791,13 @@ abstract class AppLocalizations {
   /// No description provided for @captchaCode.
   ///
   /// In tr, this message translates to:
-  /// **'Captcha kodu'**
+  /// **'Güvenlik Kodu'**
   String get captchaCode;
 
   /// No description provided for @graduationYear.
   ///
   /// In tr, this message translates to:
-  /// **'Mezuniyet yılı / Teacher'**
+  /// **'Mezuniyet yılı / Öğretmen'**
   String get graduationYear;
 
   /// No description provided for @passwordRepeat.
@@ -863,7 +863,7 @@ abstract class AppLocalizations {
   /// No description provided for @registerGraduationYearInvalid.
   ///
   /// In tr, this message translates to:
-  /// **'1999 ile içinde bulunduğumuz yıl arasında geçerli bir mezuniyet yılı veya Öğretmen gir.'**
+  /// **'1999 ile içinde bulunduğumuz yıl arasında geçerli bir mezuniyet yılı veya Öğretmen seç.'**
   String get registerGraduationYearInvalid;
 
   /// No description provided for @registerKvkkConsentLabel.
@@ -941,7 +941,7 @@ abstract class AppLocalizations {
   /// No description provided for @registerCaptchaDigitsOnly.
   ///
   /// In tr, this message translates to:
-  /// **'Güvenlik kodu yalnızca rakamlardan oluşmalıdır.'**
+  /// **'Güvenlik kodu yalnızca harf ve rakamlardan oluşmalıdır.'**
   String get registerCaptchaDigitsOnly;
 
   /// No description provided for @registerPreviewFailed.
@@ -1013,7 +1013,7 @@ abstract class AppLocalizations {
   /// No description provided for @registerSubmitAction.
   ///
   /// In tr, this message translates to:
-  /// **'Kayıt isteği gönder'**
+  /// **'Kaydol'**
   String get registerSubmitAction;
 
   /// No description provided for @resendAction.

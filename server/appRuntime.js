@@ -3531,11 +3531,30 @@ function readAdminStorageSnapshot() {
 }
 
 function issueCaptcha(req, res) {
-  const code = String(Math.floor(10000000 + Math.random() * 90000000));
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(6);
+  const code = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
   req.session.captcha = code;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40">` +
-    `<rect width="100%" height="100%" fill="#33ff55"/>` +
-    `<text x="10" y="27" font-family="Tahoma" font-size="20" fill="#000033">${code}</text>` +
+  const noise = Array.from({ length: 14 }, (_, index) => {
+    const x1 = (bytes[index % bytes.length] * 7 + index * 17) % 220;
+    const y1 = (bytes[(index + 1) % bytes.length] * 5 + index * 11) % 64;
+    const x2 = (x1 + 28 + index * 9) % 220;
+    const y2 = (y1 + 12 + index * 7) % 64;
+    const opacity = index % 3 === 0 ? '0.45' : '0.24';
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#243b53" stroke-width="1" opacity="${opacity}"/>`;
+  }).join('');
+  const glyphs = code.split('').map((char, index) => {
+    const x = 26 + index * 27;
+    const y = 40 + ((bytes[index] % 7) - 3);
+    const rotate = (bytes[index] % 25) - 12;
+    return `<text x="${x}" y="${y}" transform="rotate(${rotate} ${x} ${y})" font-family="Tahoma,Arial,sans-serif" font-size="28" font-weight="700" fill="#102a43">${char}</text>`;
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="64" viewBox="0 0 220 64">` +
+    `<defs><linearGradient id="captchaBg" x1="0" x2="1"><stop offset="0" stop-color="#d9f99d"/><stop offset="1" stop-color="#a7f3d0"/></linearGradient></defs>` +
+    `<rect width="100%" height="100%" rx="10" fill="url(#captchaBg)"/>` +
+    noise +
+    glyphs +
+    `<path d="M8 45 C50 20, 98 62, 152 28 S202 42, 214 20" fill="none" stroke="#ef4444" stroke-width="2" opacity="0.72"/>` +
     `</svg>`;
   sendSvg(res, svg);
 }

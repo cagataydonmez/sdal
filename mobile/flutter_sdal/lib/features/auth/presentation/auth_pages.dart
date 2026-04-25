@@ -13,6 +13,8 @@ import '../../../core/widgets/surface_card.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../application/auth_action_controller.dart';
 
+const String _teacherGraduationYearValue = '9999';
+
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -222,11 +224,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _loadCaptcha();
     _usernameController.addListener(_scheduleAvailabilityCheck);
     _emailController.addListener(_scheduleAvailabilityCheck);
+    _passwordController.addListener(_refreshPasswordStrength);
   }
 
   @override
   void dispose() {
     _usernameController.dispose();
+    _passwordController.removeListener(_refreshPasswordStrength);
     _passwordController.dispose();
     _repeatPasswordController.dispose();
     _emailController.dispose();
@@ -236,6 +240,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _captchaController.dispose();
     _availabilityDebounce?.cancel();
     super.dispose();
+  }
+
+  void _refreshPasswordStrength() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadCaptcha() async {
@@ -337,6 +345,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       });
       return;
     }
+    if (email.isNotEmpty && !_isEmailFormatValid(email)) {
+      if (mounted) {
+        setState(() {
+          _checkingAvailability = false;
+          _availabilityMessage = null;
+          _availabilityError = null;
+        });
+      }
+      if (username.isEmpty) return;
+    }
     _availabilityDebounce = Timer(
       const Duration(milliseconds: 450),
       _runAvailabilityCheck,
@@ -347,6 +365,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     if (username.isEmpty && email.isEmpty) return;
+    final emailCanBeChecked = email.isEmpty || _isEmailFormatValid(email);
+    if (username.isEmpty && !emailCanBeChecked) {
+      if (!mounted) return;
+      setState(() {
+        _checkingAvailability = false;
+        _availabilityMessage = null;
+        _availabilityError = null;
+      });
+      return;
+    }
 
     final requestId = ++_availabilityRequestId;
     if (mounted) {
@@ -362,7 +390,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           '/api/register/check',
           body: {
             if (username.isNotEmpty) 'kadi': username,
-            if (email.isNotEmpty) 'email': email,
+            if (email.isNotEmpty && emailCanBeChecked) 'email': email,
           },
           decoder: asJsonMap,
         );
@@ -390,7 +418,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             : context.l10n.registerUsernameAvailable,
       );
     }
-    if (email.isNotEmpty) {
+    if (email.isNotEmpty && emailCanBeChecked) {
       parts.add(
         emailExists
             ? context.l10n.registerEmailTaken
@@ -517,11 +545,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               ),
             ),
             const SizedBox(height: 12),
-            _AuthTextField(
-              controller: _yearController,
-              keyboardType: TextInputType.text,
-              labelText: l10n.graduationYear,
+            DropdownButtonFormField<String>(
+              initialValue: _yearController.text,
+              decoration: InputDecoration(labelText: l10n.graduationYear),
+              items: _graduationYearOptions()
+                  .map(
+                    (value) => DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(_formatGraduationYearOption(context, value)),
+                    ),
+                  )
+                  .toList(growable: false),
               validator: _graduationYearValidator,
+              onChanged: submitting
+                  ? null
+                  : (value) => setState(() {
+                      _yearController.text = value ?? '';
+                    }),
             ),
             const SizedBox(height: 8),
             KeyedSubtree(
@@ -533,48 +573,31 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     value: _kvkkConsent,
                     onChanged: submitting
                         ? null
-                        : (value) =>
-                              setState(() => _kvkkConsent = value ?? false),
+                        : (value) => _handleConsentToggle(
+                            value: value ?? false,
+                            title: l10n.registerKvkkTitle,
+                            path: '/kvkk',
+                            onApproved: () => _kvkkConsent = true,
+                            onRejected: () => _kvkkConsent = false,
+                          ),
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     title: Text(l10n.registerKvkkConsentLabel),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      onPressed: () => context.push(
-                        '/legal',
-                        extra: {
-                          'title': l10n.registerKvkkTitle,
-                          'path': '/kvkk',
-                        },
-                      ),
-                      child: Text(l10n.registerKvkkOpenAction),
-                    ),
                   ),
                   CheckboxListTile(
                     value: _directoryConsent,
                     onChanged: submitting
                         ? null
-                        : (value) => setState(
-                            () => _directoryConsent = value ?? false,
+                        : (value) => _handleConsentToggle(
+                            value: value ?? false,
+                            title: l10n.registerDirectoryConsentTitle,
+                            path: '/kvkk/acik-riza',
+                            onApproved: () => _directoryConsent = true,
+                            onRejected: () => _directoryConsent = false,
                           ),
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     title: Text(l10n.registerDirectoryConsentLabel),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      onPressed: () => context.push(
-                        '/legal',
-                        extra: {
-                          'title': l10n.registerDirectoryConsentTitle,
-                          'path': '/kvkk/acik-riza',
-                        },
-                      ),
-                      child: Text(l10n.registerDirectoryConsentOpenAction),
-                    ),
                   ),
                 ],
               ),
@@ -637,7 +660,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   const SizedBox(height: 12),
                   _AuthTextField(
                     controller: _captchaController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: TextInputType.text,
                     labelText: l10n.captchaCode,
                     validator: _captchaValidator,
                   ),
@@ -775,6 +798,25 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   bool _isConsentSectionValid() => _kvkkConsent && _directoryConsent;
 
+  Future<void> _handleConsentToggle({
+    required bool value,
+    required String title,
+    required String path,
+    required VoidCallback onApproved,
+    required VoidCallback onRejected,
+  }) async {
+    if (!value) {
+      setState(onRejected);
+      return;
+    }
+    final approved = await context.push<bool>(
+      '/legal',
+      extra: {'title': title, 'path': path, 'requireAcceptance': true},
+    );
+    if (!mounted) return;
+    setState(approved == true ? onApproved : onRejected);
+  }
+
   String? _requiredValidator(String? value, String label, {int? maxLength}) {
     final trimmed = (value ?? '').trim();
     if (trimmed.isEmpty) {
@@ -791,14 +833,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (trimmed.isEmpty) {
       return context.l10n.registerFieldRequired(context.l10n.email);
     }
-    final looksValid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(trimmed);
-    if (!looksValid) {
+    if (!_isEmailFormatValid(trimmed)) {
       return context.l10n.registerEmailInvalid;
     }
     if (trimmed.length > 50) {
       return context.l10n.registerFieldTooLong(context.l10n.email, 50);
     }
     return null;
+  }
+
+  bool _isEmailFormatValid(String value) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim());
   }
 
   String? _passwordValidator(String? value) {
@@ -828,10 +873,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (trimmed.isEmpty) {
       return context.l10n.registerGraduationYearInvalid;
     }
-    final normalized = trimmed.toLowerCase();
-    if (normalized == 'teacher' ||
-        normalized == 'öğretmen' ||
-        normalized == 'ogretmen') {
+    if (trimmed == _teacherGraduationYearValue) {
       return null;
     }
     final year = int.tryParse(trimmed);
@@ -847,11 +889,29 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (trimmed.isEmpty) {
       return context.l10n.registerCaptchaCodeRequired;
     }
-    if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
+    if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(trimmed)) {
       return context.l10n.registerCaptchaDigitsOnly;
     }
     return null;
   }
+}
+
+List<String> _graduationYearOptions() => <String>[
+  _teacherGraduationYearValue,
+  for (var year = DateTime.now().year; year >= 1999; year--) '$year',
+];
+
+String _formatGraduationYearOption(BuildContext context, String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized == _teacherGraduationYearValue ||
+      normalized == 'teacher' ||
+      normalized == 'öğretmen' ||
+      normalized == 'ogretmen') {
+    return Localizations.localeOf(context).languageCode == 'tr'
+        ? 'Öğretmen'
+        : 'Teacher';
+  }
+  return value;
 }
 
 enum _RegisterPasswordStrength { none, weak, medium, strong }

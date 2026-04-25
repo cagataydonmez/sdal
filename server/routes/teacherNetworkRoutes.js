@@ -159,7 +159,7 @@ export function registerTeacherNetworkRoutes(app, {
       const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
       const includeId = Math.max(parseInt(req.query.include_id || '0', 10), 0);
       const params = [];
-      let whereSql = "WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1 AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0 AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('teacher', 'ogretmen'))";
+      let whereSql = "WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1 AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0 AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('9999', 'teacher', 'ogretmen', 'öğretmen'))";
       if (term) {
         whereSql += ' AND (LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))';
         params.push(`%${term}%`, `%${term}%`, `%${term}%`);
@@ -188,7 +188,7 @@ export function registerTeacherNetworkRoutes(app, {
            WHERE u.id = ?
              AND COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
              AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
-             AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('teacher', 'ogretmen'))
+             AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('9999', 'teacher', 'ogretmen', 'öğretmen'))
            LIMIT 1`,
           [alumniUserId, alumniUserId, alumniUserId, includeId]
         );

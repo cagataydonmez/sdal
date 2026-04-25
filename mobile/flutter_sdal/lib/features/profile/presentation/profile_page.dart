@@ -145,7 +145,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               if (profile.graduationYear.isNotEmpty)
                                 _ProfileFactChip(
                                   icon: Icons.school_outlined,
-                                  label: '${profile.graduationYear} mezunu',
+                                  label: _formatGraduationYear(
+                                    context,
+                                    profile.graduationYear,
+                                    withGraduateSuffix: true,
+                                  ),
                                 ),
                               if (profile.city.isNotEmpty)
                                 _ProfileFactChip(
@@ -291,7 +295,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                     _ProfileRow(
                       label: l10n.profileDetailsGraduationYearLabel,
-                      value: profile.graduationYear,
+                      value: _formatGraduationYear(
+                        context,
+                        profile.graduationYear,
+                      ),
                     ),
                     _ProfileRow(
                       label: l10n.profileEditCityLabel,
@@ -431,6 +438,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ref.invalidate(myAlbumsProvider);
     ref.invalidate(memberProfileAlbumsProvider(album.ownerUserId ?? 0));
   }
+}
+
+String _formatGraduationYear(
+  BuildContext context,
+  String value, {
+  bool withGraduateSuffix = false,
+}) {
+  final normalized = value.trim().toLowerCase();
+  final isTeacher =
+      normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen';
+  if (isTeacher) {
+    return Localizations.localeOf(context).languageCode == 'tr'
+        ? 'Öğretmen'
+        : 'Teacher';
+  }
+  if (!withGraduateSuffix) return value;
+  return Localizations.localeOf(context).languageCode == 'tr'
+      ? '$value mezunu'
+      : '$value graduate';
 }
 
 class _ProfileLoadingView extends StatelessWidget {

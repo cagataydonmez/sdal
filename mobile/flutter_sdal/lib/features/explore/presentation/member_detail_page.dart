@@ -154,7 +154,11 @@ class MemberDetailPage extends ConsumerWidget {
                           if (detail.graduationYear.isNotEmpty)
                             _HighlightChip(
                               icon: Icons.school_outlined,
-                              label: '${detail.graduationYear} mezunu',
+                              label: _formatGraduationYear(
+                                context,
+                                detail.graduationYear,
+                                withGraduateSuffix: true,
+                              ),
                               color: tokens.accent,
                               bgColor: tokens.accentMuted,
                             ),
@@ -379,6 +383,28 @@ class MemberDetailPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _formatGraduationYear(
+  BuildContext context,
+  String value, {
+  bool withGraduateSuffix = false,
+}) {
+  final normalized = value.trim().toLowerCase();
+  final isTeacher =
+      normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen';
+  if (isTeacher) {
+    return Localizations.localeOf(context).languageCode == 'tr'
+        ? 'Öğretmen'
+        : 'Teacher';
+  }
+  if (!withGraduateSuffix) return value;
+  return Localizations.localeOf(context).languageCode == 'tr'
+      ? '$value mezunu'
+      : '$value graduate';
 }
 
 class _HighlightChip extends StatelessWidget {

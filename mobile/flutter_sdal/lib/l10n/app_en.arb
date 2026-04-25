@@ -196,7 +196,7 @@
   "registerCaptchaUnavailable": "The security code could not be loaded. Refresh it and try again.",
   "registerCaptchaRetryAction": "Reload code",
   "registerCaptchaCodeRequired": "Enter the security code.",
-  "registerCaptchaDigitsOnly": "The security code should contain digits only.",
+  "registerCaptchaDigitsOnly": "The security code should contain letters and digits only.",
   "registerPreviewFailed": "The registration details could not be verified.",
   "registerAvailabilityCheckFailed": "Availability could not be checked right now.",
   "registerUsernameTaken": "This username is already registered.",

@@ -177,7 +177,10 @@ class _MemberMentionComposerState extends ConsumerState<MemberMentionComposer> {
                             [
                               if (member.handle.isNotEmpty) '@${member.handle}',
                               if (member.graduationYear.isNotEmpty)
-                                member.graduationYear,
+                                _formatGraduationYear(
+                                  context,
+                                  member.graduationYear,
+                                ),
                             ].join(' • '),
                           ),
                           onTap: () => _selectMember(member),
@@ -288,4 +291,17 @@ class _MemberMentionComposerState extends ConsumerState<MemberMentionComposer> {
     widget.onSelectedMembersChanged(nextMembers);
     _clearSuggestions();
   }
+}
+
+String _formatGraduationYear(BuildContext context, String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen') {
+    return Localizations.localeOf(context).languageCode == 'tr'
+        ? 'Öğretmen'
+        : 'Teacher';
+  }
+  return value;
 }

@@ -474,7 +474,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get registerCaptchaDigitsOnly =>
-      'The security code should contain digits only.';
+      'The security code should contain letters and digits only.';
 
   @override
   String get registerPreviewFailed =>

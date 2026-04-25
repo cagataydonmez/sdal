@@ -565,7 +565,13 @@ class _QuickAccessTile extends StatelessWidget {
           title: Text(user.displayName),
           subtitle: user.graduationYear.isEmpty
               ? null
-              : Text(l10n.memberGraduationYearValue(user.graduationYear)),
+              : Text(
+                  _isTeacherYear(user.graduationYear)
+                      ? (Localizations.localeOf(context).languageCode == 'tr'
+                            ? 'Öğretmen'
+                            : 'Teacher')
+                      : l10n.memberGraduationYearValue(user.graduationYear),
+                ),
           trailing: IconButton(
             tooltip: l10n.quickAccessRemoveAction,
             onPressed: onRemove,
@@ -766,5 +772,8 @@ class _SidebarHighlightButton extends StatelessWidget {
 
 bool _isTeacherYear(String value) {
   final normalized = value.trim().toLowerCase();
-  return normalized == 'teacher' || normalized == 'ogretmen';
+  return normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen';
 }

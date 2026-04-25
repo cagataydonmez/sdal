@@ -80,10 +80,10 @@ export function registerAccountRoutes(app, deps) {
 
       const cleanCaptcha = String(gkodu || '').trim();
       if (!e2eMode) {
-        if (!/^\d+$/.test(cleanCaptcha)) {
-          return res.status(400).send('Güvenlik kodu sadece sayı olmalıdır.');
+        if (!/^[A-Za-z0-9]+$/.test(cleanCaptcha)) {
+          return res.status(400).send('Güvenlik kodu sadece harf ve rakamlardan oluşmalıdır.');
         }
-        if (String(req.session.captcha || '') !== cleanCaptcha) {
+        if (String(req.session.captcha || '').toUpperCase() !== cleanCaptcha.toUpperCase()) {
           return res.status(400).send('Güvenlik kodu yanlış girildi.');
         }
       }
@@ -201,8 +201,8 @@ export function registerAccountRoutes(app, deps) {
 
       const cleanCaptcha = String(gkodu || '').trim();
       if (!e2eMode) {
-        if (!/^\d+$/.test(cleanCaptcha)) return res.status(400).send('Güvenlik kodu sadece sayı olmalıdır.');
-        if (String(req.session.captcha || '') !== cleanCaptcha) return res.status(400).send('Güvenlik kodu yanlış girildi.');
+        if (!/^[A-Za-z0-9]+$/.test(cleanCaptcha)) return res.status(400).send('Güvenlik kodu sadece harf ve rakamlardan oluşmalıdır.');
+        if (String(req.session.captcha || '').toUpperCase() !== cleanCaptcha.toUpperCase()) return res.status(400).send('Güvenlik kodu yanlış girildi.');
       }
       if (!cleanKadi) return res.status(400).send('Kullanıcı adını girmedin.');
       if (String(cleanKadi).length > 15) return res.status(400).send('Kullanıcı adı 15 karakterden fazla olmamalıdır.');

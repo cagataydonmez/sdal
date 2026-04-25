@@ -8,7 +8,7 @@ const e2eHarnessEnabledForAuth = String(process.env.E2E_HARNESS_ENABLED || '').t
 const ROLE_PRIORITY = Object.freeze({ user: 0, mod: 1, admin: 2, root: 3 });
 const MIN_GRADUATION_YEAR = 1999;
 const MAX_GRADUATION_YEAR = 2100;
-const TEACHER_COHORT_VALUE = 'teacher';
+const TEACHER_COHORT_VALUE = '9999';
 const WRITE_ALLOWED_WITHOUT_VERIFICATION = Object.freeze([
   '/api/profile',
   '/api/profile/password',
@@ -304,11 +304,12 @@ export function createAuthRuntime({
 
   function normalizeCohortValue(value) {
     const raw = String(value || '').trim().toLowerCase();
-    if (raw === 'teacher' || raw === 'ogretmen') return TEACHER_COHORT_VALUE;
+    if (raw === '9999' || raw === 'teacher' || raw === 'ogretmen' || raw === 'öğretmen') return TEACHER_COHORT_VALUE;
     return String(value || '').trim();
   }
 
   function parseGraduationYear(value) {
+    if (normalizeCohortValue(value) === TEACHER_COHORT_VALUE) return NaN;
     const year = parseInt(String(value || '').trim(), 10);
     return Number.isFinite(year) ? year : NaN;
   }

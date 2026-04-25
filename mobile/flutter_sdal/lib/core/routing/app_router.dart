@@ -117,6 +117,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             LegalContentPage(
               title: (extra['title'] ?? 'Yasal içerik').toString(),
               path: (extra['path'] ?? '/kvkk').toString(),
+              requireAcceptance: extra['requireAcceptance'] == true,
             ),
           );
         },

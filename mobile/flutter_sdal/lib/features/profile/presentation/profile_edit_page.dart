@@ -243,7 +243,26 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                           value: _kvkkConsent,
                           onChanged: actionState.isLoading
                               ? null
-                              : (value) => setState(() => _kvkkConsent = value),
+                              : (value) => _handleLegalConsentToggle(
+                                  value: value,
+                                  title: l10n.registerKvkkTitle,
+                                  path: '/kvkk',
+                                  onApproved: () => _kvkkConsent = true,
+                                  onRejected: () => _kvkkConsent = false,
+                                ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton(
+                            onPressed: () => context.push(
+                              '/legal',
+                              extra: {
+                                'title': l10n.registerKvkkTitle,
+                                'path': '/kvkk',
+                              },
+                            ),
+                            child: Text(l10n.registerKvkkTitle),
+                          ),
                         ),
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
@@ -251,8 +270,26 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                           value: _directoryConsent,
                           onChanged: actionState.isLoading
                               ? null
-                              : (value) =>
-                                    setState(() => _directoryConsent = value),
+                              : (value) => _handleLegalConsentToggle(
+                                  value: value,
+                                  title: l10n.registerDirectoryConsentTitle,
+                                  path: '/kvkk/acik-riza',
+                                  onApproved: () => _directoryConsent = true,
+                                  onRejected: () => _directoryConsent = false,
+                                ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton(
+                            onPressed: () => context.push(
+                              '/legal',
+                              extra: {
+                                'title': l10n.registerDirectoryConsentTitle,
+                                'path': '/kvkk/acik-riza',
+                              },
+                            ),
+                            child: Text(l10n.registerDirectoryConsentTitle),
+                          ),
                         ),
                         SwitchListTile.adaptive(
                           contentPadding: EdgeInsets.zero,
@@ -342,6 +379,25 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     }
   }
 
+  Future<void> _handleLegalConsentToggle({
+    required bool value,
+    required String title,
+    required String path,
+    required VoidCallback onApproved,
+    required VoidCallback onRejected,
+  }) async {
+    if (!value) {
+      setState(onRejected);
+      return;
+    }
+    final approved = await context.push<bool>(
+      '/legal',
+      extra: {'title': title, 'path': path, 'requireAcceptance': true},
+    );
+    if (!mounted) return;
+    setState(approved == true ? onApproved : onRejected);
+  }
+
   String? _requiredValidator(String? value, String label) {
     if ((value ?? '').trim().isNotEmpty) return null;
     return context.l10n.profileEditRequiredField(label);
@@ -396,7 +452,7 @@ class _GraduationYearRequestTile extends StatelessWidget {
     final title = isTurkish ? 'Mezuniyet yılı' : 'Graduation year';
     final value = graduationYear.trim().isEmpty
         ? (isTurkish ? 'Belirtilmemiş' : 'Not set')
-        : (graduationYear == 'teacher'
+        : (_isTeacherGraduationYear(graduationYear)
               ? (isTurkish ? 'Öğretmen' : 'Teacher')
               : graduationYear);
     final helper = isTurkish
@@ -426,6 +482,14 @@ class _GraduationYearRequestTile extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _isTeacherGraduationYear(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen';
 }
 
 class _ProfileEditFormLayout extends StatelessWidget {

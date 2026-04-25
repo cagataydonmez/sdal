@@ -213,7 +213,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                             (year) => DropdownMenuItem<String>(
                               value: year,
                               child: Text(
-                                year == 'teacher'
+                                year == 'teacher' || year == '9999'
                                     ? l10n.requestsTeacherOption
                                     : year,
                               ),
@@ -678,7 +678,8 @@ class _RequestCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               context.l10n.requestsGraduationYearValue(
-                item.payload['requestedGraduationYear'] == 'teacher'
+                item.payload['requestedGraduationYear'] == 'teacher' ||
+                        item.payload['requestedGraduationYear'] == '9999'
                     ? context.l10n.requestsTeacherOption
                     : item.payload['requestedGraduationYear'].toString(),
               ),
@@ -792,6 +793,6 @@ String _requestsEmptyMessage(BuildContext context, _RequestListTab tab) {
 }
 
 final List<String> _graduationYearOptions = <String>[
-  'teacher',
+  '9999',
   for (var year = DateTime.now().year; year >= 1999; year--) '$year',
 ];

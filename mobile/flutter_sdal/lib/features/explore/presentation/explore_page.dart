@@ -954,7 +954,7 @@ class _MemberCard extends StatelessWidget {
                 if (member.graduationYear.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    l10n.memberGraduationYearValue(member.graduationYear),
+                    _formatGraduationYear(context, l10n, member.graduationYear),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -992,4 +992,19 @@ class _MemberCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatGraduationYear(BuildContext context, dynamic l10n, String value) {
+  final normalized = value.trim().toLowerCase();
+  final isTeacher =
+      normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen';
+  if (isTeacher) {
+    return Localizations.localeOf(context).languageCode == 'tr'
+        ? 'Öğretmen'
+        : 'Teacher';
+  }
+  return l10n.memberGraduationYearValue(value);
 }

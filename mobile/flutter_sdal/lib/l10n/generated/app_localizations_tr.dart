@@ -313,11 +313,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get loginSubtitle => 'SDAL Sosyal uygulamasına giriş yapın.';
 
   @override
-  String get registerTitle => 'Kayıt ol';
+  String get registerTitle => 'Kaydol';
 
   @override
-  String get registerSubtitle =>
-      'V1 için yeni Flutter istemcisinden hesap oluşturun.';
+  String get registerSubtitle => 'Yeni SDAL Sosyal hesabı oluştur.';
 
   @override
   String get activationTitle => 'Aktivasyon';
@@ -351,7 +350,7 @@ class AppLocalizationsTr extends AppLocalizations {
       'Tarayıcı akışı uygulamaya geri döndüğünde oturum otomatik açılır.';
 
   @override
-  String get register => 'Kayıt ol';
+  String get register => 'Kaydol';
 
   @override
   String get resendActivation => 'Aktivasyon tekrar gönder';
@@ -384,10 +383,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get activationCode => 'Aktivasyon kodu';
 
   @override
-  String get captchaCode => 'Captcha kodu';
+  String get captchaCode => 'Güvenlik Kodu';
 
   @override
-  String get graduationYear => 'Mezuniyet yılı / Teacher';
+  String get graduationYear => 'Mezuniyet yılı / Öğretmen';
 
   @override
   String get passwordRepeat => 'Şifre tekrar';
@@ -427,7 +426,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get registerGraduationYearInvalid =>
-      '1999 ile içinde bulunduğumuz yıl arasında geçerli bir mezuniyet yılı veya Öğretmen gir.';
+      '1999 ile içinde bulunduğumuz yıl arasında geçerli bir mezuniyet yılı veya Öğretmen seç.';
 
   @override
   String get registerKvkkConsentLabel =>
@@ -472,7 +471,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get registerCaptchaDigitsOnly =>
-      'Güvenlik kodu yalnızca rakamlardan oluşmalıdır.';
+      'Güvenlik kodu yalnızca harf ve rakamlardan oluşmalıdır.';
 
   @override
   String get registerPreviewFailed => 'Kayıt bilgileri doğrulanamadı.';
@@ -509,7 +508,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get submitInProgress => 'Gönderiliyor...';
 
   @override
-  String get registerSubmitAction => 'Kayıt isteği gönder';
+  String get registerSubmitAction => 'Kaydol';
 
   @override
   String get resendAction => 'Tekrar gönder';

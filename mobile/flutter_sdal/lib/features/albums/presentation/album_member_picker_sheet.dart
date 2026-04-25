@@ -116,7 +116,10 @@ class _AlbumMemberPickerSheetState
                             [
                               if (member.handle.isNotEmpty) '@${member.handle}',
                               if (member.graduationYear.isNotEmpty)
-                                member.graduationYear,
+                                _formatGraduationYear(
+                                  context,
+                                  member.graduationYear,
+                                ),
                             ].join(' • '),
                           ),
                           controlAffinity: ListTileControlAffinity.leading,
@@ -155,4 +158,17 @@ class _AlbumMemberPickerSheetState
       if (mounted) setState(() => _isLoading = false);
     }
   }
+}
+
+String _formatGraduationYear(BuildContext context, String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen') {
+    return Localizations.localeOf(context).languageCode == 'tr'
+        ? 'Öğretmen'
+        : 'Teacher';
+  }
+  return value;
 }
