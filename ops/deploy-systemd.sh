@@ -58,8 +58,10 @@ log "installing server dependencies"
 npm --prefix server ci --omit=dev
 
 log "installing frontend dependencies"
-npm --prefix frontend-classic ci
-npm --prefix frontend-modern ci
+# Frontend builds need Vite and related build tooling from devDependencies.
+# NODE_ENV is often production in deploy shells, so npm ci would otherwise omit them.
+npm --prefix frontend-classic ci --include=dev
+npm --prefix frontend-modern ci --include=dev
 
 log "building frontends"
 npm run build
