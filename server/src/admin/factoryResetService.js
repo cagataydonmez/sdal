@@ -56,7 +56,13 @@ function assertSafeUploadDir(uploadDir, appRootDir) {
     throw new Error(`Unsafe upload directory refused: ${resolved}`);
   }
   const base = path.basename(resolved).toLowerCase();
-  if (!['uploads', 'media', 'sdal-uploads'].includes(base) && !resolved.toLowerCase().includes(`${path.sep}uploads`)) {
+  const segments = resolved.split(path.sep).filter(Boolean).map((segment) => segment.toLowerCase());
+  const allowedBase = ['uploads', 'media', 'sdal-uploads', 'storage'].includes(base);
+  const appOwnedSignal = base === 'uploads'
+    || base === 'sdal-uploads'
+    || segments.includes('sdal')
+    || resolved.toLowerCase().includes(`${path.sep}sdal-`);
+  if (segments.length < 2 || !allowedBase || !appOwnedSignal) {
     throw new Error(`Upload directory does not look app-owned: ${resolved}`);
   }
   return resolved;
@@ -93,6 +99,44 @@ async function deleteUploads({ uploadDir, appRootDir, dryRun }) {
   return {
     uploadDir: safeUploadDir,
     deletedEntries: candidates.map((item) => path.basename(item)),
+    dryRun
+  };
+}
+
+function uploadDirCandidatesFromEnv() {
+  return [
+    process.env.SDAL_UPLOADS_DIR,
+    process.env.STORAGE_LOCAL_DIR,
+    process.env.MEDIA_LOCAL_BASE_PATH
+  ].map(normalizeText).filter(Boolean);
+}
+
+async function readConfiguredMediaBasePath(sqlGetAsync) {
+  try {
+    const row = await sqlGetAsync('SELECT local_base_path FROM media_settings WHERE id = 1');
+    return normalizeText(row?.local_base_path);
+  } catch {
+    return '';
+  }
+}
+
+async function collectUploadDirs({ uploadsDir, sqlGetAsync }) {
+  const candidates = [
+    uploadsDir,
+    ...uploadDirCandidatesFromEnv(),
+    await readConfiguredMediaBasePath(sqlGetAsync)
+  ].map(normalizeText).filter(Boolean);
+  return [...new Set(candidates.map((item) => path.resolve(item)))];
+}
+
+async function deleteUploadDirs({ uploadDirs, appRootDir, dryRun }) {
+  const results = [];
+  for (const uploadDir of uploadDirs) {
+    results.push(await deleteUploads({ uploadDir, appRootDir, dryRun }));
+  }
+  return {
+    directories: results,
+    deletedEntries: results.flatMap((result) => result.deletedEntries.map((entry) => path.join(result.uploadDir, entry))),
     dryRun
   };
 }
@@ -180,6 +224,9 @@ async function createRootAdmin({
       ]
     );
     const root = await sqlGetAsync('SELECT id FROM users WHERE lower(username) = lower(?) LIMIT 1', [ROOT_ADMIN_USERNAME]);
+    if (root?.id) {
+      await sqlRunAsync('UPDATE users SET quick_access_ids_json = ? WHERE id = ?', ['0', root.id]).catch(() => {});
+    }
     await sqlRunAsync(
       `UPDATE users
        SET role = 'user', legacy_admin_flag = FALSE, updated_at = ?
@@ -220,6 +267,9 @@ async function createRootAdmin({
     ]
   );
   const root = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(kadi) = lower(?) LIMIT 1', [ROOT_ADMIN_USERNAME]);
+  if (root?.id) {
+    await sqlRunAsync('UPDATE uyeler SET hizliliste = ? WHERE id = ?', ['0', root.id]).catch(() => {});
+  }
   await sqlRunAsync(
     `UPDATE uyeler
      SET role = 'user', admin = 0
@@ -285,6 +335,7 @@ export function createFactoryResetService({
   rbacService,
   seedRuntimeDefaults,
   createDbBackup,
+  clearRuntimeCaches,
   writeAppLog = () => {}
 }) {
   async function performFactoryReset({ actor, ip, userAgent, dryRun = false } = {}) {
@@ -300,7 +351,8 @@ export function createFactoryResetService({
     const tablePlan = dbDriver === 'postgres'
       ? await postgresTables(sqlAllAsync)
       : await sqliteTables(sqlAllAsync);
-    const uploadPlan = await deleteUploads({ uploadDir: uploadsDir, appRootDir, dryRun: true });
+    const uploadDirs = await collectUploadDirs({ uploadsDir, sqlGetAsync });
+    const uploadPlan = await deleteUploadDirs({ uploadDirs, appRootDir, dryRun: true });
     if (dryRun) {
       await writeResetAudit({
         dbDriver,
@@ -348,7 +400,10 @@ export function createFactoryResetService({
       hashPassword,
       rbacService
     });
-    const uploadResult = await deleteUploads({ uploadDir: uploadsDir, appRootDir, dryRun: false });
+    const uploadResult = await deleteUploadDirs({ uploadDirs, appRootDir, dryRun: false });
+    if (typeof clearRuntimeCaches === 'function') {
+      await clearRuntimeCaches();
+    }
     await writeResetAudit({
       dbDriver,
       sqlRunAsync,
@@ -364,6 +419,7 @@ export function createFactoryResetService({
       rootUserId: root?.id || null,
       tableCount: wipeResult.tables.length,
       uploads: uploadResult.deletedEntries.length,
+      uploadDirectories: uploadResult.directories.map((item) => item.uploadDir),
       backup: backupResult
     });
 

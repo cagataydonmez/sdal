@@ -120,6 +120,29 @@ export async function deleteCacheKey(rawKey) {
   memoryDel(key);
 }
 
+export async function clearPerformanceCaches() {
+  memoryCache.clear();
+  memoryNamespaceVersions.clear();
+
+  const redis = await getReadyRedisClient();
+  if (!redis) return;
+
+  try {
+    const keys = [];
+    for await (const key of redis.scanIterator({ MATCH: 'sdal:cache:*', COUNT: 100 })) {
+      keys.push(key);
+      if (keys.length >= 100) {
+        await redis.del(keys.splice(0, keys.length));
+      }
+    }
+    if (keys.length) {
+      await redis.del(keys);
+    }
+  } catch {
+    // Cache clearing is best-effort; callers still bump namespace versions afterwards.
+  }
+}
+
 export async function getCacheNamespaceVersion(namespace) {
   const ns = String(namespace || 'default').trim() || 'default';
   const redis = await getReadyRedisClient();

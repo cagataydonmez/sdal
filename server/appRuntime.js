@@ -59,7 +59,7 @@ import { createAuthHelpers } from './src/auth/createAuthHelpers.js';
 import { buildMobileOAuthCallbackUrl } from './src/auth/mobileOAuthCallback.js';
 import { checkPostgresHealth, closePostgresPool, getPostgresPoolState, isPostgresConfigured } from './src/infra/postgresPool.js';
 import { checkRedisHealth, closeRedisClient, getRedisState, isRedisConfigured } from './src/infra/redisClient.js';
-import { buildVersionedCacheKey, bumpCacheNamespaceVersion, getCacheJson, setCacheJson } from './src/infra/performanceCache.js';
+import { buildVersionedCacheKey, bumpCacheNamespaceVersion, clearPerformanceCaches, getCacheJson, setCacheJson } from './src/infra/performanceCache.js';
 import { consumeMobileOAuthToken, issueMobileOAuthToken } from './src/infra/mobileOAuthTokenStore.js';
 import { createRealtimeBus } from './src/infra/realtimeBus.js';
 import { createJobQueue } from './src/infra/jobQueue.js';
@@ -944,6 +944,7 @@ const factoryResetService = createFactoryResetService({
   rbacService,
   seedRuntimeDefaults: ensureRuntimeDefaults,
   createDbBackup: dbAdminRuntime.createDbBackup,
+  clearRuntimeCaches: clearFactoryResetRuntimeCaches,
   writeAppLog
 });
 
@@ -1000,6 +1001,26 @@ let adminLiveResponseCache = { expiresAt: 0, key: '', value: null };
 let adminStorageSnapshotCache = { expiresAt: 0, value: null };
 let membersNameRowsCache = { expiresAt: 0, value: null };
 const exploreSuggestionsResponseCache = new Map();
+
+async function clearFactoryResetRuntimeCaches() {
+  siteControlCache = { expiresAt: 0, value: null };
+  moduleControlCache = { expiresAt: 0, value: null };
+  adminStatsResponseCache = { expiresAt: 0, key: '', value: null };
+  adminLiveResponseCache = { expiresAt: 0, key: '', value: null };
+  adminStorageSnapshotCache = { expiresAt: 0, value: null };
+  membersNameRowsCache = { expiresAt: 0, value: null };
+  exploreSuggestionsResponseCache.clear();
+
+  await clearPerformanceCaches();
+  await Promise.all(
+    Object.values(cacheNamespaces).map((namespace) => bumpCacheNamespaceVersion(namespace).catch((err) => {
+      writeAppLog('warn', 'factory_reset_cache_namespace_bump_failed', {
+        namespace,
+        message: err?.message || 'unknown_error'
+      });
+    }))
+  );
+}
 
 function invalidateControlSnapshots() {
   siteControlCache.expiresAt = 0;
