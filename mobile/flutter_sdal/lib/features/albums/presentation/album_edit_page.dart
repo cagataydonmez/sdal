@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/session/session_controller.dart';
@@ -23,6 +25,16 @@ class _AlbumEditPageState extends ConsumerState<AlbumEditPage> {
   String _visibilityScope = 'public';
   final List<MemberSummary> _allowedMembers = <MemberSummary>[];
   final List<GroupListItem> _allowedGroups = <GroupListItem>[];
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(
+      Future<void>.microtask(
+        () => ref.read(sessionControllerProvider.notifier).refreshSilently(),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -231,6 +243,7 @@ class _AlbumEditPageState extends ConsumerState<AlbumEditPage> {
       return;
     }
 
+    await ref.read(sessionControllerProvider.notifier).refreshSilently();
     final graduationYear =
         ref.read(sessionControllerProvider).value?.user?.graduationYear ?? '';
     final ok = await ref

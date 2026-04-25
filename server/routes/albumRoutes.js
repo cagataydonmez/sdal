@@ -793,7 +793,10 @@ export function registerAlbumRoutes(app, {
         visibilityScope = 'public';
       }
 
-      const requestedCohort = String(req.body?.cohortYear || req.body?.cohort || viewer?.mezuniyetyili || '').trim();
+      const viewerCohort = String(viewer?.mezuniyetyili || '').trim();
+      const requestedCohort = visibilityScope === 'cohort'
+        ? viewerCohort
+        : String(req.body?.cohortYear || req.body?.cohort || viewerCohort || '').trim();
       const userIds = parseIdArray(req.body?.allowedUserIds);
       const groupIds = parseIdArray(req.body?.allowedGroupIds);
       const albumType = isProfileAlbum

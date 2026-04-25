@@ -27,7 +27,8 @@ export function registerAdminRequestModerationRoutes(app, {
   logTeacherLinkModerationEvent,
   buildTeacherLinkModerationAssessment,
   ensureCanModerateTargetUser,
-  assignUserToCohort
+  assignUserToCohort,
+  applyUserGraduationYearChange
 }) {
   app.get('/api/new/admin/requests/notifications', requireAdmin, async (req, res) => {
     try {
@@ -185,13 +186,19 @@ export function registerAdminRequestModerationRoutes(app, {
         [status, new Date().toISOString(), req.session.userId, resolutionNote || null, requestId]
       );
       if (status === 'approved' && row.category_key === 'graduation_year_change') {
-        if (dbDriver === 'postgres') {
-          await sqlRunAsync('UPDATE users SET graduation_year = ? WHERE id = ?', [approvedGraduationYear, row.user_id]);
+        if (typeof applyUserGraduationYearChange === 'function') {
+          applyUserGraduationYearChange(row.user_id, approvedGraduationYear, {
+            previousYear: row.mezuniyetyili
+          });
         } else {
-          await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [approvedGraduationYear, row.user_id]);
-        }
-        if (typeof assignUserToCohort === 'function') {
-          assignUserToCohort(row.user_id);
+          if (dbDriver === 'postgres') {
+            await sqlRunAsync('UPDATE users SET graduation_year = ? WHERE id = ?', [approvedGraduationYear, row.user_id]);
+          } else {
+            await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [approvedGraduationYear, row.user_id]);
+          }
+          if (typeof assignUserToCohort === 'function') {
+            assignUserToCohort(row.user_id);
+          }
         }
       }
       addNotification({

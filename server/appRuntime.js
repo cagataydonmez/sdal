@@ -3837,7 +3837,8 @@ registerAdminOperationsRoutes(app, {
   listLogFiles,
   sanitizePlainUserText,
   formatUserText,
-  scheduleEngagementRecalculation
+  scheduleEngagementRecalculation,
+  applyUserGraduationYearChange
 });
 
 // --- Helper: enrich a post/story row with image variants ---
@@ -3890,7 +3891,8 @@ registerAdminManagementRoutes(app, {
   queueEmailDelivery,
   extractEmails,
   sanitizePlainUserText,
-  formatUserText
+  formatUserText,
+  applyUserGraduationYearChange
 });
 
 
@@ -4866,7 +4868,8 @@ registerAdminRequestModerationRoutes(app, {
   logTeacherLinkModerationEvent,
   buildTeacherLinkModerationAssessment,
   ensureCanModerateTargetUser,
-  assignUserToCohort
+  assignUserToCohort,
+  applyUserGraduationYearChange
 });
 
 registerAdminExperimentRoutes(app, {
@@ -5075,6 +5078,79 @@ function assignUserToCohort(userId) {
       new Date().toISOString()
     ]);
   }
+}
+
+function cohortGroupNameForValue(value) {
+  const normalized = normalizeCohortValue(value);
+  if (!normalized || normalized === '0') return '';
+  if (normalized === TEACHER_COHORT_VALUE) return 'Öğretmenler';
+  const year = parseInt(normalized, 10);
+  if (isNaN(year) || year < 1960 || year > new Date().getFullYear() + 5) return '';
+  return `${year} Mezunları`;
+}
+
+function removeUserFromAutoCohortGroup(userId, graduationYear) {
+  const groupName = cohortGroupNameForValue(graduationYear);
+  if (!groupName) return;
+  const group = sqlGet('SELECT id FROM groups WHERE name = ?', [groupName]);
+  if (!group?.id) return;
+  sqlRun(
+    "DELETE FROM group_members WHERE group_id = ? AND user_id = ? AND COALESCE(role, 'member') = 'member'",
+    [group.id, userId]
+  );
+}
+
+function applyUserGraduationYearChange(userId, nextYear, { previousYear = '' } = {}) {
+  const safeUserId = Number(userId || 0);
+  const normalizedNextYear = normalizeCohortValue(nextYear);
+  if (!safeUserId || !hasValidGraduationYear(normalizedNextYear)) {
+    throw new Error('invalid_graduation_year_change');
+  }
+  const current = sqlGet('SELECT id, mezuniyetyili FROM uyeler WHERE id = ?', [safeUserId])
+    || sqlGet('SELECT id, graduation_year AS mezuniyetyili FROM users WHERE id = ?', [safeUserId]);
+  const normalizedPreviousYear = normalizeCohortValue(previousYear || current?.mezuniyetyili || '');
+  if (dbDriver === 'postgres') {
+    sqlRun('UPDATE users SET graduation_year = ?, updated_at = ? WHERE id = ?', [normalizedNextYear, new Date().toISOString(), safeUserId]);
+    try {
+      sqlRun(
+        `UPDATE album_categories
+         SET cohort_year = ?
+         WHERE owner_user_id = ?
+           AND COALESCE(album_type, 'general') = 'cohort'
+           AND COALESCE(visibility_scope, 'public') = 'cohort'`,
+        [normalizedNextYear, safeUserId]
+      );
+    } catch {
+      // Album tables may not exist in older transitional databases.
+    }
+  } else {
+    sqlRun('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [normalizedNextYear, safeUserId]);
+    try {
+      sqlRun(
+        `UPDATE album_kat
+         SET cohort_year = ?
+         WHERE owner_user_id = ?
+           AND COALESCE(album_type, 'general') = 'cohort'
+           AND COALESCE(visibility_scope, 'public') = 'cohort'`,
+        [normalizedNextYear, safeUserId]
+      );
+    } catch {
+      // Album tables may not exist in older transitional databases.
+    }
+  }
+  if (normalizedPreviousYear && normalizedPreviousYear !== normalizedNextYear) {
+    removeUserFromAutoCohortGroup(safeUserId, normalizedPreviousYear);
+  }
+  assignUserToCohort(safeUserId);
+  membersNameRowsCache = { expiresAt: 0, value: null };
+  exploreSuggestionsResponseCache.clear();
+  invalidateCacheNamespace(cacheNamespaces.profile);
+  invalidateCacheNamespace(cacheNamespaces.feed);
+  return {
+    userId: safeUserId,
+    previousYear: normalizedPreviousYear,
+    nextYear: normalizedNextYear
+  };
 }
 
 app.get('/api/new/admin/db/tables', requireAdmin, async (_req, res) => {

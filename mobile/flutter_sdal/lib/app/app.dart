@@ -18,6 +18,10 @@ import '../core/widgets/status_views.dart';
 import '../features/messenger/data/messenger_repository.dart';
 import '../features/notifications/data/notifications_repository.dart';
 import '../features/admin/presentation/admin_api_monitor_widgets.dart';
+import '../features/albums/data/albums_repository.dart';
+import '../features/explore/data/explore_repository.dart';
+import '../features/feed/data/feed_repository.dart';
+import '../features/groups/data/groups_repository.dart';
 import '../features/push_notifications/presentation/push_notifications_bootstrap.dart';
 
 class SdalFlutterApp extends ConsumerWidget {
@@ -158,6 +162,7 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
   StreamSubscription<MessengerRealtimeEvent>? _messengerEventsSubscription;
   Timer? _heartbeatTimer;
   Duration? _heartbeatInterval;
+  DateTime? _lastSessionRefreshAt;
   bool _isForeground = true;
   bool _isAuthenticated = false;
   RealtimeConnectionStatus _messengerStatus =
@@ -181,9 +186,10 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
     _isAuthenticated = snapshot?.isAuthenticated ?? false;
     _syncLiveServices();
     _sessionSubscription = ref.listenManual(sessionControllerProvider, (
-      _,
+      previous,
       next,
     ) {
+      _handleSessionSnapshotChanged(previous, next);
       _isAuthenticated = next.value?.isAuthenticated ?? false;
       _syncLiveServices();
     });
@@ -191,6 +197,7 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasForeground = _isForeground;
     _isForeground = switch (state) {
       AppLifecycleState.resumed => true,
       AppLifecycleState.inactive => true,
@@ -198,6 +205,9 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
       AppLifecycleState.paused => false,
       AppLifecycleState.detached => false,
     };
+    if (!wasForeground && _isForeground) {
+      _refreshSessionSnapshot();
+    }
     _syncLiveServices();
   }
 
@@ -208,11 +218,41 @@ class _LiveSyncBootstrapState extends ConsumerState<LiveSyncBootstrap>
     ref.invalidate(notificationsProvider);
   }
 
+  void _handleSessionSnapshotChanged(
+    AsyncValue<SessionSnapshot>? previous,
+    AsyncValue<SessionSnapshot> next,
+  ) {
+    final previousYear = previous?.value?.user?.graduationYear ?? '';
+    final nextYear = next.value?.user?.graduationYear ?? '';
+    if (previousYear == nextYear) return;
+    ref.invalidate(albumsDashboardProvider);
+    ref.invalidate(myAlbumsProvider);
+    ref.invalidate(feedPageProvider);
+    ref.invalidate(feedItemsProvider);
+    ref.invalidate(onlineMembersProvider);
+    ref.invalidate(directoryMembersProvider);
+    ref.invalidate(suggestionMembersProvider);
+    ref.invalidate(latestMembersProvider);
+    ref.invalidate(groupsListProvider);
+  }
+
   void _runHeartbeatTick() {
+    _refreshSessionSnapshot(minInterval: const Duration(minutes: 2));
     ref.invalidate(messengerThreadsProvider(''));
     ref.invalidate(messengerUnreadCountProvider);
     ref.invalidate(notificationUnreadCountProvider);
     ref.invalidate(notificationsProvider);
+  }
+
+  void _refreshSessionSnapshot({
+    Duration minInterval = const Duration(seconds: 20),
+  }) {
+    if (!_isAuthenticated) return;
+    final now = DateTime.now();
+    final last = _lastSessionRefreshAt;
+    if (last != null && now.difference(last) < minInterval) return;
+    _lastSessionRefreshAt = now;
+    unawaited(ref.read(sessionControllerProvider.notifier).refreshSilently());
   }
 
   void _syncLiveServices() {

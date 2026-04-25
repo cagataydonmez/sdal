@@ -56,7 +56,8 @@ export function registerAdminOperationsRoutes(app, deps) {
     listLogFiles,
     sanitizePlainUserText,
     formatUserText,
-    scheduleEngagementRecalculation
+    scheduleEngagementRecalculation,
+    applyUserGraduationYearChange
   } = deps;
 
   const albumActivePredicate = dbDriver === 'postgres' ? 'aktif IS TRUE' : 'aktif = 1';
@@ -525,7 +526,13 @@ export function registerAdminOperationsRoutes(app, deps) {
       if (!hasValidGraduationYear(nextYear)) {
         return res.status(400).send(`Mezuniyet yılı ${MIN_GRADUATION_YEAR}-${MAX_GRADUATION_YEAR} aralığında olmalı veya Öğretmen seçilmelidir.`);
       }
-      await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [nextYear, userId]);
+      if (typeof applyUserGraduationYearChange === 'function') {
+        applyUserGraduationYearChange(userId, nextYear, {
+          previousYear: target.mezuniyetyili
+        });
+      } else {
+        await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [nextYear, userId]);
+      }
       logAdminAction(req, 'user_graduation_year_updated', {
         targetType: 'user',
         targetId: userId,
@@ -600,6 +607,14 @@ export function registerAdminOperationsRoutes(app, deps) {
           fields.verified, fields.resim, target.id
         ]
       );
+      if (
+        typeof applyUserGraduationYearChange === 'function'
+        && normalizeCohortValue(target.mezuniyetyili) !== normalizeCohortValue(fields.mezuniyetyili)
+      ) {
+        applyUserGraduationYearChange(target.id, fields.mezuniyetyili, {
+          previousYear: target.mezuniyetyili
+        });
+      }
       scheduleEngagementRecalculation('admin_user_updated');
       res.json({ ok: true });
     } catch (err) {

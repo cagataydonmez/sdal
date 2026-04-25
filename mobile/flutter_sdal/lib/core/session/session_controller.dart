@@ -4,6 +4,7 @@ import 'session_repository.dart';
 
 class SessionController extends AsyncNotifier<SessionSnapshot> {
   SessionRepository get _repository => ref.read(sessionRepositoryProvider);
+  bool _refreshInFlight = false;
 
   @override
   Future<SessionSnapshot> build() {
@@ -35,6 +36,19 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(_repository.bootstrap);
+  }
+
+  Future<void> refreshSilently() async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+    try {
+      final next = await AsyncValue.guard(_repository.bootstrap);
+      if (next.hasValue) {
+        state = next;
+      }
+    } finally {
+      _refreshInFlight = false;
+    }
   }
 
   void expire() {
