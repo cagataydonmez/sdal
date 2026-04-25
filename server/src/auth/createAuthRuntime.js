@@ -18,14 +18,6 @@ const WRITE_ALLOWED_WITHOUT_VERIFICATION = Object.freeze([
   '/api/new/requests',
   '/api/new/requests/upload'
 ]);
-const ROOT_ALLOWED_PATHS = Object.freeze([
-  '/admin/users/',
-  '/admin/moderators/',
-  '/api/admin/login',
-  '/api/admin/logout',
-  '/api/auth/logout'
-]);
-
 function timingSafeTextEqual(a, b) {
   const left = Buffer.from(String(a || ''), 'utf8');
   const right = Buffer.from(String(b || ''), 'utf8');
@@ -370,10 +362,6 @@ export function createAuthRuntime({
     }
     if (req.path.startsWith('/api/new/') && isOAuthProfileIncomplete(req.authUser)) {
       return res.status(403).json({ error: 'PROFILE_INCOMPLETE', message: 'Mezuniyet yılını (en az 1999) girmeden bu özelliği kullanamazsın.' });
-    }
-    if (isRootUser(user) && writeMethod) {
-      const allowed = ROOT_ALLOWED_PATHS.some((prefix) => req.path.startsWith(prefix));
-      if (!allowed) return res.status(403).send('ROOT hesabı normal kullanıcı işlemleri yapamaz.');
     }
     return next();
   }

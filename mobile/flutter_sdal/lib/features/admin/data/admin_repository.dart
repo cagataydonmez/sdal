@@ -1028,6 +1028,153 @@ class AdminUserDetail {
   }
 }
 
+class AdminPermissionDefinition {
+  const AdminPermissionDefinition({
+    required this.id,
+    required this.key,
+    required this.label,
+    required this.description,
+  });
+
+  final int id;
+  final String key;
+  final String label;
+  final String description;
+
+  factory AdminPermissionDefinition.fromMap(JsonMap map) {
+    return AdminPermissionDefinition(
+      id: asInt(map['id']) ?? 0,
+      key: coalesceText([map['key'], map['permission_key']], fallback: ''),
+      label: coalesceText([map['label'], map['key']], fallback: ''),
+      description: coalesceText([map['description']], fallback: ''),
+    );
+  }
+}
+
+class AdminGroupPermission {
+  const AdminGroupPermission({
+    required this.key,
+    required this.canRead,
+    required this.canWrite,
+  });
+
+  final String key;
+  final bool canRead;
+  final bool canWrite;
+
+  JsonMap toJson() => {'key': key, 'canRead': canRead, 'canWrite': canWrite};
+
+  factory AdminGroupPermission.fromMap(JsonMap map) {
+    return AdminGroupPermission(
+      key: coalesceText([map['key'], map['permission_key']], fallback: ''),
+      canRead:
+          asBool(map['canRead']) ??
+          asBool(map['can_read']) ??
+          asBool(map['read']) ??
+          false,
+      canWrite:
+          asBool(map['canWrite']) ??
+          asBool(map['can_write']) ??
+          asBool(map['write']) ??
+          false,
+    );
+  }
+}
+
+class AdminPermissionGroup {
+  const AdminPermissionGroup({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.isSystem,
+    required this.permissions,
+  });
+
+  final int id;
+  final String name;
+  final String description;
+  final bool isSystem;
+  final List<AdminGroupPermission> permissions;
+
+  bool get isDefaultGroup => const {'admin', 'mod', 'user'}.contains(name);
+
+  factory AdminPermissionGroup.fromMap(JsonMap map) {
+    return AdminPermissionGroup(
+      id: asInt(map['id']) ?? 0,
+      name: coalesceText([map['name']], fallback: ''),
+      description: coalesceText([map['description']], fallback: ''),
+      isSystem: asBool(map['isSystem']) ?? asBool(map['is_system']) ?? false,
+      permissions: asJsonMapList(
+        map['permissions'],
+      ).map(AdminGroupPermission.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminPermissionUser {
+  const AdminPermissionUser({
+    required this.id,
+    required this.handle,
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.isRoot,
+    required this.groupId,
+    required this.groupName,
+  });
+
+  final int id;
+  final String handle;
+  final String name;
+  final String email;
+  final String role;
+  final bool isRoot;
+  final int groupId;
+  final String groupName;
+
+  factory AdminPermissionUser.fromMap(JsonMap map) {
+    final firstName = coalesceText([
+      map['firstName'],
+      map['first_name'],
+    ], fallback: '');
+    final lastName = coalesceText([
+      map['lastName'],
+      map['last_name'],
+    ], fallback: '');
+    final group = asJsonMap(map['group']);
+    return AdminPermissionUser(
+      id: asInt(map['id']) ?? 0,
+      handle: coalesceText([map['username'], map['kadi']], fallback: ''),
+      name: '$firstName $lastName'.trim(),
+      email: coalesceText([map['email']], fallback: ''),
+      role: coalesceText([map['role']], fallback: 'user'),
+      isRoot: asBool(map['isRoot']) ?? false,
+      groupId: asInt(group['id']) ?? 0,
+      groupName: coalesceText([group['name']], fallback: ''),
+    );
+  }
+}
+
+class AdminPermissionUsersSnapshot {
+  const AdminPermissionUsersSnapshot({
+    required this.total,
+    required this.users,
+  });
+
+  final int total;
+  final List<AdminPermissionUser> users;
+
+  factory AdminPermissionUsersSnapshot.fromMap(JsonMap map) {
+    final meta = asJsonMap(map['meta']);
+    return AdminPermissionUsersSnapshot(
+      total: asInt(meta['total']) ?? asJsonMapList(map['users']).length,
+      users: asJsonMapList(
+        map['users'],
+      ).map(AdminPermissionUser.fromMap).toList(growable: false),
+    );
+  }
+}
+
 class AdminRepository {
   const AdminRepository(this._apiClient);
 
@@ -1664,6 +1811,96 @@ class AdminRepository {
     );
   }
 
+  Future<List<AdminPermissionDefinition>> fetchPermissions() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/permissions',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['permissions'],
+    ).map(AdminPermissionDefinition.fromMap).toList(growable: false);
+  }
+
+  Future<List<AdminPermissionGroup>> fetchPermissionGroups() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/permission-groups',
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['groups'],
+    ).map(AdminPermissionGroup.fromMap).toList(growable: false);
+  }
+
+  Future<void> savePermissionGroup({
+    int? id,
+    required String name,
+    required String description,
+    required List<AdminGroupPermission> permissions,
+  }) async {
+    final body = {
+      'name': name,
+      'description': description,
+      'permissions': permissions.map((item) => item.toJson()).toList(),
+    };
+    if (id == null || id <= 0) {
+      await _apiClient.post<dynamic>(
+        '/api/admin/permission-groups',
+        body: body,
+      );
+      return;
+    }
+    await _apiClient.put<dynamic>(
+      '/api/admin/permission-groups/$id',
+      body: body,
+    );
+  }
+
+  Future<void> deletePermissionGroup(int id) async {
+    await _apiClient.delete<dynamic>('/api/admin/permission-groups/$id');
+  }
+
+  Future<AdminPermissionUsersSnapshot> fetchPermissionUsers({
+    String query = '',
+    int page = 1,
+    int limit = 30,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/users/permissions',
+      query: {
+        'page': page,
+        'limit': limit,
+        if (query.trim().isNotEmpty) 'q': query.trim(),
+      },
+      decoder: asJsonMap,
+    );
+    return AdminPermissionUsersSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<void> assignUserPermissionGroup({
+    required int userId,
+    required int groupId,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/users/$userId/permission-group',
+      body: {'groupId': groupId},
+    );
+  }
+
+  Future<void> factoryReset({
+    required String confirmation,
+    required String password,
+    bool dryRun = false,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/admin/factory-reset',
+      body: {
+        'confirmation': confirmation,
+        'password': password,
+        'dryRun': dryRun,
+      },
+    );
+  }
+
   Future<AdminPreviewList<T>> _fetchPreviewList<T>({
     required String path,
     required T Function(JsonMap map) decoder,
@@ -1873,3 +2110,23 @@ final adminLanguageKeysProvider = FutureProvider<List<AdminLanguageKeyItem>>(
 final adminUserDetailProvider = FutureProvider.family<AdminUserDetail, int>(
   (ref, id) => ref.watch(adminRepositoryProvider).fetchUserDetail(id),
 );
+
+final adminPermissionsProvider =
+    FutureProvider<List<AdminPermissionDefinition>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchPermissions(),
+    );
+
+final adminPermissionGroupsProvider =
+    FutureProvider<List<AdminPermissionGroup>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchPermissionGroups(),
+    );
+
+final adminPermissionUsersProvider =
+    FutureProvider.family<
+      AdminPermissionUsersSnapshot,
+      ({String query, int page})
+    >(
+      (ref, query) => ref
+          .watch(adminRepositoryProvider)
+          .fetchPermissionUsers(query: query.query, page: query.page),
+    );

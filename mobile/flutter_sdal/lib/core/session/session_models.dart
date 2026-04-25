@@ -48,6 +48,10 @@ class SessionUser with _$SessionUser {
 
   bool get isModerator => role.trim().toLowerCase() == 'mod';
 
+  bool get isRootAdmin =>
+      kadi.trim().toLowerCase() == 'cagatay' &&
+      role.trim().toLowerCase() == 'root';
+
   bool get hasAdminAccess {
     final normalizedRole = role.trim().toLowerCase();
     return isAdmin || normalizedRole == 'admin' || normalizedRole == 'root';

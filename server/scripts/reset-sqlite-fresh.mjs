@@ -6,6 +6,10 @@ import {
   ensureSqliteRuntimeSchema,
   seedSqliteRuntimeDefaults
 } from './sqlite-runtime-schema.mjs';
+import {
+  DEFAULT_PERMISSION_GROUPS,
+  DEFAULT_PERMISSIONS
+} from '../src/admin/rbacService.js';
 
 const scryptAsync = promisify(crypto.scrypt);
 const PASSWORD_HASH_PREFIX = 'scrypt$';
@@ -14,7 +18,7 @@ function parseArgs(argv) {
   const args = {
     dbPath: '',
     rootPassword: '',
-    cagatayPassword: '',
+    cagatayPassword: process.env.ROOT_BOOTSTRAP_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : '12345'),
     cagatayEmail: 'cagatay@localhost',
     cagatayFirstName: 'Cagatay',
     cagatayLastName: 'Donmez',
@@ -142,10 +146,47 @@ function seedBaselineRows(db, uploadsDir) {
   seedSqliteRuntimeDefaults(db, uploadsDir);
 }
 
+function seedRbacRows(db) {
+  const now = new Date().toISOString();
+  const permissionStmt = db.prepare(
+    `INSERT INTO permissions (permission_key, label, description, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(permission_key) DO UPDATE SET label = excluded.label, description = excluded.description, updated_at = excluded.updated_at`
+  );
+  for (const permission of DEFAULT_PERMISSIONS) {
+    permissionStmt.run(permission.key, permission.label, permission.description, now, now);
+  }
+
+  const groupStmt = db.prepare(
+    `INSERT INTO permission_groups (name, description, is_system, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(name) DO UPDATE SET description = excluded.description, is_system = excluded.is_system, updated_at = excluded.updated_at`
+  );
+  for (const group of DEFAULT_PERMISSION_GROUPS) {
+    groupStmt.run(group.name, group.description, group.isSystem ? 1 : 0, now, now);
+  }
+
+  const permissions = db.prepare('SELECT id, permission_key FROM permissions').all();
+  const permissionByKey = new Map(permissions.map((row) => [row.permission_key, row.id]));
+  const groups = db.prepare('SELECT id, name FROM permission_groups').all();
+  const gpStmt = db.prepare(
+    `INSERT OR REPLACE INTO group_permissions (group_id, permission_id, can_read, can_write, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  for (const group of groups) {
+    for (const permission of DEFAULT_PERMISSIONS) {
+      const key = permission.key;
+      const isAdmin = group.name === 'admin' && key !== 'factory_reset';
+      const isModRead = group.name === 'mod' && ['admin_panel', 'users', 'posts', 'stories', 'groups', 'reports', 'messages', 'events', 'announcements', 'albums', 'logs'].includes(key);
+      const isModWrite = group.name === 'mod' && ['posts', 'stories', 'groups', 'reports', 'messages', 'events', 'announcements', 'albums'].includes(key);
+      gpStmt.run(group.id, permissionByKey.get(key), isAdmin || isModRead || isModWrite ? 1 : 0, isAdmin || isModWrite ? 1 : 0, now, now);
+    }
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   assertRequired(args.dbPath, '--db-path');
-  assertRequired(args.rootPassword, '--root-password');
   assertRequired(args.cagatayPassword, '--cagatay-password');
 
   const dbPath = path.resolve(args.dbPath);
@@ -158,20 +199,7 @@ async function main() {
     ensureSqliteRuntimeSchema(db);
     wipeAllData(db);
 
-    const rootHash = await hashPassword(args.rootPassword);
     const cagatayHash = await hashPassword(args.cagatayPassword);
-
-    const rootInsert = buildUserInsert(db, {
-      kadi: 'root',
-      sifre: rootHash,
-      email: 'root@localhost',
-      isim: 'System',
-      soyisim: 'Root',
-      mezuniyetyili: '0',
-      role: 'root',
-      admin: 1
-    });
-    db.prepare(rootInsert.sql).run(rootInsert.params);
 
     const cagatayInsert = buildUserInsert(db, {
       kadi: 'cagatay',
@@ -180,12 +208,20 @@ async function main() {
       isim: args.cagatayFirstName,
       soyisim: args.cagatayLastName,
       mezuniyetyili: args.cagatayGraduationYear,
-      role: 'admin',
+      role: 'root',
       admin: 1
     });
-    db.prepare(cagatayInsert.sql).run(cagatayInsert.params);
+    const cagatayResult = db.prepare(cagatayInsert.sql).run(cagatayInsert.params);
 
     seedBaselineRows(db, String(process.env.SDAL_UPLOADS_DIR || '/var/lib/sdal/uploads'));
+    seedRbacRows(db);
+    const adminGroup = db.prepare("SELECT id FROM permission_groups WHERE name = 'admin'").get();
+    if (adminGroup?.id) {
+      db.prepare(
+        `INSERT OR REPLACE INTO user_permission_groups (user_id, group_id, assigned_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(cagatayResult.lastInsertRowid, adminGroup.id, cagatayResult.lastInsertRowid, new Date().toISOString(), new Date().toISOString());
+    }
 
     const users = db.prepare('SELECT id, kadi, role, admin, aktiv FROM uyeler ORDER BY id').all();
     console.log('[reset-sqlite] database reset complete');

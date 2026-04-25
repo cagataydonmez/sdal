@@ -29,6 +29,7 @@ import { registerAdminManagementRoutes } from './routes/adminManagementRoutes.js
 import { registerAdminRequestModerationRoutes } from './routes/adminRequestModerationRoutes.js';
 import { registerAdminLanguageRoutes } from './routes/adminLanguageRoutes.js';
 import { registerAdminSecurityRoutes } from './routes/adminSecurityRoutes.js';
+import { registerAdminRootRoutes } from './routes/adminRootRoutes.js';
 import { registerAccountRoutes } from './routes/accountRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
 import { registerGroupRoutes } from './routes/groupRoutes.js';
@@ -45,6 +46,8 @@ import { createPhase1DomainLayer } from './src/bootstrap/createPhase1DomainLayer
 import { createDbAdminRuntime } from './src/admin/createDbAdminRuntime.js';
 import { hardDeleteUser as executeHardDeleteUser } from './src/admin/hardDeleteUser.js';
 import { createAdminInsightsRuntime } from './src/admin/createAdminInsightsRuntime.js';
+import { createFactoryResetService } from './src/admin/factoryResetService.js';
+import { createRbacService, ROOT_ADMIN_USERNAME } from './src/admin/rbacService.js';
 import { createNotificationGovernanceRuntime } from './src/notifications/createNotificationGovernanceRuntime.js';
 import { createNotificationPresentationRuntime } from './src/notifications/createNotificationPresentationRuntime.js';
 import { createNotificationPushRuntime } from './src/notifications/createNotificationPushRuntime.js';
@@ -368,6 +371,17 @@ const connectionRequestRateLimit = createRateLimitMiddleware({
       retryAfterMinutes
     });
   }
+});
+
+const factoryResetRateLimit = createRateLimitMiddleware({
+  bucket: 'factory_reset',
+  limit: envInt('RATE_LIMIT_FACTORY_RESET_MAX', 3),
+  windowSeconds: envInt('RATE_LIMIT_FACTORY_RESET_WINDOW_SECONDS', 3600),
+  keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`,
+  onBlocked: (_req, res) => res.status(429).json({
+    error: 'FACTORY_RESET_RATE_LIMITED',
+    message: 'Too many factory reset attempts. Please wait before trying again.'
+  })
 });
 
 const mentorshipRequestRateLimit = createRateLimitMiddleware({
@@ -791,15 +805,27 @@ async function ensureRootBootstrapAccount() {
   const hashed = await hashPassword(rootPassword);
 
   if (dbDriver === 'postgres') {
-    const existingRoot = sqlGet("SELECT id FROM users WHERE lower(role) = 'root' LIMIT 1");
-    if (existingRoot) return;
+    sqlRun("UPDATE users SET role = 'user', legacy_admin_flag = FALSE, updated_at = ? WHERE lower(username) <> lower(?) AND lower(role) = 'root'", [now, ROOT_ADMIN_USERNAME]);
+    const existingRoot = sqlGet('SELECT id, username FROM users WHERE lower(role) = ? LIMIT 1', ['root']);
+    if (existingRoot && String(existingRoot.username || '').toLowerCase() === ROOT_ADMIN_USERNAME) return;
+    if (existingRoot && String(existingRoot.username || '').toLowerCase() !== ROOT_ADMIN_USERNAME) {
+      sqlRun("UPDATE users SET role = 'user', legacy_admin_flag = FALSE, updated_at = ? WHERE id = ?", [now, existingRoot.id]);
+    }
+    const existingCagatay = sqlGet('SELECT id FROM users WHERE lower(username) = lower(?) LIMIT 1', [ROOT_ADMIN_USERNAME]);
+    if (existingCagatay) {
+      sqlRun(
+        "UPDATE users SET role = 'root', legacy_admin_flag = TRUE, is_active = TRUE, is_verified = TRUE, verification_status = 'approved', updated_at = ? WHERE id = ?",
+        [now, existingCagatay.id]
+      );
+      return;
+    }
     const result = sqlRun(
       `INSERT INTO users
         (username, password_hash, email, first_name, last_name, activation_token, is_active, created_at, avatar_path, graduation_year, is_profile_initialized, role, legacy_admin_flag, is_verified, verification_status, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, '', 0, TRUE, 'root', TRUE, TRUE, 'approved', ?)`,
-      ['root', hashed, 'root@localhost', 'System', 'Root', 'root-bootstrap', now, now]
+      [ROOT_ADMIN_USERNAME, hashed, 'cagatay@localhost', 'Cagatay', 'Donmez', 'root-bootstrap', now, now]
     );
-    const rootId = result?.lastInsertRowid || sqlGet("SELECT id FROM users WHERE username = 'root'")?.id;
+    const rootId = result?.lastInsertRowid || sqlGet('SELECT id FROM users WHERE lower(username) = lower(?)', [ROOT_ADMIN_USERNAME])?.id;
     if (rootId) {
       sqlRun(
         "UPDATE users SET role = 'root', legacy_admin_flag = TRUE, is_verified = TRUE, verification_status = 'approved', updated_at = ? WHERE id = ?",
@@ -813,14 +839,23 @@ async function ensureRootBootstrapAccount() {
     return;
   }
 
-  const existingRoot = sqlGet("SELECT id FROM uyeler WHERE lower(role) = 'root' LIMIT 1");
-  if (existingRoot) return;
+  sqlRun("UPDATE uyeler SET role = 'user', admin = 0 WHERE lower(kadi) <> lower(?) AND lower(role) = 'root'", [ROOT_ADMIN_USERNAME]);
+  const existingRoot = sqlGet('SELECT id, kadi FROM uyeler WHERE lower(role) = ? LIMIT 1', ['root']);
+  if (existingRoot && String(existingRoot.kadi || '').toLowerCase() === ROOT_ADMIN_USERNAME) return;
+  if (existingRoot && String(existingRoot.kadi || '').toLowerCase() !== ROOT_ADMIN_USERNAME) {
+    sqlRun("UPDATE uyeler SET role = 'user', admin = 0 WHERE id = ?", [existingRoot.id]);
+  }
+  const existingCagatay = sqlGet('SELECT id FROM uyeler WHERE lower(kadi) = lower(?) LIMIT 1', [ROOT_ADMIN_USERNAME]);
+  if (existingCagatay) {
+    sqlRun("UPDATE uyeler SET role = 'root', admin = 1, aktiv = 1, verified = 1, verification_status = 'approved' WHERE id = ?", [existingCagatay.id]);
+    return;
+  }
   const result = sqlRun(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, '', '0', 1, 'root', 1, 1, 'approved')`,
-    ['root', hashed, 'root@localhost', 'System', 'Root', 'root-bootstrap', now]
+    [ROOT_ADMIN_USERNAME, hashed, 'cagatay@localhost', 'Cagatay', 'Donmez', 'root-bootstrap', now]
   );
-  const rootId = result?.lastInsertRowid || sqlGet("SELECT id FROM uyeler WHERE kadi = 'root'")?.id;
+  const rootId = result?.lastInsertRowid || sqlGet('SELECT id FROM uyeler WHERE lower(kadi) = lower(?)', [ROOT_ADMIN_USERNAME])?.id;
   if (rootId) {
     sqlRun("UPDATE uyeler SET role = 'root', admin = 1 WHERE id = ?", [rootId]);
     if (hasTable('audit_log')) {
@@ -889,6 +924,27 @@ const {
   moderationActionDefinitions: MODERATION_ACTION_DEFINITIONS,
   moderationResourceDefinitions: MODERATION_RESOURCE_DEFINITIONS,
   moderationPermissionKeySet: MODERATION_PERMISSION_KEY_SET
+});
+
+const rbacService = createRbacService({
+  dbDriver,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync
+});
+
+const factoryResetService = createFactoryResetService({
+  dbDriver,
+  appRootDir: __dirname,
+  uploadsDir,
+  sqlAllAsync,
+  sqlGetAsync,
+  sqlRunAsync,
+  hashPassword,
+  rbacService,
+  seedRuntimeDefaults: ensureRuntimeDefaults,
+  createDbBackup: dbAdminRuntime.createDbBackup,
+  writeAppLog
 });
 
 const {
@@ -2965,6 +3021,14 @@ function findOrCreateOAuthUser({ provider, profile }) {
       ]
     );
     const userId = result?.lastInsertRowid || sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [kadi])?.id;
+    if (userId) {
+      rbacService.assignDefaultUserGroup(userId, userId).catch((err) => {
+        writeAppLog('warn', 'oauth_default_permission_group_failed', {
+          userId,
+          error: err?.message || String(err)
+        });
+      });
+    }
     user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [userId]);
   }
 
@@ -3688,6 +3752,17 @@ registerAdminModerationRoutes(app, {
   toDbBooleanParam
 });
 
+registerAdminRootRoutes(app, {
+  requireAuth,
+  requireRootAdmin: rbacService.requireRootAdmin,
+  rbacService,
+  factoryResetService,
+  factoryResetRateLimit,
+  verifyPassword,
+  writeAppLog,
+  logAdminAction
+});
+
 registerAdminOperationsRoutes(app, {
   dbDriver,
   sqlGet,
@@ -3828,7 +3903,8 @@ registerAccountRoutes(app, {
   extractEmails,
   mailSender,
   mailProviderStatus,
-  escapeHtml
+  escapeHtml,
+  rbacService
 });
 registerProfileSelfServiceRoutes(app, {
   requireAuth,
@@ -5191,6 +5267,7 @@ const { attachWebSocketServers } = createWebSocketRuntime({
 
 async function onServerStarted() {
   await ensureRuntimeDefaults();
+  await rbacService.seedDefaults();
   await ensureRootBootstrapAccount();
   const usersTableName = dbDriver === 'postgres' ? 'users' : 'uyeler';
   const usersExists = dbDriver === 'postgres'

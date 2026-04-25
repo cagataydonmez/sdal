@@ -131,6 +131,26 @@ class AdminWorkspacePage extends ConsumerWidget {
                     tone: _WorkspaceTone.info,
                     onTap: () => context.go('/admin/management'),
                   ),
+                  if (user.isRootAdmin)
+                    _WorkspaceNavCard(
+                      title: 'İzin grupları',
+                      summary:
+                          'Admin, mod, user ve özel grupların read/write yetkileri.',
+                      countLabel: 'Root admin',
+                      icon: Icons.admin_panel_settings_outlined,
+                      tone: _WorkspaceTone.info,
+                      onTap: () => context.go('/admin/permission-groups'),
+                    ),
+                  if (user.isRootAdmin)
+                    _WorkspaceNavCard(
+                      title: 'Kullanıcı izinleri',
+                      summary:
+                          'Üyeleri admin, mod, user veya özel izin gruplarına ata.',
+                      countLabel: '@cagatay korunur',
+                      icon: Icons.manage_accounts_outlined,
+                      tone: _WorkspaceTone.accent,
+                      onTap: () => context.go('/admin/user-permissions'),
+                    ),
                   _WorkspaceNavCard(
                     title: 'Modül yönetimi',
                     summary:
@@ -160,6 +180,16 @@ class AdminWorkspacePage extends ConsumerWidget {
                     tone: _WorkspaceTone.danger,
                     onTap: () => context.go('/admin/operations'),
                   ),
+                  if (user.isRootAdmin)
+                    _WorkspaceNavCard(
+                      title: 'Factory reset',
+                      summary:
+                          'Veritabanı ve upload klasörlerini sıfırlayıp tek root admin oluştur.',
+                      countLabel: 'Yüksek risk',
+                      icon: Icons.delete_forever_outlined,
+                      tone: _WorkspaceTone.danger,
+                      onTap: () => context.go('/admin/factory-reset'),
+                    ),
                 ],
               ),
               const SizedBox(height: 16),

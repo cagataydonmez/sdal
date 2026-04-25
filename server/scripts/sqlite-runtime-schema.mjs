@@ -448,6 +448,49 @@ export function ensureSqliteRuntimeSchema(db) {
       updated_at TEXT,
       UNIQUE(user_id, permission_key)
     );
+    CREATE TABLE IF NOT EXISTS permission_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      is_system INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT,
+      updated_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      permission_key TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS group_permissions (
+      group_id INTEGER NOT NULL,
+      permission_id INTEGER NOT NULL,
+      can_read INTEGER NOT NULL DEFAULT 0,
+      can_write INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT,
+      updated_at TEXT,
+      PRIMARY KEY(group_id, permission_id)
+    );
+    CREATE TABLE IF NOT EXISTS user_permission_groups (
+      user_id INTEGER NOT NULL PRIMARY KEY,
+      group_id INTEGER NOT NULL,
+      assigned_by INTEGER,
+      created_at TEXT,
+      updated_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      metadata TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      created_at TEXT
+    );
   `);
 
   ensureTableColumns(db, 'posts', [

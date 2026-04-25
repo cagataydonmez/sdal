@@ -11,6 +11,7 @@ import '../../features/albums/presentation/albums_page.dart';
 import '../../features/community/presentation/announcements_page.dart';
 import '../../features/community/presentation/events_page.dart';
 import '../../features/admin/presentation/admin_pages.dart';
+import '../../features/admin/presentation/admin_root_pages.dart';
 import '../../features/admin/presentation/admin_workspace_pages.dart';
 import '../../features/bulletin/presentation/bulletin_page.dart';
 import '../../features/explore/presentation/explore_page.dart';
@@ -431,6 +432,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/admin/modules',
                 pageBuilder: (context, state) =>
                     _liftPage(const AdminModuleManagementPage()),
+              ),
+              GoRoute(
+                path: '/admin/factory-reset',
+                pageBuilder: (context, state) =>
+                    _liftPage(const FactoryResetPage()),
+              ),
+              GoRoute(
+                path: '/admin/permission-groups',
+                pageBuilder: (context, state) =>
+                    _liftPage(const PermissionGroupsPage()),
+              ),
+              GoRoute(
+                path: '/admin/user-permissions',
+                pageBuilder: (context, state) =>
+                    _liftPage(const UserPermissionsPage()),
               ),
               GoRoute(
                 path: '/admin/:section',

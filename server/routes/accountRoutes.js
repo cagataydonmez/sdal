@@ -48,7 +48,8 @@ export function registerAccountRoutes(app, deps) {
     extractEmails,
     mailSender,
     mailProviderStatus,
-    escapeHtml
+    escapeHtml,
+    rbacService
   } = deps;
   const validateMail = validateEmail;
 
@@ -272,6 +273,10 @@ export function registerAccountRoutes(app, deps) {
       );
       const newId = result?.lastInsertRowid;
       traceE2E('after_insert', { userId: Number(newId || 0) });
+
+      if (newId && rbacService?.assignDefaultUserGroup) {
+        await rbacService.assignDefaultUserGroup(newId, newId);
+      }
 
       if (e2eMode && e2eRole === 'mod' && newId) {
         traceE2E('before_mod_permissions');
