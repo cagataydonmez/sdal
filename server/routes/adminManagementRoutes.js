@@ -131,8 +131,11 @@ export function registerAdminManagementRoutes(app, {
     const bannedExpr = "(COALESCE(CAST(u.yasak AS INTEGER), 0) = 1 OR COALESCE(LOWER(CAST(u.yasak AS TEXT)), '') IN ('true','evet','yes'))";
     const onlineExpr = "(COALESCE(CAST(u.online AS INTEGER), 0) = 1 OR COALESCE(LOWER(CAST(u.online AS TEXT)), '') IN ('true','evet','yes'))";
 
+    const actorRole = getUserRole(rawQuery.authUser || rawQuery.currentUser || {});
     const whereParts = [];
-    whereParts.push("(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')");
+    if (actorRole !== 'root') {
+      whereParts.push("(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')");
+    }
     const params = [];
     if (filter === 'active') whereParts.push(`${activeExpr} AND NOT ${bannedExpr}`);
     if (filter === 'pending') whereParts.push(`NOT ${activeExpr} AND NOT ${bannedExpr}`);
@@ -246,7 +249,10 @@ export function registerAdminManagementRoutes(app, {
 
   app.get('/api/admin/users/lists', requireAdmin, async (req, res) => {
     try {
-      res.json(await queryAdminUsers(req.query));
+      res.json(await queryAdminUsers({
+        ...req.query,
+        currentUser: req.authUser || req.adminUser
+      }));
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -260,6 +266,7 @@ export function registerAdminManagementRoutes(app, {
       if (!query && !onlyWithPhoto) return res.status(400).send('Aranacak anahtar kelime girmedin.');
       const result = await queryAdminUsers({
         ...req.query,
+        currentUser: req.authUser || req.adminUser,
         q: query,
         photo: onlyWithPhoto ? '1' : req.query.photo,
         filter: 'all',

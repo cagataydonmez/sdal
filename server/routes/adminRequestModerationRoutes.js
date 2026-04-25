@@ -29,17 +29,36 @@ export function registerAdminRequestModerationRoutes(app, {
   ensureCanModerateTargetUser,
   assignUserToCohort
 }) {
-  app.get('/api/new/admin/requests/notifications', requireAdmin, async (_req, res) => {
+  app.get('/api/new/admin/requests/notifications', requireAdmin, async (req, res) => {
     try {
+      const actor = req.authUser || getCurrentUser(req);
+      const scope = getModerationScopeContext(actor);
+      const actorRole = String(scope?.role || actor?.role || '').trim().toLowerCase();
+      const where = ['c.active = 1'];
+      const params = [];
+      if (actorRole !== 'root') {
+        where.push("(r.id IS NULL OR u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')");
+      }
+      if (scope?.isScopedModerator) {
+        const years = Array.isArray(scope.years) ? scope.years : [];
+        if (!years.length) {
+          where.push('r.id IS NULL');
+        } else {
+          where.push(`(r.id IS NULL OR CAST(COALESCE(u.mezuniyetyili, '') AS TEXT) IN (${years.map(() => '?').join(', ')}))`);
+          params.push(...years);
+        }
+      }
       const categories = await sqlAllAsync(
         `SELECT c.category_key, c.label, c.description,
                 COUNT(r.id) AS pending_count,
                 MAX(r.created_at) AS latest_at
          FROM request_categories c
          LEFT JOIN member_requests r ON r.category_key = c.category_key AND r.status = 'pending'
-         WHERE c.active = 1
+         LEFT JOIN uyeler u ON u.id = r.user_id
+         WHERE ${where.join(' AND ')}
          GROUP BY c.category_key, c.label, c.description
-         ORDER BY pending_count DESC, c.id ASC`
+         ORDER BY pending_count DESC, c.id ASC`,
+        params
       );
       res.json({ items: categories });
     } catch(err) {
@@ -52,11 +71,15 @@ export function registerAdminRequestModerationRoutes(app, {
     try {
       const actor = req.authUser || getCurrentUser(req);
       const scope = getModerationScopeContext(actor);
+      const actorRole = String(scope?.role || actor?.role || '').trim().toLowerCase();
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 60, maxLimit: 250 });
       const categoryKey = String(req.query.category || '').trim();
       const status = String(req.query.status || 'pending').trim();
       const q = String(req.query.q || '').trim();
-      const where = ["(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"];
+      const where = [];
+      if (actorRole !== 'root') {
+        where.push("(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')");
+      }
       const params = [];
       if (categoryKey) {
         where.push('r.category_key = ?');
@@ -71,7 +94,9 @@ export function registerAdminRequestModerationRoutes(app, {
         params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
       }
       const scopeFilter = applyModerationScopeFilter(scope, params, 'u.mezuniyetyili');
-      const whereSql = `WHERE ${where.join(' AND ')}${scopeFilter}`;
+      const whereSql = where.length
+        ? `WHERE ${where.join(' AND ')}${scopeFilter}`
+        : (scopeFilter ? `WHERE 1 = 1${scopeFilter}` : '');
 
       const total = Number((await sqlGetAsync(
         `SELECT COUNT(*) AS cnt
