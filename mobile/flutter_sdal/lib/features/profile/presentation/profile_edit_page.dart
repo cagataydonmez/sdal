@@ -21,7 +21,6 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _graduationController = TextEditingController();
   final _cityController = TextEditingController();
   final _professionController = TextEditingController();
   final _companyController = TextEditingController();
@@ -44,7 +43,6 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _graduationController.dispose();
     _cityController.dispose();
     _professionController.dispose();
     _companyController.dispose();
@@ -122,12 +120,13 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                             l10n.profileEditLastNameLabel,
                           ),
                         ),
-                        _ProfileEditField(
-                          controller: _graduationController,
-                          label: l10n.profileEditGraduationYearLabel,
-                          hintText: l10n.profileEditGraduationYearHint,
-                          textInputAction: TextInputAction.next,
-                          validator: _graduationYearValidator,
+                        _GraduationYearRequestTile(
+                          graduationYear: profile.graduationYear,
+                          onRequestChange: actionState.isLoading
+                              ? null
+                              : () => context.push(
+                                  '/requests?category=graduation_year_change',
+                                ),
                         ),
                         _ProfileEditField(
                           controller: _cityController,
@@ -281,7 +280,6 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     if (_didSeedForm) return;
     _firstNameController.text = profile.firstName;
     _lastNameController.text = profile.lastName;
-    _graduationController.text = profile.graduationYear;
     _cityController.text = profile.city;
     _professionController.text = profile.profession;
     _companyController.text = profile.company;
@@ -308,7 +306,6 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     final nextProfile = profile.copyWith(
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
-      graduationYear: _normalizeGraduationYear(_graduationController.text),
       city: _cityController.text.trim(),
       profession: _professionController.text.trim(),
       website: _websiteController.text.trim(),
@@ -350,19 +347,6 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     return context.l10n.profileEditRequiredField(label);
   }
 
-  String? _graduationYearValidator(String? value) {
-    final normalized = _normalizeGraduationYear(value);
-    if (normalized.isEmpty) {
-      return context.l10n.profileEditGraduationYearError;
-    }
-    final year = int.tryParse(normalized);
-    if (year != null && year >= 1999 && year <= 2100) {
-      return null;
-    }
-    if (normalized == 'teacher') return null;
-    return context.l10n.profileEditGraduationYearError;
-  }
-
   String? _websiteValidator(String? value) {
     if (_isBlank(value)) return null;
     return _looksLikeUrl(value) ? null : context.l10n.profileEditWebsiteError;
@@ -381,15 +365,6 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
 
   bool _isBlank(String? value) => (value ?? '').trim().isEmpty;
 
-  String _normalizeGraduationYear(String? value) {
-    final trimmed = (value ?? '').trim();
-    final lower = trimmed.toLowerCase();
-    if (lower == 'teacher' || lower == 'ogretmen' || lower == 'öğretmen') {
-      return 'teacher';
-    }
-    return trimmed;
-  }
-
   bool _looksLikeUrl(String? value) {
     final uri = _parseUrl(value);
     return uri != null &&
@@ -403,6 +378,53 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     if (trimmed.isEmpty) return null;
     final withScheme = trimmed.contains('://') ? trimmed : 'https://$trimmed';
     return Uri.tryParse(withScheme);
+  }
+}
+
+class _GraduationYearRequestTile extends StatelessWidget {
+  const _GraduationYearRequestTile({
+    required this.graduationYear,
+    required this.onRequestChange,
+  });
+
+  final String graduationYear;
+  final VoidCallback? onRequestChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTurkish = Localizations.localeOf(context).languageCode == 'tr';
+    final title = isTurkish ? 'Mezuniyet yılı' : 'Graduation year';
+    final value = graduationYear.trim().isEmpty
+        ? (isTurkish ? 'Belirtilmemiş' : 'Not set')
+        : (graduationYear == 'teacher'
+              ? (isTurkish ? 'Öğretmen' : 'Teacher')
+              : graduationYear);
+    final helper = isTurkish
+        ? 'Bu bilgi yönetim onayıyla değiştirilir.'
+        : 'This field changes through admin approval.';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).dividerColor),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 6,
+          ),
+          leading: const Icon(Icons.school_outlined),
+          title: Text(title),
+          subtitle: Text('$value\n$helper'),
+          trailing: TextButton.icon(
+            onPressed: onRequestChange,
+            icon: const Icon(Icons.assignment_outlined),
+            label: Text(isTurkish ? 'Talep aç' : 'Request'),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -220,7 +220,7 @@ async function createRootAdmin({
         true,
         now,
         now,
-        0
+        2000
       ]
     );
     const root = await sqlGetAsync('SELECT id FROM users WHERE lower(username) = lower(?) LIMIT 1', [ROOT_ADMIN_USERNAME]);
@@ -258,7 +258,7 @@ async function createRootAdmin({
       'root-bootstrap',
       toDbBooleanParam(dbDriver, true),
       now,
-      '0',
+      '2000',
       toDbBooleanParam(dbDriver, true),
       toDbBooleanParam(dbDriver, true),
       toDbBooleanParam(dbDriver, true),

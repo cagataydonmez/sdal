@@ -87,7 +87,9 @@ export function registerProfileSelfServiceRoutes(app, {
       const meslek = String(req.body.meslek || '');
       const websitesi = String(req.body.websitesi || '');
       const universite = String(req.body.universite || '');
-      const mezuniyetyili = normalizeCohortValue(req.body.mezuniyetyili);
+      const requestedMezuniyetYili = Object.prototype.hasOwnProperty.call(req.body || {}, 'mezuniyetyili')
+        ? normalizeCohortValue(req.body.mezuniyetyili)
+        : '';
       const kvkkConsent = Boolean(req.body.kvkk_consent);
       const directoryConsent = Boolean(req.body.directory_consent);
       const sirket = String(req.body.sirket || '').trim();
@@ -102,10 +104,6 @@ export function registerProfileSelfServiceRoutes(app, {
       const dogumyil = parseInt(req.body.dogumyil || '0', 10) || 0;
       const mailkapali = String(req.body.mailkapali || '0') === '1';
       const imza = String(req.body.imza || '');
-
-      if (!hasValidGraduationYear(mezuniyetyili)) {
-        return res.status(400).send(`Mezuniyet yılı ${minGraduationYear}-${maxGraduationYear} aralığında olmalı veya Öğretmen seçilmelidir.`);
-      }
 
       const legacyCols = await getTableColumnSetAsync('uyeler');
       const modernCols = await getTableColumnSetAsync('users');
@@ -137,6 +135,17 @@ export function registerProfileSelfServiceRoutes(app, {
           [req.session.userId]
         );
       const nextIlkbd = current && current.ilkbd === 0 ? true : Boolean(current?.ilkbd ?? true);
+      const mezuniyetyili = normalizeCohortValue(current?.mezuniyetyili);
+      if (requestedMezuniyetYili && requestedMezuniyetYili !== mezuniyetyili) {
+        if (!hasValidGraduationYear(requestedMezuniyetYili)) {
+          return res.status(400).send(`Mezuniyet yılı ${minGraduationYear}-${maxGraduationYear} aralığında olmalı veya Öğretmen seçilmelidir.`);
+        }
+        return res.status(403).json({
+          error: 'GRADUATION_YEAR_LOCKED',
+          message: 'Mezuniyet yılı profil düzenleme ekranından değiştirilemez. Yönetim talebi oluşturun.',
+          requestUrl: '/new/requests?category=graduation_year_change'
+        });
+      }
       const isOAuthUser = Boolean(String(current?.oauth_provider || '').trim());
       const nextKvkkConsent = Boolean(current?.kvkk_consent_at) || kvkkConsent;
       const nextDirectoryConsent = Boolean(current?.directory_consent_at) || directoryConsent;
@@ -145,14 +154,6 @@ export function registerProfileSelfServiceRoutes(app, {
       }
       if (isOAuthUser && !nextDirectoryConsent) {
         return res.status(400).send('Sosyal üyelik için Mezun Rehberi açık rıza onayı zorunludur.');
-      }
-
-      if (Number(current?.verified || 0) === 1 && String(current?.mezuniyetyili || '') !== mezuniyetyili) {
-        return res.status(403).json({
-          error: 'GRADUATION_YEAR_LOCKED',
-          message: 'Doğrulanmış üyelerde mezuniyet yılı değiştirilemez. Yönetim talebi oluşturun.',
-          requestUrl: '/new/requests?category=graduation_year_change'
-        });
       }
 
       const setClauses = [];

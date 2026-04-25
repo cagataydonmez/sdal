@@ -37,11 +37,16 @@ class AdminActionController extends Notifier<AsyncActionState> {
   Future<bool> reviewMemberRequest({
     required int id,
     required String status,
+    String graduationYearOverride = '',
   }) async {
     final scope = 'admin:request:review:$id:$status';
     state = AsyncActionState.loading(scope: scope);
     try {
-      await _repository.reviewMemberRequest(id: id, status: status);
+      await _repository.reviewMemberRequest(
+        id: id,
+        status: status,
+        graduationYearOverride: graduationYearOverride,
+      );
       _invalidateRequestPreviews();
       state = AsyncActionState.success(scope: scope);
       return true;

@@ -1,4 +1,5 @@
 export function registerAdminRequestModerationRoutes(app, {
+  dbDriver,
   requireAdmin,
   requireModerationPermission,
   sqlGet,
@@ -11,6 +12,7 @@ export function registerAdminRequestModerationRoutes(app, {
   getModerationScopeContext,
   parseAdminListPagination,
   applyModerationScopeFilter,
+  normalizeCohortValue,
   hasValidGraduationYear,
   addNotification,
   logAdminAction,
@@ -118,6 +120,7 @@ export function registerAdminRequestModerationRoutes(app, {
     try {
       const status = String(req.body?.status || '').trim();
       const resolutionNote = String(req.body?.resolution_note || '').trim();
+      const graduationYearOverride = normalizeCohortValue(req.body?.graduationYearOverride || req.body?.mezuniyetyili || '');
       const requestId = Number(req.params.id || 0);
       if (!requestId) return res.status(400).send('Geçersiz talep ID.');
       if (!['approved', 'rejected'].includes(status)) return res.status(400).send('Geçersiz durum.');
@@ -138,10 +141,7 @@ export function registerAdminRequestModerationRoutes(app, {
         }
       }
 
-      await sqlRunAsync(
-        'UPDATE member_requests SET status = ?, reviewed_at = ?, reviewer_id = ?, resolution_note = ? WHERE id = ?',
-        [status, new Date().toISOString(), req.session.userId, resolutionNote || null, requestId]
-      );
+      let approvedGraduationYear = '';
       if (status === 'approved' && row.category_key === 'graduation_year_change') {
         let payload = {};
         try {
@@ -149,9 +149,24 @@ export function registerAdminRequestModerationRoutes(app, {
         } catch {
           payload = {};
         }
-        const nextYear = String(payload?.requestedGraduationYear || '').trim();
-        if (hasValidGraduationYear(nextYear)) {
-          await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [nextYear, row.user_id]);
+        approvedGraduationYear = graduationYearOverride || normalizeCohortValue(payload?.requestedGraduationYear || '');
+        if (!hasValidGraduationYear(approvedGraduationYear)) {
+          return res.status(400).send('Onaylanacak mezuniyet yılı geçerli değil.');
+        }
+      }
+
+      await sqlRunAsync(
+        'UPDATE member_requests SET status = ?, reviewed_at = ?, reviewer_id = ?, resolution_note = ? WHERE id = ?',
+        [status, new Date().toISOString(), req.session.userId, resolutionNote || null, requestId]
+      );
+      if (status === 'approved' && row.category_key === 'graduation_year_change') {
+        if (dbDriver === 'postgres') {
+          await sqlRunAsync('UPDATE users SET graduation_year = ? WHERE id = ?', [approvedGraduationYear, row.user_id]);
+        } else {
+          await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [approvedGraduationYear, row.user_id]);
+        }
+        if (typeof assignUserToCohort === 'function') {
+          assignUserToCohort(row.user_id);
         }
       }
       addNotification({

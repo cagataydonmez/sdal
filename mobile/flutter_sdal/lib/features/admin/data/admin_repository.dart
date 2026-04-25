@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
@@ -337,28 +339,34 @@ class AdminModerationItem {
 class AdminRequestQueueItem {
   const AdminRequestQueueItem({
     required this.id,
+    required this.categoryKey,
     required this.categoryLabel,
     required this.status,
     required this.createdAt,
     required this.requesterName,
     required this.requesterHandle,
     required this.reviewerHandle,
+    required this.requestedGraduationYear,
   });
 
   final int id;
+  final String categoryKey;
   final String categoryLabel;
   final String status;
   final String createdAt;
   final String requesterName;
   final String requesterHandle;
   final String reviewerHandle;
+  final String requestedGraduationYear;
 
   factory AdminRequestQueueItem.fromMap(JsonMap map) {
     final firstName = coalesceText([map['isim']], fallback: '');
     final lastName = coalesceText([map['soyisim']], fallback: '');
     final fullName = '$firstName $lastName'.trim();
+    final payload = _decodeRequestPayload(map['payload_json']);
     return AdminRequestQueueItem(
       id: asInt(map['id']) ?? 0,
+      categoryKey: coalesceText([map['category_key']], fallback: ''),
       categoryLabel: coalesceText([
         map['category_label'],
         map['category_key'],
@@ -370,8 +378,27 @@ class AdminRequestQueueItem {
           : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
       requesterHandle: coalesceText([map['kadi']], fallback: ''),
       reviewerHandle: coalesceText([map['reviewer_kadi']], fallback: ''),
+      requestedGraduationYear: coalesceText([
+        payload['requestedGraduationYear'],
+        payload['mezuniyetyili'],
+      ], fallback: ''),
     );
   }
+}
+
+JsonMap _decodeRequestPayload(Object? value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return value.cast<String, dynamic>();
+  if (value is String && value.trim().isNotEmpty) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) return decoded.cast<String, dynamic>();
+    } catch (_) {
+      return const <String, dynamic>{};
+    }
+  }
+  return const <String, dynamic>{};
 }
 
 class AdminVerificationQueueItem {
@@ -1936,6 +1963,7 @@ class AdminRepository {
     required int id,
     required String status,
     String resolutionNote = '',
+    String graduationYearOverride = '',
   }) async {
     await _apiClient.post<dynamic>(
       '/api/new/admin/requests/$id/review',
@@ -1943,6 +1971,8 @@ class AdminRepository {
         'status': status,
         if (resolutionNote.trim().isNotEmpty)
           'resolution_note': resolutionNote.trim(),
+        if (graduationYearOverride.trim().isNotEmpty)
+          'graduationYearOverride': graduationYearOverride.trim(),
       },
     );
   }

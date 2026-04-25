@@ -1241,12 +1241,14 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                               onApprove: () => _handleMemberRequestReview(
                                 context,
                                 ref,
+                                item: item,
                                 id: item.id,
                                 status: 'approved',
                               ),
                               onReject: () => _handleMemberRequestReview(
                                 context,
                                 ref,
+                                item: item,
                                 id: item.id,
                                 status: 'rejected',
                               ),
@@ -1511,12 +1513,29 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
   Future<void> _handleMemberRequestReview(
     BuildContext context,
     WidgetRef ref, {
+    required AdminRequestQueueItem item,
     required int id,
     required String status,
   }) async {
+    var graduationYearOverride = '';
+    if (status == 'approved' &&
+        item.categoryKey == 'graduation_year_change' &&
+        item.requestedGraduationYear.isNotEmpty) {
+      final selectedYear = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) =>
+            _GraduationYearDialog(initialYear: item.requestedGraduationYear),
+      );
+      if (selectedYear == null || selectedYear.trim().isEmpty) return;
+      graduationYearOverride = selectedYear.trim();
+    }
     final ok = await ref
         .read(adminActionControllerProvider.notifier)
-        .reviewMemberRequest(id: id, status: status);
+        .reviewMemberRequest(
+          id: id,
+          status: status,
+          graduationYearOverride: graduationYearOverride,
+        );
     if (!context.mounted) return;
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1606,9 +1625,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
   ) async {
     final nextYear = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => _GraduationYearDialog(
-        initialYear: item.graduationYear,
-      ),
+      builder: (dialogContext) =>
+          _GraduationYearDialog(initialYear: item.graduationYear),
     );
     if (nextYear == null || nextYear.isEmpty || !context.mounted) return;
     final ok = await ref
@@ -3091,12 +3109,12 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     WidgetRef ref,
     int userId,
   ) async {
-    final nextDetail = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<AdminUserDetail>(
-      MaterialPageRoute(builder: (_) => _AdminUserDetailPage(userId: userId)),
-    );
+    final nextDetail = await Navigator.of(context, rootNavigator: true)
+        .push<AdminUserDetail>(
+          MaterialPageRoute(
+            builder: (_) => _AdminUserDetailPage(userId: userId),
+          ),
+        );
     if (nextDetail == null || !context.mounted) return;
     final ok = await ref
         .read(adminActionControllerProvider.notifier)
@@ -3175,16 +3193,17 @@ class _AdminUserDetailOverviewPage extends StatelessWidget {
           padding: const EdgeInsets.only(right: 8),
           child: FilledButton.tonalIcon(
             onPressed: () async {
-              final nextDetail = await Navigator.of(
-                context,
-                rootNavigator: true,
-              ).push<AdminUserDetail>(
-                MaterialPageRoute(
-                  fullscreenDialog: true,
-                  builder: (_) =>
-                      _AdminUserDetailEditFormPage(detail: detail),
-                ),
-              );
+              final nextDetail =
+                  await Navigator.of(
+                    context,
+                    rootNavigator: true,
+                  ).push<AdminUserDetail>(
+                    MaterialPageRoute(
+                      fullscreenDialog: true,
+                      builder: (_) =>
+                          _AdminUserDetailEditFormPage(detail: detail),
+                    ),
+                  );
               if (nextDetail == null || !context.mounted) return;
               Navigator.of(context, rootNavigator: true).pop(nextDetail);
             },

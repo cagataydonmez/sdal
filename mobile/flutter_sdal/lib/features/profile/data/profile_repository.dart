@@ -70,7 +70,6 @@ class ProfileData with _$ProfileData {
     return {
       'isim': firstName,
       'soyisim': lastName,
-      'mezuniyetyili': graduationYear,
       'sehir': city,
       'meslek': profession,
       'websitesi': website,

@@ -531,12 +531,14 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                     onApprove: (item) => _reviewMemberRequest(
                       context,
                       ref,
+                      item: item,
                       id: item.id,
                       approve: true,
                     ),
                     onReject: (item) => _reviewMemberRequest(
                       context,
                       ref,
+                      item: item,
                       id: item.id,
                       approve: false,
                     ),
@@ -1101,8 +1103,13 @@ class _RequestPreviewList extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: _QueueItemCard(
                 title: item.categoryLabel,
-                subtitle:
-                    '${item.requesterName} · @${item.requesterHandle} · ${item.createdAt}',
+                subtitle: [
+                  item.requesterName,
+                  '@${item.requesterHandle}',
+                  if (item.requestedGraduationYear.isNotEmpty)
+                    'İstenen yıl: ${_formatGraduationYear(item.requestedGraduationYear)}',
+                  item.createdAt,
+                ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.status,
                 canModerate: canModerate,
                 onApprove: () => onApprove(item),
@@ -1349,18 +1356,91 @@ String _humanizeModuleKey(String key) {
 Future<void> _reviewMemberRequest(
   BuildContext context,
   WidgetRef ref, {
+  required AdminRequestQueueItem item,
   required int id,
   required bool approve,
 }) async {
+  var graduationYearOverride = '';
+  if (approve &&
+      item.categoryKey == 'graduation_year_change' &&
+      item.requestedGraduationYear.isNotEmpty) {
+    final selectedYear = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => _GraduationYearApprovalDialog(
+        initialYear: item.requestedGraduationYear,
+      ),
+    );
+    if (selectedYear == null || selectedYear.trim().isEmpty) return;
+    graduationYearOverride = selectedYear.trim();
+  }
   final ok = await ref
       .read(adminActionControllerProvider.notifier)
-      .reviewMemberRequest(id: id, status: approve ? 'approved' : 'rejected');
+      .reviewMemberRequest(
+        id: id,
+        status: approve ? 'approved' : 'rejected',
+        graduationYearOverride: graduationYearOverride,
+      );
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(ok ? 'Talep güncellendi.' : 'Talep güncellenemedi.'),
     ),
   );
+}
+
+String _formatGraduationYear(String value) {
+  return value == 'teacher' ? 'Öğretmen' : value;
+}
+
+class _GraduationYearApprovalDialog extends StatefulWidget {
+  const _GraduationYearApprovalDialog({required this.initialYear});
+
+  final String initialYear;
+
+  @override
+  State<_GraduationYearApprovalDialog> createState() =>
+      _GraduationYearApprovalDialogState();
+}
+
+class _GraduationYearApprovalDialogState
+    extends State<_GraduationYearApprovalDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialYear);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Mezuniyet yılı onayı'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: 'Onaylanacak yıl veya Öğretmen',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Onayla'),
+        ),
+      ],
+    );
+  }
 }
 
 Future<void> _reviewVerificationRequest(

@@ -852,7 +852,7 @@ async function ensureRootBootstrapAccount() {
   }
   const result = sqlRun(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, '', '0', 1, 'root', 1, 1, 'approved')`,
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, '', '2000', 1, 'root', 1, 1, 'approved')`,
     [ROOT_ADMIN_USERNAME, hashed, 'cagatay@localhost', 'Cagatay', 'Donmez', 'root-bootstrap', now]
   );
   const rootId = result?.lastInsertRowid || sqlGet('SELECT id FROM uyeler WHERE lower(kadi) = lower(?)', [ROOT_ADMIN_USERNAME])?.id;
@@ -4838,6 +4838,7 @@ registerEventJobRoutes(app, {
 });
 
 registerAdminRequestModerationRoutes(app, {
+  dbDriver,
   requireAdmin,
   requireModerationPermission,
   sqlGet,
@@ -4850,6 +4851,7 @@ registerAdminRequestModerationRoutes(app, {
   getModerationScopeContext,
   parseAdminListPagination,
   applyModerationScopeFilter,
+  normalizeCohortValue,
   hasValidGraduationYear,
   addNotification,
   logAdminAction,
