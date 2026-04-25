@@ -59,9 +59,14 @@ npm --prefix server ci --omit=dev
 
 log "installing frontend dependencies"
 # Frontend builds need Vite and related build tooling from devDependencies.
-# NODE_ENV is often production in deploy shells, so npm ci would otherwise omit them.
-npm --prefix frontend-classic ci --include=dev
-npm --prefix frontend-modern ci --include=dev
+# Production deploy env files can set NODE_ENV/NPM_CONFIG_OMIT, so clear those
+# only for frontend dependency installation. The final systemd runtime still
+# gets NODE_ENV=production.
+env -u NODE_ENV -u NPM_CONFIG_OMIT -u NPM_CONFIG_PRODUCTION npm --prefix frontend-classic ci --production=false
+env -u NODE_ENV -u NPM_CONFIG_OMIT -u NPM_CONFIG_PRODUCTION npm --prefix frontend-modern ci --production=false
+
+[[ -x frontend-classic/node_modules/.bin/vite ]] || fail "frontend-classic Vite was not installed"
+[[ -x frontend-modern/node_modules/.bin/vite ]] || fail "frontend-modern Vite was not installed"
 
 log "building frontends"
 npm run build
