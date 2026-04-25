@@ -96,6 +96,67 @@ class AdminWorkspacePage extends ConsumerWidget {
                   ),
                 ],
               ),
+              if (user.isRootAdmin) ...[
+                const SizedBox(height: 16),
+                SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Root admin araçları',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Factory reset ve izin grubu yönetimi yalnızca @cagatay root admin oturumunda görünür.',
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: () => context.go('/admin/factory-reset'),
+                            icon: const Icon(Icons.delete_forever_outlined),
+                            label: const Text('Factory reset'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                context.go('/admin/permission-groups'),
+                            icon: const Icon(
+                              Icons.admin_panel_settings_outlined,
+                            ),
+                            label: const Text('İzin grupları'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                context.go('/admin/user-permissions'),
+                            icon: const Icon(Icons.manage_accounts_outlined),
+                            label: const Text('Kullanıcı izinleri'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (user.kadi.trim().toLowerCase() == 'cagatay') ...[
+                const SizedBox(height: 16),
+                SurfaceCard(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.lock_outline),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '@cagatay ile giriş yapılmış, ancak oturum root rolü taşımıyor. Backend tarafında ROOT_BOOTSTRAP_PASSWORD ayarlı şekilde başlatıldığında @cagatay root admin olarak yükseltilir ve Factory reset burada görünür.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Wrap(
                 spacing: 14,

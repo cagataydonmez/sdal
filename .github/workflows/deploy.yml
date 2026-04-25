@@ -158,9 +158,16 @@ jobs:
             if [[ -z "${ENV_FILE:-}" ]]; then
               export ENV_FILE="/etc/sdal/sdal.env"
             fi
+            if [[ ! -f "$APP_DIR/ops/deploy-systemd.sh" ]]; then
+              echo "[deploy] deploy script missing on server; bootstrapping ${BRANCH} into ${APP_DIR}"
+              cd "$APP_DIR"
+              git fetch --prune origin "$BRANCH"
+              git checkout "$BRANCH"
+              git reset --hard "origin/$BRANCH"
+            fi
             if command -v sudo >/dev/null 2>&1; then
               if sudo -n true >/dev/null 2>&1; then
-                sudo -n bash "$APP_DIR/ops/deploy-systemd.sh"
+                sudo -n -E bash "$APP_DIR/ops/deploy-systemd.sh"
               else
                 bash "$APP_DIR/ops/deploy-systemd.sh"
               fi
