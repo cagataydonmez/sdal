@@ -97,6 +97,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ActivationPage(
             memberId: state.uri.queryParameters['id'] ?? '',
             code: state.uri.queryParameters['akt'] ?? '',
+            email: state.uri.queryParameters['email'] ?? '',
           ),
         ),
       ),
@@ -480,6 +481,7 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
     '/register',
     '/activate',
     '/activation/resend',
+    '/legal',
     '/password-reset',
     '/profile/email-change/verify',
     '/oauth/callback',
@@ -497,7 +499,7 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
     return publicRoutes.contains(location) ? null : '/login';
   }
 
-  if (publicRoutes.contains(location) ||
+  if ((publicRoutes.contains(location) && location != '/legal') ||
       location == '/site-closed' ||
       location == '/account-banned') {
     return snapshot.defaultHomePath;

@@ -13,6 +13,7 @@ class MemberSummary {
     required this.profession,
     required this.photo,
     required this.verified,
+    required this.role,
     required this.following,
     required this.graduationYear,
     required this.joinedAt,
@@ -25,6 +26,7 @@ class MemberSummary {
   final String profession;
   final String photo;
   final bool verified;
+  final String role;
   final bool following;
   final String graduationYear;
   final DateTime? joinedAt;
@@ -45,6 +47,7 @@ class MemberSummary {
       ], fallback: ''),
       photo: coalesceText([map['resim'], map['photo']], fallback: ''),
       verified: asBool(map['verified']) ?? false,
+      role: coalesceText([map['role']], fallback: 'user'),
       following: asBool(map['following']) ?? false,
       graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
       joinedAt: asDateTime(map['ilktarih'] ?? map['joinedAt']),

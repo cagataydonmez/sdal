@@ -404,6 +404,7 @@ export function registerTeacherNetworkRoutes(app, {
       const rows = await withFollowsRelation((followTable) =>
         sqlAllAsync(
           `SELECT f.following_id, f.created_at AS followed_at, u.kadi, u.isim, u.soyisim, u.resim,
+                  u.verified, u.role, u.mezuniyetyili,
                   COALESCE(es.score, 0) AS engagement_score
            FROM ${followTable} f
            LEFT JOIN uyeler u ON u.id = f.following_id
@@ -447,7 +448,7 @@ export function registerTeacherNetworkRoutes(app, {
       }
 
       const member = await sqlGetAsync(
-        `SELECT id, kadi, isim, soyisim, resim, verified
+        `SELECT id, kadi, isim, soyisim, resim, verified, role, mezuniyetyili
          FROM uyeler
          WHERE id = ?`,
         [memberId]
@@ -615,7 +616,9 @@ export function registerTeacherNetworkRoutes(app, {
           name: buildMemberDisplayName(member),
           handle: String(member.kadi || '').trim(),
           photo: String(member.resim || '').trim(),
-          verified: toBooleanFlag(member.verified)
+          verified: toBooleanFlag(member.verified),
+          role: String(member.role || 'user').trim(),
+          mezuniyetyili: String(member.mezuniyetyili || '').trim()
         },
         section,
         title,

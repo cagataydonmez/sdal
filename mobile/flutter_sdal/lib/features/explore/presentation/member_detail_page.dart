@@ -7,6 +7,7 @@ import '../../../core/session/session_controller.dart';
 import '../../../core/shell/shell_metadata_repository.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/member_badges.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../albums/data/albums_repository.dart';
@@ -136,6 +137,16 @@ class MemberDetailPage extends ConsumerWidget {
                                         ?.copyWith(
                                           color: tokens.foregroundMuted,
                                         ),
+                                  ),
+                                ],
+                                if (detail.summary.verified ||
+                                    detail.summary.role.trim().toLowerCase() !=
+                                        'user') ...[
+                                  const SizedBox(height: 8),
+                                  MemberBadgeStrip(
+                                    verified: detail.summary.verified,
+                                    role: detail.summary.role,
+                                    graduationYear: detail.graduationYear,
                                   ),
                                 ],
                               ],

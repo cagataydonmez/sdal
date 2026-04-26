@@ -112,10 +112,32 @@ export function registerAccountRoutes(app, deps) {
       if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
       if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
-      const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
-      if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
-      const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
-      if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
+      const existingUser = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
+      if (existingUser) {
+        const inactive = Number(existingUser.aktiv || 0) !== 1;
+        return res.status(400).json({
+          ok: false,
+          code: inactive ? 'ACTIVATION_REQUIRED' : 'USERNAME_TAKEN',
+          message: inactive
+            ? 'Bu kullanıcı adı zaten kayıtlı ancak aktivasyon tamamlanmamış.'
+            : 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.',
+          memberId: inactive ? existingUser.id : undefined,
+          email: inactive ? existingUser.email : undefined
+        });
+      }
+      const existingMail = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+      if (existingMail) {
+        const inactive = Number(existingMail.aktiv || 0) !== 1;
+        return res.status(400).json({
+          ok: false,
+          code: inactive ? 'ACTIVATION_REQUIRED' : 'EMAIL_TAKEN',
+          message: inactive
+            ? 'Bu e-mail adresi zaten kayıtlı ancak aktivasyon tamamlanmamış.'
+            : 'Girdiğiniz e-mail adresi zaten kayıtlıdır.',
+          memberId: inactive ? existingMail.id : undefined,
+          email: inactive ? existingMail.email : undefined
+        });
+      }
 
       res.json({
         ok: true,
@@ -147,16 +169,34 @@ export function registerAccountRoutes(app, deps) {
 
       let kadiExists = false;
       let emailExists = false;
+      let kadiInactive = false;
+      let emailInactive = false;
+      let inactiveMemberId = null;
+      let inactiveEmail = '';
       if (cleanKadi) {
-        const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
+        const existingUser = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
         kadiExists = Boolean(existingUser);
+        kadiInactive = Boolean(existingUser && Number(existingUser.aktiv || 0) !== 1);
+        inactiveMemberId = kadiInactive ? existingUser.id : null;
+        inactiveEmail = kadiInactive ? existingUser.email : '';
       }
       if (cleanEmail && validateEmail(cleanEmail)) {
-        const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+        const existingMail = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
         emailExists = Boolean(existingMail);
+        emailInactive = Boolean(existingMail && Number(existingMail.aktiv || 0) !== 1);
+        inactiveMemberId = inactiveMemberId || (emailInactive ? existingMail.id : null);
+        inactiveEmail = inactiveEmail || (emailInactive ? existingMail.email : '');
       }
 
-      res.json({ ok: true, kadiExists, emailExists });
+      res.json({
+        ok: true,
+        kadiExists,
+        emailExists,
+        kadiInactive: Boolean(kadiInactive),
+        emailInactive: Boolean(emailInactive),
+        inactiveMemberId,
+        inactiveEmail
+      });
     } catch (err) {
       writeAppLog('error', 'register_check_failed', {
         message: err?.message || 'unknown_error',
@@ -226,10 +266,32 @@ export function registerAccountRoutes(app, deps) {
       if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
       traceE2E('before_duplicate_checks');
-      const existingUser = await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ?', [cleanKadi]);
-      if (existingUser) return res.status(400).send('Girdiğiniz kullanıcı adı zaten kayıtlıdır.');
-      const existingMail = await sqlGetAsync('SELECT id FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
-      if (existingMail) return res.status(400).send('Girdiğiniz e-mail adresi zaten kayıtlıdır.');
+      const existingUser = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
+      if (existingUser) {
+        const inactive = Number(existingUser.aktiv || 0) !== 1;
+        return res.status(400).json({
+          ok: false,
+          code: inactive ? 'ACTIVATION_REQUIRED' : 'USERNAME_TAKEN',
+          message: inactive
+            ? 'Bu kullanıcı adı zaten kayıtlı ancak aktivasyon tamamlanmamış.'
+            : 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.',
+          memberId: inactive ? existingUser.id : undefined,
+          email: inactive ? existingUser.email : undefined
+        });
+      }
+      const existingMail = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+      if (existingMail) {
+        const inactive = Number(existingMail.aktiv || 0) !== 1;
+        return res.status(400).json({
+          ok: false,
+          code: inactive ? 'ACTIVATION_REQUIRED' : 'EMAIL_TAKEN',
+          message: inactive
+            ? 'Bu e-mail adresi zaten kayıtlı ancak aktivasyon tamamlanmamış.'
+            : 'Girdiğiniz e-mail adresi zaten kayıtlıdır.',
+          memberId: inactive ? existingMail.id : undefined,
+          email: inactive ? existingMail.email : undefined
+        });
+      }
       traceE2E('after_duplicate_checks');
 
       const parsedYear = parseGraduationYear(cohortValue);
@@ -301,7 +363,12 @@ export function registerAccountRoutes(app, deps) {
         const html = buildActivationEmailHtml({
           siteBase: publicBaseUrl,
           activationLink,
-          user: { kadi: cleanKadi, isim: cleanIsim, soyisim: cleanSoyisim }
+          user: {
+            kadi: cleanKadi,
+            isim: cleanIsim,
+            soyisim: cleanSoyisim,
+            aktivasyon
+          }
         });
 
         queueEmailDelivery(
@@ -322,6 +389,8 @@ export function registerAccountRoutes(app, deps) {
         message: e2eMode
           ? 'E2E kayıt tamamlandı. Hesap aktif ve doğrulanmış olarak oluşturuldu.'
           : 'Kayıt tamamlandı. Aktivasyon e-postası gönderim kuyruğuna alındı.',
+        memberId: Number(newId || 0),
+        email: cleanEmail,
         e2e: e2eMode ? {
           userId: Number(newId || 0),
           active: true,
@@ -359,11 +428,15 @@ export function registerAccountRoutes(app, deps) {
 
   app.post('/api/activation/resend', async (req, res) => {
     try {
+      const id = String(req.body?.id || '').trim();
       const email = normalizeEmail(req.body?.email);
+      let user = null;
+      if (id) user = await sqlGetAsync('SELECT * FROM uyeler WHERE id = ?', [id]);
       if (!email) return res.status(400).send('E-mail adresini girmedin.');
       if (!validateEmail(email)) return res.status(400).send('E-mail adresi doğru görünmüyor.');
-      const user = await sqlGetAsync('SELECT * FROM uyeler WHERE lower(email) = lower(?)', [email]);
+      if (!user) user = await sqlGetAsync('SELECT * FROM uyeler WHERE lower(email) = lower(?)', [email]);
       if (!user) return res.status(404).send('Bu e-mail adresiyle kayıtlı bir kullanıcı bulunamadı.');
+      if (String(user.email || '').toLowerCase() !== String(email || '').toLowerCase()) return res.status(400).send('Üye numarası ile e-mail adresi eşleşmiyor.');
       if (Number(user.aktiv || 0) === 1) return res.status(400).send('Bu hesap zaten aktif edildi.');
       const publicBaseUrl = resolvePublicBaseUrl(req);
       const activationLink = `${publicBaseUrl}/aktivet?id=${user.id}&akt=${user.aktivasyon}`;
@@ -373,7 +446,7 @@ export function registerAccountRoutes(app, deps) {
         user
       });
       await queueEmailDelivery({ to: user.email, subject: 'SDAL - Aktivasyon', html }, { maxAttempts: 4, backoffMs: 1200 });
-      res.json({ ok: true });
+      res.json({ ok: true, email: user.email, message: `Aktivasyon e-postası ${user.email} adresine gönderildi.` });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

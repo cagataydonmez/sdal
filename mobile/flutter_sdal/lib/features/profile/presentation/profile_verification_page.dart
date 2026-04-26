@@ -7,6 +7,7 @@ import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/member_badges.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/profile_action_controller.dart';
 
@@ -29,6 +30,7 @@ class _ProfileVerificationPageState
     final session = ref.watch(sessionControllerProvider).value;
     final actionState = ref.watch(profileActionControllerProvider);
     final user = session?.user;
+    final isTeacherVerification = isTeacherCohort(user?.graduationYear ?? '');
     final l10n = context.l10n;
     final uploading =
         actionState.isLoading && actionState.scope == 'profile:proof';
@@ -52,6 +54,8 @@ class _ProfileVerificationPageState
                 Text(
                   user?.isVerified == true
                       ? l10n.profileVerifiedMessage
+                      : isTeacherVerification
+                      ? 'Öğretmen doğrulaması için okul/öğretmenlik bağınızı gösteren belgeyi yükleyin. Bu onay, mezun üye doğrulamasından ayrı değerlendirilir.'
                       : l10n.profileVerificationHint,
                 ),
               ],
@@ -198,6 +202,17 @@ class _ProfileVerificationPageState
         .submitVerificationRequest(
           proofPath: _proofPath,
           proofImageRecordId: _proofImageRecordId,
+          requestType:
+              isTeacherCohort(
+                ref
+                        .read(sessionControllerProvider)
+                        .value
+                        ?.user
+                        ?.graduationYear ??
+                    '',
+              )
+              ? 'teacher_verification'
+              : 'member_verification',
         );
     if (!mounted) return;
     final actionState = ref.read(profileActionControllerProvider);

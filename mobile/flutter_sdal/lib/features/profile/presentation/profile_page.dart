@@ -9,6 +9,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/theme/theme_mode_store.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/member_badges.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -123,18 +124,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              _StatusChip(
-                                label: user.isVerified
-                                    ? l10n.profileVerified
-                                    : l10n.profilePendingVerification,
-                                color: user.isVerified
-                                    ? Theme.of(context).sdal.success
-                                    : Theme.of(context).sdal.warning,
+                              MemberBadgeStrip(
+                                verified: user.isVerified,
+                                role: user.role,
+                                graduationYear: profile.graduationYear,
                               ),
-                              _StatusChip(
-                                label: user.role,
-                                color: Theme.of(context).sdal.info,
-                              ),
+                              if (!user.isVerified)
+                                _StatusChip(
+                                  label: l10n.profilePendingVerification,
+                                  color: Theme.of(context).sdal.warning,
+                                ),
                             ],
                           ),
                           const SizedBox(height: 12),

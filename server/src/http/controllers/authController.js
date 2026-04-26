@@ -5,6 +5,7 @@ import { toLegacyAuthLoginResponse } from '../dto/legacyApiMappers.js';
 const LoginSchema = z.object({
   kadi: z.string().min(1, 'Kullanıcı adı zorunludur.').max(15),
   sifre: z.string().min(1, 'Şifre zorunludur.').max(20),
+  gkodu: z.string().optional().default(''),
 });
 
 export function createAuthController({ authService, applyUserSession }) {
@@ -16,7 +17,26 @@ export function createAuthController({ authService, applyUserSession }) {
     try {
       const username = parsed.data.kadi;
       const password = parsed.data.sifre;
+      const failedAttempts = Number(req.session.loginFailedAttempts || 0);
+      if (failedAttempts >= 3) {
+        const captcha = String(parsed.data.gkodu || '').trim();
+        if (!captcha) {
+          return res.status(429).json({
+            ok: false,
+            code: 'CAPTCHA_REQUIRED',
+            message: 'Çok sayıda hatalı deneme oldu. Devam etmek için güvenlik kodunu girin.'
+          });
+        }
+        if (String(req.session.captcha || '').toUpperCase() !== captcha.toUpperCase()) {
+          return res.status(400).json({
+            ok: false,
+            code: 'CAPTCHA_INVALID',
+            message: 'Güvenlik kodu yanlış girildi.'
+          });
+        }
+      }
       const result = await authService.loginWithPassword({ username, password });
+      req.session.loginFailedAttempts = 0;
 
       applyUserSession(req, result.user.legacy || {
         id: result.user.id,
@@ -33,7 +53,24 @@ export function createAuthController({ authService, applyUserSession }) {
       res.json(toLegacyAuthLoginResponse(result));
     } catch (err) {
       if (isHttpError(err)) {
-        return res.status(err.statusCode).send(err.message);
+        const details = err.details && typeof err.details === 'object' ? err.details : {};
+        if (details.code) {
+          return res.status(err.statusCode).json({
+            ok: false,
+            code: details.code,
+            message: err.message,
+            ...details
+          });
+        }
+        req.session.loginFailedAttempts = Number(req.session.loginFailedAttempts || 0) + 1;
+        const captchaRequired = req.session.loginFailedAttempts >= 3;
+        return res.status(err.statusCode).json({
+          ok: false,
+          code: captchaRequired ? 'CAPTCHA_REQUIRED' : 'LOGIN_FAILED',
+          message: captchaRequired
+            ? `${err.message} Üç hatalı denemeden sonra güvenlik kodu gerekiyor.`
+            : err.message
+        });
       }
       console.error('auth.login failed:', err);
       return res.status(500).send('Beklenmeyen bir hata oluştu.');

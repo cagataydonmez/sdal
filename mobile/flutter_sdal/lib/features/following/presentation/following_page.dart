@@ -8,6 +8,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/member_badges.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../messenger/application/messenger_action_controller.dart';
@@ -118,23 +119,11 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            item.name,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.titleMedium,
-                                          ),
-                                        ),
-                                        if (item.verified)
-                                          Icon(
-                                            Icons.verified_rounded,
-                                            size: 18,
-                                            color: tokens.info,
-                                          ),
-                                      ],
+                                    Text(
+                                      item.name,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
                                     ),
                                     if (item.handle.isNotEmpty) ...[
                                       const SizedBox(height: 2),
@@ -146,6 +135,17 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
                                             ?.copyWith(
                                               color: tokens.foregroundMuted,
                                             ),
+                                      ),
+                                    ],
+                                    if (item.verified ||
+                                        item.role.trim().toLowerCase() !=
+                                            'user') ...[
+                                      const SizedBox(height: 6),
+                                      MemberBadgeStrip(
+                                        verified: item.verified,
+                                        role: item.role,
+                                        graduationYear: item.graduationYear,
+                                        compact: true,
                                       ),
                                     ],
                                     if (item.followedAt.isNotEmpty) ...[

@@ -12,6 +12,24 @@ typedef OAuthAuthenticate =
       required String callbackUrlScheme,
     });
 
+class LoginActionResult {
+  const LoginActionResult({
+    required this.success,
+    this.activationRequired = false,
+    this.captchaRequired = false,
+    this.memberId = '',
+    this.email = '',
+    this.message = '',
+  });
+
+  final bool success;
+  final bool activationRequired;
+  final bool captchaRequired;
+  final String memberId;
+  final String email;
+  final String message;
+}
+
 final oauthAuthenticateProvider = Provider<OAuthAuthenticate>(
   (ref) =>
       ({required String url, required String callbackUrlScheme}) =>
@@ -28,15 +46,77 @@ class AuthActionController extends Notifier<AsyncActionState> {
   Future<void> login({
     required String username,
     required String password,
+    String captcha = '',
   }) async {
     state = const AsyncActionState.loading(scope: 'login');
-    final message = await ref
-        .read(sessionControllerProvider.notifier)
-        .login(username: username, password: password);
+    final result = await ref
+        .read(apiClientProvider)
+        .post<JsonMap>(
+          '/api/auth/login',
+          body: {
+            'kadi': username,
+            'sifre': password,
+            if (captcha.trim().isNotEmpty) 'gkodu': captcha.trim(),
+          },
+          decoder: asJsonMap,
+        );
     if (!ref.mounted) return;
-    state = message == null
-        ? const AsyncActionState.success(scope: 'login')
-        : AsyncActionState.error(message: message, scope: 'login');
+    if (result.ok) {
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return;
+      state = const AsyncActionState.success(scope: 'login');
+      return;
+    }
+    final message = result.message.isNotEmpty
+        ? result.message
+        : 'Giriş başarısız oldu.';
+    state = AsyncActionState.error(message: message, scope: 'login');
+  }
+
+  Future<LoginActionResult> loginWithResult({
+    required String username,
+    required String password,
+    String captcha = '',
+  }) async {
+    state = const AsyncActionState.loading(scope: 'login');
+    final result = await ref
+        .read(apiClientProvider)
+        .post<JsonMap>(
+          '/api/auth/login',
+          body: {
+            'kadi': username,
+            'sifre': password,
+            if (captcha.trim().isNotEmpty) 'gkodu': captcha.trim(),
+          },
+          decoder: asJsonMap,
+        );
+    if (!ref.mounted) {
+      return const LoginActionResult(success: false);
+    }
+    if (result.ok) {
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) {
+        return const LoginActionResult(success: true);
+      }
+      state = const AsyncActionState.success(scope: 'login');
+      return const LoginActionResult(success: true);
+    }
+    final payload = asJsonMap(result.rawData);
+    final code = result.code.isNotEmpty
+        ? result.code
+        : (asString(payload['code']) ?? '');
+    final message = result.message.isNotEmpty
+        ? result.message
+        : 'Giriş başarısız oldu.';
+    state = AsyncActionState.error(message: message, scope: 'login');
+    return LoginActionResult(
+      success: false,
+      activationRequired: code == 'ACTIVATION_REQUIRED',
+      captchaRequired: code == 'CAPTCHA_REQUIRED' || code == 'CAPTCHA_INVALID',
+      memberId: asString(payload['memberId']) ?? '',
+      email: asString(payload['email']) ?? '',
+      message: message,
+    );
   }
 
   Future<void> startOAuth(String provider) async {
@@ -74,7 +154,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     return ref.read(authRepositoryProvider).fetchLegalContent(path);
   }
 
-  Future<void> register({
+  Future<JsonMap?> register({
     required String username,
     required String password,
     required String repeatPassword,
@@ -105,14 +185,17 @@ class AuthActionController extends Notifier<AsyncActionState> {
           },
           decoder: asJsonMap,
         );
-    if (!ref.mounted) return;
-    state = result.ok
-        ? const AsyncActionState.success(
-            message:
-                'Kayıt isteği gönderildi. Aktivasyon e-postasını kontrol edin.',
-            scope: 'register',
-          )
-        : AsyncActionState.error(message: result.message, scope: 'register');
+    if (!ref.mounted) return null;
+    if (result.ok) {
+      state = const AsyncActionState.success(
+        message:
+            'Kayıt isteği gönderildi. Aktivasyon e-postasını kontrol edin.',
+        scope: 'register',
+      );
+      return asJsonMap(result.rawData);
+    }
+    state = AsyncActionState.error(message: result.message, scope: 'register');
+    return asJsonMap(result.rawData);
   }
 
   Future<void> activate({

@@ -4971,6 +4971,10 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
   if (existing) return res.status(400).send('Zaten bekleyen bir talebiniz var.');
   const proofPath = String(req.body?.proof_path || '').trim();
   const proofImageRecordId = String(req.body?.proof_image_record_id || '').trim();
+  const normalizedCohort = normalizeCohortValue(user?.mezuniyetyili);
+  const requestType = String(req.body?.request_type || '').trim() === 'teacher_verification' || normalizedCohort === TEACHER_COHORT_VALUE
+    ? 'teacher_verification'
+    : 'member_verification';
   if (proofPath) {
     const isLegacyProof = proofPath.startsWith('/uploads/verification-proofs/');
     const isVariantProof = proofPath.startsWith('/uploads/images/') || proofPath.startsWith('/api/media/image/');
@@ -4982,13 +4986,25 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
     const proofVariants = getImageVariants(proofImageRecordId, sqlGet, uploadsDir);
     if (!proofVariants) return res.status(400).send('Kanıt görseli bulunamadı.');
   }
-  sqlRun('INSERT INTO verification_requests (user_id, status, proof_path, proof_image_record_id, created_at) VALUES (?, ?, ?, ?, ?)', [
-    req.session.userId,
-    'pending',
-    proofPath || null,
-    proofImageRecordId || null,
-    new Date().toISOString()
-  ]);
+  const createdAt = new Date().toISOString();
+  if (hasColumn('verification_requests', 'request_type')) {
+    sqlRun('INSERT INTO verification_requests (user_id, status, request_type, proof_path, proof_image_record_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
+      req.session.userId,
+      'pending',
+      requestType,
+      proofPath || null,
+      proofImageRecordId || null,
+      createdAt
+    ]);
+  } else {
+    sqlRun('INSERT INTO verification_requests (user_id, status, proof_path, proof_image_record_id, created_at) VALUES (?, ?, ?, ?, ?)', [
+      req.session.userId,
+      'pending',
+      proofPath || null,
+      proofImageRecordId || null,
+      createdAt
+    ]);
+  }
   sqlRun('UPDATE uyeler SET verification_status = ? WHERE id = ?', ['pending', req.session.userId]);
   res.json({ ok: true });
 });

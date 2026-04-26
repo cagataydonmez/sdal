@@ -25,24 +25,76 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _captchaController = TextEditingController();
+  String? _captchaSvg;
+  bool _captchaLoading = false;
+  String? _captchaLoadError;
+  int _failedLoginCount = 0;
+  bool _showCaptcha = false;
+  bool _showPasswordReset = false;
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _captchaController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadCaptcha() async {
+    if (mounted) {
+      setState(() {
+        _captchaLoading = true;
+        _captchaLoadError = null;
+        _captchaSvg = null;
+      });
+    }
+    final result = await ref
+        .read(apiClientProvider)
+        .get<String>('/api/captcha');
+    if (!mounted) return;
+    setState(() {
+      _captchaLoading = false;
+      _captchaSvg = result.rawData is String ? result.rawData as String : null;
+      if (_captchaSvg == null || _captchaSvg!.trim().isEmpty) {
+        _captchaSvg = null;
+        _captchaLoadError = result.message.isNotEmpty ? result.message : '';
+      }
+    });
+  }
+
   Future<void> _submit() async {
-    await ref
+    final result = await ref
         .read(authActionControllerProvider.notifier)
-        .login(
+        .loginWithResult(
           username: _usernameController.text.trim(),
           password: _passwordController.text,
+          captcha: _captchaController.text.trim(),
         );
     if (!mounted) return;
-    final actionState = ref.read(authActionControllerProvider);
-    if (!actionState.isSuccess) return;
+    if (result.activationRequired) {
+      context.go(
+        Uri(
+          path: '/activate',
+          queryParameters: {
+            if (result.memberId.isNotEmpty) 'id': result.memberId,
+            if (result.email.isNotEmpty) 'email': result.email,
+          },
+        ).toString(),
+      );
+      return;
+    }
+    if (!result.success) {
+      setState(() {
+        _failedLoginCount += 1;
+        _showPasswordReset = true;
+        _showCaptcha = result.captchaRequired || _failedLoginCount >= 3;
+      });
+      if (_showCaptcha && _captchaSvg == null && !_captchaLoading) {
+        await _loadCaptcha();
+      }
+      return;
+    }
     FocusManager.instance.primaryFocus?.unfocus();
     TextInput.finishAutofillContext(shouldSave: true);
   }
@@ -73,16 +125,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             icon: const Icon(Icons.person_add_alt_1_rounded),
             label: Text(l10n.register),
           ),
-          OutlinedButton.icon(
-            onPressed: () => context.push('/activation/resend'),
-            icon: const Icon(Icons.mark_email_unread_outlined),
-            label: Text(l10n.resendActivation),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => context.push('/password-reset'),
-            icon: const Icon(Icons.lock_reset_rounded),
-            label: Text(l10n.resetPassword),
-          ),
+          if (_showPasswordReset)
+            OutlinedButton.icon(
+              onPressed: () => context.push('/password-reset'),
+              icon: const Icon(Icons.lock_reset_rounded),
+              label: Text(l10n.resetPassword),
+            ),
         ],
       ),
       child: AutofillGroup(
@@ -111,8 +159,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             if (error != null) ...[
               const SizedBox(height: 12),
               Text(
-                error,
+                _showPasswordReset
+                    ? '$error Şifrenizi hatırlamıyorsanız şifre hatırlama seçeneğini kullanabilirsiniz.'
+                    : error,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            if (_showCaptcha) ...[
+              const SizedBox(height: 12),
+              _CaptchaView(
+                svg: _captchaSvg,
+                loading: _captchaLoading,
+                error: _captchaLoadError,
+                onReload: submitting ? null : _loadCaptcha,
+              ),
+              const SizedBox(height: 12),
+              _AuthTextField(
+                controller: _captchaController,
+                keyboardType: TextInputType.text,
+                labelText: l10n.captchaCode,
+                prefixIcon: const Icon(Icons.verified_user_outlined),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
               ),
             ],
             const SizedBox(height: 18),
@@ -215,6 +283,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   String? _availabilityMessage;
   String? _availabilityError;
   String? _previewError;
+  String? _inactiveActivationMemberId;
+  String? _inactiveActivationEmail;
   bool _kvkkConsent = false;
   bool _directoryConsent = false;
 
@@ -272,6 +342,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final l10n = context.l10n;
     setState(() {
       _previewError = null;
+      _inactiveActivationMemberId = null;
+      _inactiveActivationEmail = null;
     });
 
     if (!_validateBeforeSubmit(l10n)) {
@@ -300,17 +372,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (!mounted) return;
 
     if (!preview.ok) {
+      final payload = asJsonMap(preview.rawData);
       setState(() {
         _previewError = preview.message.isNotEmpty
             ? preview.message
             : l10n.registerPreviewFailed;
+        if (preview.code == 'ACTIVATION_REQUIRED' ||
+            asString(payload['code']) == 'ACTIVATION_REQUIRED') {
+          _inactiveActivationMemberId = asString(payload['memberId']);
+          _inactiveActivationEmail = asString(payload['email']);
+        }
       });
       await _loadCaptcha();
       await _scrollToServerError(_previewError);
       return;
     }
 
-    await ref
+    final registerPayload = await ref
         .read(authActionControllerProvider.notifier)
         .register(
           username: _usernameController.text.trim(),
@@ -325,10 +403,33 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           directoryConsent: _directoryConsent,
         );
     if (!mounted) return;
-    await _loadCaptcha();
     final actionState = ref.read(authActionControllerProvider);
+    if (actionState.isSuccess) {
+      final memberId = asString(registerPayload?['memberId']) ?? '';
+      final email = asString(registerPayload?['email']) ?? '';
+      context.go(
+        Uri(
+          path: '/activate',
+          queryParameters: {
+            if (memberId.isNotEmpty) 'id': memberId,
+            if (email.isNotEmpty) 'email': email,
+          },
+        ).toString(),
+      );
+      return;
+    }
+    await _loadCaptcha();
+    if (!mounted) return;
     if (actionState.isError) {
-      await _scrollToServerError(actionState.message);
+      final payload = asJsonMap(registerPayload);
+      final message = actionState.message ?? '';
+      if (message.contains('aktivasyon')) {
+        setState(() {
+          _inactiveActivationMemberId = asString(payload['memberId']);
+          _inactiveActivationEmail = asString(payload['email']);
+        });
+      }
+      await _scrollToServerError(message);
     }
   }
 
@@ -410,6 +511,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final payload = asJsonMap(result.rawData);
     final usernameExists = asBool(payload['kadiExists']) ?? false;
     final emailExists = asBool(payload['emailExists']) ?? false;
+    final inactiveExists =
+        (asBool(payload['kadiInactive']) ?? false) ||
+        (asBool(payload['emailInactive']) ?? false);
     final parts = <String>[];
     if (username.isNotEmpty) {
       parts.add(
@@ -428,11 +532,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     setState(() {
       _checkingAvailability = false;
       _availabilityError = usernameExists || emailExists
-          ? parts.join(' ')
+          ? inactiveExists
+                ? '${parts.join(' ')} Aktivasyonu tamamlayarak devam edebilirsiniz.'
+                : parts.join(' ')
           : null;
       _availabilityMessage = usernameExists || emailExists
           ? null
           : parts.join(' ');
+      _inactiveActivationMemberId = inactiveExists
+          ? asString(payload['inactiveMemberId'])
+          : null;
+      _inactiveActivationEmail = inactiveExists
+          ? asString(payload['inactiveEmail'])
+          : null;
     });
   }
 
@@ -513,6 +625,18 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         color: Theme.of(context).colorScheme.error,
                       ),
                     ),
+                    if ((_inactiveActivationMemberId?.isNotEmpty ?? false) ||
+                        (_inactiveActivationEmail?.isNotEmpty ?? false)) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => _goToActivation(
+                          memberId: _inactiveActivationMemberId,
+                          email: _inactiveActivationEmail,
+                        ),
+                        icon: const Icon(Icons.mark_email_read_outlined),
+                        label: const Text('Aktivasyon sayfasına git'),
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -608,55 +732,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_captchaLoading)
-                    SurfaceCard(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          const SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(strokeWidth: 2.4),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            l10n.registerCaptchaLoading,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (_captchaSvg != null)
-                    SurfaceCard(
-                      padding: const EdgeInsets.all(12),
-                      child: SvgPicture.string(_captchaSvg!, height: 56),
-                    )
-                  else
-                    SurfaceCard(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.shield_outlined,
-                            color: Theme.of(context).sdal.foregroundMuted,
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            (_captchaLoadError?.isNotEmpty ?? false)
-                                ? _captchaLoadError!
-                                : l10n.registerCaptchaUnavailable,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: submitting ? null : _loadCaptcha,
-                            icon: const Icon(Icons.refresh_rounded),
-                            label: Text(l10n.registerCaptchaRetryAction),
-                          ),
-                        ],
-                      ),
-                    ),
+                  _CaptchaView(
+                    svg: _captchaSvg,
+                    loading: _captchaLoading,
+                    error: _captchaLoadError,
+                    onReload: submitting ? null : _loadCaptcha,
+                  ),
                   const SizedBox(height: 12),
                   _AuthTextField(
                     controller: _captchaController,
@@ -677,6 +758,18 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       : Theme.of(context).colorScheme.error,
                 ),
               ),
+              if ((_inactiveActivationMemberId?.isNotEmpty ?? false) ||
+                  (_inactiveActivationEmail?.isNotEmpty ?? false)) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => _goToActivation(
+                    memberId: _inactiveActivationMemberId,
+                    email: _inactiveActivationEmail,
+                  ),
+                  icon: const Icon(Icons.mark_email_read_outlined),
+                  label: const Text('Aktivasyon sayfasına git'),
+                ),
+              ],
             ],
             const SizedBox(height: 18),
             FilledButton(
@@ -797,6 +890,18 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   bool _isConsentSectionValid() => _kvkkConsent && _directoryConsent;
+
+  void _goToActivation({String? memberId, String? email}) {
+    context.go(
+      Uri(
+        path: '/activate',
+        queryParameters: {
+          if ((memberId ?? '').isNotEmpty) 'id': memberId!,
+          if ((email ?? '').isNotEmpty) 'email': email!,
+        },
+      ).toString(),
+    );
+  }
 
   Future<void> _handleConsentToggle({
     required bool value,
@@ -992,11 +1097,74 @@ class _PasswordStrengthCard extends StatelessWidget {
   }
 }
 
+class _CaptchaView extends StatelessWidget {
+  const _CaptchaView({
+    required this.svg,
+    required this.loading,
+    required this.error,
+    required this.onReload,
+  });
+
+  final String? svg;
+  final bool loading;
+  final String? error;
+  final VoidCallback? onReload;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return SurfaceCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Center(
+              child: loading
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(l10n.registerCaptchaLoading),
+                      ],
+                    )
+                  : svg != null
+                  ? SvgPicture.string(svg!, height: 56)
+                  : Text(
+                      (error?.isNotEmpty ?? false)
+                          ? error!
+                          : l10n.registerCaptchaUnavailable,
+                      textAlign: TextAlign.center,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          IconButton.filledTonal(
+            onPressed: onReload,
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: l10n.registerCaptchaRetryAction,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ActivationPage extends ConsumerStatefulWidget {
-  const ActivationPage({super.key, required this.memberId, required this.code});
+  const ActivationPage({
+    super.key,
+    required this.memberId,
+    required this.code,
+    this.email = '',
+  });
 
   final String memberId;
   final String code;
+  final String email;
 
   @override
   ConsumerState<ActivationPage> createState() => _ActivationPageState();
@@ -1005,21 +1173,33 @@ class ActivationPage extends ConsumerStatefulWidget {
 class _ActivationPageState extends ConsumerState<ActivationPage> {
   late final TextEditingController _memberIdController;
   late final TextEditingController _codeController;
+  late final TextEditingController _emailController;
+  final _codeFocusNode = FocusNode();
+  Timer? _resendTimer;
+  int _resendSecondsLeft = 0;
 
   @override
   void initState() {
     super.initState();
     _memberIdController = TextEditingController(text: widget.memberId);
     _codeController = TextEditingController(text: widget.code);
+    _emailController = TextEditingController(text: widget.email);
     if (widget.memberId.isNotEmpty && widget.code.isNotEmpty) {
       Future<void>.microtask(_submit);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _codeFocusNode.requestFocus();
+      });
     }
   }
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _memberIdController.dispose();
     _codeController.dispose();
+    _emailController.dispose();
+    _codeFocusNode.dispose();
     super.dispose();
   }
 
@@ -1032,39 +1212,110 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
         );
   }
 
+  Future<void> _resend() async {
+    await ref
+        .read(authActionControllerProvider.notifier)
+        .resendActivation(
+          memberId: _memberIdController.text.trim(),
+          email: _emailController.text.trim(),
+        );
+    if (!mounted) return;
+    final state = ref.read(authActionControllerProvider);
+    if (state.isSuccess) {
+      _startResendCountdown();
+    }
+  }
+
+  void _startResendCountdown() {
+    _resendTimer?.cancel();
+    setState(() {
+      _resendSecondsLeft = 120;
+    });
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendSecondsLeft <= 1) {
+        timer.cancel();
+        setState(() => _resendSecondsLeft = 0);
+        return;
+      }
+      setState(() => _resendSecondsLeft -= 1);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final actionState = ref.watch(authActionControllerProvider);
     final l10n = context.l10n;
     final submitting = actionState.isLoading && actionState.scope == 'activate';
+    final resending =
+        actionState.isLoading && actionState.scope == 'resendActivation';
     final status = actionState.scope == 'activate' ? actionState.message : null;
+    final resendStatus = actionState.scope == 'resendActivation'
+        ? actionState.message
+        : null;
 
     return _AuthFrame(
       title: l10n.activationTitle,
-      subtitle: l10n.activationSubtitle,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _memberIdController,
-            decoration: InputDecoration(labelText: l10n.memberId),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _codeController,
-            decoration: InputDecoration(labelText: l10n.activationCode),
-          ),
-          if (status != null) ...[const SizedBox(height: 12), Text(status)],
-          const SizedBox(height: 18),
-          FilledButton(
-            onPressed: submitting ? null : _submit,
-            child: Text(
-              submitting
-                  ? l10n.activationChecking
-                  : l10n.activationSubmitAction,
+      subtitle:
+          'E-postadaki aktivasyon kodunu bekliyoruz. Kod alanı seçili; mail uygulamasındaki kod önerisini buraya yapıştırabilirsiniz.',
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _memberIdController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: l10n.memberId),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              decoration: InputDecoration(labelText: l10n.email),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _codeController,
+              focusNode: _codeFocusNode,
+              autofocus: true,
+              autofillHints: const [AutofillHints.oneTimeCode],
+              keyboardType: TextInputType.visiblePassword,
+              textInputAction: TextInputAction.done,
+              autocorrect: false,
+              enableSuggestions: false,
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(labelText: l10n.activationCode),
+            ),
+            if (status != null) ...[const SizedBox(height: 12), Text(status)],
+            if (resendStatus != null) ...[
+              const SizedBox(height: 12),
+              Text(resendStatus),
+            ],
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed: submitting ? null : _submit,
+              child: Text(
+                submitting
+                    ? l10n.activationChecking
+                    : l10n.activationSubmitAction,
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: (resending || _resendSecondsLeft > 0) ? null : _resend,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(
+                _resendSecondsLeft > 0
+                    ? 'Tekrar gönder ($_resendSecondsLeft sn)'
+                    : l10n.resendAction,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

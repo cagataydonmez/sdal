@@ -129,11 +129,13 @@ class ProfileActionController extends Notifier<AsyncActionState> {
   Future<bool> submitVerificationRequest({
     String proofPath = '',
     String proofImageRecordId = '',
+    String requestType = 'member_verification',
   }) async {
     state = const AsyncActionState.loading(scope: 'profile:verification');
     final result = await _repository.submitVerificationRequest(
       proofPath: proofPath,
       proofImageRecordId: proofImageRecordId,
+      requestType: requestType,
     );
     if (result.ok) {
       ref.invalidate(sessionControllerProvider);

@@ -154,7 +154,7 @@ export function registerMemberDirectoryRoutes(app, {
       if (!req.session.userId) return res.status(401).send('Login required');
       const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 200);
       const rows = await sqlAllAsync(
-        `SELECT id, kadi, isim, soyisim, resim, mezuniyetyili, ilktarih,
+        `SELECT id, kadi, isim, soyisim, resim, mezuniyetyili, ilktarih, verified, role,
                 CASE WHEN EXISTS (
                   SELECT 1 FROM follows f
                   WHERE f.follower_id = ? AND f.following_id = uyeler.id
@@ -177,7 +177,7 @@ export function registerMemberDirectoryRoutes(app, {
       if (!req.session.userId) return res.status(401).send('Login required');
       const row = await sqlGetAsync(
         `SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
-                sehir, universite, meslek, websitesi, imza, resim, online, sontarih,
+                sehir, universite, meslek, websitesi, imza, resim, online, sontarih, verified, role,
                 sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari,
                 CASE WHEN EXISTS (
                   SELECT 1

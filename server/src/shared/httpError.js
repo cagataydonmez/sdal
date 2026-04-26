@@ -4,6 +4,9 @@ export class HttpError extends Error {
     this.name = 'HttpError';
     this.statusCode = Number(statusCode) || 500;
     this.details = details;
+    if (details && typeof details === 'object' && details.code) {
+      this.code = String(details.code);
+    }
   }
 }
 

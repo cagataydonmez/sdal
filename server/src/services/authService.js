@@ -20,16 +20,20 @@ export class AuthService {
     if (!user) {
       throw new HttpError(400, 'Sdal.org sitesinde böyle bir kullanıcı henüz kayıtlı değil.');
     }
+    const verification = await this.verifyPassword(user.legacy?.sifre || '', password);
+    if (!verification?.ok) {
+      throw new HttpError(400, 'Girdiğin şifre yanlış!');
+    }
     if (user.banned) {
       throw new HttpError(400, `Merhaba ${user.firstName || ''} ${user.lastName || ''}, siteye girişiniz yasaklanmış!`);
     }
     if (!user.active) {
-      throw new HttpError(400, `Onay işleminizi henüz tamamlamamışsınız. Aktivasyon maili için /aktivasyon-gonder?id=${user.id}`);
-    }
-
-    const verification = await this.verifyPassword(user.legacy?.sifre || '', password);
-    if (!verification?.ok) {
-      throw new HttpError(400, 'Girdiğin şifre yanlış!');
+      throw new HttpError(403, 'Hesabınızı kullanmadan önce aktivasyonu tamamlamanız gerekiyor.', {
+        code: 'ACTIVATION_REQUIRED',
+        memberId: user.id,
+        email: user.email || '',
+        username: user.username || ''
+      });
     }
 
     if (verification.needsRehash) {

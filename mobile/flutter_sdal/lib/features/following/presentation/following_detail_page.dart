@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/member_badges.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -88,29 +89,26 @@ class FollowingDetailPage extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    detail.member.name,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                ),
-                                if (detail.member.verified)
-                                  Icon(
-                                    Icons.verified_rounded,
-                                    size: 18,
-                                    color: Theme.of(context).sdal.info,
-                                  ),
-                              ],
+                            Text(
+                              detail.member.name,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                             if (detail.member.handle.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
                                 '@${detail.member.handle}',
                                 style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                            if (detail.member.verified ||
+                                detail.member.role.trim().toLowerCase() !=
+                                    'user') ...[
+                              const SizedBox(height: 6),
+                              MemberBadgeStrip(
+                                verified: detail.member.verified,
+                                role: detail.member.role,
+                                graduationYear: detail.member.graduationYear,
+                                compact: true,
                               ),
                             ],
                             const SizedBox(height: 6),

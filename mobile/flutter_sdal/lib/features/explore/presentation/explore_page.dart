@@ -9,6 +9,7 @@ import '../../../core/network/json_utils.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/member_badges.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -941,6 +942,16 @@ class _MemberCard extends StatelessWidget {
                     '@${member.handle}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                if (member.verified ||
+                    member.role.trim().toLowerCase() != 'user') ...[
+                  const SizedBox(height: 8),
+                  MemberBadgeStrip(
+                    verified: member.verified,
+                    role: member.role,
+                    graduationYear: member.graduationYear,
+                    compact: true,
+                  ),
+                ],
                 if (member.profession.isNotEmpty || member.city.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(

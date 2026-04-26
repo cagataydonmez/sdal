@@ -177,10 +177,12 @@ class ProfileRepository {
   Future<ApiResult<dynamic>> submitVerificationRequest({
     String proofPath = '',
     String proofImageRecordId = '',
+    String requestType = 'member_verification',
   }) {
     return _apiClient.post<dynamic>(
       '/api/new/verified/request',
       body: {
+        'request_type': requestType,
         if (proofPath.isNotEmpty) 'proof_path': proofPath,
         if (proofImageRecordId.isNotEmpty)
           'proof_image_record_id': proofImageRecordId,

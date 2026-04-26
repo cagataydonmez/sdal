@@ -76,6 +76,8 @@ class FollowingDetailMember {
     required this.handle,
     required this.photo,
     required this.verified,
+    required this.role,
+    required this.graduationYear,
   });
 
   final int id;
@@ -83,6 +85,8 @@ class FollowingDetailMember {
   final String handle;
   final String photo;
   final bool verified;
+  final String role;
+  final String graduationYear;
 
   factory FollowingDetailMember.fromMap(JsonMap map) {
     return FollowingDetailMember(
@@ -91,6 +95,8 @@ class FollowingDetailMember {
       handle: coalesceText([map['handle']], fallback: ''),
       photo: coalesceText([map['photo']], fallback: ''),
       verified: asBool(map['verified']) ?? false,
+      role: coalesceText([map['role']], fallback: 'user'),
+      graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
     );
   }
 }

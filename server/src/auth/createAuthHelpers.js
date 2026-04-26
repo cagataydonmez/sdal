@@ -24,6 +24,7 @@ export function createAuthHelpers({ port }) {
     const fullName = `${user?.isim || ''} ${user?.soyisim || ''}`.trim() || (user?.kadi ? `@${user.kadi}` : 'Üye');
     const safeName = escapeHtml(fullName);
     const safeKadi = escapeHtml(user?.kadi || '');
+    const safeCode = escapeHtml(user?.aktivasyon || '');
     const safeLink = escapeHtml(safeActivation);
     return `<!doctype html>
 <html>
@@ -43,7 +44,9 @@ export function createAuthHelpers({ port }) {
     <tr>
       <td style="padding:24px;">
         <p style="margin:0 0 12px;font-size:16px;">Merhaba <b>${safeName}</b>,</p>
-        <p style="margin:0 0 16px;line-height:1.5;">Üyelik işlemini tamamlamak için aşağıdaki düğmeyi kullanabilirsin.</p>
+        <p style="margin:0 0 16px;line-height:1.5;">Üyelik işlemini tamamlamak için aşağıdaki aktivasyon kodunu uygulamadaki kod alanına yapıştırabilir veya düğmeyi kullanabilirsin.</p>
+        <p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Aktivasyon kodunuz:</p>
+        <p style="margin:0 0 18px;font-size:22px;line-height:1.35;letter-spacing:1px;font-weight:800;color:#111827;word-break:break-all;">${safeCode}</p>
         <p style="margin:0 0 18px;">
           <a href="${safeActivation}" target="_blank" rel="noreferrer" style="display:inline-block;padding:12px 18px;background:#ff6b4a;color:#111827;text-decoration:none;border-radius:999px;font-weight:700;">Hesabı Aktifleştir</a>
         </p>

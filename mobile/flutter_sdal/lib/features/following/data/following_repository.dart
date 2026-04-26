@@ -13,6 +13,8 @@ class FollowingMember {
     required this.followedAt,
     required this.engagementScore,
     required this.verified,
+    required this.role,
+    required this.graduationYear,
   });
 
   final int memberId;
@@ -22,6 +24,8 @@ class FollowingMember {
   final String followedAt;
   final double engagementScore;
   final bool verified;
+  final String role;
+  final String graduationYear;
 
   factory FollowingMember.fromMap(JsonMap map) {
     return FollowingMember(
@@ -42,6 +46,8 @@ class FollowingMember {
           ? (map['engagement_score'] as num).toDouble()
           : double.tryParse('${map['engagement_score'] ?? ''}') ?? 0,
       verified: asBool(map['verified']) ?? false,
+      role: coalesceText([map['role']], fallback: 'user'),
+      graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
     );
   }
 }

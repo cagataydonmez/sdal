@@ -55,7 +55,7 @@ export function registerAdminContentModerationRoutes(app, {
       const safeOffset = (safePage - 1) * limit;
 
       const items = await sqlAllAsync(
-        `SELECT r.id, r.user_id, r.status, r.proof_path, r.proof_image_record_id, r.created_at,
+        `SELECT r.id, r.user_id, r.status, r.request_type, r.proof_path, r.proof_image_record_id, r.created_at,
                 u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
          FROM verification_requests r
          LEFT JOIN uyeler u ON u.id = r.user_id
