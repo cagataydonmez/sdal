@@ -875,6 +875,7 @@ const {
   escapeHtml,
   resolvePublicBaseUrl,
   buildActivationEmailHtml,
+  buildActivationEmailText,
   createActivation,
   normalizeEmail,
   validateEmail,
@@ -2479,6 +2480,7 @@ async function queueEmailDelivery(payload, { maxAttempts = 4, backoffMs = 1500, 
     to: payload?.to || '',
     subject: payload?.subject || '',
     html: payload?.html || '',
+    text: payload?.text || '',
     from: payload?.from || null,
     timeoutMs: Number(payload?.timeoutMs || process.env.MAIL_SEND_TIMEOUT_MS || 8000)
   }, {
@@ -2510,6 +2512,7 @@ function getBackgroundJobHandlers() {
         to: payload?.to || '',
         subject: payload?.subject || '',
         html: payload?.html || '',
+        text: payload?.text || '',
         from: payload?.from || null
       }, Number(payload?.timeoutMs || process.env.MAIL_SEND_TIMEOUT_MS || 8000));
     }
@@ -3946,6 +3949,7 @@ registerAccountRoutes(app, {
   toDbBooleanParam,
   resolvePublicBaseUrl,
   buildActivationEmailHtml,
+  buildActivationEmailText,
   queueEmailDelivery,
   extractEmails,
   mailSender,

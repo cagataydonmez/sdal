@@ -18,47 +18,104 @@ export function createAuthHelpers({ port }) {
     return `${proto}://${host}`;
   }
 
-  function buildActivationEmailHtml({ siteBase, activationLink, user }) {
+  function _resolveEmailMeta({ siteBase, appName: appNameParam, supportEmail: supportEmailParam }) {
+    const appName = String(appNameParam || 'SDAL');
     const safeBase = String(siteBase || '').replace(/\/+$/, '');
-    const safeActivation = String(activationLink || '');
-    const fullName = `${user?.isim || ''} ${user?.soyisim || ''}`.trim() || (user?.kadi ? `@${user.kadi}` : 'Üye');
+    const baseDomain = safeBase.replace(/^https?:\/\//, '') || 'sdal.org';
+    const supportEmail = String(supportEmailParam || `destek@${baseDomain}`);
+    return { appName, safeBase, supportEmail };
+  }
+
+  function buildActivationEmailText({ siteBase, user, appName: appNameParam, supportEmail: supportEmailParam }) {
+    const { appName, safeBase, supportEmail } = _resolveEmailMeta({ siteBase, appName: appNameParam, supportEmail: supportEmailParam });
+    const code = String(user?.aktivasyon || user?.activation_token || '');
+    const fullName = `${user?.isim || user?.first_name || ''} ${user?.soyisim || user?.last_name || ''}`.trim()
+      || (user?.kadi || user?.username ? `@${user.kadi || user.username}` : 'Üye');
+
+    return [
+      `${code} ${appName} doğrulama kodunuzdur.`,
+      `${code} is your ${appName} verification code.`,
+      '',
+      `Merhaba ${fullName},`,
+      '',
+      `${appName} hesabınızı aktifleştirmek için doğrulama kodunuz:`,
+      '',
+      code,
+      '',
+      'Bu kodu kimseyle paylaşmayın.',
+      '',
+      `Bu e-postayı siz talep etmediyseniz lütfen ${supportEmail} adresine bildirin.`,
+      safeBase
+    ].join('\n');
+  }
+
+  function buildActivationEmailHtml({ siteBase, user, appName: appNameParam, supportEmail: supportEmailParam }) {
+    const { appName, safeBase, supportEmail } = _resolveEmailMeta({ siteBase, appName: appNameParam, supportEmail: supportEmailParam });
+    const code = escapeHtml(user?.aktivasyon || user?.activation_token || '');
+    const fullName = `${user?.isim || user?.first_name || ''} ${user?.soyisim || user?.last_name || ''}`.trim()
+      || (user?.kadi || user?.username ? `@${user.kadi || user.username}` : 'Üye');
     const safeName = escapeHtml(fullName);
-    const safeKadi = escapeHtml(user?.kadi || '');
-    const safeCode = escapeHtml(user?.aktivasyon || '');
-    const safeLink = escapeHtml(safeActivation);
+    const safeKadi = escapeHtml(user?.kadi || user?.username || '');
+    const safeSupport = escapeHtml(supportEmail);
+    const safeAppName = escapeHtml(appName);
+    const safeBase2 = escapeHtml(safeBase);
+
     return `<!doctype html>
-<html>
+<html lang="tr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SDAL Aktivasyon</title>
+  <title>${safeAppName} Doğrulama Kodu</title>
 </head>
-<body style="margin:0;padding:24px;background:#f4efe8;font-family:Arial,sans-serif;color:#1f2937;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+<body style="margin:0;padding:20px 12px;background:#f3f4f6;font-family:Arial,sans-serif;color:#111827;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;">
     <tr>
-      <td style="padding:20px 24px;background:linear-gradient(135deg,#111827 0%, #2b3444 100%);color:#fff;">
-        <div style="font-size:20px;font-weight:700;letter-spacing:0.3px;">SDAL</div>
-        <div style="opacity:0.85;font-size:13px;margin-top:4px;">Hesap Aktivasyonu</div>
+      <td style="padding:0 0 6px;font-size:11px;color:#9ca3af;text-align:center;">${safeAppName} Doğrulama</td>
+    </tr>
+    <tr>
+      <td style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:18px 24px;background:#111827;">
+              <span style="font-size:18px;font-weight:800;color:#ffffff;letter-spacing:0.5px;">${safeAppName}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 24px 8px;">
+              <p style="margin:0 0 6px;font-size:14px;color:#6b7280;">Merhaba <b style="color:#111827;">${safeName}</b>,</p>
+              <p style="margin:8px 0 22px;font-size:14px;color:#374151;line-height:1.5;">
+                ${safeAppName} hesabınızı aktifleştirmek için doğrulama kodunuz:
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:22px 16px;text-align:center;">
+                    <div style="font-size:42px;font-weight:800;letter-spacing:10px;color:#111827;font-family:'Courier New',Courier,monospace;line-height:1;">${code}</div>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:16px 0 4px;font-size:13px;color:#374151;">
+                Kodu uygulamadaki doğrulama alanına girin.
+              </p>
+              <p style="margin:0 0 24px;font-size:12px;font-weight:700;color:#dc2626;">
+                Bu kodu kimseyle paylaşmayın.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:12px 24px 20px;border-top:1px solid #f3f4f6;">
+              <p style="margin:0 0 4px;font-size:11px;color:#9ca3af;">Kullanıcı adı: @${safeKadi}</p>
+              <p style="margin:0;font-size:11px;color:#9ca3af;">
+                Bu e-postayı siz talep etmediyseniz yok sayın veya
+                <a href="mailto:${safeSupport}" style="color:#6b7280;">${safeSupport}</a> adresine bildirin.
+              </p>
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
     <tr>
-      <td style="padding:24px;">
-        <p style="margin:0 0 12px;font-size:16px;">Merhaba <b>${safeName}</b>,</p>
-        <p style="margin:0 0 16px;line-height:1.5;">Üyelik işlemini tamamlamak için aşağıdaki aktivasyon kodunu uygulamadaki kod alanına yapıştırabilir veya düğmeyi kullanabilirsin.</p>
-        <p style="margin:0 0 8px;font-size:13px;color:#6b7280;">Aktivasyon kodunuz: <b style="color:#111827;font-size:15px;">${safeCode}</b></p>
-        <p style="margin:0 0 18px;font-size:22px;line-height:1.35;letter-spacing:1px;font-weight:800;color:#111827;word-break:break-all;">${safeCode}</p>
-        <p style="margin:0 0 18px;">
-          <a href="${safeActivation}" target="_blank" rel="noreferrer" style="display:inline-block;padding:12px 18px;background:#ff6b4a;color:#111827;text-decoration:none;border-radius:999px;font-weight:700;">Hesabı Aktifleştir</a>
-        </p>
-        <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Kullanıcı adı: <b style="color:#111827">@${safeKadi}</b></p>
-        <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">Buton çalışmazsa bağlantıyı kopyala:</p>
-        <p style="margin:0;font-size:12px;word-break:break-all;"><a href="${safeActivation}" target="_blank" rel="noreferrer" style="color:#2563eb;">${safeLink}</a></p>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding:16px 24px;background:#f9fafb;color:#6b7280;font-size:12px;">
-        SDAL hesabını sen açmadıysan bu e-postayı yok sayabilirsin.<br/>
-        <a href="${escapeHtml(safeBase)}/" target="_blank" rel="noreferrer" style="color:#4b5563;">${escapeHtml(safeBase)}</a>
+      <td style="padding:10px 0;font-size:11px;color:#9ca3af;text-align:center;">
+        <a href="${safeBase2}/" style="color:#9ca3af;text-decoration:none;">${safeBase2}</a>
       </td>
     </tr>
   </table>
@@ -67,13 +124,7 @@ export function createAuthHelpers({ port }) {
   }
 
   function createActivation() {
-    const chars = 'abdefghijklmoprstuvyzABDEFGHIKLMOPRSTUVYZ';
-    let out = 'SdAl';
-    for (let i = 0; i < 20; i += 1) {
-      const idx = Math.floor(Math.random() * chars.length);
-      out += chars[idx];
-    }
-    return out;
+    return String(Math.floor(100000 + Math.random() * 900000));
   }
 
   function normalizeEmail(email) {
@@ -99,6 +150,7 @@ export function createAuthHelpers({ port }) {
     escapeHtml,
     resolvePublicBaseUrl,
     buildActivationEmailHtml,
+    buildActivationEmailText,
     createActivation,
     normalizeEmail,
     validateEmail,

@@ -50,6 +50,7 @@ export function registerAccountRoutes(app, deps) {
     toDbBooleanParam,
     resolvePublicBaseUrl,
     buildActivationEmailHtml,
+    buildActivationEmailText,
     queueEmailDelivery,
     extractEmails,
     mailSender,
@@ -369,20 +370,12 @@ export function registerAccountRoutes(app, deps) {
       let mailQueued = false;
       if (!e2eMode) {
         const publicBaseUrl = resolvePublicBaseUrl(req);
-        const activationLink = `${publicBaseUrl}/aktivet?id=${newId}&akt=${aktivasyon}`;
-        const html = buildActivationEmailHtml({
-          siteBase: publicBaseUrl,
-          activationLink,
-          user: {
-            kadi: cleanKadi,
-            isim: cleanIsim,
-            soyisim: cleanSoyisim,
-            aktivasyon
-          }
-        });
+        const emailUser = { kadi: cleanKadi, isim: cleanIsim, soyisim: cleanSoyisim, aktivasyon };
+        const html = buildActivationEmailHtml({ siteBase: publicBaseUrl, user: emailUser });
+        const text = buildActivationEmailText({ siteBase: publicBaseUrl, user: emailUser });
 
         queueEmailDelivery(
-          { to: cleanEmail, subject: 'SDAL.ORG - Üyelik Başvurusu', html, timeoutMs: Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000) },
+          { to: cleanEmail, subject: `${aktivasyon} – SDAL doğrulama kodunuz`, html, text, timeoutMs: Number(process.env.MAIL_SEND_TIMEOUT_MS || 8000) },
           { maxAttempts: 4, backoffMs: 1500 }
         ).catch((err) => {
           console.error('Register activation mail send failed:', err);
@@ -451,13 +444,9 @@ export function registerAccountRoutes(app, deps) {
       if (String(user.email || '').toLowerCase() !== String(email || '').toLowerCase()) return res.status(400).send('Üye numarası ile e-mail adresi eşleşmiyor.');
       if (Number(user.aktiv || 0) === 1) return res.status(400).send('Bu hesap zaten aktif edildi.');
       const publicBaseUrl = resolvePublicBaseUrl(req);
-      const activationLink = `${publicBaseUrl}/aktivet?id=${user.id}&akt=${user.aktivasyon}`;
-      const html = buildActivationEmailHtml({
-        siteBase: publicBaseUrl,
-        activationLink,
-        user
-      });
-      await queueEmailDelivery({ to: user.email, subject: 'SDAL - Aktivasyon', html }, { maxAttempts: 4, backoffMs: 1200 });
+      const html = buildActivationEmailHtml({ siteBase: publicBaseUrl, user });
+      const text = buildActivationEmailText({ siteBase: publicBaseUrl, user });
+      await queueEmailDelivery({ to: user.email, subject: `${user.aktivasyon} – SDAL doğrulama kodunuz`, html, text }, { maxAttempts: 4, backoffMs: 1200 });
       res.json({ ok: true, email: user.email, message: `Aktivasyon e-postası ${user.email} adresine gönderildi.` });
     } catch (err) {
       console.error(err);

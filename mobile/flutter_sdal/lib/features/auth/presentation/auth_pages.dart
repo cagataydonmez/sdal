@@ -1260,7 +1260,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
     return _AuthFrame(
       title: l10n.activationTitle,
       subtitle:
-          'E-postadaki aktivasyon kodunu bekliyoruz. Kod alanı seçili; mail uygulamasındaki kod önerisini buraya yapıştırabilirsiniz.',
+          'E-postadaki 6 haneli doğrulama kodunu girin. iOS\'ta klavye üzerinde otomatik öneri çıkabilir.',
       child: AutofillGroup(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1283,12 +1283,16 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
               focusNode: _codeFocusNode,
               autofocus: true,
               autofillHints: const [AutofillHints.oneTimeCode],
-              keyboardType: TextInputType.visiblePassword,
+              keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,
               autocorrect: false,
               enableSuggestions: false,
+              maxLength: 6,
               onSubmitted: (_) => _submit(),
-              decoration: InputDecoration(labelText: l10n.activationCode),
+              decoration: InputDecoration(
+                labelText: l10n.activationCode,
+                counterText: '',
+              ),
             ),
             if (status != null) ...[const SizedBox(height: 12), Text(status)],
             if (resendStatus != null) ...[

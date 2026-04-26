@@ -202,13 +202,15 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
       throw createMailError('Mail recipients missing', { code: 'MAIL_RECIPIENT_MISSING', retryable: false });
     }
 
+    const body = { from: sender, to: recipients, subject, html };
+    if (payload.text) body.text = payload.text;
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ from: sender, to: recipients, subject, html })
+      body: JSON.stringify(body)
     });
 
     const responseText = await resp.text().catch(() => '');
@@ -240,7 +242,9 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
       throw createMailError('SMTP transport is not configured', { code: 'MAIL_CONFIG_MISSING', retryable: false });
     }
 
-    const info = await transport.sendMail({ from: sender, to: recipients, subject, html });
+    const mailOptions = { from: sender, to: recipients, subject, html };
+    if (payload.text) mailOptions.text = payload.text;
+    const info = await transport.sendMail(mailOptions);
     return {
       provider: 'smtp',
       acceptedCount: Array.isArray(info?.accepted) ? info.accepted.length : recipients.length,
@@ -275,7 +279,8 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
         sender: sender.name ? { name: sender.name, email: sender.email } : { email: sender.email },
         to: recipients.map((email) => ({ email })),
         subject: String(subject || ''),
-        htmlContent: String(html || '')
+        htmlContent: String(html || ''),
+        ...(payload.text ? { textContent: String(payload.text) } : {})
       })
     });
 
