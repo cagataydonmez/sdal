@@ -3737,6 +3737,7 @@ registerSystemRoutes(app, {
 
 registerOAuthRoutes(app, {
   sqlGet,
+  sqlAll,
   sqlRun,
   sqlGetAsync,
   sqlRunAsync,

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/messenger/data/messenger_repository.dart';
 import '../../features/notifications/data/notifications_repository.dart';
 import '../l10n/context_l10n.dart';
+import '../session/session_controller.dart';
 import '../shell/shell_metadata_repository.dart';
 import '../theme/sdal_theme_tokens.dart';
 
@@ -38,7 +39,8 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     // never called. Detect the tab change here and clear activeMessengerThreadIdProvider
     // so that incoming messages show in the badge.
     if (_lastIndex != currentIndex) {
-      if (_lastIndex == _messengerTabIndex && currentIndex != _messengerTabIndex) {
+      if (_lastIndex == _messengerTabIndex &&
+          currentIndex != _messengerTabIndex) {
         // Leaving messenger tab: clear the active thread so incoming messages
         // show in the badge count.
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,13 +68,20 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     final localUnreadNotifications =
         ref.watch(notificationUnreadCountProvider).value ?? 0;
     final shellMenu = ref.watch(shellMenuProvider).value;
+    final session = ref.watch(sessionControllerProvider).value;
     final unreadMessages = localUnreadMessages;
     final unreadNotifications = math.max(
       localUnreadNotifications,
       shellMenu?.badgeForRoute('/notifications') ?? 0,
     );
     return Scaffold(
-      body: widget.navigationShell,
+      body: Column(
+        children: [
+          if (session?.requiresProfileCompletion == true)
+            _ProfileCompletionBanner(onTap: () => context.go('/profile/edit')),
+          Expanded(child: widget.navigationShell),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: widget.navigationShell.currentIndex,
         onDestinationSelected: _onTap,
@@ -123,6 +132,41 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
             label: l10n.tabProfile,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfileCompletionBanner extends StatelessWidget {
+  const _ProfileCompletionBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return SafeArea(
+      bottom: false,
+      child: Material(
+        color: tokens.warningMuted,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.assignment_ind_outlined, color: tokens.warning),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Profil bilgilerini tamamla. Dokunup profil düzenlemeye git.',
+                  ),
+                ),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

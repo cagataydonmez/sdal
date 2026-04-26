@@ -19,6 +19,12 @@ const RegisterCheckSchema = z.object({
   email: z.string().max(50).optional().default(''),
 });
 
+const TEST_MULTI_ACCOUNT_EMAIL = 'cagatay.donmez@gmail.com';
+
+function isTestMultiAccountEmail(email) {
+  return String(email || '').trim().toLowerCase() === TEST_MULTI_ACCOUNT_EMAIL;
+}
+
 export function registerAccountRoutes(app, deps) {
   const {
     sqlGet,
@@ -125,7 +131,9 @@ export function registerAccountRoutes(app, deps) {
           email: inactive ? existingUser.email : undefined
         });
       }
-      const existingMail = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+      const existingMail = isTestMultiAccountEmail(cleanEmail)
+        ? null
+        : await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
       if (existingMail) {
         const inactive = Number(existingMail.aktiv || 0) !== 1;
         return res.status(400).json({
@@ -180,7 +188,7 @@ export function registerAccountRoutes(app, deps) {
         inactiveMemberId = kadiInactive ? existingUser.id : null;
         inactiveEmail = kadiInactive ? existingUser.email : '';
       }
-      if (cleanEmail && validateEmail(cleanEmail)) {
+      if (cleanEmail && validateEmail(cleanEmail) && !isTestMultiAccountEmail(cleanEmail)) {
         const existingMail = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
         emailExists = Boolean(existingMail);
         emailInactive = Boolean(existingMail && Number(existingMail.aktiv || 0) !== 1);
@@ -279,7 +287,9 @@ export function registerAccountRoutes(app, deps) {
           email: inactive ? existingUser.email : undefined
         });
       }
-      const existingMail = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+      const existingMail = isTestMultiAccountEmail(cleanEmail)
+        ? null
+        : await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
       if (existingMail) {
         const inactive = Number(existingMail.aktiv || 0) !== 1;
         return res.status(400).json({

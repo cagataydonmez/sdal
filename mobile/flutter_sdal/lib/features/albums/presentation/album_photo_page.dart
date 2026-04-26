@@ -407,6 +407,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
           profession: '',
           photo: member.photo,
           verified: false,
+          role: 'user',
           following: false,
           graduationYear: '',
           joinedAt: null,

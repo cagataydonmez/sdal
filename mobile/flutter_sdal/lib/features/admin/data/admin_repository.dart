@@ -409,6 +409,9 @@ class AdminVerificationQueueItem {
     required this.requesterName,
     required this.requesterHandle,
     required this.graduationYear,
+    required this.requestType,
+    required this.proofPath,
+    required this.proofImageRecordId,
   });
 
   final int id;
@@ -417,6 +420,16 @@ class AdminVerificationQueueItem {
   final String requesterName;
   final String requesterHandle;
   final String graduationYear;
+  final String requestType;
+  final String proofPath;
+  final String proofImageRecordId;
+
+  bool get isTeacherVerification =>
+      requestType == 'teacher_verification' ||
+      graduationYear.trim().toLowerCase() == 'teacher' ||
+      graduationYear.trim() == '9999';
+
+  bool get hasProof => proofPath.isNotEmpty || proofImageRecordId.isNotEmpty;
 
   factory AdminVerificationQueueItem.fromMap(JsonMap map) {
     final firstName = coalesceText([map['isim']], fallback: '');
@@ -431,8 +444,96 @@ class AdminVerificationQueueItem {
           : coalesceText([map['kadi']], fallback: 'SDAL Uyesi'),
       requesterHandle: coalesceText([map['kadi']], fallback: ''),
       graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
+      requestType: coalesceText([map['request_type']], fallback: ''),
+      proofPath: coalesceText([map['proof_path']], fallback: ''),
+      proofImageRecordId: coalesceText([
+        map['proof_image_record_id'],
+      ], fallback: ''),
     );
   }
+}
+
+class AdminTeacherNetworkLinkItem {
+  const AdminTeacherNetworkLinkItem({
+    required this.id,
+    required this.reviewStatus,
+    required this.relationshipType,
+    required this.classYear,
+    required this.notes,
+    required this.createdAt,
+    required this.confidenceScore,
+    required this.teacherName,
+    required this.teacherHandle,
+    required this.teacherCohort,
+    required this.alumniName,
+    required this.alumniHandle,
+    required this.alumniGraduationYear,
+    required this.activePairLinkCount,
+    required this.teacherActiveLinkCount,
+    required this.reviewNote,
+    required this.moderationLabel,
+  });
+
+  final int id;
+  final String reviewStatus;
+  final String relationshipType;
+  final String classYear;
+  final String notes;
+  final String createdAt;
+  final double confidenceScore;
+  final String teacherName;
+  final String teacherHandle;
+  final String teacherCohort;
+  final String alumniName;
+  final String alumniHandle;
+  final String alumniGraduationYear;
+  final int activePairLinkCount;
+  final int teacherActiveLinkCount;
+  final String reviewNote;
+  final String moderationLabel;
+
+  factory AdminTeacherNetworkLinkItem.fromMap(JsonMap map) {
+    final teacherFirst = coalesceText([map['teacher_isim']], fallback: '');
+    final teacherLast = coalesceText([map['teacher_soyisim']], fallback: '');
+    final alumniFirst = coalesceText([map['alumni_isim']], fallback: '');
+    final alumniLast = coalesceText([map['alumni_soyisim']], fallback: '');
+    final assessment = asJsonMap(map['moderation_assessment']);
+    return AdminTeacherNetworkLinkItem(
+      id: asInt(map['id']) ?? 0,
+      reviewStatus: coalesceText([map['review_status']], fallback: 'pending'),
+      relationshipType: coalesceText([map['relationship_type']], fallback: ''),
+      classYear: coalesceText([map['class_year']], fallback: ''),
+      notes: coalesceText([map['notes']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+      confidenceScore: _asDouble(map['confidence_score']) ?? 0,
+      teacherName: '$teacherFirst $teacherLast'.trim().isNotEmpty
+          ? '$teacherFirst $teacherLast'.trim()
+          : coalesceText([map['teacher_kadi']], fallback: 'Öğretmen'),
+      teacherHandle: coalesceText([map['teacher_kadi']], fallback: ''),
+      teacherCohort: coalesceText([map['teacher_cohort']], fallback: ''),
+      alumniName: '$alumniFirst $alumniLast'.trim().isNotEmpty
+          ? '$alumniFirst $alumniLast'.trim()
+          : coalesceText([map['alumni_kadi']], fallback: 'Mezun'),
+      alumniHandle: coalesceText([map['alumni_kadi']], fallback: ''),
+      alumniGraduationYear: coalesceText([
+        map['alumni_mezuniyetyili'],
+      ], fallback: ''),
+      activePairLinkCount: asInt(map['active_pair_link_count']) ?? 0,
+      teacherActiveLinkCount: asInt(map['teacher_active_link_count']) ?? 0,
+      reviewNote: coalesceText([map['review_note']], fallback: ''),
+      moderationLabel: coalesceText([
+        assessment['label'],
+        assessment['risk_label'],
+        assessment['summary'],
+      ], fallback: ''),
+    );
+  }
+}
+
+double? _asDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
 }
 
 class AdminUserPreviewItem {
@@ -1361,6 +1462,16 @@ class AdminRepository {
     );
   }
 
+  Future<AdminPreviewList<AdminTeacherNetworkLinkItem>>
+  fetchTeacherNetworkLinkPreview({int limit = 6}) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/teacher-network/links',
+      query: {'review_status': 'pending'},
+      limit: limit,
+      decoder: AdminTeacherNetworkLinkItem.fromMap,
+    );
+  }
+
   Future<AdminPreviewList<AdminUserPreviewItem>> fetchUserPreview({
     AdminUserListQuery query = const AdminUserListQuery(),
   }) async {
@@ -1987,6 +2098,22 @@ class AdminRepository {
     );
   }
 
+  Future<void> reviewTeacherNetworkLink({
+    required int id,
+    required String status,
+    String note = '',
+    int? mergeIntoLinkId,
+  }) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/teacher-network/links/$id/review',
+      body: {
+        'status': status,
+        if (note.trim().isNotEmpty) 'note': note.trim(),
+        if ((mergeIntoLinkId ?? 0) > 0) 'merge_into_link_id': mergeIntoLinkId,
+      },
+    );
+  }
+
   Future<void> deleteMember(int id) async {
     await _apiClient.delete<dynamic>('/api/new/admin/members/$id');
   }
@@ -2051,6 +2178,12 @@ final adminVerificationRequestPreviewProvider =
     FutureProvider<AdminPreviewList<AdminVerificationQueueItem>>(
       (ref) =>
           ref.watch(adminRepositoryProvider).fetchVerificationRequestPreview(),
+    );
+
+final adminTeacherNetworkLinkPreviewProvider =
+    FutureProvider<AdminPreviewList<AdminTeacherNetworkLinkItem>>(
+      (ref) =>
+          ref.watch(adminRepositoryProvider).fetchTeacherNetworkLinkPreview(),
     );
 
 final adminUserPreviewProvider =

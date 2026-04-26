@@ -534,12 +534,6 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
         : '/module-closed?module=$moduleKey';
   }
 
-  if (snapshot.requiresProfileCompletion &&
-      !location.startsWith('/profile') &&
-      location != '/module-closed') {
-    return '/profile';
-  }
-
   if (requiresVerificationGate(location) && snapshot.requiresVerification) {
     return location == '/verification-required'
         ? null

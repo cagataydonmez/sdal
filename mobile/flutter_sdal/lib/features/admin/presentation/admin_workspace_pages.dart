@@ -392,6 +392,14 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                   items: <AdminVerificationQueueItem>[],
                 ),
               );
+        final teacherNetworkLinkPreviewState = canReviewRequests
+            ? ref.watch(adminTeacherNetworkLinkPreviewProvider)
+            : const AsyncValue.data(
+                AdminPreviewList<AdminTeacherNetworkLinkItem>(
+                  total: 0,
+                  items: <AdminTeacherNetworkLinkItem>[],
+                ),
+              );
         final postPreviewState = canViewPosts
             ? ref.watch(adminPostPreviewProvider)
             : const AsyncValue.data(
@@ -420,6 +428,8 @@ class ModeratorWorkspacePage extends ConsumerWidget {
         final requestTotal = requestPreviewState.asData?.value.total ?? 0;
         final verificationTotal =
             verificationPreviewState.asData?.value.total ?? 0;
+        final teacherNetworkLinkTotal =
+            teacherNetworkLinkPreviewState.asData?.value.total ?? 0;
         final contentTotal =
             (postPreviewState.asData?.value.total ?? 0) +
             (commentPreviewState.asData?.value.total ?? 0) +
@@ -434,6 +444,7 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                 ref.invalidate(adminAccessProvider);
                 ref.invalidate(adminMemberRequestPreviewProvider);
                 ref.invalidate(adminVerificationRequestPreviewProvider);
+                ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
                 ref.invalidate(adminPostPreviewProvider);
                 ref.invalidate(adminCommentPreviewProvider);
                 ref.invalidate(adminStoryPreviewProvider);
@@ -467,6 +478,10 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                   _HeroBadge(
                     icon: Icons.verified_user_outlined,
                     label: '$verificationTotal doğrulama',
+                  ),
+                  _HeroBadge(
+                    icon: Icons.school_outlined,
+                    label: '$teacherNetworkLinkTotal öğretmen ağı',
                   ),
                   _HeroBadge(
                     icon: Icons.shield_outlined,
@@ -505,7 +520,17 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                         countLabel: '$verificationTotal bekleyen kayıt',
                         icon: Icons.badge_outlined,
                         tone: _WorkspaceTone.info,
-                        onTap: () => context.go('/admin/content'),
+                        onTap: () => context.go('/admin/requests'),
+                      ),
+                    if (canReviewRequests)
+                      _WorkspaceNavCard(
+                        title: 'Öğretmen ağı',
+                        summary:
+                            'Mezunların eklediği öğretmen bağlantılarını onaylayın.',
+                        countLabel: '$teacherNetworkLinkTotal bekleyen kayıt',
+                        icon: Icons.school_outlined,
+                        tone: _WorkspaceTone.info,
+                        onTap: () => context.go('/admin/requests'),
                       ),
                     if (contentTotal > 0)
                       _WorkspaceNavCard(
@@ -574,6 +599,40 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                   ),
                 ),
               if (canReviewVerification) const SizedBox(height: 16),
+              if (canReviewRequests)
+                _AsyncSurfaceCard<
+                  AdminPreviewList<AdminTeacherNetworkLinkItem>
+                >(
+                  title: 'Bekleyen öğretmen ağı bağlantıları',
+                  asyncValue: teacherNetworkLinkPreviewState,
+                  builder: (preview) => _TeacherNetworkPreviewList(
+                    items: preview.items,
+                    emptyMessage:
+                        'Senin cohort kapsamında bekleyen öğretmen bağlantısı yok.',
+                    onConfirm: (item) => _reviewTeacherNetworkLink(
+                      context,
+                      ref,
+                      id: item.id,
+                      status: 'confirmed',
+                    ),
+                    onFlag: (item) => _reviewTeacherNetworkLink(
+                      context,
+                      ref,
+                      id: item.id,
+                      status: 'flagged',
+                    ),
+                    onReject: (item) => _reviewTeacherNetworkLink(
+                      context,
+                      ref,
+                      id: item.id,
+                      status: 'rejected',
+                    ),
+                    canModerate: _hasAnyPermission(permissions, const [
+                      'requests.moderate',
+                    ]),
+                  ),
+                ),
+              if (canReviewRequests) const SizedBox(height: 16),
               if (contentTotal > 0)
                 _ContentModerationCard(
                   postPreviewState: postPreviewState,
@@ -1147,12 +1206,74 @@ class _VerificationPreviewList extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: _QueueItemCard(
                 title: item.requesterName,
-                subtitle:
-                    '@${item.requesterHandle} · ${item.graduationYear} · ${item.createdAt}',
+                subtitle: [
+                  '@${item.requesterHandle}',
+                  item.isTeacherVerification
+                      ? 'Öğretmen doğrulaması'
+                      : 'Üye doğrulaması',
+                  _formatGraduationYear(item.graduationYear),
+                  item.hasProof ? 'Kanıt var' : 'Kanıt yok',
+                  item.createdAt,
+                ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.status,
                 canModerate: canModerate,
                 onApprove: () => onApprove(item),
                 onReject: () => onReject(item),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _TeacherNetworkPreviewList extends StatelessWidget {
+  const _TeacherNetworkPreviewList({
+    required this.items,
+    required this.emptyMessage,
+    required this.onConfirm,
+    required this.onFlag,
+    required this.onReject,
+    required this.canModerate,
+  });
+
+  final List<AdminTeacherNetworkLinkItem> items;
+  final String emptyMessage;
+  final ValueChanged<AdminTeacherNetworkLinkItem> onConfirm;
+  final ValueChanged<AdminTeacherNetworkLinkItem> onFlag;
+  final ValueChanged<AdminTeacherNetworkLinkItem> onReject;
+  final bool canModerate;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return Text(emptyMessage);
+    return Column(
+      children: items
+          .map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _QueueItemCard(
+                title:
+                    '${item.alumniHandle.isNotEmpty ? '@${item.alumniHandle}' : item.alumniName} -> ${item.teacherHandle.isNotEmpty ? '@${item.teacherHandle}' : item.teacherName}',
+                subtitle: [
+                  _formatTeacherRelationship(item.relationshipType),
+                  _formatGraduationYear(item.alumniGraduationYear),
+                  'Güven ${(item.confidenceScore * 100).round()}%',
+                  if (item.activePairLinkCount > 1) 'Benzer kayıt var',
+                  if (item.moderationLabel.isNotEmpty) item.moderationLabel,
+                  if (item.notes.isNotEmpty) item.notes,
+                  item.createdAt,
+                ].where((part) => part.trim().isNotEmpty).join(' · '),
+                status: item.reviewStatus,
+                canModerate: canModerate,
+                onApprove: () => onConfirm(item),
+                onReject: () => onReject(item),
+                extraActions: [
+                  TextButton(
+                    onPressed: canModerate ? () => onFlag(item) : null,
+                    child: const Text('İşaretle'),
+                  ),
+                ],
               ),
             ),
           )
@@ -1169,6 +1290,7 @@ class _QueueItemCard extends StatelessWidget {
     required this.canModerate,
     required this.onApprove,
     required this.onReject,
+    this.extraActions = const <Widget>[],
   });
 
   final String title;
@@ -1177,6 +1299,7 @@ class _QueueItemCard extends StatelessWidget {
   final bool canModerate;
   final VoidCallback onApprove;
   final VoidCallback onReject;
+  final List<Widget> extraActions;
 
   @override
   Widget build(BuildContext context) {
@@ -1219,6 +1342,8 @@ class _QueueItemCard extends StatelessWidget {
               if (canModerate) ...[
                 TextButton(onPressed: onReject, child: const Text('Reddet')),
                 const SizedBox(width: 8),
+                ...extraActions,
+                if (extraActions.isNotEmpty) const SizedBox(width: 8),
                 FilledButton(onPressed: onApprove, child: const Text('Onayla')),
               ],
             ],
@@ -1389,7 +1514,29 @@ Future<void> _reviewMemberRequest(
 }
 
 String _formatGraduationYear(String value) {
-  return value == 'teacher' ? 'Öğretmen' : value;
+  final normalized = value.trim().toLowerCase();
+  if (normalized == 'teacher' ||
+      normalized == '9999' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen') {
+    return 'Öğretmen';
+  }
+  return value.trim().isEmpty ? 'Yıl yok' : value.trim();
+}
+
+String _formatTeacherRelationship(String value) {
+  switch (value.trim()) {
+    case 'taught_in_class':
+      return 'Derse girdi';
+    case 'club_advisor':
+      return 'Kulüp danışmanı';
+    case 'mentor':
+      return 'Mentor';
+    case 'other':
+      return 'Diğer bağ';
+    default:
+      return value.trim().isEmpty ? 'Öğretmen bağı' : value.trim();
+  }
 }
 
 class _GraduationYearApprovalDialog extends StatefulWidget {
@@ -1460,6 +1607,28 @@ Future<void> _reviewVerificationRequest(
     SnackBar(
       content: Text(
         ok ? 'Doğrulama talebi güncellendi.' : 'İşlem tamamlanamadı.',
+      ),
+    ),
+  );
+}
+
+Future<void> _reviewTeacherNetworkLink(
+  BuildContext context,
+  WidgetRef ref, {
+  required int id,
+  required String status,
+}) async {
+  final ok = await ref
+      .read(adminActionControllerProvider.notifier)
+      .reviewTeacherNetworkLink(id: id, status: status);
+  if (!context.mounted) return;
+  final actionState = ref.read(adminActionControllerProvider);
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        ok
+            ? 'Öğretmen ağı bağlantısı güncellendi.'
+            : (actionState.message ?? 'İşlem tamamlanamadı.'),
       ),
     ),
   );

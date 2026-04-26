@@ -24,6 +24,7 @@ class _ProfileVerificationPageState
   File? _proofFile;
   String _proofPath = '';
   String _proofImageRecordId = '';
+  bool _submitted = false;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +55,8 @@ class _ProfileVerificationPageState
                 Text(
                   user?.isVerified == true
                       ? l10n.profileVerifiedMessage
+                      : _submitted
+                      ? l10n.verificationSubmitted
                       : isTeacherVerification
                       ? 'Öğretmen doğrulaması için okul/öğretmenlik bağınızı gösteren belgeyi yükleyin. Bu onay, mezun üye doğrulamasından ayrı değerlendirilir.'
                       : l10n.profileVerificationHint,
@@ -141,7 +144,8 @@ class _ProfileVerificationPageState
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: submitting || user?.isVerified == true
+                    onPressed:
+                        submitting || user?.isVerified == true || _submitted
                         ? null
                         : _submitRequest,
                     child: Text(
@@ -215,6 +219,9 @@ class _ProfileVerificationPageState
               : 'member_verification',
         );
     if (!mounted) return;
+    if (ok) {
+      setState(() => _submitted = true);
+    }
     final actionState = ref.read(profileActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

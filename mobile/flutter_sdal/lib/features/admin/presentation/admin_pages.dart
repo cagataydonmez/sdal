@@ -438,6 +438,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         : const AsyncValue<AdminPreviewList<AdminVerificationQueueItem>>.data(
             AdminPreviewList(total: 0, items: <AdminVerificationQueueItem>[]),
           );
+    final teacherNetworkLinkPreviewState = sectionKey == 'requests'
+        ? ref.watch(adminTeacherNetworkLinkPreviewProvider)
+        : const AsyncValue<AdminPreviewList<AdminTeacherNetworkLinkItem>>.data(
+            AdminPreviewList(total: 0, items: <AdminTeacherNetworkLinkItem>[]),
+          );
     final userPreviewState = sectionKey == 'management'
         ? ref.watch(adminUserPreviewProvider(userPreviewQuery))
         : const AsyncValue<AdminPreviewList<AdminUserPreviewItem>>.data(
@@ -544,6 +549,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               if (sectionKey == 'requests') {
                 ref.invalidate(adminMemberRequestPreviewProvider);
                 ref.invalidate(adminVerificationRequestPreviewProvider);
+                ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
               }
               if (sectionKey == 'management') {
                 ref.invalidate(adminUserPreviewProvider);
@@ -694,6 +700,172 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 id: item.id,
                                 successMessage: 'Hikaye silindi.',
                               ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+          if (sectionKey == 'requests') ...[
+            const SizedBox(height: 16),
+            _AdminAsyncCard(
+              title: 'Talep ve doğrulama kuyrukları',
+              states: [
+                memberRequestPreviewState,
+                verificationPreviewState,
+                teacherNetworkLinkPreviewState,
+              ],
+              builder: () {
+                final memberRequests = memberRequestPreviewState.value!;
+                final verificationRequests = verificationPreviewState.value!;
+                final teacherLinks = teacherNetworkLinkPreviewState.value!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _AdminPreviewListCard(
+                      title: 'Üye talepleri',
+                      total: memberRequests.total,
+                      children: [
+                        for (final item in memberRequests.items)
+                          _AdminPreviewLine(
+                            title: item.requesterHandle.isNotEmpty
+                                ? '@${item.requesterHandle}'
+                                : item.requesterName,
+                            subtitle:
+                                '${item.categoryLabel}${item.requestedGraduationYear.isEmpty ? '' : ' · hedef: ${_formatGraduationYear(item.requestedGraduationYear)}'}',
+                            trailing: item.createdAt,
+                            action: Wrap(
+                              spacing: 6,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Onayla',
+                                  onPressed: () => _handleMemberRequestReview(
+                                    context,
+                                    ref,
+                                    item: item,
+                                    id: item.id,
+                                    status: 'approved',
+                                  ),
+                                  icon: const Icon(Icons.check_circle_outline),
+                                ),
+                                IconButton(
+                                  tooltip: 'Reddet',
+                                  onPressed: () => _handleMemberRequestReview(
+                                    context,
+                                    ref,
+                                    item: item,
+                                    id: item.id,
+                                    status: 'rejected',
+                                  ),
+                                  icon: const Icon(Icons.cancel_outlined),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Profil doğrulamaları',
+                      total: verificationRequests.total,
+                      children: [
+                        for (final item in verificationRequests.items)
+                          _AdminPreviewLine(
+                            title: item.requesterHandle.isNotEmpty
+                                ? '@${item.requesterHandle}'
+                                : item.requesterName,
+                            subtitle:
+                                '${item.isTeacherVerification ? 'Öğretmen doğrulaması' : 'Üye doğrulaması'} · ${_formatGraduationYear(item.graduationYear)}${item.hasProof ? ' · kanıt yüklendi' : ' · kanıt yok'}${item.proofPath.isEmpty ? '' : ' · ${item.proofPath}'}',
+                            trailing: item.createdAt,
+                            action: Wrap(
+                              spacing: 6,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Doğrulamayı onayla',
+                                  onPressed: () => _handleVerificationReview(
+                                    context,
+                                    ref,
+                                    id: item.id,
+                                    status: 'approved',
+                                  ),
+                                  icon: const Icon(
+                                    Icons.verified_user_outlined,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Doğrulamayı reddet',
+                                  onPressed: () => _handleVerificationReview(
+                                    context,
+                                    ref,
+                                    id: item.id,
+                                    status: 'rejected',
+                                  ),
+                                  icon: const Icon(Icons.block_outlined),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Öğretmen ağı bağlantıları',
+                      total: teacherLinks.total,
+                      children: [
+                        for (final item in teacherLinks.items)
+                          _AdminPreviewLine(
+                            title:
+                                '${item.alumniHandle.isNotEmpty ? '@${item.alumniHandle}' : item.alumniName} -> ${item.teacherHandle.isNotEmpty ? '@${item.teacherHandle}' : item.teacherName}',
+                            subtitle:
+                                '${_formatTeacherRelationship(item.relationshipType)} · ${_formatGraduationYear(item.alumniGraduationYear)}${item.classYear.isEmpty ? '' : ' · ${item.classYear}. sınıf'} · güven ${(item.confidenceScore * 100).round()}%${item.activePairLinkCount > 1 ? ' · benzer kayıt var' : ''}${item.moderationLabel.isEmpty ? '' : ' · ${item.moderationLabel}'}${item.notes.isEmpty ? '' : ' · ${item.notes}'}',
+                            trailing: item.createdAt,
+                            action: Wrap(
+                              spacing: 6,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Detay',
+                                  onPressed: () =>
+                                      _showTeacherNetworkDetail(context, item),
+                                  icon: const Icon(Icons.info_outline),
+                                ),
+                                IconButton(
+                                  tooltip: 'Bağlantıyı onayla',
+                                  onPressed: () => _handleTeacherNetworkReview(
+                                    context,
+                                    ref,
+                                    id: item.id,
+                                    status: 'confirmed',
+                                  ),
+                                  icon: const Icon(Icons.check_circle_outline),
+                                ),
+                                IconButton(
+                                  tooltip: 'İnceleme için işaretle',
+                                  onPressed: () =>
+                                      _handleTeacherNetworkReviewWithNote(
+                                        context,
+                                        ref,
+                                        title: 'İnceleme notu',
+                                        id: item.id,
+                                        status: 'flagged',
+                                      ),
+                                  icon: const Icon(Icons.flag_outlined),
+                                ),
+                                IconButton(
+                                  tooltip: 'Bağlantıyı reddet',
+                                  onPressed: () =>
+                                      _handleTeacherNetworkReviewWithNote(
+                                        context,
+                                        ref,
+                                        title: 'Red notu',
+                                        id: item.id,
+                                        status: 'rejected',
+                                      ),
+                                  icon: const Icon(Icons.cancel_outlined),
+                                ),
+                              ],
                             ),
                           ),
                       ],
@@ -1571,6 +1743,110 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                     : 'Doğrulama reddedildi.')
               : (actionState.message ?? 'Islem tamamlanamadi.'),
         ),
+      ),
+    );
+  }
+
+  Future<void> _handleTeacherNetworkReview(
+    BuildContext context,
+    WidgetRef ref, {
+    required int id,
+    required String status,
+    String note = '',
+  }) async {
+    final ok = await ref
+        .read(adminActionControllerProvider.notifier)
+        .reviewTeacherNetworkLink(id: id, status: status, note: note);
+    if (!context.mounted) return;
+    final actionState = ref.read(adminActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Öğretmen ağı bağlantısı güncellendi.'
+              : (actionState.message ?? 'Islem tamamlanamadi.'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleTeacherNetworkReviewWithNote(
+    BuildContext context,
+    WidgetRef ref, {
+    required String title,
+    required int id,
+    required String status,
+  }) async {
+    final note = await _askText(
+      context,
+      title: title,
+      label: 'Not',
+      required: false,
+    );
+    if (note == null || !context.mounted) return;
+    await _handleTeacherNetworkReview(
+      context,
+      ref,
+      id: id,
+      status: status,
+      note: note,
+    );
+  }
+
+  Future<void> _showTeacherNetworkDetail(
+    BuildContext context,
+    AdminTeacherNetworkLinkItem item,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Öğretmen ağı detayı'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _AdminDetailRow(
+                label: 'Mezun',
+                value:
+                    '${item.alumniName}${item.alumniHandle.isEmpty ? '' : ' (@${item.alumniHandle})'} · ${_formatGraduationYear(item.alumniGraduationYear)}',
+              ),
+              _AdminDetailRow(
+                label: 'Öğretmen',
+                value:
+                    '${item.teacherName}${item.teacherHandle.isEmpty ? '' : ' (@${item.teacherHandle})'} · ${_formatGraduationYear(item.teacherCohort)}',
+              ),
+              _AdminDetailRow(
+                label: 'Bağ',
+                value:
+                    '${_formatTeacherRelationship(item.relationshipType)}${item.classYear.isEmpty ? '' : ' · ${item.classYear}. sınıf'}',
+              ),
+              _AdminDetailRow(
+                label: 'Güven ve tekrar',
+                value:
+                    '${(item.confidenceScore * 100).round()}% güven · ${item.activePairLinkCount} aktif eşleşme · öğretmende ${item.teacherActiveLinkCount} aktif bağ',
+              ),
+              if (item.moderationLabel.isNotEmpty)
+                _AdminDetailRow(
+                  label: 'Moderasyon sinyali',
+                  value: item.moderationLabel,
+                ),
+              if (item.notes.isNotEmpty)
+                _AdminDetailRow(label: 'Mezun notu', value: item.notes),
+              if (item.reviewNote.isNotEmpty)
+                _AdminDetailRow(
+                  label: 'Son inceleme notu',
+                  value: item.reviewNote,
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Kapat'),
+          ),
+        ],
       ),
     );
   }
@@ -4447,6 +4723,70 @@ _AdminSection? _sectionByKey(String key) {
     if (section.key == key) return section;
   }
   return null;
+}
+
+String _formatGraduationYear(String value) {
+  final normalized = value.trim().toLowerCase();
+  if (normalized == 'teacher' ||
+      normalized == '9999' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen') {
+    return 'Öğretmen';
+  }
+  return value.trim().isEmpty ? 'Yıl yok' : value.trim();
+}
+
+String _formatTeacherRelationship(String value) {
+  switch (value.trim()) {
+    case 'taught_in_class':
+      return 'Derse girdi';
+    case 'club_advisor':
+      return 'Kulüp danışmanı';
+    case 'mentor':
+      return 'Mentor';
+    case 'other':
+      return 'Diğer bağ';
+    default:
+      return value.trim().isEmpty ? 'Öğretmen bağı' : value.trim();
+  }
+}
+
+Future<String?> _askText(
+  BuildContext context, {
+  required String title,
+  required String label,
+  bool required = false,
+}) async {
+  final controller = TextEditingController();
+  final result = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        minLines: 2,
+        maxLines: 4,
+        decoration: InputDecoration(labelText: label),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final text = controller.text.trim();
+            if (required && text.isEmpty) return;
+            Navigator.of(dialogContext).pop(text);
+          },
+          child: const Text('Kaydet'),
+        ),
+      ],
+    ),
+  );
+  controller.dispose();
+  return result;
 }
 
 // Dialog'un kendi State'i controller'ı yönetir; böylece dispose() exit

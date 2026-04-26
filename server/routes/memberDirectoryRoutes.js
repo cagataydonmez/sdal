@@ -5,6 +5,12 @@ export function registerMemberDirectoryRoutes(app, {
   getCachedActiveMemberNameRows,
   buildMemberTrustBadges
 }) {
+  const testMultiAccountEmail = 'cagatay.donmez@gmail.com';
+  const hideTestEmail = (row) => {
+    if (String(row?.email || '').trim().toLowerCase() !== testMultiAccountEmail) return row;
+    return { ...row, email: '', mailkapali: 1 };
+  };
+
   app.get('/api/members', async (req, res) => {
     try {
       if (!req.session.userId) return res.status(401).send('Login required');
@@ -127,11 +133,14 @@ export function registerMemberDirectoryRoutes(app, {
         ranges.push({ start, end });
       }
 
-      const rowsWithTrustBadges = rows.map((row) => ({
-        ...row,
+      const rowsWithTrustBadges = rows.map((rawRow) => {
+        const row = hideTestEmail(rawRow);
+        return {
+          ...row,
         following: Number(row?.following || 0) > 0,
         trust_badges: buildMemberTrustBadges(row)
-      }));
+        };
+      });
 
       return res.json({
         rows: rowsWithTrustBadges,
@@ -192,7 +201,7 @@ export function registerMemberDirectoryRoutes(app, {
       if (!row) return res.status(404).send('Üye bulunamadı');
       return res.json({
         row: {
-          ...row,
+          ...hideTestEmail(row),
           following: Number(row?.following || 0) > 0
         }
       });

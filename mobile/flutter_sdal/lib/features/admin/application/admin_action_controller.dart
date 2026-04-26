@@ -73,6 +73,28 @@ class AdminActionController extends Notifier<AsyncActionState> {
     }
   }
 
+  Future<bool> reviewTeacherNetworkLink({
+    required int id,
+    required String status,
+    String note = '',
+  }) async {
+    final scope = 'admin:teacher-network:review:$id:$status';
+    state = AsyncActionState.loading(scope: scope);
+    try {
+      await _repository.reviewTeacherNetworkLink(
+        id: id,
+        status: status,
+        note: note,
+      );
+      _invalidateRequestPreviews();
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
   Future<bool> deleteMember({required int id}) async {
     final scope = 'admin:member:delete:$id';
     state = AsyncActionState.loading(scope: scope);
@@ -587,6 +609,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
   void _invalidateRequestPreviews() {
     ref.invalidate(adminMemberRequestPreviewProvider);
     ref.invalidate(adminVerificationRequestPreviewProvider);
+    ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
     ref.invalidate(adminRequestNotificationsProvider);
     ref.invalidate(adminSummaryProvider);
     ref.invalidate(adminLiveProvider);
