@@ -19,7 +19,7 @@ function parseArgs(argv) {
     dbPath: '',
     rootPassword: '',
     cagatayPassword: process.env.ROOT_BOOTSTRAP_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : '12345'),
-    cagatayEmail: 'cagatay@localhost',
+    cagatayEmail: 'cagatay.donmez@gmail.com',
     cagatayFirstName: 'Cagatay',
     cagatayLastName: 'Donmez',
     cagatayGraduationYear: '2011'

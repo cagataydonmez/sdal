@@ -207,7 +207,7 @@ async function createRootAdmin({
       [
         ROOT_ADMIN_USERNAME,
         passwordHash,
-        'cagatay@localhost',
+        'cagatay.donmez@gmail.com',
         'Cagatay',
         'Donmez',
         'root-bootstrap',
@@ -252,7 +252,7 @@ async function createRootAdmin({
     [
       ROOT_ADMIN_USERNAME,
       passwordHash,
-      'cagatay@localhost',
+      'cagatay.donmez@gmail.com',
       'Cagatay',
       'Donmez',
       'root-bootstrap',
