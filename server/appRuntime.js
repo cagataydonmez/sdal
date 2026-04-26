@@ -823,7 +823,7 @@ async function ensureRootBootstrapAccount() {
       `INSERT INTO users
         (username, password_hash, email, first_name, last_name, activation_token, is_active, created_at, avatar_path, graduation_year, is_profile_initialized, role, legacy_admin_flag, is_verified, verification_status, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, '', 0, TRUE, 'root', TRUE, TRUE, 'approved', ?)`,
-      [ROOT_ADMIN_USERNAME, hashed, 'cagatay@localhost', 'Cagatay', 'Donmez', 'root-bootstrap', now, now]
+      [ROOT_ADMIN_USERNAME, hashed, 'cagatay.donmez@gmail.com', 'Cagatay', 'Donmez', 'root-bootstrap', now, now]
     );
     const rootId = result?.lastInsertRowid || sqlGet('SELECT id FROM users WHERE lower(username) = lower(?)', [ROOT_ADMIN_USERNAME])?.id;
     if (rootId) {
@@ -853,7 +853,7 @@ async function ensureRootBootstrapAccount() {
   const result = sqlRun(
     `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, '', '2000', 1, 'root', 1, 1, 'approved')`,
-    [ROOT_ADMIN_USERNAME, hashed, 'cagatay@localhost', 'Cagatay', 'Donmez', 'root-bootstrap', now]
+    [ROOT_ADMIN_USERNAME, hashed, 'cagatay.donmez@gmail.com', 'Cagatay', 'Donmez', 'root-bootstrap', now]
   );
   const rootId = result?.lastInsertRowid || sqlGet('SELECT id FROM uyeler WHERE lower(kadi) = lower(?)', [ROOT_ADMIN_USERNAME])?.id;
   if (rootId) {

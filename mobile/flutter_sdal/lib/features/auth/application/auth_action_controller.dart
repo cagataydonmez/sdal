@@ -146,6 +146,10 @@ class AuthActionController extends Notifier<AsyncActionState> {
           : AsyncActionState.error(message: message, scope: 'oauth');
     } catch (error) {
       if (!ref.mounted) return;
+      if (_isOAuthCancellation(error)) {
+        state = const AsyncActionState.idle();
+        return;
+      }
       state = AsyncActionState.error(message: error.toString(), scope: 'oauth');
     }
   }
@@ -285,6 +289,14 @@ class AuthActionController extends Notifier<AsyncActionState> {
   void reset() {
     state = const AsyncActionState.idle();
   }
+}
+
+bool _isOAuthCancellation(Object error) {
+  final text = error.toString().toLowerCase();
+  return text.contains('canceled') ||
+      text.contains('cancelled') ||
+      text.contains('user_cancelled') ||
+      text.contains('user cancelled');
 }
 
 final authActionControllerProvider =
