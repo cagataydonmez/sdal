@@ -20,6 +20,8 @@ export default function RegisterPage() {
   });
   const [step, setStep] = useState('form');
   const [preview, setPreview] = useState(null);
+  const [activationAccount, setActivationAccount] = useState(null);
+  const [activationCode, setActivationCode] = useState('');
   const [error, setError] = useState('');
   const [uniqueErrors, setUniqueErrors] = useState({ kadi: '', email: '' });
   const [status, setStatus] = useState('');
@@ -40,6 +42,32 @@ export default function RegisterPage() {
 
   function updateField(name, value) {
     setForm((f) => ({ ...f, [name]: value }));
+  }
+
+  function showActivationStep(data = {}) {
+    setActivationAccount({
+      kadi: data.kadi || form.kadi,
+      email: data.email || form.email
+    });
+    setActivationCode('');
+    setStatus('Aktivasyon için e-mailinizi kontrol ediniz.');
+    setStep('activation');
+  }
+
+  async function handleActivationRequired(res) {
+    const text = await res.text();
+    try {
+      const data = JSON.parse(text);
+      if (data?.code === 'ACTIVATION_REQUIRED') {
+        showActivationStep(data);
+        return true;
+      }
+      setError(data?.message || text);
+      return false;
+    } catch {
+      setError(text);
+      return false;
+    }
   }
 
   const passwordHint = useMemo(() => {
@@ -152,7 +180,8 @@ export default function RegisterPage() {
       body: JSON.stringify(form)
     });
     if (!res.ok) {
-      setError(await res.text());
+      const movedToActivation = await handleActivationRequired(res);
+      if (movedToActivation) return;
       setCaptchaSrc(`/api/captcha?${Date.now()}`);
       return;
     }
@@ -172,23 +201,64 @@ export default function RegisterPage() {
       body: JSON.stringify(form)
     });
     if (!res.ok) {
-      setError(await res.text());
+      const movedToActivation = await handleActivationRequired(res);
+      if (movedToActivation) return;
       setStep('form');
       setCaptchaSrc(`/api/captcha?${Date.now()}`);
       return;
     }
+    const data = await res.json();
+    setActivationAccount({
+      kadi: data?.kadi || form.kadi,
+      email: data?.email || form.email
+    });
     setStatus('Kaydınız başarıyla tamamlandı! Aktivasyon için e-mailinizi kontrol ediniz.');
-    setStep('done');
+    setStep('activation');
   }
 
-  if (step === 'done') {
+  async function onActivate(e) {
+    e.preventDefault();
+    setError('');
+    setStatus('');
+    const res = await fetch('/api/activate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        kadi: activationAccount?.kadi,
+        email: activationAccount?.email,
+        akt: activationCode
+      })
+    });
+    if (!res.ok) {
+      setError(await res.text());
+      return;
+    }
+    const data = await res.json();
+    setStatus(`Tebrikler ${data.kadi}! Aktivasyon başarıyla tamamlandı.`);
+  }
+
+  if (step === 'activation' && activationAccount) {
     return (
       <LegacyLayout pageTitle="Üye Kayıt Girişi" showLeftColumn={false}>
-        <div style={{ padding: 12 }}>
+        <form onSubmit={onActivate}>
+          <div style={{ padding: 12 }}>
           <b>Kaydınız başarıyla tamamlandı!</b><br />
-          Kayıt işleminizin onaylanması için lütfen mail adresinize gönderdiğimiz linke tıklayınız!<br /><br />
+          Mail adresinize gönderdiğimiz aktivasyon kodunu girerek kaydınızı onaylayabilirsiniz.<br /><br />
+          <b>Kullanıcı Adı : </b> {activationAccount.kadi}<br />
+          <b>E-Mail Adresi : </b> {activationAccount.email}<br /><br />
+          <label>
+            <b>Aktivasyon Kodu : </b>
+            <input type="text" className="inptxt" required size="20" value={activationCode} onChange={(e) => setActivationCode(e.target.value.trim())} />
+          </label>
+          <br /><br />
+          <input type="submit" className="sub" value="Aktivasyonu Tamamla" />
+          {status ? <div className="sdal-alert sdal-alert-success" role="status">{status}</div> : null}
+          {error ? <div className="sdal-alert sdal-alert-error" role="alert">{error}</div> : null}
+          <br />
           DİKKAT! Eğer Yahoo, Hotmail, Mynet gibi bir sunucudan mail adresi sahibiyseniz <b>junk</b>, <b>spam</b>, <b>bulk</b> gibi klasörleri mutlaka kontrol ediniz.
-        </div>
+          </div>
+        </form>
       </LegacyLayout>
     );
   }

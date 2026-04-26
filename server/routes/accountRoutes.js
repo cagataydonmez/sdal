@@ -46,6 +46,7 @@ export function registerAccountRoutes(app, deps) {
     replaceModeratorPermissionsAsync,
     createActivation,
     hashPassword,
+    verifyPassword,
     hashE2EPassword,
     toDbBooleanParam,
     resolvePublicBaseUrl,
@@ -119,7 +120,7 @@ export function registerAccountRoutes(app, deps) {
       if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
       if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
-      const existingUser = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
+      const existingUser = await sqlGetAsync('SELECT id, kadi, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
       if (existingUser) {
         const inactive = Number(existingUser.aktiv || 0) !== 1;
         return res.status(400).json({
@@ -128,13 +129,13 @@ export function registerAccountRoutes(app, deps) {
           message: inactive
             ? 'Bu kullanıcı adı zaten kayıtlı ancak aktivasyon tamamlanmamış.'
             : 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.',
-          memberId: inactive ? existingUser.id : undefined,
+          kadi: inactive ? existingUser.kadi : undefined,
           email: inactive ? existingUser.email : undefined
         });
       }
       const existingMail = isTestMultiAccountEmail(cleanEmail)
         ? null
-        : await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+        : await sqlGetAsync('SELECT id, kadi, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
       if (existingMail) {
         const inactive = Number(existingMail.aktiv || 0) !== 1;
         return res.status(400).json({
@@ -143,7 +144,7 @@ export function registerAccountRoutes(app, deps) {
           message: inactive
             ? 'Bu e-mail adresi zaten kayıtlı ancak aktivasyon tamamlanmamış.'
             : 'Girdiğiniz e-mail adresi zaten kayıtlıdır.',
-          memberId: inactive ? existingMail.id : undefined,
+          kadi: inactive ? existingMail.kadi : undefined,
           email: inactive ? existingMail.email : undefined
         });
       }
@@ -275,7 +276,7 @@ export function registerAccountRoutes(app, deps) {
       if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
 
       traceE2E('before_duplicate_checks');
-      const existingUser = await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
+      const existingUser = await sqlGetAsync('SELECT id, kadi, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
       if (existingUser) {
         const inactive = Number(existingUser.aktiv || 0) !== 1;
         return res.status(400).json({
@@ -284,13 +285,13 @@ export function registerAccountRoutes(app, deps) {
           message: inactive
             ? 'Bu kullanıcı adı zaten kayıtlı ancak aktivasyon tamamlanmamış.'
             : 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.',
-          memberId: inactive ? existingUser.id : undefined,
+          kadi: inactive ? existingUser.kadi : undefined,
           email: inactive ? existingUser.email : undefined
         });
       }
       const existingMail = isTestMultiAccountEmail(cleanEmail)
         ? null
-        : await sqlGetAsync('SELECT id, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
+        : await sqlGetAsync('SELECT id, kadi, email, aktiv FROM uyeler WHERE lower(email) = lower(?)', [cleanEmail]);
       if (existingMail) {
         const inactive = Number(existingMail.aktiv || 0) !== 1;
         return res.status(400).json({
@@ -299,7 +300,7 @@ export function registerAccountRoutes(app, deps) {
           message: inactive
             ? 'Bu e-mail adresi zaten kayıtlı ancak aktivasyon tamamlanmamış.'
             : 'Girdiğiniz e-mail adresi zaten kayıtlıdır.',
-          memberId: inactive ? existingMail.id : undefined,
+          kadi: inactive ? existingMail.kadi : undefined,
           email: inactive ? existingMail.email : undefined
         });
       }
@@ -425,6 +426,43 @@ export function registerAccountRoutes(app, deps) {
       req.session.userId = user.id;
       await new Promise((resolve) => req.session.save(resolve));
       res.json({ ok: true, kadi: user.kadi });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/activate', async (req, res) => {
+    try {
+      const kadi = String(req.body?.kadi || '').trim();
+      const sifre = String(req.body?.sifre || '');
+      const email = normalizeEmail(req.body?.email);
+      const akt = String(req.body?.akt || '').trim();
+      if (!kadi) return res.status(400).send('Kullanıcı adını girmedin.');
+      if (!akt) return res.status(400).send('Aktivasyon kodunu girmedin.');
+      const user = await sqlGetAsync('SELECT * FROM uyeler WHERE kadi = ?', [kadi]);
+      if (!user) return res.status(404).send('Böyle bir kullanıcı kayıtlı değil');
+      if (Number(user.aktiv || 0) === 1) return res.status(400).send('Aktivasyon zaten tamamlanmış');
+
+      if (sifre) {
+        const verification = await verifyPassword(user.sifre || '', sifre);
+        if (!verification?.ok) return res.status(400).send('Girdiğin şifre yanlış!');
+        if (verification.needsRehash) {
+          await sqlRunAsync('UPDATE uyeler SET sifre = ? WHERE id = ?', [await hashPassword(sifre), user.id]);
+        }
+      } else {
+        if (!email) return res.status(400).send('E-mail adresi eksik.');
+        if (String(user.email || '').toLowerCase() !== String(email || '').toLowerCase()) {
+          return res.status(400).send('Kullanıcı adı ile e-mail adresi eşleşmiyor.');
+        }
+      }
+
+      if (user.aktivasyon !== akt) return res.status(400).send('Aktivasyon kodu yanlış');
+      const newAkt = createActivation();
+      await sqlRunAsync('UPDATE uyeler SET aktiv = 1, aktivasyon = ? WHERE id = ?', [newAkt, user.id]);
+      req.session.userId = user.id;
+      await new Promise((resolve) => req.session.save(resolve));
+      res.json({ ok: true, kadi: user.kadi, email: user.email });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

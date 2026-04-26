@@ -19,6 +19,8 @@ export default function RegisterPage() {
   });
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [activationAccount, setActivationAccount] = useState(null);
+  const [activationCode, setActivationCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [uniqueErrors, setUniqueErrors] = useState({ kadi: '', email: '' });
   const [checking, setChecking] = useState({ kadi: false, email: false });
@@ -49,6 +51,28 @@ export default function RegisterPage() {
     if (!form.sifre2) return '';
     return form.sifre === form.sifre2 ? '' : t('register_password_mismatch');
   }, [form.sifre, form.sifre2]);
+
+  function showActivationStep(data = {}) {
+    setActivationAccount({
+      kadi: data.kadi || form.kadi,
+      email: data.email || form.email
+    });
+    setActivationCode('');
+    setStatus(t('register_status_success'));
+  }
+
+  function handleRegisterError(text) {
+    try {
+      const data = JSON.parse(text);
+      if (data?.code === 'ACTIVATION_REQUIRED') {
+        showActivationStep(data);
+        return;
+      }
+      setError(data?.message || text);
+    } catch {
+      setError(text);
+    }
+  }
 
   async function checkUnique(fieldName, rawValue) {
     const value = String(rawValue || '').trim();
@@ -146,10 +170,11 @@ export default function RegisterPage() {
         payload = null;
       }
       if (!res.ok) {
-        setError(text || payload?.message || payload?.error || t('register_status_success_mail_failed'));
+        handleRegisterError(text || payload?.message || payload?.error || t('register_status_success_mail_failed'));
         setCaptchaTs(Date.now());
         return;
       }
+      showActivationStep(payload || {});
       if (payload?.mailSent === false) {
         setStatus(t('register_status_success_mail_failed'));
         return;
@@ -161,6 +186,48 @@ export default function RegisterPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitActivation(e) {
+    e.preventDefault();
+    setError('');
+    setStatus('');
+    const res = await fetch('/api/activate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        kadi: activationAccount?.kadi,
+        email: activationAccount?.email,
+        akt: activationCode
+      })
+    });
+    if (!res.ok) {
+      setError(await res.text());
+      return;
+    }
+    const data = await res.json();
+    setStatus(t('activation_status_success', { username: data.kadi }));
+  }
+
+  if (activationAccount) {
+    return (
+      <Layout title={t('activation_title')}>
+        <div className="panel">
+          <div className="panel-body">
+            <form className="stack" onSubmit={submitActivation}>
+              <div className="muted">{t('register_status_success')}</div>
+              <div><strong>{t('auth_username')}:</strong> {activationAccount.kadi}</div>
+              <div><strong>{t('auth_email')}:</strong> {activationAccount.email}</div>
+              <input className="input" required autoComplete="one-time-code" placeholder="Aktivasyon Kodu" value={activationCode} onChange={(e) => setActivationCode(e.target.value.trim())} />
+              <button className="btn primary" type="submit">Aktivasyonu Tamamla</button>
+            </form>
+            {status ? <div className="ok" role="status">{status}</div> : null}
+            {error ? <div className="error prominent-alert" role="alert">{error}</div> : null}
+          </div>
+        </div>
+      </Layout>
+    );
   }
 
   return (

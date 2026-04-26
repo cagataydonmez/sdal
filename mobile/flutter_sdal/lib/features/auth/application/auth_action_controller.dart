@@ -18,6 +18,7 @@ class LoginActionResult {
     this.activationRequired = false,
     this.captchaRequired = false,
     this.memberId = '',
+    this.username = '',
     this.email = '',
     this.message = '',
   });
@@ -26,6 +27,7 @@ class LoginActionResult {
   final bool activationRequired;
   final bool captchaRequired;
   final String memberId;
+  final String username;
   final String email;
   final String message;
 }
@@ -114,6 +116,10 @@ class AuthActionController extends Notifier<AsyncActionState> {
       activationRequired: code == 'ACTIVATION_REQUIRED',
       captchaRequired: code == 'CAPTCHA_REQUIRED' || code == 'CAPTCHA_INVALID',
       memberId: asString(payload['memberId']) ?? '',
+      username:
+          asString(payload['username']) ??
+          asString(payload['kadi']) ??
+          username,
       email: asString(payload['email']) ?? '',
       message: message,
     );
@@ -203,29 +209,49 @@ class AuthActionController extends Notifier<AsyncActionState> {
   }
 
   Future<void> activate({
-    required String memberId,
+    String memberId = '',
+    String username = '',
+    String password = '',
+    String email = '',
     required String code,
   }) async {
     state = const AsyncActionState.loading(scope: 'activate');
-    final result = await ref
-        .read(apiClientProvider)
-        .get<JsonMap>(
-          '/api/activate',
-          query: {'id': memberId, 'akt': code},
-          decoder: asJsonMap,
-        );
+    final result = memberId.trim().isNotEmpty
+        ? await ref
+              .read(apiClientProvider)
+              .get<JsonMap>(
+                '/api/activate',
+                query: {'id': memberId.trim(), 'akt': code},
+                decoder: asJsonMap,
+              )
+        : await ref
+              .read(apiClientProvider)
+              .post<JsonMap>(
+                '/api/activate',
+                body: {
+                  'kadi': username.trim(),
+                  if (password.isNotEmpty) 'sifre': password,
+                  if (email.trim().isNotEmpty) 'email': email.trim(),
+                  'akt': code,
+                },
+                decoder: asJsonMap,
+              );
     if (!ref.mounted) return;
     if (result.ok) {
       await ref.read(sessionControllerProvider.notifier).refreshSilently();
       if (!ref.mounted) return;
       state = AsyncActionState.success(
-        message: result.message.isNotEmpty ? result.message : 'Aktivasyon tamamlandı.',
+        message: result.message.isNotEmpty
+            ? result.message
+            : 'Aktivasyon tamamlandı.',
         scope: 'activate',
       );
       return;
     }
     state = AsyncActionState.error(
-      message: result.message.isNotEmpty ? result.message : 'Aktivasyon başarısız.',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Aktivasyon başarısız.',
       scope: 'activate',
     );
   }

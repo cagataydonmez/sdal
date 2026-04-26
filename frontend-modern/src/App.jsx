@@ -11,6 +11,7 @@ const LoginPage = React.lazy(() => import('./pages/LoginPage.jsx'));
 const RootLoginPage = React.lazy(() => import('./pages/RootLoginPage.jsx'));
 const RegisterPage = React.lazy(() => import('./pages/RegisterPage.jsx'));
 const ActivationPage = React.lazy(() => import('./pages/ActivationPage.jsx'));
+const ActivationCodePage = React.lazy(() => import('./pages/ActivationCodePage.jsx'));
 const ActivationResendPage = React.lazy(() => import('./pages/ActivationResendPage.jsx'));
 const PasswordResetPage = React.lazy(() => import('./pages/PasswordResetPage.jsx'));
 const ModuleInactivePage = React.lazy(() => import('./pages/ModuleInactivePage.jsx'));
@@ -213,6 +214,7 @@ export const appRoutes = createRoutesFromElements(
     <Route path="/new/root-login" element={<RootLoginPage />} />
     <Route path="/new/register" element={<RegisterPage />} />
     <Route path="/new/activate" element={<ActivationPage />} />
+    <Route path="/new/activation/code" element={<ActivationCodePage />} />
     <Route path="/new/activation/resend" element={<ActivationResendPage />} />
     <Route path="/new/password-reset" element={<PasswordResetPage />} />
     <Route path="/new" element={<RequireAuth><DefaultLandingRoute /></RequireAuth>} />

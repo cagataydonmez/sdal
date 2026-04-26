@@ -31,6 +31,7 @@ import AdminPage from './pages/AdminPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import PasswordResetPage from './pages/PasswordResetPage.jsx';
 import ActivatePage from './pages/ActivatePage.jsx';
+import ActivationCodePage from './pages/ActivationCodePage.jsx';
 import ActivationResendPage from './pages/ActivationResendPage.jsx';
 import BakimPage from './pages/BakimPage.jsx';
 import Http500Page from './pages/Http500Page.jsx';
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="/uye-kayit" element={<RegisterPage />} />
         <Route path="/sifre-hatirla" element={<PasswordResetPage />} />
         <Route path="/aktivet" element={<ActivatePage />} />
+        <Route path="/aktivasyon-kodu" element={<ActivationCodePage />} />
         <Route path="/aktivasyon-gonder" element={<ActivationResendPage />} />
         <Route path="/uyeara" element={<Navigate to="/uyeler" replace />} />
 

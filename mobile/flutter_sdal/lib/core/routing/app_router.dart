@@ -97,6 +97,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ActivationPage(
             memberId: state.uri.queryParameters['id'] ?? '',
             code: state.uri.queryParameters['akt'] ?? '',
+            username: state.uri.queryParameters['kadi'] ?? '',
             email: state.uri.queryParameters['email'] ?? '',
           ),
         ),

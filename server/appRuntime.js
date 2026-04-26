@@ -3945,6 +3945,7 @@ registerAccountRoutes(app, {
   replaceModeratorPermissionsAsync,
   createActivation,
   hashPassword,
+  verifyPassword,
   hashE2EPassword,
   toDbBooleanParam,
   resolvePublicBaseUrl,

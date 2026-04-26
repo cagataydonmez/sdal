@@ -102,8 +102,10 @@ export default function LoginPage() {
                         <li>Şifre güvenliğinizden siz sorumlusunuz.</li>
                         <li>Yardım için yönetim ile iletişime geçebilirsiniz.</li>
                       </ul>
-                      <div>
-                        <Link to="/uye-kayit">Yeni Üyelik</Link>
+                      <div style={{ textAlign: 'center' }}>
+                        <Link className="sub" style={{ display: 'inline-block', width: 130, textAlign: 'center' }} to="/uye-kayit">Kaydol</Link>
+                        {' '}
+                        <Link className="sub" style={{ display: 'inline-block', width: 130, textAlign: 'center' }} to="/aktivasyon-kodu">Aktivasyon Kodu Gir</Link>
                       </div>
                     </td>
                   </tr>

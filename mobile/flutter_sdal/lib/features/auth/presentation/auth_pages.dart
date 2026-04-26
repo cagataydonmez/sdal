@@ -77,7 +77,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         Uri(
           path: '/activate',
           queryParameters: {
-            if (result.memberId.isNotEmpty) 'id': result.memberId,
+            if (result.username.isNotEmpty) 'kadi': result.username,
             if (result.email.isNotEmpty) 'email': result.email,
           },
         ).toString(),
@@ -120,10 +120,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         spacing: 12,
         runSpacing: 12,
         children: [
-          OutlinedButton.icon(
-            onPressed: () => context.push('/register'),
-            icon: const Icon(Icons.person_add_alt_1_rounded),
-            label: Text(l10n.register),
+          SizedBox(
+            width: 190,
+            child: OutlinedButton.icon(
+              onPressed: () => context.push('/register'),
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: Text(l10n.register),
+            ),
+          ),
+          SizedBox(
+            width: 190,
+            child: OutlinedButton.icon(
+              onPressed: () => context.push('/activate'),
+              icon: const Icon(Icons.mark_email_read_outlined),
+              label: const Text('Aktivasyon Kodu Gir'),
+            ),
           ),
           if (_showPasswordReset)
             OutlinedButton.icon(
@@ -283,7 +294,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   String? _availabilityMessage;
   String? _availabilityError;
   String? _previewError;
-  String? _inactiveActivationMemberId;
+  String? _inactiveActivationUsername;
   String? _inactiveActivationEmail;
   bool _kvkkConsent = false;
   bool _directoryConsent = false;
@@ -342,7 +353,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final l10n = context.l10n;
     setState(() {
       _previewError = null;
-      _inactiveActivationMemberId = null;
+      _inactiveActivationUsername = null;
       _inactiveActivationEmail = null;
     });
 
@@ -379,7 +390,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             : l10n.registerPreviewFailed;
         if (preview.code == 'ACTIVATION_REQUIRED' ||
             asString(payload['code']) == 'ACTIVATION_REQUIRED') {
-          _inactiveActivationMemberId = asString(payload['memberId']);
+          _inactiveActivationUsername =
+              asString(payload['kadi']) ?? _usernameController.text.trim();
           _inactiveActivationEmail = asString(payload['email']);
         }
       });
@@ -405,13 +417,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     if (!mounted) return;
     final actionState = ref.read(authActionControllerProvider);
     if (actionState.isSuccess) {
-      final memberId = asString(registerPayload?['memberId']) ?? '';
       final email = asString(registerPayload?['email']) ?? '';
       context.go(
         Uri(
           path: '/activate',
           queryParameters: {
-            if (memberId.isNotEmpty) 'id': memberId,
+            if (_usernameController.text.trim().isNotEmpty)
+              'kadi': _usernameController.text.trim(),
             if (email.isNotEmpty) 'email': email,
           },
         ).toString(),
@@ -425,7 +437,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       final message = actionState.message ?? '';
       if (message.contains('aktivasyon')) {
         setState(() {
-          _inactiveActivationMemberId = asString(payload['memberId']);
+          _inactiveActivationUsername =
+              asString(payload['kadi']) ?? _usernameController.text.trim();
           _inactiveActivationEmail = asString(payload['email']);
         });
       }
@@ -539,8 +552,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       _availabilityMessage = usernameExists || emailExists
           ? null
           : parts.join(' ');
-      _inactiveActivationMemberId = inactiveExists
-          ? asString(payload['inactiveMemberId'])
+      _inactiveActivationUsername = inactiveExists
+          ? _usernameController.text.trim()
           : null;
       _inactiveActivationEmail = inactiveExists
           ? asString(payload['inactiveEmail'])
@@ -625,12 +638,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         color: Theme.of(context).colorScheme.error,
                       ),
                     ),
-                    if ((_inactiveActivationMemberId?.isNotEmpty ?? false) ||
+                    if ((_inactiveActivationUsername?.isNotEmpty ?? false) ||
                         (_inactiveActivationEmail?.isNotEmpty ?? false)) ...[
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
                         onPressed: () => _goToActivation(
-                          memberId: _inactiveActivationMemberId,
+                          username: _inactiveActivationUsername,
                           email: _inactiveActivationEmail,
                         ),
                         icon: const Icon(Icons.mark_email_read_outlined),
@@ -758,12 +771,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       : Theme.of(context).colorScheme.error,
                 ),
               ),
-              if ((_inactiveActivationMemberId?.isNotEmpty ?? false) ||
+              if ((_inactiveActivationUsername?.isNotEmpty ?? false) ||
                   (_inactiveActivationEmail?.isNotEmpty ?? false)) ...[
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: () => _goToActivation(
-                    memberId: _inactiveActivationMemberId,
+                    username: _inactiveActivationUsername,
                     email: _inactiveActivationEmail,
                   ),
                   icon: const Icon(Icons.mark_email_read_outlined),
@@ -891,12 +904,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   bool _isConsentSectionValid() => _kvkkConsent && _directoryConsent;
 
-  void _goToActivation({String? memberId, String? email}) {
+  void _goToActivation({String? username, String? email}) {
     context.go(
       Uri(
         path: '/activate',
         queryParameters: {
-          if ((memberId ?? '').isNotEmpty) 'id': memberId!,
+          if ((username ?? '').isNotEmpty) 'kadi': username!,
           if ((email ?? '').isNotEmpty) 'email': email!,
         },
       ).toString(),
@@ -1154,16 +1167,47 @@ class _CaptchaView extends StatelessWidget {
   }
 }
 
+class _ReadOnlyActivationLine extends StatelessWidget {
+  const _ReadOnlyActivationLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: theme.textTheme.labelMedium),
+            const SizedBox(height: 4),
+            Text(value, style: theme.textTheme.bodyLarge),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class ActivationPage extends ConsumerStatefulWidget {
   const ActivationPage({
     super.key,
     required this.memberId,
     required this.code,
+    this.username = '',
     this.email = '',
   });
 
   final String memberId;
   final String code;
+  final String username;
   final String email;
 
   @override
@@ -1172,6 +1216,8 @@ class ActivationPage extends ConsumerStatefulWidget {
 
 class _ActivationPageState extends ConsumerState<ActivationPage> {
   late final TextEditingController _memberIdController;
+  late final TextEditingController _usernameController;
+  late final TextEditingController _passwordController;
   late final TextEditingController _codeController;
   late final TextEditingController _emailController;
   final _codeFocusNode = FocusNode();
@@ -1182,6 +1228,8 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
   void initState() {
     super.initState();
     _memberIdController = TextEditingController(text: widget.memberId);
+    _usernameController = TextEditingController(text: widget.username);
+    _passwordController = TextEditingController();
     _codeController = TextEditingController(text: widget.code);
     _emailController = TextEditingController(text: widget.email);
     if (widget.memberId.isNotEmpty && widget.code.isNotEmpty) {
@@ -1197,6 +1245,8 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
   void dispose() {
     _resendTimer?.cancel();
     _memberIdController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
     _codeController.dispose();
     _emailController.dispose();
     _codeFocusNode.dispose();
@@ -1208,6 +1258,9 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
         .read(authActionControllerProvider.notifier)
         .activate(
           memberId: _memberIdController.text.trim(),
+          username: _usernameController.text.trim(),
+          password: _passwordController.text,
+          email: _emailController.text.trim(),
           code: _codeController.text.trim(),
         );
   }
@@ -1256,43 +1309,73 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
     final resendStatus = actionState.scope == 'resendActivation'
         ? actionState.message
         : null;
+    final isRegistrationActivation =
+        _usernameController.text.trim().isNotEmpty &&
+        _emailController.text.trim().isNotEmpty;
+    final isLegacyLinkActivation = _memberIdController.text.trim().isNotEmpty;
 
     return _AuthFrame(
       title: l10n.activationTitle,
-      subtitle:
-          'E-postadaki 6 haneli doğrulama kodunu girin. iOS\'ta klavye üzerinde otomatik öneri çıkabilir.',
+      subtitle: isRegistrationActivation
+          ? 'E-postadaki aktivasyon kodunu girin.'
+          : 'Kullanıcı adı, şifre ve aktivasyon kodunu girin.',
       child: AutofillGroup(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _memberIdController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: l10n.memberId),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              decoration: InputDecoration(labelText: l10n.email),
-            ),
+            if (isLegacyLinkActivation) ...[
+              TextField(
+                controller: _memberIdController,
+                readOnly: true,
+                decoration: InputDecoration(labelText: l10n.memberId),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (isRegistrationActivation) ...[
+              _ReadOnlyActivationLine(
+                label: l10n.username,
+                value: _usernameController.text.trim(),
+              ),
+            ] else ...[
+              TextField(
+                controller: _usernameController,
+                autofillHints: const [AutofillHints.username],
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(labelText: l10n.username),
+              ),
+            ],
+            if (!isRegistrationActivation && !isLegacyLinkActivation) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                autofillHints: const [AutofillHints.password],
+                keyboardType: TextInputType.visiblePassword,
+                textInputAction: TextInputAction.next,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(labelText: l10n.password),
+              ),
+            ],
+            if (isRegistrationActivation) ...[
+              const SizedBox(height: 12),
+              _ReadOnlyActivationLine(
+                label: l10n.email,
+                value: _emailController.text.trim(),
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               controller: _codeController,
               focusNode: _codeFocusNode,
               autofocus: true,
               autofillHints: const [AutofillHints.oneTimeCode],
-              keyboardType: TextInputType.number,
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.done,
               autocorrect: false,
               enableSuggestions: false,
-              maxLength: 6,
               onSubmitted: (_) => _submit(),
-              decoration: InputDecoration(
-                labelText: l10n.activationCode,
-                counterText: '',
-              ),
+              decoration: InputDecoration(labelText: l10n.activationCode),
             ),
             if (status != null) ...[const SizedBox(height: 12), Text(status)],
             if (resendStatus != null) ...[
@@ -1309,15 +1392,20 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
               ),
             ),
             const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: (resending || _resendSecondsLeft > 0) ? null : _resend,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text(
-                _resendSecondsLeft > 0
-                    ? 'Tekrar gönder ($_resendSecondsLeft sn)'
-                    : l10n.resendAction,
+            if (_emailController.text.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: (resending || _resendSecondsLeft > 0)
+                    ? null
+                    : _resend,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(
+                  _resendSecondsLeft > 0
+                      ? 'Tekrar gönder ($_resendSecondsLeft sn)'
+                      : l10n.resendAction,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

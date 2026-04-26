@@ -152,7 +152,10 @@ export default function LoginPage() {
 
             <div className="auth-entry-footer">
               <div className="auth-entry-links auth-entry-links-minimal">
-                <Link className="linkish" to="/new/register">{t('register_submit')}</Link>
+                <Link className="btn ghost" style={{ flex: 1, justifyContent: 'center' }} to="/new/register">{t('register_submit')}</Link>
+                <Link className="btn ghost" style={{ flex: 1, justifyContent: 'center' }} to="/new/activation/code">Aktivasyon Kodu Gir</Link>
+              </div>
+              <div className="auth-entry-links auth-entry-links-minimal">
                 <Link className="linkish" to="/new/password-reset">{t('login_forgot_password')}</Link>
               </div>
             </div>

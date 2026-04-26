@@ -54,6 +54,30 @@ void main() {
   });
 
   test(
+    'AuthActionController posts activation with username and password',
+    () async {
+      final apiClient = _FakeAuthApiClient();
+      final container = ProviderContainer(
+        overrides: _baseOverrides(apiClient: apiClient),
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(authActionControllerProvider.notifier)
+          .activate(username: 'member', password: 'secret', code: 'ABC123');
+
+      final state = container.read(authActionControllerProvider);
+      expect(state.status, AsyncActionStatus.success);
+      expect(state.scope, 'activate');
+      expect(apiClient.lastActivationBody, {
+        'kadi': 'member',
+        'sifre': 'secret',
+        'akt': 'ABC123',
+      });
+    },
+  );
+
+  test(
     'AuthActionController reports provider-disabled for missing OAuth link',
     () async {
       final container = ProviderContainer(
@@ -204,6 +228,7 @@ class _FakeAuthApiClient extends FakeApiClient {
 
   final bool registerOk;
   final List<Map<String, Object?>> oAuthProviders;
+  Map<String, Object?>? lastActivationBody;
 
   @override
   Uri buildApiUri(String path, {Map<String, dynamic>? query}) {
@@ -248,6 +273,20 @@ class _FakeAuthApiClient extends FakeApiClient {
     Map<String, dynamic>? query,
     ApiDecoder<T>? decoder,
   }) async {
+    if (path == '/api/auth/login') {
+      final payload = <String, dynamic>{
+        'ok': true,
+        'user': {'id': 1, 'kadi': 'member'},
+      };
+      return ApiResult<T>(
+        ok: true,
+        statusCode: 200,
+        message: 'ok',
+        code: '',
+        data: decoder == null ? null : decoder(payload),
+        rawData: payload,
+      );
+    }
     if (path == '/api/register') {
       return ApiResult<T>(
         ok: registerOk,
@@ -256,6 +295,18 @@ class _FakeAuthApiClient extends FakeApiClient {
         code: '',
         data: null,
         rawData: <String, dynamic>{},
+      );
+    }
+    if (path == '/api/activate') {
+      lastActivationBody = Map<String, Object?>.from(body as Map);
+      final payload = <String, dynamic>{'ok': true, 'kadi': 'member'};
+      return ApiResult<T>(
+        ok: true,
+        statusCode: 200,
+        message: 'ok',
+        code: '',
+        data: decoder == null ? null : decoder(payload),
+        rawData: payload,
       );
     }
     return ApiResult<T>(
