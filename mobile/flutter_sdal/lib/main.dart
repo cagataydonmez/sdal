@@ -1,14 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/app.dart';
 import 'app/providers.dart';
 import 'core/config/app_config.dart';
 import 'core/network/api_client.dart';
 import 'core/theme/theme_mode_store.dart';
+import 'features/push_notifications/application/push_notifications_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   final config = AppConfig.fromEnvironment();
   if (kDebugMode) {
     debugPrint(

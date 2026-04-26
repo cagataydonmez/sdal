@@ -15,6 +15,16 @@ val keystoreProperties = Properties().apply {
         load(FileInputStream(keystorePropertiesFile))
     }
 }
+val releaseStoreFile = keystoreProperties.getProperty("storeFile")
+val releaseStorePassword = keystoreProperties.getProperty("storePassword")
+val releaseKeyAlias = keystoreProperties.getProperty("keyAlias")
+val releaseKeyPassword = keystoreProperties.getProperty("keyPassword")
+val hasReleaseKeystore = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.sdal.flutter_sdal"
@@ -43,17 +53,21 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName(
+                if (hasReleaseKeystore) "release" else "debug"
+            )
             isMinifyEnabled = false
             isShrinkResources = false
         }

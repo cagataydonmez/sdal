@@ -651,6 +651,8 @@ build_archive_export_upload_testflight() {
   prepare_ios
 
   mkdir -p "$IOS_ARCHIVE_DIR"
+  log "Clearing stale iOS archive intermediates..."
+  rm -rf "$IOS_ARCHIVE_DIR/build_objroot"
 
   local timestamp archive_path export_path export_options_plist
   timestamp="$(date +%Y%m%d_%H%M%S)"

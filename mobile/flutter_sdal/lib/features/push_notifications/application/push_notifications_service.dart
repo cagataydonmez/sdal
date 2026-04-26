@@ -18,6 +18,23 @@ const _pushChannelId = 'sdal_notifications';
 const _pushChannelName = 'SDAL Notifications';
 const _pushChannelDescription = 'Bildirimler ve ağ merkezi uyarıları';
 
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (!(Platform.isAndroid || Platform.isIOS)) return;
+  try {
+    if (Firebase.apps.isEmpty) {
+      final options = _firebaseOptionsFromEnvironment();
+      if (options != null) {
+        await Firebase.initializeApp(options: options);
+      } else {
+        await Firebase.initializeApp();
+      }
+    }
+  } catch (err) {
+    debugPrint('push background firebase init skipped: $err');
+  }
+}
+
 class PushNotificationsService {
   PushNotificationsService(this.ref);
 

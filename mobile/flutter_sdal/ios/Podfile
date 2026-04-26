@@ -83,5 +83,15 @@ post_install do |installer|
         config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
       end
     end
+
+    # FirebaseCoreInternal imports GoogleUtilities from Swift. With newer
+    # Xcode/CocoaPods combinations GoogleUtilities can be built without an
+    # explicit module definition, which makes that import fail during archive.
+    if target.name == 'GoogleUtilities'
+      target.build_configurations.each do |config|
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+      end
+    end
   end
 end

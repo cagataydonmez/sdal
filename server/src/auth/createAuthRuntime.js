@@ -13,6 +13,19 @@ const WRITE_ALLOWED_WITHOUT_VERIFICATION = Object.freeze([
   '/api/profile',
   '/api/profile/password',
   '/api/profile/photo',
+  '/api/new/mobile/push/register',
+  '/api/new/mobile/push/unregister',
+  '/api/new/verified/request',
+  '/api/new/verified/proof',
+  '/api/new/requests',
+  '/api/new/requests/upload'
+]);
+const PROFILE_COMPLETION_ALLOWED_PATHS = Object.freeze([
+  '/api/profile',
+  '/api/profile/password',
+  '/api/profile/photo',
+  '/api/new/mobile/push/register',
+  '/api/new/mobile/push/unregister',
   '/api/new/verified/request',
   '/api/new/verified/proof',
   '/api/new/requests',
@@ -328,7 +341,17 @@ export function createAuthRuntime({
     return Boolean(user?.directory_consent_at);
   }
 
+  function isTruthyFlag(value, fallback = false) {
+    if (value === null || value === undefined) return fallback;
+    if (value === true || value === false) return value;
+    const normalized = String(value).trim().toLowerCase();
+    if (['1', 'true', 'evet', 'yes'].includes(normalized)) return true;
+    if (['0', 'false', 'hayir', 'hayır', 'no'].includes(normalized)) return false;
+    return Boolean(value);
+  }
+
   function isOAuthProfileIncomplete(user) {
+    if (!isTruthyFlag(user?.ilkbd, true)) return true;
     const oauthProvider = String(user?.oauth_provider || '').trim();
     if (!oauthProvider) return false;
     return !hasValidGraduationYear(user?.mezuniyetyili) || !hasKvkkConsent(user) || !hasDirectoryConsent(user);
@@ -361,8 +384,9 @@ export function createAuthRuntime({
         });
       }
     }
-    if (req.path.startsWith('/api/new/') && isOAuthProfileIncomplete(req.authUser)) {
-      return res.status(403).json({ error: 'PROFILE_INCOMPLETE', message: 'Mezuniyet yılını (en az 1999) girmeden bu özelliği kullanamazsın.' });
+    const canUseWithIncompleteProfile = PROFILE_COMPLETION_ALLOWED_PATHS.some((item) => req.path === item || req.path.startsWith(`${item}/`));
+    if (req.path.startsWith('/api/new/') && isOAuthProfileIncomplete(req.authUser) && !canUseWithIncompleteProfile) {
+      return res.status(403).json({ error: 'PROFILE_INCOMPLETE', message: 'Profil bilgilerini tamamlamadan bu özelliği kullanamazsın.' });
     }
     return next();
   }
