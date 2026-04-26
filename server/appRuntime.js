@@ -373,9 +373,9 @@ const connectionRequestRateLimit = createRateLimitMiddleware({
   }
 });
 
-const factoryResetRateLimit = createRateLimitMiddleware({
+const _factoryResetRateLimitMiddleware = createRateLimitMiddleware({
   bucket: 'factory_reset',
-  limit: envInt('RATE_LIMIT_FACTORY_RESET_MAX', 3),
+  limit: envInt('RATE_LIMIT_FACTORY_RESET_MAX', 10),
   windowSeconds: envInt('RATE_LIMIT_FACTORY_RESET_WINDOW_SECONDS', 3600),
   keyGenerator: (req) => `user:${Number(req.session?.userId || 0)}:ip:${req.ip}`,
   onBlocked: (_req, res) => res.status(429).json({
@@ -383,6 +383,10 @@ const factoryResetRateLimit = createRateLimitMiddleware({
     message: 'Too many factory reset attempts. Please wait before trying again.'
   })
 });
+const _isDev = String(process.env.NODE_ENV || 'development').trim().toLowerCase() !== 'production';
+const factoryResetRateLimit = _isDev
+  ? (_req, _res, next) => next()
+  : _factoryResetRateLimitMiddleware;
 
 const mentorshipRequestRateLimit = createRateLimitMiddleware({
   bucket: 'mentorship_request_write',
