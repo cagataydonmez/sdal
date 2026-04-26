@@ -905,6 +905,9 @@ export function registerAlbumRoutes(app, {
     try {
       await schemaReady;
       const viewer = await findViewer(req.session.userId);
+      if (!viewer || Number(viewer.verified || 0) !== 1) {
+        return res.status(403).json({ error: 'VERIFICATION_REQUIRED', message: 'Yazma işlemleri için önce profilinizi doğrulamanız gerekiyor.' });
+      }
       const currentUser = getCurrentUser(req);
       const categoryId = normalizeIntegerId(resolveRequestedCategoryId(req));
       const uploadFile = getUploadFieldFile(req, 'file');
@@ -1036,6 +1039,9 @@ export function registerAlbumRoutes(app, {
     try {
       await schemaReady;
       const viewer = await findViewer(req.session.userId);
+      if (!viewer || Number(viewer.verified || 0) !== 1) {
+        return res.status(403).json({ error: 'VERIFICATION_REQUIRED', message: 'Yazma işlemleri için önce profilinizi doğrulamanız gerekiyor.' });
+      }
       const currentUser = getCurrentUser(req);
       const categoryId = normalizeIntegerId(resolveRequestedCategoryId(req));
       const description = formatUserText(req.body?.aciklama || req.body?.description || '');

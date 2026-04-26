@@ -429,6 +429,8 @@ export function registerAccountRoutes(app, deps) {
       if (user.aktivasyon !== akt) return res.status(400).send('Aktivasyon kodu yanlış');
       const newAkt = createActivation();
       await sqlRunAsync('UPDATE uyeler SET aktiv = 1, aktivasyon = ? WHERE id = ?', [newAkt, id]);
+      req.session.userId = user.id;
+      await new Promise((resolve) => req.session.save(resolve));
       res.json({ ok: true, kadi: user.kadi });
     } catch (err) {
       console.error(err);

@@ -215,19 +215,19 @@ class AuthActionController extends Notifier<AsyncActionState> {
           decoder: asJsonMap,
         );
     if (!ref.mounted) return;
-    state = result.ok
-        ? AsyncActionState.success(
-            message: result.message.isNotEmpty
-                ? result.message
-                : 'Aktivasyon tamamlandı.',
-            scope: 'activate',
-          )
-        : AsyncActionState.error(
-            message: result.message.isNotEmpty
-                ? result.message
-                : 'Aktivasyon başarısız.',
-            scope: 'activate',
-          );
+    if (result.ok) {
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return;
+      state = AsyncActionState.success(
+        message: result.message.isNotEmpty ? result.message : 'Aktivasyon tamamlandı.',
+        scope: 'activate',
+      );
+      return;
+    }
+    state = AsyncActionState.error(
+      message: result.message.isNotEmpty ? result.message : 'Aktivasyon başarısız.',
+      scope: 'activate',
+    );
   }
 
   Future<void> resendActivation({
