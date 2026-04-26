@@ -195,7 +195,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     }
   }
 
-  async function sendWithResend({ to, subject, html, from }, providerStatus) {
+  async function sendWithResend({ to, subject, html, text, from }, providerStatus) {
     const sender = from || providerStatus.sender;
     const recipients = parseRecipients(to);
     if (!recipients.length) {
@@ -203,7 +203,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     }
 
     const body = { from: sender, to: recipients, subject, html };
-    if (payload.text) body.text = payload.text;
+    if (text) body.text = text;
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -230,7 +230,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     };
   }
 
-  async function sendWithSmtp({ to, subject, html, from }, providerStatus) {
+  async function sendWithSmtp({ to, subject, html, text, from }, providerStatus) {
     const sender = from || providerStatus.sender;
     const recipients = parseRecipients(to);
     if (!recipients.length) {
@@ -243,7 +243,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     }
 
     const mailOptions = { from: sender, to: recipients, subject, html };
-    if (payload.text) mailOptions.text = payload.text;
+    if (text) mailOptions.text = text;
     const info = await transport.sendMail(mailOptions);
     return {
       provider: 'smtp',
@@ -253,7 +253,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
     };
   }
 
-  async function sendWithBrevoApi({ to, subject, html, from }, providerStatus) {
+  async function sendWithBrevoApi({ to, subject, html, text, from }, providerStatus) {
     const senderRaw = from || providerStatus.sender;
     const sender = parseSender(senderRaw, providerStatus.sender);
     const recipients = parseRecipients(to);
@@ -280,7 +280,7 @@ export function createMailSender({ isProd = false, logger = console } = {}) {
         to: recipients.map((email) => ({ email })),
         subject: String(subject || ''),
         htmlContent: String(html || ''),
-        ...(payload.text ? { textContent: String(payload.text) } : {})
+        ...(text ? { textContent: String(text) } : {})
       })
     });
 
