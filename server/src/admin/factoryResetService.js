@@ -389,6 +389,13 @@ export function createFactoryResetService({
       ? await wipePostgres({ sqlAllAsync, sqlRunAsync, dryRun: false })
       : await wipeSqlite({ sqlAllAsync, sqlRunAsync, dryRun: false });
 
+    const memberTable = dbDriver === 'postgres' ? 'users' : 'uyeler';
+    const remainingRow = await sqlGetAsync(`SELECT COUNT(*) AS cnt FROM ${quoteIdent(memberTable)}`).catch(() => null);
+    const remaining = Number(remainingRow?.cnt ?? remainingRow?.count ?? 0);
+    if (remaining > 0) {
+      throw new Error(`Wipe failed: ${remaining} row(s) still present in ${memberTable} after wipe.`);
+    }
+
     if (typeof seedRuntimeDefaults === 'function') {
       await seedRuntimeDefaults();
     }

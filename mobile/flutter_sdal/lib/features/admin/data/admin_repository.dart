@@ -2029,7 +2029,7 @@ class AdminRepository {
     required String password,
     bool dryRun = false,
   }) async {
-    await _apiClient.post<dynamic>(
+    final result = await _apiClient.post<dynamic>(
       '/api/admin/factory-reset',
       body: {
         'confirmation': confirmation,
@@ -2037,6 +2037,11 @@ class AdminRepository {
         'dryRun': dryRun,
       },
     );
+    if (!result.ok) {
+      throw Exception(
+        result.message.isNotEmpty ? result.message : 'Factory reset başarısız (${result.statusCode}).',
+      );
+    }
   }
 
   Future<AdminPreviewList<T>> _fetchPreviewList<T>({
