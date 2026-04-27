@@ -736,7 +736,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 036849AF911A3C8C0CA9267E /* Pods-SdalNotificationExtension.profile.xcconfig */;
 			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = NO;
 				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
 				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -745,7 +744,7 @@
 				INFOPLIST_FILE = SdalNotificationExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalNotificationExtension;
-				SDKROOT = iphoneos;
+				PRODUCT_NAME = SdalNotificationExtension;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -757,7 +756,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 926A1054CD9F64E8D2B09C00 /* Pods-SdalNotificationExtension.release.xcconfig */;
 			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = NO;
 				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
 				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -766,7 +764,7 @@
 				INFOPLIST_FILE = SdalNotificationExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalNotificationExtension;
-				SDKROOT = iphoneos;
+				PRODUCT_NAME = SdalNotificationExtension;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -944,7 +942,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1E7267D2966E4F605FF8DF72 /* Pods-SdalNotificationExtension.debug.xcconfig */;
 			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = NO;
 				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
 				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -953,7 +950,7 @@
 				INFOPLIST_FILE = SdalNotificationExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalNotificationExtension;
-				SDKROOT = iphoneos;
+				PRODUCT_NAME = SdalNotificationExtension;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
