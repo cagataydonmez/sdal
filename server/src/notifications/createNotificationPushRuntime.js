@@ -556,15 +556,31 @@ export function createNotificationPushRuntime({
       return { ok: false, reason: 'no_registered_device' };
     }
 
+    const execGet = sqlGetAsync || ((...args) => Promise.resolve(sqlGet(...args)));
+    const safeSourceUserId = Number(sourceUserId || 0) || null;
+    let senderName = '';
+    if (safeSourceUserId) {
+      const sender = await execGet(
+        'SELECT isim, soyisim, kadi FROM uyeler WHERE id = ? LIMIT 1',
+        [safeSourceUserId]
+      );
+      if (sender) {
+        const fullName = sanitizeText(`${sender.isim || ''} ${sender.soyisim || ''}`.trim());
+        senderName = fullName || sanitizeText(sender.kadi || '');
+      }
+    }
+
     const target = await buildNotificationTarget({
       id: Number(notificationId || 0),
       type: notificationType,
-      source_user_id: Number(sourceUserId || 0) || null,
+      source_user_id: safeSourceUserId,
       entity_id: Number(entityId || 0) || null
     });
+    const rawBody = sanitizeText(message, DEFAULT_PUSH_TITLE);
+    const body = senderName ? `${senderName}: ${rawBody}` : rawBody;
     const payload = {
       title: resolvePushTitle(notificationType),
-      body: sanitizeText(message, DEFAULT_PUSH_TITLE),
+      body,
       data: {
         notificationId: String(Number(notificationId || 0) || 0),
         type: sanitizeText(notificationType).toLowerCase(),

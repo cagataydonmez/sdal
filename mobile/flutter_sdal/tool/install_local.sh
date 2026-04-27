@@ -358,7 +358,7 @@ get_ios_simulator_entries() {
 get_android_emulator_entries() {
   (
     cd "$ROOT_DIR"
-    "$FLUTTER_BIN" emulators
+    "$FLUTTER_BIN" emulators 2>/dev/null
   ) | awk -F'•' '
     NF >= 4 {
       id=$1; name=$2; platform=$4;
@@ -378,6 +378,44 @@ boot_ios_simulator() {
   open -a Simulator >/dev/null 2>&1 || true
   xcrun simctl boot "$udid" >/dev/null 2>&1 || true
   xcrun simctl bootstatus "$udid" -b
+}
+
+find_running_android_emulator() {
+  local tmp result
+  tmp="$(make_temp_json flutter-android-check)"
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" devices --machine > "$tmp" 2>/dev/null
+  ) || true
+  result="$(/usr/bin/python3 - "$tmp" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1]) as fh:
+        devices = json.load(fh)
+    for d in devices:
+        if str(d.get("targetPlatform", "")).startswith("android") and d.get("emulator", False):
+            print(d["id"])
+            break
+except Exception:
+    pass
+PY
+  )"
+  rm -f "$tmp"
+  printf '%s' "$result"
+}
+
+wait_for_running_android_emulator() {
+  local attempts=60 result
+  while (( attempts > 0 )); do
+    result="$(find_running_android_emulator)"
+    if [[ -n "$result" ]]; then
+      printf '%s' "$result"
+      return
+    fi
+    attempts=$((attempts - 1))
+    sleep 2
+  done
+  die "Android emulator did not appear in flutter devices."
 }
 
 wait_for_android_emulator() {
@@ -959,19 +997,26 @@ main() {
       ;;
     3)
       print_android_instructions
-      load_entries get_android_emulator_entries
-      local selected label emulator_id android_selected android_device_id
-      selected="$(select_from_entries "Available Android emulators" "${entries[@]}")"
-      label="${selected%%|||*}"
-      emulator_id="${selected##*|||}"
-      log "Selected: $label"
-      (
-        cd "$ROOT_DIR"
-        "$FLUTTER_BIN" emulators --launch "$emulator_id"
-      )
-      load_entries wait_for_android_emulator
-      android_selected="$(select_from_entries "Running Android emulator devices" "${entries[@]}")"
-      android_device_id="${android_selected##*|||}"
+      local android_device_id
+      android_device_id="$(find_running_android_emulator)"
+      if [[ -z "$android_device_id" ]]; then
+        load_entries get_android_emulator_entries || true
+        local selected label emulator_id
+        if (( ${#entries[@]} > 0 )); then
+          selected="$(select_from_entries "Available Android emulators" "${entries[@]}")"
+          label="${selected%%|||*}"
+          emulator_id="${selected##*|||}"
+          log "Selected: $label"
+          (
+            cd "$ROOT_DIR"
+            "$FLUTTER_BIN" emulators --launch "$emulator_id"
+          )
+        else
+          log "No AVD emulators found via flutter — waiting for a running Android device..."
+        fi
+        android_device_id="$(wait_for_running_android_emulator)"
+      fi
+      log "Using Android device: $android_device_id"
       apply_app_version_update
       run_flutter_mode "$build_mode" "$android_device_id"
       ;;
