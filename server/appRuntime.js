@@ -910,6 +910,7 @@ const {
   hasValidGraduationYear,
   hasKvkkConsent,
   hasDirectoryConsent,
+  isProfileIncomplete,
   isOAuthProfileIncomplete,
   requireAuth,
   requireRole,
