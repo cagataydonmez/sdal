@@ -281,22 +281,67 @@ class PushNotificationsService {
     ref.invalidate(notificationUnreadCountProvider);
     if (!_localNotificationsReady) return;
     final route = _extractRoute(message);
+    final androidDetails = await _buildAndroidDetails(message);
     await _localNotifications.show(
       id: message.hashCode,
       title: _messageTitle(message),
       body: _messageBody(message),
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          _pushChannelId,
-          _pushChannelName,
-          channelDescription: _pushChannelDescription,
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-        iOS: DarwinNotificationDetails(),
+      notificationDetails: NotificationDetails(
+        android: androidDetails,
+        iOS: const DarwinNotificationDetails(),
       ),
       payload: route,
     );
+  }
+
+  Future<AndroidNotificationDetails> _buildAndroidDetails(
+    RemoteMessage message,
+  ) async {
+    const base = AndroidNotificationDetails(
+      _pushChannelId,
+      _pushChannelName,
+      channelDescription: _pushChannelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    if (!Platform.isAndroid) return base;
+    final imageUrl = message.data['imageUrl']?.toString().trim() ?? '';
+    if (imageUrl.isEmpty) return base;
+    final imagePath = await _downloadImageToTemp(imageUrl);
+    if (imagePath == null) return base;
+    return AndroidNotificationDetails(
+      _pushChannelId,
+      _pushChannelName,
+      channelDescription: _pushChannelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+      styleInformation: BigPictureStyleInformation(
+        FilePathAndroidBitmap(imagePath),
+        hideExpandedLargeIcon: true,
+      ),
+    );
+  }
+
+  Future<String?> _downloadImageToTemp(String url) async {
+    try {
+      final client = HttpClient();
+      final request = await client.getUrl(Uri.parse(url));
+      final response = await request.close();
+      if (response.statusCode != 200) return null;
+      final ext = url.split('?').first.split('.').last.toLowerCase();
+      final safeExt =
+          ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext) ? ext : 'jpg';
+      final file = File(
+        '${Directory.systemTemp.path}/sdal_notif_${DateTime.now().millisecondsSinceEpoch}.$safeExt',
+      );
+      final bytes = await response.fold<List<int>>([], (a, b) => a..addAll(b));
+      await file.writeAsBytes(bytes);
+      client.close();
+      return file.path;
+    } catch (e) {
+      debugPrint('push image download failed: $e');
+      return null;
+    }
   }
 
   Future<void> _handleOpenedMessage(RemoteMessage message) async {

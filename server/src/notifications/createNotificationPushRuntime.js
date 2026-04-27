@@ -641,7 +641,8 @@ export function createNotificationPushRuntime({
         category: sanitizeText(getNotificationCategory(notificationType)).toLowerCase(),
         senderName,
         senderPhoto,
-        senderInitials
+        senderInitials,
+        imageUrl: sanitizeText(pushMessage.imageUrl || '')
       }
     };
 
