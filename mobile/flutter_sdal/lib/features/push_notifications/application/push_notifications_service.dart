@@ -282,13 +282,14 @@ class PushNotificationsService {
     if (!_localNotificationsReady) return;
     final route = _extractRoute(message);
     final androidDetails = await _buildAndroidDetails(message);
+    final iosDetails = await _buildIosDetails(message);
     await _localNotifications.show(
       id: message.hashCode,
       title: _messageTitle(message),
       body: _messageBody(message),
       notificationDetails: NotificationDetails(
         android: androidDetails,
-        iOS: const DarwinNotificationDetails(),
+        iOS: iosDetails,
       ),
       payload: route,
     );
@@ -319,6 +320,19 @@ class PushNotificationsService {
         FilePathAndroidBitmap(imagePath),
         hideExpandedLargeIcon: true,
       ),
+    );
+  }
+
+  Future<DarwinNotificationDetails> _buildIosDetails(
+    RemoteMessage message,
+  ) async {
+    if (!Platform.isIOS) return const DarwinNotificationDetails();
+    final imageUrl = message.data['imageUrl']?.toString().trim() ?? '';
+    if (imageUrl.isEmpty) return const DarwinNotificationDetails();
+    final imagePath = await _downloadImageToTemp(imageUrl);
+    if (imagePath == null) return const DarwinNotificationDetails();
+    return DarwinNotificationDetails(
+      attachments: [DarwinNotificationAttachment(imagePath)],
     );
   }
 
