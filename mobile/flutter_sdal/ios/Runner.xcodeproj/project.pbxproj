@@ -288,12 +288,12 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				AF720B5926B33A385CE78F8A /* Embed App Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				5A5E4CC62A1F4A8CBFD3E001 /* Strip Extended Attributes (Pre-embed) */,
 				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
 				98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */,
 				28ED53E47F4B1F47B8242A19 /* [CP] Embed Pods Frameworks */,
-				AF720B5926B33A385CE78F8A /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
