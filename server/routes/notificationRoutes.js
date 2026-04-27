@@ -40,6 +40,33 @@ export function registerNotificationRoutes(app, {
   toIsoThreshold,
   notificationTypeInventory
 }) {
+  function ensureNotificationBroadcastTables() {
+    return Promise.all([
+      sqlRunAsync(`CREATE TABLE IF NOT EXISTS notification_broadcasts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_user_id INTEGER,
+        sender_label TEXT,
+        target TEXT,
+        title TEXT,
+        body TEXT,
+        image_url TEXT,
+        image_shape TEXT,
+        requested_count INTEGER DEFAULT 0,
+        inserted_count INTEGER DEFAULT 0,
+        skipped_count INTEGER DEFAULT 0,
+        created_at TEXT
+      )`),
+      sqlRunAsync(`CREATE TABLE IF NOT EXISTS notification_broadcast_recipients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        broadcast_id INTEGER,
+        user_id INTEGER,
+        notification_id INTEGER,
+        status TEXT,
+        created_at TEXT
+      )`)
+    ]);
+  }
+
   app.get('/api/new/notifications', requireAuth, async (req, res) => {
     try {
       ensureNotificationIndexes();
@@ -547,18 +574,27 @@ export function registerNotificationRoutes(app, {
       if (typeof addNotification !== 'function') {
         return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_BROADCAST_UNAVAILABLE', 'Toplu bildirim gönderimi kullanılamıyor.');
       }
+      await ensureNotificationBroadcastTables();
       const target = String(req.body?.target || 'all').trim().toLowerCase();
       const title = String(req.body?.title || '').trim();
       const body = String(req.body?.body || req.body?.message || '').trim();
+      const sender = String(req.body?.sender || req.body?.from || 'SDAL').trim() || 'SDAL';
+      const imageUrl = String(req.body?.imageUrl || req.body?.image_url || '').trim();
+      const imageShape = String(req.body?.imageShape || req.body?.image_shape || 'rounded').trim().toLowerCase();
       if (!['all', 'verified', 'admins'].includes(target)) {
         return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_TARGET_INVALID', 'Geçersiz hedef kitle.');
       }
       if (!title || !body) {
         return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_BODY_REQUIRED', 'Başlık ve mesaj zorunlu.');
       }
+      if (imageUrl && !/^(https?:\/\/|\/uploads\/|\/api\/media\/|\/media\/)/i.test(imageUrl)) {
+        return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_IMAGE_INVALID', 'Görsel adresi geçersiz.');
+      }
       const safeTitle = String(title).slice(0, 120);
       const safeBody = String(body).slice(0, 500);
-      const message = `${safeTitle}: ${safeBody}`;
+      const safeSender = String(sender).slice(0, 80);
+      const safeImageUrl = imageUrl.slice(0, 1000);
+      const safeImageShape = ['rounded', 'square', 'circle'].includes(imageShape) ? imageShape : 'rounded';
       const whereParts = [
         "LOWER(COALESCE(CAST(aktiv AS TEXT), '1')) NOT IN ('0', 'false', 'hayir', 'hayır', 'no')",
         "LOWER(COALESCE(CAST(yasak AS TEXT), '0')) NOT IN ('1', 'true', 'evet', 'yes')"
@@ -575,30 +611,67 @@ export function registerNotificationRoutes(app, {
          WHERE ${whereParts.join(' AND ')}
          ORDER BY id ASC`
       );
+      const now = new Date().toISOString();
+      const broadcastResult = await sqlRunAsync(
+        `INSERT INTO notification_broadcasts
+          (sender_user_id, sender_label, target, title, body, image_url, image_shape, requested_count, inserted_count, skipped_count, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+        [req.session.userId || null, safeSender, target, safeTitle, safeBody, safeImageUrl, safeImageShape, (users || []).length, now]
+      );
+      const broadcastId = Number(broadcastResult?.lastInsertRowid || broadcastResult?.lastID || 0);
+      const message = JSON.stringify({
+        sender: safeSender,
+        title: safeTitle,
+        body: safeBody,
+        imageUrl: safeImageUrl,
+        imageShape: safeImageShape,
+        broadcastId
+      });
       let inserted = 0;
       let skipped = 0;
       for (const user of users || []) {
+        const userId = Number(user?.id || 0);
         const notificationId = await addNotification({
-          userId: Number(user?.id || 0),
+          userId,
           type: 'admin_broadcast',
-          sourceUserId: req.session?.userId || null,
+          sourceUserId: null,
           entityId: null,
           message
         });
         if (notificationId) inserted += 1;
         else skipped += 1;
+        await sqlRunAsync(
+          `INSERT INTO notification_broadcast_recipients
+            (broadcast_id, user_id, notification_id, status, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          [broadcastId || null, userId, notificationId || null, notificationId ? 'inserted' : 'skipped', now]
+        );
+      }
+      if (broadcastId) {
+        await sqlRunAsync(
+          'UPDATE notification_broadcasts SET inserted_count = ?, skipped_count = ? WHERE id = ?',
+          [inserted, skipped, broadcastId]
+        );
       }
       return res.json(apiSuccessEnvelope(
         'ADMIN_NOTIFICATIONS_BROADCAST_SENT',
         'Toplu bildirim gönderildi.',
         {
+          id: broadcastId,
           target,
+          sender: safeSender,
+          imageUrl: safeImageUrl,
+          imageShape: safeImageShape,
           requested: (users || []).length,
           inserted,
           skipped
         },
         {
+          id: broadcastId,
           target,
+          sender: safeSender,
+          imageUrl: safeImageUrl,
+          imageShape: safeImageShape,
           requested: (users || []).length,
           inserted,
           skipped
@@ -607,6 +680,32 @@ export function registerNotificationRoutes(app, {
     } catch (err) {
       console.error('admin.notifications.broadcast failed:', err);
       return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_BROADCAST_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/admin/notifications/broadcasts', requireAdmin, async (req, res) => {
+    try {
+      await ensureNotificationBroadcastTables();
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+      const rows = await sqlAllAsync(
+        `SELECT b.id, b.sender_user_id, b.sender_label, b.target, b.title, b.body,
+                b.image_url, b.image_shape, b.requested_count, b.inserted_count,
+                b.skipped_count, b.created_at, u.kadi AS sender_username
+         FROM notification_broadcasts b
+         LEFT JOIN uyeler u ON u.id = b.sender_user_id
+         ORDER BY b.id DESC
+         LIMIT ?`,
+        [limit]
+      );
+      return res.json(apiSuccessEnvelope(
+        'ADMIN_NOTIFICATIONS_BROADCASTS_OK',
+        'Toplu bildirim geçmişi hazır.',
+        { items: rows },
+        { items: rows }
+      ));
+    } catch (err) {
+      console.error('admin.notifications.broadcasts.list failed:', err);
+      return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_BROADCASTS_FAILED', 'Beklenmeyen bir hata oluştu.');
     }
   });
 

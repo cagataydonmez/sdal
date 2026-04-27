@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../app/providers.dart';
 import 'admin_api_monitor_widgets.dart';
 import '../application/admin_action_controller.dart';
 import '../data/admin_repository.dart';
+import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/session/session_controller.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 
 class AdminHubPage extends ConsumerWidget {
@@ -466,6 +469,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               recentDeliveries: <AdminPushDeliveryItem>[],
             ),
           );
+    final broadcastHistoryState = sectionKey == 'notifications'
+        ? ref.watch(adminBroadcastHistoryProvider)
+        : const AsyncValue<List<AdminBroadcastHistoryItem>>.data(
+            <AdminBroadcastHistoryItem>[],
+          );
     final userPreviewState = sectionKey == 'management'
         ? ref.watch(adminUserPreviewProvider(userPreviewQuery))
         : const AsyncValue<AdminPreviewList<AdminUserPreviewItem>>.data(
@@ -921,10 +929,15 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             const SizedBox(height: 16),
             _AdminAsyncCard(
               title: 'Bildirim ve push operasyonları',
-              states: [notificationOpsState, pushSettingsState],
+              states: [
+                notificationOpsState,
+                pushSettingsState,
+                broadcastHistoryState,
+              ],
               builder: () {
                 final ops = notificationOpsState.value!;
                 final push = pushSettingsState.value!;
+                final broadcasts = broadcastHistoryState.value!;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -953,6 +966,30 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                               : const Icon(Icons.campaign_outlined),
                           label: const Text('Bildirim oluştur'),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Gönderilen toplu bildirimler',
+                      total: broadcasts.length,
+                      children: [
+                        for (final item in broadcasts.take(8))
+                          _AdminPreviewLine(
+                            title: item.title.isEmpty
+                                ? item.body
+                                : '${item.senderLabel}: ${item.title}',
+                            subtitle:
+                                '${item.target} · ${item.inserted}/${item.requested} ulaştı'
+                                '${item.skipped > 0 ? ' · ${item.skipped} atlandı' : ''}'
+                                '${item.imageUrl.isNotEmpty ? ' · görselli' : ''}'
+                                '${item.senderUsername.isNotEmpty ? ' · ${item.senderUsername}' : ''}',
+                            trailing: item.createdAt,
+                          ),
+                        if (broadcasts.isEmpty)
+                          Text(
+                            'Henüz gönderilmiş toplu bildirim kaydı yok.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -2051,7 +2088,16 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     WidgetRef ref,
   ) async {
     final payload =
-        await showDialog<({String body, String target, String title})?>(
+        await showDialog<
+          ({
+            String body,
+            String imageShape,
+            String imageUrl,
+            String sender,
+            String target,
+            String title,
+          })?
+        >(
           context: context,
           builder: (_) => const _NotificationBroadcastDialog(),
         );
@@ -2060,8 +2106,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .sendNotificationBroadcast(
           target: payload.target,
+          sender: payload.sender,
           title: payload.title,
           body: payload.body,
+          imageUrl: payload.imageUrl,
+          imageShape: payload.imageShape,
         );
     if (!context.mounted) return;
     if (result != null) _refreshCurrentSection();
@@ -4626,22 +4675,30 @@ class _AdminDialogSection extends StatelessWidget {
   }
 }
 
-class _NotificationBroadcastDialog extends StatefulWidget {
+enum _BroadcastDialogStep { compose, preview }
+
+class _NotificationBroadcastDialog extends ConsumerStatefulWidget {
   const _NotificationBroadcastDialog();
 
   @override
-  State<_NotificationBroadcastDialog> createState() =>
+  ConsumerState<_NotificationBroadcastDialog> createState() =>
       _NotificationBroadcastDialogState();
 }
 
 class _NotificationBroadcastDialogState
-    extends State<_NotificationBroadcastDialog> {
+    extends ConsumerState<_NotificationBroadcastDialog> {
+  final _senderController = TextEditingController(text: 'SDAL');
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   String _target = 'all';
+  String _imageShape = 'rounded';
+  String _imageUrl = '';
+  bool _uploadingImage = false;
+  _BroadcastDialogStep _step = _BroadcastDialogStep.compose;
 
   @override
   void dispose() {
+    _senderController.dispose();
     _titleController.dispose();
     _bodyController.dispose();
     super.dispose();
@@ -4649,75 +4706,390 @@ class _NotificationBroadcastDialogState
 
   @override
   Widget build(BuildContext context) {
+    final sender = _resolvedSender;
+    final title = _titleController.text.trim();
+    final body = _bodyController.text.trim();
+    final canPreview = title.isNotEmpty && body.isNotEmpty && !_uploadingImage;
     return AlertDialog(
-      title: const Text('Toplu bildirim'),
+      title: Text(
+        _step == _BroadcastDialogStep.preview
+            ? 'Bildirim önizleme'
+            : 'Toplu bildirim',
+      ),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: _target,
-                decoration: const InputDecoration(labelText: 'Hedef kitle'),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'all',
-                    child: Text('Tüm aktif üyeler'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'verified',
-                    child: Text('Doğrulanmış üyeler'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'admins',
-                    child: Text('Admin kullanıcılar'),
-                  ),
-                ],
-                onChanged: (value) => setState(() => _target = value ?? 'all'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _titleController,
-                maxLength: 120,
-                decoration: const InputDecoration(labelText: 'Başlık'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _bodyController,
-                minLines: 4,
-                maxLines: 7,
-                maxLength: 500,
-                decoration: const InputDecoration(labelText: 'Mesaj'),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Gönderim uygulama içi bildirim oluşturur; push açıksa kayıtlı cihazlara da iletilir.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
+          child: _step == _BroadcastDialogStep.preview
+              ? _BroadcastPreviewStep(
+                  body: body,
+                  imageShape: _imageShape,
+                  imageUrl: _imageUrl,
+                  sender: sender,
+                  targetLabel: _targetLabel,
+                  title: title,
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: _target,
+                      decoration: const InputDecoration(
+                        labelText: 'Hedef kitle',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'all',
+                          child: Text('Tüm aktif üyeler'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'verified',
+                          child: Text('Doğrulanmış üyeler'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'admins',
+                          child: Text('Admin kullanıcılar'),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _target = value ?? 'all'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _senderController,
+                      maxLength: 80,
+                      decoration: const InputDecoration(labelText: 'Kimden'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _titleController,
+                      maxLength: 120,
+                      decoration: const InputDecoration(labelText: 'Başlık'),
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _bodyController,
+                      minLines: 4,
+                      maxLines: 7,
+                      maxLength: 500,
+                      decoration: const InputDecoration(labelText: 'Mesaj'),
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _uploadingImage ? null : _pickImage,
+                          icon: _uploadingImage
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.image_outlined),
+                          label: Text(
+                            _imageUrl.isEmpty
+                                ? 'Görsel ekle'
+                                : 'Görseli değiştir',
+                          ),
+                        ),
+                        if (_imageUrl.isNotEmpty)
+                          IconButton(
+                            tooltip: 'Görseli kaldır',
+                            onPressed: _uploadingImage
+                                ? null
+                                : () => setState(() => _imageUrl = ''),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        SizedBox(
+                          width: 170,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _imageShape,
+                            decoration: const InputDecoration(
+                              labelText: 'Görsel görünümü',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'rounded',
+                                child: Text('Yuvarlatılmış'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'square',
+                                child: Text('Köşeli'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'circle',
+                                child: Text('Yuvarlak'),
+                              ),
+                            ],
+                            onChanged: (value) => setState(
+                              () => _imageShape = value ?? 'rounded',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_imageUrl.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _BroadcastImagePreview(
+                        imageShape: _imageShape,
+                        imageUrl: _imageUrl,
+                        size: 64,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      'Gönderim uygulama içi bildirim oluşturur; push açıksa kayıtlı cihazlara da iletilir.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Vazgeç'),
+          onPressed: () {
+            if (_step == _BroadcastDialogStep.preview) {
+              setState(() => _step = _BroadcastDialogStep.compose);
+              return;
+            }
+            Navigator.of(context).pop();
+          },
+          child: Text(
+            _step == _BroadcastDialogStep.preview ? 'Düzenle' : 'Vazgeç',
+          ),
         ),
         FilledButton.icon(
           onPressed: () {
-            final title = _titleController.text.trim();
-            final body = _bodyController.text.trim();
-            if (title.isEmpty || body.isEmpty) return;
-            Navigator.of(
-              context,
-            ).pop((body: body, target: _target, title: title));
+            if (_step == _BroadcastDialogStep.compose) {
+              if (!canPreview) return;
+              setState(() => _step = _BroadcastDialogStep.preview);
+              return;
+            }
+            Navigator.of(context).pop((
+              body: body,
+              imageShape: _imageShape,
+              imageUrl: _imageUrl,
+              sender: sender,
+              target: _target,
+              title: title,
+            ));
           },
-          icon: const Icon(Icons.send_outlined),
-          label: const Text('Gönder'),
+          icon: Icon(
+            _step == _BroadcastDialogStep.preview
+                ? Icons.send_outlined
+                : Icons.visibility_outlined,
+          ),
+          label: Text(
+            _step == _BroadcastDialogStep.preview ? 'Gönder' : 'Önizle',
+          ),
         ),
       ],
+    );
+  }
+
+  String get _resolvedSender {
+    final sender = _senderController.text.trim();
+    return sender.isEmpty ? 'SDAL' : sender;
+  }
+
+  String get _targetLabel {
+    switch (_target) {
+      case 'verified':
+        return 'Doğrulanmış üyeler';
+      case 'admins':
+        return 'Admin kullanıcılar';
+      case 'all':
+      default:
+        return 'Tüm aktif üyeler';
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await pickAndEditImage(
+      context,
+      aspectPreset: CropAspectPreset.square,
+      title: 'Bildirim görseli',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _uploadingImage = true);
+    try {
+      final imageUrl = await ref
+          .read(adminRepositoryProvider)
+          .uploadNotificationBroadcastImage(picked.file);
+      if (!mounted) return;
+      setState(() => _imageUrl = imageUrl);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Görsel yüklenemedi: $error')));
+    } finally {
+      if (mounted) setState(() => _uploadingImage = false);
+    }
+  }
+}
+
+class _BroadcastPreviewStep extends StatelessWidget {
+  const _BroadcastPreviewStep({
+    required this.body,
+    required this.imageShape,
+    required this.imageUrl,
+    required this.sender,
+    required this.targetLabel,
+    required this.title,
+  });
+
+  final String body;
+  final String imageShape;
+  final String imageUrl;
+  final String sender;
+  final String targetLabel;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$targetLabel · Gönderen: $sender',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        _BroadcastPlatformPreview(
+          body: body,
+          imageShape: imageShape,
+          imageUrl: imageUrl,
+          platform: 'iOS',
+          sender: sender,
+          title: title,
+        ),
+        const SizedBox(height: 12),
+        _BroadcastPlatformPreview(
+          body: body,
+          imageShape: imageShape,
+          imageUrl: imageUrl,
+          platform: 'Android',
+          sender: sender,
+          title: title,
+        ),
+      ],
+    );
+  }
+}
+
+class _BroadcastPlatformPreview extends StatelessWidget {
+  const _BroadcastPlatformPreview({
+    required this.body,
+    required this.imageShape,
+    required this.imageUrl,
+    required this.platform,
+    required this.sender,
+    required this.title,
+  });
+
+  final String body;
+  final String imageShape;
+  final String imageUrl;
+  final String platform;
+  final String sender;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.sdal;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.panelMuted,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(platform, style: theme.textTheme.labelMedium),
+                  const SizedBox(height: 8),
+                  Text(
+                    sender,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: tokens.foregroundMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            if (imageUrl.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              _BroadcastImagePreview(
+                imageShape: imageShape,
+                imageUrl: imageUrl,
+                size: platform == 'iOS' ? 54 : 48,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BroadcastImagePreview extends ConsumerWidget {
+  const _BroadcastImagePreview({
+    required this.imageShape,
+    required this.imageUrl,
+    required this.size,
+  });
+
+  final String imageShape;
+  final String imageUrl;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
+    final radius = imageShape == 'circle'
+        ? BorderRadius.circular(size / 2)
+        : imageShape == 'square'
+        ? BorderRadius.zero
+        : BorderRadius.circular(8);
+    return ClipRRect(
+      borderRadius: radius,
+      child: SdalNetworkImage(
+        imageUrl: config.resolveUrl(imageUrl).toString(),
+        width: size,
+        height: size,
+        borderRadius: radius,
+        enableLightbox: false,
+      ),
     );
   }
 }

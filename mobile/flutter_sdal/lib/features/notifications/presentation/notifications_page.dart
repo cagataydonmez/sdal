@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/paged_response.dart';
 import '../../../core/text/sdal_date_time.dart';
@@ -10,6 +11,8 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/remote_avatar.dart';
+import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/notifications_action_controller.dart';
@@ -54,6 +57,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final unreadCountState = ref.watch(notificationUnreadCountProvider);
     final actionState = ref.watch(notificationsActionControllerProvider);
     final l10n = context.l10n;
+    final config = ref.watch(appConfigProvider);
     final tokens = Theme.of(context).sdal;
     final savingPreferences =
         actionState.isLoading && actionState.scope == 'preferences';
@@ -158,9 +162,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         value: 'delete_all',
                         child: Text(
                           l10n.notificationsDeleteAll,
-                          style: TextStyle(
-                            color: Theme.of(ctx).sdal.danger,
-                          ),
+                          style: TextStyle(color: Theme.of(ctx).sdal.danger),
                         ),
                       ),
                     ],
@@ -266,123 +268,151 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         },
                         onDismissed: (_) => _deleteItem(item.id),
                         child: Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SurfaceCard(
-                          onTap: () => _openNotification(context, ref, item),
-                          color: item.isUnread ? tokens.accentMuted : null,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.message,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: item.isUnread
-                                                    ? FontWeight.w600
-                                                    : FontWeight.w400,
-                                                color: item.isUnread
-                                                    ? tokens.foreground
-                                                    : tokens.foregroundMuted,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          [
-                                            if (item.sourceName.isNotEmpty)
-                                              item.sourceName,
-                                            if (item.category.isNotEmpty)
-                                              item.category,
-                                            if (item.createdAt.isNotEmpty)
-                                              formatSdalTimestamp(
-                                                context,
-                                                item.createdAt,
-                                              ),
-                                          ].join(' · '),
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
-                                        ),
-                                      ],
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SurfaceCard(
+                            onTap: () => _openNotification(context, ref, item),
+                            color: item.isUnread ? tokens.accentMuted : null,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    RemoteAvatar(
+                                      label: item.sourceName.isNotEmpty
+                                          ? item.sourceName
+                                          : item.sourceInitials,
+                                      imageUrl: item.sourcePhoto.isEmpty
+                                          ? ''
+                                          : config
+                                                .resolveUrl(item.sourcePhoto)
+                                                .toString(),
+                                      radius: 20,
                                     ),
-                                  ),
-                                  if (item.isUnread)
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 12),
-                                      child: Icon(
-                                        Icons.circle,
-                                        size: 10,
-                                        color: tokens.accent,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item.message,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: item.isUnread
+                                                      ? FontWeight.w600
+                                                      : FontWeight.w400,
+                                                  color: item.isUnread
+                                                      ? tokens.foreground
+                                                      : tokens.foregroundMuted,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            [
+                                              if (item.sourceName.isNotEmpty)
+                                                item.sourceName,
+                                              if (item.category.isNotEmpty)
+                                                item.category,
+                                              if (item.createdAt.isNotEmpty)
+                                                formatSdalTimestamp(
+                                                  context,
+                                                  item.createdAt,
+                                                ),
+                                            ].join(' · '),
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                ],
-                              ),
-                              if (item.actions
-                                  .where((a) =>
-                                      a.kind != 'open' &&
-                                      a.endpoint.trim().isNotEmpty)
-                                  .isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: item.actions
-                                      .where((a) =>
-                                          a.kind != 'open' &&
-                                          a.endpoint.trim().isNotEmpty)
-                                      .map(
-                                        (action) => OutlinedButton(
-                                          onPressed: () async {
-                                            final messenger =
-                                                ScaffoldMessenger.of(context);
-                                            final ok = await ref
-                                                .read(
-                                                  notificationsActionControllerProvider
-                                                      .notifier,
-                                                )
-                                                .runAction(
-                                                  action,
-                                                  notificationId: item.id,
-                                                  notificationType: item.type,
-                                                );
-                                            if (!context.mounted) return;
-                                            if (ok) {
-                                              _markNotificationRead(item.id);
-                                            }
-                                            final nextState = ref.read(
-                                              notificationsActionControllerProvider,
-                                            );
-                                            messenger.showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  nextState.message ??
-                                                      (ok
-                                                          ? '${action.label} tamamlandı.'
-                                                          : l10n.notificationsActionFailed),
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          child: Text(action.label),
+                                    if (item.isUnread)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 12,
                                         ),
-                                      )
-                                      .toList(growable: false),
+                                        child: Icon(
+                                          Icons.circle,
+                                          size: 10,
+                                          color: tokens.accent,
+                                        ),
+                                      ),
+                                    if (item.imageUrl.isNotEmpty) ...[
+                                      const SizedBox(width: 12),
+                                      _NotificationTrailingImage(
+                                        imageShape: item.imageShape,
+                                        imageUrl: config
+                                            .resolveUrl(item.imageUrl)
+                                            .toString(),
+                                      ),
+                                    ],
+                                  ],
                                 ),
+                                if (item.actions
+                                    .where(
+                                      (a) =>
+                                          a.kind != 'open' &&
+                                          a.endpoint.trim().isNotEmpty,
+                                    )
+                                    .isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: item.actions
+                                        .where(
+                                          (a) =>
+                                              a.kind != 'open' &&
+                                              a.endpoint.trim().isNotEmpty,
+                                        )
+                                        .map(
+                                          (action) => OutlinedButton(
+                                            onPressed: () async {
+                                              final messenger =
+                                                  ScaffoldMessenger.of(context);
+                                              final ok = await ref
+                                                  .read(
+                                                    notificationsActionControllerProvider
+                                                        .notifier,
+                                                  )
+                                                  .runAction(
+                                                    action,
+                                                    notificationId: item.id,
+                                                    notificationType: item.type,
+                                                  );
+                                              if (!context.mounted) return;
+                                              if (ok) {
+                                                _markNotificationRead(item.id);
+                                              }
+                                              final nextState = ref.read(
+                                                notificationsActionControllerProvider,
+                                              );
+                                              messenger.showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    nextState.message ??
+                                                        (ok
+                                                            ? '${action.label} tamamlandı.'
+                                                            : l10n.notificationsActionFailed),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            child: Text(action.label),
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
                     if (hasMore) ...[
                       const SizedBox(height: 4),
                       Align(
@@ -538,8 +568,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   void _deleteItem(int id) {
     setState(() {
-      _items =
-          _items.where((item) => item.id != id).toList(growable: false);
+      _items = _items.where((item) => item.id != id).toList(growable: false);
     });
   }
 
@@ -778,6 +807,38 @@ class _PreferencesCardState extends State<_PreferencesCard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NotificationTrailingImage extends StatelessWidget {
+  const _NotificationTrailingImage({
+    required this.imageShape,
+    required this.imageUrl,
+  });
+
+  final String imageShape;
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 46.0;
+    final radius = imageShape == 'circle'
+        ? BorderRadius.circular(size / 2)
+        : imageShape == 'square'
+        ? BorderRadius.zero
+        : BorderRadius.circular(8);
+    return ClipRRect(
+      borderRadius: radius,
+      child: SdalNetworkImage(
+        imageUrl: imageUrl,
+        width: size,
+        height: size,
+        borderRadius: radius,
+        enableLightbox: false,
+        cacheWidth: 92,
+        cacheHeight: 92,
       ),
     );
   }

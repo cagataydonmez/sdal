@@ -6,6 +6,43 @@ export function createNotificationPresentationRuntime({
   hasTable,
   ensureJobApplicationsTable
 }) {
+  function safeJsonParse(value, fallback = null) {
+    try {
+      return JSON.parse(String(value || ''));
+    } catch {
+      return fallback;
+    }
+  }
+
+  function normalizeAdminBroadcastPayload(message) {
+    const parsed = safeJsonParse(message, null);
+    if (!parsed || typeof parsed !== 'object') {
+      return {
+        sender: '',
+        title: '',
+        body: String(message || '').trim()
+      };
+    }
+    const sender = String(parsed.sender || parsed.from || '').trim();
+    const title = String(parsed.title || '').trim();
+    const body = String(parsed.body || parsed.message || '').trim();
+    const imageUrl = String(parsed.imageUrl || parsed.image_url || '').trim();
+    const imageShape = String(parsed.imageShape || parsed.image_shape || 'rounded').trim();
+    const broadcastId = Number(parsed.broadcastId || parsed.broadcast_id || 0);
+    return { sender, title, body, imageUrl, imageShape, broadcastId };
+  }
+
+  function buildNotificationInitials(row) {
+    const label = [
+      String(row?.isim || '').trim(),
+      String(row?.soyisim || '').trim()
+    ].filter(Boolean).join(' ') || String(row?.kadi || '').trim() || 'SDAL';
+    const parts = label.split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'S';
+    if (parts.length === 1) return parts[0].slice(0, 1).toLocaleUpperCase('tr-TR');
+    return `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toLocaleUpperCase('tr-TR');
+  }
+
   const NOTIFICATION_CATEGORY_MAP = Object.freeze({
     like: 'social',
     comment: 'social',
@@ -551,8 +588,29 @@ export function createNotificationPresentationRuntime({
       };
       const target = await buildNotificationTarget(baseRow);
       const actions = await buildNotificationActions(baseRow, target);
+      const isAdminBroadcast = String(baseRow?.type || '').trim().toLowerCase() === 'admin_broadcast';
+      const broadcastPayload = isAdminBroadcast ? normalizeAdminBroadcastPayload(baseRow?.message) : null;
+      const broadcastMessage = broadcastPayload
+        ? [broadcastPayload.title, broadcastPayload.body].filter(Boolean).join(': ')
+        : '';
       return {
         ...baseRow,
+        ...(broadcastPayload ? {
+          message: broadcastMessage || String(baseRow?.message || ''),
+          sourceName: broadcastPayload.sender || 'SDAL',
+          isim: broadcastPayload.sender || 'SDAL',
+          kadi: broadcastPayload.sender || 'SDAL',
+          imageUrl: broadcastPayload.imageUrl || '',
+          image_url: broadcastPayload.imageUrl || '',
+          imageShape: broadcastPayload.imageShape || 'rounded',
+          image_shape: broadcastPayload.imageShape || 'rounded',
+          broadcastId: broadcastPayload.broadcastId || 0,
+          broadcast_id: broadcastPayload.broadcastId || 0
+        } : {}),
+        sourcePhoto: String(baseRow?.resim || '').trim(),
+        source_photo: String(baseRow?.resim || '').trim(),
+        sourceInitials: buildNotificationInitials(baseRow),
+        source_initials: buildNotificationInitials(baseRow),
         category: getNotificationCategory(baseRow?.type),
         priority: getNotificationPriority(baseRow?.type),
         is_actionable: isNotificationActionable(baseRow?.type),

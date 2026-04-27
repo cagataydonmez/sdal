@@ -117,16 +117,22 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<AdminBroadcastResult?> sendNotificationBroadcast({
     required String target,
+    required String sender,
     required String title,
     required String body,
+    String imageUrl = '',
+    String imageShape = 'rounded',
   }) async {
     final scope = 'admin:notifications:broadcast';
     if (!_begin(scope)) return null;
     try {
       final result = await _repository.sendNotificationBroadcast(
         target: target,
+        sender: sender,
         title: title,
         body: body,
+        imageUrl: imageUrl,
+        imageShape: imageShape,
       );
       _invalidateNotificationPreviews();
       state = AsyncActionState.success(scope: scope);
@@ -675,6 +681,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
   void _invalidateNotificationPreviews() {
     ref.invalidate(adminNotificationOpsProvider);
     ref.invalidate(adminPushSettingsProvider);
+    ref.invalidate(adminBroadcastHistoryProvider);
   }
 
   void _invalidateDatabasePreviews() {

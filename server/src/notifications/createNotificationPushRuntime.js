@@ -28,6 +28,16 @@ function safeJsonParse(value, fallback = null) {
   }
 }
 
+function resolvePublicMediaUrl(raw) {
+  const value = sanitizeText(raw);
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const base = sanitizeText(process.env.SDAL_BASE_URL || process.env.PUBLIC_BASE_URL || 'https://sdalsosyal.mywire.org')
+    .replace(/\/+$/, '');
+  if (!base) return '';
+  return `${base}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
 function base64UrlEncode(value) {
   return Buffer.from(value).toString('base64url');
 }
@@ -447,6 +457,33 @@ export function createNotificationPushRuntime({
     return DEFAULT_PUSH_TITLE;
   }
 
+  function normalizePushMessage(notificationType, message, senderName = '') {
+    if (sanitizeText(notificationType).toLowerCase() !== 'admin_broadcast') {
+      const rawBody = sanitizeText(message, DEFAULT_PUSH_TITLE);
+      return {
+        title: resolvePushTitle(notificationType),
+        body: senderName ? `${senderName}: ${rawBody}` : rawBody,
+        imageUrl: ''
+      };
+    }
+    const parsed = safeJsonParse(message, null);
+    if (!parsed || typeof parsed !== 'object') {
+      return {
+        title: sanitizeText(senderName || 'SDAL', 'SDAL'),
+        body: sanitizeText(message, DEFAULT_PUSH_TITLE),
+        imageUrl: ''
+      };
+    }
+    const sender = sanitizeText(parsed.sender || parsed.from || senderName || 'SDAL', 'SDAL');
+    const title = sanitizeText(parsed.title || DEFAULT_PUSH_TITLE, DEFAULT_PUSH_TITLE);
+    const body = sanitizeText(parsed.body || parsed.message || title, title);
+    return {
+      title: sender,
+      body: title === body ? body : `${title}: ${body}`,
+      imageUrl: resolvePublicMediaUrl(parsed.imageUrl || parsed.image_url || '')
+    };
+  }
+
   async function sendPushMessageToDevice(device, payload) {
     if (isMockMode()) {
       return { ok: true };
@@ -465,13 +502,15 @@ export function createNotificationPushRuntime({
           token: device.push_token,
           notification: {
             title: payload.title,
-            body: payload.body
+            body: payload.body,
+            ...(payload.imageUrl ? { image: payload.imageUrl } : {})
           },
           data: payload.data,
           android: {
             priority: 'high',
             notification: {
-              channel_id: 'sdal_notifications'
+              channel_id: 'sdal_notifications',
+              ...(payload.imageUrl ? { image: payload.imageUrl } : {})
             }
           },
           apns: {
@@ -480,9 +519,11 @@ export function createNotificationPushRuntime({
             },
             payload: {
               aps: {
-                sound: 'default'
+                sound: 'default',
+                ...(payload.imageUrl ? { 'mutable-content': 1 } : {})
               }
-            }
+            },
+            ...(payload.imageUrl ? { fcm_options: { image: payload.imageUrl } } : {})
           }
         }
       })
@@ -559,14 +600,25 @@ export function createNotificationPushRuntime({
     const execGet = sqlGetAsync || ((...args) => Promise.resolve(sqlGet(...args)));
     const safeSourceUserId = Number(sourceUserId || 0) || null;
     let senderName = '';
+    let senderPhoto = '';
+    let senderInitials = '';
     if (safeSourceUserId) {
       const sender = await execGet(
-        'SELECT isim, soyisim, kadi FROM uyeler WHERE id = ? LIMIT 1',
+        'SELECT isim, soyisim, kadi, resim FROM uyeler WHERE id = ? LIMIT 1',
         [safeSourceUserId]
       );
       if (sender) {
         const fullName = sanitizeText(`${sender.isim || ''} ${sender.soyisim || ''}`.trim());
         senderName = fullName || sanitizeText(sender.kadi || '');
+        const rawPhoto = sanitizeText(sender.resim);
+        senderPhoto = rawPhoto && rawPhoto.toLowerCase() !== 'yok'
+          ? resolvePublicMediaUrl(`/api/media/vesikalik/${encodeURIComponent(rawPhoto)}`)
+          : '';
+        const initialsBase = senderName || sanitizeText(sender.kadi || '') || 'SDAL';
+        const parts = initialsBase.split(/\s+/).filter(Boolean);
+        senderInitials = parts.length > 1
+          ? `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toLocaleUpperCase('tr-TR')
+          : (parts[0] || 'S').slice(0, 1).toLocaleUpperCase('tr-TR');
       }
     }
 
@@ -576,17 +628,20 @@ export function createNotificationPushRuntime({
       source_user_id: safeSourceUserId,
       entity_id: Number(entityId || 0) || null
     });
-    const rawBody = sanitizeText(message, DEFAULT_PUSH_TITLE);
-    const body = senderName ? `${senderName}: ${rawBody}` : rawBody;
+    const pushMessage = normalizePushMessage(notificationType, message, senderName);
     const payload = {
-      title: resolvePushTitle(notificationType),
-      body,
+      title: pushMessage.title,
+      body: pushMessage.body,
+      imageUrl: pushMessage.imageUrl || '',
       data: {
         notificationId: String(Number(notificationId || 0) || 0),
         type: sanitizeText(notificationType).toLowerCase(),
         route: sanitizeText(target?.route),
         href: sanitizeText(target?.href),
-        category: sanitizeText(getNotificationCategory(notificationType)).toLowerCase()
+        category: sanitizeText(getNotificationCategory(notificationType)).toLowerCase(),
+        senderName,
+        senderPhoto,
+        senderInitials
       }
     };
 

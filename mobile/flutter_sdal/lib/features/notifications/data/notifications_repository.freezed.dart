@@ -493,6 +493,14 @@ mixin _$AppNotification {
       throw _privateConstructorUsedError;
   @JsonKey(fromJson: readRequiredText)
   String get sourceName => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readRequiredText)
+  String get sourcePhoto => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readRequiredText)
+  String get sourceInitials => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readRequiredText)
+  String get imageUrl => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: readRequiredText)
+  String get imageShape => throw _privateConstructorUsedError;
 
   /// Serializes this AppNotification to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -522,6 +530,10 @@ abstract class $AppNotificationCopyWith<$Res> {
     NotificationTarget? target,
     List<NotificationActionItem> actions,
     @JsonKey(fromJson: readRequiredText) String sourceName,
+    @JsonKey(fromJson: readRequiredText) String sourcePhoto,
+    @JsonKey(fromJson: readRequiredText) String sourceInitials,
+    @JsonKey(fromJson: readRequiredText) String imageUrl,
+    @JsonKey(fromJson: readRequiredText) String imageShape,
   });
 
   $NotificationTargetCopyWith<$Res>? get target;
@@ -552,6 +564,10 @@ class _$AppNotificationCopyWithImpl<$Res, $Val extends AppNotification>
     Object? target = freezed,
     Object? actions = null,
     Object? sourceName = null,
+    Object? sourcePhoto = null,
+    Object? sourceInitials = null,
+    Object? imageUrl = null,
+    Object? imageShape = null,
   }) {
     return _then(
       _value.copyWith(
@@ -595,6 +611,22 @@ class _$AppNotificationCopyWithImpl<$Res, $Val extends AppNotification>
                 ? _value.sourceName
                 : sourceName // ignore: cast_nullable_to_non_nullable
                       as String,
+            sourcePhoto: null == sourcePhoto
+                ? _value.sourcePhoto
+                : sourcePhoto // ignore: cast_nullable_to_non_nullable
+                      as String,
+            sourceInitials: null == sourceInitials
+                ? _value.sourceInitials
+                : sourceInitials // ignore: cast_nullable_to_non_nullable
+                      as String,
+            imageUrl: null == imageUrl
+                ? _value.imageUrl
+                : imageUrl // ignore: cast_nullable_to_non_nullable
+                      as String,
+            imageShape: null == imageShape
+                ? _value.imageShape
+                : imageShape // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -635,6 +667,10 @@ abstract class _$$AppNotificationImplCopyWith<$Res>
     NotificationTarget? target,
     List<NotificationActionItem> actions,
     @JsonKey(fromJson: readRequiredText) String sourceName,
+    @JsonKey(fromJson: readRequiredText) String sourcePhoto,
+    @JsonKey(fromJson: readRequiredText) String sourceInitials,
+    @JsonKey(fromJson: readRequiredText) String imageUrl,
+    @JsonKey(fromJson: readRequiredText) String imageShape,
   });
 
   @override
@@ -665,6 +701,10 @@ class __$$AppNotificationImplCopyWithImpl<$Res>
     Object? target = freezed,
     Object? actions = null,
     Object? sourceName = null,
+    Object? sourcePhoto = null,
+    Object? sourceInitials = null,
+    Object? imageUrl = null,
+    Object? imageShape = null,
   }) {
     return _then(
       _$AppNotificationImpl(
@@ -708,6 +748,22 @@ class __$$AppNotificationImplCopyWithImpl<$Res>
             ? _value.sourceName
             : sourceName // ignore: cast_nullable_to_non_nullable
                   as String,
+        sourcePhoto: null == sourcePhoto
+            ? _value.sourcePhoto
+            : sourcePhoto // ignore: cast_nullable_to_non_nullable
+                  as String,
+        sourceInitials: null == sourceInitials
+            ? _value.sourceInitials
+            : sourceInitials // ignore: cast_nullable_to_non_nullable
+                  as String,
+        imageUrl: null == imageUrl
+            ? _value.imageUrl
+            : imageUrl // ignore: cast_nullable_to_non_nullable
+                  as String,
+        imageShape: null == imageShape
+            ? _value.imageShape
+            : imageShape // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -728,6 +784,10 @@ class _$AppNotificationImpl extends _AppNotification {
     final List<NotificationActionItem> actions =
         const <NotificationActionItem>[],
     @JsonKey(fromJson: readRequiredText) required this.sourceName,
+    @JsonKey(fromJson: readRequiredText) required this.sourcePhoto,
+    @JsonKey(fromJson: readRequiredText) required this.sourceInitials,
+    @JsonKey(fromJson: readRequiredText) required this.imageUrl,
+    @JsonKey(fromJson: readRequiredText) required this.imageShape,
   }) : _actions = actions,
        super._();
 
@@ -769,10 +829,22 @@ class _$AppNotificationImpl extends _AppNotification {
   @override
   @JsonKey(fromJson: readRequiredText)
   final String sourceName;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  final String sourcePhoto;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  final String sourceInitials;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  final String imageUrl;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  final String imageShape;
 
   @override
   String toString() {
-    return 'AppNotification(id: $id, type: $type, message: $message, createdAt: $createdAt, readAt: $readAt, category: $category, priority: $priority, target: $target, actions: $actions, sourceName: $sourceName)';
+    return 'AppNotification(id: $id, type: $type, message: $message, createdAt: $createdAt, readAt: $readAt, category: $category, priority: $priority, target: $target, actions: $actions, sourceName: $sourceName, sourcePhoto: $sourcePhoto, sourceInitials: $sourceInitials, imageUrl: $imageUrl, imageShape: $imageShape)';
   }
 
   @override
@@ -793,7 +865,15 @@ class _$AppNotificationImpl extends _AppNotification {
             (identical(other.target, target) || other.target == target) &&
             const DeepCollectionEquality().equals(other._actions, _actions) &&
             (identical(other.sourceName, sourceName) ||
-                other.sourceName == sourceName));
+                other.sourceName == sourceName) &&
+            (identical(other.sourcePhoto, sourcePhoto) ||
+                other.sourcePhoto == sourcePhoto) &&
+            (identical(other.sourceInitials, sourceInitials) ||
+                other.sourceInitials == sourceInitials) &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl) &&
+            (identical(other.imageShape, imageShape) ||
+                other.imageShape == imageShape));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -810,6 +890,10 @@ class _$AppNotificationImpl extends _AppNotification {
     target,
     const DeepCollectionEquality().hash(_actions),
     sourceName,
+    sourcePhoto,
+    sourceInitials,
+    imageUrl,
+    imageShape,
   );
 
   /// Create a copy of AppNotification
@@ -841,6 +925,10 @@ abstract class _AppNotification extends AppNotification {
     final NotificationTarget? target,
     final List<NotificationActionItem> actions,
     @JsonKey(fromJson: readRequiredText) required final String sourceName,
+    @JsonKey(fromJson: readRequiredText) required final String sourcePhoto,
+    @JsonKey(fromJson: readRequiredText) required final String sourceInitials,
+    @JsonKey(fromJson: readRequiredText) required final String imageUrl,
+    @JsonKey(fromJson: readRequiredText) required final String imageShape,
   }) = _$AppNotificationImpl;
   const _AppNotification._() : super._();
 
@@ -875,6 +963,18 @@ abstract class _AppNotification extends AppNotification {
   @override
   @JsonKey(fromJson: readRequiredText)
   String get sourceName;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  String get sourcePhoto;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  String get sourceInitials;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  String get imageUrl;
+  @override
+  @JsonKey(fromJson: readRequiredText)
+  String get imageShape;
 
   /// Create a copy of AppNotification
   /// with the given fields replaced by the non-null parameter values.

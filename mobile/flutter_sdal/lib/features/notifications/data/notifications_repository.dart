@@ -59,6 +59,10 @@ class AppNotification with _$AppNotification {
     NotificationTarget? target,
     @Default(<NotificationActionItem>[]) List<NotificationActionItem> actions,
     @JsonKey(fromJson: readRequiredText) required String sourceName,
+    @JsonKey(fromJson: readRequiredText) required String sourcePhoto,
+    @JsonKey(fromJson: readRequiredText) required String sourceInitials,
+    @JsonKey(fromJson: readRequiredText) required String imageUrl,
+    @JsonKey(fromJson: readRequiredText) required String imageShape,
   }) = _AppNotification;
 
   bool get isUnread => readAt.isEmpty;
@@ -69,6 +73,10 @@ class AppNotification with _$AppNotification {
           'createdAt': ['created_at'],
           'readAt': ['read_at'],
           'sourceName': ['isim', 'kadi'],
+          'sourcePhoto': ['source_photo', 'resim'],
+          'sourceInitials': ['source_initials'],
+          'imageUrl': ['image_url'],
+          'imageShape': ['image_shape'],
         }),
       );
 
@@ -252,15 +260,11 @@ class NotificationsRepository {
   }
 
   Future<ApiResult<dynamic>> deleteNotification(int notificationId) {
-    return _apiClient.delete<dynamic>(
-      '/api/new/notifications/$notificationId',
-    );
+    return _apiClient.delete<dynamic>('/api/new/notifications/$notificationId');
   }
 
   Future<ApiResult<dynamic>> deleteAllNotifications() {
-    return _apiClient.delete<dynamic>(
-      '/api/new/notifications',
-    );
+    return _apiClient.delete<dynamic>('/api/new/notifications');
   }
 
   Future<ApiResult<dynamic>> savePreferences(

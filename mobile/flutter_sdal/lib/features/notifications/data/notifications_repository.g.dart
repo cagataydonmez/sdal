@@ -61,6 +61,10 @@ _$AppNotificationImpl _$$AppNotificationImplFromJson(
           .toList() ??
       const <NotificationActionItem>[],
   sourceName: readRequiredText(json['sourceName']),
+  sourcePhoto: readRequiredText(json['sourcePhoto']),
+  sourceInitials: readRequiredText(json['sourceInitials']),
+  imageUrl: readRequiredText(json['imageUrl']),
+  imageShape: readRequiredText(json['imageShape']),
 );
 
 Map<String, dynamic> _$$AppNotificationImplToJson(
@@ -76,6 +80,10 @@ Map<String, dynamic> _$$AppNotificationImplToJson(
   'target': instance.target,
   'actions': instance.actions,
   'sourceName': instance.sourceName,
+  'sourcePhoto': instance.sourcePhoto,
+  'sourceInitials': instance.sourceInitials,
+  'imageUrl': instance.imageUrl,
+  'imageShape': instance.imageShape,
 };
 
 _$NotificationPreferencesImpl _$$NotificationPreferencesImplFromJson(

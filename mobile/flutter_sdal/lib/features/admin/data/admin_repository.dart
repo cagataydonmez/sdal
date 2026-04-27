@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
@@ -363,23 +364,94 @@ class AdminPushDeliveryItem {
 
 class AdminBroadcastResult {
   const AdminBroadcastResult({
+    required this.id,
     required this.target,
     required this.requested,
     required this.inserted,
     required this.skipped,
+    required this.imageUrl,
+    required this.imageShape,
   });
 
+  final int id;
   final String target;
   final int requested;
   final int inserted;
   final int skipped;
+  final String imageUrl;
+  final String imageShape;
 
   factory AdminBroadcastResult.fromMap(JsonMap map) {
     return AdminBroadcastResult(
+      id: asInt(map['id']) ?? 0,
       target: coalesceText([map['target']], fallback: ''),
       requested: asInt(map['requested']) ?? 0,
       inserted: asInt(map['inserted']) ?? 0,
       skipped: asInt(map['skipped']) ?? 0,
+      imageUrl: coalesceText([map['imageUrl'], map['image_url']], fallback: ''),
+      imageShape: coalesceText([
+        map['imageShape'],
+        map['image_shape'],
+      ], fallback: 'rounded'),
+    );
+  }
+}
+
+class AdminBroadcastHistoryItem {
+  const AdminBroadcastHistoryItem({
+    required this.id,
+    required this.senderLabel,
+    required this.senderUsername,
+    required this.target,
+    required this.title,
+    required this.body,
+    required this.imageUrl,
+    required this.imageShape,
+    required this.requested,
+    required this.inserted,
+    required this.skipped,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String senderLabel;
+  final String senderUsername;
+  final String target;
+  final String title;
+  final String body;
+  final String imageUrl;
+  final String imageShape;
+  final int requested;
+  final int inserted;
+  final int skipped;
+  final String createdAt;
+
+  factory AdminBroadcastHistoryItem.fromMap(JsonMap map) {
+    return AdminBroadcastHistoryItem(
+      id: asInt(map['id']) ?? 0,
+      senderLabel: coalesceText([
+        map['sender_label'],
+        map['senderLabel'],
+      ], fallback: ''),
+      senderUsername: coalesceText([
+        map['sender_username'],
+        map['senderUsername'],
+      ], fallback: ''),
+      target: coalesceText([map['target']], fallback: ''),
+      title: coalesceText([map['title']], fallback: ''),
+      body: coalesceText([map['body']], fallback: ''),
+      imageUrl: coalesceText([map['image_url'], map['imageUrl']], fallback: ''),
+      imageShape: coalesceText([
+        map['image_shape'],
+        map['imageShape'],
+      ], fallback: 'rounded'),
+      requested: asInt(map['requested_count']) ?? asInt(map['requested']) ?? 0,
+      inserted: asInt(map['inserted_count']) ?? asInt(map['inserted']) ?? 0,
+      skipped: asInt(map['skipped_count']) ?? asInt(map['skipped']) ?? 0,
+      createdAt: coalesceText([
+        map['created_at'],
+        map['createdAt'],
+      ], fallback: ''),
     );
   }
 }
@@ -1561,6 +1633,19 @@ class AdminRepository {
     return AdminPushSettingsSnapshot.fromMap(asJsonMap(result.rawData));
   }
 
+  Future<List<AdminBroadcastHistoryItem>> fetchBroadcastHistory({
+    int limit = 20,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/notifications/broadcasts',
+      query: {'limit': limit},
+      decoder: asJsonMap,
+    );
+    return asJsonMapList(
+      asJsonMap(result.rawData)['items'],
+    ).map(AdminBroadcastHistoryItem.fromMap).toList(growable: false);
+  }
+
   Future<AdminPreviewList<AdminModerationItem>> fetchPostPreview({
     int limit = 5,
   }) async {
@@ -2280,12 +2365,22 @@ class AdminRepository {
 
   Future<AdminBroadcastResult> sendNotificationBroadcast({
     required String target,
+    required String sender,
     required String title,
     required String body,
+    String imageUrl = '',
+    String imageShape = 'rounded',
   }) async {
     final result = await _apiClient.post<JsonMap>(
       '/api/new/admin/notifications/broadcast',
-      body: {'target': target, 'title': title, 'body': body},
+      body: {
+        'target': target,
+        'sender': sender,
+        'title': title,
+        'body': body,
+        if (imageUrl.trim().isNotEmpty) 'imageUrl': imageUrl.trim(),
+        'imageShape': imageShape,
+      },
       decoder: asJsonMap,
     );
     if (!result.ok) {
@@ -2296,6 +2391,28 @@ class AdminRepository {
       );
     }
     return AdminBroadcastResult.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<String> uploadNotificationBroadcastImage(File imageFile) async {
+    final result = await _apiClient.multipart<JsonMap>(
+      '/api/upload-image',
+      fields: {'entityType': 'notification_broadcast', 'entityId': '0'},
+      files: {'image': imageFile},
+      decoder: asJsonMap,
+    );
+    if (!result.ok) {
+      throw Exception(
+        result.message.isNotEmpty
+            ? result.message
+            : 'Görsel yüklenemedi (${result.statusCode}).',
+      );
+    }
+    final variants = asJsonMap(asJsonMap(result.rawData)['variants']);
+    return coalesceText([
+      variants['thumbUrl'],
+      variants['feedUrl'],
+      variants['fullUrl'],
+    ], fallback: '');
   }
 
   Future<void> deleteMember(int id) async {
@@ -2346,6 +2463,11 @@ final adminNotificationOpsProvider =
 final adminPushSettingsProvider = FutureProvider<AdminPushSettingsSnapshot>(
   (ref) => ref.watch(adminRepositoryProvider).fetchPushSettings(),
 );
+
+final adminBroadcastHistoryProvider =
+    FutureProvider<List<AdminBroadcastHistoryItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchBroadcastHistory(),
+    );
 
 final adminPostPreviewProvider =
     FutureProvider<AdminPreviewList<AdminModerationItem>>(
