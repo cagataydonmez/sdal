@@ -251,6 +251,139 @@ class AdminRequestNotificationItem {
   }
 }
 
+class AdminNotificationOpsSnapshot {
+  const AdminNotificationOpsSnapshot({
+    required this.deliverySummary,
+    required this.alerts,
+  });
+
+  final Map<String, int> deliverySummary;
+  final List<String> alerts;
+
+  factory AdminNotificationOpsSnapshot.fromMap(JsonMap map) {
+    final rawSummary = asJsonMap(map['delivery_summary']);
+    return AdminNotificationOpsSnapshot(
+      deliverySummary: rawSummary.map(
+        (key, value) => MapEntry(key, asInt(value) ?? 0),
+      ),
+      alerts: asJsonMapList(map['alerts'])
+          .map(
+            (row) => coalesceText([row['message'], row['code']], fallback: ''),
+          )
+          .where((text) => text.trim().isNotEmpty)
+          .toList(growable: false),
+    );
+  }
+}
+
+class AdminPushSettingsSnapshot {
+  const AdminPushSettingsSnapshot({
+    required this.enabled,
+    required this.firebaseConfigured,
+    required this.mockMode,
+    required this.registeredDevices,
+    required this.registeredUsers,
+    required this.platforms,
+    required this.deliverySummary,
+    required this.recentDeliveries,
+  });
+
+  final bool enabled;
+  final bool firebaseConfigured;
+  final bool mockMode;
+  final int registeredDevices;
+  final int registeredUsers;
+  final List<AdminPushPlatformCount> platforms;
+  final Map<String, int> deliverySummary;
+  final List<AdminPushDeliveryItem> recentDeliveries;
+
+  factory AdminPushSettingsSnapshot.fromMap(JsonMap map) {
+    final rawSummary = asJsonMap(map['delivery_summary']);
+    return AdminPushSettingsSnapshot(
+      enabled: asBool(map['enabled']) ?? false,
+      firebaseConfigured: asBool(map['firebase_configured']) ?? false,
+      mockMode: asBool(map['mock_mode']) ?? false,
+      registeredDevices: asInt(map['registered_devices']) ?? 0,
+      registeredUsers: asInt(map['registered_users']) ?? 0,
+      platforms: asJsonMapList(
+        map['platforms'],
+      ).map(AdminPushPlatformCount.fromMap).toList(growable: false),
+      deliverySummary: rawSummary.map(
+        (key, value) => MapEntry(key, asInt(value) ?? 0),
+      ),
+      recentDeliveries: asJsonMapList(
+        map['recent_deliveries'],
+      ).map(AdminPushDeliveryItem.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminPushPlatformCount {
+  const AdminPushPlatformCount({required this.platform, required this.count});
+
+  final String platform;
+  final int count;
+
+  factory AdminPushPlatformCount.fromMap(JsonMap map) {
+    return AdminPushPlatformCount(
+      platform: coalesceText([map['platform']], fallback: ''),
+      count: asInt(map['count']) ?? 0,
+    );
+  }
+}
+
+class AdminPushDeliveryItem {
+  const AdminPushDeliveryItem({
+    required this.id,
+    required this.notificationType,
+    required this.deliveryStatus,
+    required this.skipReason,
+    required this.errorMessage,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String notificationType;
+  final String deliveryStatus;
+  final String skipReason;
+  final String errorMessage;
+  final String createdAt;
+
+  factory AdminPushDeliveryItem.fromMap(JsonMap map) {
+    return AdminPushDeliveryItem(
+      id: asInt(map['id']) ?? 0,
+      notificationType: coalesceText([map['notification_type']], fallback: ''),
+      deliveryStatus: coalesceText([map['delivery_status']], fallback: ''),
+      skipReason: coalesceText([map['skip_reason']], fallback: ''),
+      errorMessage: coalesceText([map['error_message']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+    );
+  }
+}
+
+class AdminBroadcastResult {
+  const AdminBroadcastResult({
+    required this.target,
+    required this.requested,
+    required this.inserted,
+    required this.skipped,
+  });
+
+  final String target;
+  final int requested;
+  final int inserted;
+  final int skipped;
+
+  factory AdminBroadcastResult.fromMap(JsonMap map) {
+    return AdminBroadcastResult(
+      target: coalesceText([map['target']], fallback: ''),
+      requested: asInt(map['requested']) ?? 0,
+      inserted: asInt(map['inserted']) ?? 0,
+      skipped: asInt(map['skipped']) ?? 0,
+    );
+  }
+}
+
 class AdminActivityItem {
   const AdminActivityItem({
     required this.id,
@@ -1411,6 +1544,23 @@ class AdminRepository {
     ).map(AdminRequestNotificationItem.fromMap).toList(growable: false);
   }
 
+  Future<AdminNotificationOpsSnapshot> fetchNotificationOps() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/notifications/ops',
+      query: {'window': '30d'},
+      decoder: asJsonMap,
+    );
+    return AdminNotificationOpsSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<AdminPushSettingsSnapshot> fetchPushSettings() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/notifications/push-settings',
+      decoder: asJsonMap,
+    );
+    return AdminPushSettingsSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
   Future<AdminPreviewList<AdminModerationItem>> fetchPostPreview({
     int limit = 5,
   }) async {
@@ -2039,7 +2189,9 @@ class AdminRepository {
     );
     if (!result.ok) {
       throw Exception(
-        result.message.isNotEmpty ? result.message : 'Factory reset başarısız (${result.statusCode}).',
+        result.message.isNotEmpty
+            ? result.message
+            : 'Factory reset başarısız (${result.statusCode}).',
       );
     }
   }
@@ -2119,6 +2271,33 @@ class AdminRepository {
     );
   }
 
+  Future<void> updatePushSettings({required bool enabled}) async {
+    await _apiClient.put<dynamic>(
+      '/api/new/admin/notifications/push-settings',
+      body: {'enabled': enabled},
+    );
+  }
+
+  Future<AdminBroadcastResult> sendNotificationBroadcast({
+    required String target,
+    required String title,
+    required String body,
+  }) async {
+    final result = await _apiClient.post<JsonMap>(
+      '/api/new/admin/notifications/broadcast',
+      body: {'target': target, 'title': title, 'body': body},
+      decoder: asJsonMap,
+    );
+    if (!result.ok) {
+      throw Exception(
+        result.message.isNotEmpty
+            ? result.message
+            : 'Toplu bildirim gönderilemedi (${result.statusCode}).',
+      );
+    }
+    return AdminBroadcastResult.fromMap(asJsonMap(result.rawData));
+  }
+
   Future<void> deleteMember(int id) async {
     await _apiClient.delete<dynamic>('/api/new/admin/members/$id');
   }
@@ -2158,6 +2337,15 @@ final adminRequestNotificationsProvider =
     FutureProvider<List<AdminRequestNotificationItem>>(
       (ref) => ref.watch(adminRepositoryProvider).fetchRequestNotifications(),
     );
+
+final adminNotificationOpsProvider =
+    FutureProvider<AdminNotificationOpsSnapshot>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchNotificationOps(),
+    );
+
+final adminPushSettingsProvider = FutureProvider<AdminPushSettingsSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchPushSettings(),
+);
 
 final adminPostPreviewProvider =
     FutureProvider<AdminPreviewList<AdminModerationItem>>(

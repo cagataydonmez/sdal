@@ -101,7 +101,8 @@ export function createNotificationGovernanceRuntime({
     'member_request_approved',
     'member_request_rejected',
     'announcement_approved',
-    'announcement_rejected'
+    'announcement_rejected',
+    'admin_broadcast'
   ]);
 
   const notificationTelemetryEventNames = new Set(['impression', 'open', 'action', 'landed', 'bounce', 'no_action']);

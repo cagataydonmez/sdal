@@ -8,9 +8,15 @@ class AdminActionController extends Notifier<AsyncActionState> {
   @override
   AsyncActionState build() => const AsyncActionState.idle();
 
+  bool _begin(String scope) {
+    if (state.isLoading) return false;
+    state = AsyncActionState.loading(scope: scope);
+    return true;
+  }
+
   Future<bool> deleteContent({required String type, required int id}) async {
     final scope = 'admin:$type:delete:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       switch (type) {
         case 'post':
@@ -40,7 +46,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     String graduationYearOverride = '',
   }) async {
     final scope = 'admin:request:review:$id:$status';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.reviewMemberRequest(
         id: id,
@@ -61,7 +67,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String status,
   }) async {
     final scope = 'admin:verification:review:$id:$status';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.reviewVerificationRequest(id: id, status: status);
       _invalidateRequestPreviews();
@@ -79,7 +85,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     String note = '',
   }) async {
     final scope = 'admin:teacher-network:review:$id:$status';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.reviewTeacherNetworkLink(
         id: id,
@@ -95,9 +101,45 @@ class AdminActionController extends Notifier<AsyncActionState> {
     }
   }
 
+  Future<bool> updatePushSettings({required bool enabled}) async {
+    final scope = 'admin:notifications:push';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.updatePushSettings(enabled: enabled);
+      _invalidateNotificationPreviews();
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
+  Future<AdminBroadcastResult?> sendNotificationBroadcast({
+    required String target,
+    required String title,
+    required String body,
+  }) async {
+    final scope = 'admin:notifications:broadcast';
+    if (!_begin(scope)) return null;
+    try {
+      final result = await _repository.sendNotificationBroadcast(
+        target: target,
+        title: title,
+        body: body,
+      );
+      _invalidateNotificationPreviews();
+      state = AsyncActionState.success(scope: scope);
+      return result;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return null;
+    }
+  }
+
   Future<bool> deleteMember({required int id}) async {
     final scope = 'admin:member:delete:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.deleteMember(id);
       _invalidateManagementPreviews();
@@ -114,7 +156,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String graduationYear,
   }) async {
     final scope = 'admin:member:graduation:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.updateGraduationYear(
         id: id,
@@ -134,7 +176,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     String maintenanceMessage = '',
   }) async {
     final scope = 'admin:site-controls';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.updateSiteControls(
         siteOpen: siteOpen,
@@ -151,7 +193,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> createDbBackup({String label = 'manual'}) async {
     final scope = 'admin:db:backup';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.createDbBackup(label: label);
       _invalidateDatabasePreviews();
@@ -168,7 +210,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String targetDriver,
   }) async {
     final scope = 'admin:db:copy:$sourceDriver:$targetDriver';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.copyDbData(
         sourceDriver: sourceDriver,
@@ -191,7 +233,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     bool copyData = false,
   }) async {
     final scope = 'admin:db:switch:$targetDriver';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.switchDbDriver(
         targetDriver: targetDriver,
@@ -211,7 +253,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> restoreDbBackupByName({required String name}) async {
     final scope = 'admin:db:restore:$name';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.restoreDbBackupByName(name);
       _invalidateDatabasePreviews();
@@ -229,7 +271,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String nativeName,
   }) async {
     final scope = 'admin:language:add:$code';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.addLanguage(
         code: code,
@@ -247,7 +289,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> toggleLanguageActive({required AdminLanguageItem item}) async {
     final scope = 'admin:language:toggle:${item.code}';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.updateLanguage(
         code: item.code,
@@ -266,7 +308,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> deleteLanguage({required String code}) async {
     final scope = 'admin:language:delete:$code';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.deleteLanguage(code);
       _invalidateLanguagePreviews();
@@ -284,7 +326,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String defaultClosed,
   }) async {
     final scope = 'admin:language:config';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.updateLanguageConfig(
         selectionEnabled: enabled,
@@ -310,7 +352,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     int layoutOption = 0,
   }) async {
     final scope = 'admin:page:add';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.addPage(
         name: name,
@@ -341,7 +383,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required int layoutOption,
   }) async {
     final scope = 'admin:page:update:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.updatePage(
         id: id,
@@ -364,7 +406,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> reorderPages({required List<int> order}) async {
     final scope = 'admin:page:reorder';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.reorderPages(order);
       _invalidateOperationsPreviews();
@@ -378,7 +420,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> deletePage({required int id}) async {
     final scope = 'admin:page:delete:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.deletePage(id);
       _invalidateOperationsPreviews();
@@ -397,7 +439,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     String description = '',
   }) async {
     final scope = 'admin:email-category:add';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.addEmailCategory(
         name: name,
@@ -416,7 +458,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> deleteEmailCategory({required int id}) async {
     final scope = 'admin:email-category:delete:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.deleteEmailCategory(id);
       _invalidateOperationsPreviews();
@@ -434,7 +476,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String bodyHtml,
   }) async {
     final scope = 'admin:email-template:add';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.addEmailTemplate(
         name: name,
@@ -457,7 +499,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String bodyHtml,
   }) async {
     final scope = 'admin:email-template:update:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.updateEmailTemplate(
         id: id,
@@ -476,7 +518,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> deleteEmailTemplate({required int id}) async {
     final scope = 'admin:email-template:delete:$id';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.deleteEmailTemplate(id);
       _invalidateOperationsPreviews();
@@ -495,7 +537,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     String from = '',
   }) async {
     final scope = 'admin:email:bulk:$categoryId';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.sendBulkEmail(
         categoryId: categoryId,
@@ -517,7 +559,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String value,
   }) async {
     final scope = 'admin:language-string:$lang:$key';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.saveLanguageString(lang: lang, key: key, value: value);
       _invalidateLanguagePreviews();
@@ -532,7 +574,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> fillMissingLanguageStrings({required String lang}) async {
     final scope = 'admin:language-fill:$lang';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.fillMissingLanguageStrings(lang);
       _invalidateLanguagePreviews();
@@ -550,7 +592,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required Map<String, String> strings,
   }) async {
     final scope = 'admin:language:bulk:$lang';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.bulkImportLanguageStrings(lang: lang, strings: strings);
       _invalidateLanguagePreviews();
@@ -566,7 +608,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> deleteLanguageKey({required String key}) async {
     final scope = 'admin:language:key-delete:$key';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.deleteLanguageKey(key);
       _invalidateLanguagePreviews();
@@ -581,7 +623,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
 
   Future<bool> updateUserDetail({required AdminUserDetail detail}) async {
     final scope = 'admin:user:update:${detail.id}';
-    state = AsyncActionState.loading(scope: scope);
+    if (!_begin(scope)) return false;
     try {
       await _repository.updateUserDetail(detail);
       _invalidateManagementPreviews();
@@ -628,6 +670,11 @@ class AdminActionController extends Notifier<AsyncActionState> {
     ref.invalidate(adminEmailTemplatesProvider);
     ref.invalidate(adminAppLogFilesProvider);
     ref.invalidate(adminSummaryProvider);
+  }
+
+  void _invalidateNotificationPreviews() {
+    ref.invalidate(adminNotificationOpsProvider);
+    ref.invalidate(adminPushSettingsProvider);
   }
 
   void _invalidateDatabasePreviews() {

@@ -4476,6 +4476,7 @@ registerNotificationRoutes(app, {
   sendApiError: (...args) => sendApiError(...args),
   normalizeNotificationTelemetryEventName,
   recordNotificationTelemetryEvent,
+  addNotification,
   readNotificationPreferenceRow,
   mapNotificationPreferenceResponse,
   getNotificationExperimentAssignments,

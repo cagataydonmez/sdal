@@ -46,7 +46,8 @@ export function createNotificationPresentationRuntime({
     member_request_approved: 'system',
     member_request_rejected: 'system',
     announcement_approved: 'system',
-    announcement_rejected: 'system'
+    announcement_rejected: 'system',
+    admin_broadcast: 'system'
   });
 
   const NOTIFICATION_PRIORITY_MAP = Object.freeze({
@@ -89,7 +90,8 @@ export function createNotificationPresentationRuntime({
     member_request_approved: 'important',
     member_request_rejected: 'important',
     announcement_approved: 'important',
-    announcement_rejected: 'important'
+    announcement_rejected: 'important',
+    admin_broadcast: 'important'
   });
 
   const NOTIFICATION_ACTIONABLE_TYPES = Object.freeze(

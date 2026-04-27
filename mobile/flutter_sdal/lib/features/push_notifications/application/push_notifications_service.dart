@@ -50,6 +50,7 @@ class PushNotificationsService {
   bool _initialized = false;
   bool _firebaseReady = false;
   bool _localNotificationsReady = false;
+  bool _tokenRetryScheduled = false;
   String? _currentToken;
   int? _registeredUserId;
   String? _registeredToken;
@@ -95,7 +96,7 @@ class PushNotificationsService {
       return;
     }
 
-    _currentToken = (await FirebaseMessaging.instance.getToken())?.trim();
+    _currentToken = await _readMessagingToken();
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
@@ -106,12 +107,16 @@ class PushNotificationsService {
   }
 
   Future<void> syncSession(SessionSnapshot snapshot) async {
-    if (!_firebaseReady) return;
-    if (!snapshot.isAuthenticated) {
-      await _clearRegistration();
-      return;
+    try {
+      if (!_firebaseReady) return;
+      if (!snapshot.isAuthenticated) {
+        await _clearRegistration();
+        return;
+      }
+      await _syncActiveSession(force: false, snapshotOverride: snapshot);
+    } catch (err) {
+      debugPrint('push session sync skipped: $err');
     }
-    await _syncActiveSession(force: false, snapshotOverride: snapshot);
   }
 
   Future<void> dispose() async {
@@ -134,7 +139,7 @@ class PushNotificationsService {
     final userId = snapshot.user?.id ?? 0;
     final token = _currentToken?.trim().isNotEmpty == true
         ? _currentToken!.trim()
-        : (await FirebaseMessaging.instance.getToken())?.trim();
+        : await _readMessagingToken();
     if (token == null || token.isEmpty) return;
     if (!force && _registeredUserId == userId && _registeredToken == token) {
       await _openPendingRouteIfAny();
@@ -157,6 +162,43 @@ class PushNotificationsService {
       await repository.store.saveLastToken(token);
       await _openPendingRouteIfAny();
     }
+  }
+
+  Future<String?> _readMessagingToken() async {
+    if (Platform.isIOS) {
+      try {
+        final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+        if (apnsToken == null || apnsToken.trim().isEmpty) {
+          _scheduleTokenRetry();
+          return null;
+        }
+      } catch (err) {
+        debugPrint('push apns token unavailable: $err');
+        _scheduleTokenRetry();
+        return null;
+      }
+    }
+    try {
+      return (await FirebaseMessaging.instance.getToken())?.trim();
+    } catch (err) {
+      debugPrint('push fcm token unavailable: $err');
+      _scheduleTokenRetry();
+      return null;
+    }
+  }
+
+  void _scheduleTokenRetry() {
+    if (_tokenRetryScheduled) return;
+    _tokenRetryScheduled = true;
+    Timer(const Duration(seconds: 5), () {
+      _tokenRetryScheduled = false;
+      if (!_firebaseReady) return;
+      unawaited(
+        _syncActiveSession(force: true).catchError((Object err) {
+          debugPrint('push token retry skipped: $err');
+        }),
+      );
+    });
   }
 
   Future<void> _clearRegistration() async {

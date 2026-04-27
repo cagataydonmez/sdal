@@ -16,6 +16,7 @@ export function registerNotificationRoutes(app, {
   sendApiError,
   normalizeNotificationTelemetryEventName,
   recordNotificationTelemetryEvent,
+  addNotification,
   readNotificationPreferenceRow,
   mapNotificationPreferenceResponse,
   getNotificationExperimentAssignments,
@@ -538,6 +539,74 @@ export function registerNotificationRoutes(app, {
     } catch (err) {
       console.error('admin.notifications.pushSettings.update failed:', err);
       return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_PUSH_SETTINGS_UPDATE_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/admin/notifications/broadcast', requireAdmin, async (req, res) => {
+    try {
+      if (typeof addNotification !== 'function') {
+        return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_BROADCAST_UNAVAILABLE', 'Toplu bildirim gönderimi kullanılamıyor.');
+      }
+      const target = String(req.body?.target || 'all').trim().toLowerCase();
+      const title = String(req.body?.title || '').trim();
+      const body = String(req.body?.body || req.body?.message || '').trim();
+      if (!['all', 'verified', 'admins'].includes(target)) {
+        return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_TARGET_INVALID', 'Geçersiz hedef kitle.');
+      }
+      if (!title || !body) {
+        return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_BODY_REQUIRED', 'Başlık ve mesaj zorunlu.');
+      }
+      const safeTitle = String(title).slice(0, 120);
+      const safeBody = String(body).slice(0, 500);
+      const message = `${safeTitle}: ${safeBody}`;
+      const whereParts = [
+        "LOWER(COALESCE(CAST(aktiv AS TEXT), '1')) NOT IN ('0', 'false', 'hayir', 'hayır', 'no')",
+        "LOWER(COALESCE(CAST(yasak AS TEXT), '0')) NOT IN ('1', 'true', 'evet', 'yes')"
+      ];
+      if (target === 'verified') {
+        whereParts.push("(LOWER(COALESCE(CAST(verified AS TEXT), '0')) IN ('1', 'true', 'evet', 'yes') OR LOWER(CAST(verification_status AS TEXT)) IN ('approved', 'verified'))");
+      }
+      if (target === 'admins') {
+        whereParts.push("(LOWER(COALESCE(CAST(admin AS TEXT), '0')) IN ('1', 'true', 'evet', 'yes') OR LOWER(CAST(role AS TEXT)) IN ('admin', 'root'))");
+      }
+      const users = await sqlAllAsync(
+        `SELECT id
+         FROM uyeler
+         WHERE ${whereParts.join(' AND ')}
+         ORDER BY id ASC`
+      );
+      let inserted = 0;
+      let skipped = 0;
+      for (const user of users || []) {
+        const notificationId = await addNotification({
+          userId: Number(user?.id || 0),
+          type: 'admin_broadcast',
+          sourceUserId: req.session?.userId || null,
+          entityId: null,
+          message
+        });
+        if (notificationId) inserted += 1;
+        else skipped += 1;
+      }
+      return res.json(apiSuccessEnvelope(
+        'ADMIN_NOTIFICATIONS_BROADCAST_SENT',
+        'Toplu bildirim gönderildi.',
+        {
+          target,
+          requested: (users || []).length,
+          inserted,
+          skipped
+        },
+        {
+          target,
+          requested: (users || []).length,
+          inserted,
+          skipped
+        }
+      ));
+    } catch (err) {
+      console.error('admin.notifications.broadcast failed:', err);
+      return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_BROADCAST_FAILED', 'Beklenmeyen bir hata oluştu.');
     }
   });
 

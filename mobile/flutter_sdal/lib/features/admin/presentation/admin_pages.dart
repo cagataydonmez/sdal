@@ -370,6 +370,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     }
     final adminAccess = adminAccessState.value!;
     final visibleSections = _visibleAdminSections(adminAccess);
+    final actionState = ref.watch(adminActionControllerProvider);
     final sectionAllowed = visibleSections.any(
       (item) => item.key == sectionKey,
     );
@@ -442,6 +443,28 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         ? ref.watch(adminTeacherNetworkLinkPreviewProvider)
         : const AsyncValue<AdminPreviewList<AdminTeacherNetworkLinkItem>>.data(
             AdminPreviewList(total: 0, items: <AdminTeacherNetworkLinkItem>[]),
+          );
+    final notificationOpsState = sectionKey == 'notifications'
+        ? ref.watch(adminNotificationOpsProvider)
+        : const AsyncValue<AdminNotificationOpsSnapshot>.data(
+            AdminNotificationOpsSnapshot(
+              deliverySummary: <String, int>{},
+              alerts: <String>[],
+            ),
+          );
+    final pushSettingsState = sectionKey == 'notifications'
+        ? ref.watch(adminPushSettingsProvider)
+        : const AsyncValue<AdminPushSettingsSnapshot>.data(
+            AdminPushSettingsSnapshot(
+              enabled: false,
+              firebaseConfigured: false,
+              mockMode: false,
+              registeredDevices: 0,
+              registeredUsers: 0,
+              platforms: <AdminPushPlatformCount>[],
+              deliverySummary: <String, int>{},
+              recentDeliveries: <AdminPushDeliveryItem>[],
+            ),
           );
     final userPreviewState = sectionKey == 'management'
         ? ref.watch(adminUserPreviewProvider(userPreviewQuery))
@@ -536,6 +559,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             sectionKey == 'requests' ||
             sectionKey == 'management' ||
             sectionKey == 'api-monitor' ||
+            sectionKey == 'notifications' ||
             sectionKey == 'operations' ||
             sectionKey == 'database' ||
             sectionKey == 'languages')
@@ -557,6 +581,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               if (sectionKey == 'api-monitor') {
                 ref.invalidate(adminUserPreviewProvider);
                 ref.invalidate(adminUserApiActivityProvider);
+              }
+              if (sectionKey == 'notifications') {
+                ref.invalidate(adminNotificationOpsProvider);
+                ref.invalidate(adminPushSettingsProvider);
               }
               if (sectionKey == 'operations') {
                 ref.invalidate(adminSiteControlsProvider);
@@ -742,24 +770,28 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                               children: [
                                 IconButton(
                                   tooltip: 'Onayla',
-                                  onPressed: () => _handleMemberRequestReview(
-                                    context,
-                                    ref,
-                                    item: item,
-                                    id: item.id,
-                                    status: 'approved',
-                                  ),
+                                  onPressed: actionState.isLoading
+                                      ? null
+                                      : () => _handleMemberRequestReview(
+                                          context,
+                                          ref,
+                                          item: item,
+                                          id: item.id,
+                                          status: 'approved',
+                                        ),
                                   icon: const Icon(Icons.check_circle_outline),
                                 ),
                                 IconButton(
                                   tooltip: 'Reddet',
-                                  onPressed: () => _handleMemberRequestReview(
-                                    context,
-                                    ref,
-                                    item: item,
-                                    id: item.id,
-                                    status: 'rejected',
-                                  ),
+                                  onPressed: actionState.isLoading
+                                      ? null
+                                      : () => _handleMemberRequestReview(
+                                          context,
+                                          ref,
+                                          item: item,
+                                          id: item.id,
+                                          status: 'rejected',
+                                        ),
                                   icon: const Icon(Icons.cancel_outlined),
                                 ),
                               ],
@@ -785,24 +817,28 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                               children: [
                                 IconButton(
                                   tooltip: 'Doğrulamayı onayla',
-                                  onPressed: () => _handleVerificationReview(
-                                    context,
-                                    ref,
-                                    id: item.id,
-                                    status: 'approved',
-                                  ),
+                                  onPressed: actionState.isLoading
+                                      ? null
+                                      : () => _handleVerificationReview(
+                                          context,
+                                          ref,
+                                          id: item.id,
+                                          status: 'approved',
+                                        ),
                                   icon: const Icon(
                                     Icons.verified_user_outlined,
                                   ),
                                 ),
                                 IconButton(
                                   tooltip: 'Doğrulamayı reddet',
-                                  onPressed: () => _handleVerificationReview(
-                                    context,
-                                    ref,
-                                    id: item.id,
-                                    status: 'rejected',
-                                  ),
+                                  onPressed: actionState.isLoading
+                                      ? null
+                                      : () => _handleVerificationReview(
+                                          context,
+                                          ref,
+                                          id: item.id,
+                                          status: 'rejected',
+                                        ),
                                   icon: const Icon(Icons.block_outlined),
                                 ),
                               ],
@@ -833,40 +869,207 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ),
                                 IconButton(
                                   tooltip: 'Bağlantıyı onayla',
-                                  onPressed: () => _handleTeacherNetworkReview(
-                                    context,
-                                    ref,
-                                    id: item.id,
-                                    status: 'confirmed',
-                                  ),
+                                  onPressed: actionState.isLoading
+                                      ? null
+                                      : () => _handleTeacherNetworkReview(
+                                          context,
+                                          ref,
+                                          id: item.id,
+                                          status: 'confirmed',
+                                        ),
                                   icon: const Icon(Icons.check_circle_outline),
                                 ),
                                 IconButton(
                                   tooltip: 'İnceleme için işaretle',
-                                  onPressed: () =>
-                                      _handleTeacherNetworkReviewWithNote(
-                                        context,
-                                        ref,
-                                        title: 'İnceleme notu',
-                                        id: item.id,
-                                        status: 'flagged',
-                                      ),
+                                  onPressed: actionState.isLoading
+                                      ? null
+                                      : () =>
+                                            _handleTeacherNetworkReviewWithNote(
+                                              context,
+                                              ref,
+                                              title: 'İnceleme notu',
+                                              id: item.id,
+                                              status: 'flagged',
+                                            ),
                                   icon: const Icon(Icons.flag_outlined),
                                 ),
                                 IconButton(
                                   tooltip: 'Bağlantıyı reddet',
-                                  onPressed: () =>
-                                      _handleTeacherNetworkReviewWithNote(
-                                        context,
-                                        ref,
-                                        title: 'Red notu',
-                                        id: item.id,
-                                        status: 'rejected',
-                                      ),
+                                  onPressed: actionState.isLoading
+                                      ? null
+                                      : () =>
+                                            _handleTeacherNetworkReviewWithNote(
+                                              context,
+                                              ref,
+                                              title: 'Red notu',
+                                              id: item.id,
+                                              status: 'rejected',
+                                            ),
                                   icon: const Icon(Icons.cancel_outlined),
                                 ),
                               ],
                             ),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+          if (sectionKey == 'notifications') ...[
+            const SizedBox(height: 16),
+            _AdminAsyncCard(
+              title: 'Bildirim ve push operasyonları',
+              states: [notificationOpsState, pushSettingsState],
+              builder: () {
+                final ops = notificationOpsState.value!;
+                final push = pushSettingsState.value!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _AdminPreviewListCard(
+                      title: 'Toplu bildirim gönder',
+                      total: 0,
+                      children: [
+                        Text(
+                          'Admin yetkisi olan kullanıcılar tüm aktif üyelere, doğrulanmış üyelere veya adminlere uygulama içi bildirim ve varsa push gönderebilir.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: actionState.isLoading
+                              ? null
+                              : () =>
+                                    _handleNotificationBroadcast(context, ref),
+                          icon: actionState.isLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.campaign_outlined),
+                          label: const Text('Bildirim oluştur'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Push dağıtımı',
+                      total: push.registeredDevices,
+                      children: [
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _AdminStatChip(
+                              icon: push.enabled
+                                  ? Icons.notifications_active_outlined
+                                  : Icons.notifications_off_outlined,
+                              label: push.enabled
+                                  ? 'Push aktif'
+                                  : 'Push kapalı',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.local_fire_department_outlined,
+                              label: push.firebaseConfigured
+                                  ? 'Firebase hazır'
+                                  : 'Firebase eksik',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.devices_outlined,
+                              label:
+                                  '${push.registeredDevices} cihaz · ${push.registeredUsers} kullanıcı',
+                            ),
+                            if (push.mockMode)
+                              const _AdminStatChip(
+                                icon: Icons.science_outlined,
+                                label: 'Mock mod',
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Son 30 gün: sent ${push.deliverySummary['sent'] ?? 0} · skipped ${push.deliverySummary['skipped'] ?? 0} · failed ${push.deliverySummary['failed'] ?? 0}',
+                        ),
+                        if (push.platforms.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              push.platforms
+                                  .map(
+                                    (item) => '${item.platform}: ${item.count}',
+                                  )
+                                  .join(' · '),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed:
+                              actionState.isLoading ||
+                                  (!push.firebaseConfigured && !push.enabled)
+                              ? null
+                              : () => _handlePushToggle(
+                                  context,
+                                  ref,
+                                  enabled: !push.enabled,
+                                ),
+                          icon: actionState.isLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.power_settings_new_outlined),
+                          label: Text(
+                            push.enabled
+                                ? 'Push bildirimlerini kapat'
+                                : 'Push bildirimlerini aç',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Son push teslimatları',
+                      total: push.recentDeliveries.length,
+                      children: [
+                        for (final item in push.recentDeliveries.take(10))
+                          _AdminPreviewLine(
+                            title: item.notificationType.isEmpty
+                                ? 'Push'
+                                : item.notificationType,
+                            subtitle:
+                                [
+                                      item.deliveryStatus,
+                                      item.skipReason,
+                                      item.errorMessage,
+                                    ]
+                                    .where((part) => part.trim().isNotEmpty)
+                                    .join(' · '),
+                            trailing: item.createdAt,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Uygulama içi bildirim operasyonları',
+                      total: ops.deliverySummary.values.fold<int>(
+                        0,
+                        (sum, value) => sum + value,
+                      ),
+                      children: [
+                        Text(
+                          'inserted ${ops.deliverySummary['inserted'] ?? 0} · skipped ${ops.deliverySummary['skipped'] ?? 0} · failed ${ops.deliverySummary['failed'] ?? 0}',
+                        ),
+                        for (final alert in ops.alerts.take(5))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(alert),
                           ),
                       ],
                     ),
@@ -1641,6 +1844,51 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     );
   }
 
+  void _refreshCurrentSection() {
+    switch (widget.sectionKey) {
+      case 'content':
+        ref.invalidate(adminPostPreviewProvider);
+        ref.invalidate(adminCommentPreviewProvider);
+        ref.invalidate(adminStoryPreviewProvider);
+        break;
+      case 'requests':
+        ref.invalidate(adminMemberRequestPreviewProvider);
+        ref.invalidate(adminVerificationRequestPreviewProvider);
+        ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
+        ref.invalidate(adminRequestNotificationsProvider);
+        break;
+      case 'management':
+        ref.invalidate(adminUserPreviewProvider);
+        break;
+      case 'api-monitor':
+        ref.invalidate(adminUserPreviewProvider);
+        ref.invalidate(adminUserApiActivityProvider);
+        break;
+      case 'notifications':
+        ref.invalidate(adminNotificationOpsProvider);
+        ref.invalidate(adminPushSettingsProvider);
+        break;
+      case 'operations':
+        ref.invalidate(adminSiteControlsProvider);
+        ref.invalidate(adminPagesProvider);
+        ref.invalidate(adminEmailCategoriesProvider);
+        ref.invalidate(adminEmailTemplatesProvider);
+        ref.invalidate(adminAppLogFilesProvider);
+        break;
+      case 'database':
+        ref.invalidate(adminDbBackupsProvider);
+        ref.invalidate(adminDbDriverStatusProvider);
+        break;
+      case 'languages':
+        ref.invalidate(adminLanguagesProvider);
+        ref.invalidate(adminLanguageConfigProvider);
+        ref.invalidate(adminLanguageKeysProvider);
+        break;
+    }
+    ref.invalidate(adminSummaryProvider);
+    ref.invalidate(adminLiveProvider);
+  }
+
   Future<void> _handleDeleteAction(
     BuildContext context,
     WidgetRef ref, {
@@ -1672,6 +1920,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .deleteContent(type: type, id: id);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1709,6 +1958,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           graduationYearOverride: graduationYearOverride,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1733,6 +1983,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .reviewVerificationRequest(id: id, status: status);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1758,6 +2009,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .reviewTeacherNetworkLink(id: id, status: status, note: note);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1765,6 +2017,60 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           ok
               ? 'Öğretmen ağı bağlantısı güncellendi.'
               : (actionState.message ?? 'Islem tamamlanamadi.'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handlePushToggle(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool enabled,
+  }) async {
+    final ok = await ref
+        .read(adminActionControllerProvider.notifier)
+        .updatePushSettings(enabled: enabled);
+    if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
+    final actionState = ref.read(adminActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? (enabled
+                    ? 'Push bildirimleri açıldı.'
+                    : 'Push bildirimleri kapatıldı.')
+              : (actionState.message ?? 'İşlem tamamlanamadı.'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleNotificationBroadcast(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final payload = await showDialog<({String body, String target, String title})?>(
+      context: context,
+      builder: (_) => const _NotificationBroadcastDialog(),
+    );
+    if (payload == null || !context.mounted) return;
+    final result = await ref
+        .read(adminActionControllerProvider.notifier)
+        .sendNotificationBroadcast(
+          target: payload.target,
+          title: payload.title,
+          body: payload.body,
+        );
+    if (!context.mounted) return;
+    if (result != null) _refreshCurrentSection();
+    final actionState = ref.read(adminActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result != null
+              ? 'Bildirim gönderildi: ${result.inserted}/${result.requested} alıcı.'
+              : (actionState.message ?? 'Toplu bildirim gönderilemedi.'),
         ),
       ),
     );
@@ -1882,6 +2188,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .deleteMember(id: id);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1909,6 +2216,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .updateGraduationYear(id: item.id, graduationYear: nextYear);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1934,6 +2242,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           maintenanceMessage: siteControls.maintenanceMessage,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1996,6 +2305,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .createDbBackup(label: label);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2055,6 +2365,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           targetDriver: driver.targetDriver,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2081,6 +2392,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           defaultClosed: config.defaultClosed,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2102,6 +2414,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .toggleLanguageActive(item: item);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2143,6 +2456,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .deleteLanguage(code: code);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2208,6 +2522,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .addLanguage(code: code, name: name, nativeName: nativeName);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2227,6 +2542,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .fillMissingLanguageStrings(lang: lang);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2278,6 +2594,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           value: nextValue,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2345,6 +2662,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .addPage(name: name, url: url, icon: icon.isEmpty ? 'yok' : icon);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2364,6 +2682,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .deletePage(id: id);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2445,6 +2764,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           description: description,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2466,6 +2786,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .deleteEmailCategory(id: id);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2634,6 +2955,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           copyData: copyDataValue,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2731,6 +3053,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .restoreDbBackupByName(name: item.name);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2895,6 +3218,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           layoutOption: payload.layoutOption,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2926,6 +3250,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .reorderPages(order: ordered.map((page) => page.id).toList());
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -3048,6 +3373,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             bodyHtml: bodyHtml,
           );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -3069,6 +3395,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .deleteEmailTemplate(id: id);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -3253,6 +3580,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           from: payload.from,
         );
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -3347,6 +3675,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .bulkImportLanguageStrings(lang: lang, strings: strings);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -3368,6 +3697,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .deleteLanguageKey(key: key);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -3396,6 +3726,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         .read(adminActionControllerProvider.notifier)
         .updateUserDetail(detail: nextDetail);
     if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
     final actionState = ref.read(adminActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -4571,6 +4902,9 @@ List<_AdminSection> _visibleAdminSections(AdminAccessSnapshot access) {
     if (key.contains('request') || key.contains('verify')) {
       visibleKeys.add('requests');
     }
+    if (key.contains('notification') || key.contains('push')) {
+      visibleKeys.add('notifications');
+    }
     if (key.contains('post') ||
         key.contains('comment') ||
         key.contains('story') ||
@@ -4650,6 +4984,22 @@ const _adminSections = <_AdminSection>[
       'Üyelik ve mezuniyet talepleri',
       'Öğretmen ağı bağlantı review akışları',
       'Admin doğrulama işlemleri',
+    ],
+  ),
+  _AdminSection(
+    key: 'notifications',
+    title: 'Bildirimler ve push',
+    summary: 'Bildirim operasyonları, push ayarı ve teslimat hataları.',
+    description:
+        'Uygulama içi bildirim sağlığı, FCM push durumu, cihaz kayıtları ve son teslimat logları bu bölümdedir.',
+    icon: Icons.notifications_active_outlined,
+    tone: _AdminTone.info,
+    routeFile: 'server/routes/notificationRoutes.js',
+    capabilities: [
+      'Push açık/kapalı kontrolü',
+      'Firebase ve cihaz kayıt özeti',
+      'Son push teslimat hataları',
+      'Bildirim operasyon uyarıları',
     ],
   ),
   _AdminSection(

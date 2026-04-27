@@ -233,6 +233,15 @@ class AdminWorkspacePage extends ConsumerWidget {
                     onTap: () => context.go('/admin/api-monitor'),
                   ),
                   _WorkspaceNavCard(
+                    title: 'Bildirimler ve push',
+                    summary:
+                        'Toplu bildirim gönder, push durumunu ve teslimat hatalarını izle.',
+                    countLabel: 'FCM ve bildirim operasyonları',
+                    icon: Icons.notifications_active_outlined,
+                    tone: _WorkspaceTone.info,
+                    onTap: () => context.go('/admin/notifications'),
+                  ),
+                  _WorkspaceNavCard(
                     title: 'Gelişmiş araçlar',
                     summary:
                         'Operasyonlar, loglar, deneyler, diller ve veritabanı işleri.',
@@ -352,6 +361,7 @@ class ModeratorWorkspacePage extends ConsumerWidget {
       ),
       data: (access) {
         final permissions = access.permissions;
+        final actionState = ref.watch(adminActionControllerProvider);
         final permissionKeys =
             permissions?.permissionKeys.toSet() ?? const <String>{};
         final scopedYears =
@@ -570,6 +580,7 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                     canModerate: _hasAnyPermission(permissions, const [
                       'requests.moderate',
                     ]),
+                    isBusy: actionState.isLoading,
                   ),
                 ),
               if (canReviewRequests) const SizedBox(height: 16),
@@ -596,6 +607,7 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                     canModerate: _hasAnyPermission(permissions, const [
                       'requests.moderate',
                     ]),
+                    isBusy: actionState.isLoading,
                   ),
                 ),
               if (canReviewVerification) const SizedBox(height: 16),
@@ -630,6 +642,7 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                     canModerate: _hasAnyPermission(permissions, const [
                       'requests.moderate',
                     ]),
+                    isBusy: actionState.isLoading,
                   ),
                 ),
               if (canReviewRequests) const SizedBox(height: 16),
@@ -1144,6 +1157,7 @@ class _RequestPreviewList extends StatelessWidget {
     required this.onApprove,
     required this.onReject,
     required this.canModerate,
+    required this.isBusy,
   });
 
   final List<AdminRequestQueueItem> items;
@@ -1151,6 +1165,7 @@ class _RequestPreviewList extends StatelessWidget {
   final ValueChanged<AdminRequestQueueItem> onApprove;
   final ValueChanged<AdminRequestQueueItem> onReject;
   final bool canModerate;
+  final bool isBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -1171,8 +1186,8 @@ class _RequestPreviewList extends StatelessWidget {
                 ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.status,
                 canModerate: canModerate,
-                onApprove: () => onApprove(item),
-                onReject: () => onReject(item),
+                onApprove: isBusy ? null : () => onApprove(item),
+                onReject: isBusy ? null : () => onReject(item),
               ),
             ),
           )
@@ -1188,6 +1203,7 @@ class _VerificationPreviewList extends StatelessWidget {
     required this.onApprove,
     required this.onReject,
     required this.canModerate,
+    required this.isBusy,
   });
 
   final List<AdminVerificationQueueItem> items;
@@ -1195,6 +1211,7 @@ class _VerificationPreviewList extends StatelessWidget {
   final ValueChanged<AdminVerificationQueueItem> onApprove;
   final ValueChanged<AdminVerificationQueueItem> onReject;
   final bool canModerate;
+  final bool isBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -1217,8 +1234,8 @@ class _VerificationPreviewList extends StatelessWidget {
                 ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.status,
                 canModerate: canModerate,
-                onApprove: () => onApprove(item),
-                onReject: () => onReject(item),
+                onApprove: isBusy ? null : () => onApprove(item),
+                onReject: isBusy ? null : () => onReject(item),
               ),
             ),
           )
@@ -1235,6 +1252,7 @@ class _TeacherNetworkPreviewList extends StatelessWidget {
     required this.onFlag,
     required this.onReject,
     required this.canModerate,
+    required this.isBusy,
   });
 
   final List<AdminTeacherNetworkLinkItem> items;
@@ -1243,6 +1261,7 @@ class _TeacherNetworkPreviewList extends StatelessWidget {
   final ValueChanged<AdminTeacherNetworkLinkItem> onFlag;
   final ValueChanged<AdminTeacherNetworkLinkItem> onReject;
   final bool canModerate;
+  final bool isBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -1266,11 +1285,13 @@ class _TeacherNetworkPreviewList extends StatelessWidget {
                 ].where((part) => part.trim().isNotEmpty).join(' · '),
                 status: item.reviewStatus,
                 canModerate: canModerate,
-                onApprove: () => onConfirm(item),
-                onReject: () => onReject(item),
+                onApprove: isBusy ? null : () => onConfirm(item),
+                onReject: isBusy ? null : () => onReject(item),
                 extraActions: [
                   TextButton(
-                    onPressed: canModerate ? () => onFlag(item) : null,
+                    onPressed: canModerate && !isBusy
+                        ? () => onFlag(item)
+                        : null,
                     child: const Text('İşaretle'),
                   ),
                 ],
@@ -1297,8 +1318,8 @@ class _QueueItemCard extends StatelessWidget {
   final String subtitle;
   final String status;
   final bool canModerate;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
   final List<Widget> extraActions;
 
   @override
@@ -1506,6 +1527,7 @@ Future<void> _reviewMemberRequest(
         graduationYearOverride: graduationYearOverride,
       );
   if (!context.mounted) return;
+  if (ok) _refreshModerationWorkspace(ref);
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(ok ? 'Talep güncellendi.' : 'Talep güncellenemedi.'),
@@ -1603,6 +1625,7 @@ Future<void> _reviewVerificationRequest(
         status: approve ? 'approved' : 'rejected',
       );
   if (!context.mounted) return;
+  if (ok) _refreshModerationWorkspace(ref);
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
@@ -1622,6 +1645,7 @@ Future<void> _reviewTeacherNetworkLink(
       .read(adminActionControllerProvider.notifier)
       .reviewTeacherNetworkLink(id: id, status: status);
   if (!context.mounted) return;
+  if (ok) _refreshModerationWorkspace(ref);
   final actionState = ref.read(adminActionControllerProvider);
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
@@ -1664,11 +1688,24 @@ Future<void> _deleteContent(
       .read(adminActionControllerProvider.notifier)
       .deleteContent(type: type, id: id);
   if (!context.mounted) return;
+  if (ok) _refreshModerationWorkspace(ref);
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(ok ? 'İçerik kaldırıldı.' : 'İçerik kaldırılamadı.'),
     ),
   );
+}
+
+void _refreshModerationWorkspace(WidgetRef ref) {
+  ref.invalidate(adminMemberRequestPreviewProvider);
+  ref.invalidate(adminVerificationRequestPreviewProvider);
+  ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
+  ref.invalidate(adminRequestNotificationsProvider);
+  ref.invalidate(adminPostPreviewProvider);
+  ref.invalidate(adminCommentPreviewProvider);
+  ref.invalidate(adminStoryPreviewProvider);
+  ref.invalidate(adminSummaryProvider);
+  ref.invalidate(adminLiveProvider);
 }
 
 Future<void> _handleAdminLogout(BuildContext context, WidgetRef ref) async {
