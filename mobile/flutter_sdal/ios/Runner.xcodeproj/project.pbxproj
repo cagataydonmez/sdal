@@ -10,7 +10,6 @@
 		057D61A6D28F800B595D3B68 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65165DB5194E7E3C99540D6E /* Pods_RunnerTests.framework */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		178220FACC20E184270BE09A /* SdalNotificationExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		1F7636E465C10DBA8C264054 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D9F8467FE60FCAE30FF275C1 /* Info.plist */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		393E680D2F9EB7A20038C34C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 393E680C2F9EB7A20038C34C /* GoogleService-Info.plist */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -358,7 +357,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1F7636E465C10DBA8C264054 /* Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
