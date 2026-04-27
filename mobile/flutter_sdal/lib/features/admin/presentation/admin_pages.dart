@@ -2050,10 +2050,11 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final payload = await showDialog<({String body, String target, String title})?>(
-      context: context,
-      builder: (_) => const _NotificationBroadcastDialog(),
-    );
+    final payload =
+        await showDialog<({String body, String target, String title})?>(
+          context: context,
+          builder: (_) => const _NotificationBroadcastDialog(),
+        );
     if (payload == null || !context.mounted) return;
     final result = await ref
         .read(adminActionControllerProvider.notifier)
@@ -4620,6 +4621,102 @@ class _AdminDialogSection extends StatelessWidget {
         ],
         const SizedBox(height: 12),
         child,
+      ],
+    );
+  }
+}
+
+class _NotificationBroadcastDialog extends StatefulWidget {
+  const _NotificationBroadcastDialog();
+
+  @override
+  State<_NotificationBroadcastDialog> createState() =>
+      _NotificationBroadcastDialogState();
+}
+
+class _NotificationBroadcastDialogState
+    extends State<_NotificationBroadcastDialog> {
+  final _titleController = TextEditingController();
+  final _bodyController = TextEditingController();
+  String _target = 'all';
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _bodyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Toplu bildirim'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _target,
+                decoration: const InputDecoration(labelText: 'Hedef kitle'),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'all',
+                    child: Text('Tüm aktif üyeler'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'verified',
+                    child: Text('Doğrulanmış üyeler'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'admins',
+                    child: Text('Admin kullanıcılar'),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _target = value ?? 'all'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _titleController,
+                maxLength: 120,
+                decoration: const InputDecoration(labelText: 'Başlık'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _bodyController,
+                minLines: 4,
+                maxLines: 7,
+                maxLength: 500,
+                decoration: const InputDecoration(labelText: 'Mesaj'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Gönderim uygulama içi bildirim oluşturur; push açıksa kayıtlı cihazlara da iletilir.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            final title = _titleController.text.trim();
+            final body = _bodyController.text.trim();
+            if (title.isEmpty || body.isEmpty) return;
+            Navigator.of(
+              context,
+            ).pop((body: body, target: _target, title: title));
+          },
+          icon: const Icon(Icons.send_outlined),
+          label: const Text('Gönder'),
+        ),
       ],
     );
   }
