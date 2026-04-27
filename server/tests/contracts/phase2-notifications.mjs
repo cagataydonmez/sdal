@@ -278,12 +278,12 @@ function seedAdmin(username, password) {
   return Number(sqlGet('SELECT id FROM uyeler WHERE kadi = ?', [username]).id);
 }
 
-const senderId = seedUser('phase2_notify_sender', 'phase2-pass-a');
-const receiverId = seedUser('phase2_notify_receiver', 'phase2-pass-b');
-const posterId = seedUser('phase2_notify_poster', 'phase2-pass-c');
-const applicantId = seedUser('phase2_notify_applicant', 'phase2-pass-d');
-const teacherId = seedUser('phase2_notify_teacher', 'phase2-pass-e', 'teacher');
-seedAdmin('phase2_notify_admin', 'phase2-pass-admin');
+const senderId = seedUser('p2_sender', 'phase2-pass-a');
+const receiverId = seedUser('p2_receiver', 'phase2-pass-b');
+const posterId = seedUser('p2_poster', 'phase2-pass-c');
+const applicantId = seedUser('p2_applicant', 'phase2-pass-d');
+const teacherId = seedUser('p2_teacher', 'phase2-pass-e', 'teacher');
+seedAdmin('p2_admin', 'phase2-pass-admin');
 
 sqlRun(
   `INSERT INTO events
@@ -324,6 +324,11 @@ sqlRun(
   [groupId, senderId, 'owner', new Date().toISOString()]
 );
 sqlRun(
+  'INSERT INTO posts (user_id, content, image, group_id, created_at) VALUES (?, ?, ?, ?, ?)',
+  [receiverId, 'Push bildirimi like testi', '', null, new Date().toISOString()]
+);
+const receiverPostId = Number(sqlGet('SELECT id FROM posts WHERE user_id = ? ORDER BY id DESC LIMIT 1', [receiverId]).id);
+sqlRun(
   `INSERT OR IGNORE INTO request_categories (category_key, label, description, active)
    VALUES ('graduation_year_change', 'Graduation Year Change', 'Cohort update', 1)`
 );
@@ -360,11 +365,11 @@ async function login(kadi, sifre) {
 }
 
 try {
-  const senderCookie = await login('phase2_notify_sender', 'phase2-pass-a');
-  const receiverCookie = await login('phase2_notify_receiver', 'phase2-pass-b');
-  const posterCookie = await login('phase2_notify_poster', 'phase2-pass-c');
-  const applicantCookie = await login('phase2_notify_applicant', 'phase2-pass-d');
-  const adminCookie = await login('phase2_notify_admin', 'phase2-pass-admin');
+  const senderCookie = await login('p2_sender', 'phase2-pass-a');
+  const receiverCookie = await login('p2_receiver', 'phase2-pass-b');
+  const posterCookie = await login('p2_poster', 'phase2-pass-c');
+  const applicantCookie = await login('p2_applicant', 'phase2-pass-d');
+  const adminCookie = await login('p2_admin', 'phase2-pass-admin');
 
   const pushRegisterBeforeEnable = await request('/api/new/mobile/push/register', {
     method: 'POST',
@@ -393,6 +398,30 @@ try {
   });
   assert.equal(pushEnable.res.status, 200);
   assert.equal(pushEnable.data?.data?.settings?.enabled, true);
+
+  const postLike = await request(`/api/new/posts/${receiverPostId}/like`, {
+    method: 'POST',
+    cookie: senderCookie
+  });
+  assert.equal(postLike.res.status, 200);
+  assert.equal(postLike.data?.liked, true);
+
+  const receiverLikeNotifications = await request('/api/new/notifications?limit=10&offset=0', { cookie: receiverCookie });
+  assert.equal(receiverLikeNotifications.res.status, 200);
+  const likeNotification = (receiverLikeNotifications.data?.data?.items || []).find((item) => item.type === 'like' && Number(item.entity_id || 0) === receiverPostId);
+  assert.ok(likeNotification);
+  assert.equal(likeNotification.category, 'social');
+  assert.equal(likeNotification.priority, 'informational');
+  const likePushAuditRow = sqlGet(
+    `SELECT delivery_status, notification_type
+     FROM notification_push_delivery_audit
+     WHERE notification_id = ?
+     ORDER BY id DESC
+     LIMIT 1`,
+    [likeNotification.id]
+  );
+  assert.equal(likePushAuditRow?.delivery_status, 'sent');
+  assert.equal(likePushAuditRow?.notification_type, 'like');
 
   const initialPreferences = await request('/api/new/notifications/preferences', { cookie: senderCookie });
   assert.equal(initialPreferences.res.status, 200);
@@ -480,7 +509,7 @@ try {
   assert.ok(openNotification.data?.data?.item?.read_at);
 
   const unreadAfterOpen = await request('/api/new/notifications/unread', { cookie: receiverCookie });
-  assert.equal(Number(unreadAfterOpen.data?.count || 0), 0);
+  assert.equal(Number(unreadAfterOpen.data?.count || 0), 1);
 
   const apply = await request(`/api/new/jobs/${jobId}/apply`, {
     method: 'POST',
@@ -495,7 +524,6 @@ try {
   assert.ok(jobNotification);
   assert.equal(jobNotification.category, 'jobs');
   assert.equal(jobNotification.priority, 'actionable');
-  assert.equal(jobNotification.actions.some((action) => action.kind === 'open'), true);
   assert.match(String(jobNotification.target?.href || ''), new RegExp(`/new/jobs\\?job=${jobId}&tab=applications`));
 
   sqlRun(

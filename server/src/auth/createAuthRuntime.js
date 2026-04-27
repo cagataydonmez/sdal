@@ -20,17 +20,6 @@ const WRITE_ALLOWED_WITHOUT_VERIFICATION = Object.freeze([
   '/api/new/requests',
   '/api/new/requests/upload'
 ]);
-const PROFILE_COMPLETION_ALLOWED_PATHS = Object.freeze([
-  '/api/profile',
-  '/api/profile/password',
-  '/api/profile/photo',
-  '/api/new/mobile/push/register',
-  '/api/new/mobile/push/unregister',
-  '/api/new/verified/request',
-  '/api/new/verified/proof',
-  '/api/new/requests',
-  '/api/new/requests/upload'
-]);
 function timingSafeTextEqual(a, b) {
   const left = Buffer.from(String(a || ''), 'utf8');
   const right = Buffer.from(String(b || ''), 'utf8');
@@ -245,6 +234,20 @@ export function createAuthRuntime({
          oauth_subject,
          CASE WHEN COALESCE(oauth_email_verified, false) THEN 1 ELSE 0 END AS oauth_email_verified,
          graduation_year AS mezuniyetyili,
+         city AS sehir,
+         profession AS meslek,
+         website_url AS websitesi,
+         university_name AS universite,
+         birth_day AS dogumgun,
+         birth_month AS dogumay,
+         birth_year AS dogumyil,
+         signature AS imza,
+         company_name AS sirket,
+         job_title AS unvan,
+         expertise AS uzmanlik,
+         linkedin_url,
+         university_department AS universite_bolum,
+         mentor_topics AS mentor_konulari,
          privacy_consent_at AS kvkk_consent_at,
          directory_consent_at,
          CASE WHEN COALESCE(is_online, false) THEN 1 ELSE 0 END AS online,
@@ -287,6 +290,20 @@ export function createAuthRuntime({
          oauth_subject,
          CASE WHEN COALESCE(oauth_email_verified, false) THEN 1 ELSE 0 END AS oauth_email_verified,
          graduation_year AS mezuniyetyili,
+         city AS sehir,
+         profession AS meslek,
+         website_url AS websitesi,
+         university_name AS universite,
+         birth_day AS dogumgun,
+         birth_month AS dogumay,
+         birth_year AS dogumyil,
+         signature AS imza,
+         company_name AS sirket,
+         job_title AS unvan,
+         expertise AS uzmanlik,
+         linkedin_url,
+         university_department AS universite_bolum,
+         mentor_topics AS mentor_konulari,
          privacy_consent_at AS kvkk_consent_at,
          directory_consent_at,
          CASE WHEN COALESCE(is_online, false) THEN 1 ELSE 0 END AS online,
@@ -341,6 +358,23 @@ export function createAuthRuntime({
     return Boolean(user?.directory_consent_at);
   }
 
+  function hasSupplementaryProfileInfo(user) {
+    return [
+      user?.sehir,
+      user?.meslek,
+      user?.websitesi,
+      user?.universite,
+      user?.sirket,
+      user?.unvan,
+      user?.uzmanlik,
+      user?.linkedin_url,
+      user?.universite_bolum,
+      user?.mentor_konulari,
+      user?.imza
+    ].some((value) => String(value || '').trim().length > 0)
+      || Boolean(Number(user?.dogumgun || 0) || Number(user?.dogumay || 0) || Number(user?.dogumyil || 0));
+  }
+
   function isTruthyFlag(value, fallback = false) {
     if (value === null || value === undefined) return fallback;
     if (value === true || value === false) return value;
@@ -351,10 +385,12 @@ export function createAuthRuntime({
   }
 
   function isProfileIncomplete(user) {
-    if (!isTruthyFlag(user?.ilkbd, true)) return true;
     const oauthProvider = String(user?.oauth_provider || '').trim();
-    if (!oauthProvider) return false;
-    return !hasValidGraduationYear(user?.mezuniyetyili) || !hasKvkkConsent(user) || !hasDirectoryConsent(user);
+    const hasRequiredBase = hasValidGraduationYear(user?.mezuniyetyili)
+      && hasKvkkConsent(user)
+      && hasDirectoryConsent(user);
+    if (oauthProvider && !hasRequiredBase) return true;
+    return !isTruthyFlag(user?.ilkbd, true) || !hasSupplementaryProfileInfo(user);
   }
 
   function isOAuthProfileIncomplete(user) {
@@ -387,10 +423,6 @@ export function createAuthRuntime({
           verificationUrl: '/new/profile/verification'
         });
       }
-    }
-    const canUseWithIncompleteProfile = PROFILE_COMPLETION_ALLOWED_PATHS.some((item) => req.path === item || req.path.startsWith(`${item}/`));
-    if (writeMethod && req.path.startsWith('/api/new/') && isProfileIncomplete(req.authUser) && !canUseWithIncompleteProfile) {
-      return res.status(403).json({ error: 'PROFILE_INCOMPLETE', message: 'Profil bilgilerini tamamlamadan bu özelliği kullanamazsın.' });
     }
     return next();
   }

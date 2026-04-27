@@ -65,6 +65,13 @@ export function createNotificationGovernanceRuntime({
   });
 
   const notificationDeliveryAuditTypes = new Set([
+    'like',
+    'comment',
+    'mention_post',
+    'mention_photo',
+    'photo_comment',
+    'follow',
+    'mention_message',
     'group_join_request',
     'group_join_approved',
     'group_join_rejected',
@@ -379,7 +386,17 @@ export function createNotificationGovernanceRuntime({
       );
       shouldSuppress = Number((prefRow || {})[`${category}_enabled`] ?? 1) !== 1;
     }
-    if (shouldSuppress) return null;
+    if (shouldSuppress) {
+      await logAuditAsync({
+        notificationType: normalizedType,
+        userId: safeUserId,
+        sourceUserId: safeSourceUserId,
+        entityId: safeEntityId,
+        deliveryStatus: 'skipped',
+        skipReason: 'preference_disabled'
+      });
+      return null;
+    }
 
     // Deduplicate (async)
     const rule = getNotificationDedupeRule(normalizedType);
@@ -398,7 +415,31 @@ export function createNotificationGovernanceRuntime({
         ? [safeUserId, normalizedType, safeSourceUserId, safeEntityId, String(message || ''), sinceIso]
         : [safeUserId, normalizedType, safeSourceUserId, safeEntityId, sinceIso];
       const dup = await execGet(query, params);
-      if (dup) return Number(dup.id || 0) || null;
+      const duplicateNotificationId = Number(dup?.id || 0) || null;
+      if (duplicateNotificationId) {
+        await logAuditAsync({
+          notificationId: duplicateNotificationId,
+          notificationType: normalizedType,
+          userId: safeUserId,
+          sourceUserId: safeSourceUserId,
+          entityId: safeEntityId,
+          deliveryStatus: 'skipped',
+          skipReason: 'duplicate_reused'
+        });
+        if (typeof dispatchPushNotification === 'function') {
+          await Promise.resolve(
+            dispatchPushNotification({
+              notificationId: duplicateNotificationId,
+              userId: safeUserId,
+              notificationType: normalizedType,
+              message: message || '',
+              sourceUserId: safeSourceUserId,
+              entityId: safeEntityId
+            })
+          ).catch(() => {});
+        }
+        return duplicateNotificationId;
+      }
     }
 
     // Insert (async)
