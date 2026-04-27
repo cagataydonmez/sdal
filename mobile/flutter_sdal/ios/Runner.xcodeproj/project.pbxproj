@@ -9,18 +9,30 @@
 /* Begin PBXBuildFile section */
 		057D61A6D28F800B595D3B68 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65165DB5194E7E3C99540D6E /* Pods_RunnerTests.framework */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		178220FACC20E184270BE09A /* SdalNotificationExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1F7636E465C10DBA8C264054 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D9F8467FE60FCAE30FF275C1 /* Info.plist */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		393E680D2F9EB7A20038C34C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 393E680C2F9EB7A20038C34C /* GoogleService-Info.plist */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		420C442DAAF31D2832CA82CB /* Pods_SdalNotificationExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 368E865E2ED8EBBECF7DB606 /* Pods_SdalNotificationExtension.framework */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		77D0E5D23F94BD0FDA9E8A4A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 871E82307C8BD0C9B48E89A4 /* Foundation.framework */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		EE32E2DC68062B100CD9F4C7 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D860A36F6A39E4394800396 /* NotificationService.swift */; };
 		F2A15A981FF7AD8DEEE83020 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E27F67F19DDDD2B742FC84D /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		1C90475460A7B3356D24F392 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2CC7DDDB656D64EFF2CC2121;
+			remoteInfo = SdalNotificationExtension;
+		};
 		331C8085294A63A400263BE5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
@@ -41,15 +53,30 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AF720B5926B33A385CE78F8A /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				178220FACC20E184270BE09A /* SdalNotificationExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		036849AF911A3C8C0CA9267E /* Pods-SdalNotificationExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SdalNotificationExtension.profile.xcconfig"; path = "Target Support Files/Pods-SdalNotificationExtension/Pods-SdalNotificationExtension.profile.xcconfig"; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		1E7267D2966E4F605FF8DF72 /* Pods-SdalNotificationExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SdalNotificationExtension.debug.xcconfig"; path = "Target Support Files/Pods-SdalNotificationExtension/Pods-SdalNotificationExtension.debug.xcconfig"; sourceTree = "<group>"; };
 		219AD00025ADEF320BA60BAB /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		224D55F47BACA12C33E23ED3 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		2D860A36F6A39E4394800396 /* NotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationService.swift; path = SdalNotificationExtension/NotificationService.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		368E865E2ED8EBBECF7DB606 /* Pods_SdalNotificationExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SdalNotificationExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		393E680C2F9EB7A20038C34C /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		3C1245F79B3BFEEA95BA2E73 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
@@ -59,8 +86,10 @@
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		871E82307C8BD0C9B48E89A4 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		8B6E2B7A4D3F4A4C9E1D0A12 /* Profile.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Profile.xcconfig; path = Flutter/Profile.xcconfig; sourceTree = "<group>"; };
 		8E27F67F19DDDD2B742FC84D /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		926A1054CD9F64E8D2B09C00 /* Pods-SdalNotificationExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SdalNotificationExtension.release.xcconfig"; path = "Target Support Files/Pods-SdalNotificationExtension/Pods-SdalNotificationExtension.release.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -69,11 +98,22 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A73D2C2E5A0C4B71A57C0D91 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		D9F8467FE60FCAE30FF275C1 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = SdalNotificationExtension/Info.plist; sourceTree = "<group>"; };
 		DD2EC2F6461E39CCE8E25A75 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
+		DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SdalNotificationExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED861664D20D0DC2C085B548 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		7FB01FF129A9ADD309769121 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				77D0E5D23F94BD0FDA9E8A4A /* Foundation.framework in Frameworks */,
+				420C442DAAF31D2832CA82CB /* Pods_SdalNotificationExtension.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EB1CF9000F007C117D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -110,8 +150,21 @@
 				539301713A0E5BB61A0C1196 /* Pods-RunnerTests.debug.xcconfig */,
 				3C1245F79B3BFEEA95BA2E73 /* Pods-RunnerTests.release.xcconfig */,
 				219AD00025ADEF320BA60BAB /* Pods-RunnerTests.profile.xcconfig */,
+				926A1054CD9F64E8D2B09C00 /* Pods-SdalNotificationExtension.release.xcconfig */,
+				1E7267D2966E4F605FF8DF72 /* Pods-SdalNotificationExtension.debug.xcconfig */,
+				036849AF911A3C8C0CA9267E /* Pods-SdalNotificationExtension.profile.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		7E84E4467B564F04A612A987 /* SdalNotificationExtension */ = {
+			isa = PBXGroup;
+			children = (
+				2D860A36F6A39E4394800396 /* NotificationService.swift */,
+				D9F8467FE60FCAE30FF275C1 /* Info.plist */,
+			);
+			name = SdalNotificationExtension;
+			path = SdalNotificationExtension;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -136,6 +189,7 @@
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				44646CEFE8973D1E0D9132C2 /* Pods */,
 				C9FBC2646BBC90A413F3FEA9 /* Frameworks */,
+				7E84E4467B564F04A612A987 /* SdalNotificationExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -144,6 +198,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
+				DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -170,13 +225,41 @@
 			children = (
 				8E27F67F19DDDD2B742FC84D /* Pods_Runner.framework */,
 				65165DB5194E7E3C99540D6E /* Pods_RunnerTests.framework */,
+				E7161CDC31D49D0D34CAD5F8 /* iOS */,
+				368E865E2ED8EBBECF7DB606 /* Pods_SdalNotificationExtension.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E7161CDC31D49D0D34CAD5F8 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				871E82307C8BD0C9B48E89A4 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2CC7DDDB656D64EFF2CC2121 /* SdalNotificationExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A45ED436A65EA3BD17901D7 /* Build configuration list for PBXNativeTarget "SdalNotificationExtension" */;
+			buildPhases = (
+				7E973D8ED6E48DDF0E69A77C /* [CP] Check Pods Manifest.lock */,
+				09DEEC7BDF2A74385B88AD14 /* Sources */,
+				7FB01FF129A9ADD309769121 /* Frameworks */,
+				393C360673EBE2ED6D2C5084 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SdalNotificationExtension;
+			productName = SdalNotificationExtension;
+			productReference = DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		331C8080294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */;
@@ -211,10 +294,12 @@
 				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
 				98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */,
 				28ED53E47F4B1F47B8242A19 /* [CP] Embed Pods Frameworks */,
+				AF720B5926B33A385CE78F8A /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -256,6 +341,7 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
+				2CC7DDDB656D64EFF2CC2121 /* SdalNotificationExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -265,6 +351,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		393C360673EBE2ED6D2C5084 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1F7636E465C10DBA8C264054 /* Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -349,6 +443,28 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		7E973D8ED6E48DDF0E69A77C /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-SdalNotificationExtension-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 		9740EEB61CF901F6004384FC /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -427,6 +543,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		09DEEC7BDF2A74385B88AD14 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EE32E2DC68062B100CD9F4C7 /* NotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		331C807D294A63A400263BE5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -452,6 +576,12 @@
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
+		};
+		D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SdalNotificationExtension;
+			target = 2CC7DDDB656D64EFF2CC2121 /* SdalNotificationExtension */;
+			targetProxy = 1C90475460A7B3356D24F392 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -603,6 +733,48 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
 			};
 			name = Profile;
+		};
+		45B9B3860E3705E30D02942A /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 036849AF911A3C8C0CA9267E /* Pods-SdalNotificationExtension.profile.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
+				INFOPLIST_FILE = SdalNotificationExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalNotificationExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Profile;
+		};
+		8DDF8B818F6644D80EE28EC4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 926A1054CD9F64E8D2B09C00 /* Pods-SdalNotificationExtension.release.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
+				INFOPLIST_FILE = SdalNotificationExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalNotificationExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
 		};
 		97C147031CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -770,9 +942,39 @@
 			};
 			name = Release;
 		};
+		E98E2630167CBE323C566471 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1E7267D2966E4F605FF8DF72 /* Pods-SdalNotificationExtension.debug.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]" = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=iphonesimulator*]" = "";
+				INFOPLIST_FILE = SdalNotificationExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalNotificationExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0A45ED436A65EA3BD17901D7 /* Build configuration list for PBXNativeTarget "SdalNotificationExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8DDF8B818F6644D80EE28EC4 /* Release */,
+				E98E2630167CBE323C566471 /* Debug */,
+				45B9B3860E3705E30D02942A /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
