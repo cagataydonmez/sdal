@@ -1,5 +1,4 @@
 import UserNotifications
-import FirebaseMessaging
 
 class NotificationService: UNNotificationServiceExtension {
     var contentHandler: ((UNNotificationContent) -> Void)?
@@ -17,10 +16,40 @@ class NotificationService: UNNotificationServiceExtension {
             return
         }
 
-        Messaging.serviceExtension().populateNotificationContent(
-            content,
-            withContentHandler: contentHandler
-        )
+        // Image URL arrives in the FCM data payload (not via fcm_options.image,
+        // which causes FCM INTERNAL errors when Google pre-validates the URL).
+        let userInfo = request.content.userInfo
+        let imageUrlString = (userInfo["imageUrl"] as? String)
+            ?? (userInfo["gcm.n.image"] as? String)
+
+        guard let urlString = imageUrlString,
+              !urlString.isEmpty,
+              let imageUrl = URL(string: urlString) else {
+            contentHandler(content)
+            return
+        }
+
+        URLSession.shared.downloadTask(with: imageUrl) { tempUrl, response, _ in
+            defer { contentHandler(content) }
+            guard let tempUrl = tempUrl,
+                  (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+            let ext: String
+            let path = imageUrl.path.lowercased()
+            if path.hasSuffix(".png") { ext = "png" }
+            else if path.hasSuffix(".jpeg") { ext = "jpeg" }
+            else { ext = "jpg" }
+            let destUrl = tempUrl
+                .deletingLastPathComponent()
+                .appendingPathComponent("sdal_notif.\(ext)")
+            try? FileManager.default.moveItem(at: tempUrl, to: destUrl)
+            if let attachment = try? UNNotificationAttachment(
+                identifier: "image",
+                url: destUrl,
+                options: nil
+            ) {
+                content.attachments = [attachment]
+            }
+        }.resume()
     }
 
     override func serviceExtensionTimeWillExpire() {

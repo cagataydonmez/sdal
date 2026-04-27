@@ -502,15 +502,13 @@ export function createNotificationPushRuntime({
           token: device.push_token,
           notification: {
             title: payload.title,
-            body: payload.body,
-            ...(payload.imageUrl ? { image: payload.imageUrl } : {})
+            body: payload.body
           },
           data: payload.data,
           android: {
             priority: 'high',
             notification: {
-              channel_id: 'sdal_notifications',
-              ...(payload.imageUrl ? { image: payload.imageUrl } : {})
+              channel_id: 'sdal_notifications'
             }
           },
           apns: {
@@ -522,8 +520,7 @@ export function createNotificationPushRuntime({
                 sound: 'default',
                 ...(payload.imageUrl ? { 'mutable-content': 1 } : {})
               }
-            },
-            ...(payload.imageUrl ? { fcm_options: { image: payload.imageUrl } } : {})
+            }
           }
         }
       })
