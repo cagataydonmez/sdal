@@ -350,11 +350,15 @@ export function createAuthRuntime({
     return Boolean(value);
   }
 
-  function isOAuthProfileIncomplete(user) {
+  function isProfileIncomplete(user) {
     if (!isTruthyFlag(user?.ilkbd, true)) return true;
     const oauthProvider = String(user?.oauth_provider || '').trim();
     if (!oauthProvider) return false;
     return !hasValidGraduationYear(user?.mezuniyetyili) || !hasKvkkConsent(user) || !hasDirectoryConsent(user);
+  }
+
+  function isOAuthProfileIncomplete(user) {
+    return isProfileIncomplete(user);
   }
 
   async function requireAuth(req, res, next) {
@@ -385,7 +389,7 @@ export function createAuthRuntime({
       }
     }
     const canUseWithIncompleteProfile = PROFILE_COMPLETION_ALLOWED_PATHS.some((item) => req.path === item || req.path.startsWith(`${item}/`));
-    if (req.path.startsWith('/api/new/') && isOAuthProfileIncomplete(req.authUser) && !canUseWithIncompleteProfile) {
+    if (writeMethod && req.path.startsWith('/api/new/') && isProfileIncomplete(req.authUser) && !canUseWithIncompleteProfile) {
       return res.status(403).json({ error: 'PROFILE_INCOMPLETE', message: 'Profil bilgilerini tamamlamadan bu özelliği kullanamazsın.' });
     }
     return next();
@@ -516,6 +520,7 @@ export function createAuthRuntime({
     hasValidGraduationYear,
     hasKvkkConsent,
     hasDirectoryConsent,
+    isProfileIncomplete,
     isOAuthProfileIncomplete,
     requireAuth,
     requireRole,

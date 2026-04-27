@@ -17,6 +17,7 @@ export function registerSystemRoutes(app, deps) {
     getModuleControlMap,
     getSiteControl,
     getCurrentUser,
+    isProfileIncomplete,
     isOAuthProfileIncomplete,
     getUserRole,
     roleAtLeast,
@@ -137,7 +138,10 @@ export function registerSystemRoutes(app, deps) {
       }
       : null;
     if (!user) return res.json({ user: null });
-    const state = isOAuthProfileIncomplete(user) ? 'incomplete' : 'active';
+    const profileIncomplete = typeof isProfileIncomplete === 'function'
+      ? isProfileIncomplete(user)
+      : isOAuthProfileIncomplete(user);
+    const state = profileIncomplete ? 'incomplete' : 'active';
     const role = getUserRole(user);
     const moderationPermissionKeys = role === 'mod' ? getModeratorPermissionSummary(user.id).assignedKeys : [];
     res.json({ user: { ...user, role, admin: roleAtLeast(role, 'admin') ? 1 : 0, state, moderationPermissionKeys } });

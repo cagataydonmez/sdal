@@ -336,7 +336,7 @@ export function registerAccountRoutes(app, deps) {
           toDbBooleanParam(e2eIsActive),
           now,
           cohortValue,
-          toDbBooleanParam(false),
+          toDbBooleanParam(e2eMode),
           e2eIsVerified ? 'verified' : 'pending',
           now,
           now,

@@ -3736,6 +3736,7 @@ registerSystemRoutes(app, {
   normalizeModuleMenuVisibility,
   normalizeModuleMenuOrder,
   getCurrentUser,
+  isProfileIncomplete,
   isOAuthProfileIncomplete,
   getUserRole,
   roleAtLeast,
@@ -4878,6 +4879,7 @@ registerAdminRequestModerationRoutes(app, {
   sqlGetAsync,
   sqlAllAsync,
   sqlRunAsync,
+  getTableColumnSetAsync,
   getCurrentUser,
   getModerationScopeContext,
   parseAdminListPagination,
@@ -4937,6 +4939,7 @@ registerAdminExperimentRoutes(app, {
 });
 
 registerAdminContentModerationRoutes(app, {
+  dbDriver,
   requireAdmin,
   requireModerationPermission,
   sqlGet,
@@ -4945,6 +4948,7 @@ registerAdminContentModerationRoutes(app, {
   sqlGetAsync,
   sqlAllAsync,
   sqlRunAsync,
+  getTableColumnSetAsync,
   getCurrentUser,
   getModerationScopeContext,
   parseAdminListPagination,
@@ -4977,7 +4981,9 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
   if (Number(user?.verified || 0) === 1) {
     return res.status(403).send('Profilin zaten doğrulanmış.');
   }
-  const existing = sqlGet('SELECT id FROM verification_requests WHERE user_id = ? AND status = ?', [req.session.userId, 'pending']);
+  const verificationRequestsTable = dbDriver === 'postgres' ? 'identity_verification_requests' : 'verification_requests';
+  const proofImageColumn = dbDriver === 'postgres' ? 'proof_media_asset_id' : 'proof_image_record_id';
+  const existing = sqlGet(`SELECT id FROM ${verificationRequestsTable} WHERE user_id = ? AND status = ?`, [req.session.userId, 'pending']);
   if (existing) return res.status(400).send('Zaten bekleyen bir talebiniz var.');
   const proofPath = String(req.body?.proof_path || '').trim();
   const proofImageRecordId = String(req.body?.proof_image_record_id || '').trim();
@@ -4997,8 +5003,8 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
     if (!proofVariants) return res.status(400).send('Kanıt görseli bulunamadı.');
   }
   const createdAt = new Date().toISOString();
-  if (hasColumn('verification_requests', 'request_type')) {
-    sqlRun('INSERT INTO verification_requests (user_id, status, request_type, proof_path, proof_image_record_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
+  if (hasColumn(verificationRequestsTable, 'request_type')) {
+    sqlRun(`INSERT INTO ${verificationRequestsTable} (user_id, status, request_type, proof_path, ${proofImageColumn}, created_at) VALUES (?, ?, ?, ?, ?, ?)`, [
       req.session.userId,
       'pending',
       requestType,
@@ -5007,7 +5013,7 @@ app.post('/api/new/verified/request', requireAuth, (req, res) => {
       createdAt
     ]);
   } else {
-    sqlRun('INSERT INTO verification_requests (user_id, status, proof_path, proof_image_record_id, created_at) VALUES (?, ?, ?, ?, ?)', [
+    sqlRun(`INSERT INTO ${verificationRequestsTable} (user_id, status, proof_path, ${proofImageColumn}, created_at) VALUES (?, ?, ?, ?, ?)`, [
       req.session.userId,
       'pending',
       proofPath || null,

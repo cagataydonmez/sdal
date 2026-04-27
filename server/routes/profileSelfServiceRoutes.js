@@ -134,7 +134,6 @@ export function registerProfileSelfServiceRoutes(app, {
             WHERE id = ?`,
           [req.session.userId]
         );
-      const nextIlkbd = current && current.ilkbd === 0 ? true : Boolean(current?.ilkbd ?? true);
       const mezuniyetyili = normalizeCohortValue(current?.mezuniyetyili);
       if (requestedMezuniyetYili && requestedMezuniyetYili !== mezuniyetyili) {
         if (!hasValidGraduationYear(requestedMezuniyetYili)) {
@@ -149,6 +148,27 @@ export function registerProfileSelfServiceRoutes(app, {
       const isOAuthUser = Boolean(String(current?.oauth_provider || '').trim());
       const nextKvkkConsent = Boolean(current?.kvkk_consent_at) || kvkkConsent;
       const nextDirectoryConsent = Boolean(current?.directory_consent_at) || directoryConsent;
+      const hasSupplementaryProfileInfo = [
+        sehir,
+        meslek,
+        websitesi,
+        universite,
+        sirket,
+        unvan,
+        uzmanlik,
+        linkedinUrl,
+        universiteBolum,
+        mentorKonulari,
+        imza
+      ].some((value) => String(value || '').trim().length > 0) || Boolean(dogumgun || dogumay || dogumyil);
+      const nextIlkbd = Boolean(
+        isim
+        && soyisim
+        && hasValidGraduationYear(mezuniyetyili)
+        && nextKvkkConsent
+        && nextDirectoryConsent
+        && hasSupplementaryProfileInfo
+      );
       if (isOAuthUser && !nextKvkkConsent) {
         return res.status(400).send('Sosyal üyelik için KVKK Aydınlatma Metni onayı zorunludur.');
       }
@@ -341,7 +361,7 @@ export function registerProfileSelfServiceRoutes(app, {
 
   app.get('/api/new/requests/my', requireAuth, async (req, res) => {
     try {
-      const items = await sqlAllAsync(
+      const memberRequests = await sqlAllAsync(
         `SELECT r.id, r.category_key, r.payload_json, r.status, r.created_at, r.reviewed_at, r.resolution_note,
                 c.label AS category_label
          FROM member_requests r
@@ -350,6 +370,44 @@ export function registerProfileSelfServiceRoutes(app, {
          ORDER BY r.id DESC`,
         [req.session.userId]
       );
+      const verificationColumns = await getTableColumnSetAsync('verification_requests');
+      const optionalVerificationColumn = (column, fallback = "''") =>
+        verificationColumns.has(column) ? column : `${fallback} AS ${column}`;
+      const verificationRequests = await sqlAllAsync(
+        `SELECT id, status,
+                ${optionalVerificationColumn('request_type')},
+                ${optionalVerificationColumn('proof_path')},
+                ${optionalVerificationColumn('proof_image_record_id')},
+                ${optionalVerificationColumn('created_at')},
+                ${optionalVerificationColumn('reviewed_at')},
+                ${optionalVerificationColumn('resolution_note')}
+         FROM verification_requests
+         WHERE user_id = ?
+         ORDER BY id DESC`,
+        [req.session.userId]
+      );
+      const verificationItems = verificationRequests.map((row) => ({
+        id: row.id,
+        category_key: 'profile_verification',
+        category_label: row.request_type === 'teacher_verification' ? 'Öğretmen doğrulama' : 'Profil doğrulama',
+        payload_json: JSON.stringify({
+          requestType: row.request_type || 'member_verification',
+          proofPath: row.proof_path || '',
+          proofImageRecordId: row.proof_image_record_id || ''
+        }),
+        status: row.status || 'pending',
+        created_at: row.created_at || '',
+        reviewed_at: row.reviewed_at || '',
+        resolution_note: row.resolution_note || ''
+      }));
+      const items = [...memberRequests, ...verificationItems].sort((left, right) => {
+        const leftTime = new Date(left.created_at || 0).getTime();
+        const rightTime = new Date(right.created_at || 0).getTime();
+        if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
+          return rightTime - leftTime;
+        }
+        return Number(right.id || 0) - Number(left.id || 0);
+      });
       res.json({ items });
     } catch (err) {
       console.error(err);

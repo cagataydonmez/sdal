@@ -1,4 +1,5 @@
 export function registerAdminContentModerationRoutes(app, {
+  dbDriver,
   requireAdmin,
   requireModerationPermission,
   sqlGet,
@@ -7,6 +8,7 @@ export function registerAdminContentModerationRoutes(app, {
   sqlGetAsync,
   sqlAllAsync,
   sqlRunAsync,
+  getTableColumnSetAsync,
   getCurrentUser,
   getModerationScopeContext,
   parseAdminListPagination,
@@ -23,6 +25,15 @@ export function registerAdminContentModerationRoutes(app, {
 }) {
   app.get('/api/new/admin/verification-requests', requireModerationPermission('requests.view'), async (req, res) => {
     try {
+      const verificationRequestsTable = dbDriver === 'postgres' ? 'identity_verification_requests' : 'verification_requests';
+      const verificationColumns = typeof getTableColumnSetAsync === 'function'
+        ? await getTableColumnSetAsync(verificationRequestsTable)
+        : new Set();
+      const optionalVerificationColumn = (column, fallback = "''") =>
+        verificationColumns.has(column) ? `r.${column}` : `${fallback} AS ${column}`;
+      const proofImageSelect = dbDriver === 'postgres'
+        ? 'r.proof_media_asset_id AS proof_image_record_id'
+        : optionalVerificationColumn('proof_image_record_id');
       const actor = req.authUser || getCurrentUser(req);
       const scope = getModerationScopeContext(actor);
       const { page, limit } = parseAdminListPagination(req.query, { defaultLimit: 40, maxLimit: 200 });
@@ -45,7 +56,7 @@ export function registerAdminContentModerationRoutes(app, {
 
       const total = Number((await sqlGetAsync(
         `SELECT COUNT(*) AS cnt
-         FROM verification_requests r
+         FROM ${verificationRequestsTable} r
          LEFT JOIN uyeler u ON u.id = r.user_id
          ${whereSql}`,
         params
@@ -55,9 +66,13 @@ export function registerAdminContentModerationRoutes(app, {
       const safeOffset = (safePage - 1) * limit;
 
       const items = await sqlAllAsync(
-        `SELECT r.id, r.user_id, r.status, r.request_type, r.proof_path, r.proof_image_record_id, r.created_at,
+        `SELECT r.id, r.user_id, r.status,
+                ${optionalVerificationColumn('request_type')},
+                ${optionalVerificationColumn('proof_path')},
+                ${proofImageSelect},
+                ${optionalVerificationColumn('created_at')},
                 u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim
-         FROM verification_requests r
+         FROM ${verificationRequestsTable} r
          LEFT JOIN uyeler u ON u.id = r.user_id
          ${whereSql}
          ORDER BY r.id DESC
@@ -83,13 +98,14 @@ export function registerAdminContentModerationRoutes(app, {
 
   app.post('/api/new/admin/verification-requests/:id', requireModerationPermission('requests.moderate'), async (req, res) => {
     try {
+      const verificationRequestsTable = dbDriver === 'postgres' ? 'identity_verification_requests' : 'verification_requests';
       const status = req.body?.status;
       const requestId = Number(req.params.id || 0);
       if (!requestId) return res.status(400).send('Geçersiz talep ID.');
       if (!['approved', 'rejected'].includes(status)) return res.status(400).send('Geçersiz durum.');
       const row = await sqlGetAsync(
         `SELECT r.*, u.mezuniyetyili
-         FROM verification_requests r
+         FROM ${verificationRequestsTable} r
          LEFT JOIN uyeler u ON u.id = r.user_id
          WHERE r.id = ?`,
         [requestId]
@@ -102,7 +118,7 @@ export function registerAdminContentModerationRoutes(app, {
           return res.status(403).send('Bu doğrulama talebi kapsamınız dışında.');
         }
       }
-      await sqlRunAsync('UPDATE verification_requests SET status = ?, reviewed_at = ?, reviewer_id = ? WHERE id = ?', [
+      await sqlRunAsync(`UPDATE ${verificationRequestsTable} SET status = ?, reviewed_at = ?, reviewer_id = ? WHERE id = ?`, [
         status,
         new Date().toISOString(),
         req.session.userId,
