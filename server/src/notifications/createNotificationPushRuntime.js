@@ -320,8 +320,57 @@ export function createNotificationPushRuntime({
         platform: sanitizeText(row?.platform).toLowerCase(),
         count: Number(row?.cnt || 0)
       })),
-      delivery_summary: deliverySummary
+      delivery_summary: deliverySummary,
+      recent_deliveries: await readRecentPushDeliveries({ limit: 10 })
     };
+  }
+
+  async function readRecentPushDeliveries({ limit = 25, status = '' } = {}) {
+    ensureNotificationPushDeliveryAuditTable();
+    const execAll = sqlAllAsync || ((...args) => Promise.resolve([]));
+    const safeLimit = Math.min(Math.max(Number(limit || 25), 1), 100);
+    const normalizedStatus = sanitizeText(status).toLowerCase();
+    const params = [];
+    const whereParts = [];
+    if (PUSH_DELIVERY_STATUS_SET.has(normalizedStatus)) {
+      whereParts.push('pd.delivery_status = ?');
+      params.push(normalizedStatus);
+    }
+    params.push(safeLimit);
+    const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+    const rows = await execAll(
+      `SELECT pd.id,
+              pd.notification_id,
+              pd.user_id,
+              pd.device_id,
+              pd.platform,
+              pd.notification_type,
+              pd.delivery_status,
+              pd.skip_reason,
+              pd.error_message,
+              pd.created_at,
+              n.type AS notification_row_type,
+              n.message AS notification_message
+       FROM notification_push_delivery_audit pd
+       LEFT JOIN notifications n ON n.id = pd.notification_id
+       ${whereSql}
+       ORDER BY pd.created_at DESC, pd.id DESC
+       LIMIT ?`,
+      params
+    );
+    return (rows || []).map((row) => ({
+      id: Number(row?.id || 0),
+      notification_id: Number(row?.notification_id || 0) || null,
+      user_id: Number(row?.user_id || 0) || null,
+      device_id: Number(row?.device_id || 0) || null,
+      platform: sanitizeText(row?.platform).toLowerCase() || null,
+      notification_type: sanitizeText(row?.notification_type || row?.notification_row_type).toLowerCase() || null,
+      delivery_status: sanitizeText(row?.delivery_status).toLowerCase(),
+      skip_reason: sanitizeText(row?.skip_reason) || null,
+      error_message: sanitizeText(row?.error_message) || null,
+      notification_message: sanitizePlainUserText(row?.notification_message, 240) || null,
+      created_at: sanitizeText(row?.created_at) || null
+    }));
   }
 
   async function getFirebaseAccessToken() {
@@ -371,6 +420,9 @@ export function createNotificationPushRuntime({
         );
       }
       const accessToken = sanitizeText(payloadJson.access_token);
+      if (!accessToken) {
+        throw new Error('fcm_access_token_missing');
+      }
       const expiresInSeconds = Math.max(Number(payloadJson.expires_in || 3600), 60);
       cachedFirebaseToken = {
         token: accessToken,
@@ -405,7 +457,7 @@ export function createNotificationPushRuntime({
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'content-type': 'application/json'
       },
       body: JSON.stringify({
@@ -580,6 +632,7 @@ export function createNotificationPushRuntime({
     registerPushDevice,
     unregisterPushDevice,
     buildPushAdminSummary,
+    readRecentPushDeliveries,
     dispatchPushNotification
   };
 }

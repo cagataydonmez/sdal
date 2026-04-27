@@ -1553,6 +1553,7 @@ const {
   registerPushDevice,
   unregisterPushDevice,
   buildPushAdminSummary,
+  readRecentPushDeliveries,
   dispatchPushNotification
 } = notificationPushRuntime;
 ensureNotificationPushSettingsTable();
@@ -3730,6 +3731,7 @@ registerSystemRoutes(app, {
   getRedisState,
   getRealtimeBus: () => realtimeBus,
   getBackgroundJobQueue: () => backgroundJobQueue,
+  readPushSettings,
   issueCaptcha,
   resolveModuleKeyByPath,
   getModuleControlMap,
@@ -4492,6 +4494,7 @@ registerNotificationRoutes(app, {
   registerPushDevice,
   unregisterPushDevice,
   buildPushAdminSummary,
+  readRecentPushDeliveries,
   parseNetworkWindowDays: (...args) => parseNetworkWindowDays(...args),
   toIsoThreshold: (...args) => toIsoThreshold(...args),
   notificationTypeInventory

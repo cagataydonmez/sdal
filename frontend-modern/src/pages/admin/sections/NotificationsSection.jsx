@@ -375,6 +375,17 @@ export default function NotificationsSection({ canViewRequests = false, canModer
                 <div className="chip">
                   {t('Son 30 gün')}: sent {Number(pushSettings?.delivery_summary?.sent || 0)} · skipped {Number(pushSettings?.delivery_summary?.skipped || 0)} · failed {Number(pushSettings?.delivery_summary?.failed || 0)}
                 </div>
+                {(pushSettings?.recent_deliveries || []).length ? (
+                  <div className="stack">
+                    {(pushSettings.recent_deliveries || []).slice(0, 5).map((item) => (
+                      <div key={item.id} className="muted" style={{ overflowWrap: 'anywhere' }}>
+                        {formatDate(item.created_at)} · {item.notification_type || 'push'} · {item.delivery_status}
+                        {item.skip_reason ? ` · ${item.skip_reason}` : ''}
+                        {item.error_message ? ` · ${item.error_message}` : ''}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <div>
                   <button
                     className="btn"

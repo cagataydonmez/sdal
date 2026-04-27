@@ -34,6 +34,7 @@ export function registerNotificationRoutes(app, {
   registerPushDevice,
   unregisterPushDevice,
   buildPushAdminSummary,
+  readRecentPushDeliveries,
   parseNetworkWindowDays,
   toIsoThreshold,
   notificationTypeInventory
@@ -537,6 +538,27 @@ export function registerNotificationRoutes(app, {
     } catch (err) {
       console.error('admin.notifications.pushSettings.update failed:', err);
       return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_PUSH_SETTINGS_UPDATE_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/admin/notifications/push-deliveries', requireAdmin, async (req, res) => {
+    try {
+      if (typeof readRecentPushDeliveries !== 'function') {
+        return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_PUSH_DELIVERIES_UNAVAILABLE', 'Push teslimat kayıtları okunamıyor.');
+      }
+      const deliveries = await readRecentPushDeliveries({
+        limit: req.query.limit,
+        status: req.query.status
+      });
+      return res.json(apiSuccessEnvelope(
+        'ADMIN_NOTIFICATIONS_PUSH_DELIVERIES_OK',
+        'Push teslimat kayıtları hazır.',
+        { items: deliveries },
+        { items: deliveries }
+      ));
+    } catch (err) {
+      console.error('admin.notifications.pushDeliveries.list failed:', err);
+      return sendApiError(res, 500, 'ADMIN_NOTIFICATIONS_PUSH_DELIVERIES_FAILED', 'Beklenmeyen bir hata oluştu.');
     }
   });
 

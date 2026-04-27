@@ -12,6 +12,7 @@ export function registerSystemRoutes(app, deps) {
     getRedisState,
     getRealtimeBus,
     getBackgroundJobQueue,
+    readPushSettings,
     issueCaptcha,
     resolveModuleKeyByPath,
     getModuleControlMap,
@@ -60,6 +61,27 @@ export function registerSystemRoutes(app, deps) {
     const redisRequired = isRedisConfigured();
     const realtimeBus = getRealtimeBus();
     const backgroundJobQueue = getBackgroundJobQueue();
+    let pushCheck = { configured: false, enabled: false, firebaseConfigured: false, mockMode: false, detail: 'not_configured' };
+    if (typeof readPushSettings === 'function') {
+      try {
+        const pushSettings = await readPushSettings();
+        pushCheck = {
+          configured: true,
+          enabled: Boolean(pushSettings?.enabled),
+          firebaseConfigured: Boolean(pushSettings?.firebase_configured),
+          mockMode: Boolean(pushSettings?.mock_mode),
+          detail: 'ok'
+        };
+      } catch (err) {
+        pushCheck = {
+          configured: false,
+          enabled: false,
+          firebaseConfigured: false,
+          mockMode: false,
+          detail: err?.message || 'push check failed'
+        };
+      }
+    }
     const overallOk = dbCheck.ready && (!redisRequired || redisCheck.ready);
 
     res.status(overallOk ? 200 : 503).json({
@@ -76,13 +98,15 @@ export function registerSystemRoutes(app, deps) {
         db: dbCheck,
         redis: redisCheck,
         realtime: realtimeBus?.getState?.() || { started: false, enabled: false },
-        jobs: backgroundJobQueue?.getState?.() || { started: false }
+        jobs: backgroundJobQueue?.getState?.() || { started: false },
+        push: pushCheck
       },
       runtime: {
         postgres: getPostgresPoolState(),
         redis: getRedisState(),
         realtime: realtimeBus?.getState?.() || { started: false, enabled: false },
         jobs: backgroundJobQueue?.getState?.() || { started: false },
+        push: pushCheck,
         postgresConfigured: isPostgresConfigured(),
         redisConfigured: redisRequired
       }
