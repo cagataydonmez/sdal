@@ -1229,6 +1229,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
   final _codeFocusNode = FocusNode();
   Timer? _resendTimer;
   int _resendSecondsLeft = 0;
+  bool _activationComplete = false;
 
   @override
   void initState() {
@@ -1262,6 +1263,9 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
   }
 
   Future<void> _submit() async {
+    final isRegistrationActivation =
+        _usernameController.text.trim().isNotEmpty &&
+        _emailController.text.trim().isNotEmpty;
     await ref
         .read(authActionControllerProvider.notifier)
         .activate(
@@ -1271,6 +1275,13 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
           email: _emailController.text.trim(),
           code: _codeController.text.trim(),
         );
+    if (!mounted) return;
+    final state = ref.read(authActionControllerProvider);
+    if (isRegistrationActivation &&
+        state.scope == 'activate' &&
+        state.isSuccess) {
+      setState(() => _activationComplete = true);
+    }
   }
 
   Future<void> _resend() async {
@@ -1322,7 +1333,8 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
         _emailController.text.trim().isNotEmpty;
     final isLegacyLinkActivation = _memberIdController.text.trim().isNotEmpty;
     final activationComplete =
-        actionState.scope == 'activate' && actionState.isSuccess;
+        _activationComplete ||
+        (actionState.scope == 'activate' && actionState.isSuccess);
 
     return _AuthFrame(
       title: l10n.activationTitle,
