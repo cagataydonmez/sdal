@@ -337,26 +337,74 @@ class AdminPushDeliveryItem {
   const AdminPushDeliveryItem({
     required this.id,
     required this.notificationType,
+    required this.platform,
     required this.deliveryStatus,
     required this.skipReason,
     required this.errorMessage,
+    required this.userName,
+    required this.userHandle,
     required this.createdAt,
   });
 
   final int id;
   final String notificationType;
+  final String platform;
   final String deliveryStatus;
   final String skipReason;
   final String errorMessage;
+  final String userName;
+  final String userHandle;
   final String createdAt;
+
+  String get statusLabel {
+    switch (deliveryStatus) {
+      case 'sent':
+        return 'İletildi';
+      case 'failed':
+        return 'Başarısız';
+      case 'skipped':
+        return _skipLabel;
+      default:
+        return deliveryStatus;
+    }
+  }
+
+  String get _skipLabel {
+    switch (skipReason) {
+      case 'no_registered_device':
+        return 'Cihaz kaydı yok';
+      case 'push_disabled':
+        return 'Push kapalı';
+      case 'preference_disabled':
+        return 'Kullanıcı tercihi kapalı';
+      case 'firebase_not_configured':
+        return 'Firebase yapılandırılmamış';
+      default:
+        return skipReason.isNotEmpty ? skipReason : 'Atlandı';
+    }
+  }
+
+  String get platformLabel {
+    switch (platform) {
+      case 'ios':
+        return 'iOS';
+      case 'android':
+        return 'Android';
+      default:
+        return platform.isEmpty ? 'Bilinmiyor' : platform;
+    }
+  }
 
   factory AdminPushDeliveryItem.fromMap(JsonMap map) {
     return AdminPushDeliveryItem(
       id: asInt(map['id']) ?? 0,
       notificationType: coalesceText([map['notification_type']], fallback: ''),
+      platform: coalesceText([map['platform']], fallback: ''),
       deliveryStatus: coalesceText([map['delivery_status']], fallback: ''),
       skipReason: coalesceText([map['skip_reason']], fallback: ''),
       errorMessage: coalesceText([map['error_message']], fallback: ''),
+      userName: coalesceText([map['user_name']], fallback: ''),
+      userHandle: coalesceText([map['user_handle']], fallback: ''),
       createdAt: coalesceText([map['created_at']], fallback: ''),
     );
   }
@@ -425,6 +473,26 @@ class AdminBroadcastHistoryItem {
   final int inserted;
   final int skipped;
   final String createdAt;
+
+  String get targetLabel {
+    switch (target) {
+      case 'verified':
+        return 'Doğrulanmış üyeler';
+      case 'admins':
+        return 'Admin kullanıcılar';
+      default:
+        return 'Tüm aktif üyeler';
+    }
+  }
+
+  String get summaryLabel {
+    if (requested == 0) return 'Hedef kullanıcı bulunamadı';
+    final parts = <String>[];
+    if (inserted > 0) parts.add('$inserted kullanıcıya bildirim eklendi');
+    if (skipped > 0) parts.add('$skipped atlandı');
+    if (inserted == 0) parts.add('Hiçbirine ulaşamadı');
+    return parts.join(' · ');
+  }
 
   factory AdminBroadcastHistoryItem.fromMap(JsonMap map) {
     return AdminBroadcastHistoryItem(
@@ -2361,6 +2429,19 @@ class AdminRepository {
       '/api/new/admin/notifications/push-settings',
       body: {'enabled': enabled},
     );
+  }
+
+  Future<List<AdminPushDeliveryItem>> fetchBroadcastPushDeliveries(
+    int broadcastId,
+  ) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/notifications/broadcasts/$broadcastId/push-deliveries',
+      decoder: asJsonMap,
+    );
+    if (!result.ok) return [];
+    return asJsonMapList(asJsonMap(result.rawData)['items'])
+        .map(AdminPushDeliveryItem.fromMap)
+        .toList();
   }
 
   Future<AdminBroadcastResult> sendNotificationBroadcast({

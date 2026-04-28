@@ -979,11 +979,10 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 ? item.body
                                 : '${item.senderLabel}: ${item.title}',
                             subtitle:
-                                '${item.target} · ${item.inserted}/${item.requested} ulaştı'
-                                '${item.skipped > 0 ? ' · ${item.skipped} atlandı' : ''}'
-                                '${item.imageUrl.isNotEmpty ? ' · görselli' : ''}'
-                                '${item.senderUsername.isNotEmpty ? ' · ${item.senderUsername}' : ''}',
+                                '${item.targetLabel} · ${item.summaryLabel}'
+                                '${item.imageUrl.isNotEmpty ? ' · görselli' : ''}',
                             trailing: item.createdAt,
+                            onTap: () => _openBroadcastDetail(context, ref, item),
                           ),
                         if (broadcasts.isEmpty)
                           Text(
@@ -1029,7 +1028,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Son 30 gün: sent ${push.deliverySummary['sent'] ?? 0} · skipped ${push.deliverySummary['skipped'] ?? 0} · failed ${push.deliverySummary['failed'] ?? 0}',
+                          'Son 30 gün: İletildi ${push.deliverySummary['sent'] ?? 0} · Atlandı ${push.deliverySummary['skipped'] ?? 0} · Başarısız ${push.deliverySummary['failed'] ?? 0}',
                         ),
                         if (push.platforms.isNotEmpty)
                           Padding(
@@ -1077,17 +1076,15 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       children: [
                         for (final item in push.recentDeliveries.take(10))
                           _AdminPreviewLine(
-                            title: item.notificationType.isEmpty
-                                ? 'Push'
-                                : item.notificationType,
-                            subtitle:
-                                [
-                                      item.deliveryStatus,
-                                      item.skipReason,
-                                      item.errorMessage,
-                                    ]
-                                    .where((part) => part.trim().isNotEmpty)
-                                    .join(' · '),
+                            title: [
+                              if (item.platform.isNotEmpty) item.platformLabel,
+                              item.notificationType.isEmpty
+                                  ? 'Push'
+                                  : item.notificationType,
+                            ].join(' · '),
+                            subtitle: item.errorMessage.isNotEmpty
+                                ? '${item.statusLabel} — ${item.errorMessage}'
+                                : item.statusLabel,
                             trailing: item.createdAt,
                           ),
                       ],
@@ -1101,7 +1098,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       ),
                       children: [
                         Text(
-                          'inserted ${ops.deliverySummary['inserted'] ?? 0} · skipped ${ops.deliverySummary['skipped'] ?? 0} · failed ${ops.deliverySummary['failed'] ?? 0}',
+                          'Eklendi ${ops.deliverySummary['inserted'] ?? 0} · Atlandı ${ops.deliverySummary['skipped'] ?? 0} · Başarısız ${ops.deliverySummary['failed'] ?? 0}',
                         ),
                         for (final alert in ops.alerts.take(5))
                           Padding(
@@ -2123,6 +2120,17 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               : (actionState.message ?? 'Toplu bildirim gönderilemedi.'),
         ),
       ),
+    );
+  }
+
+  Future<void> _openBroadcastDetail(
+    BuildContext context,
+    WidgetRef ref,
+    AdminBroadcastHistoryItem item,
+  ) async {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _BroadcastDetailDialog(item: item),
     );
   }
 
@@ -4547,12 +4555,14 @@ class _AdminPreviewLine extends StatelessWidget {
     required this.subtitle,
     required this.trailing,
     this.action,
+    this.onTap,
   });
 
   final String title;
   final String subtitle;
   final String trailing;
   final Widget? action;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -4575,9 +4585,12 @@ class _AdminPreviewLine extends StatelessWidget {
               ),
             ),
           );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: LayoutBuilder(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 560;
           final metaRow = Wrap(
@@ -4636,6 +4649,7 @@ class _AdminPreviewLine extends StatelessWidget {
             ],
           );
         },
+      ),
       ),
     );
   }
@@ -4942,6 +4956,181 @@ class _NotificationBroadcastDialogState
     } finally {
       if (mounted) setState(() => _uploadingImage = false);
     }
+  }
+}
+
+class _BroadcastDetailDialog extends ConsumerStatefulWidget {
+  const _BroadcastDetailDialog({required this.item});
+  final AdminBroadcastHistoryItem item;
+
+  @override
+  ConsumerState<_BroadcastDetailDialog> createState() =>
+      _BroadcastDetailDialogState();
+}
+
+class _BroadcastDetailDialogState
+    extends ConsumerState<_BroadcastDetailDialog> {
+  List<AdminPushDeliveryItem>? _deliveries;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final repo = ref.read(adminRepositoryProvider);
+    final items = await repo.fetchBroadcastPushDeliveries(widget.item.id);
+    if (mounted) setState(() { _deliveries = items; _loading = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final item = widget.item;
+    final deliveries = _deliveries ?? [];
+
+    final sentCount = deliveries.where((d) => d.deliveryStatus == 'sent').length;
+    final failedCount =
+        deliveries.where((d) => d.deliveryStatus == 'failed').length;
+    final skippedCount =
+        deliveries.where((d) => d.deliveryStatus == 'skipped').length;
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.title.isEmpty ? item.body : item.title,
+                      style: theme.textTheme.titleMedium,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${item.targetLabel} · ${item.createdAt}',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.sdal.foregroundMuted),
+              ),
+              const SizedBox(height: 16),
+              if (_loading)
+                const Center(child: CircularProgressIndicator())
+              else ...[
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    _AdminStatChip(
+                      icon: Icons.check_circle_outline,
+                      label: '$sentCount İletildi',
+                    ),
+                    _AdminStatChip(
+                      icon: Icons.skip_next_outlined,
+                      label: '$skippedCount Atlandı',
+                    ),
+                    _AdminStatChip(
+                      icon: Icons.error_outline,
+                      label: '$failedCount Başarısız',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Divider(height: 1, color: theme.sdal.panelBorder),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: deliveries.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Push teslimat kaydı bulunamadı.',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: deliveries.length,
+                          separatorBuilder: (_, __) => Divider(
+                            height: 1,
+                            color: theme.sdal.panelBorder,
+                          ),
+                          itemBuilder: (_, i) {
+                            final d = deliveries[i];
+                            final userLine = d.userName.isNotEmpty
+                                ? '${d.userName} (@${d.userHandle})'
+                                : d.userHandle.isNotEmpty
+                                    ? '@${d.userHandle}'
+                                    : '—';
+                            final statusLine = d.errorMessage.isNotEmpty
+                                ? '${d.statusLabel} · ${d.errorMessage}'
+                                : d.statusLabel;
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          userLine,
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          statusLine,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: d.deliveryStatus ==
+                                                        'sent'
+                                                    ? Colors.green
+                                                    : d.deliveryStatus ==
+                                                            'failed'
+                                                        ? Colors.red
+                                                        : theme
+                                                            .sdal
+                                                            .foregroundMuted,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    d.platformLabel,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.sdal.foregroundMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -532,10 +532,14 @@ export function createNotificationPushRuntime({
     }
     const errorCode = sanitizeText(json?.error?.details?.[0]?.errorCode || json?.error?.status);
     const errorMessage = sanitizeText(json?.error?.message || text, `FCM ${response.status}`);
+    const isUnregistered = errorCode === 'UNREGISTERED' || errorMessage.toLowerCase().includes('unregistered');
+    // 401 with auth error means this token belongs to a different Firebase project
+    // or has been invalidated — treat it as a dead token so it gets removed
+    const isAuthError = response.status === 401;
     return {
       ok: false,
-      errorMessage,
-      invalidToken: errorCode === 'UNREGISTERED' || errorMessage.toLowerCase().includes('unregistered')
+      errorMessage: `[HTTP ${response.status}] ${errorMessage}`,
+      invalidToken: isUnregistered || isAuthError
     };
   }
 

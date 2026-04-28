@@ -709,6 +709,46 @@ export function registerNotificationRoutes(app, {
     }
   });
 
+  app.get('/api/new/admin/notifications/broadcasts/:broadcastId/push-deliveries', requireAdmin, async (req, res) => {
+    try {
+      await ensureNotificationBroadcastTables();
+      const broadcastId = Number(req.params.broadcastId || 0);
+      if (!broadcastId) return sendApiError(res, 400, 'BROADCAST_ID_REQUIRED', 'Geçersiz broadcast ID.');
+      const rows = await sqlAllAsync(
+        `SELECT pd.platform,
+                pd.delivery_status,
+                pd.skip_reason,
+                pd.error_message,
+                pd.created_at,
+                pd.notification_id,
+                pd.user_id,
+                COALESCE(u.isim || ' ' || u.soyisim, u.kadi, '') AS user_name,
+                u.kadi AS user_handle
+         FROM notification_push_delivery_audit pd
+         JOIN notification_broadcast_recipients nbr ON nbr.notification_id = pd.notification_id
+         LEFT JOIN uyeler u ON u.id = pd.user_id
+         WHERE nbr.broadcast_id = ?
+         ORDER BY pd.created_at DESC
+         LIMIT 200`,
+        [broadcastId]
+      );
+      const summary = {};
+      for (const row of rows || []) {
+        const key = `${row.platform || 'unknown'}|${row.delivery_status}|${row.skip_reason || ''}`;
+        summary[key] = (summary[key] || 0) + 1;
+      }
+      return res.json(apiSuccessEnvelope(
+        'BROADCAST_PUSH_DELIVERIES_OK',
+        'Broadcast push teslimatları hazır.',
+        { items: rows || [], summary },
+        { items: rows || [], summary }
+      ));
+    } catch (err) {
+      console.error('admin.notifications.broadcasts.pushDeliveries failed:', err);
+      return sendApiError(res, 500, 'BROADCAST_PUSH_DELIVERIES_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
   app.get('/api/new/admin/notifications/push-deliveries', requireAdmin, async (req, res) => {
     try {
       if (typeof readRecentPushDeliveries !== 'function') {
