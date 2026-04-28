@@ -1539,36 +1539,51 @@ class _PhoneVerificationStepState
       return;
     }
     _mockVerification = false;
-    await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: phone,
-      forceResendingToken: _resendToken,
-      verificationCompleted: (credential) async {
-        final userCredential = await FirebaseAuth.instance.signInWithCredential(
-          credential,
-        );
-        final token = await userCredential.user?.getIdToken();
-        if (token != null) await _completeWithToken(token);
-      },
-      verificationFailed: (error) {
-        if (!mounted) return;
-        setState(() {
-          _sending = false;
-          _status = 'Kod geçersiz veya oturum süresi doldu.';
-        });
-      },
-      codeSent: (verificationId, resendToken) {
-        if (!mounted) return;
-        setState(() {
-          _sending = false;
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: phone,
+        forceResendingToken: _resendToken,
+        verificationCompleted: (credential) async {
+          final userCredential = await FirebaseAuth.instance
+              .signInWithCredential(credential);
+          final token = await userCredential.user?.getIdToken();
+          if (token != null) await _completeWithToken(token);
+        },
+        verificationFailed: (error) {
+          debugPrint(
+            '[phone-auth] firebase verification failed: '
+            '${error.code} ${error.message ?? ''}',
+          );
+          if (!mounted) return;
+          setState(() {
+            _sending = false;
+            _status = _firebasePhoneErrorMessage(error);
+          });
+        },
+        codeSent: (verificationId, resendToken) {
+          if (!mounted) return;
+          setState(() {
+            _sending = false;
+            _verificationId = verificationId;
+            _resendToken = resendToken;
+            _status = 'SMS kodu gönderildi.';
+          });
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
           _verificationId = verificationId;
-          _resendToken = resendToken;
-          _status = 'SMS kodu gönderildi.';
-        });
-      },
-      codeAutoRetrievalTimeout: (verificationId) {
-        _verificationId = verificationId;
-      },
-    );
+        },
+      );
+    } on FirebaseAuthException catch (error) {
+      debugPrint(
+        '[phone-auth] firebase verification threw: '
+        '${error.code} ${error.message ?? ''}',
+      );
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _status = _firebasePhoneErrorMessage(error);
+      });
+    }
   }
 
   Future<void> _verifyCode() async {
@@ -1719,6 +1734,25 @@ String _normalizePhoneForAuth(String raw, {bool live = false}) {
   if (digits.startsWith('90')) return '+$digits';
   if (digits.startsWith('5')) return '+90$digits';
   return live ? digits : '+$digits';
+}
+
+String _firebasePhoneErrorMessage(FirebaseAuthException error) {
+  switch (error.code) {
+    case 'too-many-requests':
+    case 'quota-exceeded':
+      return 'Firebase çok fazla deneme algıladı. Lütfen biraz bekleyip tekrar deneyin.';
+    case 'invalid-phone-number':
+      return 'Geçerli bir telefon numarası girin.';
+    case 'captcha-check-failed':
+    case 'app-not-authorized':
+    case 'missing-client-identifier':
+      return 'Firebase telefon doğrulaması başlatılamadı. Lütfen uygulama yapılandırmasını kontrol edin.';
+    case 'session-expired':
+    case 'invalid-verification-code':
+      return 'Kod geçersiz veya oturum süresi doldu.';
+    default:
+      return 'Telefon doğrulaması başlatılamadı. Lütfen daha sonra tekrar deneyin.';
+  }
 }
 
 class ActivationResendPage extends ConsumerStatefulWidget {
