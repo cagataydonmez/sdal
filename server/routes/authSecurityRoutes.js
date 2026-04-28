@@ -117,6 +117,8 @@ export function createAuthSecurityRuntime({
     authDeviceHourlyLimit: intEnv('AUTH_DEVICE_HOURLY_LIMIT', 5),
     signupIpHourlyLimit: intEnv('AUTH_SIGNUP_IP_HOURLY_LIMIT', 20),
     blockDisposableEmails: boolEnv('AUTH_BLOCK_DISPOSABLE_EMAILS', false),
+    firebasePhoneMock: boolEnv('AUTH_FIREBASE_PHONE_MOCK', false),
+    smsTestCode: String(process.env.AUTH_SMS_TEST_CODE || '').trim(),
     smsRateLimitBypassPhones: csvEnv('AUTH_SMS_RATE_LIMIT_BYPASS_PHONES')
       .map(normalizePhoneNumber)
       .filter(Boolean)
@@ -249,7 +251,12 @@ export function createAuthSecurityRuntime({
         [userId, phoneHash, ipHash, deviceHash || null, new Date().toISOString()]
       );
       await audit({ userId, eventType: 'sms_attempt_test_bypass', req, deviceIdHash: deviceHash, phoneHash });
-      return { allowed: true, phone_number: phone, retry_after_seconds: 0 };
+      return {
+        allowed: true,
+        phone_number: phone,
+        retry_after_seconds: 0,
+        mock_verification: shouldUseMockPhoneVerification(phone)
+      };
     }
     const latest = await sqlGetAsync(
       `SELECT created_at FROM phone_verification_attempts
@@ -297,10 +304,21 @@ export function createAuthSecurityRuntime({
     return { allowed: true, phone_number: phone, retry_after_seconds: 0 };
   }
 
+  function shouldUseMockPhoneVerification(normalizedPhone) {
+    return Boolean(config.firebasePhoneMock && config.smsRateLimitBypassPhones.includes(normalizedPhone));
+  }
+
   async function verifyFirebasePhoneToken(idToken, normalizedPhone) {
-    const mockEnabled = boolEnv('AUTH_FIREBASE_PHONE_MOCK', false);
-    if (mockEnabled && String(idToken).startsWith('mock-phone:')) {
-      return String(idToken).slice('mock-phone:'.length) === normalizedPhone;
+    if (config.firebasePhoneMock && String(idToken).startsWith('mock-phone:')) {
+      const proof = String(idToken).slice('mock-phone:'.length);
+      const separatorIndex = proof.lastIndexOf(':');
+      const proofPhone = separatorIndex >= 0 ? proof.slice(0, separatorIndex) : proof;
+      const proofCode = separatorIndex >= 0 ? proof.slice(separatorIndex + 1) : '';
+      return (
+        shouldUseMockPhoneVerification(normalizedPhone) &&
+        proofPhone === normalizedPhone &&
+        (!config.smsTestCode || proofCode === config.smsTestCode)
+      );
     }
     try {
       const [{ initializeApp, cert, getApps }, { getAuth }] = await Promise.all([

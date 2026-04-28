@@ -35,6 +35,18 @@ class LoginActionResult {
   final String message;
 }
 
+class PhoneVerificationStartResult {
+  const PhoneVerificationStartResult({
+    required this.allowed,
+    this.mockVerification = false,
+    this.message = '',
+  });
+
+  final bool allowed;
+  final bool mockVerification;
+  final String message;
+}
+
 final oauthAuthenticateProvider = Provider<OAuthAuthenticate>(
   (ref) =>
       ({required String url, required String callbackUrlScheme}) =>
@@ -266,27 +278,36 @@ class AuthActionController extends Notifier<AsyncActionState> {
     );
   }
 
-  Future<bool> startPhoneVerification({required String phoneNumber}) async {
+  Future<PhoneVerificationStartResult> startPhoneVerification({
+    required String phoneNumber,
+  }) async {
     final apiClient = ref.read(apiClientProvider);
     final deviceIdentityService = ref.read(deviceIdentityServiceProvider);
     state = const AsyncActionState.loading(scope: 'phoneStart');
     final device = await deviceIdentityService.metadata();
-    if (!ref.mounted) return false;
+    if (!ref.mounted) {
+      return const PhoneVerificationStartResult(allowed: false);
+    }
     final result = await apiClient.post<JsonMap>(
       '/api/auth/phone/start',
       body: {'phone_number': phoneNumber, 'device_id': device.deviceId},
       decoder: asJsonMap,
     );
-    if (!ref.mounted) return false;
+    if (!ref.mounted) {
+      return const PhoneVerificationStartResult(allowed: false);
+    }
+    final payload = asJsonMap(result.rawData);
+    final message = result.message.isNotEmpty
+        ? result.message
+        : 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
     state = result.ok
         ? const AsyncActionState.success(scope: 'phoneStart')
-        : AsyncActionState.error(
-            message: result.message.isNotEmpty
-                ? result.message
-                : 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.',
-            scope: 'phoneStart',
-          );
-    return result.ok;
+        : AsyncActionState.error(message: message, scope: 'phoneStart');
+    return PhoneVerificationStartResult(
+      allowed: result.ok,
+      mockVerification: asBool(payload['mock_verification']) ?? false,
+      message: result.ok ? '' : message,
+    );
   }
 
   Future<bool> completePhoneVerification({

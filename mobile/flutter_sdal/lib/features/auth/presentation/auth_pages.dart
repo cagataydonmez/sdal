@@ -1466,6 +1466,7 @@ class _PhoneVerificationStepState
   bool _sending = false;
   bool _verifying = false;
   bool _normalizingPhone = false;
+  bool _mockVerification = false;
 
   @override
   void initState() {
@@ -1509,24 +1510,35 @@ class _PhoneVerificationStepState
       _sending = true;
       _status = null;
     });
-    bool allowed;
+    PhoneVerificationStartResult startResult;
     try {
-      allowed = await ref
+      startResult = await ref
           .read(authActionControllerProvider.notifier)
           .startPhoneVerification(phoneNumber: phone);
     } catch (_) {
-      allowed = false;
+      startResult = const PhoneVerificationStartResult(allowed: false);
     }
     if (!mounted) return;
-    if (!allowed) {
+    if (!startResult.allowed) {
       setState(() {
         _sending = false;
-        _status =
-            ref.read(authActionControllerProvider).message ??
-            'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
+        _status = startResult.message.isNotEmpty
+            ? startResult.message
+            : ref.read(authActionControllerProvider).message ??
+                  'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
       });
       return;
     }
+    if (startResult.mockVerification) {
+      setState(() {
+        _sending = false;
+        _mockVerification = true;
+        _verificationId = 'mock';
+        _status = 'Test numarası için SMS kodunu girin.';
+      });
+      return;
+    }
+    _mockVerification = false;
     await FirebaseAuth.instance.verifyPhoneNumber(
       phoneNumber: phone,
       forceResendingToken: _resendToken,
@@ -1569,14 +1581,21 @@ class _PhoneVerificationStepState
       _status = null;
     });
     try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId,
-        smsCode: _otpController.text.trim(),
-      );
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
-      final token = await userCredential.user?.getIdToken();
+      final code = _otpController.text.trim();
+      String? token;
+      if (_mockVerification) {
+        final phone = _normalizePhoneForAuth(widget.phoneController.text);
+        token = 'mock-phone:$phone:$code';
+      } else {
+        final credential = PhoneAuthProvider.credential(
+          verificationId: _verificationId,
+          smsCode: code,
+        );
+        final userCredential = await FirebaseAuth.instance.signInWithCredential(
+          credential,
+        );
+        token = await userCredential.user?.getIdToken();
+      }
       if (token == null) throw StateError('missing firebase token');
       await _completeWithToken(token);
     } catch (_) {
