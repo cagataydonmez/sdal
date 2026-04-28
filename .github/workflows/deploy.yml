@@ -248,22 +248,28 @@ jobs:
               local domain_value="$2"
               local response=""
               local first_line=""
+              local attempt=""
 
-              response="$(
-                curl -skS -i --http1.1 --max-time 10 \
-                  --resolve "${domain_value}:443:127.0.0.1" \
-                  -H 'Connection: Upgrade' \
-                  -H 'Upgrade: websocket' \
-                  -H 'Sec-WebSocket-Version: 13' \
-                  -H 'Sec-WebSocket-Key: SGVsbG9Xb3JsZDEyMzQ1Ng==' \
-                  "https://${domain_value}${path_value}" || true
-              )"
+              for attempt in $(seq 1 6); do
+                response="$(
+                  curl -skS -i --http1.1 --max-time 10 \
+                    --resolve "${domain_value}:443:127.0.0.1" \
+                    -H 'Connection: Upgrade' \
+                    -H 'Upgrade: websocket' \
+                    -H 'Sec-WebSocket-Version: 13' \
+                    -H 'Sec-WebSocket-Key: SGVsbG9Xb3JsZDEyMzQ1Ng==' \
+                    "https://${domain_value}${path_value}" || true
+                )"
 
-              first_line="$(printf '%s\n' "$response" | awk 'NR==1 { gsub(/\r/, "", $0); print; exit }')"
-              if [[ "$first_line" == *"101 Switching Protocols"* ]]; then
-                echo "Verified websocket upgrade for ${path_value}"
-                return 0
-              fi
+                first_line="$(printf '%s\n' "$response" | awk 'NR==1 { gsub(/\r/, "", $0); print; exit }')"
+                if [[ "$first_line" == *"101 Switching Protocols"* ]]; then
+                  echo "Verified websocket upgrade for ${path_value}"
+                  return 0
+                fi
+
+                echo "Websocket verification attempt ${attempt}/6 failed for ${path_value}: ${first_line:-no response}"
+                sleep 2
+              done
 
               echo "Websocket verification failed for ${path_value}"
               printf '%s\n' "$response" | head -n 20 || true
