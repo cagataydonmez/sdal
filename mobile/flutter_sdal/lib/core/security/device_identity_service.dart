@@ -47,33 +47,62 @@ class DeviceIdentityService {
 
   final FlutterSecureStorage _secureStorage;
   final DeviceInfoPlugin _deviceInfo;
+  static String? _cachedDeviceId;
+  static bool _secureStorageUnavailable = false;
 
   Future<String> getOrCreateDeviceId() async {
+    final cached = _cachedDeviceId;
+    if (cached != null && cached.length >= 16) return cached;
     final existing = await _readDeviceId();
-    if (existing != null && existing.length >= 16) return existing;
+    if (existing != null && existing.length >= 16) {
+      _cachedDeviceId = existing;
+      return existing;
+    }
     final next = _secureUuidV4();
     await _writeDeviceId(next);
+    _cachedDeviceId = next;
     return next;
   }
 
   Future<String?> _readDeviceId() async {
+    if (_secureStorageUnavailable) {
+      return _readFallbackDeviceId();
+    }
     try {
       return await _secureStorage.read(key: _deviceIdStorageKey);
     } on PlatformException catch (error) {
+      _secureStorageUnavailable = true;
       if (kDebugMode) {
         debugPrint('[device-id] secure storage read failed: ${error.code}');
+      }
+      return _readFallbackDeviceId();
+    } catch (error) {
+      _secureStorageUnavailable = true;
+      if (kDebugMode) {
+        debugPrint('[device-id] secure storage read failed: $error');
       }
       return _readFallbackDeviceId();
     }
   }
 
   Future<void> _writeDeviceId(String value) async {
+    if (_secureStorageUnavailable) {
+      await _writeFallbackDeviceId(value);
+      return;
+    }
     try {
       await _secureStorage.write(key: _deviceIdStorageKey, value: value);
       return;
     } on PlatformException catch (error) {
+      _secureStorageUnavailable = true;
       if (kDebugMode) {
         debugPrint('[device-id] secure storage write failed: ${error.code}');
+      }
+      await _writeFallbackDeviceId(value);
+    } catch (error) {
+      _secureStorageUnavailable = true;
+      if (kDebugMode) {
+        debugPrint('[device-id] secure storage write failed: $error');
       }
       await _writeFallbackDeviceId(value);
     }
