@@ -3,8 +3,10 @@ import 'dart:math';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../storage/app_support_directory.dart';
 
 const _deviceIdStorageKey = 'sdal.auth.device_id.v1';
 
@@ -47,11 +49,56 @@ class DeviceIdentityService {
   final DeviceInfoPlugin _deviceInfo;
 
   Future<String> getOrCreateDeviceId() async {
-    final existing = await _secureStorage.read(key: _deviceIdStorageKey);
+    final existing = await _readDeviceId();
     if (existing != null && existing.length >= 16) return existing;
     final next = _secureUuidV4();
-    await _secureStorage.write(key: _deviceIdStorageKey, value: next);
+    await _writeDeviceId(next);
     return next;
+  }
+
+  Future<String?> _readDeviceId() async {
+    try {
+      return await _secureStorage.read(key: _deviceIdStorageKey);
+    } on PlatformException catch (error) {
+      if (kDebugMode) {
+        debugPrint('[device-id] secure storage read failed: ${error.code}');
+      }
+      return _readFallbackDeviceId();
+    }
+  }
+
+  Future<void> _writeDeviceId(String value) async {
+    try {
+      await _secureStorage.write(key: _deviceIdStorageKey, value: value);
+      return;
+    } on PlatformException catch (error) {
+      if (kDebugMode) {
+        debugPrint('[device-id] secure storage write failed: ${error.code}');
+      }
+      await _writeFallbackDeviceId(value);
+    }
+  }
+
+  Future<File> _fallbackFile() async {
+    final dir = await getSdalAppSupportDirectory();
+    return File('${dir.path}/auth_device_id');
+  }
+
+  Future<String?> _readFallbackDeviceId() async {
+    try {
+      final file = await _fallbackFile();
+      if (!await file.exists()) return null;
+      final value = (await file.readAsString()).trim();
+      return value.isEmpty ? null : value;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeFallbackDeviceId(String value) async {
+    final file = await _fallbackFile();
+    await file.parent.create(recursive: true);
+    await file.writeAsString(value, flush: true);
   }
 
   Future<AuthDeviceMetadata> metadata() async {
