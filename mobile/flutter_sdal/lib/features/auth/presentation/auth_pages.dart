@@ -1523,7 +1523,7 @@ class _PhoneVerificationStepState
         _sending = false;
         _status =
             ref.read(authActionControllerProvider).message ??
-            'Too many attempts. Please try again later.';
+            'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
       });
       return;
     }
@@ -1541,7 +1541,7 @@ class _PhoneVerificationStepState
         if (!mounted) return;
         setState(() {
           _sending = false;
-          _status = 'Invalid code or expired session.';
+          _status = 'Kod geçersiz veya oturum süresi doldu.';
         });
       },
       codeSent: (verificationId, resendToken) {
@@ -1583,7 +1583,7 @@ class _PhoneVerificationStepState
       if (!mounted) return;
       setState(() {
         _verifying = false;
-        _status = 'Invalid code or expired session.';
+        _status = 'Kod geçersiz veya oturum süresi doldu.';
       });
     }
   }
@@ -1600,7 +1600,7 @@ class _PhoneVerificationStepState
       _status = ok
           ? 'Telefon ve cihaz doğrulandı.'
           : ref.read(authActionControllerProvider).message ??
-                'Invalid code or expired session.';
+                'Kod geçersiz veya oturum süresi doldu.';
     });
     if (ok) context.go('/');
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,14 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp();
+    const phoneAuthTestMode = bool.fromEnvironment(
+      'FIREBASE_PHONE_AUTH_TEST_MODE',
+    );
+    if (kDebugMode || phoneAuthTestMode) {
+      await FirebaseAuth.instance.setSettings(
+        appVerificationDisabledForTesting: true,
+      );
+    }
     await FirebaseAppCheck.instance.activate(
       // TODO: switch to providerAndroid/providerApple after the FlutterFire
       // type aliases in the pinned firebase_app_check release line up.

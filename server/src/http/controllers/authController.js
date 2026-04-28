@@ -56,14 +56,14 @@ export function createAuthController({ authService, applyUserSession, authSecuri
             return res.status(429).json({
               ok: false,
               code: 'DEVICE_CHALLENGE_RATE_LIMITED',
-              message: 'Too many attempts. Please try again later.',
+              message: 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.',
               retry_after_seconds: challenge.retry_after_seconds || 3600
             });
           }
           return res.status(403).json({
             ok: false,
             code: 'DEVICE_CHALLENGE_REQUIRED',
-            message: 'We could not verify this device. Please verify by email.',
+            message: 'Bu cihazı doğrulayamadık. Lütfen e-posta ile doğrulayın.',
             challenge_required: true,
             email: result.user.email || ''
           });

@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import { z } from 'zod';
 
-const GENERIC_AUTH_MESSAGE = 'We could not verify this request. Please try again later.';
-const GENERIC_COOLDOWN_MESSAGE = 'Too many attempts. Please try again later.';
+const GENERIC_AUTH_MESSAGE = 'Bu işlemi doğrulayamadık. Lütfen daha sonra tekrar deneyin.';
+const GENERIC_COOLDOWN_MESSAGE = 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
 
 const DeviceSchema = z.object({
   device_id: z.string().min(16).max(128),
@@ -36,6 +36,13 @@ function boolEnv(name, fallback = false) {
   const raw = String(process.env[name] ?? '').trim().toLowerCase();
   if (!raw) return fallback;
   return ['1', 'true', 'yes', 'evet'].includes(raw);
+}
+
+function csvEnv(name) {
+  return String(process.env[name] || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function sha256(value, pepper) {
@@ -109,7 +116,10 @@ export function createAuthSecurityRuntime({
     smsIpDailyLimit: intEnv('AUTH_SMS_IP_DAILY_LIMIT', 30),
     authDeviceHourlyLimit: intEnv('AUTH_DEVICE_HOURLY_LIMIT', 5),
     signupIpHourlyLimit: intEnv('AUTH_SIGNUP_IP_HOURLY_LIMIT', 20),
-    blockDisposableEmails: boolEnv('AUTH_BLOCK_DISPOSABLE_EMAILS', false)
+    blockDisposableEmails: boolEnv('AUTH_BLOCK_DISPOSABLE_EMAILS', false),
+    smsRateLimitBypassPhones: csvEnv('AUTH_SMS_RATE_LIMIT_BYPASS_PHONES')
+      .map(normalizePhoneNumber)
+      .filter(Boolean)
   };
 
   async function ensureSchema() {
@@ -232,6 +242,15 @@ export function createAuthSecurityRuntime({
     const phoneHash = hashPhone(phone);
     const ipHash = hashIp(req.ip);
     const deviceHash = deviceId ? hashDeviceId(deviceId) : '';
+    if (config.smsRateLimitBypassPhones.includes(phone)) {
+      await sqlRunAsync(
+        `INSERT INTO phone_verification_attempts (user_id, phone_number_hash, ip_hash, device_id_hash, status, reason, created_at)
+         VALUES (?, ?, ?, ?, 'allowed', 'test_bypass', ?)`,
+        [userId, phoneHash, ipHash, deviceHash || null, new Date().toISOString()]
+      );
+      await audit({ userId, eventType: 'sms_attempt_test_bypass', req, deviceIdHash: deviceHash, phoneHash });
+      return { allowed: true, phone_number: phone, retry_after_seconds: 0 };
+    }
     const latest = await sqlGetAsync(
       `SELECT created_at FROM phone_verification_attempts
        WHERE phone_number_hash = ? AND status = 'allowed'
@@ -387,7 +406,7 @@ export function createAuthSecurityRuntime({
     if (!parsed.success) return res.status(400).json({ ok: false, message: GENERIC_AUTH_MESSAGE });
     const pending = req.session.pendingDeviceChallenge || {};
     const userId = Number(pending.userId || 0);
-    if (!userId) return res.status(401).json({ ok: false, code: 'CHALLENGE_REQUIRED', message: 'We could not verify this device. Please verify by email.' });
+    if (!userId) return res.status(401).json({ ok: false, code: 'CHALLENGE_REQUIRED', message: 'Bu cihazı doğrulayamadık. Lütfen e-posta ile doğrulayın.' });
     const device = parsed.data;
     const deviceHash = hashDeviceId(device.device_id);
     const row = await sqlGetAsync(
@@ -398,7 +417,7 @@ export function createAuthSecurityRuntime({
     );
     if (!row || Date.parse(row.expires_at) < Date.now() || row.code_hash !== sha256(parsed.data.code.trim(), pepper || 'dev-missing-pepper')) {
       await audit({ userId, eventType: 'device_challenge_failed', riskLevel: 'warn', req, deviceIdHash: deviceHash });
-      return res.status(400).json({ ok: false, message: 'Invalid code or expired session.' });
+      return res.status(400).json({ ok: false, message: 'Kod geçersiz veya oturum süresi doldu.' });
     }
     await sqlRunAsync('UPDATE auth_email_challenges SET consumed_at = ? WHERE id = ?', [new Date().toISOString(), row.id]);
     await trustDevice({ userId, req, device, challengeId: row.id });
@@ -473,7 +492,7 @@ export function createAuthSecurityRuntime({
       const verified = await verifyFirebasePhoneToken(parsed.data.firebase_id_token, phone);
       if (!verified) {
         await audit({ userId: req.session.userId, eventType: 'sms_complete_failed', riskLevel: 'warn', req, phoneHash: hashPhone(phone), deviceIdHash: hashDeviceId(parsed.data.device_id) });
-        return res.status(400).json({ ok: false, message: 'Invalid code or expired session.' });
+        return res.status(400).json({ ok: false, message: 'Kod geçersiz veya oturum süresi doldu.' });
       }
       const now = new Date().toISOString();
       const phoneHash = hashPhone(phone);

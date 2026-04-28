@@ -283,7 +283,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
         : AsyncActionState.error(
             message: result.message.isNotEmpty
                 ? result.message
-                : 'Too many attempts. Please try again later.',
+                : 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.',
             scope: 'phoneStart',
           );
     return result.ok;
@@ -318,7 +318,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     state = AsyncActionState.error(
       message: result.message.isNotEmpty
           ? result.message
-          : 'Invalid code or expired session.',
+          : 'Kod geçersiz veya oturum süresi doldu.',
       scope: 'phoneComplete',
     );
     return false;
@@ -346,7 +346,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     state = AsyncActionState.error(
       message: result.message.isNotEmpty
           ? result.message
-          : 'Invalid code or expired session.',
+          : 'Kod geçersiz veya oturum süresi doldu.',
       scope: 'deviceChallenge',
     );
     return false;
