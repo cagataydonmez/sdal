@@ -311,19 +311,32 @@ class PushNotificationsService {
     );
     if (!Platform.isAndroid) return base;
     final imageUrl = message.data['imageUrl']?.toString().trim() ?? '';
-    if (imageUrl.isEmpty) return base;
-    final imagePath = await _downloadImageToTemp(imageUrl);
-    if (imagePath == null) return base;
+    final senderPhoto = message.data['senderPhoto']?.toString().trim() ?? '';
+    final imagePath = imageUrl.isEmpty
+        ? null
+        : await _downloadImageToTemp(imageUrl);
+    final senderPhotoPath = senderPhoto.isEmpty
+        ? null
+        : await _downloadImageToTemp(senderPhoto);
+    if (imagePath == null && senderPhotoPath == null) return base;
     return AndroidNotificationDetails(
       _pushChannelId,
       _pushChannelName,
       channelDescription: _pushChannelDescription,
       importance: Importance.high,
       priority: Priority.high,
-      styleInformation: BigPictureStyleInformation(
-        FilePathAndroidBitmap(imagePath),
-        hideExpandedLargeIcon: true,
-      ),
+      largeIcon: senderPhotoPath == null
+          ? null
+          : FilePathAndroidBitmap(senderPhotoPath),
+      styleInformation: imagePath == null
+          ? null
+          : BigPictureStyleInformation(
+              FilePathAndroidBitmap(imagePath),
+              largeIcon: senderPhotoPath == null
+                  ? null
+                  : FilePathAndroidBitmap(senderPhotoPath),
+              hideExpandedLargeIcon: senderPhotoPath == null,
+            ),
     );
   }
 
@@ -404,7 +417,15 @@ class PushNotificationsService {
     final route =
         mapNotificationWebRouteToApp(message.data['route'] ?? '') ??
         mapNotificationWebRouteToApp(message.data['href'] ?? '');
-    return route?.trim().isEmpty == true ? null : route;
+    if (route != null && route.trim().isNotEmpty) return route;
+    final type = message.data['type']?.toString().trim().toLowerCase();
+    final notificationId = message.data['notificationId']?.toString().trim();
+    if (type == 'admin_broadcast' &&
+        notificationId != null &&
+        notificationId.isNotEmpty) {
+      return '/notifications/$notificationId';
+    }
+    return null;
   }
 
   String _messageTitle(RemoteMessage message) {

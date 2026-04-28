@@ -26,6 +26,166 @@ class NotificationsPage extends ConsumerStatefulWidget {
   ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
 }
 
+class NotificationDetailPage extends ConsumerWidget {
+  const NotificationDetailPage({super.key, required this.notificationId});
+
+  final int notificationId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(notificationDetailProvider(notificationId));
+    final tokens = Theme.of(context).sdal;
+    return FeatureScaffold(
+      title: 'Bildirim',
+      child: state.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => ErrorView(
+          message: 'Bildirim açılamadı.',
+          onRetry: () =>
+              ref.invalidate(notificationDetailProvider(notificationId)),
+        ),
+        data: (item) {
+          final config = ref.watch(appConfigProvider);
+          final targetRoute = mapNotificationWebRouteToApp(
+            item.target?.route.isNotEmpty == true
+                ? item.target!.route
+                : item.target?.href ?? '',
+          );
+          final targetPath = targetRoute ?? '';
+          final canOpenTarget =
+              targetPath.isNotEmpty &&
+              targetPath != '/notifications/$notificationId';
+          final actions = item.actions
+              .where(
+                (action) =>
+                    action.kind != 'open' && action.endpoint.trim().isNotEmpty,
+              )
+              .toList(growable: false);
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              SurfaceCard(
+                color: item.isUnread ? tokens.accentMuted : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RemoteAvatar(
+                          label: item.sourceName.isNotEmpty
+                              ? item.sourceName
+                              : item.sourceInitials,
+                          imageUrl: item.sourcePhoto.isEmpty
+                              ? ''
+                              : config.resolveUrl(item.sourcePhoto).toString(),
+                          radius: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.sourceName.isEmpty
+                                    ? 'SDAL'
+                                    : item.sourceName,
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                [
+                                  if (item.category.isNotEmpty) item.category,
+                                  if (item.createdAt.isNotEmpty)
+                                    formatSdalTimestamp(
+                                      context,
+                                      item.createdAt,
+                                    ),
+                                ].join(' · '),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      item.message,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (item.imageUrl.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      SdalNetworkImage(
+                        imageUrl: config.resolveUrl(item.imageUrl).toString(),
+                        height: 220,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ],
+                    if (canOpenTarget) ...[
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: () => context.push(targetPath),
+                        icon: const Icon(Icons.open_in_new_outlined),
+                        label: const Text('İlgili içeriğe git'),
+                      ),
+                    ],
+                    if (actions.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final action in actions)
+                            OutlinedButton(
+                              onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                final failedText =
+                                    context.l10n.notificationsActionFailed;
+                                final ok = await ref
+                                    .read(
+                                      notificationsActionControllerProvider
+                                          .notifier,
+                                    )
+                                    .runAction(
+                                      action,
+                                      notificationId: item.id,
+                                      notificationType: item.type,
+                                    );
+                                if (!context.mounted) return;
+                                final actionState = ref.read(
+                                  notificationsActionControllerProvider,
+                                );
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      actionState.message ??
+                                          (ok
+                                              ? '${action.label} tamamlandı.'
+                                              : failedText),
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Text(action.label),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   ProviderSubscription<AsyncValue<PagedResponse<AppNotification>>>?
   _notificationsSubscription;
@@ -468,39 +628,34 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     WidgetRef ref,
     AppNotification item,
   ) async {
+    final isBroadcast = item.type.toLowerCase() == 'admin_broadcast';
+    final mappedItemTarget =
+        mapNotificationWebRouteToApp(item.target?.route ?? '') ??
+        mapNotificationWebRouteToApp(item.target?.href ?? '');
+    final hasExplicitBroadcastTarget =
+        mappedItemTarget != null &&
+        mappedItemTarget.trim().isNotEmpty &&
+        mappedItemTarget != '/notifications/${item.id}';
+    if (isBroadcast && !hasExplicitBroadcastTarget) {
+      context.push('/notifications/${item.id}');
+      return;
+    }
+
     final target = await ref
         .read(notificationsActionControllerProvider.notifier)
         .open(item.id, notificationType: item.type);
     if (!context.mounted) return;
-    if (target == null) {
-      final actionState = ref.read(notificationsActionControllerProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            actionState.message ?? context.l10n.notificationOpenedFailed,
-          ),
-        ),
-      );
+    final route =
+        mapNotificationWebRouteToApp(target?.route ?? '') ??
+        mapNotificationWebRouteToApp(target?.href ?? '') ??
+        mappedItemTarget;
+    if (route != null && route.trim().isNotEmpty) {
+      context.push(route);
       return;
     }
-
-    _markNotificationRead(item.id);
-
-    final appRoute = mapNotificationWebRouteToApp(
-      target.route.isNotEmpty ? target.route : target.href,
-    );
-    if (appRoute != null && appRoute.isNotEmpty) {
-      context.push(appRoute);
-      return;
+    if (isBroadcast) {
+      context.push('/notifications/${item.id}');
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          target.label.isNotEmpty ? target.label : 'Bildirim açıldı.',
-        ),
-      ),
-    );
   }
 
   void _applyFirstPage(PagedResponse<AppNotification> page) {

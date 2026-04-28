@@ -214,6 +214,18 @@ class NotificationsRepository {
     );
   }
 
+  Future<AppNotification> fetchNotificationDetail(int notificationId) async {
+    final result = await openNotification(notificationId);
+    if (!result.ok) {
+      throw StateError(
+        result.message.isNotEmpty ? result.message : 'Bildirim açılamadı.',
+      );
+    }
+    final item = asJsonMap(asJsonMap(result.rawData)['item']);
+    if (item.isEmpty) throw StateError('Bildirim bulunamadı.');
+    return AppNotification.fromMap(item);
+  }
+
   Future<ApiResult<JsonMap>> trackTelemetry(
     List<NotificationTelemetryEvent> events,
   ) {
@@ -304,3 +316,10 @@ final notificationPreferencesProvider =
 final notificationUnreadCountProvider = FutureProvider.autoDispose<int>(
   (ref) => ref.watch(notificationsRepositoryProvider).fetchUnreadCount(),
 );
+
+final notificationDetailProvider = FutureProvider.autoDispose
+    .family<AppNotification, int>(
+      (ref, id) => ref
+          .watch(notificationsRepositoryProvider)
+          .fetchNotificationDetail(id),
+    );

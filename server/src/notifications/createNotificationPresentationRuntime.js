@@ -29,7 +29,10 @@ export function createNotificationPresentationRuntime({
     const imageUrl = String(parsed.imageUrl || parsed.image_url || '').trim();
     const imageShape = String(parsed.imageShape || parsed.image_shape || 'rounded').trim();
     const broadcastId = Number(parsed.broadcastId || parsed.broadcast_id || 0);
-    return { sender, title, body, imageUrl, imageShape, broadcastId };
+    const targetRoute = String(parsed.targetRoute || parsed.target_route || '').trim();
+    const targetHref = String(parsed.targetHref || parsed.target_href || '').trim();
+    const targetLabel = String(parsed.targetLabel || parsed.target_label || '').trim();
+    return { sender, title, body, imageUrl, imageShape, broadcastId, targetRoute, targetHref, targetLabel };
   }
 
   function buildNotificationInitials(row) {
@@ -225,6 +228,30 @@ export function createNotificationPresentationRuntime({
     const sourceUserId = Number(row?.source_user_id || 0);
     const type = String(row?.type || '').trim().toLowerCase();
     const pushNotificationParam = (value) => `${value}${value.includes('?') ? '&' : '?'}notification=${notificationId}`;
+
+    if (type === 'admin_broadcast') {
+      const payload = normalizeAdminBroadcastPayload(row?.message);
+      if (payload.targetRoute || payload.targetHref) {
+        const route = payload.targetRoute || payload.targetHref;
+        const hrefBase = payload.targetHref || payload.targetRoute;
+        return {
+          href: pushNotificationParam(hrefBase),
+          route,
+          entity_type: 'broadcast_target',
+          entity_id: payload.broadcastId || null,
+          label: payload.targetLabel || 'Hedefe git',
+          context: { broadcast: payload.broadcastId || null, notification: notificationId }
+        };
+      }
+      return {
+        href: `/new/notifications/${notificationId}`,
+        route: `/new/notifications/${notificationId}`,
+        entity_type: 'notification',
+        entity_id: notificationId,
+        label: 'Bildirim detayı',
+        context: { notification: notificationId, broadcast: payload.broadcastId || null }
+      };
+    }
 
     if ((type === 'like' || type === 'comment' || type === 'mention_post') && entityId) {
       return {
@@ -470,11 +497,20 @@ export function createNotificationPresentationRuntime({
         context: { announcement: entityId, notification: notificationId, status }
       };
     }
+    if (type === 'admin_broadcast') {
+      return {
+        href: `/new/notifications/${notificationId}`,
+        route: `/new/notifications/${notificationId}`,
+        entity_type: 'notification',
+        entity_id: notificationId || null,
+        context: { notification: notificationId }
+      };
+    }
     return {
-      href: pushNotificationParam('/new'),
-      route: '/new',
-      entity_type: '',
-      entity_id: entityId || null,
+      href: `/new/notifications/${notificationId}`,
+      route: `/new/notifications/${notificationId}`,
+      entity_type: 'notification',
+      entity_id: notificationId || entityId || null,
       context: { notification: notificationId }
     };
   }

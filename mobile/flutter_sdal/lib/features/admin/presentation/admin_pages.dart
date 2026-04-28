@@ -2092,6 +2092,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             String imageUrl,
             String sender,
             String target,
+            String targetLabel,
+            String targetRoute,
             String title,
           })?
         >(
@@ -2108,6 +2110,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
           body: payload.body,
           imageUrl: payload.imageUrl,
           imageShape: payload.imageShape,
+          targetRoute: payload.targetRoute,
+          targetLabel: payload.targetLabel,
         );
     if (!context.mounted) return;
     if (result != null) _refreshCurrentSection();
@@ -4704,6 +4708,7 @@ class _NotificationBroadcastDialogState
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   String _target = 'all';
+  String _clickTargetRoute = '';
   String _imageShape = 'rounded';
   String _imageUrl = '';
   bool _uploadingImage = false;
@@ -4738,6 +4743,7 @@ class _NotificationBroadcastDialogState
                   imageShape: _imageShape,
                   imageUrl: _imageUrl,
                   sender: sender,
+                  clickTargetLabel: _clickTargetLabel,
                   targetLabel: _targetLabel,
                   title: title,
                 )
@@ -4766,6 +4772,58 @@ class _NotificationBroadcastDialogState
                       ],
                       onChanged: (value) =>
                           setState(() => _target = value ?? 'all'),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _clickTargetRoute,
+                      decoration: const InputDecoration(
+                        labelText: 'Bildirime tıklanınca',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: '',
+                          child: Text('Detay sayfası'),
+                        ),
+                        DropdownMenuItem(value: '/new', child: Text('Akış')),
+                        DropdownMenuItem(
+                          value: '/new/profile',
+                          child: Text('Profil'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/requests',
+                          child: Text('Talepler'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/events',
+                          child: Text('Etkinlikler'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/announcements',
+                          child: Text('Duyurular'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/groups',
+                          child: Text('Gruplar'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/network/hub',
+                          child: Text('Ağ merkezi'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/jobs',
+                          child: Text('İş ve fırsatlar'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/opportunities',
+                          child: Text('Keşfet'),
+                        ),
+                        DropdownMenuItem(
+                          value: '/new/albums',
+                          child: Text('Albümler'),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _clickTargetRoute = value ?? ''),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -4900,6 +4958,8 @@ class _NotificationBroadcastDialogState
               imageUrl: _imageUrl,
               sender: sender,
               target: _target,
+              targetLabel: _clickTargetRoute.isEmpty ? '' : _clickTargetLabel,
+              targetRoute: _clickTargetRoute,
               title: title,
             ));
           },
@@ -4930,6 +4990,33 @@ class _NotificationBroadcastDialogState
       case 'all':
       default:
         return 'Tüm aktif üyeler';
+    }
+  }
+
+  String get _clickTargetLabel {
+    switch (_clickTargetRoute) {
+      case '/new':
+        return 'Akış';
+      case '/new/profile':
+        return 'Profil';
+      case '/new/requests':
+        return 'Talepler';
+      case '/new/events':
+        return 'Etkinlikler';
+      case '/new/announcements':
+        return 'Duyurular';
+      case '/new/groups':
+        return 'Gruplar';
+      case '/new/network/hub':
+        return 'Ağ merkezi';
+      case '/new/jobs':
+        return 'İş ve fırsatlar';
+      case '/new/opportunities':
+        return 'Keşfet';
+      case '/new/albums':
+        return 'Albümler';
+      default:
+        return 'Detay sayfası';
     }
   }
 
@@ -5042,6 +5129,12 @@ class _BroadcastDetailDialog extends StatelessWidget {
                 label: 'Gönderen admin',
                 value: item.senderUsername.isEmpty ? '-' : item.senderUsername,
               ),
+              _AdminDetailRow(
+                label: 'Tıklama hedefi',
+                value: item.clickTargetRoute.isEmpty
+                    ? 'Detay sayfası'
+                    : '${item.clickTargetLabel.isEmpty ? 'Hedef' : item.clickTargetLabel} (${item.clickTargetRoute})',
+              ),
               _AdminDetailRow(label: 'Mesaj', value: item.body),
               _AdminDetailRow(
                 label: 'Görsel',
@@ -5094,6 +5187,8 @@ class _BroadcastDetailDialog extends StatelessWidget {
         return 'Android';
       case 'no_device':
         return 'Cihaz yok';
+      case 'not_measured':
+        return 'Push kaydı yok';
       default:
         return platform.isEmpty ? 'Bilinmiyor' : platform;
     }
@@ -5183,6 +5278,7 @@ class _BroadcastPreviewStep extends StatelessWidget {
     required this.imageShape,
     required this.imageUrl,
     required this.sender,
+    required this.clickTargetLabel,
     required this.targetLabel,
     required this.title,
   });
@@ -5191,6 +5287,7 @@ class _BroadcastPreviewStep extends StatelessWidget {
   final String imageShape;
   final String imageUrl;
   final String sender;
+  final String clickTargetLabel;
   final String targetLabel;
   final String title;
 
@@ -5201,7 +5298,7 @@ class _BroadcastPreviewStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '$targetLabel · Gönderen: $sender',
+          '$targetLabel · Gönderen: $sender · Hedef: $clickTargetLabel',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),

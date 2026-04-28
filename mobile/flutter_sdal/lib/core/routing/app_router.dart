@@ -367,6 +367,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     _tabPage(const NotificationsPage()),
               ),
               GoRoute(
+                path: '/notifications/:notificationId',
+                pageBuilder: (context, state) => _liftPage(
+                  NotificationDetailPage(
+                    notificationId:
+                        int.tryParse(
+                          state.pathParameters['notificationId'] ?? '',
+                        ) ??
+                        0,
+                  ),
+                ),
+              ),
+              GoRoute(
                 path: '/requests',
                 pageBuilder: (context, state) => _slidePage(
                   RequestsPage(
@@ -552,7 +564,9 @@ String? moduleKeyForLocation(String location) {
   if (location == '/messenger' || location.startsWith('/messages/')) {
     return 'messenger';
   }
-  if (location == '/notifications') return 'notifications';
+  if (location == '/notifications' || location.startsWith('/notifications/')) {
+    return 'notifications';
+  }
   if (location == '/profile') return 'profile';
   if (location == '/profile/edit' ||
       location == '/profile/photo' ||

@@ -5,9 +5,12 @@ String? mapNotificationWebRouteToApp(String rawRoute) {
   final path = uri?.path ?? value;
   final query = uri != null && uri.hasQuery ? '?${uri.query}' : '';
 
+  if (path == '/new' || path == '/new/feed') return '/feed$query';
   if (path.startsWith('/new/network/hub')) return '/network/hub$query';
   if (path.startsWith('/new/network/inbox')) return '/network/inbox$query';
-  if (path.startsWith('/new/network/teachers')) return '/network/teachers$query';
+  if (path.startsWith('/new/network/teachers')) {
+    return '/network/teachers$query';
+  }
   if (path.startsWith('/new/posts/')) {
     final id = path.split('/').last;
     return '/posts/$id$query';
@@ -45,7 +48,17 @@ String? mapNotificationWebRouteToApp(String rawRoute) {
     final id = path.split('/').last;
     return '/messages/$id';
   }
-  if (path.startsWith('/new/notifications')) return '/notifications$query';
+  if (path.startsWith('/new/notifications/')) {
+    final id = path.split('/').last;
+    return '/notifications/$id';
+  }
+  if (path.startsWith('/new/notifications')) {
+    final notificationId = uri?.queryParameters['notification'] ?? '';
+    if (notificationId.trim().isNotEmpty) {
+      return '/notifications/$notificationId';
+    }
+    return '/notifications$query';
+  }
   return null;
 }
 

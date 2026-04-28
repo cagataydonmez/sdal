@@ -473,9 +473,9 @@ export function createNotificationGovernanceRuntime({
   }
 
   function addNotification(opts) {
-    // Fire-and-forget: runs async via pg pool, does not block the event loop.
-    // Errors are caught internally; callers do not need to await.
-    _addNotificationAsync(opts).catch(() => {});
+    // Callers may either await the inserted notification id or intentionally
+    // ignore the returned promise for fire-and-forget notification creation.
+    return _addNotificationAsync(opts).catch(() => null);
   }
 
   function normalizeNotificationTelemetryEventName(value) {

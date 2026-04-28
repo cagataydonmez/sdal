@@ -641,7 +641,8 @@ export function createNotificationPushRuntime({
       id: Number(notificationId || 0),
       type: notificationType,
       source_user_id: safeSourceUserId,
-      entity_id: Number(entityId || 0) || null
+      entity_id: Number(entityId || 0) || null,
+      message
     });
     const pushMessage = normalizePushMessage(notificationType, message, senderName);
     const payload = {

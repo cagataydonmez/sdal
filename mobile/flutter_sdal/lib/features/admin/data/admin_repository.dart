@@ -408,6 +408,7 @@ class AdminPushDeliveryItem {
   }
 
   String get deviceLabel {
+    if (id <= 0) return 'Push kaydı yok';
     if (deviceId <= 0) return 'Cihaz yok';
     return '$platformLabel #$deviceId';
   }
@@ -449,6 +450,8 @@ class AdminBroadcastResult {
     required this.skipped,
     required this.imageUrl,
     required this.imageShape,
+    required this.targetRoute,
+    required this.targetLabel,
   });
 
   final int id;
@@ -458,6 +461,8 @@ class AdminBroadcastResult {
   final int skipped;
   final String imageUrl;
   final String imageShape;
+  final String targetRoute;
+  final String targetLabel;
 
   factory AdminBroadcastResult.fromMap(JsonMap map) {
     return AdminBroadcastResult(
@@ -471,6 +476,14 @@ class AdminBroadcastResult {
         map['imageShape'],
         map['image_shape'],
       ], fallback: 'rounded'),
+      targetRoute: coalesceText([
+        map['targetRoute'],
+        map['target_route'],
+      ], fallback: ''),
+      targetLabel: coalesceText([
+        map['targetLabel'],
+        map['target_label'],
+      ], fallback: ''),
     );
   }
 }
@@ -485,6 +498,8 @@ class AdminBroadcastHistoryItem {
     required this.body,
     required this.imageUrl,
     required this.imageShape,
+    required this.clickTargetRoute,
+    required this.clickTargetLabel,
     required this.requested,
     required this.inserted,
     required this.skipped,
@@ -502,6 +517,8 @@ class AdminBroadcastHistoryItem {
   final String body;
   final String imageUrl;
   final String imageShape;
+  final String clickTargetRoute;
+  final String clickTargetLabel;
   final int requested;
   final int inserted;
   final int skipped;
@@ -549,6 +566,14 @@ class AdminBroadcastHistoryItem {
         map['image_shape'],
         map['imageShape'],
       ], fallback: 'rounded'),
+      clickTargetRoute: coalesceText([
+        map['target_route'],
+        map['targetRoute'],
+      ], fallback: ''),
+      clickTargetLabel: coalesceText([
+        map['target_label'],
+        map['targetLabel'],
+      ], fallback: ''),
       requested: asInt(map['requested_count']) ?? asInt(map['requested']) ?? 0,
       inserted: asInt(map['inserted_count']) ?? asInt(map['inserted']) ?? 0,
       skipped: asInt(map['skipped_count']) ?? asInt(map['skipped']) ?? 0,
@@ -2483,6 +2508,8 @@ class AdminRepository {
     required String body,
     String imageUrl = '',
     String imageShape = 'rounded',
+    String targetRoute = '',
+    String targetLabel = '',
   }) async {
     final result = await _apiClient.post<JsonMap>(
       '/api/new/admin/notifications/broadcast',
@@ -2493,6 +2520,8 @@ class AdminRepository {
         'body': body,
         if (imageUrl.trim().isNotEmpty) 'imageUrl': imageUrl.trim(),
         'imageShape': imageShape,
+        if (targetRoute.trim().isNotEmpty) 'targetRoute': targetRoute.trim(),
+        if (targetLabel.trim().isNotEmpty) 'targetLabel': targetLabel.trim(),
       },
       decoder: asJsonMap,
     );

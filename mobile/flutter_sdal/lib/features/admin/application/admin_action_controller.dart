@@ -122,6 +122,8 @@ class AdminActionController extends Notifier<AsyncActionState> {
     required String body,
     String imageUrl = '',
     String imageShape = 'rounded',
+    String targetRoute = '',
+    String targetLabel = '',
   }) async {
     final scope = 'admin:notifications:broadcast';
     if (!_begin(scope)) return null;
@@ -133,6 +135,8 @@ class AdminActionController extends Notifier<AsyncActionState> {
         body: body,
         imageUrl: imageUrl,
         imageShape: imageShape,
+        targetRoute: targetRoute,
+        targetLabel: targetLabel,
       );
       _invalidateNotificationPreviews();
       state = AsyncActionState.success(scope: scope);

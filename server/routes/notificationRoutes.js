@@ -51,6 +51,9 @@ export function registerNotificationRoutes(app, {
         body TEXT,
         image_url TEXT,
         image_shape TEXT,
+        target_route TEXT,
+        target_href TEXT,
+        target_label TEXT,
         requested_count INTEGER DEFAULT 0,
         inserted_count INTEGER DEFAULT 0,
         skipped_count INTEGER DEFAULT 0,
@@ -64,7 +67,17 @@ export function registerNotificationRoutes(app, {
         status TEXT,
         created_at TEXT
       )`)
-    ]);
+    ]).then(async () => {
+      for (const column of [
+        ['target_route', 'TEXT'],
+        ['target_href', 'TEXT'],
+        ['target_label', 'TEXT']
+      ]) {
+        try {
+          await sqlRunAsync(`ALTER TABLE notification_broadcasts ADD COLUMN ${column[0]} ${column[1]}`);
+        } catch {}
+      }
+    });
   }
 
   async function pruneNotificationBroadcastHistory({ keep = 10 } = {}) {
@@ -616,6 +629,9 @@ export function registerNotificationRoutes(app, {
       const sender = String(req.body?.sender || req.body?.from || 'SDAL').trim() || 'SDAL';
       const imageUrl = String(req.body?.imageUrl || req.body?.image_url || '').trim();
       const imageShape = String(req.body?.imageShape || req.body?.image_shape || 'rounded').trim().toLowerCase();
+      const targetRoute = String(req.body?.targetRoute || req.body?.target_route || '').trim();
+      const targetHref = String(req.body?.targetHref || req.body?.target_href || '').trim();
+      const targetLabel = String(req.body?.targetLabel || req.body?.target_label || '').trim();
       if (!['all', 'verified', 'admins'].includes(target)) {
         return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_TARGET_INVALID', 'Geçersiz hedef kitle.');
       }
@@ -625,11 +641,20 @@ export function registerNotificationRoutes(app, {
       if (imageUrl && !/^(https?:\/\/|\/uploads\/|\/api\/media\/|\/media\/)/i.test(imageUrl)) {
         return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_IMAGE_INVALID', 'Görsel adresi geçersiz.');
       }
+      if (targetRoute && !targetRoute.startsWith('/')) {
+        return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_TARGET_ROUTE_INVALID', 'Bildirim hedefi geçersiz.');
+      }
+      if (targetHref && !targetHref.startsWith('/')) {
+        return sendApiError(res, 400, 'ADMIN_NOTIFICATIONS_BROADCAST_TARGET_HREF_INVALID', 'Bildirim bağlantısı geçersiz.');
+      }
       const safeTitle = String(title).slice(0, 120);
       const safeBody = String(body).slice(0, 500);
       const safeSender = String(sender).slice(0, 80);
       const safeImageUrl = imageUrl.slice(0, 1000);
       const safeImageShape = ['rounded', 'square', 'circle'].includes(imageShape) ? imageShape : 'rounded';
+      const safeTargetRoute = targetRoute.slice(0, 500);
+      const safeTargetHref = (targetHref || targetRoute).slice(0, 500);
+      const safeTargetLabel = targetLabel.slice(0, 80);
       const whereParts = [
         "LOWER(COALESCE(CAST(aktiv AS TEXT), '1')) NOT IN ('0', 'false', 'hayir', 'hayır', 'no')",
         "LOWER(COALESCE(CAST(yasak AS TEXT), '0')) NOT IN ('1', 'true', 'evet', 'yes')"
@@ -649,9 +674,9 @@ export function registerNotificationRoutes(app, {
       const now = new Date().toISOString();
       const broadcastResult = await sqlRunAsync(
         `INSERT INTO notification_broadcasts
-          (sender_user_id, sender_label, target, title, body, image_url, image_shape, requested_count, inserted_count, skipped_count, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
-        [req.session.userId || null, safeSender, target, safeTitle, safeBody, safeImageUrl, safeImageShape, (users || []).length, now]
+          (sender_user_id, sender_label, target, title, body, image_url, image_shape, target_route, target_href, target_label, requested_count, inserted_count, skipped_count, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+        [req.session.userId || null, safeSender, target, safeTitle, safeBody, safeImageUrl, safeImageShape, safeTargetRoute, safeTargetHref, safeTargetLabel, (users || []).length, now]
       );
       const broadcastId = Number(broadcastResult?.lastInsertRowid || broadcastResult?.lastID || 0);
       const message = JSON.stringify({
@@ -660,6 +685,9 @@ export function registerNotificationRoutes(app, {
         body: safeBody,
         imageUrl: safeImageUrl,
         imageShape: safeImageShape,
+        targetRoute: safeTargetRoute,
+        targetHref: safeTargetHref,
+        targetLabel: safeTargetLabel,
         broadcastId
       });
       let inserted = 0;
@@ -698,6 +726,9 @@ export function registerNotificationRoutes(app, {
           sender: safeSender,
           imageUrl: safeImageUrl,
           imageShape: safeImageShape,
+          targetRoute: safeTargetRoute,
+          targetHref: safeTargetHref,
+          targetLabel: safeTargetLabel,
           requested: (users || []).length,
           inserted,
           skipped
@@ -708,6 +739,9 @@ export function registerNotificationRoutes(app, {
           sender: safeSender,
           imageUrl: safeImageUrl,
           imageShape: safeImageShape,
+          targetRoute: safeTargetRoute,
+          targetHref: safeTargetHref,
+          targetLabel: safeTargetLabel,
           requested: (users || []).length,
           inserted,
           skipped
@@ -728,7 +762,8 @@ export function registerNotificationRoutes(app, {
       const rows = await sqlAllAsync(
         `SELECT b.id, b.sender_user_id, b.sender_label, b.target, b.title, b.body,
                 b.image_url, b.image_shape, b.requested_count, b.inserted_count,
-                b.skipped_count, b.created_at, u.kadi AS sender_username
+                b.skipped_count, b.target_route, b.target_href, b.target_label,
+                b.created_at, u.kadi AS sender_username
          FROM notification_broadcasts b
          LEFT JOIN uyeler u ON u.id = b.sender_user_id
          ORDER BY b.id DESC
@@ -773,7 +808,10 @@ export function registerNotificationRoutes(app, {
         const platformSummary = {};
         const deliverySummary = {};
         for (const detail of details) {
-          const platform = String(detail?.platform || 'no_device').trim().toLowerCase();
+          const hasPushAudit = Number(detail?.delivery_id || 0) > 0;
+          const platform = hasPushAudit
+            ? String(detail?.platform || 'no_device').trim().toLowerCase()
+            : 'not_measured';
           const status = String(detail?.delivery_status || detail?.recipient_status || 'unknown').trim().toLowerCase();
           platformSummary[platform] = (platformSummary[platform] || 0) + 1;
           deliverySummary[status] = (deliverySummary[status] || 0) + 1;
