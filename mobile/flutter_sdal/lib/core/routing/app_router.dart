@@ -112,6 +112,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _slidePage(const PasswordResetPage()),
       ),
       GoRoute(
+        path: '/phone-verification',
+        pageBuilder: (context, state) =>
+            _slidePage(const PhoneVerificationPage()),
+      ),
+      GoRoute(
         path: '/device-challenge',
         pageBuilder: (context, state) =>
             _slidePage(const DeviceEmailChallengePage()),
@@ -516,6 +521,14 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
 
   if (!snapshot.isAuthenticated) {
     return publicRoutes.contains(location) ? null : '/login';
+  }
+
+  if (snapshot.requiresPhoneVerification) {
+    return location == '/phone-verification' ? null : '/phone-verification';
+  }
+
+  if (location == '/phone-verification') {
+    return snapshot.defaultHomePath;
   }
 
   if ((publicRoutes.contains(location) && location != '/legal') ||

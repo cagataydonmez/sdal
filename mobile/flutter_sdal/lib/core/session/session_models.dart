@@ -139,6 +139,8 @@ class SessionSnapshot {
   bool get hasAdminAccess => user?.hasAdminAccess ?? false;
   bool get isModerator => user?.isModerator ?? false;
   bool get requiresProfileCompletion => user?.state == 'incomplete';
+  bool get requiresPhoneVerification =>
+      user?.state == 'phone_verification_required';
   bool get requiresVerification =>
       isAuthenticated && !(user?.isVerified ?? false);
 
@@ -154,6 +156,7 @@ class SessionSnapshot {
   }
 
   String get defaultHomePath {
+    if (requiresPhoneVerification) return '/phone-verification';
     final webPath = siteAccess.defaultLandingPage;
     if (webPath.startsWith('/new/explore')) return '/explore';
     if (webPath.startsWith('/new/opportunities')) return '/explore';

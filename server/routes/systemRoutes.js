@@ -143,14 +143,9 @@ export function registerSystemRoutes(app, deps) {
     if (!req.session.userId) {
       return res.json({ user: null });
     }
-    if (authSecurity && await authSecurity.isPhoneVerificationPending(req.session.userId)) {
-      return res.json({
-        user: null,
-        auth: {
-          phone_verification_required: true
-        }
-      });
-    }
+    const phoneVerificationPending = authSecurity
+      ? await authSecurity.isPhoneVerificationPending(req.session.userId)
+      : false;
     const current = getCurrentUser(req);
     const user = current
       ? {
@@ -188,7 +183,9 @@ export function registerSystemRoutes(app, deps) {
     const profileIncomplete = typeof isProfileIncomplete === 'function'
       ? isProfileIncomplete(user)
       : isOAuthProfileIncomplete(user);
-    const state = profileIncomplete ? 'incomplete' : 'active';
+    const state = phoneVerificationPending
+      ? 'phone_verification_required'
+      : profileIncomplete ? 'incomplete' : 'active';
     const role = getUserRole(user);
     const moderationPermissionKeys = role === 'mod' ? getModeratorPermissionSummary(user.id).assignedKeys : [];
     res.json({ user: { ...user, role, admin: roleAtLeast(role, 'admin') ? 1 : 0, state, moderationPermissionKeys } });

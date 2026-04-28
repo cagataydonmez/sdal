@@ -1653,6 +1653,33 @@ class _PhoneVerificationStepState
   }
 }
 
+class PhoneVerificationPage extends StatefulWidget {
+  const PhoneVerificationPage({super.key});
+
+  @override
+  State<PhoneVerificationPage> createState() => _PhoneVerificationPageState();
+}
+
+class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
+  final _phoneController = TextEditingController();
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AuthFrame(
+      title: 'Telefon doğrulama',
+      subtitle: 'Telefon numaranızı tek seferlik doğrulayın.',
+      showAppBar: false,
+      child: _PhoneVerificationStep(phoneController: _phoneController),
+    );
+  }
+}
+
 String _normalizePhoneForAuth(String raw, {bool live = false}) {
   final text = raw.trim();
   if (text.isEmpty) return '';
