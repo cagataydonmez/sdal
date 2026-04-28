@@ -31,6 +31,7 @@ import { registerAdminLanguageRoutes } from './routes/adminLanguageRoutes.js';
 import { registerAdminSecurityRoutes } from './routes/adminSecurityRoutes.js';
 import { registerAdminRootRoutes } from './routes/adminRootRoutes.js';
 import { registerAccountRoutes } from './routes/accountRoutes.js';
+import { createAuthSecurityRuntime } from './routes/authSecurityRoutes.js';
 import { registerEventJobRoutes } from './routes/eventJobRoutes.js';
 import { registerGroupRoutes } from './routes/groupRoutes.js';
 import { registerMemberCommunicationRoutes } from './routes/memberCommunicationRoutes.js';
@@ -901,6 +902,7 @@ const {
   verifyPassword,
   isRootUser,
   selectCompatUserById,
+  selectCompatUserByIdAsync,
   getCurrentUser,
   MIN_GRADUATION_YEAR,
   MAX_GRADUATION_YEAR,
@@ -3648,6 +3650,20 @@ const {
   adminLiveCacheTtlMs: ADMIN_LIVE_CACHE_TTL_MS
 });
 
+const authSecurity = createAuthSecurityRuntime({
+  dbDriver,
+  sqlGetAsync,
+  sqlAllAsync,
+  sqlRunAsync,
+  writeAppLog,
+  queueEmailDelivery,
+  resolvePublicBaseUrl,
+  escapeHtml,
+  applyUserSession,
+  selectCompatUserByIdAsync,
+  requireAuth
+});
+
 const phase1Domain = createPhase1DomainLayer({
   sqlGet,
   sqlAll,
@@ -3664,6 +3680,7 @@ const phase1Domain = createPhase1DomainLayer({
   verifyPassword,
   hashPassword,
   applyUserSession,
+  authSecurity,
   enrichWithVariants,
   getImageVariants,
   getImageVariantsBatch,
@@ -3743,7 +3760,8 @@ registerSystemRoutes(app, {
   isOAuthProfileIncomplete,
   getUserRole,
   roleAtLeast,
-  getModeratorPermissionSummary
+  getModeratorPermissionSummary,
+  authSecurity
 });
 
 registerOAuthRoutes(app, {
@@ -3771,6 +3789,8 @@ registerOAuthRoutes(app, {
 app.post('/api/auth/login', loginRateLimit, phase1Domain.controllers.auth.login);
 
 app.post('/api/auth/logout', phase1Domain.controllers.auth.logout);
+
+authSecurity.registerRoutes(app);
 
 registerAdminModerationRoutes(app, {
   sqlGet,
@@ -3960,7 +3980,8 @@ registerAccountRoutes(app, {
   mailSender,
   mailProviderStatus,
   escapeHtml,
-  rbacService
+  rbacService,
+  authSecurity
 });
 registerProfileSelfServiceRoutes(app, {
   requireAuth,
@@ -5422,6 +5443,7 @@ const { attachWebSocketServers } = createWebSocketRuntime({
 
 async function onServerStarted() {
   await ensureRuntimeDefaults();
+  await authSecurity.ensureSchema();
   await rbacService.seedDefaults();
   await ensureRootBootstrapAccount();
   const usersTableName = dbDriver === 'postgres' ? 'users' : 'uyeler';

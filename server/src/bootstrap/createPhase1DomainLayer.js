@@ -131,7 +131,8 @@ export function createPhase1DomainLayer(deps) {
   const controllers = {
     auth: createAuthController({
       authService: services.auth,
-      applyUserSession: deps.applyUserSession
+      applyUserSession: deps.applyUserSession,
+      authSecurity: deps.authSecurity
     }),
     feed: createFeedController({
       feedService: services.feed,

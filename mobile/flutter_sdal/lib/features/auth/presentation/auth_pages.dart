@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -82,6 +83,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           },
         ).toString(),
       );
+      return;
+    }
+    if (result.deviceChallengeRequired) {
+      context.go('/device-challenge');
       return;
     }
     if (!result.success) {
@@ -1220,6 +1225,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
   late final TextEditingController _passwordController;
   late final TextEditingController _codeController;
   late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
   final _codeFocusNode = FocusNode();
   Timer? _resendTimer;
   int _resendSecondsLeft = 0;
@@ -1232,6 +1238,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
     _passwordController = TextEditingController();
     _codeController = TextEditingController(text: widget.code);
     _emailController = TextEditingController(text: widget.email);
+    _phoneController = TextEditingController();
     if (widget.memberId.isNotEmpty && widget.code.isNotEmpty) {
       Future<void>.microtask(_submit);
     } else {
@@ -1249,6 +1256,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
     _passwordController.dispose();
     _codeController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _codeFocusNode.dispose();
     super.dispose();
   }
@@ -1313,102 +1321,286 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
         _usernameController.text.trim().isNotEmpty &&
         _emailController.text.trim().isNotEmpty;
     final isLegacyLinkActivation = _memberIdController.text.trim().isNotEmpty;
+    final activationComplete =
+        actionState.scope == 'activate' && actionState.isSuccess;
 
     return _AuthFrame(
       title: l10n.activationTitle,
-      subtitle: isRegistrationActivation
+      subtitle: activationComplete && isRegistrationActivation
+          ? 'Telefon numaranızı tek seferlik doğrulayın.'
+          : isRegistrationActivation
           ? 'E-postadaki aktivasyon kodunu girin.'
           : 'Kullanıcı adı, şifre ve aktivasyon kodunu girin.',
       child: AutofillGroup(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (isLegacyLinkActivation) ...[
-              TextField(
-                controller: _memberIdController,
-                readOnly: true,
-                decoration: InputDecoration(labelText: l10n.memberId),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (isRegistrationActivation) ...[
-              _ReadOnlyActivationLine(
-                label: l10n.username,
-                value: _usernameController.text.trim(),
+            if (activationComplete && isRegistrationActivation) ...[
+              _PhoneVerificationStep(phoneController: _phoneController),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => context.go('/login'),
+                child: const Text('Daha sonra giriş sayfasına dön'),
               ),
             ] else ...[
-              TextField(
-                controller: _usernameController,
-                autofillHints: const [AutofillHints.username],
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(labelText: l10n.username),
-              ),
-            ],
-            if (!isRegistrationActivation && !isLegacyLinkActivation) ...[
+              if (isLegacyLinkActivation) ...[
+                TextField(
+                  controller: _memberIdController,
+                  readOnly: true,
+                  decoration: InputDecoration(labelText: l10n.memberId),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (isRegistrationActivation) ...[
+                _ReadOnlyActivationLine(
+                  label: l10n.username,
+                  value: _usernameController.text.trim(),
+                ),
+              ] else ...[
+                TextField(
+                  controller: _usernameController,
+                  autofillHints: const [AutofillHints.username],
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(labelText: l10n.username),
+                ),
+              ],
+              if (!isRegistrationActivation && !isLegacyLinkActivation) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  autofillHints: const [AutofillHints.password],
+                  keyboardType: TextInputType.visiblePassword,
+                  textInputAction: TextInputAction.next,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: InputDecoration(labelText: l10n.password),
+                ),
+              ],
+              if (isRegistrationActivation) ...[
+                const SizedBox(height: 12),
+                _ReadOnlyActivationLine(
+                  label: l10n.email,
+                  value: _emailController.text.trim(),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
-                controller: _passwordController,
-                obscureText: true,
-                autofillHints: const [AutofillHints.password],
-                keyboardType: TextInputType.visiblePassword,
-                textInputAction: TextInputAction.next,
+                controller: _codeController,
+                focusNode: _codeFocusNode,
+                autofocus: true,
+                autofillHints: const [AutofillHints.oneTimeCode],
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.done,
                 autocorrect: false,
                 enableSuggestions: false,
-                decoration: InputDecoration(labelText: l10n.password),
+                onSubmitted: (_) => _submit(),
+                decoration: InputDecoration(labelText: l10n.activationCode),
               ),
-            ],
-            if (isRegistrationActivation) ...[
-              const SizedBox(height: 12),
-              _ReadOnlyActivationLine(
-                label: l10n.email,
-                value: _emailController.text.trim(),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _codeController,
-              focusNode: _codeFocusNode,
-              autofocus: true,
-              autofillHints: const [AutofillHints.oneTimeCode],
-              keyboardType: TextInputType.text,
-              textInputAction: TextInputAction.done,
-              autocorrect: false,
-              enableSuggestions: false,
-              onSubmitted: (_) => _submit(),
-              decoration: InputDecoration(labelText: l10n.activationCode),
-            ),
-            if (status != null) ...[const SizedBox(height: 12), Text(status)],
-            if (resendStatus != null) ...[
-              const SizedBox(height: 12),
-              Text(resendStatus),
-            ],
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: submitting ? null : _submit,
-              child: Text(
-                submitting
-                    ? l10n.activationChecking
-                    : l10n.activationSubmitAction,
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (_emailController.text.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: (resending || _resendSecondsLeft > 0)
-                    ? null
-                    : _resend,
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(
-                  _resendSecondsLeft > 0
-                      ? 'Tekrar gönder ($_resendSecondsLeft sn)'
-                      : l10n.resendAction,
+              if (status != null) ...[const SizedBox(height: 12), Text(status)],
+              if (resendStatus != null) ...[
+                const SizedBox(height: 12),
+                Text(resendStatus),
+              ],
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: submitting ? null : _submit,
+                child: Text(
+                  submitting
+                      ? l10n.activationChecking
+                      : l10n.activationSubmitAction,
                 ),
               ),
+              const SizedBox(height: 10),
+              if (_emailController.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: (resending || _resendSecondsLeft > 0)
+                      ? null
+                      : _resend,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: Text(
+                    _resendSecondsLeft > 0
+                        ? 'Tekrar gönder ($_resendSecondsLeft sn)'
+                        : l10n.resendAction,
+                  ),
+                ),
+              ],
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PhoneVerificationStep extends ConsumerStatefulWidget {
+  const _PhoneVerificationStep({required this.phoneController});
+
+  final TextEditingController phoneController;
+
+  @override
+  ConsumerState<_PhoneVerificationStep> createState() =>
+      _PhoneVerificationStepState();
+}
+
+class _PhoneVerificationStepState
+    extends ConsumerState<_PhoneVerificationStep> {
+  final _otpController = TextEditingController();
+  String _verificationId = '';
+  int? _resendToken;
+  String? _status;
+  bool _sending = false;
+  bool _verifying = false;
+
+  @override
+  void dispose() {
+    _otpController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendCode() async {
+    final phone = widget.phoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _status = 'Telefon numaranızı girin.');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _status = null;
+    });
+    final allowed = await ref
+        .read(authActionControllerProvider.notifier)
+        .startPhoneVerification(phoneNumber: phone);
+    if (!mounted) return;
+    if (!allowed) {
+      setState(() {
+        _sending = false;
+        _status =
+            ref.read(authActionControllerProvider).message ??
+            'Too many attempts. Please try again later.';
+      });
+      return;
+    }
+    await FirebaseAuth.instance.verifyPhoneNumber(
+      phoneNumber: phone,
+      forceResendingToken: _resendToken,
+      verificationCompleted: (credential) async {
+        final userCredential = await FirebaseAuth.instance.signInWithCredential(
+          credential,
+        );
+        final token = await userCredential.user?.getIdToken();
+        if (token != null) await _completeWithToken(token);
+      },
+      verificationFailed: (error) {
+        if (!mounted) return;
+        setState(() {
+          _sending = false;
+          _status = 'Invalid code or expired session.';
+        });
+      },
+      codeSent: (verificationId, resendToken) {
+        if (!mounted) return;
+        setState(() {
+          _sending = false;
+          _verificationId = verificationId;
+          _resendToken = resendToken;
+          _status = 'SMS kodu gönderildi.';
+        });
+      },
+      codeAutoRetrievalTimeout: (verificationId) {
+        _verificationId = verificationId;
+      },
+    );
+  }
+
+  Future<void> _verifyCode() async {
+    if (_verificationId.isEmpty || _otpController.text.trim().isEmpty) {
+      setState(() => _status = 'SMS kodunu girin.');
+      return;
+    }
+    setState(() {
+      _verifying = true;
+      _status = null;
+    });
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId,
+        smsCode: _otpController.text.trim(),
+      );
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      final token = await userCredential.user?.getIdToken();
+      if (token == null) throw StateError('missing firebase token');
+      await _completeWithToken(token);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _verifying = false;
+        _status = 'Invalid code or expired session.';
+      });
+    }
+  }
+
+  Future<void> _completeWithToken(String token) async {
+    final ok = await ref
+        .read(authActionControllerProvider.notifier)
+        .completePhoneVerification(
+          phoneNumber: widget.phoneController.text.trim(),
+          firebaseIdToken: token,
+        );
+    if (!mounted) return;
+    setState(() {
+      _sending = false;
+      _verifying = false;
+      _status = ok
+          ? 'Telefon ve cihaz doğrulandı.'
+          : ref.read(authActionControllerProvider).message ??
+                'Invalid code or expired session.';
+    });
+    if (ok) context.go('/');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: widget.phoneController,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Telefon numarası',
+            hintText: '+905551112233',
+            prefixIcon: Icon(Icons.phone_iphone_rounded),
+          ),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: _sending ? null : _sendCode,
+          icon: const Icon(Icons.sms_outlined),
+          label: Text(_sending ? 'Gönderiliyor...' : 'SMS kodu gönder'),
+        ),
+        if (_verificationId.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _otpController,
+            autofillHints: const [AutofillHints.oneTimeCode],
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'SMS kodu',
+              prefixIcon: Icon(Icons.password_rounded),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: _verifying ? null : _verifyCode,
+            child: Text(_verifying ? 'Doğrulanıyor...' : 'Kodu doğrula'),
+          ),
+        ],
+        if (_status != null) ...[const SizedBox(height: 12), Text(_status!)],
+      ],
     );
   }
 }
@@ -1539,6 +1731,73 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
                   ? l10n.submitInProgress
                   : l10n.passwordResetSubmitAction,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DeviceEmailChallengePage extends ConsumerStatefulWidget {
+  const DeviceEmailChallengePage({super.key});
+
+  @override
+  ConsumerState<DeviceEmailChallengePage> createState() =>
+      _DeviceEmailChallengePageState();
+}
+
+class _DeviceEmailChallengePageState
+    extends ConsumerState<DeviceEmailChallengePage> {
+  final _codeController = TextEditingController();
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final ok = await ref
+        .read(authActionControllerProvider.notifier)
+        .completeDeviceEmailChallenge(code: _codeController.text.trim());
+    if (ok && mounted) context.go('/');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actionState = ref.watch(authActionControllerProvider);
+    final submitting =
+        actionState.isLoading && actionState.scope == 'deviceChallenge';
+    final status = actionState.scope == 'deviceChallenge'
+        ? actionState.message
+        : null;
+    return _AuthFrame(
+      title: 'Cihaz doğrulama',
+      subtitle: 'Yeni cihazdan giriş için e-postadaki kodu girin.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _codeController,
+            autofocus: true,
+            autofillHints: const [AutofillHints.oneTimeCode],
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'E-posta kodu',
+              prefixIcon: Icon(Icons.mark_email_read_outlined),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+          if (status != null) ...[const SizedBox(height: 12), Text(status)],
+          const SizedBox(height: 18),
+          FilledButton(
+            onPressed: submitting ? null : _submit,
+            child: Text(submitting ? 'Doğrulanıyor...' : 'Cihazı doğrula'),
+          ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: submitting ? null : () => context.go('/login'),
+            child: const Text('Giriş sayfasına dön'),
           ),
         ],
       ),

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import '../../../app/providers.dart';
 import '../../../core/network/json_utils.dart';
+import '../../../core/security/device_identity_service.dart';
 import '../../../core/state/async_action_state.dart';
 import '../../../core/session/session_controller.dart';
 import '../data/auth_repository.dart';
@@ -17,6 +18,7 @@ class LoginActionResult {
     required this.success,
     this.activationRequired = false,
     this.captchaRequired = false,
+    this.deviceChallengeRequired = false,
     this.memberId = '',
     this.username = '',
     this.email = '',
@@ -26,6 +28,7 @@ class LoginActionResult {
   final bool success;
   final bool activationRequired;
   final bool captchaRequired;
+  final bool deviceChallengeRequired;
   final String memberId;
   final String username;
   final String email;
@@ -51,6 +54,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     String captcha = '',
   }) async {
     state = const AsyncActionState.loading(scope: 'login');
+    final device = await ref.read(deviceIdentityServiceProvider).metadata();
     final result = await ref
         .read(apiClientProvider)
         .post<JsonMap>(
@@ -59,6 +63,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
             'kadi': username,
             'sifre': password,
             if (captcha.trim().isNotEmpty) 'gkodu': captcha.trim(),
+            ...device.toJson(),
           },
           decoder: asJsonMap,
         );
@@ -81,6 +86,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     String captcha = '',
   }) async {
     state = const AsyncActionState.loading(scope: 'login');
+    final device = await ref.read(deviceIdentityServiceProvider).metadata();
     final result = await ref
         .read(apiClientProvider)
         .post<JsonMap>(
@@ -89,6 +95,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
             'kadi': username,
             'sifre': password,
             if (captcha.trim().isNotEmpty) 'gkodu': captcha.trim(),
+            ...device.toJson(),
           },
           decoder: asJsonMap,
         );
@@ -115,6 +122,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
       success: false,
       activationRequired: code == 'ACTIVATION_REQUIRED',
       captchaRequired: code == 'CAPTCHA_REQUIRED' || code == 'CAPTCHA_INVALID',
+      deviceChallengeRequired: code == 'DEVICE_CHALLENGE_REQUIRED',
       memberId: asString(payload['memberId']) ?? '',
       username:
           asString(payload['username']) ??
@@ -177,6 +185,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     required bool directoryConsent,
   }) async {
     state = const AsyncActionState.loading(scope: 'register');
+    final device = await ref.read(deviceIdentityServiceProvider).metadata();
     final result = await ref
         .read(apiClientProvider)
         .post<JsonMap>(
@@ -192,6 +201,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
             'gkodu': captcha,
             'kvkk_consent': kvkkConsent,
             'directory_consent': directoryConsent,
+            ...device.toJson(),
           },
           decoder: asJsonMap,
         );
@@ -238,8 +248,6 @@ class AuthActionController extends Notifier<AsyncActionState> {
               );
     if (!ref.mounted) return;
     if (result.ok) {
-      await ref.read(sessionControllerProvider.notifier).refreshSilently();
-      if (!ref.mounted) return;
       state = AsyncActionState.success(
         message: result.message.isNotEmpty
             ? result.message
@@ -254,6 +262,87 @@ class AuthActionController extends Notifier<AsyncActionState> {
           : 'Aktivasyon başarısız.',
       scope: 'activate',
     );
+  }
+
+  Future<bool> startPhoneVerification({required String phoneNumber}) async {
+    state = const AsyncActionState.loading(scope: 'phoneStart');
+    final device = await ref.read(deviceIdentityServiceProvider).metadata();
+    final result = await ref
+        .read(apiClientProvider)
+        .post<JsonMap>(
+          '/api/auth/phone/start',
+          body: {'phone_number': phoneNumber, 'device_id': device.deviceId},
+          decoder: asJsonMap,
+        );
+    if (!ref.mounted) return false;
+    state = result.ok
+        ? const AsyncActionState.success(scope: 'phoneStart')
+        : AsyncActionState.error(
+            message: result.message.isNotEmpty
+                ? result.message
+                : 'Too many attempts. Please try again later.',
+            scope: 'phoneStart',
+          );
+    return result.ok;
+  }
+
+  Future<bool> completePhoneVerification({
+    required String phoneNumber,
+    required String firebaseIdToken,
+  }) async {
+    state = const AsyncActionState.loading(scope: 'phoneComplete');
+    final device = await ref.read(deviceIdentityServiceProvider).metadata();
+    final result = await ref
+        .read(apiClientProvider)
+        .post<JsonMap>(
+          '/api/auth/phone/complete',
+          body: {
+            'phone_number': phoneNumber,
+            'firebase_id_token': firebaseIdToken,
+            ...device.toJson(),
+          },
+          decoder: asJsonMap,
+        );
+    if (!ref.mounted) return false;
+    if (result.ok) {
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return true;
+      state = const AsyncActionState.success(scope: 'phoneComplete');
+      return true;
+    }
+    state = AsyncActionState.error(
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Invalid code or expired session.',
+      scope: 'phoneComplete',
+    );
+    return false;
+  }
+
+  Future<bool> completeDeviceEmailChallenge({required String code}) async {
+    state = const AsyncActionState.loading(scope: 'deviceChallenge');
+    final device = await ref.read(deviceIdentityServiceProvider).metadata();
+    final result = await ref
+        .read(apiClientProvider)
+        .post<JsonMap>(
+          '/api/auth/device/challenge/complete',
+          body: {...device.toJson(), 'code': code.trim()},
+          decoder: asJsonMap,
+        );
+    if (!ref.mounted) return false;
+    if (result.ok) {
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return true;
+      state = const AsyncActionState.success(scope: 'deviceChallenge');
+      return true;
+    }
+    state = AsyncActionState.error(
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Invalid code or expired session.',
+      scope: 'deviceChallenge',
+    );
+    return false;
   }
 
   Future<void> resendActivation({

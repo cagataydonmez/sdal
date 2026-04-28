@@ -22,7 +22,8 @@ export function registerSystemRoutes(app, deps) {
     isOAuthProfileIncomplete,
     getUserRole,
     roleAtLeast,
-    getModeratorPermissionSummary
+    getModeratorPermissionSummary,
+    authSecurity
   } = deps;
 
   async function healthHandler(_req, res) {
@@ -138,9 +139,17 @@ export function registerSystemRoutes(app, deps) {
     });
   });
 
-  app.get('/api/session', (req, res) => {
+  app.get('/api/session', async (req, res) => {
     if (!req.session.userId) {
       return res.json({ user: null });
+    }
+    if (authSecurity && await authSecurity.isPhoneVerificationPending(req.session.userId)) {
+      return res.json({
+        user: null,
+        auth: {
+          phone_verification_required: true
+        }
+      });
     }
     const current = getCurrentUser(req);
     const user = current

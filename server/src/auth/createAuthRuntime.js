@@ -543,6 +543,7 @@ export function createAuthRuntime({
     verifyPassword,
     isRootUser,
     selectCompatUserById,
+    selectCompatUserByIdAsync,
     getCurrentUser,
     MIN_GRADUATION_YEAR,
     MAX_GRADUATION_YEAR,

@@ -12,6 +12,7 @@ const RegisterPreviewSchema = z.object({
   gkodu: z.string().optional().default(''),
   kvkk_consent: z.any().optional(),
   directory_consent: z.any().optional(),
+  device_id: z.string().max(128).optional().default(''),
 });
 
 const RegisterCheckSchema = z.object({
@@ -57,7 +58,8 @@ export function registerAccountRoutes(app, deps) {
     mailSender,
     mailProviderStatus,
     escapeHtml,
-    rbacService
+    rbacService,
+    authSecurity
   } = deps;
   const validateMail = validateEmail;
 
@@ -85,6 +87,10 @@ export function registerAccountRoutes(app, deps) {
       const cleanEmail = normalizeEmail(email);
       const cleanIsim = String(isim || '').trim();
       const cleanSoyisim = String(soyisim || '').trim();
+      const signupGate = authSecurity
+        ? await authSecurity.checkSignupAllowed(req, { email: cleanEmail, deviceId: req.body?.device_id || '' })
+        : { ok: true };
+      if (!signupGate.ok) return res.status(429).json({ ok: false, code: 'SIGNUP_RATE_LIMITED', message: signupGate.message });
 
       const cleanCaptcha = String(gkodu || '').trim();
       if (!e2eMode) {
@@ -238,6 +244,10 @@ export function registerAccountRoutes(app, deps) {
       const cleanEmail = normalizeEmail(email);
       const cleanIsim = String(isim || '').trim();
       const cleanSoyisim = String(soyisim || '').trim();
+      const signupGate = authSecurity
+        ? await authSecurity.checkSignupAllowed(req, { email: cleanEmail, deviceId: req.body?.device_id || '' })
+        : { ok: true };
+      if (!signupGate.ok) return res.status(429).json({ ok: false, code: 'SIGNUP_RATE_LIMITED', message: signupGate.message });
       const traceE2E = (step, meta = {}) => {
         if (!e2eMode) return;
         writeAppLog('info', 'register_e2e_step', {
@@ -347,6 +357,9 @@ export function registerAccountRoutes(app, deps) {
       );
       const newId = result?.lastInsertRowid;
       traceE2E('after_insert', { userId: Number(newId || 0) });
+      if (!e2eMode && newId && authSecurity) {
+        await authSecurity.markSignupCreated(req, { userId: Number(newId), email: cleanEmail, deviceId: req.body?.device_id || '' });
+      }
 
       if (newId && rbacService?.assignDefaultUserGroup) {
         await rbacService.assignDefaultUserGroup(newId, newId);

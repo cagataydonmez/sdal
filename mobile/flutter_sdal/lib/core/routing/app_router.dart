@@ -112,6 +112,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _slidePage(const PasswordResetPage()),
       ),
       GoRoute(
+        path: '/device-challenge',
+        pageBuilder: (context, state) =>
+            _slidePage(const DeviceEmailChallengePage()),
+      ),
+      GoRoute(
         path: '/legal',
         pageBuilder: (context, state) {
           final extra = state.extra is Map ? state.extra as Map : const {};
@@ -496,6 +501,7 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
     '/activation/resend',
     '/legal',
     '/password-reset',
+    '/device-challenge',
     '/profile/email-change/verify',
     '/oauth/callback',
   };
