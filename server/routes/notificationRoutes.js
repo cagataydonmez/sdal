@@ -67,6 +67,41 @@ export function registerNotificationRoutes(app, {
     ]);
   }
 
+  async function pruneNotificationBroadcastHistory({ keep = 10 } = {}) {
+    await ensureNotificationBroadcastTables();
+    const safeKeep = Math.min(Math.max(Number(keep || 10), 1), 50);
+    const keptRows = await sqlAllAsync(
+      'SELECT id FROM notification_broadcasts ORDER BY id DESC LIMIT ?',
+      [safeKeep]
+    );
+    const keptIds = (keptRows || []).map((row) => Number(row?.id || 0)).filter((id) => id > 0);
+    if (keptIds.length === 0) return;
+    const placeholders = keptIds.map(() => '?').join(',');
+    await sqlRunAsync(
+      `DELETE FROM notification_broadcast_recipients WHERE broadcast_id NOT IN (${placeholders})`,
+      keptIds
+    );
+    await sqlRunAsync(
+      `DELETE FROM notification_broadcasts WHERE id NOT IN (${placeholders})`,
+      keptIds
+    );
+  }
+
+  async function ensureBroadcastPushDeliveryAuditTable() {
+    await sqlRunAsync(`CREATE TABLE IF NOT EXISTS notification_push_delivery_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notification_id INTEGER,
+      user_id INTEGER,
+      device_id INTEGER,
+      platform TEXT,
+      notification_type TEXT,
+      delivery_status TEXT NOT NULL,
+      skip_reason TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL
+    )`);
+  }
+
   app.get('/api/new/notifications', requireAuth, async (req, res) => {
     try {
       ensureNotificationIndexes();
@@ -653,6 +688,7 @@ export function registerNotificationRoutes(app, {
           [inserted, skipped, broadcastId]
         );
       }
+      await pruneNotificationBroadcastHistory({ keep: 10 });
       return res.json(apiSuccessEnvelope(
         'ADMIN_NOTIFICATIONS_BROADCAST_SENT',
         'Toplu bildirim gönderildi.',
@@ -686,7 +722,9 @@ export function registerNotificationRoutes(app, {
   app.get('/api/new/admin/notifications/broadcasts', requireAdmin, async (req, res) => {
     try {
       await ensureNotificationBroadcastTables();
-      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+      await ensureBroadcastPushDeliveryAuditTable();
+      await pruneNotificationBroadcastHistory({ keep: 10 });
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '10', 10), 1), 10);
       const rows = await sqlAllAsync(
         `SELECT b.id, b.sender_user_id, b.sender_label, b.target, b.title, b.body,
                 b.image_url, b.image_shape, b.requested_count, b.inserted_count,
@@ -697,11 +735,61 @@ export function registerNotificationRoutes(app, {
          LIMIT ?`,
         [limit]
       );
+      const broadcastIds = (rows || []).map((row) => Number(row?.id || 0)).filter((id) => id > 0);
+      let recipients = [];
+      if (broadcastIds.length > 0) {
+        const placeholders = broadcastIds.map(() => '?').join(',');
+        recipients = await sqlAllAsync(
+          `SELECT nbr.broadcast_id,
+                  nbr.user_id,
+                  nbr.notification_id,
+                  nbr.status AS recipient_status,
+                  nbr.created_at AS recipient_created_at,
+                  COALESCE(u.isim || ' ' || u.soyisim, u.kadi, '') AS user_name,
+                  u.kadi AS user_handle,
+                  pd.id AS delivery_id,
+                  pd.device_id,
+                  pd.platform,
+                  pd.delivery_status,
+                  pd.skip_reason,
+                  pd.error_message,
+                  pd.created_at AS delivery_created_at
+           FROM notification_broadcast_recipients nbr
+           LEFT JOIN uyeler u ON u.id = nbr.user_id
+           LEFT JOIN notification_push_delivery_audit pd ON pd.notification_id = nbr.notification_id
+           WHERE nbr.broadcast_id IN (${placeholders})
+           ORDER BY nbr.broadcast_id DESC, nbr.id ASC, pd.id ASC`,
+          broadcastIds
+        );
+      }
+      const recipientsByBroadcast = new Map();
+      for (const row of recipients || []) {
+        const broadcastId = Number(row?.broadcast_id || 0);
+        if (!recipientsByBroadcast.has(broadcastId)) recipientsByBroadcast.set(broadcastId, []);
+        recipientsByBroadcast.get(broadcastId).push(row);
+      }
+      const items = (rows || []).map((row) => {
+        const details = recipientsByBroadcast.get(Number(row?.id || 0)) || [];
+        const platformSummary = {};
+        const deliverySummary = {};
+        for (const detail of details) {
+          const platform = String(detail?.platform || 'no_device').trim().toLowerCase();
+          const status = String(detail?.delivery_status || detail?.recipient_status || 'unknown').trim().toLowerCase();
+          platformSummary[platform] = (platformSummary[platform] || 0) + 1;
+          deliverySummary[status] = (deliverySummary[status] || 0) + 1;
+        }
+        return {
+          ...row,
+          recipients: details,
+          platform_summary: platformSummary,
+          delivery_summary: deliverySummary
+        };
+      });
       return res.json(apiSuccessEnvelope(
         'ADMIN_NOTIFICATIONS_BROADCASTS_OK',
         'Toplu bildirim geçmişi hazır.',
-        { items: rows },
-        { items: rows }
+        { items },
+        { items }
       ));
     } catch (err) {
       console.error('admin.notifications.broadcasts.list failed:', err);
@@ -712,6 +800,7 @@ export function registerNotificationRoutes(app, {
   app.get('/api/new/admin/notifications/broadcasts/:broadcastId/push-deliveries', requireAdmin, async (req, res) => {
     try {
       await ensureNotificationBroadcastTables();
+      await ensureBroadcastPushDeliveryAuditTable();
       const broadcastId = Number(req.params.broadcastId || 0);
       if (!broadcastId) return sendApiError(res, 400, 'BROADCAST_ID_REQUIRED', 'Geçersiz broadcast ID.');
       const rows = await sqlAllAsync(

@@ -336,25 +336,35 @@ class AdminPushPlatformCount {
 class AdminPushDeliveryItem {
   const AdminPushDeliveryItem({
     required this.id,
+    required this.notificationId,
+    required this.userId,
+    required this.deviceId,
     required this.notificationType,
     required this.platform,
     required this.deliveryStatus,
+    required this.recipientStatus,
     required this.skipReason,
     required this.errorMessage,
     required this.userName,
     required this.userHandle,
     required this.createdAt,
+    required this.recipientCreatedAt,
   });
 
   final int id;
+  final int notificationId;
+  final int userId;
+  final int deviceId;
   final String notificationType;
   final String platform;
   final String deliveryStatus;
+  final String recipientStatus;
   final String skipReason;
   final String errorMessage;
   final String userName;
   final String userHandle;
   final String createdAt;
+  final String recipientCreatedAt;
 
   String get statusLabel {
     switch (deliveryStatus) {
@@ -364,6 +374,8 @@ class AdminPushDeliveryItem {
         return 'Başarısız';
       case 'skipped':
         return _skipLabel;
+      case 'inserted':
+        return 'Uygulama içi eklendi';
       default:
         return deliveryStatus;
     }
@@ -395,17 +407,35 @@ class AdminPushDeliveryItem {
     }
   }
 
+  String get deviceLabel {
+    if (deviceId <= 0) return 'Cihaz yok';
+    return '$platformLabel #$deviceId';
+  }
+
   factory AdminPushDeliveryItem.fromMap(JsonMap map) {
     return AdminPushDeliveryItem(
-      id: asInt(map['id']) ?? 0,
+      id: asInt(map['id']) ?? asInt(map['delivery_id']) ?? 0,
+      notificationId: asInt(map['notification_id']) ?? 0,
+      userId: asInt(map['user_id']) ?? 0,
+      deviceId: asInt(map['device_id']) ?? 0,
       notificationType: coalesceText([map['notification_type']], fallback: ''),
       platform: coalesceText([map['platform']], fallback: ''),
-      deliveryStatus: coalesceText([map['delivery_status']], fallback: ''),
+      deliveryStatus: coalesceText([
+        map['delivery_status'],
+        map['recipient_status'],
+      ], fallback: ''),
+      recipientStatus: coalesceText([map['recipient_status']], fallback: ''),
       skipReason: coalesceText([map['skip_reason']], fallback: ''),
       errorMessage: coalesceText([map['error_message']], fallback: ''),
       userName: coalesceText([map['user_name']], fallback: ''),
       userHandle: coalesceText([map['user_handle']], fallback: ''),
-      createdAt: coalesceText([map['created_at']], fallback: ''),
+      createdAt: coalesceText([
+        map['created_at'],
+        map['delivery_created_at'],
+      ], fallback: ''),
+      recipientCreatedAt: coalesceText([
+        map['recipient_created_at'],
+      ], fallback: ''),
     );
   }
 }
@@ -459,6 +489,9 @@ class AdminBroadcastHistoryItem {
     required this.inserted,
     required this.skipped,
     required this.createdAt,
+    required this.recipients,
+    required this.platformSummary,
+    required this.deliverySummary,
   });
 
   final int id;
@@ -473,6 +506,9 @@ class AdminBroadcastHistoryItem {
   final int inserted;
   final int skipped;
   final String createdAt;
+  final List<AdminPushDeliveryItem> recipients;
+  final Map<String, int> platformSummary;
+  final Map<String, int> deliverySummary;
 
   String get targetLabel {
     switch (target) {
@@ -520,6 +556,15 @@ class AdminBroadcastHistoryItem {
         map['created_at'],
         map['createdAt'],
       ], fallback: ''),
+      recipients: asJsonMapList(
+        map['recipients'],
+      ).map(AdminPushDeliveryItem.fromMap).toList(growable: false),
+      platformSummary: asJsonMap(
+        map['platform_summary'],
+      ).map((key, value) => MapEntry(key, asInt(value) ?? 0)),
+      deliverySummary: asJsonMap(
+        map['delivery_summary'],
+      ).map((key, value) => MapEntry(key, asInt(value) ?? 0)),
     );
   }
 }
@@ -1702,7 +1747,7 @@ class AdminRepository {
   }
 
   Future<List<AdminBroadcastHistoryItem>> fetchBroadcastHistory({
-    int limit = 20,
+    int limit = 10,
   }) async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/admin/notifications/broadcasts',
@@ -2429,19 +2474,6 @@ class AdminRepository {
       '/api/new/admin/notifications/push-settings',
       body: {'enabled': enabled},
     );
-  }
-
-  Future<List<AdminPushDeliveryItem>> fetchBroadcastPushDeliveries(
-    int broadcastId,
-  ) async {
-    final result = await _apiClient.get<JsonMap>(
-      '/api/new/admin/notifications/broadcasts/$broadcastId/push-deliveries',
-      decoder: asJsonMap,
-    );
-    if (!result.ok) return [];
-    return asJsonMapList(asJsonMap(result.rawData)['items'])
-        .map(AdminPushDeliveryItem.fromMap)
-        .toList();
   }
 
   Future<AdminBroadcastResult> sendNotificationBroadcast({

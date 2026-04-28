@@ -973,7 +973,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       title: 'Gönderilen toplu bildirimler',
                       total: broadcasts.length,
                       children: [
-                        for (final item in broadcasts.take(8))
+                        for (final item in broadcasts.take(10))
                           _AdminPreviewLine(
                             title: item.title.isEmpty
                                 ? item.body
@@ -982,7 +982,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                                 '${item.targetLabel} · ${item.summaryLabel}'
                                 '${item.imageUrl.isNotEmpty ? ' · görselli' : ''}',
                             trailing: item.createdAt,
-                            onTap: () => _openBroadcastDetail(context, ref, item),
+                            onTap: () => _openBroadcastDetail(context, item),
                           ),
                         if (broadcasts.isEmpty)
                           Text(
@@ -2125,7 +2125,6 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
 
   Future<void> _openBroadcastDetail(
     BuildContext context,
-    WidgetRef ref,
     AdminBroadcastHistoryItem item,
   ) async {
     showDialog<void>(
@@ -4591,65 +4590,65 @@ class _AdminPreviewLine extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 560;
-          final metaRow = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            alignment: isCompact ? WrapAlignment.start : WrapAlignment.end,
-            children: [
-              if (trailing.trim().isNotEmpty) trailingWidget,
-              ...?action == null ? null : [action!],
-            ],
-          );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isCompact)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title, style: theme.textTheme.titleSmall),
-                          const SizedBox(height: 4),
-                          Text(
-                            subtitle,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 240),
-                      child: metaRow,
-                    ),
-                  ],
-                )
-              else ...[
-                Text(title, style: theme.textTheme.titleSmall),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 10),
-                metaRow,
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 560;
+            final metaRow = Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: isCompact ? WrapAlignment.start : WrapAlignment.end,
+              children: [
+                if (trailing.trim().isNotEmpty) trailingWidget,
+                ...?action == null ? null : [action!],
               ],
-              const SizedBox(height: 14),
-              Divider(height: 1, color: theme.sdal.panelBorder),
-            ],
-          );
-        },
-      ),
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!isCompact)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: theme.textTheme.titleSmall),
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 240),
+                        child: metaRow,
+                      ),
+                    ],
+                  )
+                else ...[
+                  Text(title, style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  metaRow,
+                ],
+                const SizedBox(height: 14),
+                Divider(height: 1, color: theme.sdal.panelBorder),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -4959,43 +4958,24 @@ class _NotificationBroadcastDialogState
   }
 }
 
-class _BroadcastDetailDialog extends ConsumerStatefulWidget {
+class _BroadcastDetailDialog extends StatelessWidget {
   const _BroadcastDetailDialog({required this.item});
   final AdminBroadcastHistoryItem item;
 
   @override
-  ConsumerState<_BroadcastDetailDialog> createState() =>
-      _BroadcastDetailDialogState();
-}
-
-class _BroadcastDetailDialogState
-    extends ConsumerState<_BroadcastDetailDialog> {
-  List<AdminPushDeliveryItem>? _deliveries;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final repo = ref.read(adminRepositoryProvider);
-    final items = await repo.fetchBroadcastPushDeliveries(widget.item.id);
-    if (mounted) setState(() { _deliveries = items; _loading = false; });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final item = widget.item;
-    final deliveries = _deliveries ?? [];
+    final deliveries = item.recipients;
 
-    final sentCount = deliveries.where((d) => d.deliveryStatus == 'sent').length;
-    final failedCount =
-        deliveries.where((d) => d.deliveryStatus == 'failed').length;
-    final skippedCount =
-        deliveries.where((d) => d.deliveryStatus == 'skipped').length;
+    final sentCount = deliveries
+        .where((d) => d.deliveryStatus == 'sent')
+        .length;
+    final failedCount = deliveries
+        .where((d) => d.deliveryStatus == 'failed')
+        .length;
+    final skippedCount = deliveries
+        .where((d) => d.deliveryStatus == 'skipped')
+        .length;
 
     return Dialog(
       child: ConstrainedBox(
@@ -5024,111 +5004,174 @@ class _BroadcastDetailDialogState
               const SizedBox(height: 4),
               Text(
                 '${item.targetLabel} · ${item.createdAt}',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.sdal.foregroundMuted),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.sdal.foregroundMuted,
+                ),
               ),
               const SizedBox(height: 16),
-              if (_loading)
-                const Center(child: CircularProgressIndicator())
-              else ...[
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  _AdminStatChip(
+                    icon: Icons.person_outline,
+                    label: '${item.inserted}/${item.requested} kullanıcı',
+                  ),
+                  _AdminStatChip(
+                    icon: Icons.check_circle_outline,
+                    label: '$sentCount push iletildi',
+                  ),
+                  _AdminStatChip(
+                    icon: Icons.skip_next_outlined,
+                    label: '$skippedCount atlandı',
+                  ),
+                  _AdminStatChip(
+                    icon: Icons.error_outline,
+                    label: '$failedCount başarısız',
+                  ),
+                  for (final entry in item.platformSummary.entries)
                     _AdminStatChip(
-                      icon: Icons.check_circle_outline,
-                      label: '$sentCount İletildi',
+                      icon: _platformIcon(entry.key),
+                      label: '${_platformLabel(entry.key)}: ${entry.value}',
                     ),
-                    _AdminStatChip(
-                      icon: Icons.skip_next_outlined,
-                      label: '$skippedCount Atlandı',
-                    ),
-                    _AdminStatChip(
-                      icon: Icons.error_outline,
-                      label: '$failedCount Başarısız',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Divider(height: 1, color: theme.sdal.panelBorder),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: deliveries.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Push teslimat kaydı bulunamadı.',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        )
-                      : ListView.separated(
-                          itemCount: deliveries.length,
-                          separatorBuilder: (_, __) => Divider(
-                            height: 1,
-                            color: theme.sdal.panelBorder,
-                          ),
-                          itemBuilder: (_, i) {
-                            final d = deliveries[i];
-                            final userLine = d.userName.isNotEmpty
-                                ? '${d.userName} (@${d.userHandle})'
-                                : d.userHandle.isNotEmpty
-                                    ? '@${d.userHandle}'
-                                    : '—';
-                            final statusLine = d.errorMessage.isNotEmpty
-                                ? '${d.statusLabel} · ${d.errorMessage}'
-                                : d.statusLabel;
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 10),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          userLine,
-                                          style: theme.textTheme.bodyMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          statusLine,
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                color: d.deliveryStatus ==
-                                                        'sent'
-                                                    ? Colors.green
-                                                    : d.deliveryStatus ==
-                                                            'failed'
-                                                        ? Colors.red
-                                                        : theme
-                                                            .sdal
-                                                            .foregroundMuted,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    d.platformLabel,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.sdal.foregroundMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                ],
+              ),
+              const SizedBox(height: 16),
+              _AdminDetailRow(label: 'Gönderen metni', value: item.senderLabel),
+              _AdminDetailRow(
+                label: 'Gönderen admin',
+                value: item.senderUsername.isEmpty ? '-' : item.senderUsername,
+              ),
+              _AdminDetailRow(label: 'Mesaj', value: item.body),
+              _AdminDetailRow(
+                label: 'Görsel',
+                value: item.imageUrl.isEmpty ? 'Yok' : item.imageUrl,
+              ),
+              const SizedBox(height: 12),
+              Divider(height: 1, color: theme.sdal.panelBorder),
+              const SizedBox(height: 8),
+              Expanded(
+                child: deliveries.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Alıcı veya push teslimat kaydı bulunamadı.',
+                          style: theme.textTheme.bodyMedium,
                         ),
-                ),
-              ],
+                      )
+                    : ListView.separated(
+                        itemCount: deliveries.length,
+                        separatorBuilder: (context, index) =>
+                            Divider(height: 1, color: theme.sdal.panelBorder),
+                        itemBuilder: (_, index) {
+                          final delivery = deliveries[index];
+                          return _BroadcastRecipientLine(delivery: delivery);
+                        },
+                      ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  IconData _platformIcon(String platform) {
+    switch (platform) {
+      case 'ios':
+        return Icons.phone_iphone_outlined;
+      case 'android':
+        return Icons.android_outlined;
+      default:
+        return Icons.devices_other_outlined;
+    }
+  }
+
+  String _platformLabel(String platform) {
+    switch (platform) {
+      case 'ios':
+        return 'iOS';
+      case 'android':
+        return 'Android';
+      case 'no_device':
+        return 'Cihaz yok';
+      default:
+        return platform.isEmpty ? 'Bilinmiyor' : platform;
+    }
+  }
+}
+
+class _BroadcastRecipientLine extends StatelessWidget {
+  const _BroadcastRecipientLine({required this.delivery});
+
+  final AdminPushDeliveryItem delivery;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final userLine = delivery.userName.isNotEmpty
+        ? '${delivery.userName} (@${delivery.userHandle})'
+        : delivery.userHandle.isNotEmpty
+        ? '@${delivery.userHandle}'
+        : 'Kullanıcı #${delivery.userId}';
+    final statusLine = delivery.errorMessage.isNotEmpty
+        ? '${delivery.statusLabel} · ${delivery.errorMessage}'
+        : delivery.statusLabel;
+    final time = delivery.createdAt.isNotEmpty
+        ? delivery.createdAt
+        : delivery.recipientCreatedAt;
+    final statusColor = delivery.deliveryStatus == 'sent'
+        ? Colors.green
+        : delivery.deliveryStatus == 'failed'
+        ? Colors.red
+        : theme.sdal.foregroundMuted;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            delivery.platform == 'ios'
+                ? Icons.phone_iphone_outlined
+                : delivery.platform == 'android'
+                ? Icons.android_outlined
+                : Icons.devices_other_outlined,
+            size: 20,
+            color: theme.sdal.foregroundMuted,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  userLine,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  statusLine,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    delivery.deviceLabel,
+                    if (delivery.notificationId > 0)
+                      'Bildirim #${delivery.notificationId}',
+                    if (time.isNotEmpty) time,
+                  ].join(' · '),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.sdal.foregroundMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

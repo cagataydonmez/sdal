@@ -38,6 +38,10 @@ function resolvePublicMediaUrl(raw) {
   return `${base}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
+function resolveApnsTopic() {
+  return sanitizeText(process.env.IOS_BUNDLE_ID || process.env.APNS_TOPIC || 'com.sdal.flutterSdal');
+}
+
 function base64UrlEncode(value) {
   return Buffer.from(value).toString('base64url');
 }
@@ -489,42 +493,52 @@ export function createNotificationPushRuntime({
       return { ok: true };
     }
     const serviceAccount = readFirebaseServiceAccount();
-    const accessToken = await getFirebaseAccessToken();
     const endpoint = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: {
-          token: device.push_token,
+    const apnsTopic = resolveApnsTopic();
+    const body = JSON.stringify({
+      message: {
+        token: device.push_token,
+        notification: {
+          title: payload.title,
+          body: payload.body
+        },
+        data: payload.data,
+        android: {
+          priority: 'high',
           notification: {
-            title: payload.title,
-            body: payload.body
+            channel_id: 'sdal_notifications'
+          }
+        },
+        apns: {
+          headers: {
+            'apns-priority': '10',
+            ...(apnsTopic ? { 'apns-topic': apnsTopic } : {})
           },
-          data: payload.data,
-          android: {
-            priority: 'high',
-            notification: {
-              channel_id: 'sdal_notifications'
-            }
-          },
-          apns: {
-            headers: {
-              'apns-priority': '10'
-            },
-            payload: {
-              aps: {
-                sound: 'default',
-                ...(payload.imageUrl ? { 'mutable-content': 1 } : {})
-              }
+          payload: {
+            aps: {
+              sound: 'default',
+              ...(payload.imageUrl ? { 'mutable-content': 1 } : {})
             }
           }
         }
-      })
+      }
     });
+    const postMessage = async () => {
+      const accessToken = await getFirebaseAccessToken();
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json'
+        },
+        body
+      });
+    };
+    let response = await postMessage();
+    if (response.status === 401 || response.status === 403) {
+      cachedFirebaseToken = { token: '', expiresAt: 0, pendingPromise: null };
+      response = await postMessage();
+    }
     const text = await response.text();
     const json = safeJsonParse(text, {}) || {};
     if (response.ok) {

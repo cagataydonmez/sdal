@@ -79,9 +79,9 @@ class PushNotificationsService {
     if (Platform.isIOS) {
       await FirebaseMessaging.instance
           .setForegroundNotificationPresentationOptions(
-            alert: false,
+            alert: true,
             badge: true,
-            sound: false,
+            sound: true,
           );
     }
 
@@ -343,8 +343,9 @@ class PushNotificationsService {
       final response = await request.close();
       if (response.statusCode != 200) return null;
       final ext = url.split('?').first.split('.').last.toLowerCase();
-      final safeExt =
-          ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext) ? ext : 'jpg';
+      final safeExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)
+          ? ext
+          : 'jpg';
       final file = File(
         '${Directory.systemTemp.path}/sdal_notif_${DateTime.now().millisecondsSinceEpoch}.$safeExt',
       );
