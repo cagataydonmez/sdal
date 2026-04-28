@@ -248,6 +248,8 @@ class AuthActionController extends Notifier<AsyncActionState> {
               );
     if (!ref.mounted) return;
     if (result.ok) {
+      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      if (!ref.mounted) return;
       state = AsyncActionState.success(
         message: result.message.isNotEmpty
             ? result.message
