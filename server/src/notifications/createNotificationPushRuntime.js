@@ -547,13 +547,13 @@ export function createNotificationPushRuntime({
     const errorCode = sanitizeText(json?.error?.details?.[0]?.errorCode || json?.error?.status);
     const errorMessage = sanitizeText(json?.error?.message || text, `FCM ${response.status}`);
     const isUnregistered = errorCode === 'UNREGISTERED' || errorMessage.toLowerCase().includes('unregistered');
-    // 401 with auth error means this token belongs to a different Firebase project
-    // or has been invalidated — treat it as a dead token so it gets removed
-    const isAuthError = response.status === 401;
+    const isApnsAuthError = response.status === 401 || response.status === 403 || errorCode === 'THIRD_PARTY_AUTH_ERROR';
     return {
       ok: false,
-      errorMessage: `[HTTP ${response.status}] ${errorMessage}`,
-      invalidToken: isUnregistered || isAuthError
+      errorMessage: isApnsAuthError
+        ? `[HTTP ${response.status}] APNS/Firebase iOS auth failed: ${errorMessage}`
+        : `[HTTP ${response.status}] ${errorMessage}`,
+      invalidToken: isUnregistered
     };
   }
 

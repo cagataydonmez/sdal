@@ -161,6 +161,10 @@ class PushNotificationsService {
       _currentToken = token;
       await repository.store.saveLastToken(token);
       await _openPendingRouteIfAny();
+    } else {
+      debugPrint(
+        'push register failed: ${result.statusCode} ${result.code} ${result.message}',
+      );
     }
   }
 
