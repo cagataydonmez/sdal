@@ -1509,9 +1509,14 @@ class _PhoneVerificationStepState
       _sending = true;
       _status = null;
     });
-    final allowed = await ref
-        .read(authActionControllerProvider.notifier)
-        .startPhoneVerification(phoneNumber: phone);
+    bool allowed;
+    try {
+      allowed = await ref
+          .read(authActionControllerProvider.notifier)
+          .startPhoneVerification(phoneNumber: phone);
+    } catch (_) {
+      allowed = false;
+    }
     if (!mounted) return;
     if (!allowed) {
       setState(() {

@@ -267,15 +267,16 @@ class AuthActionController extends Notifier<AsyncActionState> {
   }
 
   Future<bool> startPhoneVerification({required String phoneNumber}) async {
+    final apiClient = ref.read(apiClientProvider);
+    final deviceIdentityService = ref.read(deviceIdentityServiceProvider);
     state = const AsyncActionState.loading(scope: 'phoneStart');
-    final device = await ref.read(deviceIdentityServiceProvider).metadata();
-    final result = await ref
-        .read(apiClientProvider)
-        .post<JsonMap>(
-          '/api/auth/phone/start',
-          body: {'phone_number': phoneNumber, 'device_id': device.deviceId},
-          decoder: asJsonMap,
-        );
+    final device = await deviceIdentityService.metadata();
+    if (!ref.mounted) return false;
+    final result = await apiClient.post<JsonMap>(
+      '/api/auth/phone/start',
+      body: {'phone_number': phoneNumber, 'device_id': device.deviceId},
+      decoder: asJsonMap,
+    );
     if (!ref.mounted) return false;
     state = result.ok
         ? const AsyncActionState.success(scope: 'phoneStart')
@@ -292,22 +293,24 @@ class AuthActionController extends Notifier<AsyncActionState> {
     required String phoneNumber,
     required String firebaseIdToken,
   }) async {
+    final apiClient = ref.read(apiClientProvider);
+    final deviceIdentityService = ref.read(deviceIdentityServiceProvider);
+    final sessionController = ref.read(sessionControllerProvider.notifier);
     state = const AsyncActionState.loading(scope: 'phoneComplete');
-    final device = await ref.read(deviceIdentityServiceProvider).metadata();
-    final result = await ref
-        .read(apiClientProvider)
-        .post<JsonMap>(
-          '/api/auth/phone/complete',
-          body: {
-            'phone_number': phoneNumber,
-            'firebase_id_token': firebaseIdToken,
-            ...device.toJson(),
-          },
-          decoder: asJsonMap,
-        );
+    final device = await deviceIdentityService.metadata();
+    if (!ref.mounted) return false;
+    final result = await apiClient.post<JsonMap>(
+      '/api/auth/phone/complete',
+      body: {
+        'phone_number': phoneNumber,
+        'firebase_id_token': firebaseIdToken,
+        ...device.toJson(),
+      },
+      decoder: asJsonMap,
+    );
     if (!ref.mounted) return false;
     if (result.ok) {
-      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      await sessionController.refreshSilently();
       if (!ref.mounted) return true;
       state = const AsyncActionState.success(scope: 'phoneComplete');
       return true;
@@ -322,18 +325,20 @@ class AuthActionController extends Notifier<AsyncActionState> {
   }
 
   Future<bool> completeDeviceEmailChallenge({required String code}) async {
+    final apiClient = ref.read(apiClientProvider);
+    final deviceIdentityService = ref.read(deviceIdentityServiceProvider);
+    final sessionController = ref.read(sessionControllerProvider.notifier);
     state = const AsyncActionState.loading(scope: 'deviceChallenge');
-    final device = await ref.read(deviceIdentityServiceProvider).metadata();
-    final result = await ref
-        .read(apiClientProvider)
-        .post<JsonMap>(
-          '/api/auth/device/challenge/complete',
-          body: {...device.toJson(), 'code': code.trim()},
-          decoder: asJsonMap,
-        );
+    final device = await deviceIdentityService.metadata();
+    if (!ref.mounted) return false;
+    final result = await apiClient.post<JsonMap>(
+      '/api/auth/device/challenge/complete',
+      body: {...device.toJson(), 'code': code.trim()},
+      decoder: asJsonMap,
+    );
     if (!ref.mounted) return false;
     if (result.ok) {
-      await ref.read(sessionControllerProvider.notifier).refreshSilently();
+      await sessionController.refreshSilently();
       if (!ref.mounted) return true;
       state = const AsyncActionState.success(scope: 'deviceChallenge');
       return true;
