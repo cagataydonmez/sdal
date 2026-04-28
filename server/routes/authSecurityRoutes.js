@@ -44,8 +44,25 @@ function sha256(value, pepper) {
 
 function normalizePhoneNumber(raw) {
   const compact = String(raw || '').replace(/[\s().-]/g, '');
-  if (!/^\+?[1-9]\d{7,14}$/.test(compact)) return '';
-  return compact.startsWith('+') ? compact : `+${compact}`;
+  if (!compact) return '';
+  if (compact.startsWith('+')) {
+    return /^\+[1-9]\d{7,14}$/.test(compact) ? compact : '';
+  }
+  const digits = compact.replace(/\D/g, '');
+  let normalized = '';
+  if (digits.startsWith('00')) {
+    normalized = `+${digits.slice(2)}`;
+  } else if (digits.startsWith('0') && digits.length === 11) {
+    normalized = `+90${digits.slice(1)}`;
+  } else if (digits.startsWith('90') && digits.length === 12) {
+    normalized = `+${digits}`;
+  } else if (digits.startsWith('5') && digits.length === 10) {
+    normalized = `+90${digits}`;
+  } else {
+    normalized = `+${digits}`;
+  }
+  if (!/^\+[1-9]\d{7,14}$/.test(normalized)) return '';
+  return normalized;
 }
 
 function normalizeIp(ip) {
@@ -458,14 +475,19 @@ export function createAuthSecurityRuntime({
         await audit({ userId: req.session.userId, eventType: 'sms_complete_failed', riskLevel: 'warn', req, phoneHash: hashPhone(phone), deviceIdHash: hashDeviceId(parsed.data.device_id) });
         return res.status(400).json({ ok: false, message: 'Invalid code or expired session.' });
       }
-      await sqlRunAsync(
-        `INSERT INTO user_security_flags (user_id, phone_verified_at, phone_number_hash, phone_verification_required, updated_at)
-         VALUES (?, ?, ?, 0, ?)
-         ON CONFLICT(user_id) DO UPDATE SET phone_verified_at = ?, phone_number_hash = ?, phone_verification_required = 0, updated_at = ?`,
-        [req.session.userId, new Date().toISOString(), hashPhone(phone), new Date().toISOString(), new Date().toISOString(), hashPhone(phone), new Date().toISOString()]
-      ).catch(async () => {
-        await sqlRunAsync('UPDATE user_security_flags SET phone_verified_at = ?, phone_number_hash = ?, phone_verification_required = 0, updated_at = ? WHERE user_id = ?', [new Date().toISOString(), hashPhone(phone), new Date().toISOString(), req.session.userId]);
-      });
+      const now = new Date().toISOString();
+      const phoneHash = hashPhone(phone);
+      const updated = await sqlRunAsync(
+        'UPDATE user_security_flags SET phone_verified_at = ?, phone_number_hash = ?, phone_verification_required = 0, updated_at = ? WHERE user_id = ?',
+        [now, phoneHash, now, req.session.userId]
+      );
+      if (!updated || Number(updated.changes || 0) === 0) {
+        await sqlRunAsync(
+          `INSERT INTO user_security_flags (user_id, phone_verified_at, phone_number_hash, phone_verification_required, created_at, updated_at)
+           VALUES (?, ?, ?, 0, ?, ?)`,
+          [req.session.userId, now, phoneHash, now, now]
+        );
+      }
       const trusted = await trustDevice({ userId: req.session.userId, req, device: parsed.data });
       return res.json({ ok: true, phone_verified: true, trusted_device: trusted });
     });

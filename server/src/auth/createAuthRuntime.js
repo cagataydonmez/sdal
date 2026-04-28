@@ -17,6 +17,11 @@ const WRITE_ALLOWED_WITHOUT_VERIFICATION = Object.freeze([
   '/api/new/mobile/push/unregister',
   '/api/new/verified/request',
   '/api/new/verified/proof',
+  '/api/auth/phone/start',
+  '/api/auth/phone/complete',
+  '/api/auth/device/check',
+  '/api/auth/device/trust',
+  '/api/auth/device/revoke',
   '/api/new/requests',
   '/api/new/requests/upload'
 ]);

@@ -1450,19 +1450,47 @@ class _PhoneVerificationStepState
   String _verificationId = '';
   int? _resendToken;
   String? _status;
+  String _phonePreview = '';
   bool _sending = false;
   bool _verifying = false;
+  bool _normalizingPhone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.phoneController.addListener(_normalizePhoneInput);
+    _normalizePhoneInput();
+  }
 
   @override
   void dispose() {
+    widget.phoneController.removeListener(_normalizePhoneInput);
     _otpController.dispose();
     super.dispose();
   }
 
+  void _normalizePhoneInput() {
+    if (_normalizingPhone) return;
+    final raw = widget.phoneController.text;
+    final normalized = _normalizePhoneForAuth(raw, live: true);
+    final preview = _normalizePhoneForAuth(raw);
+    if (normalized != raw) {
+      _normalizingPhone = true;
+      widget.phoneController.value = TextEditingValue(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+      _normalizingPhone = false;
+    }
+    if (mounted && _phonePreview != preview) {
+      setState(() => _phonePreview = preview);
+    }
+  }
+
   Future<void> _sendCode() async {
-    final phone = widget.phoneController.text.trim();
+    final phone = _normalizePhoneForAuth(widget.phoneController.text);
     if (phone.isEmpty) {
-      setState(() => _status = 'Telefon numaranızı girin.');
+      setState(() => _status = 'Geçerli bir telefon numarası girin.');
       return;
     }
     setState(() {
@@ -1544,12 +1572,10 @@ class _PhoneVerificationStepState
   }
 
   Future<void> _completeWithToken(String token) async {
+    final phone = _normalizePhoneForAuth(widget.phoneController.text);
     final ok = await ref
         .read(authActionControllerProvider.notifier)
-        .completePhoneVerification(
-          phoneNumber: widget.phoneController.text.trim(),
-          firebaseIdToken: token,
-        );
+        .completePhoneVerification(phoneNumber: phone, firebaseIdToken: token);
     if (!mounted) return;
     setState(() {
       _sending = false;
@@ -1570,12 +1596,22 @@ class _PhoneVerificationStepState
         TextField(
           controller: widget.phoneController,
           keyboardType: TextInputType.phone,
+          autofillHints: const [AutofillHints.telephoneNumber],
           decoration: const InputDecoration(
             labelText: 'Telefon numarası',
-            hintText: '+905551112233',
+            hintText: '05061111111, 5061111111 veya +905061111111',
             prefixIcon: Icon(Icons.phone_iphone_rounded),
           ),
         ),
+        if (_phonePreview.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            RegExp(r'^\+90\d{10}$').hasMatch(_phonePreview) ||
+                    RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(_phonePreview)
+                ? 'Doğrulanacak numara: $_phonePreview'
+                : 'Numara otomatik +90 formatına tamamlanır.',
+          ),
+        ],
         const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: _sending ? null : _sendCode,
@@ -1603,6 +1639,23 @@ class _PhoneVerificationStepState
       ],
     );
   }
+}
+
+String _normalizePhoneForAuth(String raw, {bool live = false}) {
+  final text = raw.trim();
+  if (text.isEmpty) return '';
+  var compact = text.replaceAll(RegExp(r'[\s().-]'), '');
+  if (compact.startsWith('+')) {
+    final digits = compact.substring(1).replaceAll(RegExp(r'\D'), '');
+    return digits.isEmpty ? '+' : '+$digits';
+  }
+  final digits = compact.replaceAll(RegExp(r'\D'), '');
+  if (digits.isEmpty) return '';
+  if (digits.startsWith('00')) return '+${digits.substring(2)}';
+  if (digits.startsWith('0')) return '+90${digits.substring(1)}';
+  if (digits.startsWith('90')) return '+$digits';
+  if (digits.startsWith('5')) return '+90$digits';
+  return live ? digits : '+$digits';
 }
 
 class ActivationResendPage extends ConsumerStatefulWidget {
