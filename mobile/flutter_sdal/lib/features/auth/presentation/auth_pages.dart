@@ -1560,6 +1560,10 @@ class _PhoneVerificationStepState
             '[phone-auth] firebase verification failed: '
             '${error.code} ${error.message ?? ''}',
           );
+          _reportFirebasePhoneError(
+            error,
+            stage: 'verifyPhoneNumber.verificationFailed',
+          );
           if (!mounted) return;
           setState(() {
             _sending = false;
@@ -1579,10 +1583,15 @@ class _PhoneVerificationStepState
           _verificationId = verificationId;
         },
       );
-    } on FirebaseAuthException catch (error) {
+    } on FirebaseAuthException catch (error, stackTrace) {
       debugPrint(
         '[phone-auth] firebase verification threw: '
         '${error.code} ${error.message ?? ''}',
+      );
+      _reportFirebasePhoneError(
+        error,
+        stage: 'verifyPhoneNumber.threw',
+        stackTrace: stackTrace,
       );
       if (!mounted) return;
       setState(() {
@@ -1620,6 +1629,19 @@ class _PhoneVerificationStepState
       }
       if (token == null) throw StateError('missing firebase token');
       await _completeWithToken(token);
+    } on FirebaseAuthException catch (error, stackTrace) {
+      debugPrint('[phone-auth] sms code verification failed: $error');
+      _reportFirebasePhoneError(
+        error,
+        stage: 'signInWithCredential',
+        stackTrace: stackTrace,
+      );
+      if (!mounted || _phoneCompleteSucceeded) return;
+      setState(() {
+        _verifying = false;
+        _phoneCompleteSubmitted = false;
+        _status = _firebasePhoneErrorMessage(error);
+      });
     } catch (error) {
       debugPrint('[phone-auth] sms code verification failed: $error');
       if (!mounted || _phoneCompleteSucceeded) return;
@@ -1654,6 +1676,42 @@ class _PhoneVerificationStepState
                 'Kod geçersiz veya oturum süresi doldu.';
     });
     if (ok) context.go('/');
+  }
+
+  void _reportFirebasePhoneError(
+    FirebaseAuthException error, {
+    required String stage,
+    StackTrace? stackTrace,
+  }) {
+    final phone = _normalizePhoneForAuth(widget.phoneController.text);
+    unawaited(_sendFirebasePhoneErrorReport(error, stage, phone, stackTrace));
+  }
+
+  Future<void> _sendFirebasePhoneErrorReport(
+    FirebaseAuthException error,
+    String stage,
+    String phone,
+    StackTrace? stackTrace,
+  ) async {
+    try {
+      await ref
+          .read(apiClientProvider)
+          .post<dynamic>(
+            '/api/auth/client-error',
+            body: {
+              'stage': stage,
+              'code': error.code,
+              'message': error.message ?? '',
+              'plugin': error.plugin,
+              'detail': error.toString(),
+              'stack': stackTrace?.toString() ?? '',
+              'phone_number': phone,
+              'platform': 'flutter',
+            },
+          );
+    } catch (err) {
+      debugPrint('[phone-auth] client error report skipped: $err');
+    }
   }
 
   @override

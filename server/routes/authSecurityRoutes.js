@@ -27,6 +27,18 @@ const EmailChallengeSchema = DeviceSchema.extend({
   code: z.string().min(4).max(12)
 });
 
+const ClientAuthErrorSchema = z.object({
+  stage: z.string().max(80).optional().default('unknown'),
+  code: z.string().max(80).optional().default(''),
+  message: z.string().max(800).optional().default(''),
+  plugin: z.string().max(80).optional().default(''),
+  detail: z.string().max(1500).optional().default(''),
+  stack: z.string().max(1500).optional().default(''),
+  phone_number: z.string().min(7).max(32).optional().default(''),
+  platform: z.string().max(40).optional().default(''),
+  app_version: z.string().max(80).optional().default('')
+});
+
 function intEnv(name, fallback) {
   const parsed = parseInt(process.env[name] || '', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -558,6 +570,31 @@ export function createAuthSecurityRuntime({
       if (!id) return res.status(400).json({ ok: false, message: GENERIC_AUTH_MESSAGE });
       await sqlRunAsync('UPDATE trusted_devices SET revoked_at = ? WHERE id = ? AND user_id = ?', [new Date().toISOString(), id, req.session.userId]);
       await audit({ userId: req.session.userId, eventType: 'device_revoked', req, metadata: { trustedDeviceId: id } });
+      return res.json({ ok: true });
+    });
+
+    app.post('/api/auth/client-error', requireAuth, async (req, res) => {
+      const parsed = ClientAuthErrorSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ ok: false });
+      const body = parsed.data;
+      const phone = normalizePhoneNumber(body.phone_number);
+      await audit({
+        userId: req.session.userId,
+        eventType: 'firebase_phone_client_error',
+        riskLevel: 'warn',
+        req,
+        phoneHash: phone ? hashPhone(phone) : '',
+        metadata: {
+          stage: body.stage,
+          code: body.code,
+          message: body.message,
+          plugin: body.plugin,
+          detail: body.detail,
+          stack: body.stack,
+          platform: body.platform,
+          appVersion: body.app_version
+        }
+      });
       return res.json({ ok: true });
     });
   }
