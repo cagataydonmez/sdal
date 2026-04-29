@@ -505,6 +505,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get continueWithX => 'X ile devam et';
 
   @override
+  String get continueWithApple => 'Apple ile devam et';
+
+  @override
   String get submitInProgress => 'Gönderiliyor...';
 
   @override

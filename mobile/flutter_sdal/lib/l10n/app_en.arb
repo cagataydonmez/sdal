@@ -207,6 +207,7 @@
   "loginAction": "Sign in",
   "continueWithGoogle": "Continue with Google",
   "continueWithX": "Continue with X",
+  "continueWithApple": "Continue with Apple",
   "submitInProgress": "Submitting...",
   "registerSubmitAction": "Submit registration",
   "resendAction": "Resend",

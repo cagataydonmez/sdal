@@ -207,6 +207,7 @@
   "loginAction": "Giriş yap",
   "continueWithGoogle": "Google ile devam et",
   "continueWithX": "X ile devam et",
+  "continueWithApple": "Apple ile devam et",
   "submitInProgress": "Gönderiliyor...",
   "registerSubmitAction": "Kaydol",
   "resendAction": "Tekrar gönder",

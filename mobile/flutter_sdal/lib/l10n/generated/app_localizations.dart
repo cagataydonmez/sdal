@@ -1004,6 +1004,12 @@ abstract class AppLocalizations {
   /// **'X ile devam et'**
   String get continueWithX;
 
+  /// No description provided for @continueWithApple.
+  ///
+  /// In tr, this message translates to:
+  /// **'Apple ile devam et'**
+  String get continueWithApple;
+
   /// No description provided for @submitInProgress.
   ///
   /// In tr, this message translates to:

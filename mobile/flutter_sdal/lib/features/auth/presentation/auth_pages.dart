@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -116,6 +117,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         actionState.isLoading &&
         (actionState.scope == 'login' || actionState.scope == 'oauth');
     final error = actionState.isError ? actionState.message : null;
+    final showAppleOAuth =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS);
 
     return _AuthFrame(
       title: l10n.loginTitle,
@@ -216,6 +221,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               icon: const _OAuthProviderLogo(provider: _OAuthProvider.x),
               label: Text(l10n.continueWithX),
             ),
+            if (showAppleOAuth) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: submitting ? null : () => _startOAuth('apple'),
+                icon: const _OAuthProviderLogo(provider: _OAuthProvider.apple),
+                label: Text(l10n.continueWithApple),
+              ),
+            ],
           ],
         ),
       ),
@@ -2089,7 +2102,7 @@ class OAuthCallbackPage extends StatelessWidget {
   }
 }
 
-enum _OAuthProvider { google, x }
+enum _OAuthProvider { google, x, apple }
 
 class _OAuthProviderLogo extends StatelessWidget {
   const _OAuthProviderLogo({required this.provider});
@@ -2111,6 +2124,11 @@ class _OAuthProviderLogo extends StatelessWidget {
           _xLogoSvg(isDark ? Colors.white : const Color(0xFF111111)),
           width: 18,
           height: 18,
+        ),
+        _OAuthProvider.apple => Icon(
+          Icons.apple,
+          size: 22,
+          color: isDark ? Colors.white : const Color(0xFF111111),
         ),
       },
     );

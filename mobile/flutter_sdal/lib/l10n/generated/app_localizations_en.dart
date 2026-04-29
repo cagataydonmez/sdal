@@ -509,6 +509,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get continueWithX => 'Continue with X';
 
   @override
+  String get continueWithApple => 'Continue with Apple';
+
+  @override
   String get submitInProgress => 'Submitting...';
 
   @override

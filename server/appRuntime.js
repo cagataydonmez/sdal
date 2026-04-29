@@ -2786,6 +2786,147 @@ function uniqueUsernameFromSeed(seed) {
   return `uye${Date.now().toString().slice(-8)}`.slice(0, 15);
 }
 
+function normalizeOAuthAvatarUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol)) return '';
+    if (url.hostname.endsWith('twimg.com')) {
+      url.searchParams.set('format', 'jpg');
+      url.searchParams.set('name', '400x400');
+      return url.toString();
+    }
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
+function oauthAvatarExtension(contentType, avatarUrl) {
+  const type = String(contentType || '').toLowerCase();
+  if (type.includes('png')) return '.png';
+  if (type.includes('webp')) return '.webp';
+  if (type.includes('gif')) return '.gif';
+  const pathname = (() => {
+    try {
+      return new URL(avatarUrl).pathname.toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
+  const ext = path.extname(pathname);
+  return ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext) ? ext : '.jpg';
+}
+
+function readApplePrivateKey() {
+  const inlineKey = String(process.env.APPLE_OAUTH_PRIVATE_KEY || process.env.APPLE_PRIVATE_KEY || '').trim();
+  if (inlineKey) return inlineKey.replace(/\\n/g, '\n');
+  const keyPath = String(process.env.APPLE_OAUTH_PRIVATE_KEY_PATH || process.env.APPLE_PRIVATE_KEY_PATH || '').trim();
+  if (!keyPath) return '';
+  try {
+    return fs.readFileSync(path.resolve(keyPath), 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+function base64UrlJson(value) {
+  return base64Url(Buffer.from(JSON.stringify(value), 'utf8'));
+}
+
+function decodeJwtPayload(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return {};
+  try {
+    const input = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = input.padEnd(Math.ceil(input.length / 4) * 4, '=');
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function decodeJwtHeader(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return {};
+  try {
+    const input = parts[0].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = input.padEnd(Math.ceil(input.length / 4) * 4, '=');
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+  } catch {
+    return {};
+  }
+}
+
+async function verifyAppleIdentityTokenSignature(idToken) {
+  const parts = String(idToken || '').split('.');
+  if (parts.length !== 3) throw new Error('Apple token malformed');
+  const header = decodeJwtHeader(idToken);
+  const kid = String(header.kid || '');
+  const alg = String(header.alg || '');
+  if (!kid || alg !== 'RS256') throw new Error('Apple token header invalid');
+  const resp = await fetch('https://appleid.apple.com/auth/keys', {
+    signal: AbortSignal.timeout(8000)
+  });
+  if (!resp.ok) throw new Error(`Apple keys failed (${resp.status})`);
+  const json = await resp.json();
+  const jwk = (json?.keys || []).find((item) => String(item?.kid || '') === kid);
+  if (!jwk) throw new Error('Apple key not found');
+  const publicKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const signatureInput = `${parts[0]}.${parts[1]}`;
+  const signature = Buffer.from(parts[2].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(parts[2].length / 4) * 4, '='), 'base64');
+  const valid = crypto.verify('RSA-SHA256', Buffer.from(signatureInput), publicKey, signature);
+  if (!valid) throw new Error('Apple token signature invalid');
+}
+
+function createAppleClientSecret(config) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const header = { alg: 'ES256', kid: config.keyId, typ: 'JWT' };
+  const payload = {
+    iss: config.teamId,
+    iat: nowSeconds,
+    exp: nowSeconds + 86400 * 30,
+    aud: 'https://appleid.apple.com',
+    sub: config.clientId
+  };
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(payload)}`;
+  const signature = crypto.sign('sha256', Buffer.from(signingInput), {
+    key: config.privateKey,
+    dsaEncoding: 'ieee-p1363'
+  });
+  return `${signingInput}.${base64Url(signature)}`;
+}
+
+async function saveOAuthAvatar({ provider, providerUserId, avatarUrl }) {
+  const url = normalizeOAuthAvatarUrl(avatarUrl);
+  if (!url || !providerUserId) return 'yok';
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'SDAL-OAuth-Avatar/1.0' },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!resp.ok) throw new Error(`avatar fetch failed (${resp.status})`);
+    const contentType = String(resp.headers.get('content-type') || '');
+    if (!contentType.toLowerCase().startsWith('image/')) throw new Error(`avatar content-type invalid: ${contentType}`);
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    if (!buffer.length || buffer.length > 5 * 1024 * 1024) throw new Error('avatar size invalid');
+    const safeProvider = normalizeHandleSeed(provider).slice(0, 12) || 'oauth';
+    const safeSubject = normalizeHandleSeed(providerUserId).slice(0, 28) || crypto.createHash('sha1').update(String(providerUserId)).digest('hex').slice(0, 12);
+    const filename = `oauth_${safeProvider}_${safeSubject}_${Date.now()}${oauthAvatarExtension(contentType, url)}`;
+    fs.mkdirSync(vesikalikDir, { recursive: true });
+    fs.writeFileSync(path.join(vesikalikDir, filename), buffer);
+    return filename;
+  } catch (err) {
+    writeAppLog('warn', 'oauth_avatar_fetch_failed', {
+      provider,
+      providerUserId,
+      error: err?.message || String(err)
+    });
+    return 'yok';
+  }
+}
+
 function getOAuthProviderConfig(provider, req) {
   const p = String(provider || '').toLowerCase();
   const commonBase = resolvePublicBaseUrl(req);
@@ -2842,14 +2983,40 @@ function getOAuthProviderConfig(provider, req) {
       authUrl: 'https://twitter.com/i/oauth2/authorize',
       tokenUrl: 'https://api.twitter.com/2/oauth2/token',
       userInfoUrl: 'https://api.twitter.com/2/users/me',
-      scope: 'users.read tweet.read'
+      scope: 'users.read tweet.read users.email'
+    };
+  }
+  if (p === 'apple') {
+    const clientId = String(
+      process.env.APPLE_OAUTH_CLIENT_ID
+      || process.env.APPLE_CLIENT_ID
+      || process.env.OAUTH_APPLE_CLIENT_ID
+      || ''
+    ).trim();
+    const teamId = String(process.env.APPLE_OAUTH_TEAM_ID || process.env.APPLE_TEAM_ID || '').trim();
+    const keyId = String(process.env.APPLE_OAUTH_KEY_ID || process.env.APPLE_KEY_ID || '').trim();
+    const privateKey = readApplePrivateKey();
+    const redirectUri = String(process.env.APPLE_OAUTH_REDIRECT_URI || '').trim() || `${commonBase}/api/auth/oauth/apple/callback`;
+    return {
+      provider: 'apple',
+      title: 'Apple',
+      enabled: !!(clientId && teamId && keyId && privateKey),
+      clientId,
+      teamId,
+      keyId,
+      privateKey,
+      redirectUri,
+      authUrl: 'https://appleid.apple.com/auth/authorize',
+      tokenUrl: 'https://appleid.apple.com/auth/token',
+      userInfoUrl: '',
+      scope: 'name email'
     };
   }
   return null;
 }
 
 function getEnabledOAuthProviders(req, { includeDisabled = false } = {}) {
-  const providers = ['google', 'x']
+  const providers = ['google', 'x', 'apple']
     .map((provider) => getOAuthProviderConfig(provider, req))
     .filter(Boolean);
   return providers
@@ -2924,10 +3091,36 @@ async function oauthFetchToken(config, code, verifier) {
     const json = await resp.json();
     return String(json.access_token || '');
   }
+  if (config.provider === 'apple') {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: config.clientId,
+      client_secret: createAppleClientSecret(config),
+      redirect_uri: config.redirectUri
+    });
+    const resp = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    if (!resp.ok) throw new Error(`Apple token failed (${resp.status})`);
+    return resp.json();
+  }
   throw new Error('Unsupported provider');
 }
 
-async function oauthFetchProfile(config, accessToken) {
+function parseAppleCallbackUser(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+}
+
+async function oauthFetchProfile(config, accessToken, callbackPayload = {}) {
   if (config.provider === 'google') {
     const resp = await fetch(config.userInfoUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -2942,26 +3135,62 @@ async function oauthFetchProfile(config, accessToken) {
       lastName: String(json.family_name || '').trim(),
       displayName: String(json.name || '').trim(),
       usernameSeed: String(json.name || json.email || json.sub || ''),
+      avatarUrl: normalizeOAuthAvatarUrl(json.picture || ''),
       raw: json
     };
   }
   if (config.provider === 'x') {
-    const params = new URLSearchParams({ 'user.fields': 'name,username,profile_image_url' });
+    const params = new URLSearchParams({ 'user.fields': 'name,username,profile_image_url,confirmed_email' });
     const resp = await fetch(`${config.userInfoUrl}?${params.toString()}`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!resp.ok) throw new Error(`X profile failed (${resp.status})`);
     const json = await resp.json();
     const data = json?.data || {};
+    const email = normalizeEmail(data.confirmed_email || data.email || '');
     return {
       providerUserId: String(data.id || ''),
-      email: '',
-      emailVerified: false,
+      email,
+      emailVerified: !!email,
       firstName: String(data.name || '').trim(),
       lastName: '',
       displayName: String(data.name || '').trim(),
       usernameSeed: String(data.username || data.name || data.id || ''),
+      avatarUrl: normalizeOAuthAvatarUrl(data.profile_image_url || ''),
       raw: json
+    };
+  }
+  if (config.provider === 'apple') {
+    const tokenPayload = typeof accessToken === 'object' && accessToken ? accessToken : {};
+    const idToken = String(tokenPayload.id_token || callbackPayload.idToken || '');
+    await verifyAppleIdentityTokenSignature(idToken);
+    const claims = decodeJwtPayload(idToken);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (claims.iss !== 'https://appleid.apple.com') throw new Error('Apple token issuer invalid');
+    if (claims.aud !== config.clientId) throw new Error('Apple token audience invalid');
+    if (Number(claims.exp || 0) <= nowSeconds) throw new Error('Apple token expired');
+    if (config.nonce && claims.nonce && claims.nonce !== config.nonce) throw new Error('Apple token nonce invalid');
+
+    const callbackUser = parseAppleCallbackUser(callbackPayload.user);
+    const callbackName = callbackUser?.name || {};
+    const callbackEmail = normalizeEmail(callbackUser?.email || '');
+    const claimEmail = normalizeEmail(claims.email || '');
+    const email = claimEmail || callbackEmail;
+    const emailVerifiedRaw = claims.email_verified;
+    const emailVerified = emailVerifiedRaw === true || String(emailVerifiedRaw || '').toLowerCase() === 'true';
+    const firstName = String(callbackName.firstName || '').trim();
+    const lastName = String(callbackName.lastName || '').trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    return {
+      providerUserId: String(claims.sub || ''),
+      email,
+      emailVerified,
+      firstName,
+      lastName,
+      displayName: fullName,
+      usernameSeed: String(fullName || email || claims.sub || ''),
+      avatarUrl: '',
+      raw: { token: tokenPayload, claims, user: callbackUser }
     };
   }
   throw new Error('Unsupported provider');
@@ -3015,7 +3244,7 @@ function applyUserSession(req, user) {
   req.session.userId = user.id;
 }
 
-function findOrCreateOAuthUser({ provider, profile }) {
+async function findOrCreateOAuthUser({ provider, profile }) {
   const providerUserId = String(profile.providerUserId || '').trim();
   if (!providerUserId) throw new Error('OAuth provider user id missing');
 
@@ -3032,13 +3261,21 @@ function findOrCreateOAuthUser({ provider, profile }) {
     user = sqlGet('SELECT * FROM uyeler WHERE lower(email) = lower(?)', [profile.email]);
   }
   if (!user) {
+    if (!profile.email || !profile.emailVerified) {
+      throw new Error(`${provider} OAuth verified email missing`);
+    }
     const firstName = String(profile.firstName || '').trim() || 'SDAL';
     const lastName = String(profile.lastName || '').trim() || 'Üye';
-    const email = profile.email || `${provider}_${providerUserId}@oauth.local`;
+    const email = profile.email;
     const kadi = uniqueUsernameFromSeed(profile.usernameSeed || email);
+    const avatarFilename = await saveOAuthAvatar({
+      provider,
+      providerUserId,
+      avatarUrl: profile.avatarUrl || ''
+    });
     const result = sqlRun(
       `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verified, oauth_provider, oauth_subject, oauth_email_verified, verification_status)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'yok', '0', 1, 0, ?, ?, ?, 'pending')`,
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, '0', 1, 0, ?, ?, ?, 'pending')`,
       [
         kadi,
         randomState(18),
@@ -3047,6 +3284,7 @@ function findOrCreateOAuthUser({ provider, profile }) {
         lastName.slice(0, 20),
         createActivation(),
         nowIso,
+        avatarFilename,
         provider,
         providerUserId,
         profile.emailVerified ? 1 : 0
@@ -3062,6 +3300,19 @@ function findOrCreateOAuthUser({ provider, profile }) {
       });
     }
     user = sqlGet('SELECT * FROM uyeler WHERE id = ?', [userId]);
+  } else if (
+    (!user.resim || String(user.resim).trim().toLowerCase() === 'yok') &&
+    profile.avatarUrl
+  ) {
+    const avatarFilename = await saveOAuthAvatar({
+      provider,
+      providerUserId,
+      avatarUrl: profile.avatarUrl
+    });
+    if (avatarFilename && avatarFilename !== 'yok') {
+      sqlRun('UPDATE uyeler SET resim = ? WHERE id = ?', [avatarFilename, user.id]);
+      user = { ...user, resim: avatarFilename };
+    }
   }
 
   const existingAccount = sqlGet('SELECT id, user_id FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?', [provider, providerUserId]);

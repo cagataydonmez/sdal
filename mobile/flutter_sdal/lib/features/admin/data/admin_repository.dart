@@ -109,6 +109,25 @@ class AdminAuthSecuritySnapshot {
   }
 }
 
+class AdminAuthSettingsSnapshot {
+  const AdminAuthSettingsSnapshot({
+    required this.smsVerificationEnabled,
+    required this.updatedAt,
+  });
+
+  final bool smsVerificationEnabled;
+  final String updatedAt;
+
+  factory AdminAuthSettingsSnapshot.fromMap(JsonMap map) {
+    final settings = asJsonMap(map['settings']);
+    return AdminAuthSettingsSnapshot(
+      smsVerificationEnabled:
+          asBool(settings['smsVerificationEnabled']) ?? false,
+      updatedAt: coalesceText([settings['updatedAt']], fallback: ''),
+    );
+  }
+}
+
 class AdminVerifiedPhoneItem {
   const AdminVerifiedPhoneItem({
     required this.userId,
@@ -2193,6 +2212,23 @@ class AdminRepository {
     return AdminSiteControlsSnapshot.fromMap(asJsonMap(result.rawData));
   }
 
+  Future<AdminAuthSettingsSnapshot> fetchAuthSettings() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/admin/auth-settings',
+      decoder: asJsonMap,
+    );
+    return AdminAuthSettingsSnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
+  Future<void> updateAuthSettings({
+    required bool smsVerificationEnabled,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/admin/auth-settings',
+      body: {'smsVerificationEnabled': smsVerificationEnabled},
+    );
+  }
+
   Future<void> updateSiteControls({
     required bool siteOpen,
     String? maintenanceMessage,
@@ -2896,6 +2932,10 @@ final adminSecurityProvider = FutureProvider<AdminSecuritySnapshot>(
 
 final adminAuthSecurityProvider = FutureProvider<AdminAuthSecuritySnapshot>(
   (ref) => ref.watch(adminRepositoryProvider).fetchAuthSecurity(),
+);
+
+final adminAuthSettingsProvider = FutureProvider<AdminAuthSettingsSnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchAuthSettings(),
 );
 
 final adminRequestNotificationsProvider =

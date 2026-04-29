@@ -486,6 +486,14 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               emailChallenges: <AdminEmailChallengeItem>[],
             ),
           );
+    final authSettingsState = sectionKey == 'auth-security'
+        ? ref.watch(adminAuthSettingsProvider)
+        : const AsyncValue<AdminAuthSettingsSnapshot>.data(
+            AdminAuthSettingsSnapshot(
+              smsVerificationEnabled: false,
+              updatedAt: '',
+            ),
+          );
     final userPreviewState = sectionKey == 'management'
         ? ref.watch(adminUserPreviewProvider(userPreviewQuery))
         : const AsyncValue<AdminPreviewList<AdminUserPreviewItem>>.data(
@@ -609,6 +617,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               }
               if (sectionKey == 'auth-security') {
                 ref.invalidate(adminAuthSecurityProvider);
+                ref.invalidate(adminAuthSettingsProvider);
               }
               if (sectionKey == 'operations') {
                 ref.invalidate(adminSiteControlsProvider);
@@ -1132,12 +1141,41 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             const SizedBox(height: 16),
             _AdminAsyncCard(
               title: 'Auth güvenliği ve doğrulamalar',
-              states: [authSecurityState],
+              states: [authSettingsState, authSecurityState],
               builder: () {
+                final settings = authSettingsState.value!;
                 final snapshot = authSecurityState.value!;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _AdminPreviewListCard(
+                      title: 'Doğrulama ayarları',
+                      total: settings.smsVerificationEnabled ? 1 : 0,
+                      children: [
+                        _AdminPreviewLine(
+                          title: settings.smsVerificationEnabled
+                              ? 'SMS telefon doğrulaması aktif'
+                              : 'SMS telefon doğrulaması kapalı',
+                          subtitle: settings.smsVerificationEnabled
+                              ? 'Yeni kayıtlar e-posta aktivasyonundan sonra SMS doğrulamasına yönlendirilir.'
+                              : 'SMS kapalıyken kayıt ve giriş akışında yalnızca e-posta doğrulaması çalışır.',
+                          trailing: settings.updatedAt.isEmpty
+                              ? ''
+                              : 'Güncelleme: ${settings.updatedAt}',
+                          action: Switch(
+                            value: settings.smsVerificationEnabled,
+                            onChanged: actionState.isLoading
+                                ? null
+                                : (value) => _handleSmsVerificationToggle(
+                                    context,
+                                    ref,
+                                    enabled: value,
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     _AdminPreviewListCard(
                       title: 'Özet',
                       total: snapshot.counts.values.fold<int>(
@@ -2063,6 +2101,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         break;
       case 'auth-security':
         ref.invalidate(adminAuthSecurityProvider);
+        ref.invalidate(adminAuthSettingsProvider);
         break;
       case 'operations':
         ref.invalidate(adminSiteControlsProvider);
@@ -2237,6 +2276,28 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                     ? 'Push bildirimleri açıldı.'
                     : 'Push bildirimleri kapatıldı.')
               : (actionState.message ?? 'İşlem tamamlanamadı.'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleSmsVerificationToggle(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool enabled,
+  }) async {
+    final ok = await ref
+        .read(adminActionControllerProvider.notifier)
+        .updateAuthSettings(smsVerificationEnabled: enabled);
+    if (!context.mounted) return;
+    if (ok) _refreshCurrentSection();
+    final actionState = ref.read(adminActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? (enabled ? 'SMS doğrulama açıldı.' : 'SMS doğrulama kapatıldı.')
+              : (actionState.message ?? 'Doğrulama ayarı güncellenemedi.'),
         ),
       ),
     );

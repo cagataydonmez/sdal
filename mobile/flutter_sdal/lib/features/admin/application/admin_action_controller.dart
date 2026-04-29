@@ -115,6 +115,25 @@ class AdminActionController extends Notifier<AsyncActionState> {
     }
   }
 
+  Future<bool> updateAuthSettings({
+    required bool smsVerificationEnabled,
+  }) async {
+    const scope = 'admin:auth-settings';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.updateAuthSettings(
+        smsVerificationEnabled: smsVerificationEnabled,
+      );
+      ref.invalidate(adminAuthSettingsProvider);
+      ref.invalidate(adminAuthSecurityProvider);
+      state = const AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
   Future<AdminBroadcastResult?> sendNotificationBroadcast({
     required String target,
     required String sender,

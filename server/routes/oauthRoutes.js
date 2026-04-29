@@ -160,6 +160,7 @@ export function registerOAuthRoutes(app, {
       req.session.oauthState = null;
       req.session.oauthProvider = null;
       req.session.oauthPkceVerifier = null;
+      req.session.oauthNonce = null;
       req.session.oauthNative = null;
       req.session.oauthReturnTo = null;
     }
@@ -174,6 +175,21 @@ export function registerOAuthRoutes(app, {
     req.session.oauthProvider = config.provider;
     req.session.oauthNative = String(req.query.native || '') === '1' ? 1 : 0;
     req.session.oauthReturnTo = sanitizeOAuthReturnTo(req.query.returnTo, '/new/login');
+
+    if (config.provider === 'apple') {
+      const nonce = randomState();
+      req.session.oauthNonce = nonce;
+      const params = new URLSearchParams({
+        response_type: 'code',
+        response_mode: 'form_post',
+        client_id: config.clientId,
+        redirect_uri: config.redirectUri,
+        scope: config.scope,
+        state,
+        nonce
+      });
+      return res.redirect(`${config.authUrl}?${params.toString()}`);
+    }
 
     if (config.provider === 'x') {
       const verifier = base64Url(crypto.randomBytes(32));
@@ -201,16 +217,19 @@ export function registerOAuthRoutes(app, {
     res.redirect(`${config.authUrl}?${params.toString()}`);
   });
 
-  app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
+  async function handleOAuthCallback(req, res) {
     const config = getOAuthProviderConfig(req.params.provider, req);
+    if (config) config.nonce = String(req.session.oauthNonce || '');
     const isNative = Number(req.session.oauthNative || 0) === 1;
     const loginRedirectPath = sanitizeOAuthReturnTo(req.session.oauthReturnTo, '/new/login');
     const nativeRedirect = (params) => buildMobileOAuthCallbackUrl(params);
     if (!config || !config.enabled) {
       return res.redirect(isNative ? nativeRedirect({ oauth: 'disabled' }) : withOAuthError(loginRedirectPath, 'disabled'));
     }
-    const state = String(req.query.state || '');
-    const code = String(req.query.code || '');
+    const oauthError = String(req.body?.error || req.query.error || '');
+    if (oauthError) return res.redirect(isNative ? nativeRedirect({ oauth: oauthError }) : withOAuthError(loginRedirectPath, oauthError));
+    const state = String(req.body?.state || req.query.state || '');
+    const code = String(req.body?.code || req.query.code || '');
     if (!code || !state) return res.redirect(isNative ? nativeRedirect({ oauth: 'invalid' }) : withOAuthError(loginRedirectPath, 'invalid'));
     if (state !== String(req.session.oauthState || '') || config.provider !== String(req.session.oauthProvider || '')) {
       return res.redirect(isNative ? nativeRedirect({ oauth: 'state' }) : withOAuthError(loginRedirectPath, 'state'));
@@ -218,13 +237,16 @@ export function registerOAuthRoutes(app, {
 
     try {
       const accessToken = await oauthFetchToken(config, code, String(req.session.oauthPkceVerifier || ''));
-      const profile = await oauthFetchProfile(config, accessToken);
+      const profile = await oauthFetchProfile(config, accessToken, {
+        idToken: req.body?.id_token || req.query.id_token,
+        user: req.body?.user || req.query.user
+      });
       const choices = fetchTestAccountChoices(profile.email);
       if (config.provider === 'google' && choices.length > 1) {
         rememberOAuthChoice(req, { provider: config.provider, profile, choices });
         return renderOAuthChoicePage(res, choices);
       }
-      const user = findOrCreateOAuthUser({ provider: config.provider, profile });
+      const user = await findOrCreateOAuthUser({ provider: config.provider, profile });
       return completeOAuthLogin(req, res, user, { isNative, loginRedirectPath, nativeRedirect });
     } catch (err) {
       console.error('OAuth callback error:', config.provider, err);
@@ -234,11 +256,15 @@ export function registerOAuthRoutes(app, {
         req.session.oauthState = null;
         req.session.oauthProvider = null;
         req.session.oauthPkceVerifier = null;
+        req.session.oauthNonce = null;
         req.session.oauthNative = null;
         req.session.oauthReturnTo = null;
       }
     }
-  });
+  }
+
+  app.get('/api/auth/oauth/:provider/callback', handleOAuthCallback);
+  app.post('/api/auth/oauth/:provider/callback', handleOAuthCallback);
 
   app.post('/api/auth/oauth/mobile/exchange', async (req, res) => {
     try {
