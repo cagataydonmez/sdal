@@ -19,11 +19,16 @@ Future<void> main() async {
     const phoneAuthTestMode = bool.fromEnvironment(
       'FIREBASE_PHONE_AUTH_TEST_MODE',
     );
-    if (kDebugMode || phoneAuthTestMode) {
-      await FirebaseAuth.instance.setSettings(
-        appVerificationDisabledForTesting: true,
-      );
-    }
+    const firebaseAuthUserAccessGroup = String.fromEnvironment(
+      'FIREBASE_AUTH_USER_ACCESS_GROUP',
+      defaultValue: '4P293R4B47.com.sdal.flutterSdal',
+    );
+    await FirebaseAuth.instance.setSettings(
+      appVerificationDisabledForTesting: kDebugMode || phoneAuthTestMode,
+      userAccessGroup: firebaseAuthUserAccessGroup.isEmpty
+          ? null
+          : firebaseAuthUserAccessGroup,
+    );
     await FirebaseAppCheck.instance.activate(
       // TODO: switch to providerAndroid/providerApple after the FlutterFire
       // type aliases in the pinned firebase_app_check release line up.

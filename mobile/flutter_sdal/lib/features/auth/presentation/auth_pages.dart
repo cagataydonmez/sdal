@@ -1767,6 +1767,8 @@ String _firebasePhoneErrorMessage(FirebaseAuthException error) {
     case 'session-expired':
     case 'invalid-verification-code':
       return 'Kod geçersiz veya oturum süresi doldu.';
+    case 'keychain-error':
+      return 'Firebase telefon doğrulaması için iOS Keychain erişimi açılamadı. Uygulamayı temiz kurulumla tekrar deneyin.';
     default:
       return 'Telefon doğrulaması başlatılamadı. Lütfen daha sonra tekrar deneyin.';
   }

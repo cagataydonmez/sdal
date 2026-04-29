@@ -7,6 +7,7 @@
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+		<string>4P293R4B47.com.sdal.flutterSdal</string>
 	</array>
 </dict>
 </plist>
