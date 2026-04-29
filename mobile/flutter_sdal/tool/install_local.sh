@@ -5,6 +5,7 @@ ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 IOS_DIR="$ROOT_DIR/ios"
 FLUTTER_BIN="${FLUTTER_BIN:-$HOME/Developer/flutter/bin/flutter}"
 IOS_BUNDLE_ID="${IOS_BUNDLE_ID:-com.sdal.flutterSdal}"
+ANDROID_PACKAGE_ID="${ANDROID_PACKAGE_ID:-com.sdal.flutter_sdal}"
 IOS_RELEASE_BUILD_DIR_ABS="${IOS_RELEASE_BUILD_DIR_ABS:-$HOME/Library/Caches/flutter_sdal_ios_build}"
 FLUTTER_BUILD_DIR_REL="${FLUTTER_BUILD_DIR_REL:-../../../../Library/Caches/flutter_sdal_flutter_build}"
 IOS_SIGNING_IDENTITY_SHA="${IOS_SIGNING_IDENTITY_SHA:-}"
@@ -24,6 +25,8 @@ VERSION_MAJOR_SELECTED=""
 VERSION_MINOR_SELECTED=""
 VERSION_NEXT_BUILD=""
 APP_VERSION_PENDING=0
+CLEAN_BUILD_CACHES=0
+RESET_INSTALLED_APP=0
 
 print_help() {
   cat <<'EOF'
@@ -213,7 +216,92 @@ prepare_flutter() {
   "$FLUTTER_BIN" pub get
 }
 
+prompt_yes_no() {
+  local prompt="$1"
+  local default="${2:-N}"
+  local answer suffix="[y/N]"
+  if [[ "$default" =~ ^[Yy]$ ]]; then
+    suffix="[Y/n]"
+  fi
+  read -r -p "$prompt $suffix " answer < /dev/tty
+  answer="$(trim "$answer")"
+  if [[ -z "$answer" ]]; then
+    [[ "$default" =~ ^[Yy]$ ]]
+    return
+  fi
+  [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+prompt_local_cleanup_options() {
+  printf '\nClean install options\n'
+  printf '  Recommended when auth/Firebase/device-id changes seem stale.\n'
+  if prompt_yes_no "Clean Flutter/Xcode build caches before building?" "Y"; then
+    CLEAN_BUILD_CACHES=1
+  fi
+  if prompt_yes_no "Uninstall the existing app from the selected device before install? This resets local app data." "N"; then
+    RESET_INSTALLED_APP=1
+  fi
+}
+
+clean_build_caches_if_requested() {
+  if [[ $CLEAN_BUILD_CACHES -ne 1 ]]; then
+    return
+  fi
+
+  log "Cleaning Flutter/Xcode build caches..."
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" clean
+  )
+  rm -rf "$ROOT_DIR/build"
+  rm -rf "$ROOT_DIR/.dart_tool"
+  rm -f "$ROOT_DIR/ios/Flutter/Generated.xcconfig"
+  rm -f "$ROOT_DIR/ios/Flutter/flutter_export_environment.sh"
+  rm -rf "$ROOT_DIR/ios/build"
+  rm -rf "$ROOT_DIR/$FLUTTER_BUILD_DIR_REL"
+  rm -rf "$HOME/Library/Caches/flutter_sdal_flutter_build"
+  rm -rf "$IOS_RELEASE_BUILD_DIR_ABS"
+  rm -rf "$IOS_ARCHIVE_DIR/build_objroot"
+  find "$HOME/Library/Developer/Xcode/DerivedData" \
+    -maxdepth 1 \
+    -type d \
+    \( -name 'Runner-*' -o -name 'flutter_sdal*' -o -name 'flutter_sdal_ios*' \) \
+    -exec rm -rf {} + 2>/dev/null || true
+  log "Build caches cleaned."
+  CLEAN_BUILD_CACHES=0
+}
+
+uninstall_ios_app_if_requested() {
+  local device_identifier="$1"
+  if [[ $RESET_INSTALLED_APP -ne 1 ]]; then
+    return
+  fi
+  log "Uninstalling existing iOS app from device, if present..."
+  xcrun devicectl device uninstall app \
+    --device "$device_identifier" \
+    "$IOS_BUNDLE_ID" >/dev/null 2>&1 || true
+}
+
+uninstall_ios_simulator_app_if_requested() {
+  local udid="$1"
+  if [[ $RESET_INSTALLED_APP -ne 1 ]]; then
+    return
+  fi
+  log "Uninstalling existing simulator app, if present..."
+  xcrun simctl uninstall "$udid" "$IOS_BUNDLE_ID" >/dev/null 2>&1 || true
+}
+
+uninstall_android_app_if_requested() {
+  local device_id="$1"
+  if [[ $RESET_INSTALLED_APP -ne 1 ]]; then
+    return
+  fi
+  log "Uninstalling existing Android app from device, if present..."
+  adb -s "$device_id" uninstall "$ANDROID_PACKAGE_ID" >/dev/null 2>&1 || true
+}
+
 prepare_ios() {
+  clean_build_caches_if_requested
   prepare_flutter
   (
     cd "$IOS_DIR"
@@ -509,6 +597,7 @@ run_flutter_mode() {
   local device_id="$2"
   shift 2
 
+  clean_build_caches_if_requested
   prepare_flutter
 
   (
@@ -950,6 +1039,7 @@ main() {
     else
       build_mode="release"
     fi
+    prompt_local_cleanup_options
   fi
 
   case "$target_choice" in
@@ -963,6 +1053,7 @@ main() {
         identifier="${selected##*|||}"
         log "Selected: $label"
         apply_app_version_update
+        uninstall_ios_app_if_requested "$identifier"
         build_sign_install_launch_ios_release "$identifier"
       else
         load_entries get_ios_debug_devices
@@ -972,6 +1063,7 @@ main() {
         identifier="${selected##*|||}"
         log "Selected: $label"
         apply_app_version_update
+        uninstall_ios_app_if_requested "$identifier"
         run_ios_debug "$identifier"
       fi
       ;;
@@ -988,6 +1080,7 @@ main() {
       log "Selected: $label"
       apply_app_version_update
       boot_ios_simulator "$udid"
+      uninstall_ios_simulator_app_if_requested "$udid"
       ensure_flutter_build_dir_override
       prepare_ios
       (
@@ -1018,6 +1111,7 @@ main() {
       fi
       log "Using Android device: $android_device_id"
       apply_app_version_update
+      uninstall_android_app_if_requested "$android_device_id"
       run_flutter_mode "$build_mode" "$android_device_id"
       ;;
     4)
