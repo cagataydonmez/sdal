@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import Database from 'better-sqlite3';
+import { execFileSync } from 'node:child_process';
 
 function parseArgs(argv) {
   const args = {
@@ -114,7 +114,28 @@ function assertOk(condition, message, detail) {
   }
 }
 
-function cleanupRows(db, userId, username) {
+function sqliteQuote(value) {
+  return `'${String(value ?? '').replace(/'/g, "''")}'`;
+}
+
+function sqliteJsonRows(dbPath, sql) {
+  const output = execFileSync('sqlite3', ['-json', dbPath, sql], { encoding: 'utf8' }).trim();
+  return output ? JSON.parse(output) : [];
+}
+
+function sqliteExec(dbPath, sql) {
+  execFileSync('sqlite3', [dbPath, sql], { stdio: 'ignore' });
+}
+
+function sqliteTableExists(dbPath, table) {
+  const rows = sqliteJsonRows(
+    dbPath,
+    `SELECT name FROM sqlite_master WHERE type='table' AND name = ${sqliteQuote(table)} LIMIT 1`
+  );
+  return rows.length > 0;
+}
+
+function cleanupRows(dbPath, userId, username) {
   if (!userId) return;
   const tables = [
     ['auth_email_challenges', 'user_id'],
@@ -125,12 +146,11 @@ function cleanupRows(db, userId, username) {
     ['uyeler', 'id']
   ];
   for (const [table, column] of tables) {
-    const exists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
-    if (!exists) continue;
-    db.prepare(`DELETE FROM "${table}" WHERE "${column}" = ?`).run(userId);
+    if (!sqliteTableExists(dbPath, table)) continue;
+    sqliteExec(dbPath, `DELETE FROM "${table}" WHERE "${column}" = ${Number(userId)}`);
   }
   if (username) {
-    db.prepare('DELETE FROM uyeler WHERE kadi = ?').run(username);
+    sqliteExec(dbPath, `DELETE FROM uyeler WHERE kadi = ${sqliteQuote(username)}`);
   }
 }
 
@@ -140,7 +160,6 @@ async function main() {
   assertOk(args.token, 'E2E_HARNESS_TOKEN is required. Pass --token or set env.');
   assertOk(/^\+[1-9]\d{7,14}$/.test(phone), `Invalid phone: ${args.phone}`);
 
-  const db = new Database(args.dbPath);
   const harness = new HttpHarness(args.baseUrl, args.token);
   const suffix = Date.now().toString(36).slice(-8);
   const username = `e2e${suffix}`.slice(0, 15);
@@ -271,20 +290,27 @@ async function main() {
     );
     console.log('[auth-e2e] new device challenge required ok');
 
-    const flags = db.prepare('SELECT phone_verified_at, phone_verification_required FROM user_security_flags WHERE user_id = ?').get(userId);
+    const flags = sqliteJsonRows(
+      args.dbPath,
+      `SELECT phone_verified_at, phone_verification_required FROM user_security_flags WHERE user_id = ${Number(userId)} LIMIT 1`
+    )[0];
     assertOk(Boolean(flags?.phone_verified_at), 'db phone_verified_at missing');
     assertOk(Number(flags?.phone_verification_required || 0) === 0, 'db phone_verification_required not cleared');
-    const trustedCount = Number(db.prepare('SELECT COUNT(*) AS cnt FROM trusted_devices WHERE user_id = ? AND revoked_at IS NULL').get(userId)?.cnt || 0);
+    const trustedCount = Number(
+      sqliteJsonRows(
+        args.dbPath,
+        `SELECT COUNT(*) AS cnt FROM trusted_devices WHERE user_id = ${Number(userId)} AND revoked_at IS NULL`
+      )[0]?.cnt || 0
+    );
     assertOk(trustedCount >= 1, 'db trusted device missing');
     console.log(`[auth-e2e] db assertions ok trustedCount=${trustedCount}`);
 
     console.log('[auth-e2e] PASS');
   } finally {
     if (!args.keepUser) {
-      cleanupRows(db, userId, username);
+      cleanupRows(args.dbPath, userId, username);
       console.log(`[auth-e2e] cleanup complete userId=${userId || 'unknown'}`);
     }
-    db.close();
   }
 }
 
