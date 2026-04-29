@@ -34,7 +34,8 @@
     "test:phase2-network-inbox": "node tests/contracts/phase2-network-inbox.mjs",
     "test:phase2-network-hub": "node tests/contracts/phase2-network-hub.mjs",
     "test:phase2-network-metrics-analytics": "node tests/contracts/phase2-network-metrics-analytics.mjs",
-    "test:phase2-notifications": "node tests/contracts/phase2-notifications.mjs"
+    "test:phase2-notifications": "node tests/contracts/phase2-notifications.mjs",
+    "test:auth-phone-e2e": "node scripts/e2e-auth-phone-flow.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.5",
