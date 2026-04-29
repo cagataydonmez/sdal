@@ -507,13 +507,21 @@ export function createAuthSecurityRuntime({
       if (!parsed.success) return res.status(400).json({ ok: false, message: GENERIC_AUTH_MESSAGE });
       const phone = normalizePhoneNumber(parsed.data.phone_number);
       if (!phone) return res.status(400).json({ ok: false, message: GENERIC_AUTH_MESSAGE });
+      const phoneHash = hashPhone(phone);
+      const existingVerified = await sqlGetAsync(
+        'SELECT phone_verified_at FROM user_security_flags WHERE user_id = ? AND phone_number_hash = ? AND phone_verified_at IS NOT NULL LIMIT 1',
+        [req.session.userId, phoneHash]
+      );
+      if (existingVerified) {
+        const trusted = await trustDevice({ userId: req.session.userId, req, device: parsed.data });
+        return res.json({ ok: true, phone_verified: true, trusted_device: trusted, already_verified: true });
+      }
       const verified = await verifyFirebasePhoneToken(parsed.data.firebase_id_token, phone);
       if (!verified) {
-        await audit({ userId: req.session.userId, eventType: 'sms_complete_failed', riskLevel: 'warn', req, phoneHash: hashPhone(phone), deviceIdHash: hashDeviceId(parsed.data.device_id) });
+        await audit({ userId: req.session.userId, eventType: 'sms_complete_failed', riskLevel: 'warn', req, phoneHash, deviceIdHash: hashDeviceId(parsed.data.device_id) });
         return res.status(400).json({ ok: false, message: 'Kod geçersiz veya oturum süresi doldu.' });
       }
       const now = new Date().toISOString();
-      const phoneHash = hashPhone(phone);
       const updated = await sqlRunAsync(
         'UPDATE user_security_flags SET phone_verified_at = ?, phone_number_hash = ?, phone_verification_required = 0, updated_at = ? WHERE user_id = ?',
         [now, phoneHash, now, req.session.userId]

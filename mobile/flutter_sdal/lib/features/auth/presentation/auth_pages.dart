@@ -1468,6 +1468,7 @@ class _PhoneVerificationStepState
   bool _normalizingPhone = false;
   bool _mockVerification = false;
   bool _phoneCompleteSubmitted = false;
+  bool _phoneCompleteSucceeded = false;
 
   @override
   void initState() {
@@ -1621,7 +1622,7 @@ class _PhoneVerificationStepState
       await _completeWithToken(token);
     } catch (error) {
       debugPrint('[phone-auth] sms code verification failed: $error');
-      if (!mounted) return;
+      if (!mounted || _phoneCompleteSucceeded) return;
       setState(() {
         _verifying = false;
         _phoneCompleteSubmitted = false;
@@ -1638,7 +1639,12 @@ class _PhoneVerificationStepState
         .read(authActionControllerProvider.notifier)
         .completePhoneVerification(phoneNumber: phone, firebaseIdToken: token);
     if (!mounted) return;
-    if (!ok) _phoneCompleteSubmitted = false;
+    if (ok) {
+      _phoneCompleteSucceeded = true;
+    } else {
+      _phoneCompleteSubmitted = false;
+      if (_phoneCompleteSucceeded) return;
+    }
     setState(() {
       _sending = false;
       _verifying = false;
