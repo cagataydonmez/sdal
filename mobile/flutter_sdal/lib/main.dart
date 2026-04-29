@@ -24,7 +24,7 @@ Future<void> main() async {
       defaultValue: '4P293R4B47.com.sdal.flutterSdal',
     );
     await FirebaseAuth.instance.setSettings(
-      appVerificationDisabledForTesting: kDebugMode || phoneAuthTestMode,
+      appVerificationDisabledForTesting: phoneAuthTestMode,
       userAccessGroup: firebaseAuthUserAccessGroup.isEmpty
           ? null
           : firebaseAuthUserAccessGroup,
