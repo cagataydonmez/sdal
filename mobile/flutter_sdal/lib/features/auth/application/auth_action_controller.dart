@@ -315,7 +315,6 @@ class AuthActionController extends Notifier<AsyncActionState> {
     final sessionController = ref.read(sessionControllerProvider.notifier);
     state = const AsyncActionState.loading(scope: 'phoneComplete');
     final device = await deviceIdentityService.metadata();
-    if (!ref.mounted) return false;
     final result = await apiClient.post<JsonMap>(
       '/api/auth/phone/complete',
       body: {
@@ -325,7 +324,6 @@ class AuthActionController extends Notifier<AsyncActionState> {
       },
       decoder: asJsonMap,
     );
-    if (!ref.mounted) return false;
     if (result.ok) {
       await sessionController.refreshSilently();
       if (!ref.mounted) return true;

@@ -1467,6 +1467,7 @@ class _PhoneVerificationStepState
   bool _verifying = false;
   bool _normalizingPhone = false;
   bool _mockVerification = false;
+  bool _phoneCompleteSubmitted = false;
 
   @override
   void initState() {
@@ -1591,6 +1592,7 @@ class _PhoneVerificationStepState
   }
 
   Future<void> _verifyCode() async {
+    if (_verifying || _phoneCompleteSubmitted) return;
     if (_verificationId.isEmpty || _otpController.text.trim().isEmpty) {
       setState(() => _status = 'SMS kodunu girin.');
       return;
@@ -1617,21 +1619,26 @@ class _PhoneVerificationStepState
       }
       if (token == null) throw StateError('missing firebase token');
       await _completeWithToken(token);
-    } catch (_) {
+    } catch (error) {
+      debugPrint('[phone-auth] sms code verification failed: $error');
       if (!mounted) return;
       setState(() {
         _verifying = false;
+        _phoneCompleteSubmitted = false;
         _status = 'Kod geçersiz veya oturum süresi doldu.';
       });
     }
   }
 
   Future<void> _completeWithToken(String token) async {
+    if (_phoneCompleteSubmitted) return;
+    _phoneCompleteSubmitted = true;
     final phone = _normalizePhoneForAuth(widget.phoneController.text);
     final ok = await ref
         .read(authActionControllerProvider.notifier)
         .completePhoneVerification(phoneNumber: phone, firebaseIdToken: token);
     if (!mounted) return;
+    if (!ok) _phoneCompleteSubmitted = false;
     setState(() {
       _sending = false;
       _verifying = false;
