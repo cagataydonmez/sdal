@@ -1754,23 +1754,37 @@ String _normalizePhoneForAuth(String raw, {bool live = false}) {
 }
 
 String _firebasePhoneErrorMessage(FirebaseAuthException error) {
+  final supportCode = error.code.trim();
+  String withSupportCode(String message) {
+    if (supportCode.isEmpty) return message;
+    return '$message\nHata kodu: $supportCode';
+  }
+
   switch (error.code) {
     case 'too-many-requests':
     case 'quota-exceeded':
-      return 'Firebase çok fazla deneme algıladı. Lütfen biraz bekleyip tekrar deneyin.';
+      return withSupportCode(
+        'Firebase çok fazla deneme algıladı. Lütfen biraz bekleyip tekrar deneyin.',
+      );
     case 'invalid-phone-number':
-      return 'Geçerli bir telefon numarası girin.';
+      return withSupportCode('Geçerli bir telefon numarası girin.');
     case 'captcha-check-failed':
     case 'app-not-authorized':
     case 'missing-client-identifier':
-      return 'Firebase telefon doğrulaması başlatılamadı. Lütfen uygulama yapılandırmasını kontrol edin.';
+      return withSupportCode(
+        'Firebase telefon doğrulaması başlatılamadı. Lütfen uygulama yapılandırmasını kontrol edin.',
+      );
     case 'session-expired':
     case 'invalid-verification-code':
-      return 'Kod geçersiz veya oturum süresi doldu.';
+      return withSupportCode('Kod geçersiz veya oturum süresi doldu.');
     case 'keychain-error':
-      return 'Firebase telefon doğrulaması için iOS Keychain erişimi açılamadı. Uygulamayı temiz kurulumla tekrar deneyin.';
+      return withSupportCode(
+        'Firebase telefon doğrulaması için iOS Keychain erişimi açılamadı. Uygulamayı temiz kurulumla tekrar deneyin.',
+      );
     default:
-      return 'Telefon doğrulaması başlatılamadı. Lütfen daha sonra tekrar deneyin.';
+      return withSupportCode(
+        'Telefon doğrulaması başlatılamadı. Lütfen daha sonra tekrar deneyin.',
+      );
   }
 }
 
