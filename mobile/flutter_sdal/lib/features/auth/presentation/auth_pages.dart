@@ -1755,9 +1755,16 @@ String _normalizePhoneForAuth(String raw, {bool live = false}) {
 
 String _firebasePhoneErrorMessage(FirebaseAuthException error) {
   final supportCode = error.code.trim();
+  final supportDetail = (error.message ?? '').trim();
   String withSupportCode(String message) {
-    if (supportCode.isEmpty) return message;
-    return '$message\nHata kodu: $supportCode';
+    final parts = <String>[message];
+    if (supportCode.isNotEmpty) parts.add('Hata kodu: $supportCode');
+    if (supportDetail.isNotEmpty) {
+      parts.add(
+        'Firebase detayı: ${supportDetail.length > 180 ? '${supportDetail.substring(0, 180)}...' : supportDetail}',
+      );
+    }
+    return parts.join('\n');
   }
 
   switch (error.code) {
@@ -1780,6 +1787,10 @@ String _firebasePhoneErrorMessage(FirebaseAuthException error) {
     case 'keychain-error':
       return withSupportCode(
         'Firebase telefon doğrulaması için iOS Keychain erişimi açılamadı. Uygulamayı temiz kurulumla tekrar deneyin.',
+      );
+    case 'internal-error':
+      return withSupportCode(
+        'Firebase telefon doğrulaması tamamlanamadı. Simülatörde reCAPTCHA dönüşü veya Firebase API anahtarı kısıtları kontrol edilmeli.',
       );
     default:
       return withSupportCode(
