@@ -78,6 +78,77 @@ trim() {
   printf '%s' "$value"
 }
 
+log_testflight_signing_summary() {
+  local ipa_path="$1"
+  local work_dir app_dir profile_path entitlements_plist entitlements_json profile_plist
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/sdal_ipa_signing.XXXXXX")"
+
+  log ""
+  log "Signing summary from exported IPA:"
+  log "IPA: $ipa_path"
+
+  unzip -q "$ipa_path" -d "$work_dir"
+  app_dir="$(find "$work_dir/Payload" -maxdepth 1 -name '*.app' -type d | head -1)"
+  [[ -d "$app_dir" ]] || die "Could not inspect IPA: .app bundle not found."
+
+  profile_path="$app_dir/embedded.mobileprovision"
+  entitlements_plist="$work_dir/entitlements.plist"
+  profile_plist="$work_dir/profile.plist"
+
+  if codesign -d --entitlements :- "$app_dir" >"$entitlements_plist" 2>/dev/null; then
+    entitlements_json="$(plutil -convert json -o - "$entitlements_plist" 2>/dev/null || printf '{}')"
+    /usr/bin/python3 - "$entitlements_json" <<'PY'
+import json
+import sys
+
+data = json.loads(sys.argv[1] or '{}')
+for key in [
+    'application-identifier',
+    'com.apple.developer.team-identifier',
+    'aps-environment',
+    'com.apple.developer.devicecheck.appattest-environment',
+]:
+    value = data.get(key, '')
+    if isinstance(value, list):
+        value = ','.join(str(item) for item in value)
+    print(f'  entitlement.{key}={value}')
+PY
+  else
+    log "  [WARN] Could not read codesign entitlements."
+  fi
+
+  if [[ -f "$profile_path" ]]; then
+    security cms -D -i "$profile_path" >"$profile_plist"
+    /usr/bin/python3 - "$profile_plist" <<'PY'
+import plistlib
+import sys
+
+with open(sys.argv[1], 'rb') as fh:
+    profile = plistlib.load(fh)
+ent = profile.get('Entitlements') or {}
+provisions_all = bool(profile.get('ProvisionsAllDevices'))
+provisioned = profile.get('ProvisionedDevices') or []
+profile_type = 'App Store'
+if provisions_all:
+    profile_type = 'Enterprise'
+elif provisioned:
+    profile_type = 'Ad Hoc/Development'
+print(f"  profile.name={profile.get('Name', '')}")
+print(f"  profile.uuid={profile.get('UUID', '')}")
+print(f"  profile.team={','.join(profile.get('TeamIdentifier') or [])}")
+print(f"  profile.type={profile_type}")
+print(f"  profile.provisionedDeviceCount={len(provisioned)}")
+print(f"  profile.aps-environment={ent.get('aps-environment', '')}")
+print(f"  profile.appattest-environment={ent.get('com.apple.developer.devicecheck.appattest-environment', '')}")
+print(f"  profile.application-identifier={ent.get('application-identifier', '')}")
+PY
+  else
+    log "  [WARN] embedded.mobileprovision not found in IPA."
+  fi
+
+  rm -rf "$work_dir"
+}
+
 current_version_parts() {
   local version_line
   version_line="$(awk '/^version: /{print $2; exit}' "$ROOT_DIR/pubspec.yaml")"
@@ -848,6 +919,8 @@ PY
   local ipa_path
   ipa_path="$(find "$export_path" -name '*.ipa' | head -1)"
   [[ -f "$ipa_path" ]] || die "IPA not found after export in: $export_path"
+
+  log_testflight_signing_summary "$ipa_path"
 
   log ""
   log "Step 3/3: Uploading to App Store Connect / TestFlight..."
