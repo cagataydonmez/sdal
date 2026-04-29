@@ -285,24 +285,20 @@ class AuthActionController extends Notifier<AsyncActionState> {
     final deviceIdentityService = ref.read(deviceIdentityServiceProvider);
     state = const AsyncActionState.loading(scope: 'phoneStart');
     final device = await deviceIdentityService.metadata();
-    if (!ref.mounted) {
-      return const PhoneVerificationStartResult(allowed: false);
-    }
     final result = await apiClient.post<JsonMap>(
       '/api/auth/phone/start',
       body: {'phone_number': phoneNumber, 'device_id': device.deviceId},
       decoder: asJsonMap,
     );
-    if (!ref.mounted) {
-      return const PhoneVerificationStartResult(allowed: false);
-    }
     final payload = asJsonMap(result.rawData);
     final message = result.message.isNotEmpty
         ? result.message
         : 'Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
-    state = result.ok
-        ? const AsyncActionState.success(scope: 'phoneStart')
-        : AsyncActionState.error(message: message, scope: 'phoneStart');
+    if (ref.mounted) {
+      state = result.ok
+          ? const AsyncActionState.success(scope: 'phoneStart')
+          : AsyncActionState.error(message: message, scope: 'phoneStart');
+    }
     return PhoneVerificationStartResult(
       allowed: result.ok,
       mockVerification: asBool(payload['mock_verification']) ?? false,

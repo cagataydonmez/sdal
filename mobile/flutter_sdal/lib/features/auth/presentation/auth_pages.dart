@@ -1515,8 +1515,12 @@ class _PhoneVerificationStepState
       startResult = await ref
           .read(authActionControllerProvider.notifier)
           .startPhoneVerification(phoneNumber: phone);
-    } catch (_) {
-      startResult = const PhoneVerificationStartResult(allowed: false);
+    } catch (error) {
+      debugPrint('[phone-auth] phone start failed before Firebase: $error');
+      startResult = PhoneVerificationStartResult(
+        allowed: false,
+        message: 'Telefon doğrulaması başlatılamadı. Lütfen tekrar deneyin.',
+      );
     }
     if (!mounted) return;
     if (!startResult.allowed) {
