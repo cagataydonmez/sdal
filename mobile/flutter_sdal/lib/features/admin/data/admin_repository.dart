@@ -69,6 +69,299 @@ class AdminSecuritySnapshot {
   }
 }
 
+class AdminAuthSecuritySnapshot {
+  const AdminAuthSecuritySnapshot({
+    required this.counts,
+    required this.verifiedPhones,
+    required this.trustedDevices,
+    required this.phoneAttempts,
+    required this.auditLogs,
+    required this.emailChallenges,
+  });
+
+  final Map<String, int> counts;
+  final List<AdminVerifiedPhoneItem> verifiedPhones;
+  final List<AdminTrustedDeviceItem> trustedDevices;
+  final List<AdminPhoneAttemptItem> phoneAttempts;
+  final List<AdminAuthAuditItem> auditLogs;
+  final List<AdminEmailChallengeItem> emailChallenges;
+
+  factory AdminAuthSecuritySnapshot.fromMap(JsonMap map) {
+    final rawCounts = asJsonMap(map['counts']);
+    return AdminAuthSecuritySnapshot(
+      counts: rawCounts.map((key, value) => MapEntry(key, asInt(value) ?? 0)),
+      verifiedPhones: asJsonMapList(
+        map['verifiedPhones'],
+      ).map(AdminVerifiedPhoneItem.fromMap).toList(growable: false),
+      trustedDevices: asJsonMapList(
+        map['trustedDevices'],
+      ).map(AdminTrustedDeviceItem.fromMap).toList(growable: false),
+      phoneAttempts: asJsonMapList(
+        map['phoneAttempts'],
+      ).map(AdminPhoneAttemptItem.fromMap).toList(growable: false),
+      auditLogs: asJsonMapList(
+        map['auditLogs'],
+      ).map(AdminAuthAuditItem.fromMap).toList(growable: false),
+      emailChallenges: asJsonMapList(
+        map['emailChallenges'],
+      ).map(AdminEmailChallengeItem.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminVerifiedPhoneItem {
+  const AdminVerifiedPhoneItem({
+    required this.userId,
+    required this.handle,
+    required this.name,
+    required this.phoneHashPreview,
+    required this.verifiedAt,
+    required this.updatedAt,
+    required this.verificationRequired,
+    required this.manualReviewRequired,
+    required this.suspiciousReason,
+  });
+
+  final int userId;
+  final String handle;
+  final String name;
+  final String phoneHashPreview;
+  final String verifiedAt;
+  final String updatedAt;
+  final bool verificationRequired;
+  final bool manualReviewRequired;
+  final String suspiciousReason;
+
+  String get displayName => _adminAuthDisplayName(handle, name, userId);
+
+  factory AdminVerifiedPhoneItem.fromMap(JsonMap map) {
+    return AdminVerifiedPhoneItem(
+      userId: asInt(map['user_id']) ?? 0,
+      handle: coalesceText([map['kadi']], fallback: ''),
+      name: _adminAuthFullName(map),
+      phoneHashPreview: coalesceText([
+        map['phone_number_hash_preview'],
+      ], fallback: ''),
+      verifiedAt: coalesceText([map['phone_verified_at']], fallback: ''),
+      updatedAt: coalesceText([map['updated_at']], fallback: ''),
+      verificationRequired: asBool(map['phone_verification_required']) ?? false,
+      manualReviewRequired: asBool(map['manual_review_required']) ?? false,
+      suspiciousReason: coalesceText([map['suspicious_reason']], fallback: ''),
+    );
+  }
+}
+
+class AdminTrustedDeviceItem {
+  const AdminTrustedDeviceItem({
+    required this.id,
+    required this.userId,
+    required this.handle,
+    required this.name,
+    required this.deviceHashPreview,
+    required this.deviceName,
+    required this.platform,
+    required this.appVersion,
+    required this.createdAt,
+    required this.lastSeenAt,
+    required this.trustedAt,
+    required this.revokedAt,
+    required this.ipHashPreview,
+    required this.userAgent,
+  });
+
+  final int id;
+  final int userId;
+  final String handle;
+  final String name;
+  final String deviceHashPreview;
+  final String deviceName;
+  final String platform;
+  final String appVersion;
+  final String createdAt;
+  final String lastSeenAt;
+  final String trustedAt;
+  final String revokedAt;
+  final String ipHashPreview;
+  final String userAgent;
+
+  bool get revoked => revokedAt.trim().isNotEmpty;
+  String get displayName => _adminAuthDisplayName(handle, name, userId);
+
+  factory AdminTrustedDeviceItem.fromMap(JsonMap map) {
+    return AdminTrustedDeviceItem(
+      id: asInt(map['id']) ?? 0,
+      userId: asInt(map['user_id']) ?? 0,
+      handle: coalesceText([map['kadi']], fallback: ''),
+      name: _adminAuthFullName(map),
+      deviceHashPreview: coalesceText([
+        map['device_id_hash_preview'],
+      ], fallback: ''),
+      deviceName: coalesceText([
+        map['device_name'],
+      ], fallback: 'Bilinmeyen cihaz'),
+      platform: coalesceText([map['platform']], fallback: ''),
+      appVersion: coalesceText([map['app_version']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+      lastSeenAt: coalesceText([map['last_seen_at']], fallback: ''),
+      trustedAt: coalesceText([map['trusted_at']], fallback: ''),
+      revokedAt: coalesceText([map['revoked_at']], fallback: ''),
+      ipHashPreview: coalesceText([
+        map['ip_created_hash_preview'],
+      ], fallback: ''),
+      userAgent: coalesceText([map['user_agent']], fallback: ''),
+    );
+  }
+}
+
+class AdminPhoneAttemptItem {
+  const AdminPhoneAttemptItem({
+    required this.id,
+    required this.userId,
+    required this.handle,
+    required this.name,
+    required this.phoneHashPreview,
+    required this.ipHashPreview,
+    required this.deviceHashPreview,
+    required this.status,
+    required this.reason,
+    required this.createdAt,
+  });
+
+  final int id;
+  final int userId;
+  final String handle;
+  final String name;
+  final String phoneHashPreview;
+  final String ipHashPreview;
+  final String deviceHashPreview;
+  final String status;
+  final String reason;
+  final String createdAt;
+
+  String get displayName => _adminAuthDisplayName(handle, name, userId);
+
+  factory AdminPhoneAttemptItem.fromMap(JsonMap map) {
+    return AdminPhoneAttemptItem(
+      id: asInt(map['id']) ?? 0,
+      userId: asInt(map['user_id']) ?? 0,
+      handle: coalesceText([map['kadi']], fallback: ''),
+      name: _adminAuthFullName(map),
+      phoneHashPreview: coalesceText([
+        map['phone_number_hash_preview'],
+      ], fallback: ''),
+      ipHashPreview: coalesceText([map['ip_hash_preview']], fallback: ''),
+      deviceHashPreview: coalesceText([
+        map['device_id_hash_preview'],
+      ], fallback: ''),
+      status: coalesceText([map['status']], fallback: ''),
+      reason: coalesceText([map['reason']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+    );
+  }
+}
+
+class AdminAuthAuditItem {
+  const AdminAuthAuditItem({
+    required this.id,
+    required this.userId,
+    required this.handle,
+    required this.name,
+    required this.eventType,
+    required this.riskLevel,
+    required this.phoneHashPreview,
+    required this.emailHashPreview,
+    required this.deviceHashPreview,
+    required this.ipHashPreview,
+    required this.createdAt,
+  });
+
+  final int id;
+  final int userId;
+  final String handle;
+  final String name;
+  final String eventType;
+  final String riskLevel;
+  final String phoneHashPreview;
+  final String emailHashPreview;
+  final String deviceHashPreview;
+  final String ipHashPreview;
+  final String createdAt;
+
+  String get displayName => _adminAuthDisplayName(handle, name, userId);
+
+  factory AdminAuthAuditItem.fromMap(JsonMap map) {
+    return AdminAuthAuditItem(
+      id: asInt(map['id']) ?? 0,
+      userId: asInt(map['user_id']) ?? 0,
+      handle: coalesceText([map['kadi']], fallback: ''),
+      name: _adminAuthFullName(map),
+      eventType: coalesceText([map['event_type']], fallback: ''),
+      riskLevel: coalesceText([map['risk_level']], fallback: 'info'),
+      phoneHashPreview: coalesceText([
+        map['phone_number_hash_preview'],
+      ], fallback: ''),
+      emailHashPreview: coalesceText([map['email_hash_preview']], fallback: ''),
+      deviceHashPreview: coalesceText([
+        map['device_id_hash_preview'],
+      ], fallback: ''),
+      ipHashPreview: coalesceText([map['ip_hash_preview']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+    );
+  }
+}
+
+class AdminEmailChallengeItem {
+  const AdminEmailChallengeItem({
+    required this.id,
+    required this.userId,
+    required this.handle,
+    required this.name,
+    required this.deviceHashPreview,
+    required this.expiresAt,
+    required this.consumedAt,
+    required this.createdAt,
+  });
+
+  final int id;
+  final int userId;
+  final String handle;
+  final String name;
+  final String deviceHashPreview;
+  final String expiresAt;
+  final String consumedAt;
+  final String createdAt;
+
+  bool get consumed => consumedAt.trim().isNotEmpty;
+  String get displayName => _adminAuthDisplayName(handle, name, userId);
+
+  factory AdminEmailChallengeItem.fromMap(JsonMap map) {
+    return AdminEmailChallengeItem(
+      id: asInt(map['id']) ?? 0,
+      userId: asInt(map['user_id']) ?? 0,
+      handle: coalesceText([map['kadi']], fallback: ''),
+      name: _adminAuthFullName(map),
+      deviceHashPreview: coalesceText([
+        map['device_id_hash_preview'],
+      ], fallback: ''),
+      expiresAt: coalesceText([map['expires_at']], fallback: ''),
+      consumedAt: coalesceText([map['consumed_at']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+    );
+  }
+}
+
+String _adminAuthFullName(JsonMap map) {
+  final firstName = coalesceText([map['isim']], fallback: '');
+  final lastName = coalesceText([map['soyisim']], fallback: '');
+  return '$firstName $lastName'.trim();
+}
+
+String _adminAuthDisplayName(String handle, String name, int userId) {
+  if (handle.trim().isNotEmpty) return '@$handle';
+  if (name.trim().isNotEmpty) return name;
+  return userId > 0 ? 'Üye #$userId' : 'Anonim';
+}
+
 class AdminShellUser {
   const AdminShellUser({
     required this.id,
@@ -1744,6 +2037,15 @@ class AdminRepository {
     return AdminSecuritySnapshot.fromMap(asJsonMap(result.rawData));
   }
 
+  Future<AdminAuthSecuritySnapshot> fetchAuthSecurity() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/auth-security',
+      query: {'limit': '30'},
+      decoder: asJsonMap,
+    );
+    return AdminAuthSecuritySnapshot.fromMap(asJsonMap(result.rawData));
+  }
+
   Future<List<AdminRequestNotificationItem>> fetchRequestNotifications() async {
     final result = await _apiClient.get<JsonMap>(
       '/api/new/admin/requests/notifications',
@@ -2590,6 +2892,10 @@ final adminLiveProvider = FutureProvider<AdminLiveSnapshot>(
 
 final adminSecurityProvider = FutureProvider<AdminSecuritySnapshot>(
   (ref) => ref.watch(adminRepositoryProvider).fetchSecurityStatus(),
+);
+
+final adminAuthSecurityProvider = FutureProvider<AdminAuthSecuritySnapshot>(
+  (ref) => ref.watch(adminRepositoryProvider).fetchAuthSecurity(),
 );
 
 final adminRequestNotificationsProvider =

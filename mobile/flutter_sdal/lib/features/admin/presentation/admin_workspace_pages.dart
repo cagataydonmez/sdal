@@ -242,6 +242,15 @@ class AdminWorkspacePage extends ConsumerWidget {
                     onTap: () => context.go('/admin/notifications'),
                   ),
                   _WorkspaceNavCard(
+                    title: 'Auth güvenliği',
+                    summary:
+                        'Telefon doğrulama, güvenilir cihazlar ve auth audit kayıtlarını izle.',
+                    countLabel: 'SMS ve cihaz doğrulama',
+                    icon: Icons.phonelink_lock_outlined,
+                    tone: _WorkspaceTone.danger,
+                    onTap: () => context.go('/admin/auth-security'),
+                  ),
+                  _WorkspaceNavCard(
                     title: 'Gelişmiş araçlar',
                     summary:
                         'Operasyonlar, loglar, deneyler, diller ve veritabanı işleri.',

@@ -474,6 +474,18 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         : const AsyncValue<List<AdminBroadcastHistoryItem>>.data(
             <AdminBroadcastHistoryItem>[],
           );
+    final authSecurityState = sectionKey == 'auth-security'
+        ? ref.watch(adminAuthSecurityProvider)
+        : const AsyncValue<AdminAuthSecuritySnapshot>.data(
+            AdminAuthSecuritySnapshot(
+              counts: <String, int>{},
+              verifiedPhones: <AdminVerifiedPhoneItem>[],
+              trustedDevices: <AdminTrustedDeviceItem>[],
+              phoneAttempts: <AdminPhoneAttemptItem>[],
+              auditLogs: <AdminAuthAuditItem>[],
+              emailChallenges: <AdminEmailChallengeItem>[],
+            ),
+          );
     final userPreviewState = sectionKey == 'management'
         ? ref.watch(adminUserPreviewProvider(userPreviewQuery))
         : const AsyncValue<AdminPreviewList<AdminUserPreviewItem>>.data(
@@ -567,6 +579,7 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
             sectionKey == 'requests' ||
             sectionKey == 'management' ||
             sectionKey == 'api-monitor' ||
+            sectionKey == 'auth-security' ||
             sectionKey == 'notifications' ||
             sectionKey == 'operations' ||
             sectionKey == 'database' ||
@@ -593,6 +606,9 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               if (sectionKey == 'notifications') {
                 ref.invalidate(adminNotificationOpsProvider);
                 ref.invalidate(adminPushSettingsProvider);
+              }
+              if (sectionKey == 'auth-security') {
+                ref.invalidate(adminAuthSecurityProvider);
               }
               if (sectionKey == 'operations') {
                 ref.invalidate(adminSiteControlsProvider);
@@ -1104,6 +1120,149 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(alert),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+          if (sectionKey == 'auth-security') ...[
+            const SizedBox(height: 16),
+            _AdminAsyncCard(
+              title: 'Auth güvenliği ve doğrulamalar',
+              states: [authSecurityState],
+              builder: () {
+                final snapshot = authSecurityState.value!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _AdminPreviewListCard(
+                      title: 'Özet',
+                      total: snapshot.counts.values.fold<int>(
+                        0,
+                        (sum, value) => sum + value,
+                      ),
+                      children: [
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _AdminStatChip(
+                              icon: Icons.phone_iphone_outlined,
+                              label:
+                                  '${snapshot.counts['verified_phones'] ?? 0} doğrulanmış telefon',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.verified_user_outlined,
+                              label:
+                                  '${snapshot.counts['active_trusted_devices'] ?? 0} aktif güvenilir cihaz',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.block_outlined,
+                              label:
+                                  '${snapshot.counts['denied_phone_attempts'] ?? 0} reddedilen SMS denemesi',
+                            ),
+                            _AdminStatChip(
+                              icon: Icons.mail_lock_outlined,
+                              label:
+                                  '${snapshot.counts['pending_email_challenges'] ?? 0} açık e-posta challenge',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Ham telefon numarası ve ham cihaz ID saklanmaz; bu ekran sadece hash önizlemelerini ve denetim durumlarını gösterir.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Doğrulanmış telefonlar',
+                      total: snapshot.verifiedPhones.length,
+                      children: [
+                        for (final item in snapshot.verifiedPhones)
+                          _AdminPreviewLine(
+                            title: item.displayName,
+                            subtitle:
+                                'Telefon hash: ${item.phoneHashPreview.isEmpty ? 'yok' : item.phoneHashPreview}'
+                                '${item.manualReviewRequired ? ' · manuel inceleme' : ''}'
+                                '${item.suspiciousReason.isNotEmpty ? ' · ${item.suspiciousReason}' : ''}',
+                            trailing: item.verifiedAt,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Güvenilir cihazlar',
+                      total: snapshot.trustedDevices.length,
+                      children: [
+                        for (final item in snapshot.trustedDevices)
+                          _AdminPreviewLine(
+                            title:
+                                '${item.displayName} · ${item.deviceName.isEmpty ? 'Cihaz' : item.deviceName}',
+                            subtitle:
+                                '${item.platform.isEmpty ? 'platform yok' : item.platform}'
+                                '${item.appVersion.isNotEmpty ? ' · v${item.appVersion}' : ''}'
+                                ' · cihaz hash: ${item.deviceHashPreview.isEmpty ? 'yok' : item.deviceHashPreview}'
+                                '${item.ipHashPreview.isNotEmpty ? ' · IP hash: ${item.ipHashPreview}' : ''}',
+                            trailing: item.revoked
+                                ? 'İptal: ${item.revokedAt}'
+                                : 'Son: ${item.lastSeenAt}',
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'SMS denemeleri',
+                      total: snapshot.phoneAttempts.length,
+                      children: [
+                        for (final item in snapshot.phoneAttempts)
+                          _AdminPreviewLine(
+                            title: '${item.displayName} · ${item.status}',
+                            subtitle:
+                                'Telefon hash: ${item.phoneHashPreview.isEmpty ? 'yok' : item.phoneHashPreview}'
+                                '${item.reason.isNotEmpty ? ' · ${item.reason}' : ''}'
+                                '${item.deviceHashPreview.isNotEmpty ? ' · cihaz: ${item.deviceHashPreview}' : ''}'
+                                '${item.ipHashPreview.isNotEmpty ? ' · IP: ${item.ipHashPreview}' : ''}',
+                            trailing: item.createdAt,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'E-posta cihaz challenge kayıtları',
+                      total: snapshot.emailChallenges.length,
+                      children: [
+                        for (final item in snapshot.emailChallenges)
+                          _AdminPreviewLine(
+                            title:
+                                '${item.displayName} · ${item.consumed ? 'tamamlandı' : 'bekliyor'}',
+                            subtitle:
+                                'Cihaz hash: ${item.deviceHashPreview.isEmpty ? 'yok' : item.deviceHashPreview}'
+                                ' · geçerlilik: ${item.expiresAt}',
+                            trailing: item.createdAt,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _AdminPreviewListCard(
+                      title: 'Auth audit log',
+                      total: snapshot.auditLogs.length,
+                      children: [
+                        for (final item in snapshot.auditLogs)
+                          _AdminPreviewLine(
+                            title:
+                                '${item.eventType.isEmpty ? 'auth_event' : item.eventType} · ${item.riskLevel}',
+                            subtitle:
+                                '${item.displayName}'
+                                '${item.phoneHashPreview.isNotEmpty ? ' · telefon: ${item.phoneHashPreview}' : ''}'
+                                '${item.emailHashPreview.isNotEmpty ? ' · e-posta: ${item.emailHashPreview}' : ''}'
+                                '${item.deviceHashPreview.isNotEmpty ? ' · cihaz: ${item.deviceHashPreview}' : ''}'
+                                '${item.ipHashPreview.isNotEmpty ? ' · IP: ${item.ipHashPreview}' : ''}',
+                            trailing: item.createdAt,
                           ),
                       ],
                     ),
@@ -1901,6 +2060,9 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       case 'notifications':
         ref.invalidate(adminNotificationOpsProvider);
         ref.invalidate(adminPushSettingsProvider);
+        break;
+      case 'auth-security':
+        ref.invalidate(adminAuthSecurityProvider);
         break;
       case 'operations':
         ref.invalidate(adminSiteControlsProvider);
@@ -5819,6 +5981,22 @@ const _adminSections = <_AdminSection>[
       'Operasyonel durum kontrolleri',
       'Güvenlik odaklı admin akışlarına erişim',
       'Denetim ve koruma yüzeyleri',
+    ],
+  ),
+  _AdminSection(
+    key: 'auth-security',
+    title: 'Auth güvenliği',
+    summary: 'Telefon doğrulama, güvenilir cihazlar ve auth audit kayıtları.',
+    description:
+        'SMS doğrulama, trusted device, yeni cihaz e-posta challenge ve auth audit tablolarını hash-only biçimde gösterir.',
+    icon: Icons.phonelink_lock_outlined,
+    tone: _AdminTone.danger,
+    routeFile: 'server/routes/adminSecurityRoutes.js',
+    capabilities: [
+      'Doğrulanmış telefon hash kayıtları',
+      'Güvenilir cihaz ve revoke durumu',
+      'SMS deneme ve audit kayıtları',
+      'E-posta challenge izleme',
     ],
   ),
   _AdminSection(

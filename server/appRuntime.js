@@ -5376,7 +5376,7 @@ registerAdminLanguageRoutes(app, {
   sqlRunAsync
 });
 
-registerAdminSecurityRoutes(app, { requireAdmin });
+registerAdminSecurityRoutes(app, { requireAdmin, sqlGetAsync, sqlAllAsync });
 
 registerMiscAppRoutes(app, {
   appRootDir: __dirname,
