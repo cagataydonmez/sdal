@@ -281,6 +281,7 @@ class PushNotificationsService {
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    if (!_shouldDisplayForegroundNotification(message)) return;
     ref.invalidate(notificationsProvider);
     ref.invalidate(notificationUnreadCountProvider);
     if (!_localNotificationsReady) return;
@@ -296,6 +297,29 @@ class PushNotificationsService {
         iOS: iosDetails,
       ),
       payload: route,
+    );
+  }
+
+  bool _shouldDisplayForegroundNotification(RemoteMessage message) {
+    final title = message.notification?.title?.trim();
+    final body = message.notification?.body?.trim();
+    if ((title != null && title.isNotEmpty) ||
+        (body != null && body.isNotEmpty)) {
+      return true;
+    }
+
+    final displayKeys = <String>[
+      'title',
+      'body',
+      'route',
+      'href',
+      'type',
+      'notificationId',
+      'imageUrl',
+      'senderPhoto',
+    ];
+    return displayKeys.any(
+      (key) => (message.data[key]?.toString().trim().isNotEmpty ?? false),
     );
   }
 
