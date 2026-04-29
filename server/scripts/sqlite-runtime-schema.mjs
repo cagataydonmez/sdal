@@ -117,6 +117,11 @@ export function ensureSqliteRuntimeSchema(db) {
       album_uploads_require_approval INTEGER DEFAULT 0,
       updated_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS auth_security_settings (
+      id INTEGER PRIMARY KEY,
+      sms_verification_enabled INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT
+    );
     CREATE TABLE IF NOT EXISTS verification_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -581,6 +586,10 @@ export function seedSqliteRuntimeDefaults(db, uploadsDir = '/var/lib/sdal/upload
   db.prepare(
     'INSERT OR IGNORE INTO site_controls (id, site_open, maintenance_message, updated_at) VALUES (1, 1, ?, ?)'
   ).run('Site geçici bakım modundadır. Lütfen daha sonra tekrar deneyin.', now);
+
+  db.prepare(
+    'INSERT OR IGNORE INTO auth_security_settings (id, sms_verification_enabled, updated_at) VALUES (1, 0, ?)'
+  ).run(now);
 
   const moduleStmt = db.prepare(
     'INSERT OR IGNORE INTO module_controls (module_key, is_open, updated_at) VALUES (?, 1, ?)'

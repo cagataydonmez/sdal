@@ -230,7 +230,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     return asJsonMap(result.rawData);
   }
 
-  Future<void> activate({
+  Future<bool> activate({
     String memberId = '',
     String username = '',
     String password = '',
@@ -258,17 +258,21 @@ class AuthActionController extends Notifier<AsyncActionState> {
                 },
                 decoder: asJsonMap,
               );
-    if (!ref.mounted) return;
+    if (!ref.mounted) return false;
     if (result.ok) {
       await ref.read(sessionControllerProvider.notifier).refreshSilently();
-      if (!ref.mounted) return;
+      if (!ref.mounted) {
+        return asBool(asJsonMap(result.rawData)['phoneVerificationRequired']) ??
+            false;
+      }
       state = AsyncActionState.success(
         message: result.message.isNotEmpty
             ? result.message
             : 'Aktivasyon tamamlandı.',
         scope: 'activate',
       );
-      return;
+      return asBool(asJsonMap(result.rawData)['phoneVerificationRequired']) ??
+          false;
     }
     state = AsyncActionState.error(
       message: result.message.isNotEmpty
@@ -276,6 +280,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
           : 'Aktivasyon başarısız.',
       scope: 'activate',
     );
+    return false;
   }
 
   Future<PhoneVerificationStartResult> startPhoneVerification({

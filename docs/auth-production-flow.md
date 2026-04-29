@@ -3,7 +3,8 @@
 ## Flow
 
 - Registration still uses the existing email activation flow.
-- After email activation, the mobile app requires a one-time Firebase Phone Auth SMS verification.
+- SMS verification is controlled from the admin panel and is disabled by default.
+- When enabled, after email activation, the mobile app requires a one-time Firebase Phone Auth SMS verification.
 - When SMS verification succeeds, the backend marks the account phone-verified and trusts the current secure-storage device ID.
 - Password login sends the secure device ID and metadata to the backend.
 - Trusted devices continue normally.

@@ -57,7 +57,8 @@ export function registerAdminOperationsRoutes(app, deps) {
     sanitizePlainUserText,
     formatUserText,
     scheduleEngagementRecalculation,
-    applyUserGraduationYearChange
+    applyUserGraduationYearChange,
+    authSecurity
   } = deps;
 
   const albumActivePredicate = dbDriver === 'postgres' ? 'aktif IS TRUE' : 'aktif = 1';
@@ -406,6 +407,38 @@ export function registerAdminOperationsRoutes(app, deps) {
       } catch (err) {
         res.json({ ok: false, error: err?.message || 'Bağlantı testi başarısız.' });
       }
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/admin/auth-settings', requireAdmin, async (_req, res) => {
+    try {
+      if (!authSecurity?.readAuthSecuritySettings) {
+        return res.status(503).json({ ok: false, message: 'Auth ayarları kullanılamıyor.' });
+      }
+      const settings = await authSecurity.readAuthSecuritySettings();
+      res.json({ ok: true, settings });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.put('/api/admin/auth-settings', requireAdmin, async (req, res) => {
+    try {
+      if (!authSecurity?.updateAuthSecuritySettings) {
+        return res.status(503).json({ ok: false, message: 'Auth ayarları kullanılamıyor.' });
+      }
+      const settings = await authSecurity.updateAuthSecuritySettings({
+        smsVerificationEnabled: !!req.body?.smsVerificationEnabled
+      });
+      writeAppLog('info', 'auth_settings_updated', {
+        userId: req.session?.userId,
+        smsVerificationEnabled: settings.smsVerificationEnabled
+      });
+      res.json({ ok: true, settings });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

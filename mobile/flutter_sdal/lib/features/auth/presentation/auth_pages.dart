@@ -1230,6 +1230,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
   Timer? _resendTimer;
   int _resendSecondsLeft = 0;
   bool _activationComplete = false;
+  bool _phoneVerificationRequired = false;
 
   @override
   void initState() {
@@ -1266,7 +1267,7 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
     final isRegistrationActivation =
         _usernameController.text.trim().isNotEmpty &&
         _emailController.text.trim().isNotEmpty;
-    await ref
+    final phoneVerificationRequired = await ref
         .read(authActionControllerProvider.notifier)
         .activate(
           memberId: _memberIdController.text.trim(),
@@ -1280,7 +1281,10 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
     if (isRegistrationActivation &&
         state.scope == 'activate' &&
         state.isSuccess) {
-      setState(() => _activationComplete = true);
+      setState(() {
+        _activationComplete = true;
+        _phoneVerificationRequired = phoneVerificationRequired;
+      });
     }
   }
 
@@ -1338,8 +1342,13 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
 
     return _AuthFrame(
       title: l10n.activationTitle,
-      subtitle: activationComplete && isRegistrationActivation
+      subtitle:
+          activationComplete &&
+              isRegistrationActivation &&
+              _phoneVerificationRequired
           ? 'Telefon numaranızı tek seferlik doğrulayın.'
+          : activationComplete && isRegistrationActivation
+          ? 'E-posta doğrulaması tamamlandı.'
           : isRegistrationActivation
           ? 'E-postadaki aktivasyon kodunu girin.'
           : 'Kullanıcı adı, şifre ve aktivasyon kodunu girin.',
@@ -1347,12 +1356,21 @@ class _ActivationPageState extends ConsumerState<ActivationPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (activationComplete && isRegistrationActivation) ...[
+            if (activationComplete &&
+                isRegistrationActivation &&
+                _phoneVerificationRequired) ...[
               _PhoneVerificationStep(phoneController: _phoneController),
               const SizedBox(height: 10),
               TextButton(
                 onPressed: () => context.go('/login'),
                 child: const Text('Daha sonra giriş sayfasına dön'),
+              ),
+            ] else if (activationComplete && isRegistrationActivation) ...[
+              Text(status ?? 'E-posta doğrulaması tamamlandı.'),
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: () => context.go('/'),
+                child: const Text('Devam et'),
               ),
             ] else ...[
               if (isLegacyLinkActivation) ...[

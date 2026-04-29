@@ -15,12 +15,17 @@ const DEFAULT_MEDIA_FORM = {
   album_uploads_require_approval: false
 };
 
+const DEFAULT_AUTH_SETTINGS = {
+  smsVerificationEnabled: false
+};
+
 export default function SettingsSection({ isAdmin = false }) {
   const { t } = useI18n();
   const [siteForm, setSiteForm] = useState(null);
   const [moduleKeys, setModuleKeys] = useState([]);
   const [moduleDefinitions, setModuleDefinitions] = useState(MODULE_CONTROL_ITEMS.map((item) => ({ key: item.key, label: item.defaultLabel })));
   const [mediaForm, setMediaForm] = useState(DEFAULT_MEDIA_FORM);
+  const [authSettings, setAuthSettings] = useState(DEFAULT_AUTH_SETTINGS);
   const [mediaConnectionInfo, setMediaConnectionInfo] = useState({ spacesConfigured: false, spacesRegion: '', spacesBucket: '', spacesEndpoint: '' });
   const [emailCategories, setEmailCategories] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -82,6 +87,14 @@ export default function SettingsSection({ isAdmin = false }) {
     });
   }, []);
 
+  const loadAuthSettings = useCallback(async () => {
+    const data = await adminClient.get('/api/admin/auth-settings');
+    const settings = data.settings || {};
+    setAuthSettings({
+      smsVerificationEnabled: !!settings.smsVerificationEnabled
+    });
+  }, []);
+
   const loadEmail = useCallback(async () => {
     const [categoriesData, templatesData] = await Promise.all([
       adminClient.get('/api/admin/email/categories'),
@@ -95,13 +108,13 @@ export default function SettingsSection({ isAdmin = false }) {
     setLoading(true);
     setStatus('');
     try {
-      await Promise.all([loadSite(), loadMedia(), loadEmail()]);
+      await Promise.all([loadSite(), loadMedia(), loadAuthSettings(), loadEmail()]);
     } catch (err) {
       setStatus(err.message || t('Ayarlar yüklenemedi.'));
     } finally {
       setLoading(false);
     }
-  }, [loadEmail, loadMedia, loadSite, t]);
+  }, [loadAuthSettings, loadEmail, loadMedia, loadSite, t]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -133,6 +146,23 @@ export default function SettingsSection({ isAdmin = false }) {
       setStatus(err.message || t('Medya ayarları kaydedilemedi.'));
     }
   }, [loadMedia, mediaForm, t]);
+
+  const updateAuthSettings = useCallback(async (nextSettings) => {
+    const previous = authSettings;
+    const next = { ...previous, ...(nextSettings || {}) };
+    setAuthSettings(next);
+    try {
+      const data = await adminClient.put('/api/admin/auth-settings', next);
+      const settings = data.settings || {};
+      setAuthSettings({
+        smsVerificationEnabled: !!settings.smsVerificationEnabled
+      });
+      setStatus(t('Doğrulama ayarları güncellendi.'));
+    } catch (err) {
+      setAuthSettings(previous);
+      setStatus(err.message || t('Doğrulama ayarları güncellenemedi.'));
+    }
+  }, [authSettings, t]);
 
   const testMediaConnection = useCallback(async () => {
     try {
@@ -382,6 +412,25 @@ export default function SettingsSection({ isAdmin = false }) {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-body stack">
+          <h3>{t('Doğrulama Ayarları')}</h3>
+          <label className="ops-check-row">
+            <input
+              type="checkbox"
+              checked={!!authSettings.smsVerificationEnabled}
+              onChange={(e) => updateAuthSettings({ smsVerificationEnabled: e.target.checked })}
+            />
+            <span>{t('SMS telefon doğrulamasını etkinleştir')}</span>
+          </label>
+          <div className="meta">
+            {authSettings.smsVerificationEnabled
+              ? t('Yeni kayıtlar e-posta aktivasyonundan sonra SMS doğrulamasına yönlendirilir.')
+              : t('SMS kapalıyken kayıt ve giriş akışında yalnızca e-posta doğrulaması çalışır.')}
           </div>
         </div>
       </div>

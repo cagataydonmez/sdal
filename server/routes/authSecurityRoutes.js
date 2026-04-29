@@ -202,6 +202,20 @@ export function createAuthSecurityRuntime({
       created_at TEXT NOT NULL DEFAULT ${nowDefault},
       updated_at TEXT NOT NULL DEFAULT ${nowDefault}
     )`);
+    const settingsEnabledColumn = dbDriver === 'postgres'
+      ? 'BOOLEAN NOT NULL DEFAULT FALSE'
+      : 'INTEGER NOT NULL DEFAULT 0';
+    await sqlRunAsync(`CREATE TABLE IF NOT EXISTS auth_security_settings (
+      id INTEGER PRIMARY KEY,
+      sms_verification_enabled ${settingsEnabledColumn},
+      updated_at TEXT NOT NULL DEFAULT ${nowDefault}
+    )`);
+    await sqlRunAsync(
+      `INSERT INTO auth_security_settings (id, sms_verification_enabled, updated_at)
+       VALUES (1, ?, ?)
+       ON CONFLICT(id) DO NOTHING`,
+      [dbDriver === 'postgres' ? false : 0, new Date().toISOString()]
+    );
     await sqlRunAsync(`CREATE TABLE IF NOT EXISTS auth_email_challenges (
       id ${idColumn},
       user_id INTEGER NOT NULL,
@@ -215,6 +229,37 @@ export function createAuthSecurityRuntime({
     if (!pepper) {
       writeAppLog?.('warn', 'auth_security_missing_hash_pepper', { message: 'AUTH_DEVICE_HASH_PEPPER is not configured' });
     }
+  }
+
+  async function readAuthSecuritySettings() {
+    const row = await sqlGetAsync('SELECT sms_verification_enabled, updated_at FROM auth_security_settings WHERE id = 1');
+    return {
+      smsVerificationEnabled: row?.sms_verification_enabled === true || Number(row?.sms_verification_enabled || 0) === 1,
+      updatedAt: row?.updated_at || null
+    };
+  }
+
+  async function updateAuthSecuritySettings({ smsVerificationEnabled }) {
+    const now = new Date().toISOString();
+    const enabled = Boolean(smsVerificationEnabled);
+    await sqlRunAsync(
+      'UPDATE auth_security_settings SET sms_verification_enabled = ?, updated_at = ? WHERE id = 1',
+      [dbDriver === 'postgres' ? enabled : (enabled ? 1 : 0), now]
+    );
+    if (!enabled) {
+      await sqlRunAsync(
+        dbDriver === 'postgres'
+          ? 'UPDATE user_security_flags SET phone_verification_required = false, updated_at = ? WHERE phone_verification_required IS TRUE'
+          : 'UPDATE user_security_flags SET phone_verification_required = 0, updated_at = ? WHERE phone_verification_required <> 0',
+        [now]
+      );
+    }
+    return readAuthSecuritySettings();
+  }
+
+  async function isSmsVerificationEnabled() {
+    const settings = await readAuthSecuritySettings();
+    return settings.smsVerificationEnabled;
   }
 
   function hashDeviceId(deviceId) {
@@ -460,19 +505,37 @@ export function createAuthSecurityRuntime({
   }
 
   async function markSignupCreated(req, { userId, email, deviceId = '' }) {
+    const smsVerificationEnabled = await isSmsVerificationEnabled();
     await sqlRunAsync(
       `INSERT INTO user_security_flags (user_id, phone_verification_required, created_at, updated_at)
-       VALUES (?, 1, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET phone_verification_required = 1, updated_at = ?`,
-      [userId, new Date().toISOString(), new Date().toISOString(), new Date().toISOString()]
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET phone_verification_required = ?, updated_at = ?`,
+      [
+        userId,
+        dbDriver === 'postgres' ? smsVerificationEnabled : (smsVerificationEnabled ? 1 : 0),
+        new Date().toISOString(),
+        new Date().toISOString(),
+        dbDriver === 'postgres' ? smsVerificationEnabled : (smsVerificationEnabled ? 1 : 0),
+        new Date().toISOString()
+      ]
     ).catch(async () => {
-      await sqlRunAsync('INSERT OR IGNORE INTO user_security_flags (user_id, phone_verification_required, created_at, updated_at) VALUES (?, 1, ?, ?)', [userId, new Date().toISOString(), new Date().toISOString()]);
+      await sqlRunAsync(
+        'INSERT OR IGNORE INTO user_security_flags (user_id, phone_verification_required, created_at, updated_at) VALUES (?, ?, ?, ?)',
+        [userId, smsVerificationEnabled ? 1 : 0, new Date().toISOString(), new Date().toISOString()]
+      );
     });
-    await audit({ userId, eventType: 'signup_created_security_pending', req, email, deviceIdHash: deviceId ? hashDeviceId(deviceId) : '' });
+    await audit({
+      userId,
+      eventType: smsVerificationEnabled ? 'signup_created_security_pending' : 'signup_created_sms_disabled',
+      req,
+      email,
+      deviceIdHash: deviceId ? hashDeviceId(deviceId) : ''
+    });
   }
 
   async function isPhoneVerificationPending(userId) {
     if (!userId) return false;
+    if (!(await isSmsVerificationEnabled())) return false;
     const row = await sqlGetAsync(
       'SELECT phone_verification_required, phone_verified_at FROM user_security_flags WHERE user_id = ? LIMIT 1',
       [userId]
@@ -506,6 +569,9 @@ export function createAuthSecurityRuntime({
 
   function registerRoutes(app) {
     app.post('/api/auth/phone/start', requireAuth, async (req, res) => {
+      if (!(await isSmsVerificationEnabled())) {
+        return res.status(403).json({ ok: false, code: 'SMS_VERIFICATION_DISABLED', message: 'SMS doğrulama şu anda kapalı.' });
+      }
       const parsed = PhoneStartSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ ok: false, message: GENERIC_AUTH_MESSAGE });
       const phone = normalizePhoneNumber(parsed.data.phone_number);
@@ -515,6 +581,9 @@ export function createAuthSecurityRuntime({
     });
 
     app.post('/api/auth/phone/complete', requireAuth, async (req, res) => {
+      if (!(await isSmsVerificationEnabled())) {
+        return res.status(403).json({ ok: false, code: 'SMS_VERIFICATION_DISABLED', message: 'SMS doğrulama şu anda kapalı.' });
+      }
       const parsed = PhoneCompleteSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ ok: false, message: GENERIC_AUTH_MESSAGE });
       const phone = normalizePhoneNumber(parsed.data.phone_number);
@@ -602,6 +671,9 @@ export function createAuthSecurityRuntime({
   return {
     ensureSchema,
     registerRoutes,
+    readAuthSecuritySettings,
+    updateAuthSecuritySettings,
+    isSmsVerificationEnabled,
     isDeviceTrusted,
     createEmailChallenge,
     checkSignupAllowed,

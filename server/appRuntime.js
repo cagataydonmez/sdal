@@ -3889,7 +3889,8 @@ registerAdminOperationsRoutes(app, {
   sanitizePlainUserText,
   formatUserText,
   scheduleEngagementRecalculation,
-  applyUserGraduationYearChange
+  applyUserGraduationYearChange,
+  authSecurity
 });
 
 // --- Helper: enrich a post/story row with image variants ---

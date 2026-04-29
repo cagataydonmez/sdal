@@ -438,7 +438,10 @@ export function registerAccountRoutes(app, deps) {
       await sqlRunAsync('UPDATE uyeler SET aktiv = 1, aktivasyon = ? WHERE id = ?', [newAkt, id]);
       req.session.userId = user.id;
       await new Promise((resolve) => req.session.save(resolve));
-      res.json({ ok: true, kadi: user.kadi });
+      const phoneVerificationRequired = authSecurity
+        ? await authSecurity.isPhoneVerificationPending(user.id)
+        : false;
+      res.json({ ok: true, kadi: user.kadi, phoneVerificationRequired });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -475,7 +478,10 @@ export function registerAccountRoutes(app, deps) {
       await sqlRunAsync('UPDATE uyeler SET aktiv = 1, aktivasyon = ? WHERE id = ?', [newAkt, user.id]);
       req.session.userId = user.id;
       await new Promise((resolve) => req.session.save(resolve));
-      res.json({ ok: true, kadi: user.kadi, email: user.email });
+      const phoneVerificationRequired = authSecurity
+        ? await authSecurity.isPhoneVerificationPending(user.id)
+        : false;
+      res.json({ ok: true, kadi: user.kadi, email: user.email, phoneVerificationRequired });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
