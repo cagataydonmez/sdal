@@ -316,6 +316,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   String? _inactiveActivationEmail;
   bool _kvkkConsent = false;
   bool _directoryConsent = false;
+  int _currentStep = 0;
 
   @override
   void initState() {
@@ -587,7 +588,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final status = actionState.scope == 'register' ? actionState.message : null;
     final statusText = _previewError ?? status;
     final isSuccessState = _previewError == null && actionState.isSuccess;
-    final passwordStrength = _passwordStrength(_passwordController.text);
 
     return _AuthFrame(
       title: l10n.registerTitle,
@@ -598,187 +598,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            KeyedSubtree(
-              key: _identitySectionKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _twoColumn(
-                    _AuthTextField(
-                      controller: _firstNameController,
-                      labelText: l10n.firstName,
-                      validator: (value) => _requiredValidator(
-                        value,
-                        l10n.firstName,
-                        maxLength: 20,
-                      ),
-                    ),
-                    _AuthTextField(
-                      controller: _lastNameController,
-                      labelText: l10n.lastName,
-                      validator: (value) => _requiredValidator(
-                        value,
-                        l10n.lastName,
-                        maxLength: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _AuthTextField(
-                    controller: _usernameController,
-                    labelText: l10n.username,
-                    validator: (value) =>
-                        _requiredValidator(value, l10n.username, maxLength: 15),
-                  ),
-                  const SizedBox(height: 12),
-                  _AuthTextField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    labelText: l10n.email,
-                    validator: _emailValidator,
-                  ),
-                  if (_checkingAvailability) ...[
-                    const SizedBox(height: 8),
-                    const LinearProgressIndicator(minHeight: 2),
-                  ],
-                  if (_availabilityMessage != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _availabilityMessage!,
-                      style: TextStyle(color: Theme.of(context).sdal.success),
-                    ),
-                  ],
-                  if (_availabilityError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _availabilityError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                    if ((_inactiveActivationUsername?.isNotEmpty ?? false) ||
-                        (_inactiveActivationEmail?.isNotEmpty ?? false)) ...[
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () => _goToActivation(
-                          username: _inactiveActivationUsername,
-                          email: _inactiveActivationEmail,
-                        ),
-                        icon: const Icon(Icons.mark_email_read_outlined),
-                        label: const Text('Aktivasyon sayfasına git'),
-                      ),
-                    ],
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            KeyedSubtree(
-              key: _passwordSectionKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _twoColumn(
-                    _AuthTextField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      keyboardType: TextInputType.visiblePassword,
-                      labelText: l10n.password,
-                      validator: _passwordValidator,
-                    ),
-                    _AuthTextField(
-                      controller: _repeatPasswordController,
-                      obscureText: true,
-                      keyboardType: TextInputType.visiblePassword,
-                      labelText: l10n.passwordRepeat,
-                      validator: _repeatPasswordValidator,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _PasswordStrengthCard(strength: passwordStrength),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _yearController.text,
-              decoration: InputDecoration(labelText: l10n.graduationYear),
-              items: _graduationYearOptions()
-                  .map(
-                    (value) => DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(_formatGraduationYearOption(context, value)),
-                    ),
-                  )
-                  .toList(growable: false),
-              validator: _graduationYearValidator,
-              onChanged: submitting
-                  ? null
-                  : (value) => setState(() {
-                      _yearController.text = value ?? '';
-                    }),
-            ),
-            const SizedBox(height: 8),
-            KeyedSubtree(
-              key: _consentSectionKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  CheckboxListTile(
-                    value: _kvkkConsent,
-                    onChanged: submitting
-                        ? null
-                        : (value) => _handleConsentToggle(
-                            value: value ?? false,
-                            title: l10n.registerKvkkTitle,
-                            path: '/kvkk',
-                            onApproved: () => _kvkkConsent = true,
-                            onRejected: () => _kvkkConsent = false,
-                          ),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text(l10n.registerKvkkConsentLabel),
-                  ),
-                  CheckboxListTile(
-                    value: _directoryConsent,
-                    onChanged: submitting
-                        ? null
-                        : (value) => _handleConsentToggle(
-                            value: value ?? false,
-                            title: l10n.registerDirectoryConsentTitle,
-                            path: '/kvkk/acik-riza',
-                            onApproved: () => _directoryConsent = true,
-                            onRejected: () => _directoryConsent = false,
-                          ),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text(l10n.registerDirectoryConsentLabel),
-                  ),
-                ],
-              ),
+            _RegisterStepHeader(
+              currentStep: _currentStep,
+              totalSteps: 4,
+              title: _registerStepTitle(_currentStep),
             ),
             const SizedBox(height: 16),
-            KeyedSubtree(
-              key: _captchaSectionKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _CaptchaView(
-                    svg: _captchaSvg,
-                    loading: _captchaLoading,
-                    error: _captchaLoadError,
-                    onReload: submitting ? null : _loadCaptcha,
-                  ),
-                  const SizedBox(height: 12),
-                  _AuthTextField(
-                    controller: _captchaController,
-                    keyboardType: TextInputType.text,
-                    labelText: l10n.captchaCode,
-                    validator: _captchaValidator,
-                  ),
-                ],
-              ),
-            ),
+            _buildCurrentRegisterStep(submitting: submitting),
             if (statusText != null) ...[
               const SizedBox(height: 12),
               Text(
@@ -803,20 +629,299 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               ],
             ],
             const SizedBox(height: 18),
-            FilledButton(
-              onPressed: submitting ? null : _submit,
-              child: Text(
-                submitting ? l10n.submitInProgress : l10n.registerSubmitAction,
-              ),
-            ),
+            _buildRegisterStepActions(submitting: submitting),
           ],
         ),
       ),
     );
   }
 
+  String _registerStepTitle(int step) => switch (step) {
+    0 => 'Kimlik ve hesap',
+    1 => 'Mezuniyet beyanı',
+    2 => 'Şifre güvenliği',
+    _ => 'Onay ve güvenlik',
+  };
+
+  Widget _buildCurrentRegisterStep({required bool submitting}) {
+    final l10n = context.l10n;
+    final passwordStrength = _passwordStrength(_passwordController.text);
+    return switch (_currentStep) {
+      0 => KeyedSubtree(
+        key: _identitySectionKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _RegisterStepDescription(
+              text:
+                  'Önce seni tanıyalım. Ad, soyad, kullanıcı adı ve e-posta bilgilerini ayrı tutuyoruz; e-posta aktivasyon ve güvenlik bildirimleri için kullanılır.',
+            ),
+            const SizedBox(height: 14),
+            _twoColumn(
+              _AuthTextField(
+                controller: _firstNameController,
+                labelText: l10n.firstName,
+                validator: (value) =>
+                    _requiredValidator(value, l10n.firstName, maxLength: 20),
+              ),
+              _AuthTextField(
+                controller: _lastNameController,
+                labelText: l10n.lastName,
+                validator: (value) =>
+                    _requiredValidator(value, l10n.lastName, maxLength: 20),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _AuthTextField(
+              controller: _usernameController,
+              labelText: l10n.username,
+              validator: (value) =>
+                  _requiredValidator(value, l10n.username, maxLength: 15),
+            ),
+            const SizedBox(height: 12),
+            _AuthTextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              labelText: l10n.email,
+              validator: _emailValidator,
+            ),
+            if (_checkingAvailability) ...[
+              const SizedBox(height: 8),
+              const LinearProgressIndicator(minHeight: 2),
+            ],
+            if (_availabilityMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _availabilityMessage!,
+                style: TextStyle(color: Theme.of(context).sdal.success),
+              ),
+            ],
+            if (_availabilityError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _availabilityError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              if ((_inactiveActivationUsername?.isNotEmpty ?? false) ||
+                  (_inactiveActivationEmail?.isNotEmpty ?? false)) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _goToActivation(
+                    username: _inactiveActivationUsername,
+                    email: _inactiveActivationEmail,
+                  ),
+                  icon: const Icon(Icons.mark_email_read_outlined),
+                  label: const Text('Aktivasyon sayfasına git'),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+      1 => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _RegisterStepDescription(
+            text: _yearController.text.trim() == _teacherGraduationYearValue
+                ? 'Öğretmen seçimi, mezun dönemlerinden ayrı değerlendirilir. Öğretmen ağı ve öğretmen doğrulaması için bu beyan kullanılır.'
+                : 'Mezuniyet yılı, kendi dönemindeki arkadaşlarına ve yakın mezuniyet yıllarındaki kişilere ulaşmanı kolaylaştırır. Dikkatli seç; daha sonra değişiklik talep/onay sürecine gider.',
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            initialValue: _yearController.text,
+            decoration: InputDecoration(labelText: l10n.graduationYear),
+            items: _graduationYearOptions()
+                .map(
+                  (value) => DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(_formatGraduationYearOption(context, value)),
+                  ),
+                )
+                .toList(growable: false),
+            validator: _graduationYearValidator,
+            onChanged: submitting
+                ? null
+                : (value) => setState(() {
+                    _yearController.text = value ?? '';
+                  }),
+          ),
+        ],
+      ),
+      2 => KeyedSubtree(
+        key: _passwordSectionKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _RegisterStepDescription(
+              text:
+                  'Hesabını korumak için güçlü bir şifre belirle. Büyük/küçük harf, sayı ve sembol kullanman önerilir.',
+            ),
+            const SizedBox(height: 14),
+            _twoColumn(
+              _AuthTextField(
+                controller: _passwordController,
+                obscureText: true,
+                keyboardType: TextInputType.visiblePassword,
+                labelText: l10n.password,
+                validator: _passwordValidator,
+              ),
+              _AuthTextField(
+                controller: _repeatPasswordController,
+                obscureText: true,
+                keyboardType: TextInputType.visiblePassword,
+                labelText: l10n.passwordRepeat,
+                validator: _repeatPasswordValidator,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _PasswordStrengthCard(strength: passwordStrength),
+          ],
+        ),
+      ),
+      _ => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          KeyedSubtree(
+            key: _consentSectionKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _RegisterStepDescription(
+                  text:
+                      'Son adımda yasal onayları ve güvenlik kodunu tamamlayacağız. Bu onaylar mezun rehberi ve topluluk deneyimi için gereklidir.',
+                ),
+                CheckboxListTile(
+                  value: _kvkkConsent,
+                  onChanged: submitting
+                      ? null
+                      : (value) => _handleConsentToggle(
+                          value: value ?? false,
+                          title: l10n.registerKvkkTitle,
+                          path: '/kvkk',
+                          onApproved: () => _kvkkConsent = true,
+                          onRejected: () => _kvkkConsent = false,
+                        ),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(l10n.registerKvkkConsentLabel),
+                ),
+                CheckboxListTile(
+                  value: _directoryConsent,
+                  onChanged: submitting
+                      ? null
+                      : (value) => _handleConsentToggle(
+                          value: value ?? false,
+                          title: l10n.registerDirectoryConsentTitle,
+                          path: '/kvkk/acik-riza',
+                          onApproved: () => _directoryConsent = true,
+                          onRejected: () => _directoryConsent = false,
+                        ),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(l10n.registerDirectoryConsentLabel),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          KeyedSubtree(
+            key: _captchaSectionKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _CaptchaView(
+                  svg: _captchaSvg,
+                  loading: _captchaLoading,
+                  error: _captchaLoadError,
+                  onReload: submitting ? null : _loadCaptcha,
+                ),
+                const SizedBox(height: 12),
+                _AuthTextField(
+                  controller: _captchaController,
+                  keyboardType: TextInputType.text,
+                  labelText: l10n.captchaCode,
+                  validator: _captchaValidator,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    };
+  }
+
+  Widget _buildRegisterStepActions({required bool submitting}) {
+    final isLast = _currentStep == 3;
+    return Row(
+      children: [
+        if (_currentStep > 0) ...[
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: submitting
+                  ? null
+                  : () => setState(() {
+                      _previewError = null;
+                      _currentStep -= 1;
+                    }),
+              icon: const Icon(Icons.chevron_left),
+              label: const Text('Geri'),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: submitting ? null : (isLast ? _submit : _goToNextStep),
+            icon: submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(isLast ? Icons.person_add_alt_1 : Icons.chevron_right),
+            label: Text(
+              submitting
+                  ? context.l10n.submitInProgress
+                  : (isLast ? context.l10n.registerSubmitAction : 'Devam'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _goToNextStep() {
+    if (!_isCurrentStepValid()) return;
+    setState(() {
+      _previewError = null;
+      _currentStep += 1;
+    });
+  }
+
+  bool _isCurrentStepValid() {
+    final valid = switch (_currentStep) {
+      0 => _isIdentitySectionValid(),
+      1 => _graduationYearValidator(_yearController.text) == null,
+      2 => _isPasswordSectionValid(),
+      _ => true,
+    };
+    if (!valid) {
+      setState(() {
+        _previewError = 'Bu adımdaki bilgileri tamamlayarak devam edin.';
+      });
+    }
+    return valid;
+  }
+
   bool _validateBeforeSubmit(AppLocalizations l10n) {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    final currentFormValid = _formKey.currentState?.validate() ?? false;
+    if (!currentFormValid ||
+        !_isIdentitySectionValid() ||
+        _graduationYearValidator(_yearController.text) != null ||
+        !_isPasswordSectionValid()) {
+      setState(() {
+        _previewError = 'Kayıt adımlarındaki eksik bilgileri tamamlayın.';
+      });
       return false;
     }
     if (!_kvkkConsent) {
@@ -853,6 +958,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
     if (!_isPasswordSectionValid()) {
       await _scrollToKey(_passwordSectionKey);
+      return;
+    }
+    if (_graduationYearValidator(_yearController.text) != null) {
       return;
     }
     if (!_isConsentSectionValid()) {
@@ -912,7 +1020,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ) ==
             null &&
         _emailValidator(_emailController.text) == null &&
-        _graduationYearValidator(_yearController.text) == null;
+        _availabilityError == null;
   }
 
   bool _isPasswordSectionValid() {
@@ -1065,6 +1173,66 @@ _RegisterPasswordStrength _passwordStrength(String value) {
   if (score <= 1) return _RegisterPasswordStrength.weak;
   if (score <= 3) return _RegisterPasswordStrength.medium;
   return _RegisterPasswordStrength.strong;
+}
+
+class _RegisterStepHeader extends StatelessWidget {
+  const _RegisterStepHeader({
+    required this.currentStep,
+    required this.totalSteps,
+    required this.title,
+  });
+
+  final int currentStep;
+  final int totalSteps;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final stepNumber = currentStep + 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$stepNumber/$totalSteps · $title',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: stepNumber / totalSteps,
+          minHeight: 6,
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ],
+    );
+  }
+}
+
+class _RegisterStepDescription extends StatelessWidget {
+  const _RegisterStepDescription({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.infoMuted,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: tokens.info),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PasswordStrengthCard extends StatelessWidget {

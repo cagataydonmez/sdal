@@ -130,6 +130,13 @@ class ProfileRepository {
     );
   }
 
+  Future<ApiResult<dynamic>> claimGraduationYear(String graduationYear) {
+    return _apiClient.post<dynamic>(
+      '/api/profile/graduation-year/claim',
+      body: {'mezuniyetyili': graduationYear},
+    );
+  }
+
   Future<ApiResult<dynamic>> requestEmailChange(String email) {
     return _apiClient.post<dynamic>(
       '/api/profile/email-change/request',

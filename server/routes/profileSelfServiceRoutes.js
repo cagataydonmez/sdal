@@ -73,6 +73,59 @@ export function registerProfileSelfServiceRoutes(app, {
     }
   });
 
+  app.post('/api/profile/graduation-year/claim', requireAuth, async (req, res) => {
+    try {
+      const requested = normalizeCohortValue(req.body?.mezuniyetyili || req.body?.graduationYear || '');
+      if (!hasValidGraduationYear(requested)) {
+        return res.status(400).send(`Mezuniyet yılı ${minGraduationYear}-${maxGraduationYear} aralığında olmalı veya Öğretmen seçilmelidir.`);
+      }
+
+      const legacyCols = await getTableColumnSetAsync('uyeler');
+      const modernCols = await getTableColumnSetAsync('users');
+      const modernCurrent = modernCols.size
+        ? await sqlGetAsync('SELECT id, graduation_year AS mezuniyetyili FROM users WHERE id = ?', [req.session.userId])
+        : null;
+      const legacyCurrent = !modernCurrent && legacyCols.size
+        ? await sqlGetAsync('SELECT id, mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId])
+        : null;
+      const targetTable = modernCurrent ? 'users' : 'uyeler';
+      const current = modernCurrent || legacyCurrent;
+      if (!current) return res.status(404).send('Kullanıcı bulunamadı.');
+
+      const currentYear = normalizeCohortValue(current.mezuniyetyili);
+      if (hasValidGraduationYear(currentYear)) {
+        return res.status(409).json({
+          error: 'GRADUATION_YEAR_ALREADY_SET',
+          message: 'Mezuniyet yılı ilk kayıt beyanı daha önce tamamlanmış. Değişiklik için yönetim talebi oluşturun.',
+          requestUrl: '/new/requests?category=graduation_year_change'
+        });
+      }
+
+      const nowIso = new Date().toISOString();
+      if (targetTable === 'users') {
+        const cols = modernCols;
+        const set = ['graduation_year = ?'];
+        const params = [requested];
+        if (cols.has('updated_at')) {
+          set.push('updated_at = ?');
+          params.push(nowIso);
+        }
+        params.push(req.session.userId);
+        await sqlRunAsync(`UPDATE users SET ${set.join(', ')} WHERE id = ?`, params);
+      } else {
+        await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [requested, req.session.userId]);
+      }
+      invalidateCacheNamespace(cacheNamespaces.profile);
+      res.json({ ok: true, mezuniyetyili: requested });
+    } catch (err) {
+      writeAppLog('error', 'graduation_year_claim_failed', {
+        userId: req.session?.userId || null,
+        message: err?.message || 'unknown_error'
+      });
+      if (!res.headersSent) res.status(500).send('Mezuniyet yılı kaydedilemedi.');
+    }
+  });
+
   app.put('/api/profile', async (req, res) => {
     if (!req.session.userId) return res.status(401).send('Login required');
     try {

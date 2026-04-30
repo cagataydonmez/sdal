@@ -143,6 +143,19 @@ class SessionSnapshot {
       user?.state == 'phone_verification_required';
   bool get requiresVerification =>
       isAuthenticated && !(user?.isVerified ?? false);
+  bool get requiresInitialGraduationClaim {
+    if (!isAuthenticated) return false;
+    final value = (user?.graduationYear ?? '').trim().toLowerCase();
+    if (value == '9999' ||
+        value == 'teacher' ||
+        value == 'ogretmen' ||
+        value == 'öğretmen') {
+      return false;
+    }
+    final year = int.tryParse(value);
+    final currentYear = DateTime.now().year;
+    return year == null || year < 1999 || year > currentYear;
+  }
 
   bool isModuleOpen(String moduleKey) => siteAccess.isModuleOpen(moduleKey);
 
@@ -157,6 +170,7 @@ class SessionSnapshot {
 
   String get defaultHomePath {
     if (requiresPhoneVerification) return '/phone-verification';
+    if (requiresInitialGraduationClaim) return '/profile/onboarding';
     final webPath = siteAccess.defaultLandingPage;
     if (webPath.startsWith('/new/explore')) return '/explore';
     if (webPath.startsWith('/new/opportunities')) return '/explore';

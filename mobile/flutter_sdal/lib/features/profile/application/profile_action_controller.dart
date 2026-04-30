@@ -33,6 +33,27 @@ class ProfileActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
+  Future<bool> claimGraduationYear(String graduationYear) async {
+    state = const AsyncActionState.loading(scope: 'profile:graduation-claim');
+    final result = await _repository.claimGraduationYear(graduationYear);
+    if (result.ok) {
+      ref.invalidate(profileProvider);
+      ref.invalidate(sessionControllerProvider);
+      state = const AsyncActionState.success(
+        scope: 'profile:graduation-claim',
+        message: 'Mezuniyet yılı kaydedildi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'profile:graduation-claim',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Mezuniyet yılı kaydedilemedi.',
+    );
+    return false;
+  }
+
   Future<bool> requestEmailChange(String email) async {
     state = const AsyncActionState.loading(scope: 'profile:email');
     final result = await _repository.requestEmailChange(email);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/session/session_controller.dart';
 import '../../../core/state/async_action_state.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
@@ -9,6 +10,8 @@ import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
+
+const String _teacherGraduationYearValue = '9999';
 
 class ProfileEditPage extends ConsumerStatefulWidget {
   const ProfileEditPage({super.key});
@@ -437,6 +440,165 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   }
 }
 
+class GraduationYearOnboardingPage extends ConsumerStatefulWidget {
+  const GraduationYearOnboardingPage({super.key});
+
+  @override
+  ConsumerState<GraduationYearOnboardingPage> createState() =>
+      _GraduationYearOnboardingPageState();
+}
+
+class _GraduationYearOnboardingPageState
+    extends ConsumerState<GraduationYearOnboardingPage> {
+  String _selectedYear = '${DateTime.now().year}';
+
+  bool get _isTeacher => _selectedYear == _teacherGraduationYearValue;
+
+  Future<void> _submit() async {
+    final ok = await ref
+        .read(profileActionControllerProvider.notifier)
+        .claimGraduationYear(_selectedYear);
+    if (!mounted) return;
+    final state = ref.read(profileActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          state.message ??
+              (ok ? 'Mezuniyet yılı kaydedildi.' : 'İşlem tamamlanamadı.'),
+        ),
+      ),
+    );
+    if (!ok) return;
+    await ref.read(sessionControllerProvider.notifier).refreshSilently();
+    if (!mounted) return;
+    context.go('/feed');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actionState = ref.watch(profileActionControllerProvider);
+    final submitting =
+        actionState.isLoading &&
+        actionState.scope == 'profile:graduation-claim';
+    final theme = Theme.of(context);
+    final tokens = theme.sdal;
+    return FeatureScaffold(
+      title: 'İlk kayıt beyanı',
+      background: FeatureScaffoldBackground.neutral,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        children: [
+          SurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.school_outlined, color: tokens.accent, size: 32),
+                const SizedBox(height: 12),
+                Text(
+                  'Mezuniyet yılını seç',
+                  style: theme.textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _isTeacher
+                      ? 'Öğretmen seçimi, öğretmen ağı ve öğretmen doğrulaması için kullanılacak. Okul veya öğretmenlik bağını gösteren doğrulama daha sonra ayrı değerlendirilecek.'
+                      : 'Bu seçim, kendi dönemindeki arkadaşlarına ve yakın mezuniyet yıllarındaki SDAL üyelerine daha doğru ulaşman için kullanılacak. Lütfen dikkatli seç; sonradan değişiklik yönetim onayıyla yapılır.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 18),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedYear,
+                  decoration: const InputDecoration(
+                    labelText: 'Mezuniyet yılı veya öğretmen',
+                  ),
+                  items: _profileGraduationYearOptions()
+                      .map(
+                        (value) => DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(
+                            _formatProfileGraduationYearOption(context, value),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: submitting
+                      ? null
+                      : (value) => setState(() {
+                          _selectedYear = value ?? _selectedYear;
+                        }),
+                ),
+                const SizedBox(height: 14),
+                _OnboardingInfoStrip(
+                  icon: _isTeacher
+                      ? Icons.badge_outlined
+                      : Icons.groups_2_outlined,
+                  text: _isTeacher
+                      ? 'Öğretmen profilleri mezun dönemlerinden ayrı görünür; doğrulama talebinde okul/öğretmenlik bağını anlatman beklenir.'
+                      : 'Dönem seçimi; keşif, öneriler, albümler ve sosyal bağlarda doğru kişilerin öne çıkmasına yardımcı olur.',
+                ),
+                if (actionState.isError &&
+                    actionState.scope == 'profile:graduation-claim') ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    actionState.message ?? 'İşlem tamamlanamadı.',
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: submitting ? null : _submit,
+                    icon: submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_circle_outline),
+                    label: Text(
+                      submitting ? 'Kaydediliyor...' : 'Beyanımı kaydet',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnboardingInfoStrip extends StatelessWidget {
+  const _OnboardingInfoStrip({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.infoMuted,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: tokens.info),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _GraduationYearRequestTile extends StatelessWidget {
   const _GraduationYearRequestTile({
     required this.graduationYear,
@@ -482,6 +644,19 @@ class _GraduationYearRequestTile extends StatelessWidget {
       ),
     );
   }
+}
+
+List<String> _profileGraduationYearOptions() => <String>[
+  _teacherGraduationYearValue,
+  for (var year = DateTime.now().year; year >= 1999; year--) '$year',
+];
+
+String _formatProfileGraduationYearOption(BuildContext context, String value) {
+  return _isTeacherGraduationYear(value)
+      ? (Localizations.localeOf(context).languageCode == 'tr'
+            ? 'Öğretmen'
+            : 'Teacher')
+      : value;
 }
 
 bool _isTeacherGraduationYear(String value) {

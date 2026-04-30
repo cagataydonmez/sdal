@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 
 const TEST_MULTI_ACCOUNT_EMAIL = 'cagatay.donmez@gmail.com';
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const oauthStateFallbackStore = new Map();
 
 function isTestMultiAccountEmail(email) {
   return String(email || '').trim().toLowerCase() === TEST_MULTI_ACCOUNT_EMAIL;
@@ -13,6 +15,31 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function pruneOAuthStateFallbackStore(now = Date.now()) {
+  for (const [state, entry] of oauthStateFallbackStore.entries()) {
+    if (!entry || Number(entry.expiresAt || 0) <= now) {
+      oauthStateFallbackStore.delete(state);
+    }
+  }
+}
+
+function rememberOAuthStateFallback(state, entry) {
+  pruneOAuthStateFallbackStore();
+  oauthStateFallbackStore.set(String(state || ''), {
+    ...entry,
+    expiresAt: Date.now() + OAUTH_STATE_TTL_MS
+  });
+}
+
+function consumeOAuthStateFallback(state, provider) {
+  pruneOAuthStateFallbackStore();
+  const key = String(state || '');
+  const entry = oauthStateFallbackStore.get(key);
+  if (!entry || entry.provider !== provider) return null;
+  oauthStateFallbackStore.delete(key);
+  return entry;
 }
 
 export function registerOAuthRoutes(app, {
@@ -179,6 +206,12 @@ export function registerOAuthRoutes(app, {
     if (config.provider === 'apple') {
       const nonce = randomState();
       req.session.oauthNonce = nonce;
+      rememberOAuthStateFallback(state, {
+        provider: config.provider,
+        native: Number(req.session.oauthNative || 0) === 1,
+        returnTo: req.session.oauthReturnTo,
+        nonce
+      });
       const params = new URLSearchParams({
         response_type: 'code',
         response_mode: 'form_post',
@@ -219,19 +252,24 @@ export function registerOAuthRoutes(app, {
 
   async function handleOAuthCallback(req, res) {
     const config = getOAuthProviderConfig(req.params.provider, req);
-    if (config) config.nonce = String(req.session.oauthNonce || '');
-    const isNative = Number(req.session.oauthNative || 0) === 1;
-    const loginRedirectPath = sanitizeOAuthReturnTo(req.session.oauthReturnTo, '/new/login');
+    const state = String(req.body?.state || req.query.state || '');
+    const storedFlow = config?.provider === 'apple' && state
+      ? consumeOAuthStateFallback(state, config.provider)
+      : null;
+    if (config) config.nonce = String(req.session.oauthNonce || storedFlow?.nonce || '');
+    const isNative = Number(req.session.oauthNative || 0) === 1 || Boolean(storedFlow?.native);
+    const loginRedirectPath = sanitizeOAuthReturnTo(req.session.oauthReturnTo || storedFlow?.returnTo, '/new/login');
     const nativeRedirect = (params) => buildMobileOAuthCallbackUrl(params);
     if (!config || !config.enabled) {
       return res.redirect(isNative ? nativeRedirect({ oauth: 'disabled' }) : withOAuthError(loginRedirectPath, 'disabled'));
     }
     const oauthError = String(req.body?.error || req.query.error || '');
     if (oauthError) return res.redirect(isNative ? nativeRedirect({ oauth: oauthError }) : withOAuthError(loginRedirectPath, oauthError));
-    const state = String(req.body?.state || req.query.state || '');
     const code = String(req.body?.code || req.query.code || '');
     if (!code || !state) return res.redirect(isNative ? nativeRedirect({ oauth: 'invalid' }) : withOAuthError(loginRedirectPath, 'invalid'));
-    if (state !== String(req.session.oauthState || '') || config.provider !== String(req.session.oauthProvider || '')) {
+    const sessionStateMatches = state === String(req.session.oauthState || '') && config.provider === String(req.session.oauthProvider || '');
+    const fallbackStateMatches = Boolean(storedFlow);
+    if (!sessionStateMatches && !fallbackStateMatches) {
       return res.redirect(isNative ? nativeRedirect({ oauth: 'state' }) : withOAuthError(loginRedirectPath, 'state'));
     }
 

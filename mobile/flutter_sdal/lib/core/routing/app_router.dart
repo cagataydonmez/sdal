@@ -423,6 +423,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     _slidePage(const ProfileEditPage()),
               ),
               GoRoute(
+                path: '/profile/onboarding',
+                pageBuilder: (context, state) =>
+                    _slidePage(const GraduationYearOnboardingPage()),
+              ),
+              GoRoute(
                 path: '/profile/photo',
                 pageBuilder: (context, state) =>
                     _slidePage(const ProfilePhotoPage()),
@@ -531,6 +536,14 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
     return snapshot.defaultHomePath;
   }
 
+  if (snapshot.requiresInitialGraduationClaim) {
+    return location == '/profile/onboarding' ? null : '/profile/onboarding';
+  }
+
+  if (location == '/profile/onboarding') {
+    return snapshot.defaultHomePath;
+  }
+
   if ((publicRoutes.contains(location) && location != '/legal') ||
       location == '/site-closed' ||
       location == '/account-banned') {
@@ -588,6 +601,7 @@ String? moduleKeyForLocation(String location) {
   }
   if (location == '/profile') return 'profile';
   if (location == '/profile/edit' ||
+      location == '/profile/onboarding' ||
       location == '/profile/photo' ||
       location == '/profile/verification') {
     return 'profile';

@@ -77,8 +77,14 @@ class _AppTabShellState extends ConsumerState<AppTabShell> {
     return Scaffold(
       body: Column(
         children: [
-          if (session?.requiresProfileCompletion == true)
+          if (session?.requiresProfileCompletion == true &&
+              session?.requiresInitialGraduationClaim != true)
             _ProfileCompletionBanner(onTap: () => context.go('/profile/edit')),
+          if (session?.requiresVerification == true &&
+              session?.requiresInitialGraduationClaim != true)
+            _VerificationRequiredBanner(
+              onTap: () => context.go('/profile/verification'),
+            ),
           Expanded(child: widget.navigationShell),
         ],
       ),
@@ -149,23 +155,52 @@ class _ProfileCompletionBanner extends StatelessWidget {
       bottom: false,
       child: Material(
         color: tokens.warningMuted,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                Icon(Icons.assignment_ind_outlined, color: tokens.warning),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Profil bilgilerini tamamla. Dokunup profil düzenlemeye git.',
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.assignment_ind_outlined, color: tokens.warning),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Profil bilgilerini tamamla. Dönem, iletişim ve ilgi alanları önerilerin doğruluğunu artırır.',
                 ),
-                const Icon(Icons.chevron_right),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              TextButton(onPressed: onTap, child: const Text('Tamamla')),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerificationRequiredBanner extends StatelessWidget {
+  const _VerificationRequiredBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Material(
+      color: tokens.infoMuted,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.verified_user_outlined, color: tokens.info),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Doğrulama tamamlanana kadar uygulamayı izleyebilirsin; yeni gönderi, beğeni ve benzeri etkileşimler kısıtlı kalır.',
+              ),
+            ),
+            const SizedBox(width: 10),
+            TextButton(onPressed: onTap, child: const Text('Doğrula')),
+          ],
         ),
       ),
     );
