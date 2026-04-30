@@ -128,6 +128,7 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
                                           .toString(),
                                       fit: BoxFit.cover,
                                       borderRadius: BorderRadius.circular(18),
+                                      enableLightbox: false,
                                       cacheWidth: (itemWidth * 2).round(),
                                       cacheHeight: (itemWidth * 2).round(),
                                     ),

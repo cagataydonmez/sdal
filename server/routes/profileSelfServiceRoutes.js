@@ -79,6 +79,15 @@ export function registerProfileSelfServiceRoutes(app, {
       if (!hasValidGraduationYear(requested)) {
         return res.status(400).send(`Mezuniyet yılı ${minGraduationYear}-${maxGraduationYear} aralığında olmalı veya Öğretmen seçilmelidir.`);
       }
+      const nextPassword = String(req.body?.sifre || req.body?.password || '').trim();
+      const nextPasswordRepeat = String(req.body?.sifre2 || req.body?.passwordRepeat || '').trim();
+      if (!nextPassword) return res.status(400).send('Şifre belirlemeniz gerekiyor.');
+      if (nextPassword.length > 20) return res.status(400).send('Şifre 20 karakterden fazla olmamalıdır.');
+      if (nextPassword !== nextPasswordRepeat) return res.status(400).send('Girdiğiniz şifreler birbirleriyle uyuşmuyor.');
+      const kvkkConsent = Boolean(req.body?.kvkk_consent);
+      const directoryConsent = Boolean(req.body?.directory_consent);
+      if (!kvkkConsent) return res.status(400).send('KVKK Aydınlatma Metni onayı zorunludur.');
+      if (!directoryConsent) return res.status(400).send('Mezun Rehberi açık rıza onayı zorunludur.');
 
       const legacyCols = await getTableColumnSetAsync('uyeler');
       const modernCols = await getTableColumnSetAsync('users');
@@ -102,10 +111,23 @@ export function registerProfileSelfServiceRoutes(app, {
       }
 
       const nowIso = new Date().toISOString();
+      const hashedPassword = await hashPassword(nextPassword);
       if (targetTable === 'users') {
         const cols = modernCols;
         const set = ['graduation_year = ?'];
         const params = [requested];
+        if (cols.has('password_hash')) {
+          set.push('password_hash = ?');
+          params.push(hashedPassword);
+        }
+        if (cols.has('privacy_consent_at')) {
+          set.push('privacy_consent_at = COALESCE(privacy_consent_at, ?)');
+          params.push(nowIso);
+        }
+        if (cols.has('directory_consent_at')) {
+          set.push('directory_consent_at = COALESCE(directory_consent_at, ?)');
+          params.push(nowIso);
+        }
         if (cols.has('updated_at')) {
           set.push('updated_at = ?');
           params.push(nowIso);
@@ -113,7 +135,23 @@ export function registerProfileSelfServiceRoutes(app, {
         params.push(req.session.userId);
         await sqlRunAsync(`UPDATE users SET ${set.join(', ')} WHERE id = ?`, params);
       } else {
-        await sqlRunAsync('UPDATE uyeler SET mezuniyetyili = ? WHERE id = ?', [requested, req.session.userId]);
+        const cols = legacyCols;
+        const set = ['mezuniyetyili = ?'];
+        const params = [requested];
+        if (cols.has('sifre')) {
+          set.push('sifre = ?');
+          params.push(hashedPassword);
+        }
+        if (cols.has('kvkk_consent_at')) {
+          set.push('kvkk_consent_at = COALESCE(kvkk_consent_at, ?)');
+          params.push(nowIso);
+        }
+        if (cols.has('directory_consent_at')) {
+          set.push('directory_consent_at = COALESCE(directory_consent_at, ?)');
+          params.push(nowIso);
+        }
+        params.push(req.session.userId);
+        await sqlRunAsync(`UPDATE uyeler SET ${set.join(', ')} WHERE id = ?`, params);
       }
       invalidateCacheNamespace(cacheNamespaces.profile);
       res.json({ ok: true, mezuniyetyili: requested });

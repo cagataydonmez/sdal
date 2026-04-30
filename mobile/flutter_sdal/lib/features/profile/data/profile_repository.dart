@@ -130,10 +130,22 @@ class ProfileRepository {
     );
   }
 
-  Future<ApiResult<dynamic>> claimGraduationYear(String graduationYear) {
+  Future<ApiResult<dynamic>> claimGraduationYear({
+    required String graduationYear,
+    required String password,
+    required String passwordRepeat,
+    required bool kvkkConsent,
+    required bool directoryConsent,
+  }) {
     return _apiClient.post<dynamic>(
       '/api/profile/graduation-year/claim',
-      body: {'mezuniyetyili': graduationYear},
+      body: {
+        'mezuniyetyili': graduationYear,
+        'sifre': password,
+        'sifre2': passwordRepeat,
+        'kvkk_consent': kvkkConsent,
+        'directory_consent': directoryConsent,
+      },
     );
   }
 

@@ -33,9 +33,21 @@ class ProfileActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
-  Future<bool> claimGraduationYear(String graduationYear) async {
+  Future<bool> claimGraduationYear({
+    required String graduationYear,
+    required String password,
+    required String passwordRepeat,
+    required bool kvkkConsent,
+    required bool directoryConsent,
+  }) async {
     state = const AsyncActionState.loading(scope: 'profile:graduation-claim');
-    final result = await _repository.claimGraduationYear(graduationYear);
+    final result = await _repository.claimGraduationYear(
+      graduationYear: graduationYear,
+      password: password,
+      passwordRepeat: passwordRepeat,
+      kvkkConsent: kvkkConsent,
+      directoryConsent: directoryConsent,
+    );
     if (result.ok) {
       ref.invalidate(profileProvider);
       ref.invalidate(sessionControllerProvider);

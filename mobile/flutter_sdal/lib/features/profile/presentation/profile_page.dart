@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../app/providers.dart';
 import '../../../core/l10n/context_l10n.dart';
 import '../../../core/session/session_controller.dart';
@@ -319,13 +320,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       label: l10n.profileEditExpertiseLabel,
                       value: profile.expertise,
                     ),
-                    _ProfileRow(
+                    _ProfileLinkRow(
                       label: l10n.profileEditWebsiteLabel,
                       value: profile.website,
+                      buttonLabel: 'Web sitesini aç',
+                      icon: Icons.open_in_new,
                     ),
-                    _ProfileRow(
+                    _ProfileLinkRow(
                       label: l10n.profileEditLinkedinLabel,
                       value: profile.linkedinUrl,
+                      buttonLabel: 'LinkedIn’i aç',
+                      icon: Icons.business_center_outlined,
                     ),
                     _ProfileRow(
                       label: l10n.profileEditUniversityLabel,
@@ -670,6 +675,77 @@ class _ProfileRow extends StatelessWidget {
             ),
     );
   }
+}
+
+class _ProfileLinkRow extends StatelessWidget {
+  const _ProfileLinkRow({
+    required this.label,
+    required this.value,
+    required this.buttonLabel,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final String buttonLabel;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return const SizedBox.shrink();
+    final shouldStack =
+        MediaQuery.sizeOf(context).width < 420 ||
+        MediaQuery.textScalerOf(context).scale(1) > 1.15;
+    final button = Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        onPressed: () => _launchProfileUrl(context, trimmed),
+        icon: Icon(icon),
+        label: Text(buttonLabel),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: shouldStack
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 6),
+                button,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 110,
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ),
+                Expanded(child: button),
+              ],
+            ),
+    );
+  }
+}
+
+Future<void> _launchProfileUrl(BuildContext context, String value) async {
+  final uri = _normalizeProfileUrl(value);
+  final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!context.mounted || ok) return;
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('Bağlantı açılamadı.')));
+}
+
+Uri _normalizeProfileUrl(String value) {
+  final trimmed = value.trim();
+  final withScheme = trimmed.contains('://') ? trimmed : 'https://$trimmed';
+  return Uri.parse(withScheme);
 }
 
 class _ThemeModePreferenceCard extends ConsumerWidget {

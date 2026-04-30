@@ -224,6 +224,7 @@ class _ProfileAlbumCard extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(
                                 SdalThemeTokens.radiusLg,
                               ),
+                              enableLightbox: false,
                               cacheWidth: 520,
                               cacheHeight: 390,
                             )

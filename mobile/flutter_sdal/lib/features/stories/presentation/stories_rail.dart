@@ -238,6 +238,7 @@ class _StoryTile extends StatelessWidget {
                         semanticLabel: context.l10n.storiesViewStorySemantic(
                           label,
                         ),
+                        enableLightbox: false,
                         errorFallback: _StoryFallback(label: label),
                       )
                     : _StoryFallback(label: label),
@@ -575,6 +576,7 @@ class _StoryViewerPageState extends ConsumerState<_StoryViewerPage>
                           semanticLabel: l10n.storiesViewStorySemantic(
                             _group.author.displayName,
                           ),
+                          enableLightbox: false,
                           placeholder: DecoratedBox(
                             decoration: BoxDecoration(
                               color: tokens.canvasSubtle,

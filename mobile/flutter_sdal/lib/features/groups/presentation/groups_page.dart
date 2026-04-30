@@ -55,6 +55,7 @@ class GroupsPage extends ConsumerWidget {
                           width: double.infinity,
                           fit: BoxFit.cover,
                           borderRadius: BorderRadius.circular(18),
+                          enableLightbox: false,
                           errorFallback: const SizedBox.shrink(),
                         ),
                         const SizedBox(height: 14),

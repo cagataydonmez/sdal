@@ -8,6 +8,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
 
@@ -41,6 +42,7 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   bool _kvkkConsent = false;
   bool _directoryConsent = false;
   bool _emailHidden = false;
+  int _currentEditStep = 0;
 
   @override
   void dispose() {
@@ -91,224 +93,27 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.fromLTRB(20, 20, 20, 28),
                 children: [
-                  SurfaceCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.profileEditIdentitySectionTitle,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          l10n.profileEditIdentitySectionDescription,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 18),
-                        _ProfileEditField(
-                          controller: _firstNameController,
-                          label: l10n.profileEditFirstNameLabel,
-                          textInputAction: TextInputAction.next,
-                          validator: (value) => _requiredValidator(
-                            value,
-                            l10n.profileEditFirstNameLabel,
-                          ),
-                        ),
-                        _ProfileEditField(
-                          controller: _lastNameController,
-                          label: l10n.profileEditLastNameLabel,
-                          textInputAction: TextInputAction.next,
-                          validator: (value) => _requiredValidator(
-                            value,
-                            l10n.profileEditLastNameLabel,
-                          ),
-                        ),
-                        _GraduationYearRequestTile(
-                          graduationYear: profile.graduationYear,
-                          onRequestChange: actionState.isLoading
-                              ? null
-                              : () => context.push(
-                                  '/requests?category=graduation_year_change',
-                                ),
-                        ),
-                        _ProfileEditField(
-                          controller: _cityController,
-                          label: l10n.profileEditCityLabel,
-                          textInputAction: TextInputAction.next,
-                        ),
-                        _ProfileEditField(
-                          controller: _professionController,
-                          label: l10n.profileEditProfessionLabel,
-                          textInputAction: TextInputAction.next,
-                        ),
-                        _ProfileEditField(
-                          controller: _companyController,
-                          label: l10n.profileEditCompanyLabel,
-                          textInputAction: TextInputAction.next,
-                        ),
-                        _ProfileEditField(
-                          controller: _titleController,
-                          label: l10n.profileEditTitleLabel,
-                          textInputAction: TextInputAction.next,
-                        ),
-                        _ProfileEditField(
-                          controller: _expertiseController,
-                          label: l10n.profileEditExpertiseLabel,
-                          textInputAction: TextInputAction.next,
-                        ),
-                      ],
-                    ),
+                  _ProfileEditStepHeader(
+                    currentStep: _currentEditStep,
+                    totalSteps: 5,
+                    title: _editStepTitle(_currentEditStep, l10n),
                   ),
                   const SizedBox(height: 16),
                   SurfaceCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.profileEditContactSectionTitle,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          l10n.profileEditContactSectionDescription,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 18),
-                        _ProfileEditField(
-                          controller: _websiteController,
-                          label: l10n.profileEditWebsiteLabel,
-                          hintText: 'https://example.com',
-                          keyboardType: TextInputType.url,
-                          textInputAction: TextInputAction.next,
-                          validator: _websiteValidator,
-                        ),
-                        _ProfileEditField(
-                          controller: _linkedinController,
-                          label: l10n.profileEditLinkedinLabel,
-                          hintText: 'https://linkedin.com/in/...',
-                          keyboardType: TextInputType.url,
-                          textInputAction: TextInputAction.next,
-                          validator: _linkedinValidator,
-                        ),
-                        _ProfileEditField(
-                          controller: _universityController,
-                          label: l10n.profileEditUniversityLabel,
-                          textInputAction: TextInputAction.next,
-                        ),
-                        _ProfileEditField(
-                          controller: _departmentController,
-                          label: l10n.profileEditDepartmentLabel,
-                          textInputAction: TextInputAction.next,
-                        ),
-                        _ProfileEditField(
-                          controller: _mentorTopicsController,
-                          label: l10n.profileEditMentorTopicsLabel,
-                          minLines: 2,
-                          maxLines: 4,
-                          textInputAction: TextInputAction.newline,
-                        ),
-                        _ProfileEditField(
-                          controller: _signatureController,
-                          label: l10n.profileEditSignatureLabel,
-                          minLines: 3,
-                          maxLines: 5,
-                          textInputAction: TextInputAction.newline,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SurfaceCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.profileEditPrivacySectionTitle,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          l10n.profileEditPrivacySectionDescription,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 12),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.profileEditMentorVisibleLabel),
-                          value: _mentorOptIn,
-                          onChanged: actionState.isLoading
-                              ? null
-                              : (value) => setState(() => _mentorOptIn = value),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.profileEditKvkkConsentLabel),
-                          value: _kvkkConsent,
-                          onChanged: actionState.isLoading
-                              ? null
-                              : (value) => _handleLegalConsentToggle(
-                                  value: value,
-                                  title: l10n.registerKvkkTitle,
-                                  path: '/kvkk',
-                                  onApproved: () => _kvkkConsent = true,
-                                  onRejected: () => _kvkkConsent = false,
-                                ),
-                        ),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: () => context.push(
-                              '/legal',
-                              extra: {
-                                'title': l10n.registerKvkkTitle,
-                                'path': '/kvkk',
-                              },
-                            ),
-                            child: Text(l10n.registerKvkkTitle),
-                          ),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.profileEditDirectoryConsentLabel),
-                          value: _directoryConsent,
-                          onChanged: actionState.isLoading
-                              ? null
-                              : (value) => _handleLegalConsentToggle(
-                                  value: value,
-                                  title: l10n.registerDirectoryConsentTitle,
-                                  path: '/kvkk/acik-riza',
-                                  onApproved: () => _directoryConsent = true,
-                                  onRejected: () => _directoryConsent = false,
-                                ),
-                        ),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: () => context.push(
-                              '/legal',
-                              extra: {
-                                'title': l10n.registerDirectoryConsentTitle,
-                                'path': '/kvkk/acik-riza',
-                              },
-                            ),
-                            child: Text(l10n.registerDirectoryConsentTitle),
-                          ),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.profileEditHideEmailLabel),
-                          value: _emailHidden,
-                          onChanged: actionState.isLoading
-                              ? null
-                              : (value) => setState(() => _emailHidden = value),
-                        ),
-                      ],
+                    child: _buildEditStep(
+                      context,
+                      profile: profile,
+                      actionState: actionState,
                     ),
                   ),
                 ],
               ),
             ),
             actionState: actionState,
+            isFirstStep: _currentEditStep == 0,
+            isLastStep: _currentEditStep == 4,
+            onBack: () => setState(() => _currentEditStep -= 1),
+            onNext: _goToNextEditStep,
             onSave: () => _submit(profile),
           );
         },
@@ -338,8 +143,287 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     _didSeedForm = true;
   }
 
+  String _editStepTitle(int step, AppLocalizations l10n) => switch (step) {
+    0 => l10n.profileEditIdentitySectionTitle,
+    1 => 'İş ve uzmanlık',
+    2 => 'Eğitim ve bağlantılar',
+    3 => 'Mentorluk ve profil notu',
+    _ => l10n.profileEditPrivacySectionTitle,
+  };
+
+  Widget _buildEditStep(
+    BuildContext context, {
+    required ProfileData profile,
+    required AsyncActionState actionState,
+  }) {
+    final l10n = context.l10n;
+    return switch (_currentEditStep) {
+      0 => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ProfileEditInfo(
+            text:
+                'Ad, soyad, şehir ve mezuniyet dönemi seni doğru kişilere bağlamak için kullanılır. Mezuniyet yılı sonradan yönetim onayıyla değişir.',
+          ),
+          const SizedBox(height: 18),
+          _ProfileEditField(
+            controller: _firstNameController,
+            label: l10n.profileEditFirstNameLabel,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+            autofillHints: const [AutofillHints.givenName],
+            validator: (value) =>
+                _requiredValidator(value, l10n.profileEditFirstNameLabel),
+          ),
+          _ProfileEditField(
+            controller: _lastNameController,
+            label: l10n.profileEditLastNameLabel,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+            autofillHints: const [AutofillHints.familyName],
+            validator: (value) =>
+                _requiredValidator(value, l10n.profileEditLastNameLabel),
+          ),
+          _GraduationYearRequestTile(
+            graduationYear: profile.graduationYear,
+            onRequestChange: actionState.isLoading
+                ? null
+                : () =>
+                      context.push('/requests?category=graduation_year_change'),
+          ),
+          _ProfileEditField(
+            controller: _cityController,
+            label: l10n.profileEditCityLabel,
+            textInputAction: TextInputAction.done,
+            textCapitalization: TextCapitalization.words,
+            autofillHints: const [AutofillHints.addressCity],
+          ),
+        ],
+      ),
+      1 => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _ProfileEditInfo(
+            text:
+                'Meslek, şirket, unvan ve uzmanlık bilgileri; mentorluk, iş fırsatları ve dönem arkadaşlarının seni doğru bağlamda tanıması için kullanılır.',
+          ),
+          const SizedBox(height: 18),
+          _ProfileEditField(
+            controller: _professionController,
+            label: l10n.profileEditProfessionLabel,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+          ),
+          _ProfileEditField(
+            controller: _companyController,
+            label: l10n.profileEditCompanyLabel,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+          ),
+          _ProfileEditField(
+            controller: _titleController,
+            label: l10n.profileEditTitleLabel,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+          ),
+          _ProfileEditField(
+            controller: _expertiseController,
+            label: l10n.profileEditExpertiseLabel,
+            textInputAction: TextInputAction.done,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ],
+      ),
+      2 => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _ProfileEditInfo(
+            text:
+                'Web sitesi, LinkedIn ve eğitim bilgileri profiline bakanların geçmişini daha hızlı anlamasını ve sana doğru kanaldan ulaşmasını sağlar. Link alanları profilinde buton olarak gösterilir.',
+          ),
+          const SizedBox(height: 18),
+          _ProfileEditField(
+            controller: _websiteController,
+            label: l10n.profileEditWebsiteLabel,
+            hintText: 'https://example.com',
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.url],
+            validator: _websiteValidator,
+          ),
+          _ProfileEditField(
+            controller: _linkedinController,
+            label: l10n.profileEditLinkedinLabel,
+            hintText: 'https://www.linkedin.com/in/kullanici-adi',
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.url],
+            validator: _linkedinValidator,
+          ),
+          _ProfileEditField(
+            controller: _universityController,
+            label: l10n.profileEditUniversityLabel,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+          ),
+          _ProfileEditField(
+            controller: _departmentController,
+            label: l10n.profileEditDepartmentLabel,
+            textInputAction: TextInputAction.done,
+            textCapitalization: TextCapitalization.words,
+          ),
+        ],
+      ),
+      3 => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _ProfileEditInfo(
+            text:
+                'Mentorluk konuları ve kısa profil notu, diğer mezunların hangi konuda sana danışabileceğini ve seni nasıl tanıyacağını gösterir.',
+          ),
+          const SizedBox(height: 18),
+          _ProfileEditField(
+            controller: _mentorTopicsController,
+            label: l10n.profileEditMentorTopicsLabel,
+            minLines: 2,
+            maxLines: 4,
+            textInputAction: TextInputAction.newline,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+          _ProfileEditField(
+            controller: _signatureController,
+            label: l10n.profileEditSignatureLabel,
+            minLines: 3,
+            maxLines: 5,
+            textInputAction: TextInputAction.newline,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.profileEditMentorVisibleLabel),
+            subtitle: const Text(
+              'Açık olduğunda mentorluk arayan üyeler profilini bu bağlamda görebilir.',
+            ),
+            value: _mentorOptIn,
+            onChanged: actionState.isLoading
+                ? null
+                : (value) => setState(() => _mentorOptIn = value),
+          ),
+        ],
+      ),
+      _ => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ProfileEditInfo(text: l10n.profileEditPrivacySectionDescription),
+          const SizedBox(height: 12),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.profileEditKvkkConsentLabel),
+            value: _kvkkConsent,
+            onChanged: actionState.isLoading
+                ? null
+                : (value) => _handleLegalConsentToggle(
+                    value: value,
+                    title: l10n.registerKvkkTitle,
+                    path: '/kvkk',
+                    onApproved: () => _kvkkConsent = true,
+                    onRejected: () => _kvkkConsent = false,
+                  ),
+          ),
+          TextButton(
+            onPressed: () => context.push(
+              '/legal',
+              extra: {'title': l10n.registerKvkkTitle, 'path': '/kvkk'},
+            ),
+            child: Text(l10n.registerKvkkTitle),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.profileEditDirectoryConsentLabel),
+            value: _directoryConsent,
+            onChanged: actionState.isLoading
+                ? null
+                : (value) => _handleLegalConsentToggle(
+                    value: value,
+                    title: l10n.registerDirectoryConsentTitle,
+                    path: '/kvkk/acik-riza',
+                    onApproved: () => _directoryConsent = true,
+                    onRejected: () => _directoryConsent = false,
+                  ),
+          ),
+          TextButton(
+            onPressed: () => context.push(
+              '/legal',
+              extra: {
+                'title': l10n.registerDirectoryConsentTitle,
+                'path': '/kvkk/acik-riza',
+              },
+            ),
+            child: Text(l10n.registerDirectoryConsentTitle),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.profileEditHideEmailLabel),
+            value: _emailHidden,
+            onChanged: actionState.isLoading
+                ? null
+                : (value) => setState(() => _emailHidden = value),
+          ),
+        ],
+      ),
+    };
+  }
+
+  void _goToNextEditStep() {
+    if (_currentEditStep == 0) {
+      final valid =
+          _requiredValidator(
+                _firstNameController.text,
+                context.l10n.profileEditFirstNameLabel,
+              ) ==
+              null &&
+          _requiredValidator(
+                _lastNameController.text,
+                context.l10n.profileEditLastNameLabel,
+              ) ==
+              null;
+      if (!valid) {
+        _formKey.currentState?.validate();
+        return;
+      }
+    }
+    if (_currentEditStep == 2) {
+      final valid =
+          _websiteValidator(_websiteController.text) == null &&
+          _linkedinValidator(_linkedinController.text) == null;
+      if (!valid) {
+        _formKey.currentState?.validate();
+        return;
+      }
+    }
+    setState(() => _currentEditStep += 1);
+  }
+
   Future<void> _submit(ProfileData profile) async {
     final l10n = context.l10n;
+    if (_requiredValidator(
+              _firstNameController.text,
+              l10n.profileEditFirstNameLabel,
+            ) !=
+            null ||
+        _requiredValidator(
+              _lastNameController.text,
+              l10n.profileEditLastNameLabel,
+            ) !=
+            null) {
+      _showEditStepValidation(0);
+      return;
+    }
+    if (_websiteValidator(_websiteController.text) != null ||
+        _linkedinValidator(_linkedinController.text) != null) {
+      _showEditStepValidation(2);
+      return;
+    }
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
 
@@ -401,6 +485,14 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     setState(approved == true ? onApproved : onRejected);
   }
 
+  void _showEditStepValidation(int step) {
+    setState(() => _currentEditStep = step);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _formKey.currentState?.validate();
+    });
+  }
+
   String? _requiredValidator(String? value, String label) {
     if ((value ?? '').trim().isNotEmpty) return null;
     return context.l10n.profileEditRequiredField(label);
@@ -450,14 +542,48 @@ class GraduationYearOnboardingPage extends ConsumerStatefulWidget {
 
 class _GraduationYearOnboardingPageState
     extends ConsumerState<GraduationYearOnboardingPage> {
+  final _passwordController = TextEditingController();
+  final _passwordRepeatController = TextEditingController();
   String _selectedYear = '${DateTime.now().year}';
+  int _currentStep = 0;
+  bool _kvkkConsent = false;
+  bool _directoryConsent = false;
+  String? _localError;
 
   bool get _isTeacher => _selectedYear == _teacherGraduationYearValue;
 
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _passwordRepeatController.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
+    final passwordError = _passwordError();
+    if (passwordError != null) {
+      setState(() {
+        _localError = passwordError;
+        _currentStep = 1;
+      });
+      return;
+    }
+    if (!_kvkkConsent || !_directoryConsent) {
+      setState(() {
+        _localError = 'KVKK ve Mezun Rehberi onaylarını tamamlayın.';
+        _currentStep = 2;
+      });
+      return;
+    }
     final ok = await ref
         .read(profileActionControllerProvider.notifier)
-        .claimGraduationYear(_selectedYear);
+        .claimGraduationYear(
+          graduationYear: _selectedYear,
+          password: _passwordController.text,
+          passwordRepeat: _passwordRepeatController.text,
+          kvkkConsent: _kvkkConsent,
+          directoryConsent: _directoryConsent,
+        );
     if (!mounted) return;
     final state = ref.read(profileActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -494,48 +620,22 @@ class _GraduationYearOnboardingPageState
               children: [
                 Icon(Icons.school_outlined, color: tokens.accent, size: 32),
                 const SizedBox(height: 12),
-                Text(
-                  'Mezuniyet yılını seç',
-                  style: theme.textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  _isTeacher
-                      ? 'Öğretmen seçimi, öğretmen ağı ve öğretmen doğrulaması için kullanılacak. Okul veya öğretmenlik bağını gösteren doğrulama daha sonra ayrı değerlendirilecek.'
-                      : 'Bu seçim, kendi dönemindeki arkadaşlarına ve yakın mezuniyet yıllarındaki SDAL üyelerine daha doğru ulaşman için kullanılacak. Lütfen dikkatli seç; sonradan değişiklik yönetim onayıyla yapılır.',
-                  style: theme.textTheme.bodyMedium,
+                Text(_stepTitle, style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: (_currentStep + 1) / 3,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(999),
                 ),
                 const SizedBox(height: 18),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedYear,
-                  decoration: const InputDecoration(
-                    labelText: 'Mezuniyet yılı veya öğretmen',
+                _buildStep(context, submitting: submitting),
+                if (_localError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _localError!,
+                    style: TextStyle(color: theme.colorScheme.error),
                   ),
-                  items: _profileGraduationYearOptions()
-                      .map(
-                        (value) => DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            _formatProfileGraduationYearOption(context, value),
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: submitting
-                      ? null
-                      : (value) => setState(() {
-                          _selectedYear = value ?? _selectedYear;
-                        }),
-                ),
-                const SizedBox(height: 14),
-                _OnboardingInfoStrip(
-                  icon: _isTeacher
-                      ? Icons.badge_outlined
-                      : Icons.groups_2_outlined,
-                  text: _isTeacher
-                      ? 'Öğretmen profilleri mezun dönemlerinden ayrı görünür; doğrulama talebinde okul/öğretmenlik bağını anlatman beklenir.'
-                      : 'Dönem seçimi; keşif, öneriler, albümler ve sosyal bağlarda doğru kişilerin öne çıkmasına yardımcı olur.',
-                ),
+                ],
                 if (actionState.isError &&
                     actionState.scope == 'profile:graduation-claim') ...[
                   const SizedBox(height: 12),
@@ -545,26 +645,269 @@ class _GraduationYearOnboardingPageState
                   ),
                 ],
                 const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: submitting ? null : _submit,
-                    icon: submitting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check_circle_outline),
-                    label: Text(
-                      submitting ? 'Kaydediliyor...' : 'Beyanımı kaydet',
+                Row(
+                  children: [
+                    if (_currentStep > 0) ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: submitting
+                              ? null
+                              : () => setState(() {
+                                  _localError = null;
+                                  _currentStep -= 1;
+                                }),
+                          icon: const Icon(Icons.chevron_left),
+                          label: const Text('Geri'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: submitting ? null : _handlePrimaryAction,
+                        icon: submitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                _currentStep == 2
+                                    ? Icons.check_circle_outline
+                                    : Icons.chevron_right,
+                              ),
+                        label: Text(
+                          submitting
+                              ? 'Kaydediliyor...'
+                              : (_currentStep == 2
+                                    ? 'Beyanımı kaydet'
+                                    : 'Devam'),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  String get _stepTitle => switch (_currentStep) {
+    0 => 'Mezuniyet yılını seç',
+    1 => 'Şifreni belirle',
+    _ => 'Onayları tamamla',
+  };
+
+  Widget _buildStep(BuildContext context, {required bool submitting}) {
+    final theme = Theme.of(context);
+    return switch (_currentStep) {
+      0 => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _isTeacher
+                ? 'Öğretmen seçimi, öğretmen ağı ve öğretmen doğrulaması için kullanılacak. Okul veya öğretmenlik bağını gösteren doğrulama daha sonra ayrı değerlendirilecek.'
+                : 'Bu seçim, kendi dönemindeki arkadaşlarına ve yakın mezuniyet yıllarındaki SDAL üyelerine daha doğru ulaşman için kullanılacak. Lütfen dikkatli seç; sonradan değişiklik yönetim onayıyla yapılır.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 18),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedYear,
+            decoration: const InputDecoration(
+              labelText: 'Mezuniyet yılı veya öğretmen',
+            ),
+            items: _profileGraduationYearOptions()
+                .map(
+                  (value) => DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(
+                      _formatProfileGraduationYearOption(context, value),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: submitting
+                ? null
+                : (value) => setState(() {
+                    _selectedYear = value ?? _selectedYear;
+                  }),
+          ),
+          const SizedBox(height: 14),
+          _OnboardingInfoStrip(
+            icon: _isTeacher ? Icons.badge_outlined : Icons.groups_2_outlined,
+            text: _isTeacher
+                ? 'Öğretmen profilleri mezun dönemlerinden ayrı görünür; doğrulama talebinde okul/öğretmenlik bağını anlatman beklenir.'
+                : 'Dönem seçimi; keşif, öneriler, albümler ve sosyal bağlarda doğru kişilerin öne çıkmasına yardımcı olur.',
+          ),
+        ],
+      ),
+      1 => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _OnboardingInfoStrip(
+            icon: Icons.lock_outline,
+            text:
+                'OAuth ile kayıt olsan bile daha sonra kullanıcı adı/e-posta ve şifreyle de giriş yapabilmen için burada bir şifre belirle.',
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _passwordController,
+            obscureText: true,
+            keyboardType: TextInputType.visiblePassword,
+            decoration: const InputDecoration(labelText: 'Şifre'),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _passwordRepeatController,
+            obscureText: true,
+            keyboardType: TextInputType.visiblePassword,
+            decoration: const InputDecoration(labelText: 'Şifre tekrar'),
+          ),
+          const SizedBox(height: 10),
+          _OnboardingPasswordHint(password: _passwordController.text),
+        ],
+      ),
+      _ => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _OnboardingInfoStrip(
+            icon: Icons.privacy_tip_outlined,
+            text:
+                'KVKK ve Mezun Rehberi açık rıza onayları, sosyal üyeliğinin tamamlanması ve mezun ağında doğru görünmen için gereklidir.',
+          ),
+          const SizedBox(height: 10),
+          CheckboxListTile(
+            value: _kvkkConsent,
+            onChanged: submitting
+                ? null
+                : (value) => _handleLegalConsentToggle(
+                    value: value ?? false,
+                    title: context.l10n.registerKvkkTitle,
+                    path: '/kvkk',
+                    onApproved: () => _kvkkConsent = true,
+                    onRejected: () => _kvkkConsent = false,
+                  ),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: Text(context.l10n.registerKvkkConsentLabel),
+          ),
+          CheckboxListTile(
+            value: _directoryConsent,
+            onChanged: submitting
+                ? null
+                : (value) => _handleLegalConsentToggle(
+                    value: value ?? false,
+                    title: context.l10n.registerDirectoryConsentTitle,
+                    path: '/kvkk/acik-riza',
+                    onApproved: () => _directoryConsent = true,
+                    onRejected: () => _directoryConsent = false,
+                  ),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: Text(context.l10n.registerDirectoryConsentLabel),
+          ),
+        ],
+      ),
+    };
+  }
+
+  void _handlePrimaryAction() {
+    if (_currentStep == 0) {
+      setState(() {
+        _localError = null;
+        _currentStep = 1;
+      });
+      return;
+    }
+    if (_currentStep == 1) {
+      final error = _passwordError();
+      if (error != null) {
+        setState(() => _localError = error);
+        return;
+      }
+      setState(() {
+        _localError = null;
+        _currentStep = 2;
+      });
+      return;
+    }
+    _submit();
+  }
+
+  String? _passwordError() {
+    final password = _passwordController.text;
+    if (password.isEmpty) return 'Şifre belirlemeniz gerekiyor.';
+    if (password.length > 20) return 'Şifre 20 karakterden fazla olmamalıdır.';
+    if (password != _passwordRepeatController.text) {
+      return 'Girdiğiniz şifreler birbirleriyle uyuşmuyor.';
+    }
+    return null;
+  }
+
+  Future<void> _handleLegalConsentToggle({
+    required bool value,
+    required String title,
+    required String path,
+    required VoidCallback onApproved,
+    required VoidCallback onRejected,
+  }) async {
+    if (!value) {
+      setState(onRejected);
+      return;
+    }
+    final approved = await context.push<bool>(
+      '/legal',
+      extra: {'title': title, 'path': path, 'requireAcceptance': true},
+    );
+    if (!mounted) return;
+    setState(approved == true ? onApproved : onRejected);
+  }
+}
+
+class _OnboardingPasswordHint extends StatelessWidget {
+  const _OnboardingPasswordHint({required this.password});
+
+  final String password;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    final score = [
+      password.length >= 8,
+      RegExp(r'[A-Z]').hasMatch(password) &&
+          RegExp(r'[a-z]').hasMatch(password),
+      RegExp(r'\d').hasMatch(password),
+      RegExp(r'[^A-Za-z0-9]').hasMatch(password),
+    ].where((item) => item).length;
+    final value = password.isEmpty ? 0.0 : (score / 4).clamp(0.2, 1.0);
+    final color = score >= 3
+        ? tokens.success
+        : (score >= 2 ? tokens.warning : tokens.danger);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.panelMuted,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LinearProgressIndicator(
+              value: value,
+              minHeight: 6,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+            const SizedBox(height: 8),
+            const Text('8+ karakter, harf, sayı ve sembol kullanman önerilir.'),
+          ],
+        ),
       ),
     );
   }
@@ -671,11 +1014,19 @@ class _ProfileEditFormLayout extends StatelessWidget {
   const _ProfileEditFormLayout({
     required this.form,
     required this.actionState,
+    required this.isFirstStep,
+    required this.isLastStep,
+    required this.onBack,
+    required this.onNext,
     required this.onSave,
   });
 
   final Widget form;
   final AsyncActionState actionState;
+  final bool isFirstStep;
+  final bool isLastStep;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
   final VoidCallback onSave;
 
   @override
@@ -702,23 +1053,42 @@ class _ProfileEditFormLayout extends StatelessWidget {
           ),
           child: SafeArea(
             top: false,
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: actionState.isLoading ? null : onSave,
-                icon: actionState.isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: Text(
-                  actionState.isLoading
-                      ? l10n.profileEditSaveInProgress
-                      : l10n.saveAction,
+            child: Row(
+              children: [
+                if (!isFirstStep) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: actionState.isLoading ? null : onBack,
+                      icon: const Icon(Icons.chevron_left),
+                      label: const Text('Geri'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: actionState.isLoading
+                        ? null
+                        : (isLastStep ? onSave : onNext),
+                    icon: actionState.isLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            isLastStep
+                                ? Icons.save_outlined
+                                : Icons.chevron_right,
+                          ),
+                    label: Text(
+                      actionState.isLoading
+                          ? l10n.profileEditSaveInProgress
+                          : (isLastStep ? l10n.saveAction : 'Devam'),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -734,6 +1104,8 @@ class _ProfileEditField extends StatelessWidget {
     this.hintText,
     this.keyboardType,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
+    this.autofillHints,
     this.validator,
     this.minLines = 1,
     this.maxLines = 1,
@@ -744,6 +1116,8 @@ class _ProfileEditField extends StatelessWidget {
   final String? hintText;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
+  final Iterable<String>? autofillHints;
   final String? Function(String?)? validator;
   final int minLines;
   final int maxLines;
@@ -756,10 +1130,77 @@ class _ProfileEditField extends StatelessWidget {
         controller: controller,
         keyboardType: keyboardType,
         textInputAction: textInputAction,
+        textCapitalization: textCapitalization,
+        autofillHints: autofillHints,
         validator: validator,
         minLines: minLines,
         maxLines: maxLines,
         decoration: InputDecoration(labelText: label, hintText: hintText),
+      ),
+    );
+  }
+}
+
+class _ProfileEditStepHeader extends StatelessWidget {
+  const _ProfileEditStepHeader({
+    required this.currentStep,
+    required this.totalSteps,
+    required this.title,
+  });
+
+  final int currentStep;
+  final int totalSteps;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${currentStep + 1}/$totalSteps',
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(title, style: theme.textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        LinearProgressIndicator(
+          value: (currentStep + 1) / totalSteps,
+          minHeight: 6,
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileEditInfo extends StatelessWidget {
+  const _ProfileEditInfo({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.panelMuted,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.panelBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: tokens.accent),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text)),
+          ],
+        ),
       ),
     );
   }

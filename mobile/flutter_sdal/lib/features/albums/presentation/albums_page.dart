@@ -234,6 +234,7 @@ class _AlbumBarSection extends ConsumerWidget {
                                 .toString(),
                             borderRadius: BorderRadius.circular(18),
                             fit: BoxFit.cover,
+                            enableLightbox: false,
                             cacheWidth: 220,
                             cacheHeight: 220,
                           ),

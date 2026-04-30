@@ -92,6 +92,7 @@ class _ExpiredStoriesPageState extends ConsumerState<ExpiredStoriesPage> {
                                               .resolveUrl(item.mediaUrl)
                                               .toString(),
                                           fit: BoxFit.cover,
+                                          enableLightbox: false,
                                           errorFallback: DecoratedBox(
                                             decoration: BoxDecoration(
                                               color: Theme.of(

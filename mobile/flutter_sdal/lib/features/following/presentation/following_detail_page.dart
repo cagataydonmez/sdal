@@ -178,6 +178,7 @@ class _DetailListCard extends ConsumerWidget {
                 child: SdalNetworkImage(
                   imageUrl: config.resolveUrl(item.image).toString(),
                   borderRadius: BorderRadius.circular(16),
+                  enableLightbox: false,
                 ),
               ),
             )
@@ -279,6 +280,7 @@ class _PhotoGrid extends ConsumerWidget {
                               top: Radius.circular(24),
                             ),
                             semanticLabel: item.title,
+                            enableLightbox: false,
                           ),
                         ),
                         Padding(
