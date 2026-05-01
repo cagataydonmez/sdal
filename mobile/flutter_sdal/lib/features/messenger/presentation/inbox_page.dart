@@ -10,6 +10,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -113,6 +114,18 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (_) => setState(() {}),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: PageOnboardingCard(
+              id: 'messenger-main',
+              icon: Icons.chat_bubble_outline,
+              title: 'Mesajlar bire bir devam eden konuşmalar içindir.',
+              message:
+                  'Bir üyeyi arayarak yeni sohbet başlatabilir, okunmamış rozetlerinden hangi konuşmanın beklediğini hızlıca görebilirsin.',
+              primaryActionLabel: l10n.newChatAction,
+              onPrimaryAction: () => _openComposeSheet(context, ref),
             ),
           ),
           Expanded(
@@ -329,74 +342,75 @@ Future<void> _openComposeSheet(BuildContext context, WidgetRef ref) async {
                     ),
                     onChanged: (_) => setSheetState(() {}),
                   ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 320,
-                  child: contactsState.when(
-                    loading: () => controller.text.trim().isEmpty
-                        ? Center(child: Text(l10n.searchPrompt))
-                        : const Center(child: CircularProgressIndicator()),
-                    error: (error, _) => const ErrorView(),
-                    data: (contacts) {
-                      if (controller.text.trim().isEmpty) {
-                        return Center(child: Text(l10n.searchPrompt));
-                      }
-                      if (contacts.isEmpty) {
-                        return Center(child: Text(l10n.searchNoResults));
-                      }
-                      return ListView.separated(
-                        itemCount: contacts.length,
-                        separatorBuilder: (_, index) =>
-                            const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final contact = contacts[index];
-                          return ListTile(
-                            leading: RemoteAvatar(
-                              label: contact.name,
-                              imageUrl: config
-                                  .resolveUrl(contact.photo)
-                                  .toString(),
-                            ),
-                            title: Text(contact.name),
-                            subtitle: Text(
-                              contact.handle.isNotEmpty
-                                  ? '@${contact.handle}'
-                                  : '',
-                            ),
-                            onTap: () async {
-                              final threadId = await ref
-                                  .read(
-                                    messengerActionControllerProvider.notifier,
-                                  )
-                                  .createThread(contact.id);
-                              if (!context.mounted) return;
-                              Navigator.of(context).pop();
-                              if (threadId != null) {
-                                context.push('/messages/$threadId');
-                              } else {
-                                final actionState = ref.read(
-                                  messengerActionControllerProvider,
-                                );
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      actionState.message ??
-                                          'Sohbet başlatılamadı.',
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 320,
+                    child: contactsState.when(
+                      loading: () => controller.text.trim().isEmpty
+                          ? Center(child: Text(l10n.searchPrompt))
+                          : const Center(child: CircularProgressIndicator()),
+                      error: (error, _) => const ErrorView(),
+                      data: (contacts) {
+                        if (controller.text.trim().isEmpty) {
+                          return Center(child: Text(l10n.searchPrompt));
+                        }
+                        if (contacts.isEmpty) {
+                          return Center(child: Text(l10n.searchNoResults));
+                        }
+                        return ListView.separated(
+                          itemCount: contacts.length,
+                          separatorBuilder: (_, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final contact = contacts[index];
+                            return ListTile(
+                              leading: RemoteAvatar(
+                                label: contact.name,
+                                imageUrl: config
+                                    .resolveUrl(contact.photo)
+                                    .toString(),
+                              ),
+                              title: Text(contact.name),
+                              subtitle: Text(
+                                contact.handle.isNotEmpty
+                                    ? '@${contact.handle}'
+                                    : '',
+                              ),
+                              onTap: () async {
+                                final threadId = await ref
+                                    .read(
+                                      messengerActionControllerProvider
+                                          .notifier,
+                                    )
+                                    .createThread(contact.id);
+                                if (!context.mounted) return;
+                                Navigator.of(context).pop();
+                                if (threadId != null) {
+                                  context.push('/messages/$threadId');
+                                } else {
+                                  final actionState = ref.read(
+                                    messengerActionControllerProvider,
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        actionState.message ??
+                                            'Sohbet başlatılamadı.',
+                                      ),
                                     ),
-                                  ),
-                                );
-                              }
-                            },
-                          );
-                        },
-                      );
-                    },
+                                  );
+                                }
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
         ),
       ),
     );

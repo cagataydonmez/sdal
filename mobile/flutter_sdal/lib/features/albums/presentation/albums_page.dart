@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/albums_action_controller.dart';
@@ -42,6 +43,16 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
+            PageOnboardingCard(
+              id: 'albums-main',
+              icon: Icons.photo_library_outlined,
+              title: 'Albümler ortak hafızayı düzenli tutar.',
+              message:
+                  'Kategorilerden eski fotoğraflara bakabilir, yeni fotoğraf yükleyebilir veya yönettiğin albümlerde düzenleme yapabilirsin.',
+              primaryActionLabel: 'Fotoğraf yükle',
+              onPrimaryAction: () => context.push('/albums/upload'),
+            ),
+            const SizedBox(height: 16),
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
             else if (_error.isNotEmpty)

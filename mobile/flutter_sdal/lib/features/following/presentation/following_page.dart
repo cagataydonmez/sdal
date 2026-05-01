@@ -9,6 +9,7 @@ import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/member_badges.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../messenger/application/messenger_action_controller.dart';
@@ -63,6 +64,16 @@ class _FollowingPageState extends ConsumerState<FollowingPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
+            PageOnboardingCard(
+              id: 'following-main',
+              icon: Icons.people_alt_outlined,
+              title: 'Takip listeni güvenilir çevren gibi kullan.',
+              message:
+                  'Yakın takip ettiğin mezun, öğrenci ve öğretmenlerin güncellemelerine buradan dönersin. Yeni bağlantılar için keşfet akışını açabilirsin.',
+              primaryActionLabel: context.l10n.exploreTitle,
+              onPrimaryAction: () => context.push('/explore'),
+            ),
+            const SizedBox(height: 16),
             if (_isLoadingInitial)
               const Padding(
                 padding: EdgeInsets.only(top: 80),

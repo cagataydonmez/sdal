@@ -7,6 +7,7 @@ import '../../../core/text/sdal_date_time.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/jobs_action_controller.dart';
 import '../data/opportunities_repository.dart';
@@ -85,6 +86,14 @@ class _JobsPageState extends ConsumerState<JobsPage> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          const PageOnboardingCard(
+            id: 'jobs-main',
+            icon: Icons.work_outline,
+            title: 'Fırsatlar net bilgiyle hızlı değer üretir.',
+            message:
+                'İlan paylaşırken şirket, rol, konum ve başvuru linkini açık yaz. Arama alanıyla SDAL ağı içindeki uygun fırsatları süzebilirsin.',
+          ),
+          const SizedBox(height: 16),
           DecoratedBox(
             decoration: BoxDecoration(
               color: tokens.panelRaised,

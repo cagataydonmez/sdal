@@ -12,6 +12,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../explore/data/explore_repository.dart';
@@ -77,6 +78,18 @@ class _NetworkingHubPageState extends ConsumerState<NetworkingHubPage> {
             padding: const EdgeInsets.all(20),
             children: [
               _trackHubSuggestions(hub.discoverySuggestions),
+              PageOnboardingCard(
+                id: 'networking-hub-main',
+                icon: Icons.hub_outlined,
+                title: 'Networking, takipten daha bilinçli bir bağ kurar.',
+                message:
+                    'Önerilerden kişiye bak, uygun olduğunda bağlantı veya mentorluk iste. Inbox tarafı bekleyen yanıtları toplar.',
+                primaryActionLabel: 'Inbox’a git',
+                onPrimaryAction: () => context.push('/network/inbox'),
+                secondaryActionLabel: 'Öğretmen ağı',
+                onSecondaryAction: () => context.push('/network/teachers'),
+              ),
+              const SizedBox(height: 16),
               SurfaceCard(
                 child: Row(
                   children: [
@@ -402,6 +415,14 @@ class NetworkingInboxPage extends ConsumerWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(20),
             children: [
+              const PageOnboardingCard(
+                id: 'networking-inbox-main',
+                icon: Icons.inbox_outlined,
+                title: 'Networking Inbox karar bekleyen ilişkileri toplar.',
+                message:
+                    'Gelen ve giden istekleri yön değiştirerek kontrol et, mentorluk yanıtlarını izle, öğretmen ağı bildirimlerini okundu işaretle.',
+              ),
+              const SizedBox(height: 18),
               const _ConnectionRequestsBrowser(),
               const SizedBox(height: 18),
               const _MentorshipRequestsBrowser(),
@@ -762,10 +783,7 @@ class _MentorshipRequestsBrowserState
                         subtitle: item.focusArea.isNotEmpty
                             ? item.focusArea
                             : (item.updatedAt.isNotEmpty
-                                  ? formatSdalTimestamp(
-                                      context,
-                                      item.updatedAt,
-                                    )
+                                  ? formatSdalTimestamp(context, item.updatedAt)
                                   : formatSdalTimestamp(
                                       context,
                                       item.createdAt,
@@ -881,6 +899,14 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
+            const PageOnboardingCard(
+              id: 'teacher-links-main',
+              icon: Icons.school_outlined,
+              title: 'Öğretmen bağlantısı güven bağlamı ekler.',
+              message:
+                  'Öğretmen arayıp hangi yıllarda ve nasıl bağ kurduğunu ekle. Bu bilgi önerileri ve güven rozetlerini daha anlamlı yapar.',
+            ),
+            const SizedBox(height: 18),
             SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

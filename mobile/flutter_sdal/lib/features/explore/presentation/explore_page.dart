@@ -10,6 +10,7 @@ import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/member_badges.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -75,6 +76,14 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
+            PageOnboardingCard(
+              id: 'explore-main',
+              icon: Icons.explore_outlined,
+              title: 'Keşfet’i değerli yapan şey bağlantı bağlamı.',
+              message:
+                  'Yeni üyeleri, önerilen kişileri ve fırsat akışını birlikte oku. Birini takip etmek, sonra yeniden bulmanı kolaylaştırır.',
+            ),
+            const SizedBox(height: 20),
             Text(
               l10n.exploreLatestMembersTitle,
               style: Theme.of(context).textTheme.titleLarge,

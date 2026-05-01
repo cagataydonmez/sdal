@@ -12,6 +12,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/image_lightbox.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/skeleton_view.dart';
@@ -137,7 +138,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: (isLoading && _items.isEmpty) ? 5 : _items.length + 4,
+        itemCount: (isLoading && _items.isEmpty) ? 6 : _items.length + 5,
         separatorBuilder: (_, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -147,12 +148,23 @@ class _FeedPageState extends ConsumerState<FeedPage> {
             );
           }
           if (index == 1) {
+            return PageOnboardingCard(
+              id: 'feed-main',
+              icon: Icons.dynamic_feed_outlined,
+              title: 'Akışta neye bakmalısın?',
+              message:
+                  'Dönem ve topluluk filtreleriyle doğru çevreyi seç, hikayelerden hızlıca nabız al, paylaşmak istediğin bir şey varsa Gönderi ile başla.',
+              primaryActionLabel: l10n.feedPostAction,
+              onPrimaryAction: () => _openComposer(context, ref),
+            );
+          }
+          if (index == 2) {
             return _OnlineMembersCard(
               state: onlineMembersState,
               imageUrlFor: (photo) => config.resolveUrl(photo).toString(),
             );
           }
-          if (index == 2) {
+          if (index == 3) {
             return StoriesRail(
               mode: StoryRailMode.feed,
               showUpload: true,
@@ -163,7 +175,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           if (isLoading && _items.isEmpty) {
             return const _FeedPostSkeleton();
           }
-          if (index == _items.length + 3) {
+          if (index == _items.length + 4) {
             if (_items.isEmpty) {
               return _FeedEmptyState(
                 onCompose: () => _openComposer(context, ref),
@@ -182,7 +194,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
               ),
             );
           }
-          final item = _items[index - 3];
+          final item = _items[index - 4];
           final canOpenAuthorProfile =
               item.authorId != null && item.authorId! > 0;
           return InkWell(

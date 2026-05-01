@@ -12,6 +12,7 @@ import '../../../app/providers.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -83,6 +84,14 @@ class _EventsPageState extends ConsumerState<EventsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
+            const PageOnboardingCard(
+              id: 'events-main',
+              icon: Icons.event_outlined,
+              title: 'Etkinlikler topluluğa öneriyle başlar.',
+              message:
+                  'Etkinlik önerirken başlık, zaman, konum ve kapak görselini net ver. Yayına alınan etkinliklerde yanıtlar ve yorumlar burada görünür.',
+            ),
+            const SizedBox(height: 16),
             SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -9,6 +9,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/requests_action_controller.dart';
 import '../data/requests_repository.dart';
@@ -161,6 +162,14 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 16),
+            const PageOnboardingCard(
+              id: 'requests-main',
+              icon: Icons.rule_folder_outlined,
+              title: 'İstekler hesabınla ilgili resmi akışı toplar.',
+              message:
+                  'Mezuniyet yılı, doğrulama veya belge gerektiren taleplerde kısa ve net açıklama ekle; durumunu bekleyen ve tamamlanan sekmelerinden izleyebilirsin.',
             ),
             const SizedBox(height: 16),
             SurfaceCard(

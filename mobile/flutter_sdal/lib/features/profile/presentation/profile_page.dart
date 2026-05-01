@@ -11,6 +11,7 @@ import '../../../core/theme/theme_mode_store.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/member_badges.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/skeleton_view.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -168,6 +169,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              PageOnboardingCard(
+                id: 'profile-main',
+                icon: Icons.person_outline,
+                title: 'Profilin SDAL içinde bulunma biçimin.',
+                message:
+                    'Fotoğraf, dönem, şehir ve meslek bilgilerini tamamlamak önerileri, rehberi ve güven sinyallerini daha doğru yapar.',
+                primaryActionLabel: l10n.editAction,
+                onPrimaryAction: () => context.push('/profile/edit'),
+                secondaryActionLabel: l10n.profileVerificationAction,
+                onSecondaryAction: () => context.push('/profile/verification'),
               ),
               const SizedBox(height: 16),
               SurfaceCard(

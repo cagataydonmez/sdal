@@ -11,6 +11,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/skeleton_view.dart';
@@ -329,6 +330,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 18),
+            const PageOnboardingCard(
+              id: 'notifications-main',
+              icon: Icons.notifications_outlined,
+              title: 'Bildirimler aksiyon kuyruğun.',
+              message:
+                  'Okunmamışları önce tara, ayar kartından hangi bildirimleri almak istediğini düzenle, işi bitenleri okundu işaretle.',
             ),
             const SizedBox(height: 18),
             preferencesState.when(

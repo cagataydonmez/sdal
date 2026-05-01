@@ -11,6 +11,7 @@ import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/empty_state_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/community_action_controller.dart';
@@ -70,6 +71,14 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
+            const PageOnboardingCard(
+              id: 'announcements-main',
+              icon: Icons.campaign_outlined,
+              title: 'Duyurular topluluğun resmi nabzı.',
+              message:
+                  'Önemli gelişmeleri buradan takip et; duyuru önerilerin incelenir ve uygun olduğunda tüm SDAL topluluğuyla paylaşılır.',
+            ),
+            const SizedBox(height: 16),
             SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

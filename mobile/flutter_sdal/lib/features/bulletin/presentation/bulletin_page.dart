@@ -6,6 +6,7 @@ import '../../../app/providers.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../data/bulletin_repository.dart';
@@ -86,6 +87,14 @@ class _BulletinPageState extends ConsumerState<BulletinPage> {
             ),
             const SizedBox(height: 16),
           ],
+          const PageOnboardingCard(
+            id: 'bulletin-main',
+            icon: Icons.forum_outlined,
+            title: 'Panolar hızlı, yerel ve kısa duyurular içindir.',
+            message:
+                'Genel pano tüm topluluğa açıktır; mezuniyet panonu seçtiğinde kendi döneminin günlük ihtiyaçlarına ve notlarına odaklanırsın.',
+          ),
+          const SizedBox(height: 16),
           SurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

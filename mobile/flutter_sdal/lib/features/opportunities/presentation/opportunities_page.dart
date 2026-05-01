@@ -5,6 +5,7 @@ import '../../../core/l10n/context_l10n.dart';
 import '../../../core/network/json_utils.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../explore/data/explore_repository.dart';
 import '../data/opportunities_repository.dart';
@@ -63,6 +64,14 @@ class _OpportunitiesPageState extends ConsumerState<OpportunitiesPage> {
                     },
                   ),
               ],
+            ),
+            const SizedBox(height: 16),
+            const PageOnboardingCard(
+              id: 'opportunities-main',
+              icon: Icons.auto_awesome_outlined,
+              title: 'Fırsatlar sana göre önceliklenen kısa bir radar.',
+              message:
+                  'İş, networking ve güncelleme önerilerini filtreleyerek takip et; üyelerle ilgili önerilerde önce profili açıp bağlamı kontrol edebilirsin.',
             ),
             const SizedBox(height: 16),
             if (_isLoading)

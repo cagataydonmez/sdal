@@ -6,6 +6,7 @@ import '../../../core/l10n/context_l10n.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/feature_scaffold.dart';
+import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../application/groups_action_controller.dart';
@@ -35,10 +36,21 @@ class GroupsPage extends ConsumerWidget {
           child: ListView.separated(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(20),
-            itemCount: groups.length,
+            itemCount: groups.length + 1,
             separatorBuilder: (context, index) => const SizedBox(height: 14),
             itemBuilder: (context, index) {
-              final group = groups[index];
+              if (index == 0) {
+                return PageOnboardingCard(
+                  id: 'groups-main',
+                  icon: Icons.groups_outlined,
+                  title: 'Gruplar ortak ilgi ve dönem çevresi kurar.',
+                  message:
+                      'Katılmak istediğin grubu aç, durumunu kontrol et veya yeni bir grup önererek topluluğu canlı tut.',
+                  primaryActionLabel: l10n.groupsNewGroupAction,
+                  onPrimaryAction: () => _openCreateSheet(context, ref),
+                );
+              }
+              final group = groups[index - 1];
               return InkWell(
                 borderRadius: BorderRadius.circular(24),
                 onTap: () => context.push('/groups/${group.id}'),
