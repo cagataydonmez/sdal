@@ -454,6 +454,7 @@ export function registerAccountRoutes(app, deps) {
       const sifre = String(req.body?.sifre || '');
       const email = normalizeEmail(req.body?.email);
       const akt = String(req.body?.akt || '').trim();
+      const device = normalizeActivationDevice(req.body || {});
       if (!kadi) return res.status(400).send('Kullanıcı adını girmedin.');
       if (!akt) return res.status(400).send('Aktivasyon kodunu girmedin.');
       const user = await sqlGetAsync('SELECT * FROM uyeler WHERE kadi = ?', [kadi]);
@@ -476,6 +477,9 @@ export function registerAccountRoutes(app, deps) {
       if (user.aktivasyon !== akt) return res.status(400).send('Aktivasyon kodu yanlış');
       const newAkt = createActivation();
       await sqlRunAsync('UPDATE uyeler SET aktiv = 1, aktivasyon = ? WHERE id = ?', [newAkt, user.id]);
+      if (authSecurity && device) {
+        await authSecurity.trustDevice({ userId: user.id, req, device });
+      }
       req.session.userId = user.id;
       await new Promise((resolve) => req.session.save(resolve));
       const phoneVerificationRequired = authSecurity
@@ -629,4 +633,17 @@ export function registerAccountRoutes(app, deps) {
 <p>İrtibat: <a href="mailto:kvkk@sdal.org">kvkk@sdal.org</a></p>
 </body></html>`);
   });
+}
+
+function normalizeActivationDevice(body) {
+  const deviceId = String(body?.device_id || '').trim();
+  if (deviceId.length < 16 || deviceId.length > 128) return null;
+  const rawPlatform = String(body?.platform || '').trim().toLowerCase();
+  const platform = rawPlatform === 'ios' ? 'ios' : 'android';
+  return {
+    device_id: deviceId,
+    platform,
+    device_name: String(body?.device_name || '').trim().slice(0, 120),
+    app_version: String(body?.app_version || '').trim().slice(0, 64)
+  };
 }

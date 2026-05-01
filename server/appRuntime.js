@@ -4034,7 +4034,8 @@ registerOAuthRoutes(app, {
   issueMobileOAuthToken,
   consumeMobileOAuthToken,
   applyUserSession,
-  oauthLoginToSuccessPath
+  oauthLoginToSuccessPath,
+  authSecurity
 });
 
 app.post('/api/auth/login', loginRateLimit, phase1Domain.controllers.auth.login);

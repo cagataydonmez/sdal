@@ -82,8 +82,14 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
     return _repository.fetchOAuthProviders();
   }
 
-  Future<String?> exchangeMobileOAuthToken(String token) async {
-    final result = await _repository.exchangeMobileOAuthToken(token);
+  Future<String?> exchangeMobileOAuthToken(
+    String token, {
+    Map<String, dynamic> device = const {},
+  }) async {
+    final result = await _repository.exchangeMobileOAuthToken(
+      token,
+      device: device,
+    );
     if (!result.ok) {
       return result.message.isNotEmpty
           ? result.message

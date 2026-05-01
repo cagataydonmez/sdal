@@ -96,10 +96,13 @@ class SessionRepository {
         .toList(growable: false);
   }
 
-  Future<ApiResult<JsonMap>> exchangeMobileOAuthToken(String token) {
+  Future<ApiResult<JsonMap>> exchangeMobileOAuthToken(
+    String token, {
+    JsonMap device = const {},
+  }) {
     return apiClient.post<JsonMap>(
       '/api/auth/oauth/mobile/exchange',
-      body: {'token': token},
+      body: {'token': token, ...device},
       decoder: (raw) => asJsonMap(raw),
     );
   }

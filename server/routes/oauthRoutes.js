@@ -61,7 +61,8 @@ export function registerOAuthRoutes(app, {
   issueMobileOAuthToken,
   consumeMobileOAuthToken,
   applyUserSession,
-  oauthLoginToSuccessPath
+  oauthLoginToSuccessPath,
+  authSecurity
 }) {
   function fetchTestAccountChoices(email) {
     if (!isTestMultiAccountEmail(email)) return [];
@@ -311,6 +312,15 @@ export function registerOAuthRoutes(app, {
       if (!userId) return res.status(400).send('OAuth token gecersiz veya suresi dolmus.');
       const user = await sqlGetAsync('SELECT * FROM uyeler WHERE id = ?', [userId]);
       if (!user || user.yasak === 1) return res.status(400).send('Kullanici gecersiz.');
+      const pendingChallenge = req.session.pendingDeviceChallenge || {};
+      const pendingDevice = Number(pendingChallenge.userId || 0) === Number(user.id)
+        ? normalizeOAuthExchangeDevice(pendingChallenge.device || {})
+        : null;
+      const device = normalizeOAuthExchangeDevice(req.body || {}) || pendingDevice;
+      if (authSecurity && device) {
+        await authSecurity.trustDevice({ userId: user.id, req, device });
+        if (pendingDevice) delete req.session.pendingDeviceChallenge;
+      }
       applyUserSession(req, user);
       res.cookie('uyegiris', 'evet');
       res.cookie('uyeid', String(user.id));
@@ -321,4 +331,17 @@ export function registerOAuthRoutes(app, {
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
   });
+}
+
+function normalizeOAuthExchangeDevice(body) {
+  const deviceId = String(body?.device_id || '').trim();
+  if (deviceId.length < 16 || deviceId.length > 128) return null;
+  const rawPlatform = String(body?.platform || '').trim().toLowerCase();
+  const platform = rawPlatform === 'ios' ? 'ios' : 'android';
+  return {
+    device_id: deviceId,
+    platform,
+    device_name: String(body?.device_name || '').trim().slice(0, 120),
+    app_version: String(body?.app_version || '').trim().slice(0, 64)
+  };
 }

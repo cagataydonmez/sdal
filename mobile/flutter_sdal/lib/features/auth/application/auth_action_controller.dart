@@ -163,9 +163,10 @@ class AuthActionController extends Notifier<AsyncActionState> {
         );
         return;
       }
+      final device = await ref.read(deviceIdentityServiceProvider).metadata();
       final message = await ref
           .read(sessionControllerProvider.notifier)
-          .exchangeMobileOAuthToken(result.token);
+          .exchangeMobileOAuthToken(result.token, device: device.toJson());
       if (!ref.mounted) return;
       state = message == null
           ? const AsyncActionState.success(scope: 'oauth')
@@ -238,6 +239,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
     required String code,
   }) async {
     state = const AsyncActionState.loading(scope: 'activate');
+    final device = await ref.read(deviceIdentityServiceProvider).metadata();
     final result = memberId.trim().isNotEmpty
         ? await ref
               .read(apiClientProvider)
@@ -255,6 +257,7 @@ class AuthActionController extends Notifier<AsyncActionState> {
                   if (password.isNotEmpty) 'sifre': password,
                   if (email.trim().isNotEmpty) 'email': email.trim(),
                   'akt': code,
+                  ...device.toJson(),
                 },
                 decoder: asJsonMap,
               );
