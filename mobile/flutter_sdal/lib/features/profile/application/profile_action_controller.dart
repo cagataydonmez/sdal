@@ -34,6 +34,7 @@ class ProfileActionController extends Notifier<AsyncActionState> {
   }
 
   Future<bool> claimGraduationYear({
+    required String username,
     required String graduationYear,
     required String password,
     required String passwordRepeat,
@@ -42,6 +43,7 @@ class ProfileActionController extends Notifier<AsyncActionState> {
   }) async {
     state = const AsyncActionState.loading(scope: 'profile:graduation-claim');
     final result = await _repository.claimGraduationYear(
+      username: username,
       graduationYear: graduationYear,
       password: password,
       passwordRepeat: passwordRepeat,

@@ -38,6 +38,7 @@ export function registerProfileSelfServiceRoutes(app, {
   enforceUploadQuota,
   verifyPassword,
   hashPassword,
+  filterKufur = () => '',
   photoUpload,
   processDiskImageUpload,
   uploadImagePresets,
@@ -73,8 +74,76 @@ export function registerProfileSelfServiceRoutes(app, {
     }
   });
 
+  async function validateProfileUsername(req, res, cleanKadi) {
+    if (!cleanKadi) {
+      res.status(400).send('Kullanıcı adını girmedin.');
+      return false;
+    }
+    if (String(cleanKadi).length > 15) {
+      res.status(400).send('Kullanıcı adı 15 karakterden fazla olmamalıdır.');
+      return false;
+    }
+    const kufur = filterKufur(cleanKadi);
+    if (kufur) {
+      res.status(400).send(`Girdiğiniz kullanıcı adı uygun olmayan bir kelime içeriyor. (${kufur})`);
+      return false;
+    }
+    const legacyCols = await getTableColumnSetAsync('uyeler');
+    const modernCols = await getTableColumnSetAsync('users');
+    const legacyDuplicate = legacyCols.size
+      ? await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ? AND id <> ?', [cleanKadi, req.session.userId])
+      : null;
+    const modernDuplicate = modernCols.size && modernCols.has('username')
+      ? await sqlGetAsync('SELECT id FROM users WHERE lower(username) = lower(?) AND id <> ?', [cleanKadi, req.session.userId])
+      : null;
+    if (legacyDuplicate || modernDuplicate) {
+      res.status(409).json({
+        ok: false,
+        code: 'USERNAME_TAKEN',
+        message: 'Girdiğiniz kullanıcı adı zaten kayıtlıdır.',
+        kadiExists: true
+      });
+      return false;
+    }
+    return true;
+  }
+
+  app.post('/api/profile/username/check', requireAuth, async (req, res) => {
+    try {
+      const cleanKadi = String(req.body?.kadi || req.body?.username || '').trim();
+      if (!cleanKadi) return res.status(400).send('Kontrol için kullanıcı adı girilmelidir.');
+      if (String(cleanKadi).length > 15) {
+        return res.status(400).send('Kullanıcı adı 15 karakterden fazla olmamalıdır.');
+      }
+      const kufur = filterKufur(cleanKadi);
+      if (kufur) {
+        return res.status(400).send(`Girdiğiniz kullanıcı adı uygun olmayan bir kelime içeriyor. (${kufur})`);
+      }
+      const legacyCols = await getTableColumnSetAsync('uyeler');
+      const modernCols = await getTableColumnSetAsync('users');
+      const legacyDuplicate = legacyCols.size
+        ? await sqlGetAsync('SELECT id FROM uyeler WHERE kadi = ? AND id <> ?', [cleanKadi, req.session.userId])
+        : null;
+      const modernDuplicate = modernCols.size && modernCols.has('username')
+        ? await sqlGetAsync('SELECT id FROM users WHERE lower(username) = lower(?) AND id <> ?', [cleanKadi, req.session.userId])
+        : null;
+      res.json({
+        ok: true,
+        kadiExists: Boolean(legacyDuplicate || modernDuplicate)
+      });
+    } catch (err) {
+      writeAppLog('error', 'profile_username_check_failed', {
+        userId: req.session?.userId || null,
+        message: err?.message || 'unknown_error'
+      });
+      if (!res.headersSent) res.status(500).send('Kullanıcı adı kontrol edilemedi.');
+    }
+  });
+
   app.post('/api/profile/graduation-year/claim', requireAuth, async (req, res) => {
     try {
+      const cleanKadi = String(req.body?.kadi || req.body?.username || '').trim();
+      if (!(await validateProfileUsername(req, res, cleanKadi))) return;
       const requested = normalizeCohortValue(req.body?.mezuniyetyili || req.body?.graduationYear || '');
       if (!hasValidGraduationYear(requested)) {
         return res.status(400).send(`Mezuniyet yılı ${minGraduationYear}-${maxGraduationYear} aralığında olmalı veya Öğretmen seçilmelidir.`);
@@ -92,10 +161,10 @@ export function registerProfileSelfServiceRoutes(app, {
       const legacyCols = await getTableColumnSetAsync('uyeler');
       const modernCols = await getTableColumnSetAsync('users');
       const modernCurrent = modernCols.size
-        ? await sqlGetAsync('SELECT id, graduation_year AS mezuniyetyili FROM users WHERE id = ?', [req.session.userId])
+        ? await sqlGetAsync('SELECT id, username AS kadi, graduation_year AS mezuniyetyili FROM users WHERE id = ?', [req.session.userId])
         : null;
       const legacyCurrent = !modernCurrent && legacyCols.size
-        ? await sqlGetAsync('SELECT id, mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId])
+        ? await sqlGetAsync('SELECT id, kadi, mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId])
         : null;
       const targetTable = modernCurrent ? 'users' : 'uyeler';
       const current = modernCurrent || legacyCurrent;
@@ -116,6 +185,10 @@ export function registerProfileSelfServiceRoutes(app, {
         const cols = modernCols;
         const set = ['graduation_year = ?'];
         const params = [requested];
+        if (cols.has('username')) {
+          set.push('username = ?');
+          params.push(cleanKadi);
+        }
         if (cols.has('password_hash')) {
           set.push('password_hash = ?');
           params.push(hashedPassword);
@@ -138,6 +211,10 @@ export function registerProfileSelfServiceRoutes(app, {
         const cols = legacyCols;
         const set = ['mezuniyetyili = ?'];
         const params = [requested];
+        if (cols.has('kadi')) {
+          set.push('kadi = ?');
+          params.push(cleanKadi);
+        }
         if (cols.has('sifre')) {
           set.push('sifre = ?');
           params.push(hashedPassword);
@@ -153,8 +230,14 @@ export function registerProfileSelfServiceRoutes(app, {
         params.push(req.session.userId);
         await sqlRunAsync(`UPDATE uyeler SET ${set.join(', ')} WHERE id = ?`, params);
       }
+      if (targetTable === 'users' && legacyCols.size && legacyCols.has('kadi')) {
+        await sqlRunAsync('UPDATE uyeler SET kadi = ? WHERE id = ?', [cleanKadi, req.session.userId]);
+      }
+      if (targetTable === 'uyeler' && modernCols.size && modernCols.has('username')) {
+        await sqlRunAsync('UPDATE users SET username = ? WHERE id = ?', [cleanKadi, req.session.userId]);
+      }
       invalidateCacheNamespace(cacheNamespaces.profile);
-      res.json({ ok: true, mezuniyetyili: requested });
+      res.json({ ok: true, kadi: cleanKadi, mezuniyetyili: requested });
     } catch (err) {
       writeAppLog('error', 'graduation_year_claim_failed', {
         userId: req.session?.userId || null,

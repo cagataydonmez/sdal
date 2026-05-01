@@ -4273,6 +4273,7 @@ registerProfileSelfServiceRoutes(app, {
   enforceUploadQuota,
   verifyPassword,
   hashPassword,
+  filterKufur,
   photoUpload,
   processDiskImageUpload,
   uploadImagePresets,

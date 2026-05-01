@@ -131,6 +131,7 @@ class ProfileRepository {
   }
 
   Future<ApiResult<dynamic>> claimGraduationYear({
+    required String username,
     required String graduationYear,
     required String password,
     required String passwordRepeat,
@@ -140,12 +141,21 @@ class ProfileRepository {
     return _apiClient.post<dynamic>(
       '/api/profile/graduation-year/claim',
       body: {
+        'kadi': username,
         'mezuniyetyili': graduationYear,
         'sifre': password,
         'sifre2': passwordRepeat,
         'kvkk_consent': kvkkConsent,
         'directory_consent': directoryConsent,
       },
+    );
+  }
+
+  Future<ApiResult<JsonMap>> checkUsername(String username) {
+    return _apiClient.post<JsonMap>(
+      '/api/profile/username/check',
+      body: {'kadi': username},
+      decoder: asJsonMap,
     );
   }
 

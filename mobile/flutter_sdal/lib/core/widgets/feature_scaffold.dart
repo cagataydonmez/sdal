@@ -20,6 +20,7 @@ class FeatureScaffold extends ConsumerWidget {
     this.actions,
     this.floatingActionButton,
     this.background = FeatureScaffoldBackground.neutral,
+    this.showAppMenu = true,
   });
 
   final String title;
@@ -27,6 +28,7 @@ class FeatureScaffold extends ConsumerWidget {
   final List<Widget>? actions;
   final Widget? floatingActionButton;
   final FeatureScaffoldBackground background;
+  final bool showAppMenu;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,12 +41,13 @@ class FeatureScaffold extends ConsumerWidget {
     final canPop = Navigator.of(context).canPop();
     final resolvedActions = <Widget>[
       ...?actions,
-      _AppMenuButton(
-        session: session,
-        currentLocation: location,
-        shellMenu: shellMenu,
-        shellSidebar: shellSidebar,
-      ),
+      if (showAppMenu)
+        _AppMenuButton(
+          session: session,
+          currentLocation: location,
+          shellMenu: shellMenu,
+          shellSidebar: shellSidebar,
+        ),
     ];
 
     return Scaffold(

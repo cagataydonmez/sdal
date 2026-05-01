@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/l10n/context_l10n.dart';
+import '../../../core/network/json_utils.dart';
 import '../../../core/session/session_controller.dart';
+import '../../../core/session/session_models.dart';
 import '../../../core/state/async_action_state.dart';
 import '../../../core/theme/sdal_theme_tokens.dart';
 import '../../../core/widgets/error_view.dart';
@@ -542,6 +546,7 @@ class GraduationYearOnboardingPage extends ConsumerStatefulWidget {
 
 class _GraduationYearOnboardingPageState
     extends ConsumerState<GraduationYearOnboardingPage> {
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordRepeatController = TextEditingController();
   String _selectedYear = '${DateTime.now().year}';
@@ -549,17 +554,39 @@ class _GraduationYearOnboardingPageState
   bool _kvkkConsent = false;
   bool _directoryConsent = false;
   String? _localError;
+  String? _usernameMessage;
+  String? _usernameError;
+  bool _checkingUsername = false;
+  bool _didSeedUsername = false;
+  Timer? _usernameDebounce;
+  int _usernameRequestId = 0;
 
   bool get _isTeacher => _selectedYear == _teacherGraduationYearValue;
 
   @override
+  void initState() {
+    super.initState();
+    _usernameController.addListener(_scheduleUsernameCheck);
+  }
+
+  @override
   void dispose() {
+    _usernameDebounce?.cancel();
+    _usernameController.dispose();
     _passwordController.dispose();
     _passwordRepeatController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final usernameError = _usernameValidationError();
+    if (usernameError != null || _usernameError != null) {
+      setState(() {
+        _localError = usernameError ?? _usernameError;
+        _currentStep = 0;
+      });
+      return;
+    }
     final passwordError = _passwordError();
     if (passwordError != null) {
       setState(() {
@@ -578,6 +605,7 @@ class _GraduationYearOnboardingPageState
     final ok = await ref
         .read(profileActionControllerProvider.notifier)
         .claimGraduationYear(
+          username: _usernameController.text.trim(),
           graduationYear: _selectedYear,
           password: _passwordController.text,
           passwordRepeat: _passwordRepeatController.text,
@@ -603,6 +631,8 @@ class _GraduationYearOnboardingPageState
   @override
   Widget build(BuildContext context) {
     final actionState = ref.watch(profileActionControllerProvider);
+    final session = ref.watch(sessionControllerProvider).value;
+    _seedUsername(session?.user);
     final submitting =
         actionState.isLoading &&
         actionState.scope == 'profile:graduation-claim';
@@ -611,6 +641,7 @@ class _GraduationYearOnboardingPageState
     return FeatureScaffold(
       title: 'İlk kayıt beyanı',
       background: FeatureScaffoldBackground.neutral,
+      showAppMenu: false,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         children: [
@@ -698,7 +729,7 @@ class _GraduationYearOnboardingPageState
   }
 
   String get _stepTitle => switch (_currentStep) {
-    0 => 'Mezuniyet yılını seç',
+    0 => 'Kullanıcı adı ve dönem',
     1 => 'Şifreni belirle',
     _ => 'Onayları tamamla',
   };
@@ -714,6 +745,56 @@ class _GraduationYearOnboardingPageState
                 ? 'Öğretmen seçimi, öğretmen ağı ve öğretmen doğrulaması için kullanılacak. Okul veya öğretmenlik bağını gösteren doğrulama daha sonra ayrı değerlendirilecek.'
                 : 'Bu seçim, kendi dönemindeki arkadaşlarına ve yakın mezuniyet yıllarındaki SDAL üyelerine daha doğru ulaşman için kullanılacak. Lütfen dikkatli seç; sonradan değişiklik yönetim onayıyla yapılır.',
             style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 18),
+          TextFormField(
+            controller: _usernameController,
+            enabled: !submitting,
+            textInputAction: TextInputAction.next,
+            keyboardType: TextInputType.text,
+            autofillHints: const [AutofillHints.username],
+            decoration: InputDecoration(
+              labelText: 'Kullanıcı adı',
+              helperText:
+                  'En fazla 15 karakter. Girişte ve profil bağlantında kullanılır.',
+              prefixText: '@',
+              suffixIcon: _checkingUsername
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          if (_usernameMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _usernameMessage!,
+              style: TextStyle(color: theme.sdal.success),
+            ),
+          ],
+          if (_usernameError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _usernameError!,
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
+          ],
+          const SizedBox(height: 10),
+          _SuggestedUsernameStrip(
+            suggestion: _suggestedUsername,
+            onUse: submitting
+                ? null
+                : () {
+                    _usernameController.text = _suggestedUsername;
+                    _usernameController.selection = TextSelection.collapsed(
+                      offset: _usernameController.text.length,
+                    );
+                  },
           ),
           const SizedBox(height: 18),
           DropdownButtonFormField<String>(
@@ -819,6 +900,15 @@ class _GraduationYearOnboardingPageState
 
   void _handlePrimaryAction() {
     if (_currentStep == 0) {
+      final error = _usernameValidationError();
+      if (error != null || _usernameError != null || _checkingUsername) {
+        setState(() {
+          _localError = _checkingUsername
+              ? 'Kullanıcı adı kontrolünün tamamlanmasını bekleyin.'
+              : (error ?? _usernameError);
+        });
+        return;
+      }
       setState(() {
         _localError = null;
         _currentStep = 1;
@@ -838,6 +928,122 @@ class _GraduationYearOnboardingPageState
       return;
     }
     _submit();
+  }
+
+  void _seedUsername(SessionUser? user) {
+    if (_didSeedUsername) return;
+    final current = (user?.kadi ?? '').trim();
+    _usernameController.text = _looksGeneratedOAuthUsername(current)
+        ? _suggestUsernameFromName(user?.isim ?? '', user?.soyisim ?? '')
+        : current;
+    _didSeedUsername = true;
+  }
+
+  String get _suggestedUsername {
+    final user = ref.read(sessionControllerProvider).value?.user;
+    return _suggestUsernameFromName(user?.isim ?? '', user?.soyisim ?? '');
+  }
+
+  bool _looksGeneratedOAuthUsername(String value) {
+    final normalized = value.toLowerCase();
+    return normalized.isEmpty ||
+        normalized.startsWith('google_') ||
+        normalized.startsWith('apple_') ||
+        normalized.startsWith('x_') ||
+        normalized.startsWith('oauth_');
+  }
+
+  String _suggestUsernameFromName(String firstName, String lastName) {
+    final source = '${firstName.trim()} ${lastName.trim()}'.trim();
+    final normalized = _normalizeUsernameSource(source);
+    if (normalized.isNotEmpty) return _limitUsername(normalized);
+    final current = _normalizeUsernameSource(_usernameController.text);
+    if (current.isNotEmpty) return _limitUsername(current);
+    return 'sdaluye';
+  }
+
+  String _limitUsername(String value) {
+    if (value.length <= 15) return value;
+    return value.substring(0, 15);
+  }
+
+  String _normalizeUsernameSource(String value) {
+    final lower = value.trim().toLowerCase();
+    final transliterated = lower
+        .replaceAll('ç', 'c')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ı', 'i')
+        .replaceAll('ö', 'o')
+        .replaceAll('ş', 's')
+        .replaceAll('ü', 'u');
+    return transliterated.replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  }
+
+  void _scheduleUsernameCheck() {
+    _usernameDebounce?.cancel();
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _checkingUsername = false;
+        _usernameMessage = null;
+        _usernameError = null;
+      });
+      return;
+    }
+    _usernameDebounce = Timer(
+      const Duration(milliseconds: 450),
+      _runUsernameCheck,
+    );
+  }
+
+  Future<void> _runUsernameCheck() async {
+    final localError = _usernameValidationError();
+    if (localError != null) {
+      if (!mounted) return;
+      setState(() {
+        _checkingUsername = false;
+        _usernameMessage = null;
+        _usernameError = localError;
+      });
+      return;
+    }
+    final username = _usernameController.text.trim();
+    final requestId = ++_usernameRequestId;
+    setState(() {
+      _checkingUsername = true;
+      _usernameError = null;
+      _usernameMessage = null;
+    });
+    final result = await ref
+        .read(profileRepositoryProvider)
+        .checkUsername(username);
+    if (!mounted || requestId != _usernameRequestId) return;
+    if (!result.ok) {
+      setState(() {
+        _checkingUsername = false;
+        _usernameMessage = null;
+        _usernameError = result.message.isNotEmpty
+            ? result.message
+            : 'Kullanıcı adı kontrol edilemedi.';
+      });
+      return;
+    }
+    final exists = asBool(asJsonMap(result.rawData)['kadiExists']) ?? false;
+    setState(() {
+      _checkingUsername = false;
+      _usernameMessage = exists ? null : 'Bu kullanıcı adı uygun görünüyor.';
+      _usernameError = exists ? 'Bu kullanıcı adı zaten kayıtlı.' : null;
+    });
+  }
+
+  String? _usernameValidationError() {
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) return 'Kullanıcı adı belirlemeniz gerekiyor.';
+    if (username.length > 15) {
+      return 'Kullanıcı adı 15 karakterden fazla olmamalıdır.';
+    }
+    return null;
   }
 
   String? _passwordError() {
@@ -867,6 +1073,46 @@ class _GraduationYearOnboardingPageState
     );
     if (!mounted) return;
     setState(approved == true ? onApproved : onRejected);
+  }
+}
+
+class _SuggestedUsernameStrip extends StatelessWidget {
+  const _SuggestedUsernameStrip({
+    required this.suggestion,
+    required this.onUse,
+  });
+
+  final String suggestion;
+  final VoidCallback? onUse;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.accentMuted,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.auto_awesome_outlined, color: tokens.accent, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Önerilen kullanıcı adı: @$suggestion',
+                style: TextStyle(
+                  color: tokens.foreground,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            TextButton(onPressed: onUse, child: const Text('Kullan')),
+          ],
+        ),
+      ),
+    );
   }
 }
 

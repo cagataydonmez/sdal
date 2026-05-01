@@ -675,6 +675,7 @@ export function createAuthSecurityRuntime({
     updateAuthSecuritySettings,
     isSmsVerificationEnabled,
     isDeviceTrusted,
+    trustDevice,
     createEmailChallenge,
     checkSignupAllowed,
     markSignupCreated,

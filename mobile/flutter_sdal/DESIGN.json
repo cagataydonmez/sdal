@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-01T19:53:02Z",
+  "title": "Design System: SDAL Sosyal Flutter",
+  "extensions": {
+    "colorMeta": {
+      "canvas-warm-cream": {
+        "role": "neutral",
+        "displayName": "Warm Cream Canvas",
+        "canonical": "#F7F2E9",
+        "tonalRamp": ["#261B14", "#57483B", "#66594C", "#C7B6A4", "#D3C1AF", "#EDE2D3", "#F7F2E9", "#FFFCF7"]
+      },
+      "primary-persimmon": {
+        "role": "primary",
+        "displayName": "Primary Persimmon",
+        "canonical": "#B45637",
+        "tonalRamp": ["#1E130C", "#5B3427", "#A44635", "#B45637", "#E99A73", "#F3D8CA", "#FFF0E9", "#FFFAF4"]
+      },
+      "info-mineral-blue": {
+        "role": "secondary",
+        "displayName": "Mineral Blue Info",
+        "canonical": "#2F6078",
+        "tonalRamp": ["#0E1D24", "#203844", "#2F6078", "#4E8297", "#8FC8D6", "#BFE0E7", "#DCECF0", "#F5FBFC"]
+      },
+      "success-pine": {
+        "role": "tertiary",
+        "displayName": "Pine Success",
+        "canonical": "#2A6A4C",
+        "tonalRamp": ["#102017", "#223B2D", "#2A6A4C", "#4E8C69", "#80C49A", "#B9DCC8", "#DDEFE6", "#F7FBF8"]
+      },
+      "warning-ochre": {
+        "role": "tertiary",
+        "displayName": "Ochre Warning",
+        "canonical": "#8A5D16",
+        "tonalRamp": ["#211609", "#4A3518", "#8A5D16", "#B98634", "#D9A94F", "#E9CEA0", "#F2E3C4", "#FFF9EE"]
+      },
+      "danger-brick": {
+        "role": "tertiary",
+        "displayName": "Brick Danger",
+        "canonical": "#A44635",
+        "tonalRamp": ["#23100C", "#552A22", "#A44635", "#C76652", "#E6907E", "#F0BCAF", "#F4DDD8", "#FFF7F5"]
+      },
+      "foreground-espresso": {
+        "role": "neutral",
+        "displayName": "Espresso Foreground",
+        "canonical": "#261B14",
+        "tonalRamp": ["#070604", "#17120F", "#261B14", "#57483B", "#66594C", "#CDBCAA", "#F6EDE2", "#FFFAF4"]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles, onboarding titles, splash, status screens, and high-emphasis empty states."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section labels, card headings, menu titles, member names, and repeated module headers."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Primary reading text, feed content, form helper copy, banners, and legal guidance."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, navigation labels, chips, and compact actions."
+      }
+    },
+    "shadows": [
+      {
+        "name": "none-at-rest",
+        "value": "elevation: 0",
+        "purpose": "Cards, app bars, inputs, navigation, and chips are flat at rest."
+      }
+    ],
+    "motion": [
+      {
+        "name": "material-state",
+        "value": "Material ink and platform state transitions",
+        "purpose": "State feedback for taps, focus, selection, and modal sheets."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-default",
+        "value": "single-column mobile layout"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary Persimmon action button for submitting, continuing, saving, and retrying.",
+      "html": "<button class=\"ds-btn-primary\">Devam</button>",
+      "css": ".ds-btn-primary { background: #B45637; color: #FFFAF4; border: 0; border-radius: 18px; padding: 16px 18px; font-family: Manrope, system-ui, sans-serif; font-size: 14px; font-weight: 600; min-height: 48px; transition: background 180ms ease-out, transform 180ms ease-out; } .ds-btn-primary:hover { background: #A44635; } .ds-btn-primary:focus-visible { outline: 3px solid #F3D8CA; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Outlined Button",
+      "kind": "button",
+      "refersTo": "button-outlined",
+      "description": "Secondary button for alternate actions, back actions, and lower-emphasis choices.",
+      "html": "<button class=\"ds-btn-outlined\">Geri</button>",
+      "css": ".ds-btn-outlined { background: transparent; color: #261B14; border: 1px solid #D3C1AF; border-radius: 18px; padding: 16px 18px; font-family: Manrope, system-ui, sans-serif; font-size: 14px; font-weight: 600; min-height: 48px; transition: background 180ms ease-out, border-color 180ms ease-out; } .ds-btn-outlined:hover { background: #EFE5D8; } .ds-btn-outlined:focus-visible { outline: 3px solid #F3D8CA; outline-offset: 2px; border-color: #B45637; }"
+    },
+    {
+      "name": "Surface Card",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "Flat Porcelain Panel container with large corners and a 1px Clay Border.",
+      "html": "<article class=\"ds-card\"><h3>Topluluk</h3><p>Etkinlikler, gruplar ve duyurular tek yerde.</p></article>",
+      "css": ".ds-card { background: #FFFCF7; color: #261B14; border: 1px solid #D3C1AF; border-radius: 24px; padding: 18px; font-family: Manrope, system-ui, sans-serif; box-shadow: none; } .ds-card h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; } .ds-card p { margin: 0; color: #66594C; font-size: 14px; line-height: 1.45; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Filled warm field with soft helper text and Primary Persimmon focus border.",
+      "html": "<label class=\"ds-field\"><span>Kullanıcı adı</span><input value=\"sdaluye\" /></label>",
+      "css": ".ds-field { display: grid; gap: 6px; font-family: Manrope, system-ui, sans-serif; color: #66594C; font-size: 13px; font-weight: 500; } .ds-field input { background: #FFFCF7; color: #261B14; border: 1px solid #D3C1AF; border-radius: 20px; padding: 16px 18px; font: inherit; font-size: 15px; outline: none; } .ds-field input:focus { border-color: #B45637; border-width: 1.5px; }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Pill-shaped status, filter, or category marker using muted surface color.",
+      "html": "<span class=\"ds-chip\">Networking</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 12px; border-radius: 999px; border: 1px solid #D3C1AF; background: #EFE5D8; color: #261B14; font-family: Manrope, system-ui, sans-serif; font-size: 13px; font-weight: 600; } .ds-chip[aria-selected=\"true\"] { background: #F3D8CA; border-color: #B45637; }"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "bottom-navigation",
+      "description": "Warm app navigation with restrained selected-state treatment and strong label weights.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-selected\">Akış</a><a class=\"ds-nav-item\">Keşfet</a><a class=\"ds-nav-item\">Mesajlar</a></nav>",
+      "css": ".ds-nav { display: flex; gap: 6px; background: rgba(255,252,247,0.96); border-top: 1px solid #D3C1AF; padding: 8px 10px; font-family: Manrope, system-ui, sans-serif; } .ds-nav-item { flex: 1; text-align: center; color: #66594C; border-radius: 999px; padding: 8px 6px; font-size: 12px; font-weight: 600; text-decoration: none; } .ds-nav-item.ds-selected { background: #F3D8CA; color: #261B14; font-weight: 700; }"
+    },
+    {
+      "name": "Semantic Banner",
+      "kind": "custom",
+      "description": "Full-width attention strip for profile completion, verification, and other recoverable states.",
+      "html": "<div class=\"ds-banner\"><span class=\"ds-banner-icon\">!</span><p>Profil bilgilerini tamamla. Dönem ve iletişim önerilerin doğruluğunu artırır.</p><button>Tamamla</button></div>",
+      "css": ".ds-banner { display: flex; align-items: center; gap: 10px; background: #F2E3C4; color: #261B14; padding: 10px 16px; font-family: Manrope, system-ui, sans-serif; font-size: 14px; } .ds-banner-icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; color: #8A5D16; font-weight: 800; } .ds-banner p { flex: 1; margin: 0; } .ds-banner button { border: 0; background: transparent; color: #B45637; font-weight: 700; font-family: inherit; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Community Hearth",
+    "overview": "SDAL Sosyal is a private community product, not a public social network. The interface should feel like a warm, trusted meeting place for the SDAL community: familiar enough to move quickly, specific enough that it never reads as a generic school portal. The current Flutter app expresses this through warm cream surfaces, a controlled persimmon accent, Manrope typography, clear semantic states, and flat Material 3 components.\n\nThe system is product-first. It privileges task clarity, quick scanning, Turkish-first copy, and predictable mobile patterns. Liveliness comes from fresh content, status badges, warm tonal surfaces, mineral secondary colors, and small moments like logo marks or state strips; it must not come from performative social-media chrome.",
+    "keyCharacteristics": [
+      "Warm cream canvas with persimmon accent used for primary actions and selection.",
+      "Flat-by-default surfaces with border and tonal layering instead of heavy shadow.",
+      "Manrope-only typography with strong weight contrast for headings and labels.",
+      "Large, friendly radii that still feel controlled and task-oriented.",
+      "Semantic color vocabulary for success, warning, info, danger, admin, chat, and media states."
+    ],
+    "rules": [
+      {
+        "name": "The Persimmon Is Rare Rule",
+        "body": "Primary Persimmon must mark action, selection, or state. Do not use it as decorative filler.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic Pair Rule",
+        "body": "Success, warning, info, and danger must travel as foreground plus muted background pairs. Never rely on hue alone.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warm Plus Mineral Rule",
+        "body": "New neutral surfaces must stay in the warm cream, oat, linen, clay family, while secondary states may use the mineral blue-green lane. Do not introduce pure white, pure black, cold gray, or generic blue-gray app chrome.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Family Rule",
+        "body": "Use Manrope everywhere. Do not introduce display fonts, script fonts, mono-forward UI, or decorative type in product surfaces.",
+        "section": "typography"
+      },
+      {
+        "name": "The Weight Before Ornament Rule",
+        "body": "Create hierarchy with weight, size, spacing, and placement. Do not use gradient text, novelty casing, or decorative letter spacing.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Depth Rule",
+        "body": "Reach first for panel, panelRaised, panelMuted, and panelBorder. Shadows are not the default depth language.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No Floating Stack Rule",
+        "body": "Do not stack cards inside cards to create hierarchy. Use sections, list tiles, dividers, surface tone, or spacing.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use canvas-warm-cream, panel-porcelain, and panel-muted-linen as the default surface vocabulary.",
+      "Do reserve primary-persimmon for primary actions, current selection, progress, and high-value state.",
+      "Do pair status colors with icons, labels, or structure so color is never the only signal.",
+      "Do keep buttons, fields, chips, and cards visually consistent across modules.",
+      "Do use standard Flutter and Material affordances for fields, lists, bottom sheets, tabs, navigation, loading, and retry states.",
+      "Do keep Turkish-first copy concise, concrete, and calm.",
+      "Do use skeletons, empty states, and friendly errors instead of raw exceptions or blank screens."
+    ],
+    "donts": [
+      "Don't make the app feel like a generic school portal.",
+      "Don't make it a corporate LinkedIn clone.",
+      "Don't make it a childish social app.",
+      "Don't make it a heavy admin panel.",
+      "Don't make it a Facebook-like feed.",
+      "Don't make it an Instagram-like media app.",
+      "Don't use gradient text, decorative glassmorphism, side-stripe card borders, or hero-metric templates.",
+      "Don't introduce pure black, pure white, cold gray, neon accents, or default blue Material theming.",
+      "Don't use heavy shadows to imply depth. Use tone and borders.",
+      "Don't turn every screen into identical icon-heading-text card grids."
+    ]
+  }
+}
