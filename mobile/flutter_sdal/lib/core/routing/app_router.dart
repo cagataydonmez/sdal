@@ -537,7 +537,9 @@ String? redirectForSessionState(SessionSnapshot snapshot, Uri uri) {
   }
 
   if (snapshot.requiresInitialGraduationClaim) {
-    return location == '/profile/onboarding' ? null : '/profile/onboarding';
+    return location == '/profile/onboarding' || location == '/legal'
+        ? null
+        : '/profile/onboarding';
   }
 
   if (location == '/profile/onboarding') {
