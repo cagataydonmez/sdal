@@ -5262,7 +5262,8 @@ registerAdminContentModerationRoutes(app, {
   scheduleEngagementRecalculation,
   broadcastChatDelete,
   normalizeBannedWord,
-  invalidateBannedWordsCache
+  invalidateBannedWordsCache,
+  queueEmailDelivery
 });
 
 app.get('/api/new/chat/messages', requireAuth, phase1Domain.controllers.chat.listMessages);

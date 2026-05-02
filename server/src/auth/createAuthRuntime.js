@@ -86,6 +86,24 @@ export function createAuthRuntime({
     return status === 'approved' || status === 'verified';
   }
 
+  function isVerificationRequiredForUser(user) {
+    if (!user) return true;
+    const cohort = String(user.mezuniyetyili || '').trim().toLowerCase();
+    const type = (cohort === '9999' || cohort === 'teacher' || cohort === 'ogretmen' || cohort === 'öğretmen')
+      ? 'teacher'
+      : 'alumni';
+    try {
+      const row = sqlGet(
+        'SELECT verification_required FROM verification_type_settings WHERE type = ? LIMIT 1',
+        [type]
+      );
+      if (!row) return true;
+      return row.verification_required === true || Number(row.verification_required || 0) === 1;
+    } catch {
+      return true;
+    }
+  }
+
   function buildModeratorPermissionMap(userId) {
     const map = new Map();
     if (!userId) return map;
@@ -177,6 +195,7 @@ export function createAuthRuntime({
     const user = getCurrentUser(req);
     if (hasAdminSession(req, user)) return true;
     if (isVerifiedMember(user)) return true;
+    if (!isVerificationRequiredForUser(user)) return true;
     res.status(403).json({
       code: 'VERIFICATION_REQUIRED',
       message: 'Bu özelliği kullanmak için profil doğrulaması gerekli.'
@@ -422,7 +441,7 @@ export function createAuthRuntime({
     if (writeMethod) {
       const isVerified = isVerifiedMember(req.authUser);
       const canWriteWithoutVerification = WRITE_ALLOWED_WITHOUT_VERIFICATION.some((item) => req.path === item || req.path.startsWith(`${item}/`));
-      if (!isVerified && !canWriteWithoutVerification) {
+      if (!isVerified && !canWriteWithoutVerification && isVerificationRequiredForUser(req.authUser)) {
         return res.status(403).json({
           error: 'VERIFICATION_REQUIRED',
           message: 'Yazma işlemleri için önce profilinizi doğrulamanız gerekiyor.',

@@ -447,6 +447,16 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
         : const AsyncValue<AdminPreviewList<AdminTeacherNetworkLinkItem>>.data(
             AdminPreviewList(total: 0, items: <AdminTeacherNetworkLinkItem>[]),
           );
+    final approvedVerificationPreviewState = sectionKey == 'requests'
+        ? ref.watch(adminApprovedVerificationRequestPreviewProvider)
+        : const AsyncValue<AdminPreviewList<AdminVerificationQueueItem>>.data(
+            AdminPreviewList(total: 0, items: <AdminVerificationQueueItem>[]),
+          );
+    final verificationSettingsState = sectionKey == 'requests'
+        ? ref.watch(adminVerificationSettingsProvider)
+        : AsyncValue<AdminVerificationSettings>.data(
+            AdminVerificationSettings.defaults,
+          );
     final notificationOpsState = sectionKey == 'notifications'
         ? ref.watch(adminNotificationOpsProvider)
         : const AsyncValue<AdminNotificationOpsSnapshot>.data(
@@ -602,7 +612,9 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
               if (sectionKey == 'requests') {
                 ref.invalidate(adminMemberRequestPreviewProvider);
                 ref.invalidate(adminVerificationRequestPreviewProvider);
+                ref.invalidate(adminApprovedVerificationRequestPreviewProvider);
                 ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
+                ref.invalidate(adminVerificationSettingsProvider);
               }
               if (sectionKey == 'management') {
                 ref.invalidate(adminUserPreviewProvider);
@@ -943,6 +955,102 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                               ],
                             ),
                           ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _AdminAsyncCard(
+              title: 'Son onaylanan doğrulamalar',
+              states: [approvedVerificationPreviewState],
+              builder: () {
+                final approved = approvedVerificationPreviewState.value!;
+                return _AdminPreviewListCard(
+                  title: 'Onaylanmış doğrulamalar',
+                  total: approved.total,
+                  children: [
+                    if (approved.items.isEmpty)
+                      Text(
+                        'Henüz onaylanmış doğrulama kaydı yok.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    for (final item in approved.items)
+                      _AdminPreviewLine(
+                        title: item.requesterHandle.isNotEmpty
+                            ? '@${item.requesterHandle}'
+                            : item.requesterName,
+                        subtitle: '${item.isTeacherVerification ? 'Öğretmen' : 'Mezun'} · ${_formatGraduationYear(item.graduationYear)}',
+                        trailing: item.createdAt,
+                        action: IconButton(
+                          tooltip: 'Bildirimi tekrar gönder',
+                          onPressed: actionState.isLoading
+                              ? null
+                              : () => _handleResendVerificationNotification(
+                                  context,
+                                  ref,
+                                  id: item.id,
+                                  name: item.requesterHandle.isNotEmpty
+                                      ? '@${item.requesterHandle}'
+                                      : item.requesterName,
+                                ),
+                          icon: const Icon(Icons.send_outlined),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _AdminAsyncCard(
+              title: 'Doğrulama ayarları',
+              states: [verificationSettingsState],
+              builder: () {
+                final settings = verificationSettingsState.value!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _AdminPreviewListCard(
+                      title: 'Mezun ve öğretmen doğrulama kontrolü',
+                      total: 0,
+                      children: [
+                        Text(
+                          'Doğrulama kapatıldığında yeni kayıtlar ve doğrulamasını tamamlamamış üyeler uygulamaya erişebilir. Tekrar açıldığında hiç doğrulanmamış üyeler kısıtlanır.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 12),
+                        _AdminSettingToggleRow(
+                          label: 'Mezun doğrulaması',
+                          subtitle: settings.alumni.verificationRequired
+                              ? 'Açık — doğrulanmamış mezunlar kısıtlı'
+                              : 'Kapalı — tüm mezunlar uygulamayı kullanabilir',
+                          value: settings.alumni.verificationRequired,
+                          onChanged: actionState.isLoading
+                              ? null
+                              : (value) => _handleVerificationSettingsToggle(
+                                  context,
+                                  ref,
+                                  type: 'alumni',
+                                  newValue: value,
+                                ),
+                        ),
+                        const Divider(height: 1),
+                        _AdminSettingToggleRow(
+                          label: 'Öğretmen doğrulaması',
+                          subtitle: settings.teacher.verificationRequired
+                              ? 'Açık — doğrulanmamış öğretmenler kısıtlı'
+                              : 'Kapalı — tüm öğretmenler uygulamayı kullanabilir',
+                          value: settings.teacher.verificationRequired,
+                          onChanged: actionState.isLoading
+                              ? null
+                              : (value) => _handleVerificationSettingsToggle(
+                                  context,
+                                  ref,
+                                  type: 'teacher',
+                                  newValue: value,
+                                ),
+                        ),
                       ],
                     ),
                   ],
@@ -2228,6 +2336,75 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                     ? 'Doğrulama onaylandı.'
                     : 'Doğrulama reddedildi.')
               : (actionState.message ?? 'Islem tamamlanamadi.'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleResendVerificationNotification(
+    BuildContext context,
+    WidgetRef ref, {
+    required int id,
+    required String name,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bildirimi tekrar gönder'),
+        content: Text('$name adlı üyeye onay bildirimi ve e-posta tekrar gönderilecek. Emin misiniz?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('İptal')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Gönder')),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final ok = await ref
+        .read(adminActionControllerProvider.notifier)
+        .resendVerificationNotification(id: id);
+    if (!context.mounted) return;
+    final actionState = ref.read(adminActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Bildirim tekrar gönderildi.' : (actionState.message ?? 'İşlem tamamlanamadı.'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleVerificationSettingsToggle(
+    BuildContext context,
+    WidgetRef ref, {
+    required String type,
+    required bool newValue,
+  }) async {
+    final label = type == 'teacher' ? 'öğretmen' : 'mezun';
+    final action = newValue ? 'açılacak' : 'kapatılacak';
+    final warningText = newValue
+        ? 'Doğrulama açıldığında hiç doğrulanmamış $label üyeler uygulamayı kullanamaz duruma gelecek.'
+        : 'Doğrulama kapatıldığında doğrulamasını tamamlamamış $label üyeler uygulamayı kullanabilecek.';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${label[0].toUpperCase()}${label.substring(1)} doğrulaması $action'),
+        content: Text(warningText),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('İptal')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Onayla')),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final ok = await ref
+        .read(adminActionControllerProvider.notifier)
+        .updateVerificationSettings(type: type, verificationRequired: newValue);
+    if (!context.mounted) return;
+    final actionState = ref.read(adminActionControllerProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Doğrulama ayarı güncellendi.' : (actionState.message ?? 'İşlem tamamlanamadı.'),
         ),
       ),
     );
@@ -4070,13 +4247,14 @@ class _AdminUserDetailPage extends ConsumerWidget {
   }
 }
 
-class _AdminUserDetailOverviewPage extends StatelessWidget {
+class _AdminUserDetailOverviewPage extends ConsumerWidget {
   const _AdminUserDetailOverviewPage({required this.detail});
 
   final AdminUserDetail detail;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actionState = ref.watch(adminActionControllerProvider);
     return FeatureScaffold(
       title: '@${detail.handle}',
       actions: [
@@ -4121,6 +4299,18 @@ class _AdminUserDetailOverviewPage extends StatelessWidget {
                       const Chip(label: Text('Doğrulanmış')),
                   ],
                 ),
+                if (!detail.isVerified) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: actionState.isLoading
+                        ? null
+                        : () => _handleManualVerify(context, ref, userId: detail.id),
+                    icon: actionState.isLoading
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.verified_user_outlined),
+                    label: const Text('Doğrula'),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 _AdminDialogSection(
                   title: 'Kimlik',
@@ -4669,6 +4859,42 @@ class _AdminSectionCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AdminSettingToggleRow extends StatelessWidget {
+  const _AdminSettingToggleRow({
+    required this.label,
+    required this.value,
+    this.subtitle = '',
+    this.onChanged,
+  });
+
+  final String label;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                if (subtitle.isNotEmpty)
+                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
+        ],
       ),
     );
   }
@@ -5894,6 +6120,38 @@ Future<void> _showAdminLoginDialog(BuildContext context, WidgetRef ref) async {
       context,
     ).showSnackBar(const SnackBar(content: Text('İşlem tamamlanamadı.')));
   }
+}
+
+Future<void> _handleManualVerify(
+  BuildContext context,
+  WidgetRef ref, {
+  required int userId,
+}) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Üyeyi doğrula'),
+      content: const Text('Bu üye için profil doğrulaması yapılacak ve onay bildirimi gönderilecek. Emin misiniz?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('İptal')),
+        FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Doğrula')),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+  final ok = await ref
+      .read(adminActionControllerProvider.notifier)
+      .verifyUserManually(userId: userId);
+  if (!context.mounted) return;
+  final actionState = ref.read(adminActionControllerProvider);
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        ok ? 'Üye başarıyla doğrulandı.' : (actionState.message ?? 'İşlem tamamlanamadı.'),
+      ),
+    ),
+  );
+  if (ok) Navigator.of(context, rootNavigator: true).pop();
 }
 
 Future<void> _handleAdminLogout(BuildContext context, WidgetRef ref) async {

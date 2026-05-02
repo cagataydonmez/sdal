@@ -1,3 +1,36 @@
+import { buildVerificationApprovalEmail } from '../src/infra/verificationEmailTemplates.js';
+
+const TEACHER_COHORT_VALUE = '9999';
+
+function isTeacherCohort(mezuniyetyili) {
+  const raw = String(mezuniyetyili || '').trim().toLowerCase();
+  return raw === TEACHER_COHORT_VALUE || raw === 'teacher' || raw === 'ogretmen' || raw === 'öğretmen';
+}
+
+function ensureVerificationTypeSettingsTable(sqlRun, dbDriver) {
+  sqlRun(`
+    CREATE TABLE IF NOT EXISTS verification_type_settings (
+      type TEXT PRIMARY KEY,
+      verification_required ${dbDriver === 'postgres' ? 'BOOLEAN' : 'INTEGER'} NOT NULL DEFAULT ${dbDriver === 'postgres' ? 'TRUE' : '1'},
+      updated_at TEXT NOT NULL,
+      updated_by INTEGER
+    )
+  `);
+  const now = new Date().toISOString();
+  sqlRun(
+    `INSERT INTO verification_type_settings (type, verification_required, updated_at)
+     VALUES ('alumni', ${dbDriver === 'postgres' ? 'TRUE' : '1'}, ?)
+     ON CONFLICT(type) DO NOTHING`,
+    [now]
+  );
+  sqlRun(
+    `INSERT INTO verification_type_settings (type, verification_required, updated_at)
+     VALUES ('teacher', ${dbDriver === 'postgres' ? 'TRUE' : '1'}, ?)
+     ON CONFLICT(type) DO NOTHING`,
+    [now]
+  );
+}
+
 export function registerAdminContentModerationRoutes(app, {
   dbDriver,
   requireAdmin,
@@ -21,7 +54,8 @@ export function registerAdminContentModerationRoutes(app, {
   scheduleEngagementRecalculation,
   broadcastChatDelete,
   normalizeBannedWord,
-  invalidateBannedWordsCache
+  invalidateBannedWordsCache,
+  queueEmailDelivery
 }) {
   app.get('/api/new/admin/verification-requests', requireModerationPermission('requests.view'), async (req, res) => {
     try {
@@ -104,7 +138,7 @@ export function registerAdminContentModerationRoutes(app, {
       if (!requestId) return res.status(400).send('Geçersiz talep ID.');
       if (!['approved', 'rejected'].includes(status)) return res.status(400).send('Geçersiz durum.');
       const row = await sqlGetAsync(
-        `SELECT r.*, u.mezuniyetyili
+        `SELECT r.*, u.mezuniyetyili, u.email, u.isim
          FROM ${verificationRequestsTable} r
          LEFT JOIN uyeler u ON u.id = r.user_id
          WHERE r.id = ?`,
@@ -141,11 +175,153 @@ export function registerAdminContentModerationRoutes(app, {
           : 'Profil doğrulama talebin reddedildi.'
       });
 
+      if (status === 'approved') {
+        _sendVerificationApprovalEmail({ row, queueEmailDelivery }).catch(() => {});
+      }
+
       logAdminAction(req, 'verification_request_review', {
         targetType: 'verification_request',
         targetId: requestId,
         userId: row.user_id,
         status
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/admin/verification-requests/:id/resend-notification', requireModerationPermission('requests.moderate'), async (req, res) => {
+    try {
+      const verificationRequestsTable = dbDriver === 'postgres' ? 'identity_verification_requests' : 'verification_requests';
+      const requestId = Number(req.params.id || 0);
+      if (!requestId) return res.status(400).send('Geçersiz talep ID.');
+      const row = await sqlGetAsync(
+        `SELECT r.*, u.mezuniyetyili, u.email, u.isim
+         FROM ${verificationRequestsTable} r
+         LEFT JOIN uyeler u ON u.id = r.user_id
+         WHERE r.id = ?`,
+        [requestId]
+      );
+      if (!row) return res.status(404).send('Talep bulunamadı.');
+      if (row.status !== 'approved') return res.status(400).send('Yalnızca onaylanmış talepler için bildirim gönderilebilir.');
+
+      addNotification({
+        userId: row.user_id,
+        type: 'verification_approved',
+        sourceUserId: req.session.userId,
+        entityId: requestId,
+        message: 'Profil doğrulama talebin onaylandı.'
+      });
+
+      await _sendVerificationApprovalEmail({ row, queueEmailDelivery });
+
+      logAdminAction(req, 'verification_notification_resend', {
+        targetType: 'verification_request',
+        targetId: requestId,
+        userId: row.user_id
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/admin/verification-settings', requireAdmin, async (req, res) => {
+    try {
+      ensureVerificationTypeSettingsTable(sqlRun, dbDriver);
+      const execAll = sqlAllAsync || ((...a) => Promise.resolve(sqlAll(...a)));
+      const rows = await execAll('SELECT type, verification_required, updated_at FROM verification_type_settings ORDER BY type');
+      const settings = {};
+      for (const row of rows) {
+        settings[row.type] = {
+          verificationRequired: row.verification_required === true || Number(row.verification_required || 0) === 1,
+          updatedAt: row.updated_at || null
+        };
+      }
+      res.json({ settings });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.put('/api/new/admin/verification-settings', requireAdmin, async (req, res) => {
+    try {
+      ensureVerificationTypeSettingsTable(sqlRun, dbDriver);
+      const type = String(req.body?.type || '').trim().toLowerCase();
+      if (!['alumni', 'teacher'].includes(type)) return res.status(400).send('Geçersiz doğrulama tipi. alumni veya teacher olmalı.');
+      const verificationRequired = req.body?.verification_required;
+      if (verificationRequired === undefined || verificationRequired === null) return res.status(400).send('verification_required alanı gerekli.');
+      const boolVal = verificationRequired === true || Number(verificationRequired) === 1 || String(verificationRequired).toLowerCase() === 'true';
+      const dbBool = dbDriver === 'postgres' ? boolVal : (boolVal ? 1 : 0);
+      const now = new Date().toISOString();
+      await sqlRunAsync(
+        `INSERT INTO verification_type_settings (type, verification_required, updated_at, updated_by)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(type) DO UPDATE SET verification_required = ?, updated_at = ?, updated_by = ?`,
+        [type, dbBool, now, req.session.userId, dbBool, now, req.session.userId]
+      );
+      logAdminAction(req, 'verification_settings_update', {
+        targetType: 'verification_settings',
+        type,
+        verificationRequired: boolVal
+      });
+      res.json({ ok: true, type, verificationRequired: boolVal });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/admin/users/:userId/verify', requireModerationPermission('requests.moderate'), async (req, res) => {
+    try {
+      const verificationRequestsTable = dbDriver === 'postgres' ? 'identity_verification_requests' : 'verification_requests';
+      const userId = Number(req.params.userId || 0);
+      if (!userId) return res.status(400).send('Geçersiz üye ID.');
+      const user = await sqlGetAsync('SELECT id, mezuniyetyili, email, isim, verified FROM uyeler WHERE id = ?', [userId]);
+      if (!user) return res.status(404).send('Üye bulunamadı.');
+      if (Number(user.verified || 0) === 1) return res.status(400).send('Bu üye zaten doğrulanmış.');
+
+      const scope = getModerationScopeContext(req.authUser || getCurrentUser(req));
+      if (scope.isScopedModerator) {
+        const targetYear = String(user.mezuniyetyili || '').trim();
+        if (!targetYear || !scope.years.includes(targetYear)) {
+          return res.status(403).send('Bu üye kapsamınız dışında.');
+        }
+      }
+
+      await sqlRunAsync('UPDATE uyeler SET verified = ?, verification_status = ? WHERE id = ?', [
+        dbDriver === 'postgres' ? true : 1,
+        'verified',
+        userId
+      ]);
+      assignUserToCohort(userId);
+
+      const now = new Date().toISOString();
+      const insertResult = await sqlRunAsync(
+        `INSERT INTO ${verificationRequestsTable} (user_id, status, reviewed_at, reviewer_id, created_at)
+         VALUES (?, 'approved', ?, ?, ?)`,
+        [userId, now, req.session.userId, now]
+      );
+      const newRequestId = Number(insertResult?.lastInsertRowid || insertResult?.rows?.[0]?.id || 0) || null;
+
+      addNotification({
+        userId,
+        type: 'verification_approved',
+        sourceUserId: req.session.userId,
+        entityId: newRequestId,
+        message: 'Profil doğrulama talebin onaylandı.'
+      });
+
+      _sendVerificationApprovalEmail({ row: { ...user, user_id: userId }, queueEmailDelivery }).catch(() => {});
+
+      logAdminAction(req, 'verification_manual_approve', {
+        targetType: 'user',
+        targetId: userId,
+        userId
       });
       res.json({ ok: true });
     } catch (err) {
@@ -721,4 +897,14 @@ export function registerAdminContentModerationRoutes(app, {
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
   });
+}
+
+async function _sendVerificationApprovalEmail({ row, queueEmailDelivery }) {
+  if (typeof queueEmailDelivery !== 'function') return;
+  const email = String(row?.email || '').trim();
+  if (!email) return;
+  const firstName = String(row?.isim || '').trim();
+  const teacher = isTeacherCohort(row?.mezuniyetyili);
+  const emailPayload = buildVerificationApprovalEmail({ isTeacher: teacher, firstName });
+  await queueEmailDelivery({ to: email, subject: emailPayload.subject, html: emailPayload.html, text: emailPayload.text });
 }

@@ -200,6 +200,54 @@ class AdminActionController extends Notifier<AsyncActionState> {
     }
   }
 
+  Future<bool> resendVerificationNotification({required int id}) async {
+    final scope = 'admin:verification:resend:$id';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.resendVerificationNotification(id: id);
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
+  Future<bool> updateVerificationSettings({
+    required String type,
+    required bool verificationRequired,
+  }) async {
+    final scope = 'admin:verification-settings:$type';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.updateVerificationSettings(
+        type: type,
+        verificationRequired: verificationRequired,
+      );
+      ref.invalidate(adminVerificationSettingsProvider);
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
+  Future<bool> verifyUserManually({required int userId}) async {
+    final scope = 'admin:user:manual-verify:$userId';
+    if (!_begin(scope)) return false;
+    try {
+      await _repository.verifyUserManually(userId: userId);
+      _invalidateManagementPreviews();
+      ref.invalidate(adminUserDetailProvider(userId));
+      state = AsyncActionState.success(scope: scope);
+      return true;
+    } catch (error) {
+      state = AsyncActionState.error(scope: scope, message: error.toString());
+      return false;
+    }
+  }
+
   Future<bool> updateSiteOpen({
     required bool siteOpen,
     String maintenanceMessage = '',
@@ -680,6 +728,7 @@ class AdminActionController extends Notifier<AsyncActionState> {
   void _invalidateRequestPreviews() {
     ref.invalidate(adminMemberRequestPreviewProvider);
     ref.invalidate(adminVerificationRequestPreviewProvider);
+    ref.invalidate(adminApprovedVerificationRequestPreviewProvider);
     ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
     ref.invalidate(adminRequestNotificationsProvider);
     ref.invalidate(adminSummaryProvider);

@@ -753,6 +753,50 @@ class AdminPushDeliveryItem {
   }
 }
 
+class AdminVerificationTypeSettings {
+  const AdminVerificationTypeSettings({
+    required this.verificationRequired,
+    this.updatedAt = '',
+  });
+
+  final bool verificationRequired;
+  final String updatedAt;
+
+  factory AdminVerificationTypeSettings.fromMap(JsonMap map) {
+    return AdminVerificationTypeSettings(
+      verificationRequired: asBool(map['verificationRequired']) ?? true,
+      updatedAt: coalesceText([map['updatedAt']], fallback: ''),
+    );
+  }
+}
+
+class AdminVerificationSettings {
+  const AdminVerificationSettings({
+    required this.alumni,
+    required this.teacher,
+  });
+
+  final AdminVerificationTypeSettings alumni;
+  final AdminVerificationTypeSettings teacher;
+
+  factory AdminVerificationSettings.fromMap(JsonMap map) {
+    final settings = asJsonMap(map['settings']);
+    return AdminVerificationSettings(
+      alumni: AdminVerificationTypeSettings.fromMap(
+        asJsonMap(settings['alumni']),
+      ),
+      teacher: AdminVerificationTypeSettings.fromMap(
+        asJsonMap(settings['teacher']),
+      ),
+    );
+  }
+
+  static AdminVerificationSettings get defaults => const AdminVerificationSettings(
+    alumni: AdminVerificationTypeSettings(verificationRequired: true),
+    teacher: AdminVerificationTypeSettings(verificationRequired: true),
+  );
+}
+
 class AdminBroadcastResult {
   const AdminBroadcastResult({
     required this.id,
@@ -2174,10 +2218,10 @@ class AdminRepository {
   }
 
   Future<AdminPreviewList<AdminVerificationQueueItem>>
-  fetchVerificationRequestPreview({int limit = 6}) async {
+  fetchVerificationRequestPreview({int limit = 6, String status = 'pending'}) async {
     return _fetchPreviewList(
       path: '/api/new/admin/verification-requests',
-      query: {'status': 'pending'},
+      query: {'status': status},
       limit: limit,
       decoder: AdminVerificationQueueItem.fromMap,
     );
@@ -2861,6 +2905,40 @@ class AdminRepository {
     );
   }
 
+  Future<void> resendVerificationNotification({required int id}) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/verification-requests/$id/resend-notification',
+      body: {},
+    );
+  }
+
+  Future<AdminVerificationSettings> fetchVerificationSettings() async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/admin/verification-settings',
+      decoder: asJsonMap,
+    );
+    final data = result.data;
+    if (data == null) return AdminVerificationSettings.defaults;
+    return AdminVerificationSettings.fromMap(data);
+  }
+
+  Future<void> updateVerificationSettings({
+    required String type,
+    required bool verificationRequired,
+  }) async {
+    await _apiClient.put<dynamic>(
+      '/api/new/admin/verification-settings',
+      body: {'type': type, 'verification_required': verificationRequired},
+    );
+  }
+
+  Future<void> verifyUserManually({required int userId}) async {
+    await _apiClient.post<dynamic>(
+      '/api/new/admin/users/$userId/verify',
+      body: {},
+    );
+  }
+
   Future<void> reviewTeacherNetworkLink({
     required int id,
     required String status,
@@ -3026,6 +3104,19 @@ final adminVerificationRequestPreviewProvider =
     FutureProvider<AdminPreviewList<AdminVerificationQueueItem>>(
       (ref) =>
           ref.watch(adminRepositoryProvider).fetchVerificationRequestPreview(),
+    );
+
+final adminApprovedVerificationRequestPreviewProvider =
+    FutureProvider<AdminPreviewList<AdminVerificationQueueItem>>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchVerificationRequestPreview(
+        limit: 20,
+        status: 'approved',
+      ),
+    );
+
+final adminVerificationSettingsProvider =
+    FutureProvider<AdminVerificationSettings>(
+      (ref) => ref.watch(adminRepositoryProvider).fetchVerificationSettings(),
     );
 
 final adminTeacherNetworkLinkPreviewProvider =
