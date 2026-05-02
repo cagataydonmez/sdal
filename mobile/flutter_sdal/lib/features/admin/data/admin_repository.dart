@@ -1152,6 +1152,80 @@ class AdminVerificationQueueItem {
   }
 }
 
+class AdminTeacherAccountItem {
+  const AdminTeacherAccountItem({
+    required this.id,
+    required this.handle,
+    required this.name,
+    required this.email,
+    required this.verificationStatus,
+    required this.isActive,
+    required this.isBanned,
+    required this.isVerified,
+    required this.subject,
+    required this.createdAt,
+    this.avatarPath,
+  });
+
+  final int id;
+  final String handle;
+  final String name;
+  final String email;
+  final String verificationStatus;
+  final bool isActive;
+  final bool isBanned;
+  final bool isVerified;
+  final String subject;
+  final String createdAt;
+  final String? avatarPath;
+
+  factory AdminTeacherAccountItem.fromMap(JsonMap map) {
+    final firstName = coalesceText([map['isim']], fallback: '');
+    final lastName = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$firstName $lastName'.trim();
+    final subject = coalesceText([map['teacher_subject']], fallback: '');
+    final subjectOther = coalesceText([map['teacher_subject_other']], fallback: '');
+    return AdminTeacherAccountItem(
+      id: asInt(map['id']) ?? 0,
+      handle: coalesceText([map['kadi']], fallback: ''),
+      name: fullName.isNotEmpty ? fullName : coalesceText([map['kadi']], fallback: 'SDAL Üyesi'),
+      email: coalesceText([map['email']], fallback: ''),
+      verificationStatus: coalesceText([map['verification_status']], fallback: 'pending'),
+      isActive: asBool(map['aktiv']) ?? false,
+      isBanned: asBool(map['yasak']) ?? false,
+      isVerified: asBool(map['verified']) ?? false,
+      subject: subject == 'Diğer' ? subjectOther : subject,
+      createdAt: coalesceText([map['ilktarih']], fallback: ''),
+      avatarPath: map['resim'] != null ? coalesceText([map['resim']], fallback: '') : null,
+    );
+  }
+}
+
+class AdminTeacherAccountsQuery {
+  const AdminTeacherAccountsQuery({
+    this.q = '',
+    this.status = '',
+    this.limit = 40,
+    this.page = 1,
+  });
+
+  final String q;
+  final String status;
+  final int limit;
+  final int page;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AdminTeacherAccountsQuery &&
+      other.q == q &&
+      other.status == status &&
+      other.limit == limit &&
+      other.page == page;
+
+  @override
+  int get hashCode => Object.hash(q, status, limit, page);
+}
+
 class AdminTeacherNetworkLinkItem {
   const AdminTeacherNetworkLinkItem({
     required this.id,
@@ -2255,6 +2329,21 @@ class AdminRepository {
     );
   }
 
+  Future<AdminPreviewList<AdminTeacherAccountItem>> fetchTeacherAccounts({
+    AdminTeacherAccountsQuery query = const AdminTeacherAccountsQuery(),
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/teacher-accounts',
+      query: {
+        if (query.q.trim().isNotEmpty) 'q': query.q.trim(),
+        if (query.status.trim().isNotEmpty) 'status': query.status.trim(),
+        'page': query.page,
+      },
+      limit: query.limit,
+      decoder: AdminTeacherAccountItem.fromMap,
+    );
+  }
+
   Future<AdminPreviewList<AdminUserPreviewItem>> fetchUserPreview({
     AdminUserListQuery query = const AdminUserListQuery(),
   }) async {
@@ -3133,6 +3222,16 @@ final adminTeacherNetworkLinksProvider =
       (ref, query) => ref
           .watch(adminRepositoryProvider)
           .fetchTeacherNetworkLinks(query: query),
+    );
+
+final adminTeacherAccountsProvider =
+    FutureProvider.family<
+      AdminPreviewList<AdminTeacherAccountItem>,
+      AdminTeacherAccountsQuery
+    >(
+      (ref, query) => ref
+          .watch(adminRepositoryProvider)
+          .fetchTeacherAccounts(query: query),
     );
 
 final adminUserPreviewProvider =

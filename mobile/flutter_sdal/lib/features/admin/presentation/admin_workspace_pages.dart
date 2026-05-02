@@ -554,11 +554,21 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                       _WorkspaceNavCard(
                         title: 'Öğretmen ağı',
                         summary:
-                            'Mezunların eklediği öğretmen bağlantılarını onaylayın.',
-                        countLabel: '$teacherNetworkLinkTotal bekleyen kayıt',
+                            'Mezunların eklediği öğretmen bağlantılarını onaylayın veya reddedin.',
+                        countLabel: '$teacherNetworkLinkTotal bekleyen bağlantı',
                         icon: Icons.school_outlined,
                         tone: _WorkspaceTone.info,
                         onTap: () => context.go('/admin/teacher-network'),
+                      ),
+                    if (user?.hasAdminAccess == true)
+                      _WorkspaceNavCard(
+                        title: 'Öğretmen hesapları',
+                        summary:
+                            'Öğretmen olarak kayıtlı hesapları görüntüleyin ve doğrulama durumlarını yönetin.',
+                        countLabel: 'Hesap listesi',
+                        icon: Icons.manage_accounts_outlined,
+                        tone: _WorkspaceTone.accent,
+                        onTap: () => context.go('/admin/teacher-accounts'),
                       ),
                     if (contentTotal > 0)
                       _WorkspaceNavCard(
@@ -685,6 +695,242 @@ class ModeratorWorkspacePage extends ConsumerWidget {
     );
   }
 }
+
+// ─── Teacher Accounts Management ───────────────────────────────────────────
+
+class AdminTeacherAccountsPage extends ConsumerStatefulWidget {
+  const AdminTeacherAccountsPage({super.key});
+
+  @override
+  ConsumerState<AdminTeacherAccountsPage> createState() =>
+      _AdminTeacherAccountsPageState();
+}
+
+class _AdminTeacherAccountsPageState
+    extends ConsumerState<AdminTeacherAccountsPage> {
+  final _searchController = TextEditingController();
+  String _status = '';
+
+  AdminTeacherAccountsQuery get _query => AdminTeacherAccountsQuery(
+    q: _searchController.text.trim(),
+    status: _status,
+    limit: 50,
+  );
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(sessionControllerProvider).value;
+    final user = session?.user;
+
+    if (user == null || !user.hasAdminAccess) {
+      return const _WorkspaceDeniedPage(
+        title: 'Öğretmen Hesapları',
+        message: 'Bu alan yalnızca admin hesapları için açık.',
+      );
+    }
+
+    final accountsState = ref.watch(adminTeacherAccountsProvider(_query));
+    final actionState = ref.watch(adminActionControllerProvider);
+
+    return FeatureScaffold(
+      title: 'Öğretmen Hesapları',
+      actions: [
+        IconButton(
+          tooltip: 'Yenile',
+          icon: const Icon(Icons.refresh),
+          onPressed: () => ref.invalidate(adminTeacherAccountsProvider),
+        ),
+      ],
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ad, kullanıcı adı veya branş ara',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final (label, value) in [
+                        ('Tümü', ''),
+                        ('Bekleyen', 'pending'),
+                        ('Doğrulandı', 'verified'),
+                        ('Reddedildi', 'rejected'),
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(label),
+                            selected: _status == value,
+                            onSelected: (_) =>
+                                setState(() => _status = value),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: accountsState.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text(e.toString())),
+              data: (list) {
+                if (list.items.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text(
+                        'Kayıt bulunamadı.\nÖğretmen olarak kayıtlı ve aktif üye yok.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  itemCount: list.items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+                    final item = list.items[i];
+                    return SurfaceCard(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer,
+                          child: Text(
+                            item.name.isNotEmpty
+                                ? item.name[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          item.name,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('@${item.handle}'),
+                            if (item.subject.isNotEmpty)
+                              Text(
+                                item.subject,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _VerificationStatusChip(
+                              status: item.verificationStatus,
+                            ),
+                            if (!item.isVerified)
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(60, 24),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: actionState.isLoading
+                                    ? null
+                                    : () => ref
+                                        .read(
+                                          adminActionControllerProvider
+                                              .notifier,
+                                        )
+                                        .verifyUserManually(userId: item.id)
+                                        .then((_) {
+                                          ref.invalidate(
+                                            adminTeacherAccountsProvider,
+                                          );
+                                        }),
+                                child: const Text(
+                                  'Onayla',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                          ],
+                        ),
+                        isThreeLine: item.subject.isNotEmpty,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VerificationStatusChip extends StatelessWidget {
+  const _VerificationStatusChip({required this.status});
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      'verified' => ('Doğrulandı', Colors.green),
+      'rejected' => ('Reddedildi', Colors.red),
+      _ => ('Bekliyor', Colors.orange),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 
 class AdminTeacherNetworkManagementPage extends ConsumerStatefulWidget {
   const AdminTeacherNetworkManagementPage({super.key});

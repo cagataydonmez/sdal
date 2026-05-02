@@ -30,6 +30,7 @@ export function registerMemberDirectoryRoutes(app, {
       const relation = String(req.query.relation || '').trim();
       const excludeSelf = String(req.query.excludeSelf || '').trim() === '1';
       const sort = String(req.query.sort || 'recommended').trim();
+      const memberType = String(req.query.memberType || req.query.member_type || '').trim().toLowerCase();
       const whereParts = [
         'COALESCE(CAST(aktiv AS INTEGER), 1) = 1',
         'COALESCE(CAST(yasak AS INTEGER), 0) = 0'
@@ -43,7 +44,15 @@ export function registerMemberDirectoryRoutes(app, {
         whereParts.push('(LOWER(kadi) LIKE LOWER(?) OR LOWER(isim) LIKE LOWER(?) OR LOWER(soyisim) LIKE LOWER(?) OR LOWER(meslek) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?))');
         params.push(...Array(5).fill(`%${term}%`));
       }
-      if (gradYear > 0) {
+      if (memberType === 'teacher') {
+        whereParts.push(
+          "(LOWER(COALESCE(CAST(role AS TEXT), '')) IN ('teacher', 'ogretmen', 'öğretmen') OR LOWER(COALESCE(CAST(mezuniyetyili AS TEXT), '')) IN ('9999', 'teacher', 'ogretmen', 'öğretmen'))"
+        );
+      } else if (memberType === 'alumni') {
+        whereParts.push(
+          "LOWER(COALESCE(CAST(role AS TEXT), '')) NOT IN ('teacher', 'ogretmen', 'öğretmen') AND LOWER(COALESCE(CAST(mezuniyetyili AS TEXT), '')) NOT IN ('9999', 'teacher', 'ogretmen', 'öğretmen')"
+        );
+      } else if (gradYear > 0) {
         whereParts.push('CAST(COALESCE(mezuniyetyili, 0) AS INTEGER) = ?');
         params.push(gradYear);
       }
@@ -151,7 +160,7 @@ export function registerMemberDirectoryRoutes(app, {
         ranges,
         pageSize,
         term,
-        filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly }
+        filters: { gradYear, verifiedOnly, withPhoto, onlineOnly, relation, sort, mentorsOnly, memberType }
       });
     } catch (err) {
       console.error('members.list failed:', err);

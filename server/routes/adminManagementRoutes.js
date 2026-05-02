@@ -1004,4 +1004,54 @@ export function registerAdminManagementRoutes(app, {
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
   });
+
+  // Teacher accounts — list and manual verify
+  app.get('/api/new/admin/teacher-accounts', requireAdmin, async (req, res) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      const verificationStatus = String(req.query.status || '').trim().toLowerCase();
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '40', 10), 1), 100);
+      const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+      const offset = (page - 1) * limit;
+
+      const whereParts = [
+        "(LOWER(COALESCE(CAST(u.role AS TEXT), '')) IN ('teacher', 'ogretmen', 'öğretmen') OR LOWER(COALESCE(CAST(u.mezuniyetyili AS TEXT), '')) IN ('9999', 'teacher', 'ogretmen', 'öğretmen'))",
+        "(u.role IS NULL OR LOWER(COALESCE(u.role, 'user')) != 'root')"
+      ];
+      const params = [];
+
+      if (q) {
+        whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(COALESCE(CAST(u.teacher_subject AS TEXT), '')) LIKE LOWER(?))');
+        params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+      }
+      if (verificationStatus) {
+        whereParts.push("LOWER(COALESCE(CAST(u.verification_status AS TEXT), 'pending')) = ?");
+        params.push(verificationStatus);
+      }
+
+      const where = `WHERE ${whereParts.join(' AND ')}`;
+      const total = Number((await sqlGetAsync(
+        `SELECT COUNT(*) AS cnt FROM uyeler u ${where}`, params
+      ))?.cnt || 0);
+      const pages = Math.max(Math.ceil(total / limit), 1);
+      const safePage = Math.min(page, pages);
+
+      const rows = await sqlAllAsync(
+        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.mezuniyetyili, u.role,
+                u.aktiv, u.yasak, u.verified, u.verification_status, u.ilktarih,
+                u.teacher_subject, u.teacher_subject_other, u.teacher_started_year,
+                u.teacher_ended_year, u.teacher_currently_working, u.resim
+         FROM uyeler u
+         ${where}
+         ORDER BY u.id DESC
+         LIMIT ? OFFSET ?`,
+        [...params, limit, (safePage - 1) * limit]
+      );
+
+      res.json({ items: rows, meta: { page: safePage, pages, limit, total, q, status: verificationStatus } });
+    } catch (err) {
+      console.error('admin.teacher-accounts.list failed:', err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
 }

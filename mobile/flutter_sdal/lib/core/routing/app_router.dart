@@ -469,6 +469,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     _liftPage(const AdminTeacherNetworkManagementPage()),
               ),
               GoRoute(
+                path: '/admin/teacher-accounts',
+                pageBuilder: (context, state) =>
+                    _liftPage(const AdminTeacherAccountsPage()),
+              ),
+              GoRoute(
                 path: '/admin/factory-reset',
                 pageBuilder: (context, state) =>
                     _liftPage(const FactoryResetPage()),
