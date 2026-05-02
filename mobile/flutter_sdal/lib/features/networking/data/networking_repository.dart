@@ -528,8 +528,7 @@ class NetworkingRepository {
       '/api/new/teachers/network',
       decoder: asJsonMap,
     );
-    final payload = asJsonMap(result.rawData);
-    final items = asJsonMapList(asJsonMap(payload['data'])['items']);
+    final items = asJsonMapList(asJsonMap(result.rawData)['items']);
     return items.map(TeacherLinkRecord.fromMap).toList(growable: false);
   }
 
@@ -548,9 +547,7 @@ class NetworkingRepository {
       },
       decoder: asJsonMap,
     );
-    final items = asJsonMapList(
-      asJsonMap(asJsonMap(result.rawData)['data'])['items'],
-    );
+    final items = asJsonMapList(asJsonMap(result.rawData)['items']);
     return items.map(TeacherOption.fromMap).toList(growable: false);
   }
 
