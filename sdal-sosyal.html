@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDAL Sosyal — Topluluğun Kalbi</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        canvas: '#F7F2E9', 'canvas-subtle': '#EDE2D3',
+        panel: '#FFFCF7', 'panel-raised': '#FAF4EB',
+        'panel-muted': '#EFE5D8', 'panel-border': '#D3C1AF',
+        accent: '#B45637', 'accent-muted': '#F3D8CA', 'accent-fg': '#FFFAF4',
+        fg: '#261B14', 'fg-muted': '#66594C',
+        success: '#2A6A4C', 'success-muted': '#DDEEE6',
+        info: '#2F6078', 'info-muted': '#DCECF0',
+      },
+      fontFamily: { sans: ['Manrope', 'sans-serif'] },
+    }
+  }
+}
+</script>
+<style>
+*{font-family:'Manrope',sans-serif;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:#F7F2E9;color:#261B14;min-height:100vh}
+
+/* ── SPA pages ─────────────────────────────────────── */
+.page{display:none}
+.page.active{display:block;animation:fadeUp .4s ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Phone frame ────────────────────────────────────── */
+.phone{width:210px;height:420px;background:#18100C;border-radius:38px;padding:10px;
+  box-shadow:0 24px 72px rgba(0,0,0,.35),0 0 0 1px #3a2820,inset 0 0 0 1px #4a3328;
+  flex-shrink:0}
+.phone-screen{width:100%;height:100%;border-radius:30px;overflow:hidden;position:relative;background:#F7F2E9}
+.phone-notch{width:56px;height:20px;background:#18100C;border-radius:0 0 12px 12px;
+  position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:20}
+.phone-sb{height:28px;display:flex;align-items:flex-end;padding:0 14px 4px;font-size:7px;
+  font-weight:700;color:#66594C;justify-content:space-between}
+.phone-topbar{padding:8px 12px 6px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid #EDE2D3}
+.phone-bottomnav{position:absolute;bottom:0;left:0;right:0;height:52px;
+  background:rgba(255,252,247,.96);border-top:1px solid #EDE2D3;
+  display:flex;align-items:center;justify-content:space-around;padding:0 4px}
+.nav-ico{width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.nav-ico.active{background:#F3D8CA}
+.avatar{border-radius:999px;object-fit:cover;flex-shrink:0}
+.story-ring{background:conic-gradient(#B45637 0deg 300deg,#D3C1AF 300deg);border-radius:50%;padding:2px}
+.story-inner{background:#F7F2E9;border-radius:50%;padding:2px}
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:#F7F2E9}
+::-webkit-scrollbar-thumb{background:#D3C1AF;border-radius:3px}
+
+/* ── Misc ───────────────────────────────────────────── */
+.gradient-text{background:linear-gradient(135deg,#B45637,#D4804A);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.card-hover{transition:transform .25s,box-shadow .25s}
+.card-hover:hover{transform:translateY(-4px);box-shadow:0 12px 36px rgba(180,86,55,.14)}
+.step-line{position:relative}
+.step-line:not(:last-child)::after{content:'';position:absolute;left:19px;top:42px;
+  bottom:-12px;width:2px;background:linear-gradient(to bottom,#D3C1AF,transparent)}
+.seg-btn{transition:all .2s;cursor:pointer;padding:8px 20px;border-radius:999px;
+  font-weight:700;font-size:14px;color:#66594C}
+.seg-btn.on{background:#B45637;color:#FFFAF4;box-shadow:0 2px 10px rgba(180,86,55,.3)}
+.search-mark{background:#F3D8CA;border-radius:3px;padding:0 2px}
+.guide-item.hidden{display:none}
+.accordion-body{max-height:0;overflow:hidden;transition:max-height .35s ease}
+.accordion-body.open{max-height:2000px}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.float{animation:float 3.5s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════
+     NAVBAR  (shared)
+════════════════════════════════════════════════════ -->
+<nav id="navbar" class="sticky top-0 z-50 bg-panel/90 backdrop-blur-md border-b border-panel-border">
+  <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <!-- Logo -->
+    <button onclick="showPage('landing')" class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-accent flex items-center justify-center shadow-sm">
+        <span class="text-accent-fg font-extrabold text-sm leading-none">S</span>
+      </div>
+      <span class="font-extrabold text-fg text-lg tracking-tight">SDAL <span class="text-accent">Sosyal</span></span>
+    </button>
+    <!-- Links -->
+    <div class="hidden md:flex items-center gap-6">
+      <button onclick="showPage('landing')" id="nav-landing" class="nav-link text-sm font-600 text-fg-muted hover:text-accent transition-colors">Ana Sayfa</button>
+      <button onclick="showPage('guide')" id="nav-guide" class="nav-link text-sm font-600 text-fg-muted hover:text-accent transition-colors">Kullanım Kılavuzu</button>
+      <button onclick="showPage('about')" id="nav-about" class="nav-link text-sm font-600 text-fg-muted hover:text-accent transition-colors">Hakkında</button>
+    </div>
+    <!-- CTA -->
+    <button onclick="showPage('guide')" class="bg-accent text-accent-fg px-4 py-2 rounded-xl text-sm font-700 hover:bg-opacity-90 transition-all shadow-sm">
+      Kılavuzu Aç
+    </button>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════════════════
+     PAGE: LANDING
+════════════════════════════════════════════════════ -->
+<div id="page-landing" class="page active">
+
+  <!-- HERO -->
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-br from-canvas via-canvas-subtle to-accent-muted opacity-60"></div>
+    <!-- Decorative blobs -->
+    <div class="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-accent-muted opacity-40 blur-3xl"></div>
+    <div class="absolute -bottom-10 -left-10 w-60 h-60 rounded-full bg-info-muted opacity-30 blur-3xl"></div>
+
+    <div class="relative max-w-6xl mx-auto px-6 pt-16 pb-20 flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
+      <!-- Text -->
+      <div class="flex-1 text-center lg:text-left">
+        <div class="inline-flex items-center gap-2 bg-accent-muted text-accent px-4 py-1.5 rounded-full text-xs font-700 uppercase tracking-wider mb-6">
+          <span>✦</span> Mezunlar & Öğretmenler İçin
+        </div>
+        <h1 class="text-4xl lg:text-5xl font-extrabold text-fg leading-tight tracking-tight mb-4">
+          Evine Hoş<br>
+          <span class="gradient-text">Geldin,</span><br>
+          SDAL'lı 👋
+        </h1>
+        <p class="text-fg-muted text-lg leading-relaxed mb-8 max-w-lg">
+          Mezun olduktan yıllar sonra bile seni tanıyacak arkadaşlar, öğretmenler ve anılar burada.
+          SDAL Sosyal, okulun tüm kuşaklarını tek çatı altında birleştiriyor.
+        </p>
+        <!-- Store buttons -->
+        <div class="flex flex-wrap justify-center lg:justify-start gap-3 mb-6">
+          <a href="#" class="flex items-center gap-3 bg-fg text-canvas px-5 py-3 rounded-xl font-600 text-sm hover:bg-opacity-90 transition-all shadow-md">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            App Store
+          </a>
+          <a href="#" class="flex items-center gap-3 bg-success text-white px-5 py-3 rounded-xl font-600 text-sm hover:bg-opacity-90 transition-all shadow-md">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.34.19.72.24 1.1.14l12.72-7.35-2.76-2.77-11.06 9.98zM20.5 10.6L17.36 8.8l-3.09 3.09 3.09 3.09 3.17-1.82c.9-.52.9-1.87-.03-2.56zM2.01 1.18C1.7 1.54 1.5 2.07 1.5 2.74v18.52c0 .67.2 1.2.52 1.56l.09.08 10.38-10.38v-.24L2.1 1.1l-.09.08zM13.86 7.6L1.15.25C.77.14.39.2.05.38l11.05 9.97 2.76-2.75z"/></svg>
+            Google Play
+          </a>
+          <button onclick="showPage('guide')" class="flex items-center gap-2 border-2 border-panel-border text-fg-muted px-5 py-3 rounded-xl font-600 text-sm hover:border-accent hover:text-accent transition-all">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.966 8.966 0 00-6 2.292m0-14.25v14.25"/></svg>
+            Kullanım Kılavuzu
+          </button>
+        </div>
+        <p class="text-xs text-fg-muted opacity-60">Ücretsiz · Kayıt gerekli · iOS &amp; Android</p>
+      </div>
+
+      <!-- Phone mockup: Feed -->
+      <div class="float flex-shrink-0">
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="phone-notch"></div>
+            <div class="phone-sb"><span>9:41</span><span>●●●</span></div>
+            <!-- Topbar -->
+            <div class="phone-topbar">
+              <div class="w-8 h-8 rounded-xl bg-accent flex items-center justify-center">
+                <span class="text-white font-extrabold text-xs">S</span>
+              </div>
+              <span class="text-xs font-800 text-fg tracking-tight">SDAL Sosyal</span>
+              <div class="w-8 h-8 rounded-full bg-accent-muted flex items-center justify-center">
+                <span class="text-accent text-xs font-800">CK</span>
+              </div>
+            </div>
+            <!-- Stories rail -->
+            <div class="px-3 py-2 flex gap-2 overflow-hidden" style="font-size:7px">
+              <div class="flex flex-col items-center gap-1">
+                <div class="story-ring w-9 h-9"><div class="story-inner w-full h-full flex items-center justify-center"><span class="text-accent font-800" style="font-size:8px">+</span></div></div>
+                <span class="text-fg-muted" style="font-size:6px">Senin</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <div class="story-ring w-9 h-9"><div class="story-inner w-full h-full bg-info-muted flex items-center justify-center"><span class="font-700 text-info" style="font-size:8px">AY</span></div></div>
+                <span class="text-fg-muted" style="font-size:6px">Ayşe</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <div class="story-ring w-9 h-9"><div class="story-inner w-full h-full bg-success-muted flex items-center justify-center"><span class="font-700 text-success" style="font-size:8px">MK</span></div></div>
+                <span class="text-fg-muted" style="font-size:6px">Mert</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <div class="w-9 h-9 rounded-full bg-panel-muted flex items-center justify-center border border-panel-border"><span class="font-700 text-fg-muted" style="font-size:8px">EC</span></div>
+                <span class="text-fg-muted" style="font-size:6px">Ece</span>
+              </div>
+            </div>
+            <!-- Post card -->
+            <div class="mx-2 bg-panel rounded-2xl p-2.5 border border-panel-border">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <div class="w-6 h-6 rounded-full bg-accent-muted flex items-center justify-center">
+                  <span class="text-accent font-700" style="font-size:7px">BS</span>
+                </div>
+                <div>
+                  <div class="font-700 text-fg" style="font-size:7px">Burak Sarı</div>
+                  <div class="text-fg-muted" style="font-size:6px">2018 · 2 saat önce</div>
+                </div>
+              </div>
+              <p style="font-size:7px" class="text-fg leading-relaxed mb-1.5">Yıllar sonra koridorda rastlaştık, sanki hiç ayrılmamışız gibi 🏫✨ SDAL her zaman kalpte!</p>
+              <div class="flex gap-2 pt-1 border-t border-panel-border">
+                <span style="font-size:6.5px" class="text-fg-muted flex items-center gap-0.5">♡ 24</span>
+                <span style="font-size:6.5px" class="text-fg-muted flex items-center gap-0.5">💬 8</span>
+              </div>
+            </div>
+            <!-- 2nd post partial -->
+            <div class="mx-2 mt-1.5 bg-panel rounded-2xl p-2.5 border border-panel-border opacity-60">
+              <div class="flex items-center gap-1.5">
+                <div class="w-6 h-6 rounded-full bg-info-muted flex items-center justify-center">
+                  <span class="text-info font-700" style="font-size:7px">ZA</span>
+                </div>
+                <div class="font-700 text-fg" style="font-size:7px">Zeynep Aslan · 2020</div>
+              </div>
+            </div>
+            <!-- Bottom nav -->
+            <div class="phone-bottomnav">
+              <div class="nav-ico active flex-col gap-0" style="font-size:12px">🏠<span style="font-size:5px;font-weight:700;color:#B45637">Akış</span></div>
+              <div class="nav-ico flex-col gap-0" style="font-size:12px">🔍<span style="font-size:5px;font-weight:600;color:#66594C">Keşfet</span></div>
+              <div class="nav-ico flex-col gap-0" style="font-size:12px">💬<span style="font-size:5px;font-weight:600;color:#66594C">Mesajlar</span></div>
+              <div class="nav-ico flex-col gap-0" style="font-size:12px">🔔<span style="font-size:5px;font-weight:600;color:#66594C">Bildirim</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES GRID -->
+  <section class="max-w-6xl mx-auto px-6 py-16">
+    <div class="text-center mb-12">
+      <div class="inline-flex items-center gap-2 bg-accent-muted text-accent px-4 py-1.5 rounded-full text-xs font-700 uppercase tracking-wider mb-4">✦ Neler Var?</div>
+      <h2 class="text-3xl font-extrabold text-fg tracking-tight">Her şey bir arada,<br><span class="gradient-text">tam senin için</span></h2>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Feature 1 -->
+      <div class="card-hover bg-panel border border-panel-border rounded-2xl p-6">
+        <div class="w-12 h-12 bg-accent-muted rounded-xl flex items-center justify-center text-2xl mb-4">🏠</div>
+        <h3 class="font-800 text-fg mb-2">Sosyal Akış</h3>
+        <p class="text-fg-muted text-sm leading-relaxed">Paylaş, beğen, yorum yap. Mezun arkadaşlarının ve öğretmenlerin hayatından anları canlı takip et.</p>
+      </div>
+      <!-- Feature 2 -->
+      <div class="card-hover bg-panel border border-panel-border rounded-2xl p-6">
+        <div class="w-12 h-12 bg-info-muted rounded-xl flex items-center justify-center text-2xl mb-4">🔍</div>
+        <h3 class="font-800 text-fg mb-2">Üye Keşfet</h3>
+        <p class="text-fg-muted text-sm leading-relaxed">Mezuniyet yılına veya şehre göre filtrele. Kaybettiğin eski okul arkadaşını bul, bağlantı kur.</p>
+      </div>
+      <!-- Feature 3 -->
+      <div class="card-hover bg-panel border border-panel-border rounded-2xl p-6">
+        <div class="w-12 h-12 bg-success-muted rounded-xl flex items-center justify-center text-2xl mb-4">💬</div>
+        <h3 class="font-800 text-fg mb-2">Mesajlaşma</h3>
+        <p class="text-fg-muted text-sm leading-relaxed">Gerçek zamanlı mesajlaşma. Özel sohbetler veya grup tartışmaları ile iletişimde kal.</p>
+      </div>
+      <!-- Feature 4 -->
+      <div class="card-hover bg-panel border border-panel-border rounded-2xl p-6">
+        <div class="w-12 h-12 bg-panel-muted rounded-xl flex items-center justify-center text-2xl mb-4">📸</div>
+        <h3 class="font-800 text-fg mb-2">Anı Albümleri</h3>
+        <p class="text-fg-muted text-sm leading-relaxed">Okul anılarını dijital albümlerde topla. Mezuniyet yılına göre kategorize et, paylaş.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMUNITY SECTION -->
+  <section class="bg-panel-muted border-y border-panel-border py-16">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-12">
+      <!-- Stats -->
+      <div class="flex-1 grid grid-cols-2 gap-6">
+        <div class="bg-panel border border-panel-border rounded-2xl p-6 text-center card-hover">
+          <div class="text-3xl font-extrabold gradient-text mb-1">1987</div>
+          <div class="text-sm font-600 text-fg-muted">İlk mezuniyet yılı</div>
+        </div>
+        <div class="bg-panel border border-panel-border rounded-2xl p-6 text-center card-hover">
+          <div class="text-3xl font-extrabold gradient-text mb-1">30+</div>
+          <div class="text-sm font-600 text-fg-muted">Kuşak bir arada</div>
+        </div>
+        <div class="bg-panel border border-panel-border rounded-2xl p-6 text-center card-hover">
+          <div class="text-3xl font-extrabold gradient-text mb-1">100%</div>
+          <div class="text-sm font-600 text-fg-muted">Ücretsiz</div>
+        </div>
+        <div class="bg-panel border border-panel-border rounded-2xl p-6 text-center card-hover">
+          <div class="text-3xl font-extrabold gradient-text mb-1">∞</div>
+          <div class="text-sm font-600 text-fg-muted">Nostalji</div>
+        </div>
+      </div>
+      <!-- Text -->
+      <div class="flex-1 max-w-lg">
+        <div class="inline-flex items-center gap-2 bg-accent-muted text-accent px-4 py-1.5 rounded-full text-xs font-700 uppercase tracking-wider mb-4">✦ Topluluk Ruhu</div>
+        <h2 class="text-3xl font-extrabold text-fg tracking-tight mb-4">Yıllar geçse de<br><span class="gradient-text">bağlar kopmaz</span></h2>
+        <p class="text-fg-muted leading-relaxed mb-6">
+          SDAL Sosyal sadece bir uygulama değil — yıllar önce aynı koridorlarda yürüyen, aynı öğretmenlerden ders alan, aynı bahçede oturan herkesi bir araya getiren bir ev.
+        </p>
+        <p class="text-fg-muted leading-relaxed">
+          Öğretmenler mezunlarıyla, mezunlar birbirleriyle, kuşaklar kuşaklarla buluşuyor. Belki sen de eski sınıf arkadaşını burada bulursun.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD BANNER -->
+  <section class="max-w-6xl mx-auto px-6 py-16">
+    <div class="bg-accent rounded-3xl p-10 text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-br from-accent to-orange-700 opacity-90"></div>
+      <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white opacity-5"></div>
+      <div class="absolute -bottom-6 -left-6 w-32 h-32 rounded-full bg-white opacity-5"></div>
+      <div class="relative z-10">
+        <h2 class="text-3xl font-extrabold text-white mb-3">Hemen İndir, Aramıza Katıl</h2>
+        <p class="text-orange-100 mb-8 text-lg">iOS ve Android'de ücretsiz. Birkaç dakikada kayıt ol, topluluğuna kavuş.</p>
+        <div class="flex flex-wrap justify-center gap-4">
+          <a href="#" class="flex items-center gap-3 bg-white text-fg px-6 py-3.5 rounded-xl font-700 text-sm hover:bg-opacity-90 transition-all shadow-lg">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            App Store
+          </a>
+          <a href="#" class="flex items-center gap-3 bg-white text-fg px-6 py-3.5 rounded-xl font-700 text-sm hover:bg-opacity-90 transition-all shadow-lg">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.34.19.72.24 1.1.14l12.72-7.35-2.76-2.77-11.06 9.98zM20.5 10.6L17.36 8.8l-3.09 3.09 3.09 3.09 3.17-1.82c.9-.52.9-1.87-.03-2.56zM2.01 1.18C1.7 1.54 1.5 2.07 1.5 2.74v18.52c0 .67.2 1.2.52 1.56l.09.08 10.38-10.38v-.24L2.1 1.1l-.09.08zM13.86 7.6L1.15.25C.77.14.39.2.05.38l11.05 9.97 2.76-2.75z"/></svg>
+            Google Play
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-panel-border bg-panel py-10">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-accent flex items-center justify-center">
+          <span class="text-accent-fg font-extrabold text-xs">S</span>
+        </div>
+        <span class="font-extrabold text-fg">SDAL Sosyal</span>
+      </div>
+      <p class="text-fg-muted text-sm">Sevgi ve nostaljiyle yapıldı 🧡 SDAL topluluğu için</p>
+      <div class="flex gap-4">
+        <button onclick="showPage('guide')" class="text-sm text-fg-muted hover:text-accent transition-colors font-600">Kılavuz</button>
+        <button onclick="showPage('about')" class="text-sm text-fg-muted hover:text-accent transition-colors font-600">Hakkında</button>
+      </div>
+    </div>
+  </footer>
+</div><!-- end landing -->
+
+
+<!-- ════════════════════════════════════════════════════
+     PAGE: GUIDE
+════════════════════════════════════════════════════ -->
+<div id="page-guide" class="page">
+
+  <!-- GUIDE HEADER -->
+  <div class="bg-panel border-b border-panel-border">
+    <div class="max-w-6xl mx-auto px-6 py-10">
+      <div class="inline-flex items-center gap-2 bg-accent-muted text-accent px-4 py-1.5 rounded-full text-xs font-700 uppercase tracking-wider mb-4">📖 Kullanım Kılavuzu</div>
+      <h1 class="text-3xl font-extrabold text-fg tracking-tight mb-2">Nasıl kullanılır?</h1>
+      <p class="text-fg-muted">Her şeyi adım adım anlattık. Kayıttan akışa, mesajdan profile kadar.</p>
+    </div>
+  </div>
+
+  <!-- SEARCH BAR -->
+  <div class="sticky top-16 z-40 bg-canvas/95 backdrop-blur-sm border-b border-panel-border">
+    <div class="max-w-6xl mx-auto px-6 py-3">
+      <div class="relative max-w-lg">
+        <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input id="guide-search" type="text" placeholder="Kılavuzda ara… (giriş, mesaj, profil, albüm…)"
+          class="w-full pl-10 pr-4 py-2.5 bg-panel border border-panel-border rounded-xl text-sm text-fg placeholder-fg-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent-muted transition-all"
+          oninput="searchGuide(this.value)">
+        <div id="search-count" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-fg-muted font-600 hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-6xl mx-auto px-6 py-8">
+
+    <!-- SEGMENT TABS -->
+    <div class="flex items-center bg-panel-muted p-1.5 rounded-2xl w-fit mb-10 border border-panel-border">
+      <button id="seg-alumni" class="seg-btn on" onclick="setSegment('alumni')">🎓 Mezunlar</button>
+      <button id="seg-teacher" class="seg-btn" onclick="setSegment('teacher')">👨‍🏫 Öğretmenler</button>
+    </div>
+
+    <!-- ── SECTION 1: KAYIT & GİRİŞ ───────────────────── -->
+    <section class="guide-item mb-12" data-tags="kayıt giriş şifre hesap üye otp doğrulama aktivasyon">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-accent text-accent-fg flex items-center justify-center font-800 text-sm">1</div>
+        <h2 class="text-xl font-extrabold text-fg">Kayıt &amp; Giriş</h2>
+      </div>
+
+      <!-- Steps -->
+      <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <!-- Phone mockup: Login -->
+        <div class="flex-shrink-0 mx-auto lg:mx-0">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-sb"><span>9:41</span><span>●●●</span></div>
+              <!-- Login screen -->
+              <div class="flex flex-col items-center px-5 pt-4">
+                <div class="w-12 h-12 rounded-2xl bg-accent flex items-center justify-center mb-2 shadow-md">
+                  <span class="text-white font-extrabold text-base">S</span>
+                </div>
+                <div class="font-extrabold text-fg text-xs mb-0.5">SDAL Sosyal'e Hoş Geldin</div>
+                <div class="text-fg-muted text-center mb-4" style="font-size:6.5px">Hesabınla giriş yap</div>
+                <!-- Username -->
+                <div class="w-full mb-2">
+                  <div class="text-fg-muted mb-0.5" style="font-size:6.5px;font-weight:700">Kullanıcı adı</div>
+                  <div class="w-full bg-panel border border-panel-border rounded-xl px-3 py-2 text-fg" style="font-size:7px">cagatay.donmez</div>
+                </div>
+                <!-- Password -->
+                <div class="w-full mb-3">
+                  <div class="text-fg-muted mb-0.5" style="font-size:6.5px;font-weight:700">Şifre</div>
+                  <div class="w-full bg-panel border border-panel-border rounded-xl px-3 py-2 text-fg flex justify-between items-center" style="font-size:7px">
+                    <span>••••••••</span><span class="text-fg-muted" style="font-size:8px">👁</span>
+                  </div>
+                </div>
+                <button class="w-full bg-accent text-white rounded-xl py-2.5 font-800 mb-2" style="font-size:8px">Giriş Yap</button>
+                <button class="text-accent font-600" style="font-size:6.5px">Şifremi Unuttum</button>
+                <div class="absolute bottom-14 left-0 right-0 text-center text-fg-muted" style="font-size:6.5px">Hesabın yok mu? <span class="text-accent font-700">Kayıt Ol</span></div>
+              </div>
+              <div class="phone-bottomnav" style="height:44px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Steps list -->
+        <div class="flex-1 space-y-4">
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">①</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Uygulama Store'dan İndir</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">App Store veya Google Play'den "SDAL Sosyal"i aratarak uygulamayı cihazına kur. Ücretsizdir.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">②</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Kayıt Ol</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Ad, soyad, e-posta ve mezuniyet yılını gir. Öğretmensen "Öğretmen" seçeneğini işaretle ve branşını belirt.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">③</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">E-Posta Doğrulama</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Kayıt sonrası e-postana aktivasyon linki gönderilir. Linke tıklayarak hesabını aktive et.</p>
+              <div class="mt-2 bg-info-muted border border-info/20 rounded-xl p-3 text-info text-xs font-600">
+                💡 Mail gelmezse spam klasörünü kontrol et veya "Tekrar Gönder" butonunu kullan.
+              </div>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">④</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Giriş Yap</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Kullanıcı adın ve şifrenle giriş yap. Cihazını tanımlı tut seçeneğiyle bir sonraki girişi otomatik yap.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SECTION 2: ANA AKIŞ ────────────────────────── -->
+    <section class="guide-item mb-12" data-tags="akış feed gönderi paylaşım yorum beğeni hikaye story">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-accent text-accent-fg flex items-center justify-center font-800 text-sm">2</div>
+        <h2 class="text-xl font-extrabold text-fg">Ana Akış</h2>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <!-- Phone mockup: Feed detailed -->
+        <div class="flex-shrink-0 mx-auto lg:mx-0">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-sb"><span>9:41</span><span>●●●</span></div>
+              <div class="phone-topbar">
+                <div class="w-7 h-7 rounded-xl bg-accent flex items-center justify-center"><span class="text-white font-800" style="font-size:8px">S</span></div>
+                <span class="font-800 text-fg" style="font-size:8px">SDAL Sosyal</span>
+                <div class="w-7 h-7 rounded-full bg-accent-muted flex items-center justify-center"><span class="text-accent font-800" style="font-size:7px">CK</span></div>
+              </div>
+              <!-- FAB hint -->
+              <div class="absolute bottom-16 right-3 w-7 h-7 rounded-full bg-accent shadow-md flex items-center justify-center z-10">
+                <span class="text-white font-800" style="font-size:10px">+</span>
+              </div>
+              <!-- Stories -->
+              <div class="px-2 py-1.5 flex gap-1.5 border-b border-panel-border">
+                <div class="flex flex-col items-center gap-0.5">
+                  <div class="story-ring w-8 h-8"><div class="story-inner w-full h-full flex items-center justify-center"><span style="font-size:8px">+</span></div></div>
+                  <span style="font-size:5.5px" class="text-fg-muted">Ekle</span>
+                </div>
+                <div class="flex flex-col items-center gap-0.5">
+                  <div class="story-ring w-8 h-8"><div class="story-inner w-full h-full bg-accent-muted flex items-center justify-center"><span style="font-size:7px" class="text-accent font-800">AY</span></div></div>
+                  <span style="font-size:5.5px" class="text-fg-muted">Ayşe</span>
+                </div>
+                <div class="flex flex-col items-center gap-0.5">
+                  <div class="story-ring w-8 h-8"><div class="story-inner w-full h-full bg-success-muted flex items-center justify-center"><span style="font-size:7px" class="text-success font-800">MK</span></div></div>
+                  <span style="font-size:5.5px" class="text-fg-muted">Mert</span>
+                </div>
+                <div class="flex flex-col items-center gap-0.5">
+                  <div class="w-8 h-8 rounded-full border border-panel-border bg-panel-muted flex items-center justify-center"><span style="font-size:7px" class="text-fg-muted font-700">EC</span></div>
+                  <span style="font-size:5.5px" class="text-fg-muted">Ece</span>
+                </div>
+                <div class="flex flex-col items-center gap-0.5">
+                  <div class="w-8 h-8 rounded-full border border-panel-border bg-info-muted flex items-center justify-center"><span style="font-size:7px" class="text-info font-700">OZ</span></div>
+                  <span style="font-size:5.5px" class="text-fg-muted">Onur</span>
+                </div>
+              </div>
+              <!-- Posts -->
+              <div class="px-2 pt-1.5 space-y-1.5 overflow-hidden" style="max-height:200px">
+                <div class="bg-panel rounded-xl p-2 border border-panel-border">
+                  <div class="flex gap-1.5 mb-1">
+                    <div class="w-5 h-5 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0"><span style="font-size:6px" class="text-accent font-800">BS</span></div>
+                    <div><div style="font-size:6.5px" class="font-700 text-fg">Burak Sarı</div><div style="font-size:5.5px" class="text-fg-muted">2018 · 2s önce</div></div>
+                  </div>
+                  <p style="font-size:6.5px" class="text-fg mb-1">Yıllar sonra koridorda rastlaştık 🏫✨</p>
+                  <div class="flex gap-2 pt-1 border-t border-panel-border">
+                    <span style="font-size:6px" class="text-fg-muted">♡ 24</span>
+                    <span style="font-size:6px" class="text-fg-muted">💬 8</span>
+                  </div>
+                </div>
+                <div class="bg-panel rounded-xl p-2 border border-panel-border">
+                  <div class="flex gap-1.5 mb-1">
+                    <div class="w-5 h-5 rounded-full bg-info-muted flex items-center justify-center flex-shrink-0"><span style="font-size:6px" class="text-info font-800">ZA</span></div>
+                    <div><div style="font-size:6.5px" class="font-700 text-fg">Zeynep Aslan</div><div style="font-size:5.5px" class="text-fg-muted">2020 · 4s önce</div></div>
+                  </div>
+                  <p style="font-size:6.5px" class="text-fg">Bursa buluşması ne zaman? 🌷</p>
+                </div>
+              </div>
+              <!-- Bottom nav -->
+              <div class="phone-bottomnav">
+                <div class="nav-ico active flex-col" style="font-size:11px">🏠<span style="font-size:5px;font-weight:700;color:#B45637">Akış</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔍<span style="font-size:5px;font-weight:600;color:#66594C">Keşfet</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">💬<span style="font-size:5px;font-weight:600;color:#66594C">Mesaj</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔔<span style="font-size:5px;font-weight:600;color:#66594C">Bildirim</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Guide content -->
+        <div class="flex-1 space-y-4">
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">①</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Hikaye (Story) Paylaş</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Akıştaki stories şeridinde en soldaki "+ Ekle" dairesine dokun. Fotoğraf veya video seç, 24 saat görünür kalır.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">②</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Gönderi Oluştur</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Sağ alttaki turuncu <strong>+</strong> butonuna dokun. Metin yaz, fotoğraf ekle veya gruba paylaş. "@" ile kişi etiketle.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">③</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Beğen &amp; Yorum Yap</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Gönderi kartında ♡ ikonuna dokun. Yorum için 💬 ikonuna dokun, metinini yaz ve gönder.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">④</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Akışı Filtrele</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Üst barda mezuniyet yılı veya üniversite filtresini kullanarak yalnızca ilgili gönderileri görüntüle.</p>
+              <div class="mt-2 bg-accent-muted border border-accent/20 rounded-xl p-3 text-accent text-xs font-600">
+                🎓 Mezunlar: Akışta "Mezun" filtresi ile sadece mezun gönderilerini görebilirsin.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SECTION 3: MESAJLAŞMA ───────────────────────── -->
+    <section class="guide-item mb-12" data-tags="mesaj mesajlaşma chat sohbet inbox gelen kutusu">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-accent text-accent-fg flex items-center justify-center font-800 text-sm">3</div>
+        <h2 class="text-xl font-extrabold text-fg">Mesajlaşma</h2>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <!-- Phone: Inbox -->
+        <div class="flex-shrink-0 mx-auto lg:mx-0">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-sb"><span>9:41</span><span>●●●</span></div>
+              <div class="phone-topbar">
+                <span class="text-fg-muted" style="font-size:7px">←</span>
+                <span class="font-800 text-fg" style="font-size:9px">Mesajlar</span>
+                <div class="w-6 h-6 rounded-full bg-accent flex items-center justify-center"><span class="text-white font-800" style="font-size:7px">✎</span></div>
+              </div>
+              <!-- Search -->
+              <div class="px-3 pt-2 pb-1">
+                <div class="bg-panel-muted border border-panel-border rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                  <span class="text-fg-muted" style="font-size:8px">🔍</span>
+                  <span class="text-fg-muted" style="font-size:7px">Ara…</span>
+                </div>
+              </div>
+              <!-- Threads -->
+              <div class="px-2 space-y-0.5">
+                <div class="flex items-center gap-2 p-2 rounded-xl bg-accent-muted">
+                  <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0"><span class="text-white font-800" style="font-size:8px">AY</span></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between">
+                      <span class="font-700 text-fg" style="font-size:7px">Ayşe Yıldız</span>
+                      <span class="text-fg-muted" style="font-size:6px">14:22</span>
+                    </div>
+                    <div class="text-fg-muted truncate" style="font-size:6.5px">Yarın buluşalım mı? 😊</div>
+                  </div>
+                  <div class="w-4 h-4 rounded-full bg-accent flex items-center justify-center flex-shrink-0"><span class="text-white" style="font-size:6px">3</span></div>
+                </div>
+                <div class="flex items-center gap-2 p-2 rounded-xl">
+                  <div class="w-8 h-8 rounded-full bg-info-muted flex items-center justify-center flex-shrink-0"><span class="text-info font-800" style="font-size:8px">MK</span></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between">
+                      <span class="font-700 text-fg" style="font-size:7px">Mert Kaya</span>
+                      <span class="text-fg-muted" style="font-size:6px">Dün</span>
+                    </div>
+                    <div class="text-fg-muted truncate" style="font-size:6.5px">Harika haberi duydun mu?</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 p-2 rounded-xl">
+                  <div class="w-8 h-8 rounded-full bg-success-muted flex items-center justify-center flex-shrink-0"><span class="text-success font-800" style="font-size:8px">2016</span></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between">
+                      <span class="font-700 text-fg" style="font-size:7px">2016 Sınıfı</span>
+                      <span class="text-fg-muted" style="font-size:6px">Paz</span>
+                    </div>
+                    <div class="text-fg-muted truncate" style="font-size:6.5px">Ali: Ankara toplantısı ne zaman?</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 p-2 rounded-xl">
+                  <div class="w-8 h-8 rounded-full bg-panel-muted flex items-center justify-center flex-shrink-0"><span class="text-fg-muted font-800" style="font-size:8px">EC</span></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex justify-between">
+                      <span class="font-700 text-fg" style="font-size:7px">Ece Çelik</span>
+                      <span class="text-fg-muted" style="font-size:6px">Cmt</span>
+                    </div>
+                    <div class="text-fg-muted truncate" style="font-size:6.5px">Fotoğrafları gördüm, süper olmuş!</div>
+                  </div>
+                </div>
+              </div>
+              <div class="phone-bottomnav">
+                <div class="nav-ico flex-col" style="font-size:11px">🏠<span style="font-size:5px;font-weight:600;color:#66594C">Akış</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔍<span style="font-size:5px;font-weight:600;color:#66594C">Keşfet</span></div>
+                <div class="nav-ico active flex-col" style="font-size:11px">💬<span style="font-size:5px;font-weight:700;color:#B45637">Mesaj</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔔<span style="font-size:5px;font-weight:600;color:#66594C">Bildirim</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 space-y-4">
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">①</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Mesajlar Sekmesine Geç</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Alt navigasyondaki 💬 ikonuna dokun. Tüm konuşmalar ve okunmamış mesaj sayıları burada görünür.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">②</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Yeni Mesaj Gönder</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Sağ üstteki ✎ butonuna dokun. Kullanıcı ara, seç ve mesajını yaz. Gerçek zamanlı iletişim başlar.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">③</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Networking Mesajları</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Keşfet sekmesindeki bir üyenin profiline git, "Bağlantı Kur" butonuna dokun. Mesajın onaylandığında sohbet başlar.</p>
+              <div class="mt-2 bg-success-muted border border-success/20 rounded-xl p-3 text-success text-xs font-600">
+                👨‍🏫 Öğretmenler: Öğretmen bağlantıları ayrı bir sekmeyle yönetilir — "Öğretmen Bağlantıları" sayfasını kullan.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SECTION 4: KEŞFETme ─────────────────────────── -->
+    <section class="guide-item mb-12" data-tags="keşfet üye arama filtre mezun bul profil üye keşfet">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-accent text-accent-fg flex items-center justify-center font-800 text-sm">4</div>
+        <h2 class="text-xl font-extrabold text-fg">Üye Keşfet</h2>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <!-- Phone: Explore -->
+        <div class="flex-shrink-0 mx-auto lg:mx-0">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-sb"><span>9:41</span><span>●●●</span></div>
+              <div class="phone-topbar">
+                <span class="font-800 text-fg" style="font-size:9px">Keşfet</span>
+                <div class="flex gap-1">
+                  <div class="w-6 h-6 rounded-lg bg-panel-muted flex items-center justify-center"><span style="font-size:8px">⚙</span></div>
+                </div>
+              </div>
+              <!-- Search -->
+              <div class="px-3 py-2">
+                <div class="bg-panel border border-panel-border rounded-xl px-3 py-1.5 flex items-center gap-1.5">
+                  <span style="font-size:8px" class="text-fg-muted">🔍</span>
+                  <span style="font-size:7px" class="text-fg-muted">Üye veya yıl ara…</span>
+                </div>
+              </div>
+              <!-- Filter chips -->
+              <div class="px-3 flex gap-1.5 mb-2">
+                <div class="bg-accent text-white rounded-full px-2 py-0.5" style="font-size:6px;font-weight:700">Tümü</div>
+                <div class="bg-panel border border-panel-border rounded-full px-2 py-0.5 text-fg-muted" style="font-size:6px;font-weight:600">2015</div>
+                <div class="bg-panel border border-panel-border rounded-full px-2 py-0.5 text-fg-muted" style="font-size:6px;font-weight:600">İstanbul</div>
+                <div class="bg-panel border border-panel-border rounded-full px-2 py-0.5 text-fg-muted" style="font-size:6px;font-weight:600">Ankara</div>
+              </div>
+              <!-- Member cards -->
+              <div class="px-2 space-y-1.5">
+                <div class="bg-panel border border-panel-border rounded-xl p-2 flex items-center gap-2">
+                  <div class="w-9 h-9 rounded-full bg-accent-muted flex items-center justify-center flex-shrink-0"><span class="text-accent font-800" style="font-size:9px">BS</span></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-700 text-fg" style="font-size:7.5px">Burak Sarı</div>
+                    <div class="text-fg-muted" style="font-size:6px">Mezun · 2018 · İstanbul</div>
+                  </div>
+                  <div class="bg-accent-muted rounded-lg px-2 py-0.5 text-accent font-700" style="font-size:6px">Takip Et</div>
+                </div>
+                <div class="bg-panel border border-panel-border rounded-xl p-2 flex items-center gap-2">
+                  <div class="w-9 h-9 rounded-full bg-info-muted flex items-center justify-center flex-shrink-0"><span class="text-info font-800" style="font-size:9px">SÖ</span></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-700 text-fg" style="font-size:7.5px">Selin Öztürk</div>
+                    <div class="text-fg-muted" style="font-size:6px">Mezun · 2020 · Ankara</div>
+                  </div>
+                  <div class="bg-success-muted rounded-lg px-2 py-0.5 text-success font-700" style="font-size:6px">Takipte</div>
+                </div>
+                <div class="bg-panel border border-panel-border rounded-xl p-2 flex items-center gap-2">
+                  <div class="w-9 h-9 rounded-full bg-success-muted flex items-center justify-center flex-shrink-0"><span class="text-success font-800" style="font-size:8px">Öğ.</span></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-700 text-fg" style="font-size:7.5px">Dr. Ayhan Demir</div>
+                    <div class="text-fg-muted" style="font-size:6px">Öğretmen · Matematik</div>
+                  </div>
+                  <div class="bg-accent-muted rounded-lg px-2 py-0.5 text-accent font-700" style="font-size:6px">Takip Et</div>
+                </div>
+              </div>
+              <div class="phone-bottomnav">
+                <div class="nav-ico flex-col" style="font-size:11px">🏠<span style="font-size:5px;color:#66594C">Akış</span></div>
+                <div class="nav-ico active flex-col" style="font-size:11px">🔍<span style="font-size:5px;font-weight:700;color:#B45637">Keşfet</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">💬<span style="font-size:5px;color:#66594C">Mesaj</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔔<span style="font-size:5px;color:#66594C">Bildirim</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 space-y-4">
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">①</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Üye Ara</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Alt navbar'daki 🔍 simgesine dokun. Arama çubuğuna isim veya mezuniyet yılı yaz. Anlık sonuçlar gelir.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">②</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Filtrele</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Yıl veya şehir chip'lerine dokun. Sadece o filtreyle eşleşen üyeler listelenir. Birden fazla filtre seçilebilir.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">③</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Profil İncele &amp; Takip Et</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Üye kartına dokun, profilini gör. "Takip Et" butonu ile bağlantı kur; paylaşımları akışında görünmeye başlar.</p>
+            </div>
+          </div>
+          <!-- Teacher-specific tip -->
+          <div class="teacher-content bg-panel border border-panel-border rounded-2xl p-4 hidden">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-lg">👨‍🏫</span>
+              <h4 class="font-800 text-fg text-sm">Öğretmenler için: Mezun Takibi</h4>
+            </div>
+            <p class="text-fg-muted text-sm leading-relaxed">Branşınla ilgili alanlarda çalışan eski öğrencileri bul. "Öğretmen Bağlantıları" sayfasında tüm mezun-öğretmen ağını görüntüle.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SECTION 5: PROFİL ───────────────────────────── -->
+    <section class="guide-item mb-12" data-tags="profil düzenle avatar fotoğraf biyografi bio bilgi">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-accent text-accent-fg flex items-center justify-center font-800 text-sm">5</div>
+        <h2 class="text-xl font-extrabold text-fg">Profil Düzenleme</h2>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <!-- Phone: Profile -->
+        <div class="flex-shrink-0 mx-auto lg:mx-0">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-sb"><span>9:41</span><span>●●●</span></div>
+              <!-- Profile header bg -->
+              <div class="h-16 bg-gradient-to-br from-accent-muted to-canvas-subtle relative">
+                <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2">
+                  <div class="w-14 h-14 rounded-full bg-accent border-4 border-panel flex items-center justify-center shadow-lg">
+                    <span class="text-white font-800 text-base">CK</span>
+                  </div>
+                </div>
+              </div>
+              <!-- Profile info -->
+              <div class="pt-10 px-3 text-center">
+                <div class="font-800 text-fg" style="font-size:9px">Çağatay Dönmez</div>
+                <div class="text-fg-muted" style="font-size:7px">Mezun · 2018 · İstanbul</div>
+                <div class="text-fg-muted mt-0.5" style="font-size:6.5px">Yazılım geliştirici, doğa tutkunu 🌿</div>
+                <!-- Stats -->
+                <div class="flex justify-center gap-4 mt-2 py-2 border-y border-panel-border">
+                  <div class="text-center"><div class="font-800 text-fg" style="font-size:9px">42</div><div class="text-fg-muted" style="font-size:6px">Gönderi</div></div>
+                  <div class="text-center"><div class="font-800 text-fg" style="font-size:9px">186</div><div class="text-fg-muted" style="font-size:6px">Takipçi</div></div>
+                  <div class="text-center"><div class="font-800 text-fg" style="font-size:9px">94</div><div class="text-fg-muted" style="font-size:6px">Takip</div></div>
+                </div>
+                <!-- Edit button -->
+                <button class="mt-2 w-full bg-panel border border-panel-border rounded-xl py-1.5 font-700 text-fg" style="font-size:7.5px">✎ Profili Düzenle</button>
+              </div>
+              <!-- Albums mini -->
+              <div class="px-3 mt-2">
+                <div class="text-fg font-700 mb-1" style="font-size:7.5px">Albümlerim</div>
+                <div class="grid grid-cols-3 gap-1">
+                  <div class="aspect-square rounded-lg bg-accent-muted flex items-center justify-center"><span style="font-size:10px">📸</span></div>
+                  <div class="aspect-square rounded-lg bg-info-muted flex items-center justify-center"><span style="font-size:10px">🏫</span></div>
+                  <div class="aspect-square rounded-lg bg-success-muted flex items-center justify-center"><span style="font-size:10px">🎓</span></div>
+                </div>
+              </div>
+              <div class="phone-bottomnav">
+                <div class="nav-ico flex-col" style="font-size:11px">🏠</div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔍</div>
+                <div class="nav-ico flex-col" style="font-size:11px">💬</div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔔</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 space-y-4">
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">①</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Profile Git</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Üst sol köşedeki profil avatarına veya SDAL logosuna dokun. Kendi profil sayfan açılır.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">②</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Fotoğraf Ekle</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Profil fotoğrafına dokun → "Fotoğraf Değiştir" seç. Galerinden veya kamerayla çekebilirsin.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">③</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Bilgileri Güncelle</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">"Profili Düzenle" butonuna dokun. İsim, biyografi, şehir ve mezuniyet yılını düzenle, kaydet.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">④</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Kimlik Doğrulama</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Profil sayfasından "Kimliğimi Doğrula" seçeneği ile resmi üye rozeti alabilirsin. Topluluk güveni artar.</p>
+              <div class="mt-2 bg-success-muted border border-success/20 rounded-xl p-3 text-success text-xs font-600">
+                ✅ Doğrulanmış üyeler akışta özel rozet ile gösterilir.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SECTION 6: ALBÜMLER ─────────────────────────── -->
+    <section class="guide-item mb-12" data-tags="albüm fotoğraf yükle galeri anı resim medya">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-accent text-accent-fg flex items-center justify-center font-800 text-sm">6</div>
+        <h2 class="text-xl font-extrabold text-fg">Fotoğraf Albümleri</h2>
+      </div>
+
+      <div class="flex flex-col lg:flex-row gap-8 items-start">
+        <!-- Phone: Albums -->
+        <div class="flex-shrink-0 mx-auto lg:mx-0">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-sb"><span>9:41</span><span>●●●</span></div>
+              <div class="phone-topbar">
+                <span class="text-fg-muted" style="font-size:7px">←</span>
+                <span class="font-800 text-fg" style="font-size:9px">Albümler</span>
+                <div class="w-6 h-6 rounded-full bg-accent flex items-center justify-center"><span class="text-white font-800" style="font-size:8px">+</span></div>
+              </div>
+              <!-- Recent photos -->
+              <div class="px-2 pt-2">
+                <div class="text-fg font-700 mb-1.5" style="font-size:7.5px">Son Fotoğraflar</div>
+                <div class="grid grid-cols-3 gap-1 mb-3">
+                  <div class="aspect-square rounded-xl bg-accent-muted flex items-center justify-center"><span style="font-size:16px">📸</span></div>
+                  <div class="aspect-square rounded-xl bg-info-muted flex items-center justify-center"><span style="font-size:16px">🏫</span></div>
+                  <div class="aspect-square rounded-xl bg-success-muted flex items-center justify-center"><span style="font-size:16px">🌸</span></div>
+                </div>
+                <div class="text-fg font-700 mb-1.5" style="font-size:7.5px">Albümlerim</div>
+                <div class="space-y-1.5">
+                  <div class="bg-panel border border-panel-border rounded-xl p-2 flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-lg bg-accent-muted flex items-center justify-center flex-shrink-0"><span style="font-size:14px">🎓</span></div>
+                    <div>
+                      <div class="font-700 text-fg" style="font-size:7.5px">Mezuniyet 2018</div>
+                      <div class="text-fg-muted" style="font-size:6px">24 fotoğraf</div>
+                    </div>
+                  </div>
+                  <div class="bg-panel border border-panel-border rounded-xl p-2 flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-lg bg-info-muted flex items-center justify-center flex-shrink-0"><span style="font-size:14px">🏫</span></div>
+                    <div>
+                      <div class="font-700 text-fg" style="font-size:7.5px">Okul Anıları</div>
+                      <div class="text-fg-muted" style="font-size:6px">58 fotoğraf</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="phone-bottomnav">
+                <div class="nav-ico active flex-col" style="font-size:11px">🏠<span style="font-size:5px;color:#B45637;font-weight:700">Akış</span></div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔍</div>
+                <div class="nav-ico flex-col" style="font-size:11px">💬</div>
+                <div class="nav-ico flex-col" style="font-size:11px">🔔</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 space-y-4">
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">①</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Albümler Sayfasına Git</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Ana akış sayfasında ☰ menüsünden veya profil sayfandaki "Albümlerim" bölümünden erişebilirsin.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">②</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Yeni Albüm Oluştur</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Sağ üstteki + butonuna dokun. Albüme isim ver, kategori seç (mezuniyet yılı, etkinlik, vs.), oluştur.</p>
+            </div>
+          </div>
+          <div class="step-line flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">③</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Fotoğraf Yükle</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Albüm içinde + butonuna dokun, galerinizden fotoğraf seçin. Çoklu seçim destekleniyor. Kategori etiketle.</p>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <div class="w-10 h-10 rounded-full bg-accent-muted border-2 border-accent flex items-center justify-center font-800 text-accent text-sm flex-shrink-0">④</div>
+            <div class="pt-1.5">
+              <h3 class="font-800 text-fg mb-1">Paylaş</h3>
+              <p class="text-fg-muted text-sm leading-relaxed">Albümü veya tek bir fotoğrafı "Akışta Paylaş" seçeneğiyle topluluğunla paylaşabilirsin.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SSS / FAQ ───────────────────────────────────── -->
+    <section class="guide-item mb-12" data-tags="sss soru yardım destek sorun hata şifre">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-accent text-accent-fg flex items-center justify-center font-800 text-sm">?</div>
+        <h2 class="text-xl font-extrabold text-fg">Sık Sorulan Sorular</h2>
+      </div>
+      <div class="space-y-3 max-w-2xl">
+        <!-- FAQ items -->
+        <div class="bg-panel border border-panel-border rounded-2xl overflow-hidden">
+          <button class="w-full text-left px-5 py-4 flex items-center justify-between font-700 text-fg text-sm" onclick="toggleFaq(this)">
+            Şifremi unuttum, ne yapmalıyım?
+            <span class="text-accent text-lg transition-transform duration-200">+</span>
+          </button>
+          <div class="accordion-body">
+            <div class="px-5 pb-4 text-fg-muted text-sm leading-relaxed border-t border-panel-border pt-3">
+              Giriş ekranında "Şifremi Unuttum" bağlantısına dokun. E-posta adresini gir, sana sıfırlama bağlantısı göndereceğiz. Mail gelmezse spam klasörünü kontrol et.
+            </div>
+          </div>
+        </div>
+        <div class="bg-panel border border-panel-border rounded-2xl overflow-hidden">
+          <button class="w-full text-left px-5 py-4 flex items-center justify-between font-700 text-fg text-sm" onclick="toggleFaq(this)">
+            Aktivasyon maili gelmiyor?
+            <span class="text-accent text-lg transition-transform duration-200">+</span>
+          </button>
+          <div class="accordion-body">
+            <div class="px-5 pb-4 text-fg-muted text-sm leading-relaxed border-t border-panel-border pt-3">
+              Spam/junk klasörünü kontrol et. Mail yoksa giriş ekranında "Aktivasyon Maili Yeniden Gönder" seçeneğini kullan. Farklı bir e-posta adresiyle kayıt olmak da işe yarar.
+            </div>
+          </div>
+        </div>
+        <div class="bg-panel border border-panel-border rounded-2xl overflow-hidden">
+          <button class="w-full text-left px-5 py-4 flex items-center justify-between font-700 text-fg text-sm" onclick="toggleFaq(this)">
+            Öğretmen olarak nasıl kayıt olabilirim?
+            <span class="text-accent text-lg transition-transform duration-200">+</span>
+          </button>
+          <div class="accordion-body">
+            <div class="px-5 pb-4 text-fg-muted text-sm leading-relaxed border-t border-panel-border pt-3">
+              Kayıt ekranında "Hesap Türü" seçiminde "Öğretmen"i işaretle. Branşını gir. Öğretmen hesapları ek doğrulama gerektirebilir; admin onayından sonra tam erişim sağlanır.
+            </div>
+          </div>
+        </div>
+        <div class="bg-panel border border-panel-border rounded-2xl overflow-hidden">
+          <button class="w-full text-left px-5 py-4 flex items-center justify-between font-700 text-fg text-sm" onclick="toggleFaq(this)">
+            Bildirimler gelmiyor, nasıl açarım?
+            <span class="text-accent text-lg transition-transform duration-200">+</span>
+          </button>
+          <div class="accordion-body">
+            <div class="px-5 pb-4 text-fg-muted text-sm leading-relaxed border-t border-panel-border pt-3">
+              Telefon Ayarlar → Uygulamalar → SDAL Sosyal → Bildirimler'i Açık konuma getir. Ardından uygulamada Sol menü → Ayarlar → Bildirim Tercihleri'nden istediğin bildirim türlerini seç.
+            </div>
+          </div>
+        </div>
+        <div class="bg-panel border border-panel-border rounded-2xl overflow-hidden">
+          <button class="w-full text-left px-5 py-4 flex items-center justify-between font-700 text-fg text-sm" onclick="toggleFaq(this)">
+            Karanlık/Aydınlık tema nasıl değiştirilir?
+            <span class="text-accent text-lg transition-transform duration-200">+</span>
+          </button>
+          <div class="accordion-body">
+            <div class="px-5 pb-4 text-fg-muted text-sm leading-relaxed border-t border-panel-border pt-3">
+              Uygulama üst menüsündeki ⊙ (uygulama menüsü) butonuna dokun. Tema tercihini Aydınlık / Karanlık / Sistem olarak ayarlayabilirsin. Değişiklik anında uygulanır.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- No results message -->
+    <div id="no-results" class="hidden text-center py-16">
+      <div class="text-5xl mb-4">🔍</div>
+      <h3 class="text-lg font-800 text-fg mb-2">Sonuç bulunamadı</h3>
+      <p class="text-fg-muted">Farklı bir arama terimi dene.</p>
+    </div>
+
+  </div><!-- end guide content -->
+
+  <!-- GUIDE FOOTER -->
+  <div class="border-t border-panel-border bg-panel py-10 mt-8">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div>
+        <p class="font-800 text-fg mb-1">Hâlâ sorun mu var?</p>
+        <p class="text-fg-muted text-sm">Topluluk üzerinden bize ulaşabilir veya kılavuzu tekrar gözden geçirebilirsin.</p>
+      </div>
+      <button onclick="showPage('landing')" class="bg-accent text-accent-fg px-6 py-3 rounded-xl font-700 text-sm hover:bg-opacity-90 transition-all shadow-sm">
+        Ana Sayfaya Dön
+      </button>
+    </div>
+  </div>
+</div><!-- end guide -->
+
+
+<!-- ════════════════════════════════════════════════════
+     PAGE: ABOUT
+════════════════════════════════════════════════════ -->
+<div id="page-about" class="page">
+  <div class="max-w-4xl mx-auto px-6 py-16">
+    <div class="text-center mb-12">
+      <div class="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+        <span class="text-accent-fg font-extrabold text-2xl">S</span>
+      </div>
+      <h1 class="text-4xl font-extrabold text-fg tracking-tight mb-4">SDAL Sosyal <span class="gradient-text">Hakkında</span></h1>
+      <p class="text-fg-muted text-lg leading-relaxed max-w-xl mx-auto">
+        Bir lise topluluğunun dijital kalbi. Yıllar önce aynı koridorlarda yürüyen herkesi tekrar bir araya getirmek için yapıldı.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+      <div class="bg-panel border border-panel-border rounded-2xl p-6 card-hover">
+        <div class="text-3xl mb-3">🏫</div>
+        <h3 class="font-800 text-fg mb-2">Misyonumuz</h3>
+        <p class="text-fg-muted leading-relaxed">SDAL mezunlarını ve öğretmenlerini birbirlerine bağlamak, nesiller arası köprüler kurmak ve okul ruhunu yaşatmak.</p>
+      </div>
+      <div class="bg-panel border border-panel-border rounded-2xl p-6 card-hover">
+        <div class="text-3xl mb-3">💻</div>
+        <h3 class="font-800 text-fg mb-2">Teknoloji</h3>
+        <p class="text-fg-muted leading-relaxed">Flutter ile iOS ve Android'de yerel deneyim. Gerçek zamanlı mesajlaşma, anlık bildirimler ve güvenli kimlik doğrulama.</p>
+      </div>
+      <div class="bg-panel border border-panel-border rounded-2xl p-6 card-hover">
+        <div class="text-3xl mb-3">🔒</div>
+        <h3 class="font-800 text-fg mb-2">Gizlilik</h3>
+        <p class="text-fg-muted leading-relaxed">Verilen bilgiler yalnızca SDAL topluluğu içinde kalır. Üçüncü taraf reklam yok, veri satışı yok.</p>
+      </div>
+      <div class="bg-panel border border-panel-border rounded-2xl p-6 card-hover">
+        <div class="text-3xl mb-3">❤️</div>
+        <h3 class="font-800 text-fg mb-2">Sevgiyle Yapıldı</h3>
+        <p class="text-fg-muted leading-relaxed">SDAL mezunu bir geliştirici tarafından, SDAL topluluğu için, toplulukla birlikte inşa ediliyor.</p>
+      </div>
+    </div>
+
+    <div class="text-center">
+      <button onclick="showPage('guide')" class="bg-accent text-accent-fg px-8 py-4 rounded-2xl font-800 text-base hover:bg-opacity-90 transition-all shadow-md">
+        Kullanım Kılavuzunu Gör →
+      </button>
+    </div>
+  </div>
+
+  <footer class="border-t border-panel-border bg-panel py-8">
+    <div class="max-w-6xl mx-auto px-6 text-center">
+      <p class="text-fg-muted text-sm">SDAL Sosyal · Sevgi ve nostaljiyle yapıldı 🧡</p>
+    </div>
+  </footer>
+</div><!-- end about -->
+
+
+<!-- ════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════ -->
+<script>
+// ── SPA Navigation ──────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  // Update nav active states
+  ['landing','guide','about'].forEach(n => {
+    const el = document.getElementById('nav-' + n);
+    if (el) el.style.color = (n === name) ? '#B45637' : '';
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Segment (Mezun / Öğretmen) ──────────────────────
+function setSegment(seg) {
+  document.getElementById('seg-alumni').classList.toggle('on', seg === 'alumni');
+  document.getElementById('seg-teacher').classList.toggle('on', seg === 'teacher');
+  // Show/hide teacher-only content
+  document.querySelectorAll('.teacher-content').forEach(el => {
+    el.classList.toggle('hidden', seg !== 'teacher');
+  });
+}
+
+// ── Guide Search ─────────────────────────────────────
+function searchGuide(query) {
+  const q = query.trim().toLowerCase();
+  const items = document.querySelectorAll('.guide-item');
+  const countEl = document.getElementById('search-count');
+  const noResults = document.getElementById('no-results');
+  let visible = 0;
+
+  items.forEach(item => {
+    const tags = (item.dataset.tags || '').toLowerCase();
+    const text = item.textContent.toLowerCase();
+    const match = !q || tags.includes(q) || text.includes(q);
+    item.classList.toggle('hidden', !match);
+    if (match) visible++;
+  });
+
+  if (q) {
+    countEl.textContent = visible + ' sonuç';
+    countEl.classList.remove('hidden');
+    noResults.classList.toggle('hidden', visible > 0);
+  } else {
+    countEl.classList.add('hidden');
+    noResults.classList.add('hidden');
+  }
+}
+
+// ── FAQ Accordion ─────────────────────────────────────
+function toggleFaq(btn) {
+  const body = btn.nextElementSibling;
+  const icon = btn.querySelector('span');
+  const isOpen = body.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.accordion-body').forEach(b => {
+    b.previousElementSibling.querySelector('span').textContent = '+';
+    b.previousElementSibling.querySelector('span').style.transform = '';
+  });
+  if (!isOpen) {
+    body.classList.add('open');
+    icon.textContent = '−';
+  }
+}
+
+// ── Init ──────────────────────────────────────────────
+showPage('landing');
+</script>
+</body>
+</html>

@@ -444,6 +444,11 @@ export function registerMiscAppRoutes(app, {
     return res.redirect(302, target);
   });
 
+  const landingPage = path.resolve(appRootDir, '../sdal-sosyal.html');
+  if (fs.existsSync(landingPage)) {
+    app.get('/', (_req, res) => res.sendFile(landingPage));
+  }
+
   const clientDist = path.resolve(appRootDir, '../frontend-classic/dist');
   app.use(express.static(clientDist));
   app.get('*', (_req, res) => {

@@ -738,11 +738,12 @@ class _AdminTeacherNetworkManagementPageState
       ),
       data: (access) {
         final permissions = access.permissions;
-        final canView = _hasAnyPermission(permissions, const [
+        final isFullAdmin = access.user?.hasAdminAccess == true || access.adminOk;
+        final canView = isFullAdmin || _hasAnyPermission(permissions, const [
           'requests.view',
           'requests.moderate',
         ]);
-        final canModerate = _hasAnyPermission(permissions, const [
+        final canModerate = isFullAdmin || _hasAnyPermission(permissions, const [
           'requests.moderate',
         ]);
         final linksState = canView
