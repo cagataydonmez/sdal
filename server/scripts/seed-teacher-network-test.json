@@ -1,0 +1,22 @@
+{
+  "teachers": [
+    {
+      "kadi": "ayseyildiz_ogr",
+      "isim": "Ayşe",
+      "soyisim": "Yıldız",
+      "email": "ayse.yildiz.ogr@test.sdal",
+      "photo": "https://randomuser.me/api/portraits/women/44.jpg",
+      "id": 3
+    },
+    {
+      "kadi": "mehmetdemir_ogr",
+      "isim": "Mehmet",
+      "soyisim": "Demir",
+      "email": "mehmet.demir.ogr@test.sdal",
+      "photo": "https://randomuser.me/api/portraits/men/55.jpg",
+      "id": 4
+    }
+  ],
+  "memberCount": 50,
+  "password": "Test1234!"
+}

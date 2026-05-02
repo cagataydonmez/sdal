@@ -1,0 +1,1 @@
+[2026-05-02T22:41:21.105Z] activity=member_activity | requestId=abd1b8d8-ccd2-48cd-9746-57dbad9cf81a | method=POST | path=/api/auth/login | status=200 | durationMs=34 | userId=3 | ip=::1 | userAgent=curl/8.7.1 | bodySummary=[object Object]

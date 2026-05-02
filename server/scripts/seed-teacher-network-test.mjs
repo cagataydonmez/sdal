@@ -1,11 +1,12 @@
 /**
- * Seed script: 2 test teacher + 50 test member with Turkish names from randomuser.me
- * Teacher 1 (Ayşe Yıldız): 20 connections across 4 cohorts
- * Teacher 2 (Mehmet Demir): 50 connections across 8 cohorts
+ * Seed script: 2 test teacher + 50 test member with guaranteed Turkish names.
+ * Teacher 1 (Ayşe Kaya):    20 links, 4 cohorts (2024×8, 2022×5, 2019×4, 2016×3)
+ * Teacher 2 (Mehmet Arslan): 50 links, 8 cohorts (2024×10, 2023×7, 2022×9, 2020×6, 2018×8, 2016×5, 2014×3, null×2)
  *
- * Usage: node server/scripts/seed-teacher-network-test.mjs
- * Dry run: node server/scripts/seed-teacher-network-test.mjs --dry-run
- * Cleanup: node server/scripts/seed-teacher-network-test.mjs --cleanup
+ * Usage:
+ *   node server/scripts/seed-teacher-network-test.mjs           # seed
+ *   node server/scripts/seed-teacher-network-test.mjs --dry-run # preview only
+ *   node server/scripts/seed-teacher-network-test.mjs --cleanup # remove seeded data
  */
 
 import crypto from 'crypto';
@@ -22,59 +23,100 @@ const isDryRun = process.argv.includes('--dry-run');
 const isCleanup = process.argv.includes('--cleanup');
 const scryptAsync = promisify(crypto.scrypt);
 
-// ── DB path (mirrors .env resolution in appRuntime) ───────────────────────────
+// ── DB path ────────────────────────────────────────────────────────────────────
 const envFile = path.resolve(__dirname, '../.env');
-let dbPath = 'server/data/sdal.local.sqlite';
+let dbPathRaw = 'server/data/sdal.local.sqlite';
 if (fs.existsSync(envFile)) {
-  const lines = fs.readFileSync(envFile, 'utf8').split('\n');
-  for (const line of lines) {
+  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
     const m = line.match(/^SDAL_DB_PATH\s*=\s*(.+)$/);
-    if (m) { dbPath = m[1].trim(); break; }
+    if (m) { dbPathRaw = m[1].trim(); break; }
   }
 }
-const absDbPath = path.resolve(__dirname, '../..', dbPath);
-console.log('DB path:', absDbPath);
-if (!fs.existsSync(absDbPath)) {
-  console.error('❌ DB file not found at', absDbPath);
-  process.exit(1);
-}
+const absDbPath = path.resolve(__dirname, '../..', dbPathRaw);
+console.log('DB:', absDbPath);
+if (!fs.existsSync(absDbPath)) { console.error('❌ DB not found:', absDbPath); process.exit(1); }
 
-// ── Load better-sqlite3 ───────────────────────────────────────────────────────
-let Database;
-try {
-  Database = require('better-sqlite3');
-} catch {
-  console.error('❌ better-sqlite3 not found. Run: cd server && npm install');
-  process.exit(1);
-}
+const Database = require('better-sqlite3');
 const db = new Database(absDbPath);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-async function hashPassword(password) {
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const scrypt = promisify(crypto.scrypt);
+async function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const derived = await scryptAsync(String(password), salt, 64);
-  return `scrypt$${salt}$${Buffer.from(derived).toString('hex')}`;
+  const buf = await scrypt(String(pw), salt, 64);
+  return `scrypt$${salt}$${buf.toString('hex')}`;
 }
 
-function fetchJson(url) {
-  return new Promise((resolve, reject) => {
-    const proto = url.startsWith('https') ? require('https') : require('http');
-    proto.get(url, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(e); }
-      });
-    }).on('error', reject);
-  });
+// ── Turkish name data ──────────────────────────────────────────────────────────
+// 50 members — mix of male/female names, varied surnames
+const MEMBER_NAMES = [
+  // 0-9
+  { isim: 'Berk',      soyisim: 'Yılmaz',     gender: 'm' },
+  { isim: 'Selin',     soyisim: 'Çelik',      gender: 'f' },
+  { isim: 'Emre',      soyisim: 'Kaya',       gender: 'm' },
+  { isim: 'Zeynep',    soyisim: 'Doğan',      gender: 'f' },
+  { isim: 'Oğuzhan',   soyisim: 'Şahin',      gender: 'm' },
+  { isim: 'Büşra',     soyisim: 'Öztürk',     gender: 'f' },
+  { isim: 'Furkan',    soyisim: 'Arslan',      gender: 'm' },
+  { isim: 'Merve',     soyisim: 'Çetin',      gender: 'f' },
+  { isim: 'Alp',       soyisim: 'Erdoğan',    gender: 'm' },
+  { isim: 'Esra',      soyisim: 'Koç',        gender: 'f' },
+  // 10-19
+  { isim: 'Mert',      soyisim: 'Kurt',       gender: 'm' },
+  { isim: 'Elif',      soyisim: 'Polat',      gender: 'f' },
+  { isim: 'Serhan',    soyisim: 'Güneş',      gender: 'm' },
+  { isim: 'Tuğba',     soyisim: 'Aydın',      gender: 'f' },
+  { isim: 'Umut',      soyisim: 'Özdemir',    gender: 'm' },
+  { isim: 'Gizem',     soyisim: 'Bulut',      gender: 'f' },
+  { isim: 'Kaan',      soyisim: 'Demirci',    gender: 'm' },
+  { isim: 'Seda',      soyisim: 'Aktaş',      gender: 'f' },
+  { isim: 'Berke',     soyisim: 'Bozkurt',    gender: 'm' },
+  { isim: 'Melike',    soyisim: 'Keskin',      gender: 'f' },
+  // 20-29
+  { isim: 'Deniz',     soyisim: 'Sarı',       gender: 'm' },
+  { isim: 'Aylin',     soyisim: 'Çakır',      gender: 'f' },
+  { isim: 'Burak',     soyisim: 'Özcan',      gender: 'm' },
+  { isim: 'Hande',     soyisim: 'Güler',      gender: 'f' },
+  { isim: 'Arda',      soyisim: 'Yalçın',     gender: 'm' },
+  { isim: 'Pınar',     soyisim: 'Kara',       gender: 'f' },
+  { isim: 'Sercan',    soyisim: 'Şimşek',     gender: 'm' },
+  { isim: 'Cansu',     soyisim: 'Duman',      gender: 'f' },
+  { isim: 'Erdem',     soyisim: 'Taş',        gender: 'm' },
+  { isim: 'İlayda',    soyisim: 'Kaplan',     gender: 'f' },
+  // 30-39
+  { isim: 'Volkan',    soyisim: 'Aslan',      gender: 'm' },
+  { isim: 'Özlem',     soyisim: 'Ateş',       gender: 'f' },
+  { isim: 'Taner',     soyisim: 'Toprak',     gender: 'm' },
+  { isim: 'Dilek',     soyisim: 'Yıldırım',   gender: 'f' },
+  { isim: 'Altan',     soyisim: 'Bayram',     gender: 'm' },
+  { isim: 'Nurgül',    soyisim: 'Güzel',      gender: 'f' },
+  { isim: 'Onur',      soyisim: 'İlhan',      gender: 'm' },
+  { isim: 'Ceren',     soyisim: 'Doğru',      gender: 'f' },
+  { isim: 'Kemal',     soyisim: 'Özgür',      gender: 'm' },
+  { isim: 'Başak',     soyisim: 'Başaran',    gender: 'f' },
+  // 40-49
+  { isim: 'Semih',     soyisim: 'Eren',       gender: 'm' },
+  { isim: 'Yağmur',    soyisim: 'Sert',       gender: 'f' },
+  { isim: 'Barış',     soyisim: 'Kılınç',     gender: 'm' },
+  { isim: 'Hatice',    soyisim: 'Altın',      gender: 'f' },
+  { isim: 'Ozan',      soyisim: 'Çavuş',      gender: 'm' },
+  { isim: 'Sibel',     soyisim: 'Acar',       gender: 'f' },
+  { isim: 'Murat',     soyisim: 'Sezer',      gender: 'm' },
+  { isim: 'Nazlı',     soyisim: 'Karaer',     gender: 'f' },
+  { isim: 'Çağrı',     soyisim: 'Soytürk',    gender: 'm' },
+  { isim: 'Tuğçe',     soyisim: 'Demir',      gender: 'f' },
+];
+
+// Pravatar — deterministic photos by index
+function photoUrl(gender, index) {
+  // pravatar uses seed-based URLs; men 1-70, women 1-70
+  const n = (index % 60) + 1;
+  return gender === 'f'
+    ? `https://randomuser.me/api/portraits/women/${n}.jpg`
+    : `https://randomuser.me/api/portraits/men/${n}.jpg`;
 }
 
-// ── Cohort plan ───────────────────────────────────────────────────────────────
-// 50 members indexed 0-49
-// teacher1 uses members 0-19 (20 links, 4 cohorts)
-// teacher2 uses members 0-49 (50 links, 8 cohorts)
-
+// ── Cohort plan ────────────────────────────────────────────────────────────────
 const COHORT_PLAN = {
   teacher1: [
     { class_year: 2024, memberRange: [0, 7] },    // 8
@@ -90,38 +132,18 @@ const COHORT_PLAN = {
     { class_year: 2018, memberRange: [32, 39] },  // 8
     { class_year: 2016, memberRange: [40, 44] },  // 5
     { class_year: 2014, memberRange: [45, 47] },  // 3
-    { class_year: null, memberRange: [48, 49] },  // 2 — no year
+    { class_year: null, memberRange: [48, 49] },  // 2
   ],
 };
 
-const TEACHER_HANDLES = ['ayseyildiz_ogr', 'mehmetdemir_ogr'];
+const TEACHERS = [
+  { kadi: 'aysekaya_ogr',    isim: 'Ayşe',   soyisim: 'Kaya',   email: 'ayse.kaya.ogr@test.sdal',    photo: 'https://randomuser.me/api/portraits/women/44.jpg' },
+  { kadi: 'mehmetarslan_ogr', isim: 'Mehmet', soyisim: 'Arslan', email: 'mehmet.arslan.ogr@test.sdal', photo: 'https://randomuser.me/api/portraits/men/55.jpg'   },
+];
 const MEMBER_HANDLE_PREFIX = 'test_uye_';
 const TEST_PASSWORD = 'Test1234!';
-const SEED_TAG = 'seed_teacher_network_test';
 
-// ── Cleanup mode ──────────────────────────────────────────────────────────────
-if (isCleanup) {
-  console.log('🧹 Cleanup mode: removing seeded test data...');
-  const linksTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='teacher_alumni_links'").get();
-  const teacherIds = db.prepare('SELECT id FROM uyeler WHERE kadi IN (?,?)').all(...TEACHER_HANDLES).map(r => r.id);
-  const memberKadis = Array.from({ length: 50 }, (_, i) => `${MEMBER_HANDLE_PREFIX}${String(i).padStart(2, '0')}`);
-  const memberIds = db.prepare(`SELECT id FROM uyeler WHERE kadi IN (${memberKadis.map(() => '?').join(',')})`).all(...memberKadis).map(r => r.id);
-  const allIds = [...teacherIds, ...memberIds];
-  if (allIds.length === 0) {
-    console.log('No seeded users found.');
-    process.exit(0);
-  }
-  const placeholders = allIds.map(() => '?').join(',');
-  let linksDeleted = { changes: 0 };
-  if (linksTableExists) {
-    linksDeleted = db.prepare(`DELETE FROM teacher_alumni_links WHERE teacher_user_id IN (${placeholders}) OR alumni_user_id IN (${placeholders})`).run(...allIds, ...allIds);
-  }
-  const usersDeleted = db.prepare(`DELETE FROM uyeler WHERE id IN (${placeholders})`).run(...allIds);
-  console.log(`✅ Deleted ${usersDeleted.changes} users, ${linksDeleted.changes} links.`);
-  process.exit(0);
-}
-
-// ── Ensure teacher_alumni_links table exists ──────────────────────────────────
+// ── Ensure table ───────────────────────────────────────────────────────────────
 function ensureLinksTable() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS teacher_alumni_links (
@@ -144,180 +166,129 @@ function ensureLinksTable() {
       UNIQUE(teacher_user_id, alumni_user_id, relationship_type, class_year)
     )
   `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_teacher ON teacher_alumni_links (teacher_user_id, created_at DESC)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_teacher_alumni_links_alumni ON teacher_alumni_links (alumni_user_id, created_at DESC)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tal_teacher ON teacher_alumni_links (teacher_user_id, created_at DESC)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tal_alumni  ON teacher_alumni_links (alumni_user_id,  created_at DESC)');
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Cleanup ────────────────────────────────────────────────────────────────────
+if (isCleanup) {
+  console.log('🧹 Cleaning up seeded test data...');
+  const linksOk = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='teacher_alumni_links'").get();
+  const teacherKadis = TEACHERS.map(t => t.kadi);
+  const teacherRows = db.prepare(`SELECT id FROM uyeler WHERE kadi IN (${teacherKadis.map(() => '?').join(',')})`).all(...teacherKadis);
+  const memberKadis = Array.from({ length: 50 }, (_, i) => `${MEMBER_HANDLE_PREFIX}${String(i).padStart(2, '0')}`);
+  const memberRows = db.prepare(`SELECT id FROM uyeler WHERE kadi IN (${memberKadis.map(() => '?').join(',')})`).all(...memberKadis);
+  const allIds = [...teacherRows, ...memberRows].map(r => r.id);
+  if (!allIds.length) { console.log('Nothing to clean.'); process.exit(0); }
+  const ph = allIds.map(() => '?').join(',');
+  const lDel = linksOk
+    ? db.prepare(`DELETE FROM teacher_alumni_links WHERE teacher_user_id IN (${ph}) OR alumni_user_id IN (${ph})`).run(...allIds, ...allIds).changes
+    : 0;
+  const uDel = db.prepare(`DELETE FROM uyeler WHERE id IN (${ph})`).run(...allIds).changes;
+  console.log(`✅ Removed ${uDel} users, ${lDel} links.`);
+  process.exit(0);
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(isDryRun ? '🔍 DRY RUN — no DB writes' : '🌱 Seeding teacher network test data...');
+  console.log(isDryRun ? '🔍 DRY RUN — no DB writes' : '🌱 Seeding...');
   if (!isDryRun) ensureLinksTable();
 
-  // 1. Fetch Turkish user data from randomuser.me
-  console.log('📡 Fetching Turkish user profiles from randomuser.me...');
-  let randomUsers = [];
-  try {
-    const page1 = await fetchJson('https://randomuser.me/api/?nat=tr&results=25&seed=sdal_teacher_test_1&inc=name,picture,login');
-    const page2 = await fetchJson('https://randomuser.me/api/?nat=tr&results=25&seed=sdal_teacher_test_2&inc=name,picture,login');
-    randomUsers = [...page1.results, ...page2.results];
-    console.log(`  ✓ Fetched ${randomUsers.length} profiles`);
-  } catch (err) {
-    console.warn('  ⚠️  randomuser.me fetch failed, using fallback names:', err.message);
-    // Fallback Turkish names if API unreachable
-    const fallbackNames = [
-      ['Ahmet','Kaya'],['Fatma','Çelik'],['Mehmet','Arslan'],['Ayşe','Doğan'],['Ali','Şahin'],
-      ['Hatice','Yıldız'],['Hüseyin','Öztürk'],['Zeynep','Aydın'],['İbrahim','Erdoğan'],['Emine','Kılıç'],
-      ['Mustafa','Çetin'],['Elif','Koç'],['Süleyman','Kurt'],['Meryem','Özdemir'],['İsmail','Güneş'],
-      ['Havva','Polat'],['Yusuf','Demirci'],['Hacer','Yılmaz'],['Recep','Bulut'],['Fadime','Aktaş'],
-      ['Osman','Bozkurt'],['Halime','Keskin'],['Kadir','Sarı'],['Gülsüm','Çakır'],['Hasan','Özcan'],
-      ['Sümeyye','Acar'],['Ömer','Güler'],['Rabia','Yalçın'],['Ramazan','Kara'],['Büşra','Demir'],
-      ['Adem','Şimşek'],['Nuriye','Çelik'],['Hamza','Duman'],['Esra','Taş'],['Yasin','Kaplan'],
-      ['Selma','Aslan'],['Serkan','Ateş'],['Dilek','Çavuş'],['Emre','Toprak'],['Songül','Yıldırım'],
-      ['Burak','Bayram'],['Merve','Güzel'],['Murat','İlhan'],['Seda','Doğru'],['Kemal','Özgür'],
-      ['Canan','Başaran'],['Taner','Eren'],['Nurgül','Sert'],['Onur','Kılınç'],['Pınar','Altın'],
-    ];
-    randomUsers = fallbackNames.map(([isim, soyisim], i) => ({
-      name: { first: isim, last: soyisim },
-      picture: { large: `https://i.pravatar.cc/150?img=${i + 1}` },
-      login: { username: `fallback${i}` },
-    }));
-  }
-
   const now = new Date().toISOString();
-  const hashedPassword = await hashPassword(TEST_PASSWORD);
+  const pw = await hashPassword(TEST_PASSWORD);
 
-  // 2. Check / insert teachers
-  const teachers = [
-    { kadi: TEACHER_HANDLES[0], isim: 'Ayşe', soyisim: 'Yıldız', email: 'ayse.yildiz.ogr@test.sdal', photo: 'https://randomuser.me/api/portraits/women/44.jpg' },
-    { kadi: TEACHER_HANDLES[1], isim: 'Mehmet', soyisim: 'Demir', email: 'mehmet.demir.ogr@test.sdal', photo: 'https://randomuser.me/api/portraits/men/55.jpg' },
-  ];
-
+  // Insert teachers
   const teacherIds = [];
-  for (const t of teachers) {
-    const existing = db.prepare('SELECT id FROM uyeler WHERE kadi = ?').get(t.kadi);
-    if (existing) {
-      console.log(`  ↩  Teacher '${t.kadi}' already exists (id=${existing.id})`);
-      teacherIds.push(existing.id);
+  for (const t of TEACHERS) {
+    const ex = db.prepare('SELECT id FROM uyeler WHERE kadi = ?').get(t.kadi);
+    if (ex) {
+      console.log(`  ↩  Teacher '${t.kadi}' exists (id=${ex.id})`);
+      teacherIds.push(ex.id);
       continue;
     }
     if (!isDryRun) {
-      const res = db.prepare(
+      const r = db.prepare(
         `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, '9999', 1, 'teacher', 0, 1, 'approved')`
-      ).run(t.kadi, hashedPassword, t.email, t.isim, t.soyisim, SEED_TAG, now, t.photo);
-      teacherIds.push(Number(res.lastInsertRowid));
-      console.log(`  ✓ Teacher '${t.kadi}' inserted (id=${res.lastInsertRowid})`);
+         VALUES (?, ?, ?, ?, ?, 'seed', 1, ?, ?, '9999', 1, 'teacher', 0, 1, 'approved')`
+      ).run(t.kadi, pw, t.email, t.isim, t.soyisim, now, t.photo);
+      teacherIds.push(Number(r.lastInsertRowid));
+      console.log(`  ✓ Teacher '${t.kadi}' (id=${r.lastInsertRowid})`);
     } else {
-      console.log(`  [dry] Would insert teacher '${t.kadi}'`);
+      console.log(`  [dry] teacher '${t.kadi}'`);
       teacherIds.push(-1);
     }
   }
 
-  // 3. Insert 50 members
+  // Insert members
   const memberIds = [];
+  const cohortYears = ['2015','2016','2017','2018','2019','2020','2021','2022','2023','2024'];
   for (let i = 0; i < 50; i++) {
-    const u = randomUsers[i];
+    const n = MEMBER_NAMES[i];
     const kadi = `${MEMBER_HANDLE_PREFIX}${String(i).padStart(2, '0')}`;
-    const isim = u.name.first;
-    const soyisim = u.name.last;
-    const photo = u.picture?.large || `https://i.pravatar.cc/150?img=${i + 10}`;
-    const email = `${kadi}@test.sdal`;
-    // Assign a graduation year spread across realistic cohorts for member profile
-    const memberCohortYears = ['2015','2016','2017','2018','2019','2020','2021','2022','2023','2024'];
-    const mezuniyetyili = memberCohortYears[i % memberCohortYears.length];
-
-    const existing = db.prepare('SELECT id FROM uyeler WHERE kadi = ?').get(kadi);
-    if (existing) {
-      memberIds.push(existing.id);
-      continue;
-    }
+    const ex = db.prepare('SELECT id FROM uyeler WHERE kadi = ?').get(kadi);
+    if (ex) { memberIds.push(ex.id); continue; }
     if (!isDryRun) {
-      const res = db.prepare(
+      const r = db.prepare(
         `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, role, admin, verified, verification_status)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 1, 'user', 0, 1, 'approved')`
-      ).run(kadi, hashedPassword, email, isim, soyisim, SEED_TAG, now, photo, mezuniyetyili);
-      memberIds.push(Number(res.lastInsertRowid));
+         VALUES (?, ?, ?, ?, ?, 'seed', 1, ?, ?, ?, 1, 'user', 0, 1, 'approved')`
+      ).run(kadi, pw, `${kadi}@test.sdal`, n.isim, n.soyisim, now, photoUrl(n.gender, i), cohortYears[i % cohortYears.length]);
+      memberIds.push(Number(r.lastInsertRowid));
     } else {
       memberIds.push(-1);
     }
   }
-  if (!isDryRun) {
-    console.log(`  ✓ ${memberIds.length} members inserted/resolved`);
-  } else {
-    console.log(`  [dry] Would insert 50 members`);
-  }
+  if (!isDryRun) console.log(`  ✓ ${memberIds.length} members`);
 
-  // 4. Create teacher_alumni_links
-  function createLinks(teacherIdIndex, cohortPlan) {
-    const teacherId = teacherIds[teacherIdIndex];
-    let totalInserted = 0;
-    for (const cohort of cohortPlan) {
-      const [start, end] = cohort.memberRange;
-      const relationshipTypes = ['taught_in_class', 'club_advisor', 'mentored', 'taught_in_class'];
-      for (let idx = start; idx <= end; idx++) {
-        const memberId = memberIds[idx];
-        const relType = relationshipTypes[idx % relationshipTypes.length];
-        const existing = db.prepare(
-          'SELECT id FROM teacher_alumni_links WHERE teacher_user_id = ? AND alumni_user_id = ? AND relationship_type = ?'
-        ).get(teacherId, memberId, relType);
-        if (existing) continue;
+  // Insert links
+  const relTypes = ['taught_in_class', 'club_advisor', 'mentored', 'taught_in_class'];
+  function insertLinks(tIdxInTeachers, plan) {
+    const tid = teacherIds[tIdxInTeachers];
+    let n = 0;
+    for (const cohort of plan) {
+      const [s, e] = cohort.memberRange;
+      for (let i = s; i <= e; i++) {
+        const mid = memberIds[i];
+        const rel = relTypes[i % relTypes.length];
+        const ex = db.prepare(
+          'SELECT id FROM teacher_alumni_links WHERE teacher_user_id=? AND alumni_user_id=? AND relationship_type=?'
+        ).get(tid, mid, rel);
+        if (ex) continue;
         if (!isDryRun) {
           db.prepare(
             `INSERT INTO teacher_alumni_links
-               (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, confidence_score, created_via, source_surface, review_status, created_by, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          ).run(
-            teacherId, memberId, relType,
-            cohort.class_year,
-            '',
-            0.9,
-            'manual_entry',
-            'test_seed',
-            'pending',
-            memberId,
-            now
-          );
+               (teacher_user_id,alumni_user_id,relationship_type,class_year,notes,confidence_score,
+                created_via,source_surface,review_status,created_by,created_at)
+             VALUES (?,?,?,?,?,0.9,'manual_entry','test_seed','pending',?,?)`
+          ).run(tid, mid, rel, cohort.class_year, '', mid, now);
         }
-        totalInserted++;
+        n++;
       }
     }
-    return totalInserted;
+    return n;
   }
 
+  const l1 = insertLinks(0, COHORT_PLAN.teacher1);
+  const l2 = insertLinks(1, COHORT_PLAN.teacher2);
+
   if (!isDryRun) {
-    const t1Links = createLinks(0, COHORT_PLAN.teacher1);
-    const t2Links = createLinks(1, COHORT_PLAN.teacher2);
-    console.log(`  ✓ Teacher 1 (${teachers[0].kadi}): ${t1Links} links created`);
-    console.log(`  ✓ Teacher 2 (${teachers[1].kadi}): ${t2Links} links created`);
+    console.log(`  ✓ ${TEACHERS[0].kadi}: ${l1} links`);
+    console.log(`  ✓ ${TEACHERS[1].kadi}: ${l2} links`);
   } else {
-    let t1c = 0, t2c = 0;
-    for (const c of COHORT_PLAN.teacher1) t1c += c.memberRange[1] - c.memberRange[0] + 1;
-    for (const c of COHORT_PLAN.teacher2) t2c += c.memberRange[1] - c.memberRange[0] + 1;
-    console.log(`  [dry] Would create ${t1c} links for teacher1, ${t2c} links for teacher2`);
+    console.log(`  [dry] teacher1: ${l1} links, teacher2: ${l2} links`);
   }
 
-  // 5. Summary
-  console.log('\n✅ Done!');
   if (!isDryRun) {
-    console.log('\n📋 Test accounts (password for all: Test1234!)');
-    console.log('─────────────────────────────────────────────────────');
-    console.log(`  Teacher 1 — username: ${teachers[0].kadi}  id: ${teacherIds[0]}  (20 links, 4 cohorts)`);
-    console.log(`  Teacher 2 — username: ${teachers[1].kadi}  id: ${teacherIds[1]}  (50 links, 8 cohorts)`);
-    console.log(`  Members   — username: ${MEMBER_HANDLE_PREFIX}00 … ${MEMBER_HANDLE_PREFIX}49`);
-    console.log('─────────────────────────────────────────────────────');
-    console.log(`\nPostman/App test URL:`);
-    console.log(`  GET /api/new/teachers/${teacherIds[0]}/map`);
-    console.log(`  GET /api/new/teachers/${teacherIds[1]}/map`);
-    console.log(`\nCleanup: node server/scripts/seed-teacher-network-test.mjs --cleanup`);
+    console.log('\n📋 Accounts — password: Test1234!');
+    console.log(`  Teacher 1 — ${TEACHERS[0].kadi}  id:${teacherIds[0]}  (20 links / 4 cohorts)`);
+    console.log(`  Teacher 2 — ${TEACHERS[1].kadi}  id:${teacherIds[1]}  (50 links / 8 cohorts)`);
+    console.log(`  Members   — test_uye_00 … test_uye_49`);
 
-    // Write a small JSON summary for Postman collection generation
-    const summary = { teachers: teachers.map((t, i) => ({ ...t, id: teacherIds[i] })), memberCount: 50, password: TEST_PASSWORD };
-    fs.writeFileSync(path.resolve(__dirname, 'seed-teacher-network-test.json'), JSON.stringify(summary, null, 2));
-    console.log('\n  📄 seed-teacher-network-test.json written (used by Postman collection generator)');
+    fs.writeFileSync(
+      path.resolve(__dirname, 'seed-teacher-network-test.json'),
+      JSON.stringify({ teachers: TEACHERS.map((t, i) => ({ ...t, id: teacherIds[i] })), memberCount: 50, password: TEST_PASSWORD }, null, 2)
+    );
   }
+  console.log('\n✅ Done');
 }
 
-main().catch((err) => {
-  console.error('❌ Seed failed:', err);
-  process.exit(1);
-});
+main().catch(e => { console.error('❌', e.message); process.exit(1); });
