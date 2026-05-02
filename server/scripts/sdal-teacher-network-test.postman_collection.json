@@ -1,0 +1,416 @@
+{
+  "info": {
+    "name": "SDAL – Teacher Network Map Tests",
+    "_postman_id": "sdal-teacher-network-map-2026",
+    "description": "Test collection for the teacher network star map API.\n\n## Setup\n1. Set `baseUrl` variable (default: http://localhost:8787)\n2. Run **Login as Teacher 1** or **Login as Member** first to get a session cookie.\n3. Run the map endpoints.\n\n## Seed data\nRun `node server/scripts/seed-teacher-network-test.mjs` to insert test data.\nRun `node server/scripts/seed-teacher-network-test.mjs --cleanup` to remove it.\n\n**All test accounts use password: `Test1234!`**",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",    "value": "http://localhost:8787", "type": "string" },
+    { "key": "teacher1Id", "value": "3",  "type": "string", "description": "Ayşe Yıldız – 20 links / 4 cohorts" },
+    { "key": "teacher2Id", "value": "4",  "type": "string", "description": "Mehmet Demir – 50 links / 8 cohorts" },
+    { "key": "password",   "value": "Test1234!", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Login as Teacher 1 (Ayşe Yıldız)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login successful', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('user');",
+                  "  pm.expect(body.user.kadi).to.equal('ayseyildiz_ogr');",
+                  "  pm.collectionVariables.set('loggedInAs', 'teacher1 (ayseyildiz_ogr)');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kadi\": \"ayseyildiz_ogr\",\n  \"sifre\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login as Teacher 2 (Mehmet Demir)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login successful', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('user');",
+                  "  pm.expect(body.user.kadi).to.equal('mehmetdemir_ogr');",
+                  "  pm.collectionVariables.set('loggedInAs', 'teacher2 (mehmetdemir_ogr)');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kadi\": \"mehmetdemir_ogr\",\n  \"sifre\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login as Member (test_uye_00)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login successful', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('user');",
+                  "  pm.expect(body.user.kadi).to.equal('test_uye_00');",
+                  "  pm.collectionVariables.set('loggedInAs', 'member (test_uye_00)');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kadi\": \"test_uye_00\",\n  \"sifre\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🗺️ Teacher Network Map",
+      "item": [
+        {
+          "name": "GET Map – Teacher 1 (20 links, 4 cohorts)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test('Response envelope ok', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.ok).to.be.true;",
+                  "  pm.expect(body.code).to.equal('TEACHER_MAP_OK');",
+                  "});",
+                  "",
+                  "pm.test('Teacher info present', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data).to.have.property('teacher');",
+                  "  pm.expect(data.teacher.kadi).to.equal('ayseyildiz_ogr');",
+                  "});",
+                  "",
+                  "pm.test('total_links = 20', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.total_links).to.equal(20);",
+                  "});",
+                  "",
+                  "pm.test('4 cohorts', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.cohorts.length).to.equal(4);",
+                  "});",
+                  "",
+                  "pm.test('Each cohort has members with id, name, photo', () => {",
+                  "  const cohorts = pm.response.json().data.cohorts;",
+                  "  cohorts.forEach(c => {",
+                  "    pm.expect(c.members.length).to.be.above(0);",
+                  "    c.members.forEach(m => {",
+                  "      pm.expect(m).to.have.property('id');",
+                  "      pm.expect(m).to.have.property('isim');",
+                  "      pm.expect(m).to.have.property('resim');",
+                  "    });",
+                  "  });",
+                  "});",
+                  "",
+                  "// Log cohort summary",
+                  "const cohorts = pm.response.json().data.cohorts;",
+                  "console.log('Cohorts:', cohorts.map(c => `${c.label}(${c.members.length})`).join(', '));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/new/teachers/{{teacher1Id}}/map",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "new", "teachers", "{{teacher1Id}}", "map"]
+            }
+          }
+        },
+        {
+          "name": "GET Map – Teacher 2 (50 links, 8 cohorts)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test('Response envelope ok', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.ok).to.be.true;",
+                  "  pm.expect(body.code).to.equal('TEACHER_MAP_OK');",
+                  "});",
+                  "",
+                  "pm.test('Teacher info present', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.teacher.kadi).to.equal('mehmetdemir_ogr');",
+                  "});",
+                  "",
+                  "pm.test('total_links = 50', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.total_links).to.equal(50);",
+                  "});",
+                  "",
+                  "pm.test('8 cohorts', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.cohorts.length).to.equal(8);",
+                  "});",
+                  "",
+                  "pm.test('Belirtilmemiş cohort exists (null class_year)', () => {",
+                  "  const cohorts = pm.response.json().data.cohorts;",
+                  "  const noYear = cohorts.find(c => c.type === 'no_year');",
+                  "  pm.expect(noYear).to.exist;",
+                  "  pm.expect(noYear.members.length).to.equal(2);",
+                  "});",
+                  "",
+                  "pm.test('Largest cohort is 2024 with 10 members', () => {",
+                  "  const cohorts = pm.response.json().data.cohorts;",
+                  "  const c2024 = cohorts.find(c => c.label === '2024');",
+                  "  pm.expect(c2024).to.exist;",
+                  "  pm.expect(c2024.members.length).to.equal(10);",
+                  "});",
+                  "",
+                  "pm.test('All members have profile photo', () => {",
+                  "  const cohorts = pm.response.json().data.cohorts;",
+                  "  let missing = 0;",
+                  "  cohorts.forEach(c => c.members.forEach(m => { if (!m.resim) missing++; }));",
+                  "  pm.expect(missing).to.equal(0, `${missing} members missing photo`);",
+                  "});",
+                  "",
+                  "const cohorts = pm.response.json().data.cohorts;",
+                  "console.log('Cohorts:', cohorts.map(c => `${c.label}(${c.members.length})`).join(', '));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/new/teachers/{{teacher2Id}}/map",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "new", "teachers", "{{teacher2Id}}", "map"]
+            }
+          }
+        },
+        {
+          "name": "GET Map – 404 (non-existent teacher)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('TEACHER_NOT_FOUND code', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.ok).to.be.false;",
+                  "  pm.expect(body.code).to.equal('TEACHER_NOT_FOUND');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/new/teachers/999999/map",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "new", "teachers", "999999", "map"]
+            }
+          }
+        },
+        {
+          "name": "GET Map – 401 (no auth)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This request intentionally sends no cookie.",
+                  "// Clear any existing session by unsetting the cookie jar for this call.",
+                  "pm.request.headers.remove('Cookie');"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unauthenticated request rejected (401 or 403)', () => {",
+                  "  pm.expect([401, 403]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Cookie", "value": "", "disabled": true }],
+            "url": {
+              "raw": "{{baseUrl}}/api/new/teachers/{{teacher1Id}}/map",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "new", "teachers", "{{teacher1Id}}", "map"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Teacher Options (link creation flow)",
+      "item": [
+        {
+          "name": "GET Teachers options list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Teachers array present', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.ok).to.be.true;",
+                  "  pm.expect(body.data).to.have.property('teachers');",
+                  "  pm.expect(body.data.teachers).to.be.an('array');",
+                  "});",
+                  "pm.test('Seeded teachers appear in list', () => {",
+                  "  const teachers = pm.response.json().data.teachers;",
+                  "  const handles = teachers.map(t => t.kadi);",
+                  "  pm.expect(handles).to.include('ayseyildiz_ogr');",
+                  "  pm.expect(handles).to.include('mehmetdemir_ogr');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/new/teachers/options",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "new", "teachers", "options"]
+            }
+          }
+        },
+        {
+          "name": "POST Add link to Teacher 1 (as test_uye_00)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Expect success or 'already exists' if run multiple times",
+                  "pm.test('Link created or already exists', () => {",
+                  "  const status = pm.response.code;",
+                  "  const code = pm.response.json().code;",
+                  "  const ok = status === 200 || code === 'RELATIONSHIP_ALREADY_EXISTS' || code === 'SIMILAR_RELATIONSHIP_EXISTS';",
+                  "  pm.expect(ok).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"relationship_type\": \"taught_in_class\",\n  \"class_year\": 2024,\n  \"notes\": \"Postman test link\",\n  \"created_via\": \"manual_entry\",\n  \"source_surface\": \"teacher_profile\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/new/teachers/network/link/{{teacher1Id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "new", "teachers", "network", "link", "{{teacher1Id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👁️ Network Discovery",
+      "item": [
+        {
+          "name": "GET Teacher Network (current user's teachers)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response ok', () => pm.expect(pm.response.json().ok).to.be.true);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/new/teachers/network",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "new", "teachers", "network"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
