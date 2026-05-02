@@ -26,6 +26,7 @@ import '../../features/groups/presentation/groups_page.dart';
 import '../../features/messenger/presentation/inbox_page.dart';
 import '../../features/messenger/presentation/thread_detail_page.dart';
 import '../../features/networking/presentation/networking_pages.dart';
+import '../../features/networking/presentation/teacher_network_map_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/legal/presentation/legal_content_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
@@ -340,6 +341,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/network/teachers',
                 pageBuilder: (context, state) =>
                     _slidePage(const TeacherLinksPage()),
+              ),
+              GoRoute(
+                path: '/network/teachers/:teacherId/map',
+                pageBuilder: (context, state) => _liftPage(
+                  TeacherNetworkMapPage(
+                    teacherId:
+                        int.tryParse(
+                          state.pathParameters['teacherId'] ?? '',
+                        ) ??
+                        0,
+                  ),
+                ),
               ),
               GoRoute(
                 path: '/jobs',

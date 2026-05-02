@@ -345,6 +345,62 @@ export function registerTeacherNetworkRoutes(app, {
     }
   });
 
+  app.get('/api/new/teachers/:teacherId/map', requireAuth, async (req, res) => {
+    try {
+      ensureTeacherAlumniLinksTable();
+      const teacherId = Math.max(parseInt(req.params.teacherId || '0', 10), 0);
+      if (!teacherId) return sendApiError(res, 400, 'INVALID_TEACHER_ID', 'Geçersiz öğretmen kimliği.');
+
+      const teacher = await sqlGetAsync(
+        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim,
+                COALESCE(CAST(u.verified AS INTEGER), 0) AS verified
+         FROM uyeler u
+         WHERE u.id = ?
+           AND COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
+           AND ${teacherTargetPredicate('u')}`,
+        [teacherId]
+      );
+      if (!teacher) return sendApiError(res, 404, 'TEACHER_NOT_FOUND', 'Öğretmen bulunamadı.');
+
+      const rows = await sqlAllAsync(
+        `SELECT l.alumni_user_id AS id, l.relationship_type, l.class_year,
+                u.kadi, u.isim, u.soyisim, u.resim
+         FROM teacher_alumni_links l
+         LEFT JOIN uyeler u ON u.id = l.alumni_user_id
+         WHERE l.teacher_user_id = ?
+           AND COALESCE(l.review_status, 'pending') NOT IN ('rejected', 'merged')
+           AND COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
+           AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
+         ORDER BY COALESCE(l.class_year, 0) DESC, l.id DESC`,
+        [teacherId]
+      );
+
+      const cohortMap = new Map();
+      for (const row of rows) {
+        const yearKey = row.class_year ? String(row.class_year) : '';
+        const label = yearKey || 'Belirtilmemiş';
+        if (!cohortMap.has(label)) {
+          cohortMap.set(label, { label, type: yearKey ? 'class_year' : 'no_year', members: [] });
+        }
+        cohortMap.get(label).members.push({
+          id: Number(row.id || 0),
+          kadi: String(row.kadi || ''),
+          isim: String(row.isim || ''),
+          soyisim: String(row.soyisim || ''),
+          resim: String(row.resim || ''),
+          relationship_type: String(row.relationship_type || '')
+        });
+      }
+
+      const cohorts = Array.from(cohortMap.values());
+      const payload = { teacher, cohorts, total_links: rows.length };
+      return res.json(apiSuccessEnvelope('TEACHER_MAP_OK', 'Öğretmen ağ haritası hazır.', payload, payload));
+    } catch (err) {
+      console.error('teachers.map failed:', err);
+      return sendApiError(res, 500, 'TEACHER_MAP_FAILED', 'Beklenmeyen bir hata oluştu.');
+    }
+  });
+
   app.post('/api/new/follow/:id', requireAuth, async (req, res) => {
     try {
       const targetId = req.params.id;

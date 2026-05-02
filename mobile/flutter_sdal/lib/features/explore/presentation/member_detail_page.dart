@@ -326,6 +326,18 @@ class MemberDetailPage extends ConsumerWidget {
                                     : 'Hızlı erişime ekle',
                               ),
                             ),
+                            if (_isTeacherGraduationYear(
+                              detail.graduationYear,
+                            )) ...[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () => context.push(
+                                  '/network/teachers/$memberId/map',
+                                ),
+                                icon: const Icon(Icons.hub_outlined),
+                                label: const Text('Ağ haritasını gör'),
+                              ),
+                            ],
                           ],
                         ],
                       ),

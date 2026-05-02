@@ -984,13 +984,26 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
                                       '${item.studentCount} öğrenci bağlantısı',
                                   ].join(' · '),
                                 ),
-                                trailing: FilledButton.tonal(
-                                  onPressed: () => _openTeacherLinkDialog(
-                                    context,
-                                    ref,
-                                    item,
-                                  ),
-                                  child: const Text('Ekle'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (item.id > 0)
+                                      IconButton(
+                                        tooltip: 'Ağ haritasını gör',
+                                        icon: const Icon(Icons.hub_outlined),
+                                        onPressed: () => context.push(
+                                          '/network/teachers/${item.id}/map',
+                                        ),
+                                      ),
+                                    FilledButton.tonal(
+                                      onPressed: () => _openTeacherLinkDialog(
+                                        context,
+                                        ref,
+                                        item,
+                                      ),
+                                      child: const Text('Ekle'),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )
@@ -1094,6 +1107,14 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
                                     ],
                                   ),
                                 ),
+                                if (item.member.id > 0)
+                                  IconButton(
+                                    tooltip: 'Ağ haritasını gör',
+                                    icon: const Icon(Icons.hub_outlined),
+                                    onPressed: () => context.push(
+                                      '/network/teachers/${item.member.id}/map',
+                                    ),
+                                  ),
                               ],
                             ),
                           ),

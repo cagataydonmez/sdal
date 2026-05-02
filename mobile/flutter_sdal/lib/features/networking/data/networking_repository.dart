@@ -316,6 +316,87 @@ class TeacherLinkRecord {
   }
 }
 
+class TeacherNetworkCohortMember {
+  const TeacherNetworkCohortMember({
+    required this.id,
+    required this.name,
+    required this.handle,
+    required this.photo,
+    required this.relationshipType,
+  });
+
+  final int id;
+  final String name;
+  final String handle;
+  final String photo;
+  final String relationshipType;
+
+  factory TeacherNetworkCohortMember.fromMap(JsonMap map) {
+    return TeacherNetworkCohortMember(
+      id: asInt(map['id']) ?? 0,
+      name: coalesceText([map['isim'], map['soyisim'], map['kadi']], fallback: 'Üye'),
+      handle: coalesceText([map['kadi']], fallback: ''),
+      photo: coalesceText([map['resim']], fallback: ''),
+      relationshipType: coalesceText([map['relationship_type']], fallback: ''),
+    );
+  }
+}
+
+class TeacherNetworkCohort {
+  const TeacherNetworkCohort({
+    required this.label,
+    required this.type,
+    required this.members,
+  });
+
+  final String label;
+  final String type;
+  final List<TeacherNetworkCohortMember> members;
+
+  factory TeacherNetworkCohort.fromMap(JsonMap map) {
+    final rawMembers = asJsonMapList(map['members']);
+    return TeacherNetworkCohort(
+      label: coalesceText([map['label']], fallback: 'Kohort'),
+      type: coalesceText([map['type']], fallback: 'class_year'),
+      members: rawMembers.map(TeacherNetworkCohortMember.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class TeacherNetworkMapData {
+  const TeacherNetworkMapData({
+    required this.teacherId,
+    required this.teacherName,
+    required this.teacherHandle,
+    required this.teacherPhoto,
+    required this.teacherVerified,
+    required this.cohorts,
+    required this.totalLinks,
+  });
+
+  final int teacherId;
+  final String teacherName;
+  final String teacherHandle;
+  final String teacherPhoto;
+  final bool teacherVerified;
+  final List<TeacherNetworkCohort> cohorts;
+  final int totalLinks;
+
+  factory TeacherNetworkMapData.fromMap(JsonMap map) {
+    final teacher = asJsonMap(map['teacher']);
+    final rawCohorts = asJsonMapList(map['cohorts']);
+    return TeacherNetworkMapData(
+      teacherId: asInt(teacher['id']) ?? 0,
+      teacherName: coalesceText([teacher['isim'], teacher['soyisim'], teacher['kadi']], fallback: 'Öğretmen'),
+      teacherHandle: coalesceText([teacher['kadi']], fallback: ''),
+      teacherPhoto: coalesceText([teacher['resim']], fallback: ''),
+      teacherVerified: asBool(teacher['verified']) ?? false,
+      cohorts: rawCohorts.map(TeacherNetworkCohort.fromMap).toList(growable: false),
+      totalLinks: asInt(map['total_links']) ?? 0,
+    );
+  }
+}
+
 class NetworkDiscoverySuggestion {
   const NetworkDiscoverySuggestion({
     required this.id,
@@ -532,6 +613,14 @@ class NetworkingRepository {
     return items.map(TeacherLinkRecord.fromMap).toList(growable: false);
   }
 
+  Future<TeacherNetworkMapData> fetchTeacherNetworkMap(int teacherId) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/teachers/$teacherId/map',
+      decoder: asJsonMap,
+    );
+    return TeacherNetworkMapData.fromMap(asJsonMap(result.rawData));
+  }
+
   Future<List<TeacherOption>> searchTeacherOptions(
     String term, {
     int? includeId,
@@ -684,3 +773,9 @@ final teacherOptionsProvider =
     FutureProvider.family<List<TeacherOption>, String>((ref, term) {
       return ref.watch(networkingRepositoryProvider).searchTeacherOptions(term);
     });
+
+final teacherNetworkMapProvider =
+    FutureProvider.autoDispose.family<TeacherNetworkMapData, int>(
+      (ref, teacherId) =>
+          ref.watch(networkingRepositoryProvider).fetchTeacherNetworkMap(teacherId),
+    );
