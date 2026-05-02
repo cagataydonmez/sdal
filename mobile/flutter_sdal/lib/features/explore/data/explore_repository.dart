@@ -16,6 +16,11 @@ class MemberSummary {
     required this.role,
     required this.following,
     required this.graduationYear,
+    required this.teacherSubject,
+    required this.teacherSubjectOther,
+    this.teacherStartedYear,
+    this.teacherEndedYear,
+    required this.teacherCurrentlyWorking,
     required this.joinedAt,
   });
 
@@ -29,6 +34,11 @@ class MemberSummary {
   final String role;
   final bool following;
   final String graduationYear;
+  final String teacherSubject;
+  final String teacherSubjectOther;
+  final int? teacherStartedYear;
+  final int? teacherEndedYear;
+  final bool teacherCurrentlyWorking;
   final DateTime? joinedAt;
 
   factory MemberSummary.fromMap(JsonMap map) {
@@ -50,6 +60,14 @@ class MemberSummary {
       role: coalesceText([map['role']], fallback: 'user'),
       following: asBool(map['following']) ?? false,
       graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
+      teacherSubject: coalesceText([map['teacher_subject']], fallback: ''),
+      teacherSubjectOther: coalesceText([
+        map['teacher_subject_other'],
+      ], fallback: ''),
+      teacherStartedYear: asInt(map['teacher_started_year']),
+      teacherEndedYear: asInt(map['teacher_ended_year']),
+      teacherCurrentlyWorking:
+          asBool(map['teacher_currently_working']) ?? false,
       joinedAt: asDateTime(map['ilktarih'] ?? map['joinedAt']),
     );
   }
@@ -65,6 +83,11 @@ class MemberDetail {
     required this.expertise,
     required this.linkedinUrl,
     required this.graduationYear,
+    required this.teacherSubject,
+    required this.teacherSubjectOther,
+    this.teacherStartedYear,
+    this.teacherEndedYear,
+    required this.teacherCurrentlyWorking,
   });
 
   final MemberSummary summary;
@@ -75,6 +98,11 @@ class MemberDetail {
   final String expertise;
   final String linkedinUrl;
   final String graduationYear;
+  final String teacherSubject;
+  final String teacherSubjectOther;
+  final int? teacherStartedYear;
+  final int? teacherEndedYear;
+  final bool teacherCurrentlyWorking;
 
   factory MemberDetail.fromMap(JsonMap map) {
     return MemberDetail(
@@ -89,6 +117,14 @@ class MemberDetail {
       ], fallback: ''),
       linkedinUrl: coalesceText([map['linkedin_url']], fallback: ''),
       graduationYear: coalesceText([map['mezuniyetyili']], fallback: ''),
+      teacherSubject: coalesceText([map['teacher_subject']], fallback: ''),
+      teacherSubjectOther: coalesceText([
+        map['teacher_subject_other'],
+      ], fallback: ''),
+      teacherStartedYear: asInt(map['teacher_started_year']),
+      teacherEndedYear: asInt(map['teacher_ended_year']),
+      teacherCurrentlyWorking:
+          asBool(map['teacher_currently_working']) ?? false,
     );
   }
 }

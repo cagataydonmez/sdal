@@ -58,7 +58,7 @@ class FeedQuery {
 }
 
 @freezed
-class FeedAuthor with _$FeedAuthor {
+abstract class FeedAuthor with _$FeedAuthor {
   const factory FeedAuthor({
     @JsonKey(fromJson: readOptionalInt) int? id,
     @JsonKey(fromJson: readRequiredText) required String isim,
@@ -84,7 +84,7 @@ class FeedAuthor with _$FeedAuthor {
 }
 
 @freezed
-class FeedVariants with _$FeedVariants {
+abstract class FeedVariants with _$FeedVariants {
   const factory FeedVariants({
     @JsonKey(fromJson: readRequiredText) required String feedUrl,
   }) = _FeedVariants;
@@ -94,7 +94,7 @@ class FeedVariants with _$FeedVariants {
 }
 
 @freezed
-class FeedItem with _$FeedItem {
+abstract class FeedItem with _$FeedItem {
   const FeedItem._();
 
   const factory FeedItem({
@@ -134,7 +134,7 @@ class FeedItem with _$FeedItem {
 }
 
 @freezed
-class FeedComment with _$FeedComment {
+abstract class FeedComment with _$FeedComment {
   const FeedComment._();
 
   const factory FeedComment({

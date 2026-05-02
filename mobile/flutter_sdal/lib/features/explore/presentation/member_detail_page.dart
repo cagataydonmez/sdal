@@ -175,6 +175,24 @@ class MemberDetailPage extends ConsumerWidget {
                             ),
                           if (detail.graduationYear.isNotEmpty)
                             const SizedBox(height: 10),
+                          if (_teacherBranchLabel(detail).isNotEmpty) ...[
+                            _HighlightChip(
+                              icon: Icons.badge_outlined,
+                              label: _teacherBranchLabel(detail),
+                              color: tokens.info,
+                              bgColor: tokens.infoMuted,
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                          if (_teacherTenureLabel(detail).isNotEmpty) ...[
+                            _HighlightChip(
+                              icon: Icons.history_edu_outlined,
+                              label: _teacherTenureLabel(detail),
+                              color: tokens.foreground,
+                              bgColor: tokens.panelMuted,
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           // Job title + company on one line
                           if (detail.title.isNotEmpty ||
                               detail.company.isNotEmpty) ...[
@@ -416,6 +434,32 @@ String _formatGraduationYear(
   return Localizations.localeOf(context).languageCode == 'tr'
       ? '$value mezunu'
       : '$value graduate';
+}
+
+String _teacherBranchLabel(MemberDetail detail) {
+  if (!_isTeacherGraduationYear(detail.graduationYear)) return '';
+  if (detail.teacherSubject == 'Diğer') {
+    return detail.teacherSubjectOther.trim();
+  }
+  return detail.teacherSubject.trim();
+}
+
+String _teacherTenureLabel(MemberDetail detail) {
+  if (!_isTeacherGraduationYear(detail.graduationYear)) return '';
+  final start = detail.teacherStartedYear;
+  if (start == null || start <= 0) return '';
+  if (detail.teacherCurrentlyWorking) return '$start - halen';
+  final end = detail.teacherEndedYear;
+  if (end == null || end <= 0) return '$start';
+  return '$start - $end';
+}
+
+bool _isTeacherGraduationYear(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen';
 }
 
 class _HighlightChip extends StatelessWidget {

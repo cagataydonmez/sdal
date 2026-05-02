@@ -9,6 +9,11 @@ const RegisterPreviewSchema = z.object({
   isim: z.string().min(1, 'İsmini girmedin.').max(20, 'İsim 20 karakterden fazla olmamalıdır.'),
   soyisim: z.string().min(1, 'Soyismini girmedin.').max(20, 'Soyisim 20 karakterden fazla olmamalıdır.'),
   mezuniyetyili: z.string().optional().default('0'),
+  teacher_subject: z.string().max(80).optional().default(''),
+  teacher_subject_other: z.string().max(80).optional().default(''),
+  teacher_started_year: z.any().optional(),
+  teacher_ended_year: z.any().optional(),
+  teacher_currently_working: z.any().optional(),
   gkodu: z.string().optional().default(''),
   kvkk_consent: z.any().optional(),
   directory_consent: z.any().optional(),
@@ -62,6 +67,75 @@ export function registerAccountRoutes(app, deps) {
     authSecurity
   } = deps;
   const validateMail = validateEmail;
+
+  const TEACHER_SUBJECT_OPTIONS = new Set([
+    'Beden Eğitimi',
+    'Bilişim Teknolojileri',
+    'Biyoloji',
+    'Coğrafya',
+    'Din Kültürü ve Ahlak Bilgisi',
+    'Felsefe',
+    'Fen Bilimleri',
+    'Fizik',
+    'Görsel Sanatlar',
+    'İngilizce',
+    'Kimya',
+    'Matematik',
+    'Müzik',
+    'Rehberlik',
+    'Sosyal Bilgiler',
+    'Tarih',
+    'Teknoloji ve Tasarım',
+    'Türk Dili ve Edebiyatı',
+    'Türkçe',
+    'Almanca',
+    'Fransızca',
+    'İspanyolca',
+    'Diğer'
+  ]);
+
+  function parseTeacherYear(value) {
+    const year = parseInt(String(value || '').trim(), 10);
+    return Number.isFinite(year) ? year : null;
+  }
+
+  function normalizeTeacherProfileInput(body, cohortValue) {
+    if (normalizeCohortValue(cohortValue) !== '9999') {
+      return {
+        subject: '',
+        subjectOther: '',
+        startedYear: null,
+        endedYear: null,
+        currentlyWorking: false
+      };
+    }
+    const subject = String(body?.teacher_subject || '').trim();
+    const subjectOther = String(body?.teacher_subject_other || '').trim().slice(0, 80);
+    const startedYear = parseTeacherYear(body?.teacher_started_year);
+    const endedYear = parseTeacherYear(body?.teacher_ended_year);
+    const currentlyWorking = ['1', 'true', 'evet', 'yes'].includes(String(body?.teacher_currently_working || '').trim().toLowerCase())
+      || body?.teacher_currently_working === true;
+    const currentYear = new Date().getFullYear();
+    if (!TEACHER_SUBJECT_OPTIONS.has(subject)) {
+      return { error: 'Branş seçmeniz gerekiyor.' };
+    }
+    if (subject === 'Diğer' && !subjectOther) {
+      return { error: 'Diğer branş için açıklama girmeniz gerekiyor.' };
+    }
+    if (!startedYear || startedYear < 1993 || startedYear > currentYear + 1) {
+      return { error: 'SDAL başlangıç yılı 1993 ile gelecek yıl arasında olmalıdır.' };
+    }
+    if (!currentlyWorking && (!endedYear || endedYear < startedYear || endedYear > currentYear + 1)) {
+      return { error: 'SDAL bitiş yılı başlangıç yılından önce olamaz ve geçerli olmalıdır.' };
+    }
+    return {
+      subject,
+      subjectOther: subject === 'Diğer' ? subjectOther : '',
+      startedYear,
+      endedYear: currentlyWorking ? null : endedYear,
+      currentlyWorking
+    };
+  }
 
   app.post('/api/register/preview', async (req, res) => {
     try {
@@ -125,6 +199,8 @@ export function registerAccountRoutes(app, deps) {
       if (String(cleanIsim).length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
       if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
       if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
+      const teacherProfile = normalizeTeacherProfileInput(req.body, cohortValue);
+      if (teacherProfile.error) return res.status(400).send(teacherProfile.error);
 
       const existingUser = await sqlGetAsync('SELECT id, kadi, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
       if (existingUser) {
@@ -157,7 +233,18 @@ export function registerAccountRoutes(app, deps) {
 
       res.json({
         ok: true,
-        fields: { kadi: cleanKadi, email: cleanEmail, mezuniyetyili: cohortValue, isim: cleanIsim, soyisim: cleanSoyisim }
+        fields: {
+          kadi: cleanKadi,
+          email: cleanEmail,
+          mezuniyetyili: cohortValue,
+          isim: cleanIsim,
+          soyisim: cleanSoyisim,
+          teacher_subject: teacherProfile.subject,
+          teacher_subject_other: teacherProfile.subjectOther,
+          teacher_started_year: teacherProfile.startedYear,
+          teacher_ended_year: teacherProfile.endedYear,
+          teacher_currently_working: teacherProfile.currentlyWorking
+        }
       });
     } catch (err) {
       writeAppLog('error', 'register_preview_failed', {
@@ -284,6 +371,8 @@ export function registerAccountRoutes(app, deps) {
       if (String(cleanIsim).length > 20) return res.status(400).send('İsim 20 karakterden fazla olmamalıdır.');
       if (!cleanSoyisim) return res.status(400).send('Soyismini girmedin.');
       if (String(cleanSoyisim).length > 20) return res.status(400).send('Soyisim 20 karakterden fazla olmamalıdır.');
+      const teacherProfile = normalizeTeacherProfileInput(req.body, cohortValue);
+      if (teacherProfile.error) return res.status(400).send(teacherProfile.error);
 
       traceE2E('before_duplicate_checks');
       const existingUser = await sqlGetAsync('SELECT id, kadi, email, aktiv FROM uyeler WHERE kadi = ?', [cleanKadi]);
@@ -334,8 +423,8 @@ export function registerAccountRoutes(app, deps) {
       const now = new Date().toISOString();
       traceE2E('before_insert');
       const result = await sqlRunAsync(
-        `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at, verified, role, admin)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'yok', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO uyeler (kadi, sifre, email, isim, soyisim, aktivasyon, aktiv, ilktarih, resim, mezuniyetyili, ilkbd, verification_status, kvkk_consent_at, directory_consent_at, verified, role, admin, teacher_subject, teacher_subject_other, teacher_started_year, teacher_ended_year, teacher_currently_working)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'yok', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           cleanKadi,
           (e2eMode ? hashE2EPassword(sifre) : await hashPassword(sifre)),
@@ -352,7 +441,12 @@ export function registerAccountRoutes(app, deps) {
           now,
           toDbBooleanParam(e2eIsVerified),
           e2eRole,
-          toDbBooleanParam(e2eIsAdmin)
+          toDbBooleanParam(e2eIsAdmin),
+          teacherProfile.subject,
+          teacherProfile.subjectOther,
+          teacherProfile.startedYear,
+          teacherProfile.endedYear,
+          toDbBooleanParam(teacherProfile.currentlyWorking)
         ]
       );
       const newId = result?.lastInsertRowid;

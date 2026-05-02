@@ -172,6 +172,15 @@ class AdminWorkspacePage extends ConsumerWidget {
                     onTap: () => context.go('/admin/requests'),
                   ),
                   _WorkspaceNavCard(
+                    title: 'Öğretmen ağı',
+                    summary:
+                        'Öğretmen bağlantılarını filtrele, onayla ve riskli kayıtları ayır.',
+                    countLabel: 'Ayrı yönetim ekranı',
+                    icon: Icons.school_outlined,
+                    tone: _WorkspaceTone.info,
+                    onTap: () => context.go('/admin/teacher-network'),
+                  ),
+                  _WorkspaceNavCard(
                     title: 'İçerik güvenliği',
                     summary:
                         'Post, yorum, hikâye, grup ve mesaj denetimini tek yerden aç.',
@@ -549,7 +558,7 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                         countLabel: '$teacherNetworkLinkTotal bekleyen kayıt',
                         icon: Icons.school_outlined,
                         tone: _WorkspaceTone.info,
-                        onTap: () => context.go('/admin/requests'),
+                        onTap: () => context.go('/admin/teacher-network'),
                       ),
                     if (contentTotal > 0)
                       _WorkspaceNavCard(
@@ -669,6 +678,262 @@ class ModeratorWorkspacePage extends ConsumerWidget {
                   onDelete: (type, id) =>
                       _deleteContent(context, ref, type: type, id: id),
                 ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class AdminTeacherNetworkManagementPage extends ConsumerStatefulWidget {
+  const AdminTeacherNetworkManagementPage({super.key});
+
+  @override
+  ConsumerState<AdminTeacherNetworkManagementPage> createState() =>
+      _AdminTeacherNetworkManagementPageState();
+}
+
+class _AdminTeacherNetworkManagementPageState
+    extends ConsumerState<AdminTeacherNetworkManagementPage> {
+  final _searchController = TextEditingController();
+  String _status = 'pending';
+  String _relationshipType = '';
+
+  AdminTeacherNetworkLinksQuery get _query => AdminTeacherNetworkLinksQuery(
+    status: _status,
+    relationshipType: _relationshipType,
+    query: _searchController.text.trim(),
+    limit: 100,
+  );
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(sessionControllerProvider).value;
+    final user = session?.user;
+    final accessState = ref.watch(adminAccessProvider);
+    final actionState = ref.watch(adminActionControllerProvider);
+
+    if (user == null || !user.hasAdminAccess) {
+      return _WorkspaceDeniedPage(
+        title: 'Öğretmen ağı',
+        message: 'Bu alan yalnızca admin hesapları için açık.',
+      );
+    }
+
+    return accessState.when(
+      loading: () => const FeatureScaffold(
+        title: 'Öğretmen ağı',
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => FeatureScaffold(
+        title: 'Öğretmen ağı',
+        child: Center(child: Text(error.toString())),
+      ),
+      data: (access) {
+        final permissions = access.permissions;
+        final canView = _hasAnyPermission(permissions, const [
+          'requests.view',
+          'requests.moderate',
+        ]);
+        final canModerate = _hasAnyPermission(permissions, const [
+          'requests.moderate',
+        ]);
+        final linksState = canView
+            ? ref.watch(adminTeacherNetworkLinksProvider(_query))
+            : const AsyncValue.data(
+                AdminPreviewList<AdminTeacherNetworkLinkItem>(
+                  total: 0,
+                  items: <AdminTeacherNetworkLinkItem>[],
+                ),
+              );
+
+        return FeatureScaffold(
+          title: 'Öğretmen ağı yönetimi',
+          actions: [
+            IconButton(
+              tooltip: 'Yenile',
+              onPressed: () {
+                ref.invalidate(adminTeacherNetworkLinksProvider);
+                ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
+              },
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+          background: FeatureScaffoldBackground.utility,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const _WorkspaceHeroCard(
+                eyebrow: 'Güven ve bağlantı moderasyonu',
+                title: 'Öğretmen bağlantılarını ayrı kuyrukta yönet',
+                description:
+                    'Mezunların eklediği öğretmen ilişkileri önce bekleyen durumda kalır. Admin onayı güven sinyalini güçlendirir; şüpheli kayıtlar işaretlenebilir veya reddedilebilir.',
+                badges: [
+                  _HeroBadge(
+                    icon: Icons.pending_actions_outlined,
+                    label: 'Bekleyen, onaylı ve işaretli kayıtlar',
+                  ),
+                  _HeroBadge(
+                    icon: Icons.school_outlined,
+                    label: 'Öğretmen-mezun ilişki bağı',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (!canView)
+                const SurfaceCard(
+                  child: Text(
+                    'Bu kuyruğu görmek için requests.view veya requests.moderate izni gerekir.',
+                  ),
+                )
+              else ...[
+                SurfaceCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Filtreler',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchController,
+                        decoration: const InputDecoration(
+                          labelText: 'Öğretmen veya mezun ara',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                        onSubmitted: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          SizedBox(
+                            width: 190,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _status,
+                              decoration: const InputDecoration(
+                                labelText: 'Durum',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'pending',
+                                  child: Text('Bekleyen'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'confirmed',
+                                  child: Text('Onaylı'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'flagged',
+                                  child: Text('İşaretli'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'rejected',
+                                  child: Text('Reddedilen'),
+                                ),
+                                DropdownMenuItem(
+                                  value: '',
+                                  child: Text('Tümü'),
+                                ),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _status = value ?? 'pending'),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 220,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _relationshipType,
+                              decoration: const InputDecoration(
+                                labelText: 'İlişki',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: '',
+                                  child: Text('Tümü'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'taught_in_class',
+                                  child: Text('Dersine girdi'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'advisor',
+                                  child: Text('Danışman'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'mentor',
+                                  child: Text('Mentor'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'club_coach',
+                                  child: Text('Kulüp/ekip'),
+                                ),
+                              ],
+                              onChanged: (value) => setState(
+                                () => _relationshipType = value ?? '',
+                              ),
+                            ),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () => setState(() {}),
+                            icon: const Icon(Icons.tune_outlined),
+                            label: const Text('Uygula'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _AsyncSurfaceCard<
+                  AdminPreviewList<AdminTeacherNetworkLinkItem>
+                >(
+                  title: 'Öğretmen bağlantıları',
+                  asyncValue: linksState,
+                  builder: (preview) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${preview.total} kayıt'),
+                      const SizedBox(height: 12),
+                      _TeacherNetworkPreviewList(
+                        items: preview.items,
+                        emptyMessage: 'Bu filtrelerde öğretmen bağlantısı yok.',
+                        onConfirm: (item) => _reviewTeacherNetworkLink(
+                          context,
+                          ref,
+                          id: item.id,
+                          status: 'confirmed',
+                        ),
+                        onFlag: (item) => _reviewTeacherNetworkLink(
+                          context,
+                          ref,
+                          id: item.id,
+                          status: 'flagged',
+                        ),
+                        onReject: (item) => _reviewTeacherNetworkLink(
+                          context,
+                          ref,
+                          id: item.id,
+                          status: 'rejected',
+                        ),
+                        canModerate: canModerate,
+                        isBusy: actionState.isLoading,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -1709,6 +1974,7 @@ void _refreshModerationWorkspace(WidgetRef ref) {
   ref.invalidate(adminMemberRequestPreviewProvider);
   ref.invalidate(adminVerificationRequestPreviewProvider);
   ref.invalidate(adminTeacherNetworkLinkPreviewProvider);
+  ref.invalidate(adminTeacherNetworkLinksProvider);
   ref.invalidate(adminRequestNotificationsProvider);
   ref.invalidate(adminPostPreviewProvider);
   ref.invalidate(adminCommentPreviewProvider);

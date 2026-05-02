@@ -410,6 +410,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
           role: 'user',
           following: false,
           graduationYear: '',
+          teacherSubject: '',
+          teacherSubjectOther: '',
+          teacherCurrentlyWorking: false,
           joinedAt: null,
         ),
     ];

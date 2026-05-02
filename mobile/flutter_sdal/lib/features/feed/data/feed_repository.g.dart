@@ -6,15 +6,14 @@ part of 'feed_repository.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$FeedAuthorImpl _$$FeedAuthorImplFromJson(Map<String, dynamic> json) =>
-    _$FeedAuthorImpl(
-      id: readOptionalInt(json['id']),
-      isim: readRequiredText(json['isim']),
-      kadi: readRequiredText(json['kadi']),
-      resim: readRequiredText(json['resim']),
-    );
+_FeedAuthor _$FeedAuthorFromJson(Map<String, dynamic> json) => _FeedAuthor(
+  id: readOptionalInt(json['id']),
+  isim: readRequiredText(json['isim']),
+  kadi: readRequiredText(json['kadi']),
+  resim: readRequiredText(json['resim']),
+);
 
-Map<String, dynamic> _$$FeedAuthorImplToJson(_$FeedAuthorImpl instance) =>
+Map<String, dynamic> _$FeedAuthorToJson(_FeedAuthor instance) =>
     <String, dynamic>{
       'id': instance.id,
       'isim': instance.isim,
@@ -22,57 +21,54 @@ Map<String, dynamic> _$$FeedAuthorImplToJson(_$FeedAuthorImpl instance) =>
       'resim': instance.resim,
     };
 
-_$FeedVariantsImpl _$$FeedVariantsImplFromJson(Map<String, dynamic> json) =>
-    _$FeedVariantsImpl(feedUrl: readRequiredText(json['feedUrl']));
+_FeedVariants _$FeedVariantsFromJson(Map<String, dynamic> json) =>
+    _FeedVariants(feedUrl: readRequiredText(json['feedUrl']));
 
-Map<String, dynamic> _$$FeedVariantsImplToJson(_$FeedVariantsImpl instance) =>
+Map<String, dynamic> _$FeedVariantsToJson(_FeedVariants instance) =>
     <String, dynamic>{'feedUrl': instance.feedUrl};
 
-_$FeedItemImpl _$$FeedItemImplFromJson(Map<String, dynamic> json) =>
-    _$FeedItemImpl(
-      id: readRequiredInt(json['id']),
-      content: readRequiredText(json['content']),
-      createdAt: readRequiredText(json['createdAt']),
-      author: FeedAuthor.fromJson(json['author'] as Map<String, dynamic>),
-      image: readRequiredText(json['image']),
-      variants: json['variants'] == null
-          ? null
-          : FeedVariants.fromJson(json['variants'] as Map<String, dynamic>),
-      likeCount: readRequiredInt(json['likeCount']),
-      commentCount: readRequiredInt(json['commentCount']),
-      liked: readRequiredBool(json['liked']),
-      updatedAt: readOptionalText(json['updatedAt']),
-    );
+_FeedItem _$FeedItemFromJson(Map<String, dynamic> json) => _FeedItem(
+  id: readRequiredInt(json['id']),
+  content: readRequiredText(json['content']),
+  createdAt: readRequiredText(json['createdAt']),
+  author: FeedAuthor.fromJson(json['author'] as Map<String, dynamic>),
+  image: readRequiredText(json['image']),
+  variants: json['variants'] == null
+      ? null
+      : FeedVariants.fromJson(json['variants'] as Map<String, dynamic>),
+  likeCount: readRequiredInt(json['likeCount']),
+  commentCount: readRequiredInt(json['commentCount']),
+  liked: readRequiredBool(json['liked']),
+  updatedAt: readOptionalText(json['updatedAt']),
+);
 
-Map<String, dynamic> _$$FeedItemImplToJson(_$FeedItemImpl instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'content': instance.content,
-      'createdAt': instance.createdAt,
-      'author': instance.author,
-      'image': instance.image,
-      'variants': instance.variants,
-      'likeCount': instance.likeCount,
-      'commentCount': instance.commentCount,
-      'liked': instance.liked,
-      'updatedAt': instance.updatedAt,
-    };
+Map<String, dynamic> _$FeedItemToJson(_FeedItem instance) => <String, dynamic>{
+  'id': instance.id,
+  'content': instance.content,
+  'createdAt': instance.createdAt,
+  'author': instance.author,
+  'image': instance.image,
+  'variants': instance.variants,
+  'likeCount': instance.likeCount,
+  'commentCount': instance.commentCount,
+  'liked': instance.liked,
+  'updatedAt': instance.updatedAt,
+};
 
-_$FeedCommentImpl _$$FeedCommentImplFromJson(Map<String, dynamic> json) =>
-    _$FeedCommentImpl(
-      id: readRequiredInt(json['id']),
-      comment: readRequiredText(json['comment']),
-      isim: readRequiredText(json['isim']),
-      createdAt: readRequiredText(json['createdAt']),
-      userId: readOptionalInt(json['userId']),
-      kadi: readOptionalText(json['kadi']),
-      soyisim: readOptionalText(json['soyisim']),
-      resim: readOptionalText(json['resim']),
-      verified: readOptionalBool(json['verified']),
-      updatedAt: readOptionalText(json['updatedAt']),
-    );
+_FeedComment _$FeedCommentFromJson(Map<String, dynamic> json) => _FeedComment(
+  id: readRequiredInt(json['id']),
+  comment: readRequiredText(json['comment']),
+  isim: readRequiredText(json['isim']),
+  createdAt: readRequiredText(json['createdAt']),
+  userId: readOptionalInt(json['userId']),
+  kadi: readOptionalText(json['kadi']),
+  soyisim: readOptionalText(json['soyisim']),
+  resim: readOptionalText(json['resim']),
+  verified: readOptionalBool(json['verified']),
+  updatedAt: readOptionalText(json['updatedAt']),
+);
 
-Map<String, dynamic> _$$FeedCommentImplToJson(_$FeedCommentImpl instance) =>
+Map<String, dynamic> _$FeedCommentToJson(_FeedComment instance) =>
     <String, dynamic>{
       'id': instance.id,
       'comment': instance.comment,

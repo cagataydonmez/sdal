@@ -152,6 +152,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                     withGraduateSuffix: true,
                                   ),
                                 ),
+                              if (_teacherBranchLabel(profile).isNotEmpty)
+                                _ProfileFactChip(
+                                  icon: Icons.badge_outlined,
+                                  label: _teacherBranchLabel(profile),
+                                ),
+                              if (_teacherTenureLabel(profile).isNotEmpty)
+                                _ProfileFactChip(
+                                  icon: Icons.history_edu_outlined,
+                                  label: _teacherTenureLabel(profile),
+                                ),
                               if (profile.city.isNotEmpty)
                                 _ProfileFactChip(
                                   icon: Icons.location_on_outlined,
@@ -455,6 +465,32 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ref.invalidate(myAlbumsProvider);
     ref.invalidate(memberProfileAlbumsProvider(album.ownerUserId ?? 0));
   }
+}
+
+String _teacherBranchLabel(ProfileData profile) {
+  if (!_isTeacherGraduationYear(profile.graduationYear)) return '';
+  if (profile.teacherSubject == 'Diğer') {
+    return profile.teacherSubjectOther.trim();
+  }
+  return profile.teacherSubject.trim();
+}
+
+String _teacherTenureLabel(ProfileData profile) {
+  if (!_isTeacherGraduationYear(profile.graduationYear)) return '';
+  final start = profile.teacherStartedYear;
+  if (start == null || start <= 0) return '';
+  if (profile.teacherCurrentlyWorking) return '$start - halen';
+  final end = profile.teacherEndedYear;
+  if (end == null || end <= 0) return '$start';
+  return '$start - $end';
+}
+
+bool _isTeacherGraduationYear(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized == '9999' ||
+      normalized == 'teacher' ||
+      normalized == 'ogretmen' ||
+      normalized == 'öğretmen';
 }
 
 String _formatGraduationYear(

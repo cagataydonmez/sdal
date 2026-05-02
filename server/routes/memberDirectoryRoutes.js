@@ -104,6 +104,7 @@ export function registerMemberDirectoryRoutes(app, {
           `SELECT u.id, u.kadi, u.isim, u.soyisim, u.email, u.mailkapali, u.mezuniyetyili, u.dogumgun, u.dogumay, u.dogumyil,
                   u.sehir, u.universite, u.meslek, u.websitesi, u.imza, u.resim, u.online, u.sontarih, u.verified,
                   u.sirket, u.unvan, u.uzmanlik, u.linkedin_url, u.universite_bolum, u.mentor_opt_in, u.mentor_konulari,
+                  u.teacher_subject, u.teacher_subject_other, u.teacher_started_year, u.teacher_ended_year, u.teacher_currently_working,
                   u.role,
                   CASE WHEN EXISTS (
                     SELECT 1
@@ -188,6 +189,7 @@ export function registerMemberDirectoryRoutes(app, {
         `SELECT id, kadi, isim, soyisim, email, mailkapali, mezuniyetyili, dogumgun, dogumay, dogumyil,
                 sehir, universite, meslek, websitesi, imza, resim, online, sontarih, verified, role,
                 sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari,
+                teacher_subject, teacher_subject_other, teacher_started_year, teacher_ended_year, teacher_currently_working,
                 CASE WHEN EXISTS (
                   SELECT 1
                   FROM follows f

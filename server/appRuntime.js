@@ -461,6 +461,27 @@ function hasColumn(table, column) {
   }
 }
 
+function ensureTeacherProfileColumns() {
+  const columns = [
+    ['teacher_subject', 'TEXT'],
+    ['teacher_subject_other', 'TEXT'],
+    ['teacher_started_year', 'INTEGER'],
+    ['teacher_ended_year', 'INTEGER'],
+    ['teacher_currently_working', 'INTEGER DEFAULT 0']
+  ];
+  for (const [column, definition] of columns) {
+    try {
+      if (!hasColumn('uyeler', column)) {
+        sqlRun(`ALTER TABLE uyeler ADD COLUMN ${column} ${definition}`);
+      }
+    } catch {
+      // best effort for legacy databases that may already have the column
+    }
+  }
+}
+
+ensureTeacherProfileColumns();
+
 function hasTable(table) {
   try {
     const safeTable = quoteIdentifier(table);

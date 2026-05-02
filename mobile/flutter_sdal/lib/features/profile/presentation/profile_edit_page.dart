@@ -17,6 +17,32 @@ import '../application/profile_action_controller.dart';
 import '../data/profile_repository.dart';
 
 const String _teacherGraduationYearValue = '9999';
+const String _teacherSubjectOtherValue = 'Diğer';
+const List<String> _teacherSubjectOptions = <String>[
+  'Beden Eğitimi',
+  'Bilişim Teknolojileri',
+  'Biyoloji',
+  'Coğrafya',
+  'Din Kültürü ve Ahlak Bilgisi',
+  'Felsefe',
+  'Fen Bilimleri',
+  'Fizik',
+  'Görsel Sanatlar',
+  'İngilizce',
+  'Kimya',
+  'Matematik',
+  'Müzik',
+  'Rehberlik',
+  'Sosyal Bilgiler',
+  'Tarih',
+  'Teknoloji ve Tasarım',
+  'Türk Dili ve Edebiyatı',
+  'Türkçe',
+  'Almanca',
+  'Fransızca',
+  'İspanyolca',
+  _teacherSubjectOtherValue,
+];
 
 class ProfileEditPage extends ConsumerStatefulWidget {
   const ProfileEditPage({super.key});
@@ -549,7 +575,12 @@ class _GraduationYearOnboardingPageState
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordRepeatController = TextEditingController();
+  final _teacherStartYearController = TextEditingController();
+  final _teacherEndYearController = TextEditingController();
+  final _teacherSubjectOtherController = TextEditingController();
+  String _teacherSubject = 'Matematik';
   String _selectedYear = '${DateTime.now().year}';
+  bool _teacherCurrentlyWorking = false;
   int _currentStep = 0;
   bool _kvkkConsent = false;
   bool _directoryConsent = false;
@@ -575,6 +606,9 @@ class _GraduationYearOnboardingPageState
     _usernameController.dispose();
     _passwordController.dispose();
     _passwordRepeatController.dispose();
+    _teacherStartYearController.dispose();
+    _teacherEndYearController.dispose();
+    _teacherSubjectOtherController.dispose();
     super.dispose();
   }
 
@@ -583,6 +617,14 @@ class _GraduationYearOnboardingPageState
     if (usernameError != null || _usernameError != null) {
       setState(() {
         _localError = usernameError ?? _usernameError;
+        _currentStep = 0;
+      });
+      return;
+    }
+    final teacherProfileError = _teacherProfileError();
+    if (teacherProfileError != null) {
+      setState(() {
+        _localError = teacherProfileError;
         _currentStep = 0;
       });
       return;
@@ -611,6 +653,11 @@ class _GraduationYearOnboardingPageState
           passwordRepeat: _passwordRepeatController.text,
           kvkkConsent: _kvkkConsent,
           directoryConsent: _directoryConsent,
+          teacherSubject: _teacherSubject,
+          teacherSubjectOther: _teacherSubjectOtherController.text.trim(),
+          teacherStartedYear: _teacherStartYearController.text.trim(),
+          teacherEndedYear: _teacherEndYearController.text.trim(),
+          teacherCurrentlyWorking: _teacherCurrentlyWorking,
         );
     if (!mounted) return;
     final state = ref.read(profileActionControllerProvider);
@@ -825,6 +872,21 @@ class _GraduationYearOnboardingPageState
                 ? 'Öğretmen profilleri mezun dönemlerinden ayrı görünür; doğrulama talebinde okul/öğretmenlik bağını anlatman beklenir.'
                 : 'Dönem seçimi; keşif, öneriler, albümler ve sosyal bağlarda doğru kişilerin öne çıkmasına yardımcı olur.',
           ),
+          if (_isTeacher) ...[
+            const SizedBox(height: 16),
+            _TeacherOnboardingFields(
+              subject: _teacherSubject,
+              subjectOtherController: _teacherSubjectOtherController,
+              startYearController: _teacherStartYearController,
+              endYearController: _teacherEndYearController,
+              currentlyWorking: _teacherCurrentlyWorking,
+              submitting: submitting,
+              onSubjectChanged: (value) =>
+                  setState(() => _teacherSubject = value ?? _teacherSubject),
+              onCurrentlyWorkingChanged: (value) =>
+                  setState(() => _teacherCurrentlyWorking = value ?? false),
+            ),
+          ],
         ],
       ),
       1 => Column(
@@ -1046,6 +1108,29 @@ class _GraduationYearOnboardingPageState
     return null;
   }
 
+  String? _teacherProfileError() {
+    if (!_isTeacher) return null;
+    if (!_teacherSubjectOptions.contains(_teacherSubject)) {
+      return 'Branş seçmelisin.';
+    }
+    if (_teacherSubject == _teacherSubjectOtherValue &&
+        _teacherSubjectOtherController.text.trim().isEmpty) {
+      return 'Diğer branş için açıklama yazmalısın.';
+    }
+    final startYear = int.tryParse(_teacherStartYearController.text.trim());
+    final currentYear = DateTime.now().year;
+    if (startYear == null || startYear < 1993 || startYear > currentYear + 1) {
+      return 'SDAL başlangıç yılı 1993 ile gelecek yıl arasında olmalı.';
+    }
+    if (!_teacherCurrentlyWorking) {
+      final endYear = int.tryParse(_teacherEndYearController.text.trim());
+      if (endYear == null || endYear < startYear || endYear > currentYear + 1) {
+        return 'Bitiş yılı başlangıç yılından önce olamaz.';
+      }
+    }
+    return null;
+  }
+
   String? _passwordError() {
     final password = _passwordController.text;
     if (password.isEmpty) return 'Şifre belirlemeniz gerekiyor.';
@@ -1155,6 +1240,86 @@ class _OnboardingPasswordHint extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TeacherOnboardingFields extends StatelessWidget {
+  const _TeacherOnboardingFields({
+    required this.subject,
+    required this.subjectOtherController,
+    required this.startYearController,
+    required this.endYearController,
+    required this.currentlyWorking,
+    required this.submitting,
+    required this.onSubjectChanged,
+    required this.onCurrentlyWorkingChanged,
+  });
+
+  final String subject;
+  final TextEditingController subjectOtherController;
+  final TextEditingController startYearController;
+  final TextEditingController endYearController;
+  final bool currentlyWorking;
+  final bool submitting;
+  final ValueChanged<String?> onSubjectChanged;
+  final ValueChanged<bool?> onCurrentlyWorkingChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _OnboardingInfoStrip(
+          icon: Icons.school_outlined,
+          text:
+              'Branş ve SDAL çalışma yılları profilinde görünür, mezunlarla öğretmen önerilerini daha doğru eşleştirir.',
+        ),
+        const SizedBox(height: 14),
+        DropdownButtonFormField<String>(
+          initialValue: subject,
+          decoration: const InputDecoration(labelText: 'Branş'),
+          items: _teacherSubjectOptions
+              .map(
+                (value) =>
+                    DropdownMenuItem<String>(value: value, child: Text(value)),
+              )
+              .toList(growable: false),
+          onChanged: submitting ? null : onSubjectChanged,
+        ),
+        if (subject == _teacherSubjectOtherValue) ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: subjectOtherController,
+            enabled: !submitting,
+            decoration: const InputDecoration(labelText: 'Branş adı'),
+          ),
+        ],
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: startYearController,
+          enabled: !submitting,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'SDAL’da başladığı yıl',
+            helperText: 'Okul 1993 yılında kuruldu.',
+          ),
+        ),
+        CheckboxListTile(
+          value: currentlyWorking,
+          onChanged: submitting ? null : onCurrentlyWorkingChanged,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: const Text('Halen SDAL’da çalışıyor'),
+        ),
+        if (!currentlyWorking)
+          TextFormField(
+            controller: endYearController,
+            enabled: !submitting,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Ayrıldığı yıl'),
+          ),
+      ],
     );
   }
 }

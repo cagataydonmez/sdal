@@ -10,7 +10,7 @@ part 'notifications_repository.freezed.dart';
 part 'notifications_repository.g.dart';
 
 @freezed
-class NotificationTarget with _$NotificationTarget {
+abstract class NotificationTarget with _$NotificationTarget {
   const factory NotificationTarget({
     @JsonKey(fromJson: readRequiredText) required String route,
     @JsonKey(fromJson: readRequiredText) required String href,
@@ -25,7 +25,7 @@ class NotificationTarget with _$NotificationTarget {
 }
 
 @freezed
-class NotificationActionItem with _$NotificationActionItem {
+abstract class NotificationActionItem with _$NotificationActionItem {
   const factory NotificationActionItem({
     @JsonKey(fromJson: readRequiredText) required String kind,
     @JsonKey(fromJson: _readActionLabel) required String label,
@@ -45,7 +45,7 @@ class NotificationActionItem with _$NotificationActionItem {
 }
 
 @freezed
-class AppNotification with _$AppNotification {
+abstract class AppNotification with _$AppNotification {
   const AppNotification._();
 
   const factory AppNotification({
@@ -84,7 +84,7 @@ class AppNotification with _$AppNotification {
 }
 
 @freezed
-class NotificationPreferences with _$NotificationPreferences {
+abstract class NotificationPreferences with _$NotificationPreferences {
   const factory NotificationPreferences({
     @NotificationCategoryConverter() required Map<String, bool> categories,
     @JsonKey(fromJson: readRequiredBool) required bool quietModeEnabled,

@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,1254 +9,1235 @@ part of 'messenger_repository.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
 
-final _privateConstructorUsedError = UnsupportedError(
-  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
-);
-
-MessengerContact _$MessengerContactFromJson(Map<String, dynamic> json) {
-  return _MessengerContact.fromJson(json);
-}
-
 /// @nodoc
-mixin _$MessengerContact {
-  @JsonKey(fromJson: readRequiredInt)
-  int get id => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get name => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get handle => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get photo => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredBool)
-  bool get verified => throw _privateConstructorUsedError;
+mixin _$MessengerContact implements DiagnosticableTreeMixin {
+
+@JsonKey(fromJson: readRequiredInt) int get id;@JsonKey(fromJson: readRequiredText) String get name;@JsonKey(fromJson: readRequiredText) String get handle;@JsonKey(fromJson: readRequiredText) String get photo;@JsonKey(fromJson: readRequiredBool) bool get verified;
+/// Create a copy of MessengerContact
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MessengerContactCopyWith<MessengerContact> get copyWith => _$MessengerContactCopyWithImpl<MessengerContact>(this as MessengerContact, _$identity);
 
   /// Serializes this MessengerContact to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  Map<String, dynamic> toJson();
 
-  /// Create a copy of MessengerContact
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  $MessengerContactCopyWith<MessengerContact> get copyWith =>
-      throw _privateConstructorUsedError;
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerContact'))
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('name', name))..add(DiagnosticsProperty('handle', handle))..add(DiagnosticsProperty('photo', photo))..add(DiagnosticsProperty('verified', verified));
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessengerContact&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.handle, handle) || other.handle == handle)&&(identical(other.photo, photo) || other.photo == photo)&&(identical(other.verified, verified) || other.verified == verified));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,name,handle,photo,verified);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerContact(id: $id, name: $name, handle: $handle, photo: $photo, verified: $verified)';
+}
+
+
 }
 
 /// @nodoc
-abstract class $MessengerContactCopyWith<$Res> {
-  factory $MessengerContactCopyWith(
-    MessengerContact value,
-    $Res Function(MessengerContact) then,
-  ) = _$MessengerContactCopyWithImpl<$Res, MessengerContact>;
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredInt) int id,
-    @JsonKey(fromJson: readRequiredText) String name,
-    @JsonKey(fromJson: readRequiredText) String handle,
-    @JsonKey(fromJson: readRequiredText) String photo,
-    @JsonKey(fromJson: readRequiredBool) bool verified,
-  });
-}
+abstract mixin class $MessengerContactCopyWith<$Res>  {
+  factory $MessengerContactCopyWith(MessengerContact value, $Res Function(MessengerContact) _then) = _$MessengerContactCopyWithImpl;
+@useResult
+$Res call({
+@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredText) String name,@JsonKey(fromJson: readRequiredText) String handle,@JsonKey(fromJson: readRequiredText) String photo,@JsonKey(fromJson: readRequiredBool) bool verified
+});
 
+
+
+
+}
 /// @nodoc
-class _$MessengerContactCopyWithImpl<$Res, $Val extends MessengerContact>
+class _$MessengerContactCopyWithImpl<$Res>
     implements $MessengerContactCopyWith<$Res> {
-  _$MessengerContactCopyWithImpl(this._value, this._then);
+  _$MessengerContactCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final MessengerContact _self;
+  final $Res Function(MessengerContact) _then;
 
-  /// Create a copy of MessengerContact
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? id = null,
-    Object? name = null,
-    Object? handle = null,
-    Object? photo = null,
-    Object? verified = null,
-  }) {
-    return _then(
-      _value.copyWith(
-            id: null == id
-                ? _value.id
-                : id // ignore: cast_nullable_to_non_nullable
-                      as int,
-            name: null == name
-                ? _value.name
-                : name // ignore: cast_nullable_to_non_nullable
-                      as String,
-            handle: null == handle
-                ? _value.handle
-                : handle // ignore: cast_nullable_to_non_nullable
-                      as String,
-            photo: null == photo
-                ? _value.photo
-                : photo // ignore: cast_nullable_to_non_nullable
-                      as String,
-            verified: null == verified
-                ? _value.verified
-                : verified // ignore: cast_nullable_to_non_nullable
-                      as bool,
-          )
-          as $Val,
-    );
-  }
+/// Create a copy of MessengerContact
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? handle = null,Object? photo = null,Object? verified = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,handle: null == handle ? _self.handle : handle // ignore: cast_nullable_to_non_nullable
+as String,photo: null == photo ? _self.photo : photo // ignore: cast_nullable_to_non_nullable
+as String,verified: null == verified ? _self.verified : verified // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
 }
 
-/// @nodoc
-abstract class _$$MessengerContactImplCopyWith<$Res>
-    implements $MessengerContactCopyWith<$Res> {
-  factory _$$MessengerContactImplCopyWith(
-    _$MessengerContactImpl value,
-    $Res Function(_$MessengerContactImpl) then,
-  ) = __$$MessengerContactImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredInt) int id,
-    @JsonKey(fromJson: readRequiredText) String name,
-    @JsonKey(fromJson: readRequiredText) String handle,
-    @JsonKey(fromJson: readRequiredText) String photo,
-    @JsonKey(fromJson: readRequiredBool) bool verified,
-  });
 }
 
-/// @nodoc
-class __$$MessengerContactImplCopyWithImpl<$Res>
-    extends _$MessengerContactCopyWithImpl<$Res, _$MessengerContactImpl>
-    implements _$$MessengerContactImplCopyWith<$Res> {
-  __$$MessengerContactImplCopyWithImpl(
-    _$MessengerContactImpl _value,
-    $Res Function(_$MessengerContactImpl) _then,
-  ) : super(_value, _then);
 
-  /// Create a copy of MessengerContact
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? id = null,
-    Object? name = null,
-    Object? handle = null,
-    Object? photo = null,
-    Object? verified = null,
-  }) {
-    return _then(
-      _$MessengerContactImpl(
-        id: null == id
-            ? _value.id
-            : id // ignore: cast_nullable_to_non_nullable
-                  as int,
-        name: null == name
-            ? _value.name
-            : name // ignore: cast_nullable_to_non_nullable
-                  as String,
-        handle: null == handle
-            ? _value.handle
-            : handle // ignore: cast_nullable_to_non_nullable
-                  as String,
-        photo: null == photo
-            ? _value.photo
-            : photo // ignore: cast_nullable_to_non_nullable
-                  as String,
-        verified: null == verified
-            ? _value.verified
-            : verified // ignore: cast_nullable_to_non_nullable
-                  as bool,
-      ),
-    );
-  }
+/// Adds pattern-matching-related methods to [MessengerContact].
+extension MessengerContactPatterns on MessengerContact {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _MessengerContact value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _MessengerContact() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _MessengerContact value)  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerContact():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _MessengerContact value)?  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerContact() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredText)  String name, @JsonKey(fromJson: readRequiredText)  String handle, @JsonKey(fromJson: readRequiredText)  String photo, @JsonKey(fromJson: readRequiredBool)  bool verified)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _MessengerContact() when $default != null:
+return $default(_that.id,_that.name,_that.handle,_that.photo,_that.verified);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredText)  String name, @JsonKey(fromJson: readRequiredText)  String handle, @JsonKey(fromJson: readRequiredText)  String photo, @JsonKey(fromJson: readRequiredBool)  bool verified)  $default,) {final _that = this;
+switch (_that) {
+case _MessengerContact():
+return $default(_that.id,_that.name,_that.handle,_that.photo,_that.verified);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredText)  String name, @JsonKey(fromJson: readRequiredText)  String handle, @JsonKey(fromJson: readRequiredText)  String photo, @JsonKey(fromJson: readRequiredBool)  bool verified)?  $default,) {final _that = this;
+switch (_that) {
+case _MessengerContact() when $default != null:
+return $default(_that.id,_that.name,_that.handle,_that.photo,_that.verified);case _:
+  return null;
+
+}
+}
+
 }
 
 /// @nodoc
 @JsonSerializable()
-class _$MessengerContactImpl extends _MessengerContact {
-  const _$MessengerContactImpl({
-    @JsonKey(fromJson: readRequiredInt) required this.id,
-    @JsonKey(fromJson: readRequiredText) required this.name,
-    @JsonKey(fromJson: readRequiredText) required this.handle,
-    @JsonKey(fromJson: readRequiredText) required this.photo,
-    @JsonKey(fromJson: readRequiredBool) required this.verified,
-  }) : super._();
 
-  factory _$MessengerContactImpl.fromJson(Map<String, dynamic> json) =>
-      _$$MessengerContactImplFromJson(json);
+class _MessengerContact extends MessengerContact with DiagnosticableTreeMixin {
+  const _MessengerContact({@JsonKey(fromJson: readRequiredInt) required this.id, @JsonKey(fromJson: readRequiredText) required this.name, @JsonKey(fromJson: readRequiredText) required this.handle, @JsonKey(fromJson: readRequiredText) required this.photo, @JsonKey(fromJson: readRequiredBool) required this.verified}): super._();
+  factory _MessengerContact.fromJson(Map<String, dynamic> json) => _$MessengerContactFromJson(json);
 
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int id;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String name;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String handle;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String photo;
-  @override
-  @JsonKey(fromJson: readRequiredBool)
-  final bool verified;
+@override@JsonKey(fromJson: readRequiredInt) final  int id;
+@override@JsonKey(fromJson: readRequiredText) final  String name;
+@override@JsonKey(fromJson: readRequiredText) final  String handle;
+@override@JsonKey(fromJson: readRequiredText) final  String photo;
+@override@JsonKey(fromJson: readRequiredBool) final  bool verified;
 
-  @override
-  String toString() {
-    return 'MessengerContact(id: $id, name: $name, handle: $handle, photo: $photo, verified: $verified)';
-  }
+/// Create a copy of MessengerContact
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MessengerContactCopyWith<_MessengerContact> get copyWith => __$MessengerContactCopyWithImpl<_MessengerContact>(this, _$identity);
 
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$MessengerContactImpl &&
-            (identical(other.id, id) || other.id == id) &&
-            (identical(other.name, name) || other.name == name) &&
-            (identical(other.handle, handle) || other.handle == handle) &&
-            (identical(other.photo, photo) || other.photo == photo) &&
-            (identical(other.verified, verified) ||
-                other.verified == verified));
-  }
-
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, name, handle, photo, verified);
-
-  /// Create a copy of MessengerContact
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$MessengerContactImplCopyWith<_$MessengerContactImpl> get copyWith =>
-      __$$MessengerContactImplCopyWithImpl<_$MessengerContactImpl>(
-        this,
-        _$identity,
-      );
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$MessengerContactImplToJson(this);
-  }
+@override
+Map<String, dynamic> toJson() {
+  return _$MessengerContactToJson(this, );
+}
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerContact'))
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('name', name))..add(DiagnosticsProperty('handle', handle))..add(DiagnosticsProperty('photo', photo))..add(DiagnosticsProperty('verified', verified));
 }
 
-abstract class _MessengerContact extends MessengerContact {
-  const factory _MessengerContact({
-    @JsonKey(fromJson: readRequiredInt) required final int id,
-    @JsonKey(fromJson: readRequiredText) required final String name,
-    @JsonKey(fromJson: readRequiredText) required final String handle,
-    @JsonKey(fromJson: readRequiredText) required final String photo,
-    @JsonKey(fromJson: readRequiredBool) required final bool verified,
-  }) = _$MessengerContactImpl;
-  const _MessengerContact._() : super._();
-
-  factory _MessengerContact.fromJson(Map<String, dynamic> json) =
-      _$MessengerContactImpl.fromJson;
-
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get id;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get name;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get handle;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get photo;
-  @override
-  @JsonKey(fromJson: readRequiredBool)
-  bool get verified;
-
-  /// Create a copy of MessengerContact
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  _$$MessengerContactImplCopyWith<_$MessengerContactImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessengerContact&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.handle, handle) || other.handle == handle)&&(identical(other.photo, photo) || other.photo == photo)&&(identical(other.verified, verified) || other.verified == verified));
 }
 
-MessengerMessage _$MessengerMessageFromJson(Map<String, dynamic> json) {
-  return _MessengerMessage.fromJson(json);
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,name,handle,photo,verified);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerContact(id: $id, name: $name, handle: $handle, photo: $photo, verified: $verified)';
+}
+
+
 }
 
 /// @nodoc
-mixin _$MessengerMessage {
-  @JsonKey(fromJson: readRequiredInt)
-  int get id => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredInt)
-  int get threadId => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredInt)
-  int get senderId => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredInt)
-  int get receiverId => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get body => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get createdAt => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get clientWrittenAt => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get serverReceivedAt => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get deliveredAt => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get readAt => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredBool)
-  bool get isMine => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredText)
-  String get senderName => throw _privateConstructorUsedError;
+abstract mixin class _$MessengerContactCopyWith<$Res> implements $MessengerContactCopyWith<$Res> {
+  factory _$MessengerContactCopyWith(_MessengerContact value, $Res Function(_MessengerContact) _then) = __$MessengerContactCopyWithImpl;
+@override @useResult
+$Res call({
+@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredText) String name,@JsonKey(fromJson: readRequiredText) String handle,@JsonKey(fromJson: readRequiredText) String photo,@JsonKey(fromJson: readRequiredBool) bool verified
+});
+
+
+
+
+}
+/// @nodoc
+class __$MessengerContactCopyWithImpl<$Res>
+    implements _$MessengerContactCopyWith<$Res> {
+  __$MessengerContactCopyWithImpl(this._self, this._then);
+
+  final _MessengerContact _self;
+  final $Res Function(_MessengerContact) _then;
+
+/// Create a copy of MessengerContact
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? handle = null,Object? photo = null,Object? verified = null,}) {
+  return _then(_MessengerContact(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,handle: null == handle ? _self.handle : handle // ignore: cast_nullable_to_non_nullable
+as String,photo: null == photo ? _self.photo : photo // ignore: cast_nullable_to_non_nullable
+as String,verified: null == verified ? _self.verified : verified // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$MessengerMessage implements DiagnosticableTreeMixin {
+
+@JsonKey(fromJson: readRequiredInt) int get id;@JsonKey(fromJson: readRequiredInt) int get threadId;@JsonKey(fromJson: readRequiredInt) int get senderId;@JsonKey(fromJson: readRequiredInt) int get receiverId;@JsonKey(fromJson: readRequiredText) String get body;@JsonKey(fromJson: readRequiredText) String get createdAt;@JsonKey(fromJson: readRequiredText) String get clientWrittenAt;@JsonKey(fromJson: readRequiredText) String get serverReceivedAt;@JsonKey(fromJson: readRequiredText) String get deliveredAt;@JsonKey(fromJson: readRequiredText) String get readAt;@JsonKey(fromJson: readRequiredBool) bool get isMine;@JsonKey(fromJson: readRequiredText) String get senderName;
+/// Create a copy of MessengerMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MessengerMessageCopyWith<MessengerMessage> get copyWith => _$MessengerMessageCopyWithImpl<MessengerMessage>(this as MessengerMessage, _$identity);
 
   /// Serializes this MessengerMessage to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  Map<String, dynamic> toJson();
 
-  /// Create a copy of MessengerMessage
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  $MessengerMessageCopyWith<MessengerMessage> get copyWith =>
-      throw _privateConstructorUsedError;
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerMessage'))
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('senderId', senderId))..add(DiagnosticsProperty('receiverId', receiverId))..add(DiagnosticsProperty('body', body))..add(DiagnosticsProperty('createdAt', createdAt))..add(DiagnosticsProperty('clientWrittenAt', clientWrittenAt))..add(DiagnosticsProperty('serverReceivedAt', serverReceivedAt))..add(DiagnosticsProperty('deliveredAt', deliveredAt))..add(DiagnosticsProperty('readAt', readAt))..add(DiagnosticsProperty('isMine', isMine))..add(DiagnosticsProperty('senderName', senderName));
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessengerMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&(identical(other.body, body) || other.body == body)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.clientWrittenAt, clientWrittenAt) || other.clientWrittenAt == clientWrittenAt)&&(identical(other.serverReceivedAt, serverReceivedAt) || other.serverReceivedAt == serverReceivedAt)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.readAt, readAt) || other.readAt == readAt)&&(identical(other.isMine, isMine) || other.isMine == isMine)&&(identical(other.senderName, senderName) || other.senderName == senderName));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,threadId,senderId,receiverId,body,createdAt,clientWrittenAt,serverReceivedAt,deliveredAt,readAt,isMine,senderName);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerMessage(id: $id, threadId: $threadId, senderId: $senderId, receiverId: $receiverId, body: $body, createdAt: $createdAt, clientWrittenAt: $clientWrittenAt, serverReceivedAt: $serverReceivedAt, deliveredAt: $deliveredAt, readAt: $readAt, isMine: $isMine, senderName: $senderName)';
+}
+
+
 }
 
 /// @nodoc
-abstract class $MessengerMessageCopyWith<$Res> {
-  factory $MessengerMessageCopyWith(
-    MessengerMessage value,
-    $Res Function(MessengerMessage) then,
-  ) = _$MessengerMessageCopyWithImpl<$Res, MessengerMessage>;
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredInt) int id,
-    @JsonKey(fromJson: readRequiredInt) int threadId,
-    @JsonKey(fromJson: readRequiredInt) int senderId,
-    @JsonKey(fromJson: readRequiredInt) int receiverId,
-    @JsonKey(fromJson: readRequiredText) String body,
-    @JsonKey(fromJson: readRequiredText) String createdAt,
-    @JsonKey(fromJson: readRequiredText) String clientWrittenAt,
-    @JsonKey(fromJson: readRequiredText) String serverReceivedAt,
-    @JsonKey(fromJson: readRequiredText) String deliveredAt,
-    @JsonKey(fromJson: readRequiredText) String readAt,
-    @JsonKey(fromJson: readRequiredBool) bool isMine,
-    @JsonKey(fromJson: readRequiredText) String senderName,
-  });
-}
+abstract mixin class $MessengerMessageCopyWith<$Res>  {
+  factory $MessengerMessageCopyWith(MessengerMessage value, $Res Function(MessengerMessage) _then) = _$MessengerMessageCopyWithImpl;
+@useResult
+$Res call({
+@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readRequiredInt) int senderId,@JsonKey(fromJson: readRequiredInt) int receiverId,@JsonKey(fromJson: readRequiredText) String body,@JsonKey(fromJson: readRequiredText) String createdAt,@JsonKey(fromJson: readRequiredText) String clientWrittenAt,@JsonKey(fromJson: readRequiredText) String serverReceivedAt,@JsonKey(fromJson: readRequiredText) String deliveredAt,@JsonKey(fromJson: readRequiredText) String readAt,@JsonKey(fromJson: readRequiredBool) bool isMine,@JsonKey(fromJson: readRequiredText) String senderName
+});
 
+
+
+
+}
 /// @nodoc
-class _$MessengerMessageCopyWithImpl<$Res, $Val extends MessengerMessage>
+class _$MessengerMessageCopyWithImpl<$Res>
     implements $MessengerMessageCopyWith<$Res> {
-  _$MessengerMessageCopyWithImpl(this._value, this._then);
+  _$MessengerMessageCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final MessengerMessage _self;
+  final $Res Function(MessengerMessage) _then;
 
-  /// Create a copy of MessengerMessage
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? id = null,
-    Object? threadId = null,
-    Object? senderId = null,
-    Object? receiverId = null,
-    Object? body = null,
-    Object? createdAt = null,
-    Object? clientWrittenAt = null,
-    Object? serverReceivedAt = null,
-    Object? deliveredAt = null,
-    Object? readAt = null,
-    Object? isMine = null,
-    Object? senderName = null,
-  }) {
-    return _then(
-      _value.copyWith(
-            id: null == id
-                ? _value.id
-                : id // ignore: cast_nullable_to_non_nullable
-                      as int,
-            threadId: null == threadId
-                ? _value.threadId
-                : threadId // ignore: cast_nullable_to_non_nullable
-                      as int,
-            senderId: null == senderId
-                ? _value.senderId
-                : senderId // ignore: cast_nullable_to_non_nullable
-                      as int,
-            receiverId: null == receiverId
-                ? _value.receiverId
-                : receiverId // ignore: cast_nullable_to_non_nullable
-                      as int,
-            body: null == body
-                ? _value.body
-                : body // ignore: cast_nullable_to_non_nullable
-                      as String,
-            createdAt: null == createdAt
-                ? _value.createdAt
-                : createdAt // ignore: cast_nullable_to_non_nullable
-                      as String,
-            clientWrittenAt: null == clientWrittenAt
-                ? _value.clientWrittenAt
-                : clientWrittenAt // ignore: cast_nullable_to_non_nullable
-                      as String,
-            serverReceivedAt: null == serverReceivedAt
-                ? _value.serverReceivedAt
-                : serverReceivedAt // ignore: cast_nullable_to_non_nullable
-                      as String,
-            deliveredAt: null == deliveredAt
-                ? _value.deliveredAt
-                : deliveredAt // ignore: cast_nullable_to_non_nullable
-                      as String,
-            readAt: null == readAt
-                ? _value.readAt
-                : readAt // ignore: cast_nullable_to_non_nullable
-                      as String,
-            isMine: null == isMine
-                ? _value.isMine
-                : isMine // ignore: cast_nullable_to_non_nullable
-                      as bool,
-            senderName: null == senderName
-                ? _value.senderName
-                : senderName // ignore: cast_nullable_to_non_nullable
-                      as String,
-          )
-          as $Val,
-    );
-  }
+/// Create a copy of MessengerMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? threadId = null,Object? senderId = null,Object? receiverId = null,Object? body = null,Object? createdAt = null,Object? clientWrittenAt = null,Object? serverReceivedAt = null,Object? deliveredAt = null,Object? readAt = null,Object? isMine = null,Object? senderName = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,threadId: null == threadId ? _self.threadId : threadId // ignore: cast_nullable_to_non_nullable
+as int,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
+as int,receiverId: null == receiverId ? _self.receiverId : receiverId // ignore: cast_nullable_to_non_nullable
+as int,body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
+as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,clientWrittenAt: null == clientWrittenAt ? _self.clientWrittenAt : clientWrittenAt // ignore: cast_nullable_to_non_nullable
+as String,serverReceivedAt: null == serverReceivedAt ? _self.serverReceivedAt : serverReceivedAt // ignore: cast_nullable_to_non_nullable
+as String,deliveredAt: null == deliveredAt ? _self.deliveredAt : deliveredAt // ignore: cast_nullable_to_non_nullable
+as String,readAt: null == readAt ? _self.readAt : readAt // ignore: cast_nullable_to_non_nullable
+as String,isMine: null == isMine ? _self.isMine : isMine // ignore: cast_nullable_to_non_nullable
+as bool,senderName: null == senderName ? _self.senderName : senderName // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
 }
 
-/// @nodoc
-abstract class _$$MessengerMessageImplCopyWith<$Res>
-    implements $MessengerMessageCopyWith<$Res> {
-  factory _$$MessengerMessageImplCopyWith(
-    _$MessengerMessageImpl value,
-    $Res Function(_$MessengerMessageImpl) then,
-  ) = __$$MessengerMessageImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredInt) int id,
-    @JsonKey(fromJson: readRequiredInt) int threadId,
-    @JsonKey(fromJson: readRequiredInt) int senderId,
-    @JsonKey(fromJson: readRequiredInt) int receiverId,
-    @JsonKey(fromJson: readRequiredText) String body,
-    @JsonKey(fromJson: readRequiredText) String createdAt,
-    @JsonKey(fromJson: readRequiredText) String clientWrittenAt,
-    @JsonKey(fromJson: readRequiredText) String serverReceivedAt,
-    @JsonKey(fromJson: readRequiredText) String deliveredAt,
-    @JsonKey(fromJson: readRequiredText) String readAt,
-    @JsonKey(fromJson: readRequiredBool) bool isMine,
-    @JsonKey(fromJson: readRequiredText) String senderName,
-  });
 }
 
-/// @nodoc
-class __$$MessengerMessageImplCopyWithImpl<$Res>
-    extends _$MessengerMessageCopyWithImpl<$Res, _$MessengerMessageImpl>
-    implements _$$MessengerMessageImplCopyWith<$Res> {
-  __$$MessengerMessageImplCopyWithImpl(
-    _$MessengerMessageImpl _value,
-    $Res Function(_$MessengerMessageImpl) _then,
-  ) : super(_value, _then);
 
-  /// Create a copy of MessengerMessage
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? id = null,
-    Object? threadId = null,
-    Object? senderId = null,
-    Object? receiverId = null,
-    Object? body = null,
-    Object? createdAt = null,
-    Object? clientWrittenAt = null,
-    Object? serverReceivedAt = null,
-    Object? deliveredAt = null,
-    Object? readAt = null,
-    Object? isMine = null,
-    Object? senderName = null,
-  }) {
-    return _then(
-      _$MessengerMessageImpl(
-        id: null == id
-            ? _value.id
-            : id // ignore: cast_nullable_to_non_nullable
-                  as int,
-        threadId: null == threadId
-            ? _value.threadId
-            : threadId // ignore: cast_nullable_to_non_nullable
-                  as int,
-        senderId: null == senderId
-            ? _value.senderId
-            : senderId // ignore: cast_nullable_to_non_nullable
-                  as int,
-        receiverId: null == receiverId
-            ? _value.receiverId
-            : receiverId // ignore: cast_nullable_to_non_nullable
-                  as int,
-        body: null == body
-            ? _value.body
-            : body // ignore: cast_nullable_to_non_nullable
-                  as String,
-        createdAt: null == createdAt
-            ? _value.createdAt
-            : createdAt // ignore: cast_nullable_to_non_nullable
-                  as String,
-        clientWrittenAt: null == clientWrittenAt
-            ? _value.clientWrittenAt
-            : clientWrittenAt // ignore: cast_nullable_to_non_nullable
-                  as String,
-        serverReceivedAt: null == serverReceivedAt
-            ? _value.serverReceivedAt
-            : serverReceivedAt // ignore: cast_nullable_to_non_nullable
-                  as String,
-        deliveredAt: null == deliveredAt
-            ? _value.deliveredAt
-            : deliveredAt // ignore: cast_nullable_to_non_nullable
-                  as String,
-        readAt: null == readAt
-            ? _value.readAt
-            : readAt // ignore: cast_nullable_to_non_nullable
-                  as String,
-        isMine: null == isMine
-            ? _value.isMine
-            : isMine // ignore: cast_nullable_to_non_nullable
-                  as bool,
-        senderName: null == senderName
-            ? _value.senderName
-            : senderName // ignore: cast_nullable_to_non_nullable
-                  as String,
-      ),
-    );
-  }
+/// Adds pattern-matching-related methods to [MessengerMessage].
+extension MessengerMessagePatterns on MessengerMessage {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _MessengerMessage value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _MessengerMessage() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _MessengerMessage value)  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerMessage():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _MessengerMessage value)?  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerMessage() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _MessengerMessage() when $default != null:
+return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)  $default,) {final _that = this;
+switch (_that) {
+case _MessengerMessage():
+return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredInt)  int id, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readRequiredInt)  int senderId, @JsonKey(fromJson: readRequiredInt)  int receiverId, @JsonKey(fromJson: readRequiredText)  String body, @JsonKey(fromJson: readRequiredText)  String createdAt, @JsonKey(fromJson: readRequiredText)  String clientWrittenAt, @JsonKey(fromJson: readRequiredText)  String serverReceivedAt, @JsonKey(fromJson: readRequiredText)  String deliveredAt, @JsonKey(fromJson: readRequiredText)  String readAt, @JsonKey(fromJson: readRequiredBool)  bool isMine, @JsonKey(fromJson: readRequiredText)  String senderName)?  $default,) {final _that = this;
+switch (_that) {
+case _MessengerMessage() when $default != null:
+return $default(_that.id,_that.threadId,_that.senderId,_that.receiverId,_that.body,_that.createdAt,_that.clientWrittenAt,_that.serverReceivedAt,_that.deliveredAt,_that.readAt,_that.isMine,_that.senderName);case _:
+  return null;
+
+}
+}
+
 }
 
 /// @nodoc
 @JsonSerializable()
-class _$MessengerMessageImpl extends _MessengerMessage {
-  const _$MessengerMessageImpl({
-    @JsonKey(fromJson: readRequiredInt) required this.id,
-    @JsonKey(fromJson: readRequiredInt) required this.threadId,
-    @JsonKey(fromJson: readRequiredInt) required this.senderId,
-    @JsonKey(fromJson: readRequiredInt) required this.receiverId,
-    @JsonKey(fromJson: readRequiredText) required this.body,
-    @JsonKey(fromJson: readRequiredText) required this.createdAt,
-    @JsonKey(fromJson: readRequiredText) required this.clientWrittenAt,
-    @JsonKey(fromJson: readRequiredText) required this.serverReceivedAt,
-    @JsonKey(fromJson: readRequiredText) required this.deliveredAt,
-    @JsonKey(fromJson: readRequiredText) required this.readAt,
-    @JsonKey(fromJson: readRequiredBool) required this.isMine,
-    @JsonKey(fromJson: readRequiredText) required this.senderName,
-  }) : super._();
 
-  factory _$MessengerMessageImpl.fromJson(Map<String, dynamic> json) =>
-      _$$MessengerMessageImplFromJson(json);
+class _MessengerMessage extends MessengerMessage with DiagnosticableTreeMixin {
+  const _MessengerMessage({@JsonKey(fromJson: readRequiredInt) required this.id, @JsonKey(fromJson: readRequiredInt) required this.threadId, @JsonKey(fromJson: readRequiredInt) required this.senderId, @JsonKey(fromJson: readRequiredInt) required this.receiverId, @JsonKey(fromJson: readRequiredText) required this.body, @JsonKey(fromJson: readRequiredText) required this.createdAt, @JsonKey(fromJson: readRequiredText) required this.clientWrittenAt, @JsonKey(fromJson: readRequiredText) required this.serverReceivedAt, @JsonKey(fromJson: readRequiredText) required this.deliveredAt, @JsonKey(fromJson: readRequiredText) required this.readAt, @JsonKey(fromJson: readRequiredBool) required this.isMine, @JsonKey(fromJson: readRequiredText) required this.senderName}): super._();
+  factory _MessengerMessage.fromJson(Map<String, dynamic> json) => _$MessengerMessageFromJson(json);
 
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int id;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int threadId;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int senderId;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int receiverId;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String body;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String createdAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String clientWrittenAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String serverReceivedAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String deliveredAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String readAt;
-  @override
-  @JsonKey(fromJson: readRequiredBool)
-  final bool isMine;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String senderName;
+@override@JsonKey(fromJson: readRequiredInt) final  int id;
+@override@JsonKey(fromJson: readRequiredInt) final  int threadId;
+@override@JsonKey(fromJson: readRequiredInt) final  int senderId;
+@override@JsonKey(fromJson: readRequiredInt) final  int receiverId;
+@override@JsonKey(fromJson: readRequiredText) final  String body;
+@override@JsonKey(fromJson: readRequiredText) final  String createdAt;
+@override@JsonKey(fromJson: readRequiredText) final  String clientWrittenAt;
+@override@JsonKey(fromJson: readRequiredText) final  String serverReceivedAt;
+@override@JsonKey(fromJson: readRequiredText) final  String deliveredAt;
+@override@JsonKey(fromJson: readRequiredText) final  String readAt;
+@override@JsonKey(fromJson: readRequiredBool) final  bool isMine;
+@override@JsonKey(fromJson: readRequiredText) final  String senderName;
 
-  @override
-  String toString() {
-    return 'MessengerMessage(id: $id, threadId: $threadId, senderId: $senderId, receiverId: $receiverId, body: $body, createdAt: $createdAt, clientWrittenAt: $clientWrittenAt, serverReceivedAt: $serverReceivedAt, deliveredAt: $deliveredAt, readAt: $readAt, isMine: $isMine, senderName: $senderName)';
-  }
+/// Create a copy of MessengerMessage
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MessengerMessageCopyWith<_MessengerMessage> get copyWith => __$MessengerMessageCopyWithImpl<_MessengerMessage>(this, _$identity);
 
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$MessengerMessageImpl &&
-            (identical(other.id, id) || other.id == id) &&
-            (identical(other.threadId, threadId) ||
-                other.threadId == threadId) &&
-            (identical(other.senderId, senderId) ||
-                other.senderId == senderId) &&
-            (identical(other.receiverId, receiverId) ||
-                other.receiverId == receiverId) &&
-            (identical(other.body, body) || other.body == body) &&
-            (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt) &&
-            (identical(other.clientWrittenAt, clientWrittenAt) ||
-                other.clientWrittenAt == clientWrittenAt) &&
-            (identical(other.serverReceivedAt, serverReceivedAt) ||
-                other.serverReceivedAt == serverReceivedAt) &&
-            (identical(other.deliveredAt, deliveredAt) ||
-                other.deliveredAt == deliveredAt) &&
-            (identical(other.readAt, readAt) || other.readAt == readAt) &&
-            (identical(other.isMine, isMine) || other.isMine == isMine) &&
-            (identical(other.senderName, senderName) ||
-                other.senderName == senderName));
-  }
-
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  int get hashCode => Object.hash(
-    runtimeType,
-    id,
-    threadId,
-    senderId,
-    receiverId,
-    body,
-    createdAt,
-    clientWrittenAt,
-    serverReceivedAt,
-    deliveredAt,
-    readAt,
-    isMine,
-    senderName,
-  );
-
-  /// Create a copy of MessengerMessage
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$MessengerMessageImplCopyWith<_$MessengerMessageImpl> get copyWith =>
-      __$$MessengerMessageImplCopyWithImpl<_$MessengerMessageImpl>(
-        this,
-        _$identity,
-      );
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$MessengerMessageImplToJson(this);
-  }
+@override
+Map<String, dynamic> toJson() {
+  return _$MessengerMessageToJson(this, );
+}
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerMessage'))
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('senderId', senderId))..add(DiagnosticsProperty('receiverId', receiverId))..add(DiagnosticsProperty('body', body))..add(DiagnosticsProperty('createdAt', createdAt))..add(DiagnosticsProperty('clientWrittenAt', clientWrittenAt))..add(DiagnosticsProperty('serverReceivedAt', serverReceivedAt))..add(DiagnosticsProperty('deliveredAt', deliveredAt))..add(DiagnosticsProperty('readAt', readAt))..add(DiagnosticsProperty('isMine', isMine))..add(DiagnosticsProperty('senderName', senderName));
 }
 
-abstract class _MessengerMessage extends MessengerMessage {
-  const factory _MessengerMessage({
-    @JsonKey(fromJson: readRequiredInt) required final int id,
-    @JsonKey(fromJson: readRequiredInt) required final int threadId,
-    @JsonKey(fromJson: readRequiredInt) required final int senderId,
-    @JsonKey(fromJson: readRequiredInt) required final int receiverId,
-    @JsonKey(fromJson: readRequiredText) required final String body,
-    @JsonKey(fromJson: readRequiredText) required final String createdAt,
-    @JsonKey(fromJson: readRequiredText) required final String clientWrittenAt,
-    @JsonKey(fromJson: readRequiredText) required final String serverReceivedAt,
-    @JsonKey(fromJson: readRequiredText) required final String deliveredAt,
-    @JsonKey(fromJson: readRequiredText) required final String readAt,
-    @JsonKey(fromJson: readRequiredBool) required final bool isMine,
-    @JsonKey(fromJson: readRequiredText) required final String senderName,
-  }) = _$MessengerMessageImpl;
-  const _MessengerMessage._() : super._();
-
-  factory _MessengerMessage.fromJson(Map<String, dynamic> json) =
-      _$MessengerMessageImpl.fromJson;
-
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get id;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get threadId;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get senderId;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get receiverId;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get body;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get createdAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get clientWrittenAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get serverReceivedAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get deliveredAt;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get readAt;
-  @override
-  @JsonKey(fromJson: readRequiredBool)
-  bool get isMine;
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get senderName;
-
-  /// Create a copy of MessengerMessage
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  _$$MessengerMessageImplCopyWith<_$MessengerMessageImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessengerMessage&&(identical(other.id, id) || other.id == id)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&(identical(other.body, body) || other.body == body)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.clientWrittenAt, clientWrittenAt) || other.clientWrittenAt == clientWrittenAt)&&(identical(other.serverReceivedAt, serverReceivedAt) || other.serverReceivedAt == serverReceivedAt)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.readAt, readAt) || other.readAt == readAt)&&(identical(other.isMine, isMine) || other.isMine == isMine)&&(identical(other.senderName, senderName) || other.senderName == senderName));
 }
 
-MessengerThreadSummary _$MessengerThreadSummaryFromJson(
-  Map<String, dynamic> json,
-) {
-  return _MessengerThreadSummary.fromJson(json);
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,threadId,senderId,receiverId,body,createdAt,clientWrittenAt,serverReceivedAt,deliveredAt,readAt,isMine,senderName);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerMessage(id: $id, threadId: $threadId, senderId: $senderId, receiverId: $receiverId, body: $body, createdAt: $createdAt, clientWrittenAt: $clientWrittenAt, serverReceivedAt: $serverReceivedAt, deliveredAt: $deliveredAt, readAt: $readAt, isMine: $isMine, senderName: $senderName)';
+}
+
+
 }
 
 /// @nodoc
-mixin _$MessengerThreadSummary {
-  @JsonKey(fromJson: readRequiredInt)
-  int get id => throw _privateConstructorUsedError;
-  MessengerContact get peer => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredInt)
-  int get unreadCount => throw _privateConstructorUsedError;
-  MessengerMessage? get lastMessage => throw _privateConstructorUsedError;
+abstract mixin class _$MessengerMessageCopyWith<$Res> implements $MessengerMessageCopyWith<$Res> {
+  factory _$MessengerMessageCopyWith(_MessengerMessage value, $Res Function(_MessengerMessage) _then) = __$MessengerMessageCopyWithImpl;
+@override @useResult
+$Res call({
+@JsonKey(fromJson: readRequiredInt) int id,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readRequiredInt) int senderId,@JsonKey(fromJson: readRequiredInt) int receiverId,@JsonKey(fromJson: readRequiredText) String body,@JsonKey(fromJson: readRequiredText) String createdAt,@JsonKey(fromJson: readRequiredText) String clientWrittenAt,@JsonKey(fromJson: readRequiredText) String serverReceivedAt,@JsonKey(fromJson: readRequiredText) String deliveredAt,@JsonKey(fromJson: readRequiredText) String readAt,@JsonKey(fromJson: readRequiredBool) bool isMine,@JsonKey(fromJson: readRequiredText) String senderName
+});
+
+
+
+
+}
+/// @nodoc
+class __$MessengerMessageCopyWithImpl<$Res>
+    implements _$MessengerMessageCopyWith<$Res> {
+  __$MessengerMessageCopyWithImpl(this._self, this._then);
+
+  final _MessengerMessage _self;
+  final $Res Function(_MessengerMessage) _then;
+
+/// Create a copy of MessengerMessage
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? threadId = null,Object? senderId = null,Object? receiverId = null,Object? body = null,Object? createdAt = null,Object? clientWrittenAt = null,Object? serverReceivedAt = null,Object? deliveredAt = null,Object? readAt = null,Object? isMine = null,Object? senderName = null,}) {
+  return _then(_MessengerMessage(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,threadId: null == threadId ? _self.threadId : threadId // ignore: cast_nullable_to_non_nullable
+as int,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
+as int,receiverId: null == receiverId ? _self.receiverId : receiverId // ignore: cast_nullable_to_non_nullable
+as int,body: null == body ? _self.body : body // ignore: cast_nullable_to_non_nullable
+as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,clientWrittenAt: null == clientWrittenAt ? _self.clientWrittenAt : clientWrittenAt // ignore: cast_nullable_to_non_nullable
+as String,serverReceivedAt: null == serverReceivedAt ? _self.serverReceivedAt : serverReceivedAt // ignore: cast_nullable_to_non_nullable
+as String,deliveredAt: null == deliveredAt ? _self.deliveredAt : deliveredAt // ignore: cast_nullable_to_non_nullable
+as String,readAt: null == readAt ? _self.readAt : readAt // ignore: cast_nullable_to_non_nullable
+as String,isMine: null == isMine ? _self.isMine : isMine // ignore: cast_nullable_to_non_nullable
+as bool,senderName: null == senderName ? _self.senderName : senderName // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$MessengerThreadSummary implements DiagnosticableTreeMixin {
+
+@JsonKey(fromJson: readRequiredInt) int get id; MessengerContact get peer;@JsonKey(fromJson: readRequiredInt) int get unreadCount; MessengerMessage? get lastMessage;
+/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MessengerThreadSummaryCopyWith<MessengerThreadSummary> get copyWith => _$MessengerThreadSummaryCopyWithImpl<MessengerThreadSummary>(this as MessengerThreadSummary, _$identity);
 
   /// Serializes this MessengerThreadSummary to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  Map<String, dynamic> toJson();
 
-  /// Create a copy of MessengerThreadSummary
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  $MessengerThreadSummaryCopyWith<MessengerThreadSummary> get copyWith =>
-      throw _privateConstructorUsedError;
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerThreadSummary'))
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('peer', peer))..add(DiagnosticsProperty('unreadCount', unreadCount))..add(DiagnosticsProperty('lastMessage', lastMessage));
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessengerThreadSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.peer, peer) || other.peer == peer)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.lastMessage, lastMessage) || other.lastMessage == lastMessage));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,peer,unreadCount,lastMessage);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerThreadSummary(id: $id, peer: $peer, unreadCount: $unreadCount, lastMessage: $lastMessage)';
+}
+
+
 }
 
 /// @nodoc
-abstract class $MessengerThreadSummaryCopyWith<$Res> {
-  factory $MessengerThreadSummaryCopyWith(
-    MessengerThreadSummary value,
-    $Res Function(MessengerThreadSummary) then,
-  ) = _$MessengerThreadSummaryCopyWithImpl<$Res, MessengerThreadSummary>;
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredInt) int id,
-    MessengerContact peer,
-    @JsonKey(fromJson: readRequiredInt) int unreadCount,
-    MessengerMessage? lastMessage,
-  });
+abstract mixin class $MessengerThreadSummaryCopyWith<$Res>  {
+  factory $MessengerThreadSummaryCopyWith(MessengerThreadSummary value, $Res Function(MessengerThreadSummary) _then) = _$MessengerThreadSummaryCopyWithImpl;
+@useResult
+$Res call({
+@JsonKey(fromJson: readRequiredInt) int id, MessengerContact peer,@JsonKey(fromJson: readRequiredInt) int unreadCount, MessengerMessage? lastMessage
+});
 
-  $MessengerContactCopyWith<$Res> get peer;
-  $MessengerMessageCopyWith<$Res>? get lastMessage;
+
+$MessengerContactCopyWith<$Res> get peer;$MessengerMessageCopyWith<$Res>? get lastMessage;
+
 }
-
 /// @nodoc
-class _$MessengerThreadSummaryCopyWithImpl<
-  $Res,
-  $Val extends MessengerThreadSummary
->
+class _$MessengerThreadSummaryCopyWithImpl<$Res>
     implements $MessengerThreadSummaryCopyWith<$Res> {
-  _$MessengerThreadSummaryCopyWithImpl(this._value, this._then);
+  _$MessengerThreadSummaryCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final MessengerThreadSummary _self;
+  final $Res Function(MessengerThreadSummary) _then;
 
-  /// Create a copy of MessengerThreadSummary
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? id = null,
-    Object? peer = null,
-    Object? unreadCount = null,
-    Object? lastMessage = freezed,
-  }) {
-    return _then(
-      _value.copyWith(
-            id: null == id
-                ? _value.id
-                : id // ignore: cast_nullable_to_non_nullable
-                      as int,
-            peer: null == peer
-                ? _value.peer
-                : peer // ignore: cast_nullable_to_non_nullable
-                      as MessengerContact,
-            unreadCount: null == unreadCount
-                ? _value.unreadCount
-                : unreadCount // ignore: cast_nullable_to_non_nullable
-                      as int,
-            lastMessage: freezed == lastMessage
-                ? _value.lastMessage
-                : lastMessage // ignore: cast_nullable_to_non_nullable
-                      as MessengerMessage?,
-          )
-          as $Val,
-    );
-  }
-
-  /// Create a copy of MessengerThreadSummary
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @pragma('vm:prefer-inline')
-  $MessengerContactCopyWith<$Res> get peer {
-    return $MessengerContactCopyWith<$Res>(_value.peer, (value) {
-      return _then(_value.copyWith(peer: value) as $Val);
-    });
-  }
-
-  /// Create a copy of MessengerThreadSummary
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @pragma('vm:prefer-inline')
-  $MessengerMessageCopyWith<$Res>? get lastMessage {
-    if (_value.lastMessage == null) {
-      return null;
-    }
-
-    return $MessengerMessageCopyWith<$Res>(_value.lastMessage!, (value) {
-      return _then(_value.copyWith(lastMessage: value) as $Val);
-    });
-  }
+/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? peer = null,Object? unreadCount = null,Object? lastMessage = freezed,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,peer: null == peer ? _self.peer : peer // ignore: cast_nullable_to_non_nullable
+as MessengerContact,unreadCount: null == unreadCount ? _self.unreadCount : unreadCount // ignore: cast_nullable_to_non_nullable
+as int,lastMessage: freezed == lastMessage ? _self.lastMessage : lastMessage // ignore: cast_nullable_to_non_nullable
+as MessengerMessage?,
+  ));
 }
-
-/// @nodoc
-abstract class _$$MessengerThreadSummaryImplCopyWith<$Res>
-    implements $MessengerThreadSummaryCopyWith<$Res> {
-  factory _$$MessengerThreadSummaryImplCopyWith(
-    _$MessengerThreadSummaryImpl value,
-    $Res Function(_$MessengerThreadSummaryImpl) then,
-  ) = __$$MessengerThreadSummaryImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredInt) int id,
-    MessengerContact peer,
-    @JsonKey(fromJson: readRequiredInt) int unreadCount,
-    MessengerMessage? lastMessage,
+/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessengerContactCopyWith<$Res> get peer {
+  
+  return $MessengerContactCopyWith<$Res>(_self.peer, (value) {
+    return _then(_self.copyWith(peer: value));
   });
+}/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessengerMessageCopyWith<$Res>? get lastMessage {
+    if (_self.lastMessage == null) {
+    return null;
+  }
 
-  @override
-  $MessengerContactCopyWith<$Res> get peer;
-  @override
-  $MessengerMessageCopyWith<$Res>? get lastMessage;
+  return $MessengerMessageCopyWith<$Res>(_self.lastMessage!, (value) {
+    return _then(_self.copyWith(lastMessage: value));
+  });
+}
 }
 
-/// @nodoc
-class __$$MessengerThreadSummaryImplCopyWithImpl<$Res>
-    extends
-        _$MessengerThreadSummaryCopyWithImpl<$Res, _$MessengerThreadSummaryImpl>
-    implements _$$MessengerThreadSummaryImplCopyWith<$Res> {
-  __$$MessengerThreadSummaryImplCopyWithImpl(
-    _$MessengerThreadSummaryImpl _value,
-    $Res Function(_$MessengerThreadSummaryImpl) _then,
-  ) : super(_value, _then);
 
-  /// Create a copy of MessengerThreadSummary
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? id = null,
-    Object? peer = null,
-    Object? unreadCount = null,
-    Object? lastMessage = freezed,
-  }) {
-    return _then(
-      _$MessengerThreadSummaryImpl(
-        id: null == id
-            ? _value.id
-            : id // ignore: cast_nullable_to_non_nullable
-                  as int,
-        peer: null == peer
-            ? _value.peer
-            : peer // ignore: cast_nullable_to_non_nullable
-                  as MessengerContact,
-        unreadCount: null == unreadCount
-            ? _value.unreadCount
-            : unreadCount // ignore: cast_nullable_to_non_nullable
-                  as int,
-        lastMessage: freezed == lastMessage
-            ? _value.lastMessage
-            : lastMessage // ignore: cast_nullable_to_non_nullable
-                  as MessengerMessage?,
-      ),
-    );
-  }
+/// Adds pattern-matching-related methods to [MessengerThreadSummary].
+extension MessengerThreadSummaryPatterns on MessengerThreadSummary {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _MessengerThreadSummary value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _MessengerThreadSummary() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _MessengerThreadSummary value)  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerThreadSummary():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _MessengerThreadSummary value)?  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerThreadSummary() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id,  MessengerContact peer, @JsonKey(fromJson: readRequiredInt)  int unreadCount,  MessengerMessage? lastMessage)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _MessengerThreadSummary() when $default != null:
+return $default(_that.id,_that.peer,_that.unreadCount,_that.lastMessage);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredInt)  int id,  MessengerContact peer, @JsonKey(fromJson: readRequiredInt)  int unreadCount,  MessengerMessage? lastMessage)  $default,) {final _that = this;
+switch (_that) {
+case _MessengerThreadSummary():
+return $default(_that.id,_that.peer,_that.unreadCount,_that.lastMessage);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredInt)  int id,  MessengerContact peer, @JsonKey(fromJson: readRequiredInt)  int unreadCount,  MessengerMessage? lastMessage)?  $default,) {final _that = this;
+switch (_that) {
+case _MessengerThreadSummary() when $default != null:
+return $default(_that.id,_that.peer,_that.unreadCount,_that.lastMessage);case _:
+  return null;
+
+}
+}
+
 }
 
 /// @nodoc
 @JsonSerializable()
-class _$MessengerThreadSummaryImpl implements _MessengerThreadSummary {
-  const _$MessengerThreadSummaryImpl({
-    @JsonKey(fromJson: readRequiredInt) required this.id,
-    required this.peer,
-    @JsonKey(fromJson: readRequiredInt) required this.unreadCount,
-    this.lastMessage,
-  });
 
-  factory _$MessengerThreadSummaryImpl.fromJson(Map<String, dynamic> json) =>
-      _$$MessengerThreadSummaryImplFromJson(json);
+class _MessengerThreadSummary with DiagnosticableTreeMixin implements MessengerThreadSummary {
+  const _MessengerThreadSummary({@JsonKey(fromJson: readRequiredInt) required this.id, required this.peer, @JsonKey(fromJson: readRequiredInt) required this.unreadCount, this.lastMessage});
+  factory _MessengerThreadSummary.fromJson(Map<String, dynamic> json) => _$MessengerThreadSummaryFromJson(json);
 
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int id;
-  @override
-  final MessengerContact peer;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int unreadCount;
-  @override
-  final MessengerMessage? lastMessage;
+@override@JsonKey(fromJson: readRequiredInt) final  int id;
+@override final  MessengerContact peer;
+@override@JsonKey(fromJson: readRequiredInt) final  int unreadCount;
+@override final  MessengerMessage? lastMessage;
 
-  @override
-  String toString() {
-    return 'MessengerThreadSummary(id: $id, peer: $peer, unreadCount: $unreadCount, lastMessage: $lastMessage)';
-  }
+/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MessengerThreadSummaryCopyWith<_MessengerThreadSummary> get copyWith => __$MessengerThreadSummaryCopyWithImpl<_MessengerThreadSummary>(this, _$identity);
 
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$MessengerThreadSummaryImpl &&
-            (identical(other.id, id) || other.id == id) &&
-            (identical(other.peer, peer) || other.peer == peer) &&
-            (identical(other.unreadCount, unreadCount) ||
-                other.unreadCount == unreadCount) &&
-            (identical(other.lastMessage, lastMessage) ||
-                other.lastMessage == lastMessage));
-  }
-
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, peer, unreadCount, lastMessage);
-
-  /// Create a copy of MessengerThreadSummary
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$MessengerThreadSummaryImplCopyWith<_$MessengerThreadSummaryImpl>
-  get copyWith =>
-      __$$MessengerThreadSummaryImplCopyWithImpl<_$MessengerThreadSummaryImpl>(
-        this,
-        _$identity,
-      );
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$MessengerThreadSummaryImplToJson(this);
-  }
+@override
+Map<String, dynamic> toJson() {
+  return _$MessengerThreadSummaryToJson(this, );
+}
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerThreadSummary'))
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('peer', peer))..add(DiagnosticsProperty('unreadCount', unreadCount))..add(DiagnosticsProperty('lastMessage', lastMessage));
 }
 
-abstract class _MessengerThreadSummary implements MessengerThreadSummary {
-  const factory _MessengerThreadSummary({
-    @JsonKey(fromJson: readRequiredInt) required final int id,
-    required final MessengerContact peer,
-    @JsonKey(fromJson: readRequiredInt) required final int unreadCount,
-    final MessengerMessage? lastMessage,
-  }) = _$MessengerThreadSummaryImpl;
-
-  factory _MessengerThreadSummary.fromJson(Map<String, dynamic> json) =
-      _$MessengerThreadSummaryImpl.fromJson;
-
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get id;
-  @override
-  MessengerContact get peer;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get unreadCount;
-  @override
-  MessengerMessage? get lastMessage;
-
-  /// Create a copy of MessengerThreadSummary
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  _$$MessengerThreadSummaryImplCopyWith<_$MessengerThreadSummaryImpl>
-  get copyWith => throw _privateConstructorUsedError;
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessengerThreadSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.peer, peer) || other.peer == peer)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.lastMessage, lastMessage) || other.lastMessage == lastMessage));
 }
 
-MessengerRealtimeEvent _$MessengerRealtimeEventFromJson(
-  Map<String, dynamic> json,
-) {
-  return _MessengerRealtimeEvent.fromJson(json);
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,peer,unreadCount,lastMessage);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerThreadSummary(id: $id, peer: $peer, unreadCount: $unreadCount, lastMessage: $lastMessage)';
+}
+
+
 }
 
 /// @nodoc
-mixin _$MessengerRealtimeEvent {
-  @JsonKey(fromJson: readRequiredText)
-  String get type => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readRequiredInt)
-  int get threadId => throw _privateConstructorUsedError;
-  @JsonKey(fromJson: readOptionalInt)
-  int? get byUserId => throw _privateConstructorUsedError;
-  MessengerMessage? get item => throw _privateConstructorUsedError;
+abstract mixin class _$MessengerThreadSummaryCopyWith<$Res> implements $MessengerThreadSummaryCopyWith<$Res> {
+  factory _$MessengerThreadSummaryCopyWith(_MessengerThreadSummary value, $Res Function(_MessengerThreadSummary) _then) = __$MessengerThreadSummaryCopyWithImpl;
+@override @useResult
+$Res call({
+@JsonKey(fromJson: readRequiredInt) int id, MessengerContact peer,@JsonKey(fromJson: readRequiredInt) int unreadCount, MessengerMessage? lastMessage
+});
+
+
+@override $MessengerContactCopyWith<$Res> get peer;@override $MessengerMessageCopyWith<$Res>? get lastMessage;
+
+}
+/// @nodoc
+class __$MessengerThreadSummaryCopyWithImpl<$Res>
+    implements _$MessengerThreadSummaryCopyWith<$Res> {
+  __$MessengerThreadSummaryCopyWithImpl(this._self, this._then);
+
+  final _MessengerThreadSummary _self;
+  final $Res Function(_MessengerThreadSummary) _then;
+
+/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? peer = null,Object? unreadCount = null,Object? lastMessage = freezed,}) {
+  return _then(_MessengerThreadSummary(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,peer: null == peer ? _self.peer : peer // ignore: cast_nullable_to_non_nullable
+as MessengerContact,unreadCount: null == unreadCount ? _self.unreadCount : unreadCount // ignore: cast_nullable_to_non_nullable
+as int,lastMessage: freezed == lastMessage ? _self.lastMessage : lastMessage // ignore: cast_nullable_to_non_nullable
+as MessengerMessage?,
+  ));
+}
+
+/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessengerContactCopyWith<$Res> get peer {
+  
+  return $MessengerContactCopyWith<$Res>(_self.peer, (value) {
+    return _then(_self.copyWith(peer: value));
+  });
+}/// Create a copy of MessengerThreadSummary
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessengerMessageCopyWith<$Res>? get lastMessage {
+    if (_self.lastMessage == null) {
+    return null;
+  }
+
+  return $MessengerMessageCopyWith<$Res>(_self.lastMessage!, (value) {
+    return _then(_self.copyWith(lastMessage: value));
+  });
+}
+}
+
+
+/// @nodoc
+mixin _$MessengerRealtimeEvent implements DiagnosticableTreeMixin {
+
+@JsonKey(fromJson: readRequiredText) String get type;@JsonKey(fromJson: readRequiredInt) int get threadId;@JsonKey(fromJson: readOptionalInt) int? get byUserId; MessengerMessage? get item;
+/// Create a copy of MessengerRealtimeEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MessengerRealtimeEventCopyWith<MessengerRealtimeEvent> get copyWith => _$MessengerRealtimeEventCopyWithImpl<MessengerRealtimeEvent>(this as MessengerRealtimeEvent, _$identity);
 
   /// Serializes this MessengerRealtimeEvent to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  Map<String, dynamic> toJson();
 
-  /// Create a copy of MessengerRealtimeEvent
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  $MessengerRealtimeEventCopyWith<MessengerRealtimeEvent> get copyWith =>
-      throw _privateConstructorUsedError;
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerRealtimeEvent'))
+    ..add(DiagnosticsProperty('type', type))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('byUserId', byUserId))..add(DiagnosticsProperty('item', item));
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessengerRealtimeEvent&&(identical(other.type, type) || other.type == type)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.byUserId, byUserId) || other.byUserId == byUserId)&&(identical(other.item, item) || other.item == item));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,type,threadId,byUserId,item);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerRealtimeEvent(type: $type, threadId: $threadId, byUserId: $byUserId, item: $item)';
+}
+
+
 }
 
 /// @nodoc
-abstract class $MessengerRealtimeEventCopyWith<$Res> {
-  factory $MessengerRealtimeEventCopyWith(
-    MessengerRealtimeEvent value,
-    $Res Function(MessengerRealtimeEvent) then,
-  ) = _$MessengerRealtimeEventCopyWithImpl<$Res, MessengerRealtimeEvent>;
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredText) String type,
-    @JsonKey(fromJson: readRequiredInt) int threadId,
-    @JsonKey(fromJson: readOptionalInt) int? byUserId,
-    MessengerMessage? item,
-  });
+abstract mixin class $MessengerRealtimeEventCopyWith<$Res>  {
+  factory $MessengerRealtimeEventCopyWith(MessengerRealtimeEvent value, $Res Function(MessengerRealtimeEvent) _then) = _$MessengerRealtimeEventCopyWithImpl;
+@useResult
+$Res call({
+@JsonKey(fromJson: readRequiredText) String type,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readOptionalInt) int? byUserId, MessengerMessage? item
+});
 
-  $MessengerMessageCopyWith<$Res>? get item;
+
+$MessengerMessageCopyWith<$Res>? get item;
+
 }
-
 /// @nodoc
-class _$MessengerRealtimeEventCopyWithImpl<
-  $Res,
-  $Val extends MessengerRealtimeEvent
->
+class _$MessengerRealtimeEventCopyWithImpl<$Res>
     implements $MessengerRealtimeEventCopyWith<$Res> {
-  _$MessengerRealtimeEventCopyWithImpl(this._value, this._then);
+  _$MessengerRealtimeEventCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final MessengerRealtimeEvent _self;
+  final $Res Function(MessengerRealtimeEvent) _then;
 
-  /// Create a copy of MessengerRealtimeEvent
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? type = null,
-    Object? threadId = null,
-    Object? byUserId = freezed,
-    Object? item = freezed,
-  }) {
-    return _then(
-      _value.copyWith(
-            type: null == type
-                ? _value.type
-                : type // ignore: cast_nullable_to_non_nullable
-                      as String,
-            threadId: null == threadId
-                ? _value.threadId
-                : threadId // ignore: cast_nullable_to_non_nullable
-                      as int,
-            byUserId: freezed == byUserId
-                ? _value.byUserId
-                : byUserId // ignore: cast_nullable_to_non_nullable
-                      as int?,
-            item: freezed == item
-                ? _value.item
-                : item // ignore: cast_nullable_to_non_nullable
-                      as MessengerMessage?,
-          )
-          as $Val,
-    );
-  }
-
-  /// Create a copy of MessengerRealtimeEvent
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @pragma('vm:prefer-inline')
-  $MessengerMessageCopyWith<$Res>? get item {
-    if (_value.item == null) {
-      return null;
-    }
-
-    return $MessengerMessageCopyWith<$Res>(_value.item!, (value) {
-      return _then(_value.copyWith(item: value) as $Val);
-    });
-  }
+/// Create a copy of MessengerRealtimeEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? type = null,Object? threadId = null,Object? byUserId = freezed,Object? item = freezed,}) {
+  return _then(_self.copyWith(
+type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as String,threadId: null == threadId ? _self.threadId : threadId // ignore: cast_nullable_to_non_nullable
+as int,byUserId: freezed == byUserId ? _self.byUserId : byUserId // ignore: cast_nullable_to_non_nullable
+as int?,item: freezed == item ? _self.item : item // ignore: cast_nullable_to_non_nullable
+as MessengerMessage?,
+  ));
 }
+/// Create a copy of MessengerRealtimeEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessengerMessageCopyWith<$Res>? get item {
+    if (_self.item == null) {
+    return null;
+  }
 
-/// @nodoc
-abstract class _$$MessengerRealtimeEventImplCopyWith<$Res>
-    implements $MessengerRealtimeEventCopyWith<$Res> {
-  factory _$$MessengerRealtimeEventImplCopyWith(
-    _$MessengerRealtimeEventImpl value,
-    $Res Function(_$MessengerRealtimeEventImpl) then,
-  ) = __$$MessengerRealtimeEventImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call({
-    @JsonKey(fromJson: readRequiredText) String type,
-    @JsonKey(fromJson: readRequiredInt) int threadId,
-    @JsonKey(fromJson: readOptionalInt) int? byUserId,
-    MessengerMessage? item,
+  return $MessengerMessageCopyWith<$Res>(_self.item!, (value) {
+    return _then(_self.copyWith(item: value));
   });
-
-  @override
-  $MessengerMessageCopyWith<$Res>? get item;
+}
 }
 
-/// @nodoc
-class __$$MessengerRealtimeEventImplCopyWithImpl<$Res>
-    extends
-        _$MessengerRealtimeEventCopyWithImpl<$Res, _$MessengerRealtimeEventImpl>
-    implements _$$MessengerRealtimeEventImplCopyWith<$Res> {
-  __$$MessengerRealtimeEventImplCopyWithImpl(
-    _$MessengerRealtimeEventImpl _value,
-    $Res Function(_$MessengerRealtimeEventImpl) _then,
-  ) : super(_value, _then);
 
-  /// Create a copy of MessengerRealtimeEvent
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? type = null,
-    Object? threadId = null,
-    Object? byUserId = freezed,
-    Object? item = freezed,
-  }) {
-    return _then(
-      _$MessengerRealtimeEventImpl(
-        type: null == type
-            ? _value.type
-            : type // ignore: cast_nullable_to_non_nullable
-                  as String,
-        threadId: null == threadId
-            ? _value.threadId
-            : threadId // ignore: cast_nullable_to_non_nullable
-                  as int,
-        byUserId: freezed == byUserId
-            ? _value.byUserId
-            : byUserId // ignore: cast_nullable_to_non_nullable
-                  as int?,
-        item: freezed == item
-            ? _value.item
-            : item // ignore: cast_nullable_to_non_nullable
-                  as MessengerMessage?,
-      ),
-    );
-  }
+/// Adds pattern-matching-related methods to [MessengerRealtimeEvent].
+extension MessengerRealtimeEventPatterns on MessengerRealtimeEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _MessengerRealtimeEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _MessengerRealtimeEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _MessengerRealtimeEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerRealtimeEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _MessengerRealtimeEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _MessengerRealtimeEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredText)  String type, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readOptionalInt)  int? byUserId,  MessengerMessage? item)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _MessengerRealtimeEvent() when $default != null:
+return $default(_that.type,_that.threadId,_that.byUserId,_that.item);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredText)  String type, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readOptionalInt)  int? byUserId,  MessengerMessage? item)  $default,) {final _that = this;
+switch (_that) {
+case _MessengerRealtimeEvent():
+return $default(_that.type,_that.threadId,_that.byUserId,_that.item);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredText)  String type, @JsonKey(fromJson: readRequiredInt)  int threadId, @JsonKey(fromJson: readOptionalInt)  int? byUserId,  MessengerMessage? item)?  $default,) {final _that = this;
+switch (_that) {
+case _MessengerRealtimeEvent() when $default != null:
+return $default(_that.type,_that.threadId,_that.byUserId,_that.item);case _:
+  return null;
+
+}
+}
+
 }
 
 /// @nodoc
 @JsonSerializable()
-class _$MessengerRealtimeEventImpl implements _MessengerRealtimeEvent {
-  const _$MessengerRealtimeEventImpl({
-    @JsonKey(fromJson: readRequiredText) required this.type,
-    @JsonKey(fromJson: readRequiredInt) required this.threadId,
-    @JsonKey(fromJson: readOptionalInt) this.byUserId,
-    this.item,
+
+class _MessengerRealtimeEvent with DiagnosticableTreeMixin implements MessengerRealtimeEvent {
+  const _MessengerRealtimeEvent({@JsonKey(fromJson: readRequiredText) required this.type, @JsonKey(fromJson: readRequiredInt) required this.threadId, @JsonKey(fromJson: readOptionalInt) this.byUserId, this.item});
+  factory _MessengerRealtimeEvent.fromJson(Map<String, dynamic> json) => _$MessengerRealtimeEventFromJson(json);
+
+@override@JsonKey(fromJson: readRequiredText) final  String type;
+@override@JsonKey(fromJson: readRequiredInt) final  int threadId;
+@override@JsonKey(fromJson: readOptionalInt) final  int? byUserId;
+@override final  MessengerMessage? item;
+
+/// Create a copy of MessengerRealtimeEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MessengerRealtimeEventCopyWith<_MessengerRealtimeEvent> get copyWith => __$MessengerRealtimeEventCopyWithImpl<_MessengerRealtimeEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$MessengerRealtimeEventToJson(this, );
+}
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  properties
+    ..add(DiagnosticsProperty('type', 'MessengerRealtimeEvent'))
+    ..add(DiagnosticsProperty('type', type))..add(DiagnosticsProperty('threadId', threadId))..add(DiagnosticsProperty('byUserId', byUserId))..add(DiagnosticsProperty('item', item));
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessengerRealtimeEvent&&(identical(other.type, type) || other.type == type)&&(identical(other.threadId, threadId) || other.threadId == threadId)&&(identical(other.byUserId, byUserId) || other.byUserId == byUserId)&&(identical(other.item, item) || other.item == item));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,type,threadId,byUserId,item);
+
+@override
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+  return 'MessengerRealtimeEvent(type: $type, threadId: $threadId, byUserId: $byUserId, item: $item)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$MessengerRealtimeEventCopyWith<$Res> implements $MessengerRealtimeEventCopyWith<$Res> {
+  factory _$MessengerRealtimeEventCopyWith(_MessengerRealtimeEvent value, $Res Function(_MessengerRealtimeEvent) _then) = __$MessengerRealtimeEventCopyWithImpl;
+@override @useResult
+$Res call({
+@JsonKey(fromJson: readRequiredText) String type,@JsonKey(fromJson: readRequiredInt) int threadId,@JsonKey(fromJson: readOptionalInt) int? byUserId, MessengerMessage? item
+});
+
+
+@override $MessengerMessageCopyWith<$Res>? get item;
+
+}
+/// @nodoc
+class __$MessengerRealtimeEventCopyWithImpl<$Res>
+    implements _$MessengerRealtimeEventCopyWith<$Res> {
+  __$MessengerRealtimeEventCopyWithImpl(this._self, this._then);
+
+  final _MessengerRealtimeEvent _self;
+  final $Res Function(_MessengerRealtimeEvent) _then;
+
+/// Create a copy of MessengerRealtimeEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? type = null,Object? threadId = null,Object? byUserId = freezed,Object? item = freezed,}) {
+  return _then(_MessengerRealtimeEvent(
+type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as String,threadId: null == threadId ? _self.threadId : threadId // ignore: cast_nullable_to_non_nullable
+as int,byUserId: freezed == byUserId ? _self.byUserId : byUserId // ignore: cast_nullable_to_non_nullable
+as int?,item: freezed == item ? _self.item : item // ignore: cast_nullable_to_non_nullable
+as MessengerMessage?,
+  ));
+}
+
+/// Create a copy of MessengerRealtimeEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessengerMessageCopyWith<$Res>? get item {
+    if (_self.item == null) {
+    return null;
+  }
+
+  return $MessengerMessageCopyWith<$Res>(_self.item!, (value) {
+    return _then(_self.copyWith(item: value));
   });
-
-  factory _$MessengerRealtimeEventImpl.fromJson(Map<String, dynamic> json) =>
-      _$$MessengerRealtimeEventImplFromJson(json);
-
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  final String type;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  final int threadId;
-  @override
-  @JsonKey(fromJson: readOptionalInt)
-  final int? byUserId;
-  @override
-  final MessengerMessage? item;
-
-  @override
-  String toString() {
-    return 'MessengerRealtimeEvent(type: $type, threadId: $threadId, byUserId: $byUserId, item: $item)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$MessengerRealtimeEventImpl &&
-            (identical(other.type, type) || other.type == type) &&
-            (identical(other.threadId, threadId) ||
-                other.threadId == threadId) &&
-            (identical(other.byUserId, byUserId) ||
-                other.byUserId == byUserId) &&
-            (identical(other.item, item) || other.item == item));
-  }
-
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  int get hashCode => Object.hash(runtimeType, type, threadId, byUserId, item);
-
-  /// Create a copy of MessengerRealtimeEvent
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$MessengerRealtimeEventImplCopyWith<_$MessengerRealtimeEventImpl>
-  get copyWith =>
-      __$$MessengerRealtimeEventImplCopyWithImpl<_$MessengerRealtimeEventImpl>(
-        this,
-        _$identity,
-      );
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$MessengerRealtimeEventImplToJson(this);
-  }
+}
 }
 
-abstract class _MessengerRealtimeEvent implements MessengerRealtimeEvent {
-  const factory _MessengerRealtimeEvent({
-    @JsonKey(fromJson: readRequiredText) required final String type,
-    @JsonKey(fromJson: readRequiredInt) required final int threadId,
-    @JsonKey(fromJson: readOptionalInt) final int? byUserId,
-    final MessengerMessage? item,
-  }) = _$MessengerRealtimeEventImpl;
-
-  factory _MessengerRealtimeEvent.fromJson(Map<String, dynamic> json) =
-      _$MessengerRealtimeEventImpl.fromJson;
-
-  @override
-  @JsonKey(fromJson: readRequiredText)
-  String get type;
-  @override
-  @JsonKey(fromJson: readRequiredInt)
-  int get threadId;
-  @override
-  @JsonKey(fromJson: readOptionalInt)
-  int? get byUserId;
-  @override
-  MessengerMessage? get item;
-
-  /// Create a copy of MessengerRealtimeEvent
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  _$$MessengerRealtimeEventImplCopyWith<_$MessengerRealtimeEventImpl>
-  get copyWith => throw _privateConstructorUsedError;
-}
+// dart format on

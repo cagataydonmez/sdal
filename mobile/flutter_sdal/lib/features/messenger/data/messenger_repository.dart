@@ -16,7 +16,7 @@ part 'messenger_repository.freezed.dart';
 part 'messenger_repository.g.dart';
 
 @freezed
-class MessengerContact with _$MessengerContact {
+abstract class MessengerContact with _$MessengerContact {
   const MessengerContact._();
 
   const factory MessengerContact({
@@ -41,7 +41,7 @@ class MessengerContact with _$MessengerContact {
 }
 
 @freezed
-class MessengerMessage with _$MessengerMessage {
+abstract class MessengerMessage with _$MessengerMessage {
   const MessengerMessage._();
 
   const factory MessengerMessage({
@@ -72,7 +72,7 @@ class MessengerMessage with _$MessengerMessage {
 }
 
 @freezed
-class MessengerThreadSummary with _$MessengerThreadSummary {
+abstract class MessengerThreadSummary with _$MessengerThreadSummary {
   const factory MessengerThreadSummary({
     @JsonKey(fromJson: readRequiredInt) required int id,
     required MessengerContact peer,
@@ -88,7 +88,7 @@ class MessengerThreadSummary with _$MessengerThreadSummary {
 }
 
 @freezed
-class MessengerRealtimeEvent with _$MessengerRealtimeEvent {
+abstract class MessengerRealtimeEvent with _$MessengerRealtimeEvent {
   const factory MessengerRealtimeEvent({
     @JsonKey(fromJson: readRequiredText) required String type,
     @JsonKey(fromJson: readRequiredInt) required int threadId,

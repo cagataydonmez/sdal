@@ -6,33 +6,37 @@ part of 'profile_repository.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$ProfileDataImpl _$$ProfileDataImplFromJson(Map<String, dynamic> json) =>
-    _$ProfileDataImpl(
-      id: readRequiredInt(json['id']),
-      username: readRequiredText(json['username']),
-      firstName: readRequiredText(json['firstName']),
-      lastName: readRequiredText(json['lastName']),
-      email: readRequiredText(json['email']),
-      graduationYear: readRequiredText(json['graduationYear']),
-      city: readRequiredText(json['city']),
-      profession: readRequiredText(json['profession']),
-      website: readRequiredText(json['website']),
-      university: readRequiredText(json['university']),
-      signature: readRequiredText(json['signature']),
-      photo: readRequiredText(json['photo']),
-      company: readRequiredText(json['company']),
-      title: readRequiredText(json['title']),
-      expertise: readRequiredText(json['expertise']),
-      linkedinUrl: readRequiredText(json['linkedinUrl']),
-      universityDepartment: readRequiredText(json['universityDepartment']),
-      mentorOptIn: readRequiredBool(json['mentorOptIn']),
-      mentorTopics: readRequiredText(json['mentorTopics']),
-      kvkkConsent: readRequiredBool(json['kvkkConsent']),
-      directoryConsent: readRequiredBool(json['directoryConsent']),
-      emailHidden: readRequiredBool(json['emailHidden']),
-    );
+_ProfileData _$ProfileDataFromJson(Map<String, dynamic> json) => _ProfileData(
+  id: readRequiredInt(json['id']),
+  username: readRequiredText(json['username']),
+  firstName: readRequiredText(json['firstName']),
+  lastName: readRequiredText(json['lastName']),
+  email: readRequiredText(json['email']),
+  graduationYear: readRequiredText(json['graduationYear']),
+  city: readRequiredText(json['city']),
+  profession: readRequiredText(json['profession']),
+  website: readRequiredText(json['website']),
+  university: readRequiredText(json['university']),
+  signature: readRequiredText(json['signature']),
+  photo: readRequiredText(json['photo']),
+  company: readRequiredText(json['company']),
+  title: readRequiredText(json['title']),
+  expertise: readRequiredText(json['expertise']),
+  linkedinUrl: readRequiredText(json['linkedinUrl']),
+  universityDepartment: readRequiredText(json['universityDepartment']),
+  teacherSubject: readRequiredText(json['teacherSubject']),
+  teacherSubjectOther: readRequiredText(json['teacherSubjectOther']),
+  teacherStartedYear: readOptionalInt(json['teacherStartedYear']),
+  teacherEndedYear: readOptionalInt(json['teacherEndedYear']),
+  teacherCurrentlyWorking: readRequiredBool(json['teacherCurrentlyWorking']),
+  mentorOptIn: readRequiredBool(json['mentorOptIn']),
+  mentorTopics: readRequiredText(json['mentorTopics']),
+  kvkkConsent: readRequiredBool(json['kvkkConsent']),
+  directoryConsent: readRequiredBool(json['directoryConsent']),
+  emailHidden: readRequiredBool(json['emailHidden']),
+);
 
-Map<String, dynamic> _$$ProfileDataImplToJson(_$ProfileDataImpl instance) =>
+Map<String, dynamic> _$ProfileDataToJson(_ProfileData instance) =>
     <String, dynamic>{
       'id': instance.id,
       'username': instance.username,
@@ -51,6 +55,11 @@ Map<String, dynamic> _$$ProfileDataImplToJson(_$ProfileDataImpl instance) =>
       'expertise': instance.expertise,
       'linkedinUrl': instance.linkedinUrl,
       'universityDepartment': instance.universityDepartment,
+      'teacherSubject': instance.teacherSubject,
+      'teacherSubjectOther': instance.teacherSubjectOther,
+      'teacherStartedYear': instance.teacherStartedYear,
+      'teacherEndedYear': instance.teacherEndedYear,
+      'teacherCurrentlyWorking': instance.teacherCurrentlyWorking,
       'mentorOptIn': instance.mentorOptIn,
       'mentorTopics': instance.mentorTopics,
       'kvkkConsent': instance.kvkkConsent,
@@ -58,15 +67,15 @@ Map<String, dynamic> _$$ProfileDataImplToJson(_$ProfileDataImpl instance) =>
       'emailHidden': instance.emailHidden,
     };
 
-_$VerificationUploadResultImpl _$$VerificationUploadResultImplFromJson(
+_VerificationUploadResult _$VerificationUploadResultFromJson(
   Map<String, dynamic> json,
-) => _$VerificationUploadResultImpl(
+) => _VerificationUploadResult(
   proofPath: readRequiredText(json['proofPath']),
   proofImageRecordId: readRequiredText(json['proofImageRecordId']),
 );
 
-Map<String, dynamic> _$$VerificationUploadResultImplToJson(
-  _$VerificationUploadResultImpl instance,
+Map<String, dynamic> _$VerificationUploadResultToJson(
+  _VerificationUploadResult instance,
 ) => <String, dynamic>{
   'proofPath': instance.proofPath,
   'proofImageRecordId': instance.proofImageRecordId,

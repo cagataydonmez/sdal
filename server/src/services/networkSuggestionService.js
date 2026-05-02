@@ -16,6 +16,7 @@ export const networkSuggestionDefaultParams = Object.freeze({
   mentorshipOverlapWeight: 12,
   maxMentorshipOverlapBonus: 24,
   directTeacherBonus: 13,
+  teacherTenureMatchBonus: 16,
   teacherOverlapWeight: 11,
   maxTeacherOverlapBonus: 22,
   engagementWeight: 0.2,
@@ -45,6 +46,7 @@ export const networkSuggestionDefaultVariants = Object.freeze({
       mentorshipOverlapWeight: 15,
       maxMentorshipOverlapBonus: 28,
       directTeacherBonus: 18,
+      teacherTenureMatchBonus: 20,
       teacherOverlapWeight: 15,
       maxTeacherOverlapBonus: 28,
       engagementWeight: 0.1,
@@ -68,6 +70,7 @@ const networkSuggestionParamBounds = Object.freeze({
   mentorshipOverlapWeight: [0, 25],
   maxMentorshipOverlapBonus: [0, 40],
   directTeacherBonus: [0, 30],
+  teacherTenureMatchBonus: [0, 30],
   teacherOverlapWeight: [0, 25],
   maxTeacherOverlapBonus: [0, 40],
   engagementWeight: [0, 1],
@@ -154,6 +157,7 @@ export function scoreNetworkSuggestion({
   hasDirectMentorshipLink = false,
   teacherOverlap = 0,
   hasDirectTeacherLink = false,
+  hasTeacherTenureMatch = false,
   params = networkSuggestionDefaultParams
 } = {}) {
   const scoringParams = normalizeNetworkSuggestionParams(params);
@@ -205,6 +209,10 @@ export function scoreNetworkSuggestion({
     score += scoringParams.directTeacherBonus;
     reasons.push('Dogrudan ogretmen agi baglantisi');
   }
+  if (hasTeacherTenureMatch) {
+    score += scoringParams.teacherTenureMatchBonus;
+    reasons.push('SDAL okul yillarin ogretmenlik donemiyle ortusuyor');
+  }
   if (teacherOverlap > 0) {
     score += Math.min(Number(teacherOverlap || 0) * scoringParams.teacherOverlapWeight, scoringParams.maxTeacherOverlapBonus);
     reasons.push('Ogretmen aginda yakinlik');
@@ -246,6 +254,7 @@ export function buildScoredNetworkSuggestion(candidate, scoring = {}) {
     hasDirectMentorshipLink: scoring.hasDirectMentorshipLink,
     teacherOverlap: scoring.teacherOverlap,
     hasDirectTeacherLink: scoring.hasDirectTeacherLink,
+    hasTeacherTenureMatch: scoring.hasTeacherTenureMatch,
     params: scoring.params
   });
 

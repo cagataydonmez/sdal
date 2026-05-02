@@ -6,7 +6,7 @@ part 'session_models.freezed.dart';
 part 'session_models.g.dart';
 
 @freezed
-class OAuthProviderLink with _$OAuthProviderLink {
+abstract class OAuthProviderLink with _$OAuthProviderLink {
   const factory OAuthProviderLink({
     @JsonKey(fromJson: readRequiredText) required String provider,
     @JsonKey(fromJson: readRequiredText) required String title,
@@ -27,7 +27,7 @@ class OAuthProviderLink with _$OAuthProviderLink {
 }
 
 @freezed
-class SessionUser with _$SessionUser {
+abstract class SessionUser with _$SessionUser {
   const SessionUser._();
 
   const factory SessionUser({
@@ -78,7 +78,7 @@ class SessionUser with _$SessionUser {
 }
 
 @freezed
-class SiteAccessSnapshot with _$SiteAccessSnapshot {
+abstract class SiteAccessSnapshot with _$SiteAccessSnapshot {
   const SiteAccessSnapshot._();
 
   const factory SiteAccessSnapshot({

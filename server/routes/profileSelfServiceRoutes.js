@@ -45,6 +45,71 @@ export function registerProfileSelfServiceRoutes(app, {
   mapLegacyUrl,
   invalidateCacheNamespace
 }) {
+  const TEACHER_SUBJECT_OPTIONS = new Set([
+    'Beden Eğitimi',
+    'Bilişim Teknolojileri',
+    'Biyoloji',
+    'Coğrafya',
+    'Din Kültürü ve Ahlak Bilgisi',
+    'Felsefe',
+    'Fen Bilimleri',
+    'Fizik',
+    'Görsel Sanatlar',
+    'İngilizce',
+    'Kimya',
+    'Matematik',
+    'Müzik',
+    'Rehberlik',
+    'Sosyal Bilgiler',
+    'Tarih',
+    'Teknoloji ve Tasarım',
+    'Türk Dili ve Edebiyatı',
+    'Türkçe',
+    'Almanca',
+    'Fransızca',
+    'İspanyolca',
+    'Diğer'
+  ]);
+
+  function parseTeacherYear(value) {
+    const year = parseInt(String(value || '').trim(), 10);
+    return Number.isFinite(year) ? year : null;
+  }
+
+  function normalizeTeacherProfileInput(body, cohortValue) {
+    if (normalizeCohortValue(cohortValue) !== '9999') {
+      return {
+        subject: '',
+        subjectOther: '',
+        startedYear: null,
+        endedYear: null,
+        currentlyWorking: false
+      };
+    }
+    const subject = String(body?.teacher_subject || '').trim();
+    const subjectOther = String(body?.teacher_subject_other || '').trim().slice(0, 80);
+    const startedYear = parseTeacherYear(body?.teacher_started_year);
+    const endedYear = parseTeacherYear(body?.teacher_ended_year);
+    const currentlyWorking = ['1', 'true', 'evet', 'yes'].includes(String(body?.teacher_currently_working || '').trim().toLowerCase())
+      || body?.teacher_currently_working === true;
+    const currentYear = new Date().getFullYear();
+    if (!TEACHER_SUBJECT_OPTIONS.has(subject)) return { error: 'Branş seçmeniz gerekiyor.' };
+    if (subject === 'Diğer' && !subjectOther) return { error: 'Diğer branş için açıklama girmeniz gerekiyor.' };
+    if (!startedYear || startedYear < 1993 || startedYear > currentYear + 1) {
+      return { error: 'SDAL başlangıç yılı 1993 ile gelecek yıl arasında olmalıdır.' };
+    }
+    if (!currentlyWorking && (!endedYear || endedYear < startedYear || endedYear > currentYear + 1)) {
+      return { error: 'SDAL bitiş yılı başlangıç yılından önce olamaz ve geçerli olmalıdır.' };
+    }
+    return {
+      subject,
+      subjectOther: subject === 'Diğer' ? subjectOther : '',
+      startedYear,
+      endedYear: currentlyWorking ? null : endedYear,
+      currentlyWorking
+    };
+  }
+
   app.get('/api/profile', async (req, res) => {
     try {
       if (!req.session.userId) return res.status(401).send('Login required');
@@ -59,6 +124,7 @@ export function registerProfileSelfServiceRoutes(app, {
         SELECT id, kadi, isim, soyisim, email, mezuniyetyili, sehir, meslek, websitesi, universite,
                dogumgun, dogumay, dogumyil, mailkapali, imza, resim, ilkbd,
                sirket, unvan, uzmanlik, linkedin_url, universite_bolum, mentor_opt_in, mentor_konulari,
+               teacher_subject, teacher_subject_other, teacher_started_year, teacher_ended_year, teacher_currently_working,
                kvkk_consent_at, directory_consent_at
         FROM uyeler WHERE id = ?`, [req.session.userId]);
       if (user) {
@@ -148,6 +214,8 @@ export function registerProfileSelfServiceRoutes(app, {
       if (!hasValidGraduationYear(requested)) {
         return res.status(400).send(`Mezuniyet yılı ${minGraduationYear}-${maxGraduationYear} aralığında olmalı veya Öğretmen seçilmelidir.`);
       }
+      const teacherProfile = normalizeTeacherProfileInput(req.body, requested);
+      if (teacherProfile.error) return res.status(400).send(teacherProfile.error);
       const nextPassword = String(req.body?.sifre || req.body?.password || '').trim();
       const nextPasswordRepeat = String(req.body?.sifre2 || req.body?.passwordRepeat || '').trim();
       if (!nextPassword) return res.status(400).send('Şifre belirlemeniz gerekiyor.');
@@ -201,6 +269,28 @@ export function registerProfileSelfServiceRoutes(app, {
           set.push('directory_consent_at = COALESCE(directory_consent_at, ?)');
           params.push(nowIso);
         }
+        if (requested === '9999') {
+          if (cols.has('teacher_subject')) {
+            set.push('teacher_subject = ?');
+            params.push(teacherProfile.subject);
+          }
+          if (cols.has('teacher_subject_other')) {
+            set.push('teacher_subject_other = ?');
+            params.push(teacherProfile.subjectOther);
+          }
+          if (cols.has('teacher_started_year')) {
+            set.push('teacher_started_year = ?');
+            params.push(teacherProfile.startedYear);
+          }
+          if (cols.has('teacher_ended_year')) {
+            set.push('teacher_ended_year = ?');
+            params.push(teacherProfile.endedYear);
+          }
+          if (cols.has('teacher_currently_working')) {
+            set.push('teacher_currently_working = ?');
+            params.push(toDbNumericFlag(teacherProfile.currentlyWorking));
+          }
+        }
         if (cols.has('updated_at')) {
           set.push('updated_at = ?');
           params.push(nowIso);
@@ -226,6 +316,28 @@ export function registerProfileSelfServiceRoutes(app, {
         if (cols.has('directory_consent_at')) {
           set.push('directory_consent_at = COALESCE(directory_consent_at, ?)');
           params.push(nowIso);
+        }
+        if (requested === '9999') {
+          if (cols.has('teacher_subject')) {
+            set.push('teacher_subject = ?');
+            params.push(teacherProfile.subject);
+          }
+          if (cols.has('teacher_subject_other')) {
+            set.push('teacher_subject_other = ?');
+            params.push(teacherProfile.subjectOther);
+          }
+          if (cols.has('teacher_started_year')) {
+            set.push('teacher_started_year = ?');
+            params.push(teacherProfile.startedYear);
+          }
+          if (cols.has('teacher_ended_year')) {
+            set.push('teacher_ended_year = ?');
+            params.push(teacherProfile.endedYear);
+          }
+          if (cols.has('teacher_currently_working')) {
+            set.push('teacher_currently_working = ?');
+            params.push(toDbNumericFlag(teacherProfile.currentlyWorking));
+          }
         }
         params.push(req.session.userId);
         await sqlRunAsync(`UPDATE uyeler SET ${set.join(', ')} WHERE id = ?`, params);

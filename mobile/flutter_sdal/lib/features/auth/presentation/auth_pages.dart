@@ -16,6 +16,32 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../application/auth_action_controller.dart';
 
 const String _teacherGraduationYearValue = '9999';
+const String _teacherSubjectOtherValue = 'Diğer';
+const List<String> _teacherSubjectOptions = <String>[
+  'Beden Eğitimi',
+  'Bilişim Teknolojileri',
+  'Biyoloji',
+  'Coğrafya',
+  'Din Kültürü ve Ahlak Bilgisi',
+  'Felsefe',
+  'Fen Bilimleri',
+  'Fizik',
+  'Görsel Sanatlar',
+  'İngilizce',
+  'Kimya',
+  'Matematik',
+  'Müzik',
+  'Rehberlik',
+  'Sosyal Bilgiler',
+  'Tarih',
+  'Teknoloji ve Tasarım',
+  'Türk Dili ve Edebiyatı',
+  'Türkçe',
+  'Almanca',
+  'Fransızca',
+  'İspanyolca',
+  _teacherSubjectOtherValue,
+];
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -302,7 +328,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _yearController = TextEditingController(text: '2011');
+  final _teacherStartYearController = TextEditingController();
+  final _teacherEndYearController = TextEditingController();
+  final _teacherSubjectOtherController = TextEditingController();
   final _captchaController = TextEditingController();
+  String _teacherSubject = 'Matematik';
+  bool _teacherCurrentlyWorking = false;
   String? _captchaSvg;
   bool _captchaLoading = false;
   String? _captchaLoadError;
@@ -337,6 +368,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _yearController.dispose();
+    _teacherStartYearController.dispose();
+    _teacherEndYearController.dispose();
+    _teacherSubjectOtherController.dispose();
     _captchaController.dispose();
     _availabilityDebounce?.cancel();
     super.dispose();
@@ -393,6 +427,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             'isim': _firstNameController.text.trim(),
             'soyisim': _lastNameController.text.trim(),
             'mezuniyetyili': _yearController.text.trim(),
+            ..._teacherPayload(),
             'gkodu': _captchaController.text.trim(),
             'kvkk_consent': _kvkkConsent,
             'directory_consent': _directoryConsent,
@@ -429,6 +464,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           firstName: _firstNameController.text.trim(),
           lastName: _lastNameController.text.trim(),
           graduationYear: _yearController.text.trim(),
+          teacherSubject: _teacherSubject,
+          teacherSubjectOther: _teacherSubjectOtherController.text.trim(),
+          teacherStartedYear: _teacherStartYearController.text.trim(),
+          teacherEndedYear: _teacherEndYearController.text.trim(),
+          teacherCurrentlyWorking: _teacherCurrentlyWorking,
           captcha: _captchaController.text.trim(),
           kvkkConsent: _kvkkConsent,
           directoryConsent: _directoryConsent,
@@ -745,6 +785,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     _yearController.text = value ?? '';
                   }),
           ),
+          if (_isTeacherRegistration) ...[
+            const SizedBox(height: 16),
+            _TeacherRegistrationFields(
+              subject: _teacherSubject,
+              subjectOtherController: _teacherSubjectOtherController,
+              startYearController: _teacherStartYearController,
+              endYearController: _teacherEndYearController,
+              currentlyWorking: _teacherCurrentlyWorking,
+              submitting: submitting,
+              onSubjectChanged: (value) =>
+                  setState(() => _teacherSubject = value ?? _teacherSubject),
+              onCurrentlyWorkingChanged: (value) =>
+                  setState(() => _teacherCurrentlyWorking = value ?? false),
+            ),
+          ],
         ],
       ),
       2 => KeyedSubtree(
@@ -911,6 +966,20 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       });
     }
     return valid;
+  }
+
+  bool get _isTeacherRegistration =>
+      _yearController.text.trim() == _teacherGraduationYearValue;
+
+  Map<String, Object?> _teacherPayload() {
+    if (!_isTeacherRegistration) return const <String, Object?>{};
+    return <String, Object?>{
+      'teacher_subject': _teacherSubject,
+      'teacher_subject_other': _teacherSubjectOtherController.text.trim(),
+      'teacher_started_year': _teacherStartYearController.text.trim(),
+      'teacher_ended_year': _teacherEndYearController.text.trim(),
+      'teacher_currently_working': _teacherCurrentlyWorking,
+    };
   }
 
   bool _validateBeforeSubmit(AppLocalizations l10n) {
@@ -1118,12 +1187,36 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       return context.l10n.registerGraduationYearInvalid;
     }
     if (trimmed == _teacherGraduationYearValue) {
+      final teacherError = _teacherProfileValidator();
+      if (teacherError != null) return teacherError;
       return null;
     }
     final year = int.tryParse(trimmed);
     final currentYear = DateTime.now().year;
     if (year == null || year < 1999 || year > currentYear) {
       return context.l10n.registerGraduationYearInvalid;
+    }
+    return null;
+  }
+
+  String? _teacherProfileValidator() {
+    if (!_teacherSubjectOptions.contains(_teacherSubject)) {
+      return 'Branş seçmelisin.';
+    }
+    if (_teacherSubject == _teacherSubjectOtherValue &&
+        _teacherSubjectOtherController.text.trim().isEmpty) {
+      return 'Diğer branş için açıklama yazmalısın.';
+    }
+    final startYear = int.tryParse(_teacherStartYearController.text.trim());
+    final currentYear = DateTime.now().year;
+    if (startYear == null || startYear < 1993 || startYear > currentYear + 1) {
+      return 'SDAL başlangıç yılı 1993 ile gelecek yıl arasında olmalı.';
+    }
+    if (!_teacherCurrentlyWorking) {
+      final endYear = int.tryParse(_teacherEndYearController.text.trim());
+      if (endYear == null || endYear < startYear || endYear > currentYear + 1) {
+        return 'Bitiş yılı başlangıç yılından önce olamaz.';
+      }
     }
     return null;
   }
@@ -1156,6 +1249,86 @@ String _formatGraduationYearOption(BuildContext context, String value) {
         : 'Teacher';
   }
   return value;
+}
+
+class _TeacherRegistrationFields extends StatelessWidget {
+  const _TeacherRegistrationFields({
+    required this.subject,
+    required this.subjectOtherController,
+    required this.startYearController,
+    required this.endYearController,
+    required this.currentlyWorking,
+    required this.submitting,
+    required this.onSubjectChanged,
+    required this.onCurrentlyWorkingChanged,
+  });
+
+  final String subject;
+  final TextEditingController subjectOtherController;
+  final TextEditingController startYearController;
+  final TextEditingController endYearController;
+  final bool currentlyWorking;
+  final bool submitting;
+  final ValueChanged<String?> onSubjectChanged;
+  final ValueChanged<bool?> onCurrentlyWorkingChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _RegisterStepDescription(
+          text:
+              'SDAL’da çalıştığın yıllar, mezunların okul yıllarıyla eşleşip öğretmen önerilerini güçlendirecek. Branşın profilinde rozet olarak görünecek.',
+        ),
+        const SizedBox(height: 14),
+        DropdownButtonFormField<String>(
+          initialValue: subject,
+          decoration: const InputDecoration(labelText: 'Branş'),
+          items: _teacherSubjectOptions
+              .map(
+                (value) =>
+                    DropdownMenuItem<String>(value: value, child: Text(value)),
+              )
+              .toList(growable: false),
+          onChanged: submitting ? null : onSubjectChanged,
+        ),
+        if (subject == _teacherSubjectOtherValue) ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: subjectOtherController,
+            enabled: !submitting,
+            decoration: const InputDecoration(labelText: 'Branş adı'),
+          ),
+        ],
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: startYearController,
+          enabled: !submitting,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'SDAL’da başladığı yıl',
+            helperText: 'Okul 1993 yılında kuruldu.',
+          ),
+        ),
+        const SizedBox(height: 8),
+        CheckboxListTile(
+          value: currentlyWorking,
+          onChanged: submitting ? null : onCurrentlyWorkingChanged,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: const Text('Halen SDAL’da çalışıyor'),
+        ),
+        if (!currentlyWorking)
+          TextFormField(
+            controller: endYearController,
+            enabled: !submitting,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Ayrıldığı yıl'),
+          ),
+      ],
+    );
+  }
 }
 
 enum _RegisterPasswordStrength { none, weak, medium, strong }

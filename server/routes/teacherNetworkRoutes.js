@@ -33,6 +33,11 @@ function toBooleanFlag(value) {
   return ['1', 'true', 'evet', 'yes'].includes(normalized);
 }
 
+function teacherTargetPredicate(alias = 'u') {
+  return `(LOWER(COALESCE(CAST(${alias}.role AS TEXT), '')) IN ('teacher', 'ogretmen', 'öğretmen')
+    OR LOWER(COALESCE(CAST(${alias}.mezuniyetyili AS TEXT), '')) IN ('9999', 'teacher', 'ogretmen', 'öğretmen'))`;
+}
+
 export function registerTeacherNetworkRoutes(app, {
   requireAuth,
   requireAdmin,
@@ -159,10 +164,16 @@ export function registerTeacherNetworkRoutes(app, {
       const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 50);
       const includeId = Math.max(parseInt(req.query.include_id || '0', 10), 0);
       const params = [];
-      let whereSql = "WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1 AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0 AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('9999', 'teacher', 'ogretmen', 'öğretmen'))";
+      let whereSql = `WHERE COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1 AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0 AND ${teacherTargetPredicate('u')}`;
       if (term) {
-        whereSql += ' AND (LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?))';
-        params.push(`%${term}%`, `%${term}%`, `%${term}%`);
+        whereSql += ` AND (
+          LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?)
+          OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?)
+          OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?)
+          OR LOWER(COALESCE(CAST(u.isim AS TEXT), '') || ' ' || COALESCE(CAST(u.soyisim AS TEXT), '')) LIKE LOWER(?)
+          OR LOWER(COALESCE(CAST(u.soyisim AS TEXT), '') || ' ' || COALESCE(CAST(u.isim AS TEXT), '')) LIKE LOWER(?)
+        )`;
+        params.push(`%${term}%`, `%${term}%`, `%${term}%`, `%${term}%`, `%${term}%`);
       }
       let rows = await sqlAllAsync(
         `SELECT u.id, u.kadi, u.isim, u.soyisim, u.mezuniyetyili, u.resim,
@@ -188,7 +199,7 @@ export function registerTeacherNetworkRoutes(app, {
            WHERE u.id = ?
              AND COALESCE(CAST(u.aktiv AS INTEGER), 1) = 1
              AND COALESCE(CAST(u.yasak AS INTEGER), 0) = 0
-             AND (LOWER(COALESCE(u.role, '')) = 'teacher' OR LOWER(COALESCE(u.mezuniyetyili, '')) IN ('9999', 'teacher', 'ogretmen', 'öğretmen'))
+             AND ${teacherTargetPredicate('u')}
            LIMIT 1`,
           [alumniUserId, alumniUserId, alumniUserId, includeId]
         );
@@ -216,7 +227,7 @@ export function registerTeacherNetworkRoutes(app, {
       if (!teacher) return sendApiError(res, 404, 'TEACHER_NOT_FOUND', 'Öğretmen bulunamadı.');
       const teacherRole = String(teacher.role || '').trim().toLowerCase();
       const teacherCohort = normalizeCohortValue(teacher.mezuniyetyili);
-      const teacherTargetAllowed = teacherRole === 'teacher'
+      const teacherTargetAllowed = ['teacher', 'ogretmen', 'öğretmen'].includes(teacherRole)
         || teacherCohort === TEACHER_COHORT_VALUE
         || roleAtLeast(teacherRole, 'admin');
       if (!teacherTargetAllowed) {

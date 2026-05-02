@@ -1185,6 +1185,33 @@ class AdminTeacherNetworkLinkItem {
   }
 }
 
+class AdminTeacherNetworkLinksQuery {
+  const AdminTeacherNetworkLinksQuery({
+    this.status = 'pending',
+    this.relationshipType = '',
+    this.query = '',
+    this.limit = 80,
+  });
+
+  final String status;
+  final String relationshipType;
+  final String query;
+  final int limit;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AdminTeacherNetworkLinksQuery &&
+          runtimeType == other.runtimeType &&
+          status == other.status &&
+          relationshipType == other.relationshipType &&
+          query == other.query &&
+          limit == other.limit;
+
+  @override
+  int get hashCode => Object.hash(status, relationshipType, query, limit);
+}
+
 double? _asDouble(dynamic value) {
   if (value == null) return null;
   if (value is num) return value.toDouble();
@@ -2166,6 +2193,24 @@ class AdminRepository {
     );
   }
 
+  Future<AdminPreviewList<AdminTeacherNetworkLinkItem>>
+  fetchTeacherNetworkLinks({
+    AdminTeacherNetworkLinksQuery query = const AdminTeacherNetworkLinksQuery(),
+  }) async {
+    return _fetchPreviewList(
+      path: '/api/new/admin/teacher-network/links',
+      query: {
+        if (query.status.trim().isNotEmpty)
+          'review_status': query.status.trim(),
+        if (query.relationshipType.trim().isNotEmpty)
+          'relationship_type': query.relationshipType.trim(),
+        if (query.query.trim().isNotEmpty) 'q': query.query.trim(),
+      },
+      limit: query.limit,
+      decoder: AdminTeacherNetworkLinkItem.fromMap,
+    );
+  }
+
   Future<AdminPreviewList<AdminUserPreviewItem>> fetchUserPreview({
     AdminUserListQuery query = const AdminUserListQuery(),
   }) async {
@@ -2987,6 +3032,16 @@ final adminTeacherNetworkLinkPreviewProvider =
     FutureProvider<AdminPreviewList<AdminTeacherNetworkLinkItem>>(
       (ref) =>
           ref.watch(adminRepositoryProvider).fetchTeacherNetworkLinkPreview(),
+    );
+
+final adminTeacherNetworkLinksProvider =
+    FutureProvider.family<
+      AdminPreviewList<AdminTeacherNetworkLinkItem>,
+      AdminTeacherNetworkLinksQuery
+    >(
+      (ref, query) => ref
+          .watch(adminRepositoryProvider)
+          .fetchTeacherNetworkLinks(query: query),
     );
 
 final adminUserPreviewProvider =

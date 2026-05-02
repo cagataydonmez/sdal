@@ -40,6 +40,11 @@ class ProfileActionController extends Notifier<AsyncActionState> {
     required String passwordRepeat,
     required bool kvkkConsent,
     required bool directoryConsent,
+    String teacherSubject = '',
+    String teacherSubjectOther = '',
+    String teacherStartedYear = '',
+    String teacherEndedYear = '',
+    bool teacherCurrentlyWorking = false,
   }) async {
     state = const AsyncActionState.loading(scope: 'profile:graduation-claim');
     final result = await _repository.claimGraduationYear(
@@ -49,6 +54,11 @@ class ProfileActionController extends Notifier<AsyncActionState> {
       passwordRepeat: passwordRepeat,
       kvkkConsent: kvkkConsent,
       directoryConsent: directoryConsent,
+      teacherSubject: teacherSubject,
+      teacherSubjectOther: teacherSubjectOther,
+      teacherStartedYear: teacherStartedYear,
+      teacherEndedYear: teacherEndedYear,
+      teacherCurrentlyWorking: teacherCurrentlyWorking,
     );
     if (result.ok) {
       ref.invalidate(profileProvider);

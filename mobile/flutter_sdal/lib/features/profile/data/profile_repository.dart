@@ -10,7 +10,7 @@ part 'profile_repository.freezed.dart';
 part 'profile_repository.g.dart';
 
 @freezed
-class ProfileData with _$ProfileData {
+abstract class ProfileData with _$ProfileData {
   const ProfileData._();
 
   const factory ProfileData({
@@ -31,6 +31,11 @@ class ProfileData with _$ProfileData {
     @JsonKey(fromJson: readRequiredText) required String expertise,
     @JsonKey(fromJson: readRequiredText) required String linkedinUrl,
     @JsonKey(fromJson: readRequiredText) required String universityDepartment,
+    @JsonKey(fromJson: readRequiredText) required String teacherSubject,
+    @JsonKey(fromJson: readRequiredText) required String teacherSubjectOther,
+    @JsonKey(fromJson: readOptionalInt) int? teacherStartedYear,
+    @JsonKey(fromJson: readOptionalInt) int? teacherEndedYear,
+    @JsonKey(fromJson: readRequiredBool) required bool teacherCurrentlyWorking,
     @JsonKey(fromJson: readRequiredBool) required bool mentorOptIn,
     @JsonKey(fromJson: readRequiredText) required String mentorTopics,
     @JsonKey(fromJson: readRequiredBool) required bool kvkkConsent,
@@ -56,6 +61,11 @@ class ProfileData with _$ProfileData {
           'expertise': ['uzmanlik'],
           'linkedinUrl': ['linkedin_url'],
           'universityDepartment': ['universite_bolum'],
+          'teacherSubject': ['teacher_subject'],
+          'teacherSubjectOther': ['teacher_subject_other'],
+          'teacherStartedYear': ['teacher_started_year'],
+          'teacherEndedYear': ['teacher_ended_year'],
+          'teacherCurrentlyWorking': ['teacher_currently_working'],
           'mentorOptIn': ['mentor_opt_in'],
           'mentorTopics': ['mentor_konulari'],
           'kvkkConsent': ['kvkk_consent'],
@@ -80,6 +90,11 @@ class ProfileData with _$ProfileData {
       'uzmanlik': expertise,
       'linkedin_url': linkedinUrl,
       'universite_bolum': universityDepartment,
+      'teacher_subject': teacherSubject,
+      'teacher_subject_other': teacherSubjectOther,
+      'teacher_started_year': teacherStartedYear,
+      'teacher_ended_year': teacherEndedYear,
+      'teacher_currently_working': teacherCurrentlyWorking,
       'mentor_opt_in': mentorOptIn,
       'mentor_konulari': mentorTopics,
       'kvkk_consent': kvkkConsent,
@@ -90,7 +105,7 @@ class ProfileData with _$ProfileData {
 }
 
 @freezed
-class VerificationUploadResult with _$VerificationUploadResult {
+abstract class VerificationUploadResult with _$VerificationUploadResult {
   const factory VerificationUploadResult({
     @JsonKey(fromJson: readRequiredText) required String proofPath,
     @JsonKey(fromJson: readRequiredText) required String proofImageRecordId,
@@ -137,6 +152,11 @@ class ProfileRepository {
     required String passwordRepeat,
     required bool kvkkConsent,
     required bool directoryConsent,
+    String teacherSubject = '',
+    String teacherSubjectOther = '',
+    String teacherStartedYear = '',
+    String teacherEndedYear = '',
+    bool teacherCurrentlyWorking = false,
   }) {
     return _apiClient.post<dynamic>(
       '/api/profile/graduation-year/claim',
@@ -147,6 +167,13 @@ class ProfileRepository {
         'sifre2': passwordRepeat,
         'kvkk_consent': kvkkConsent,
         'directory_consent': directoryConsent,
+        if (graduationYear.trim() == '9999') ...{
+          'teacher_subject': teacherSubject.trim(),
+          'teacher_subject_other': teacherSubjectOther.trim(),
+          'teacher_started_year': teacherStartedYear.trim(),
+          'teacher_ended_year': teacherEndedYear.trim(),
+          'teacher_currently_working': teacherCurrentlyWorking,
+        },
       },
     );
   }

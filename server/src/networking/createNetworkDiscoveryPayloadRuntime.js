@@ -346,6 +346,10 @@ export function createNetworkDiscoveryPayloadRuntime({
     const hasFollows = hasTable('follows');
     const hasMentorOptIn = hasColumn('uyeler', 'mentor_opt_in');
     const hasOnline = hasColumn('uyeler', 'online');
+    const hasTeacherSubject = hasColumn('uyeler', 'teacher_subject');
+    const hasTeacherStartedYear = hasColumn('uyeler', 'teacher_started_year');
+    const hasTeacherEndedYear = hasColumn('uyeler', 'teacher_ended_year');
+    const hasTeacherCurrentlyWorking = hasColumn('uyeler', 'teacher_currently_working');
     const me = await sqlGetAsync(
       `SELECT id, mezuniyetyili, sehir, universite, meslek
        FROM uyeler
@@ -356,6 +360,10 @@ export function createNetworkDiscoveryPayloadRuntime({
     const hasEngagementScores = hasTable('member_engagement_scores');
     const candidateVerifiedSql = `${selectOptionalColumnSql('uyeler', 'u', 'verified', '0')} AS verified`;
     const candidateRoleSql = `${selectOptionalColumnSql('uyeler', 'u', 'role', "'user'")} AS role`;
+    const teacherSubjectSql = `${hasTeacherSubject ? 'u.teacher_subject' : "''"} AS teacher_subject`;
+    const teacherStartedYearSql = `${hasTeacherStartedYear ? 'u.teacher_started_year' : 'NULL'} AS teacher_started_year`;
+    const teacherEndedYearSql = `${hasTeacherEndedYear ? 'u.teacher_ended_year' : 'NULL'} AS teacher_ended_year`;
+    const teacherCurrentlyWorkingSql = `${hasTeacherCurrentlyWorking ? 'u.teacher_currently_working' : '0'} AS teacher_currently_working`;
 
     const [iFollowFollowers, followsMe, candidates] = await Promise.all([
       hasFollows
@@ -372,6 +380,7 @@ export function createNetworkDiscoveryPayloadRuntime({
       sqlAllAsync(
         `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, ${candidateVerifiedSql}, u.mezuniyetyili, u.sehir, u.universite, u.meslek, ${hasOnline ? 'u.online' : '0'} AS online,
                 ${candidateRoleSql}, ${hasMentorOptIn ? 'u.mentor_opt_in' : '0'} AS mentor_opt_in,
+                ${teacherSubjectSql}, ${teacherStartedYearSql}, ${teacherEndedYearSql}, ${teacherCurrentlyWorkingSql},
                 ${hasFollows ? `CASE WHEN EXISTS (
                   SELECT 1
                   FROM follows f
@@ -441,6 +450,28 @@ export function createNetworkDiscoveryPayloadRuntime({
     const mentorshipPeersMap = createPeerMap(mentorshipRows, 'requester_id', 'mentor_id');
     const teacherPeersMap = createPeerMap(teacherLinkRows, 'teacher_user_id', 'alumni_user_id');
 
+    function studentYearsForGraduationYear(value) {
+      const graduationYear = parseInt(String(value || '').trim(), 10);
+      if (!Number.isFinite(graduationYear) || graduationYear <= 0) return null;
+      const duration = graduationYear <= 2004 ? 7 : 4;
+      return {
+        start: Math.max(1993, graduationYear - duration),
+        end: graduationYear
+      };
+    }
+
+    function hasTeacherTenureOverlap(viewer, candidate) {
+      const teacherStart = parseInt(String(candidate?.teacher_started_year || '').trim(), 10);
+      if (!Number.isFinite(teacherStart) || teacherStart <= 0) return false;
+      const teacherEnd = Number(candidate?.teacher_currently_working || 0) === 1
+        ? new Date().getFullYear()
+        : parseInt(String(candidate?.teacher_ended_year || '').trim(), 10);
+      if (!Number.isFinite(teacherEnd) || teacherEnd < teacherStart) return false;
+      const studentYears = studentYearsForGraduationYear(viewer?.mezuniyetyili);
+      if (!studentYears) return false;
+      return teacherStart <= studentYears.end && teacherEnd >= studentYears.start;
+    }
+
     const scored = [];
     for (const c of candidates) {
       const cid = Number(c.id);
@@ -451,6 +482,7 @@ export function createNetworkDiscoveryPayloadRuntime({
       const hasDirectMentorshipLink = mentorshipPeersMap.get(safeUserId)?.has(cid);
       const teacherOverlap = getPeerOverlapCount(teacherPeersMap, safeUserId, cid);
       const hasDirectTeacherLink = teacherPeersMap.get(safeUserId)?.has(cid);
+      const hasTeacherTenureMatch = hasTeacherTenureOverlap(me, c);
       scored.push(buildScoredNetworkSuggestion(c, {
         viewer: me,
         secondDegree,
@@ -460,6 +492,7 @@ export function createNetworkDiscoveryPayloadRuntime({
         hasDirectMentorshipLink,
         teacherOverlap,
         hasDirectTeacherLink,
+        hasTeacherTenureMatch,
         params: experiment.config.params
       }));
     }
