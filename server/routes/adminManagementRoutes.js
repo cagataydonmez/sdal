@@ -1021,7 +1021,7 @@ export function registerAdminManagementRoutes(app, {
       const params = [];
 
       if (q) {
-        whereParts.push('(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(COALESCE(CAST(u.teacher_subject AS TEXT), '')) LIKE LOWER(?))');
+        whereParts.push("(LOWER(CAST(u.kadi AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.isim AS TEXT)) LIKE LOWER(?) OR LOWER(CAST(u.soyisim AS TEXT)) LIKE LOWER(?) OR LOWER(COALESCE(CAST(u.teacher_subject AS TEXT), '')) LIKE LOWER(?))");
         params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
       }
       if (verificationStatus) {
