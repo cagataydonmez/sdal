@@ -181,6 +181,15 @@ class AdminWorkspacePage extends ConsumerWidget {
                     onTap: () => context.go('/admin/teacher-network'),
                   ),
                   _WorkspaceNavCard(
+                    title: 'Öğretmen hesapları',
+                    summary:
+                        'Öğretmen olarak kayıtlı hesapları görüntüleyin ve doğrulama durumlarını yönetin.',
+                    countLabel: 'Hesap listesi',
+                    icon: Icons.manage_accounts_outlined,
+                    tone: _WorkspaceTone.accent,
+                    onTap: () => context.go('/admin/teacher-accounts'),
+                  ),
+                  _WorkspaceNavCard(
                     title: 'İçerik güvenliği',
                     summary:
                         'Post, yorum, hikâye, grup ve mesaj denetimini tek yerden aç.',

@@ -683,8 +683,7 @@ final teacherLinksProvider =
       (ref) => ref.watch(networkingRepositoryProvider).fetchTeacherLinks(),
     );
 
-final teacherOptionsProvider = FutureProvider.autoDispose
-    .family<List<TeacherOption>, String>((ref, term) {
-      if (term.trim().isEmpty) return Future.value(const <TeacherOption>[]);
+final teacherOptionsProvider =
+    FutureProvider.family<List<TeacherOption>, String>((ref, term) {
       return ref.watch(networkingRepositoryProvider).searchTeacherOptions(term);
     });

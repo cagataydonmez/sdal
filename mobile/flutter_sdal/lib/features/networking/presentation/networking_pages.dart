@@ -926,32 +926,22 @@ class _TeacherLinksPageState extends ConsumerState<TeacherLinksPage> {
                   ),
                   const SizedBox(height: 12),
                   teacherOptionsState.when(
-                    loading: () => _searchController.text.trim().isEmpty
-                        ? EmptyStateView(
-                            icon: Icons.search_rounded,
-                            title: context.l10n.teacherSearchHintTitle,
-                            message: context.l10n.teacherSearchHintMessage,
-                            compact: true,
-                          )
-                        : const Center(child: CircularProgressIndicator()),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (error, _) => const ErrorView(
                       compact: true,
                       kind: ErrorViewKind.network,
                     ),
                     data: (items) {
-                      if (_searchController.text.trim().isEmpty) {
-                        return EmptyStateView(
-                          icon: Icons.search_rounded,
-                          title: context.l10n.teacherSearchHintTitle,
-                          message: context.l10n.teacherSearchHintMessage,
-                          compact: true,
-                        );
-                      }
                       if (items.isEmpty) {
                         return EmptyStateView(
                           icon: Icons.person_off_outlined,
-                          title: context.l10n.teacherSearchEmptyTitle,
-                          message: context.l10n.teacherSearchEmptyMessage,
+                          title: _searchController.text.trim().isEmpty
+                              ? context.l10n.teacherSearchHintTitle
+                              : context.l10n.teacherSearchEmptyTitle,
+                          message: _searchController.text.trim().isEmpty
+                              ? context.l10n.teacherSearchHintMessage
+                              : context.l10n.teacherSearchEmptyMessage,
                           compact: true,
                         );
                       }
