@@ -42,6 +42,7 @@ export class LegacyFeedRepository extends FeedRepository {
     const rows = this.isPostgresDb && typeof this.sqlAllAsync === 'function'
       ? await this.sqlAllAsync(
         `SELECT p.id, p.user_id, p.content, p.image, p.image_record_id, p.created_at, p.updated_at, p.group_id,
+                p.post_type, p.entity_id,
                 u.kadi, u.isim, u.soyisim, u.resim, u.verified,
                 COALESCE(plc.like_count, 0) AS like_count,
                 COALESCE(pcc.comment_count, 0) AS comment_count,

@@ -3871,6 +3871,7 @@ const {
   broadcastChatDelete,
   broadcastChatEventLocal,
   canManageChatMessage
+  createEntityFeedPost,
 } = createEventChatRuntime({
   sqlAll,
   sqlAllAsync,
@@ -5160,6 +5161,7 @@ registerEventJobRoutes(app, {
   uploadImagePresets,
   writeAppLog,
   createEventRecord,
+  createEntityFeedPost,
   normalizeEventResponse,
   getEventResponseBundle,
   notifyMentions,

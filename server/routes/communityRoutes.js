@@ -20,6 +20,7 @@ export function registerCommunityRoutes(app, {
   uploadImagePresets,
   writeAppLog,
   createEventRecord,
+  createEntityFeedPost,
   normalizeEventResponse,
   getEventResponseBundle,
   notifyMentions
@@ -128,10 +129,25 @@ export function registerCommunityRoutes(app, {
   app.post('/api/new/events/:id/approve', requireAdmin, async (req, res) => {
     try {
       const approved = String(req.body?.approved || '1') === '1';
+      const now = new Date().toISOString();
       await sqlRunAsync(
         'UPDATE events SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-        [toDbFlagForColumn('events', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
+        [toDbFlagForColumn('events', 'approved', approved), req.session.userId, now, req.params.id]
       );
+      if (approved && createEntityFeedPost) {
+        const ev = await sqlGetAsync('SELECT id, title, description, created_by FROM events WHERE id = ?', [req.params.id]);
+        if (ev) {
+          createEntityFeedPost({
+            entityType: 'event',
+            entityId: Number(ev.id),
+            title: ev.title || '',
+            excerpt: ev.description || '',
+            groupId: null,
+            userId: ev.created_by,
+            createdAt: now
+          }).catch(() => {});
+        }
+      }
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
@@ -371,7 +387,8 @@ export function registerCommunityRoutes(app, {
       const user = getCurrentUser(req);
       const isAdmin = hasAdminSession(req, user);
       const now = new Date().toISOString();
-      await sqlRunAsync(
+      const groupId = req.body?.group_id ? Number(req.body.group_id) : null;
+      const result = await sqlRunAsync(
         `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -385,6 +402,17 @@ export function registerCommunityRoutes(app, {
           isAdmin ? now : null
         ]
       );
+      if (isAdmin && createEntityFeedPost) {
+        createEntityFeedPost({
+          entityType: 'announcement',
+          entityId: Number(result?.lastInsertRowid || 0),
+          title,
+          excerpt: body || '',
+          groupId,
+          userId: req.session.userId,
+          createdAt: now
+        }).catch(() => {});
+      }
       res.json({ ok: true, pending: !isAdmin });
     } catch (err) {
       console.error(err);
@@ -412,7 +440,8 @@ export function registerCommunityRoutes(app, {
         if (!processedUpload.ok) return res.status(processedUpload.statusCode).send(processedUpload.message);
       }
       const now = new Date().toISOString();
-      await sqlRunAsync(
+      const groupId = req.body?.group_id ? Number(req.body.group_id) : null;
+      const result = await sqlRunAsync(
         `INSERT INTO announcements (title, body, image, created_at, created_by, approved, approved_by, approved_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -426,6 +455,17 @@ export function registerCommunityRoutes(app, {
           isAdmin ? now : null
         ]
       );
+      if (isAdmin && createEntityFeedPost) {
+        createEntityFeedPost({
+          entityType: 'announcement',
+          entityId: Number(result?.lastInsertRowid || 0),
+          title,
+          excerpt: bodyRaw,
+          groupId,
+          userId: req.session.userId,
+          createdAt: now
+        }).catch(() => {});
+      }
       res.json({ ok: true, pending: !isAdmin });
     } catch (err) {
       console.error(err);
@@ -439,10 +479,11 @@ export function registerCommunityRoutes(app, {
         ? req.body?.approved
         : '1';
       const approved = String(approvedInput) === '1';
-      const announcement = await sqlGetAsync('SELECT id, created_by, title FROM announcements WHERE id = ?', [req.params.id]);
+      const now = new Date().toISOString();
+      const announcement = await sqlGetAsync('SELECT id, created_by, title, body FROM announcements WHERE id = ?', [req.params.id]);
       await sqlRunAsync(
         'UPDATE announcements SET approved = ?, approved_by = ?, approved_at = ? WHERE id = ?',
-        [toDbFlagForColumn('announcements', 'approved', approved), req.session.userId, new Date().toISOString(), req.params.id]
+        [toDbFlagForColumn('announcements', 'approved', approved), req.session.userId, now, req.params.id]
       );
       if (announcement?.created_by && !sameUserId(announcement.created_by, req.session.userId)) {
         addNotification({
@@ -454,6 +495,17 @@ export function registerCommunityRoutes(app, {
             ? `"${announcement.title || 'Duyuru'}" duyurun yayınlandı.`
             : `"${announcement.title || 'Duyuru'}" duyurun reddedildi.`
         });
+      }
+      if (approved && announcement && createEntityFeedPost) {
+        createEntityFeedPost({
+          entityType: 'announcement',
+          entityId: Number(announcement.id),
+          title: announcement.title || '',
+          excerpt: announcement.body || '',
+          groupId: null,
+          userId: announcement.created_by,
+          createdAt: now
+        }).catch(() => {});
       }
       res.json({ ok: true });
     } catch (err) {

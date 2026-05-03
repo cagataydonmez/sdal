@@ -123,6 +123,8 @@ export function toDomainPost(row) {
     commentCount: Number(row.comment_count || 0),
     likedByViewer: Number(row.liked_by_viewer || 0) === 1,
     updatedAt: row.updated_at || null,
+    postType: String(row.post_type || 'post'),
+    entityId: row.entity_id != null ? Number(row.entity_id) : null,
     legacy: row
   };
 }

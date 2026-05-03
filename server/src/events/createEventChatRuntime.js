@@ -13,6 +13,35 @@ export function createEventChatRuntime({
   getChatWss,
   getRealtimeBus
 }) {
+  const queryAll = (...a) => sqlAllAsync ? sqlAllAsync(...a) : Promise.resolve(sqlAll(...a));
+
+  // Creates a system post that surfaces an event/announcement in the feed.
+  // Idempotent — skips if a post for this entity already exists.
+  async function createEntityFeedPost({ entityType, entityId, title, excerpt, groupId, userId, createdAt }) {
+    const existing = await queryAll(
+      'SELECT id FROM posts WHERE post_type = ? AND entity_id = ? LIMIT 1',
+      [entityType, entityId]
+    );
+    if (existing.length > 0) return;
+
+    const typeLabel = entityType === 'event' ? '📅 Etkinlik' : '📢 Duyuru';
+    const trimmedExcerpt = (excerpt || '').replace(/<[^>]*>/g, '').trim().slice(0, 220);
+    const content = trimmedExcerpt
+      ? `${typeLabel}: ${title}\n\n${trimmedExcerpt}`
+      : `${typeLabel}: ${title}`;
+
+    const postCols = await getTableColumnSetAsync('posts');
+    const cols = ['user_id', 'content', 'created_at', 'post_type', 'entity_id'].filter(c => postCols.has(c));
+    const vals = [userId, content, createdAt, entityType, entityId];
+    if (postCols.has('group_id') && groupId != null) {
+      cols.push('group_id');
+      vals.push(groupId);
+    }
+    await sqlRunAsync(
+      `INSERT INTO posts (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+      vals
+    );
+  }
   function normalizeEventResponse(value) {
     const raw = String(value || '').trim().toLowerCase();
     if (['attend', 'joined', 'join', 'going', 'yes'].includes(raw)) return 'attend';
@@ -129,7 +158,20 @@ export function createEventChatRuntime({
       type: 'mention_event',
       message: 'Etkinlik aciklamasinda senden bahsetti.'
     });
-    return { ok: true, pending: !isAdmin, id: result?.lastInsertRowid };
+    const eventId = Number(result?.lastInsertRowid || 0);
+    if (isAdmin && eventId) {
+      const groupId = req.body?.group_id ? Number(req.body.group_id) : null;
+      createEntityFeedPost({
+        entityType: 'event',
+        entityId: eventId,
+        title,
+        excerpt: descriptionRaw,
+        groupId,
+        userId: req.session.userId,
+        createdAt: now
+      }).catch(() => {});
+    }
+    return { ok: true, pending: !isAdmin, id: eventId };
   }
 
   function broadcastChatEventLocal(payload) {
@@ -213,6 +255,7 @@ export function createEventChatRuntime({
     normalizeEventResponse,
     getEventResponseBundle,
     createEventRecord,
+    createEntityFeedPost,
     broadcastChatMessage,
     broadcastChatUpdate,
     broadcastChatDelete,
