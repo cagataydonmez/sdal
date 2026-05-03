@@ -23,16 +23,21 @@ const isDryRun = process.argv.includes('--dry-run');
 const isCleanup = process.argv.includes('--cleanup');
 const scryptAsync = promisify(crypto.scrypt);
 
-// ── DB path ────────────────────────────────────────────────────────────────────
-const envFile = path.resolve(__dirname, '../.env');
-let dbPathRaw = 'server/data/sdal.local.sqlite';
-if (fs.existsSync(envFile)) {
-  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
-    const m = line.match(/^SDAL_DB_PATH\s*=\s*(.+)$/);
-    if (m) { dbPathRaw = m[1].trim(); break; }
+// ── DB path — env var wins, then .env file, then default ─────────────────────
+let dbPathRaw = process.env.SDAL_DB_PATH || '';
+if (!dbPathRaw) {
+  const envFile = path.resolve(__dirname, '../.env');
+  if (fs.existsSync(envFile)) {
+    for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+      const m = line.match(/^SDAL_DB_PATH\s*=\s*(.+)$/);
+      if (m) { dbPathRaw = m[1].trim(); break; }
+    }
   }
 }
-const absDbPath = path.resolve(__dirname, '../..', dbPathRaw);
+if (!dbPathRaw) dbPathRaw = 'server/data/sdal.local.sqlite';
+const absDbPath = path.isAbsolute(dbPathRaw)
+  ? dbPathRaw
+  : path.resolve(__dirname, '../..', dbPathRaw);
 console.log('DB:', absDbPath);
 if (!fs.existsSync(absDbPath)) { console.error('❌ DB not found:', absDbPath); process.exit(1); }
 
