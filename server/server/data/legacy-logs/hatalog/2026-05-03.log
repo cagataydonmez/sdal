@@ -1,0 +1,8 @@
+[2026-05-03T07:30:07.577Z] activity=http_error | requestId=243d589f-d54c-408b-be17-d8b488035a49 | method=GET | path=/api/new/teachers/5/map | status=401 | durationMs=5 | ip=::1
+[2026-05-03T07:30:07.614Z] activity=http_error | requestId=d5342262-72ff-4779-8a72-091d145679f5 | method=GET | path=/api/new/teachers/999999/map | status=404 | durationMs=0 | userId=5 | ip=::1
+[2026-05-03T07:30:07.615Z] activity=http_error | requestId=bf09b2d1-15a4-4cb0-9753-38d4c28222b5 | method=GET | path=/api/new/teachers/0/map | status=400 | durationMs=1 | userId=5 | ip=::1
+[2026-05-03T07:30:07.640Z] activity=http_error | requestId=a51ac592-78dd-4808-8377-9ac772e7059d | method=GET | path=/api/new/teachers/7/map | status=404 | durationMs=0 | userId=5 | ip=::1
+[2026-05-03T07:30:36.495Z] activity=http_error | requestId=bdcc8920-c89a-4f53-a1ca-037d8d08fe85 | method=GET | path=/api/new/teachers/5/map | status=401 | durationMs=0 | ip=::1
+[2026-05-03T07:30:36.524Z] activity=http_error | requestId=264c7471-9048-4bb0-a967-a2635fd58489 | method=GET | path=/api/new/teachers/999999/map | status=404 | durationMs=0 | userId=5 | ip=::1
+[2026-05-03T07:30:36.525Z] activity=http_error | requestId=2c4dab32-1069-4d0e-a0b5-bd3de330a254 | method=GET | path=/api/new/teachers/0/map | status=400 | durationMs=0 | userId=5 | ip=::1
+[2026-05-03T07:30:36.550Z] activity=http_error | requestId=05e73fe4-501f-4152-9fa1-b8f1426ff086 | method=GET | path=/api/new/teachers/7/map | status=404 | durationMs=1 | userId=5 | ip=::1

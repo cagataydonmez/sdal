@@ -1,0 +1,5 @@
+[2026-05-03T07:30:07.608Z] activity=member_activity | requestId=e6ccef2b-d2a1-459b-984f-544fcfaccc91 | method=POST | path=/api/auth/login | status=200 | durationMs=26 | userId=5 | ip=::1 | bodySummary=[object Object]
+[2026-05-03T07:30:07.639Z] activity=member_activity | requestId=eca212e2-d2f0-492f-84ad-7e7b28c3b3fa | method=POST | path=/api/auth/login | status=200 | durationMs=24 | userId=7 | ip=::1 | bodySummary=[object Object]
+[2026-05-03T07:30:20.718Z] activity=member_activity | requestId=73dbde75-1fd2-486a-a942-a18edaf9ea35 | method=POST | path=/api/auth/login | status=200 | durationMs=32 | userId=5 | ip=::1 | userAgent=curl/8.7.1 | bodySummary=[object Object]
+[2026-05-03T07:30:36.520Z] activity=member_activity | requestId=cf2fe118-7f16-4e0f-b1c7-8275137dcd5c | method=POST | path=/api/auth/login | status=200 | durationMs=23 | userId=5 | ip=::1 | bodySummary=[object Object]
+[2026-05-03T07:30:36.549Z] activity=member_activity | requestId=b43a7560-3916-414b-9b66-cec130e070f3 | method=POST | path=/api/auth/login | status=200 | durationMs=24 | userId=7 | ip=::1 | bodySummary=[object Object]
