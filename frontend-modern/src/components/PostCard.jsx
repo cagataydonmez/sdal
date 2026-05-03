@@ -15,6 +15,29 @@ function PostActionIcon({ type, active = false }) {
   return <AnimatedIcon name={type === 'comment' ? 'message-square' : 'heart'} size={16} active={active} />;
 }
 
+function EntityPostBanner({ post, t }) {
+  const isEvent = post.postType === 'event';
+  const entityId = post.entityId;
+  const href = isEvent
+    ? (entityId ? `/new/events?event=${entityId}` : '/new/events')
+    : (entityId ? `/new/announcements?announcement=${entityId}` : '/new/announcements');
+
+  const lines = (post.content || '').split('\n').filter(Boolean);
+  const titleLine = lines[0] || '';
+  const excerptLine = lines.slice(1).join(' ').trim();
+
+  return (
+    <Link className="entity-post-banner" to={href} aria-label={titleLine || (isEvent ? t('nav_events') : t('nav_announcements'))}>
+      <div className="entity-post-banner-type">{isEvent ? '📅' : '📢'}</div>
+      <div className="entity-post-banner-body">
+        <div className="entity-post-banner-title">{titleLine}</div>
+        {excerptLine ? <div className="entity-post-banner-excerpt">{excerptLine}</div> : null}
+      </div>
+      <div className="entity-post-banner-cta">{t('view') || '→'}</div>
+    </Link>
+  );
+}
+
 export default function PostCard({ post, onRefresh, focused = false, postHref = '', defaultCommentsOpen = false }) {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -226,7 +249,9 @@ export default function PostCard({ post, onRefresh, focused = false, postHref = 
           </div>
         ) : (
           <>
-            {postHref ? (
+            {post.postType === 'event' || post.postType === 'announcement' ? (
+              <EntityPostBanner post={post} t={t} />
+            ) : postHref ? (
               <Link className="post-body-link" to={postHref} aria-label={`Post #${post.id} detayını aç`}>
                 <TranslatableHtml html={post.content || ''} contentClassName="post-rich-body" />
                 {post.image || post.variants ? (

@@ -1268,6 +1268,58 @@
   line-height: 1.45;
 }
 
+.entity-post-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--accent-soft) 18%, var(--card-alt) 82%);
+  border: 1px solid color-mix(in srgb, var(--accent-soft-line) 60%, var(--line) 40%);
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  margin: 4px 0 2px;
+}
+.entity-post-banner:hover {
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--card-alt) 70%);
+  border-color: color-mix(in srgb, var(--accent-soft-line) 88%, var(--line) 12%);
+  transform: translateY(-1px);
+}
+.entity-post-banner-type {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.entity-post-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+.entity-post-banner-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.entity-post-banner-excerpt {
+  font-size: 0.82rem;
+  color: color-mix(in srgb, var(--text) 60%, var(--muted) 40%);
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.entity-post-banner-cta {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+  padding-left: 4px;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .profile-editor-progress-bar {
     transition: transform 220ms cubic-bezier(0.25, 1, 0.5, 1);

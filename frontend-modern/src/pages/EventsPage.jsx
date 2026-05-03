@@ -100,7 +100,8 @@ export default function EventsPage() {
   const [events, setEvents] = useState([]);
   const [comments, setComments] = useState({});
   const [drafts, setDrafts] = useState({});
-  const [form, setForm] = useState({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
+  const [form, setForm] = useState({ title: '', description: '', location: '', starts_at: '', ends_at: '', group_id: '' });
+  const [groups, setGroups] = useState([]);
   const [imageFile, setImageFile] = useState(null);
   const [responsePrefs, setResponsePrefs] = useState({});
   const [error, setError] = useState('');
@@ -214,6 +215,14 @@ export default function EventsPage() {
     load(0, false);
   }, [load]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch('/api/new/groups?limit=100', { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : { items: [] })
+      .then((d) => setGroups(d.items || []))
+      .catch(() => {});
+  }, [isAdmin]);
+
   const loadMore = useCallback(async () => {
     if (loadingMoreRef.current || loadingMore || !hasMore) return;
     loadingMoreRef.current = true;
@@ -253,6 +262,7 @@ export default function EventsPage() {
         payload.append('location', form.location);
         payload.append('starts_at', form.starts_at);
         payload.append('ends_at', form.ends_at);
+        if (form.group_id) payload.append('group_id', form.group_id);
         payload.append('image', imageFile);
         const res = await fetch('/api/new/events/upload', {
           method: 'POST',
@@ -263,7 +273,7 @@ export default function EventsPage() {
       } else {
         await apiJson('/api/new/events', { method: 'POST', body: JSON.stringify(form) });
       }
-      setForm({ title: '', description: '', location: '', starts_at: '', ends_at: '' });
+      setForm({ title: '', description: '', location: '', starts_at: '', ends_at: '', group_id: '' });
       setImageFile(null);
       setStatus(isAdmin ? t('events_status_added') : t('events_status_submitted'));
       load();
@@ -439,6 +449,14 @@ export default function EventsPage() {
                 <input className="input" type="datetime-local" value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
                 <input className="input" type="datetime-local" value={form.ends_at} onChange={(e) => setForm({ ...form, ends_at: e.target.value })} />
               </div>
+              {isAdmin && groups.length > 0 ? (
+                <select className="input" value={form.group_id} onChange={(e) => setForm({ ...form, group_id: e.target.value })}>
+                  <option value="">{t('group_optional') || 'Grup (isteğe bağlı)'}</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              ) : null}
               <div className="events-compose-tools">
                 <NativeImageButtons onPick={setImageFile} onError={setError} />
                 <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />

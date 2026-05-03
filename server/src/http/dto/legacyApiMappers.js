@@ -29,6 +29,8 @@ export function toLegacyFeedItem(post) {
       verified: post.author?.verified ? 1 : 0
     },
     groupId: post.groupId,
+    postType: post.postType || 'post',
+    entityId: post.entityId ?? null,
     likeCount: Number(post.likeCount || 0),
     commentCount: Number(post.commentCount || 0),
     liked: Boolean(post.likedByViewer)

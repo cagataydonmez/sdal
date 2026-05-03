@@ -35,7 +35,8 @@ export default function AnnouncementsPage() {
   const { user } = useAuth();
   const location = useLocation();
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ title: '', body: '' });
+  const [form, setForm] = useState({ title: '', body: '', group_id: '' });
+  const [groups, setGroups] = useState([]);
   const [imageFile, setImageFile] = useState(null);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -72,6 +73,14 @@ export default function AnnouncementsPage() {
     load(0, false);
   }, [load]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch('/api/new/groups?limit=100', { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : { items: [] })
+      .then((d) => setGroups(d.items || []))
+      .catch(() => {});
+  }, [isAdmin]);
+
   const loadMore = useCallback(async () => {
     if (loadingMoreRef.current || loadingMore || !hasMore) return;
     loadingMoreRef.current = true;
@@ -107,6 +116,7 @@ export default function AnnouncementsPage() {
         const payload = new FormData();
         payload.append('title', form.title);
         payload.append('body', form.body);
+        if (form.group_id) payload.append('group_id', form.group_id);
         payload.append('image', imageFile);
         const res = await fetch('/api/new/announcements/upload', {
           method: 'POST',
@@ -117,7 +127,7 @@ export default function AnnouncementsPage() {
       } else {
         await apiJson('/api/new/announcements', { method: 'POST', body: JSON.stringify(form) });
       }
-      setForm({ title: '', body: '' });
+      setForm({ title: '', body: '', group_id: '' });
       setImageFile(null);
       setStatus(isAdmin ? t('announcements_status_published') : t('announcements_status_submitted'));
       load();
@@ -143,6 +153,14 @@ export default function AnnouncementsPage() {
         <div className="panel-body">
           <input className="input" placeholder={t('title')} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           <RichTextEditor value={form.body} onChange={(next) => setForm((prev) => ({ ...prev, body: next }))} placeholder={t('announcements_body_placeholder')} minHeight={120} />
+          {isAdmin && groups.length > 0 ? (
+            <select className="input" value={form.group_id} onChange={(e) => setForm({ ...form, group_id: e.target.value })}>
+              <option value="">{t('group_optional') || 'Grup (isteğe bağlı)'}</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          ) : null}
           <NativeImageButtons onPick={setImageFile} onError={setError} />
           <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           <button className="btn primary" onClick={create}>{isAdmin ? t('publish') : t('suggest')}</button>
