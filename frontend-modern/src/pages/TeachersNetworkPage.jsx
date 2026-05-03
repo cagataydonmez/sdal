@@ -87,16 +87,8 @@ export default function TeachersNetworkPage() {
   const [form, setForm] = useState({
     teacherId: deepLinkedTeacherId > 0 ? String(deepLinkedTeacherId) : '',
     relationship_type: 'taught_in_class',
-    class_year: '',
     notes: ''
   });
-
-  const years = useMemo(() => {
-    const now = new Date().getFullYear();
-    const all = [];
-    for (let y = now; y >= 1999; y -= 1) all.push(String(y));
-    return all;
-  }, []);
 
   const selectedTeacher = teacherOptions.find((teacher) => String(teacher.id) === String(form.teacherId));
   const selectedTeacherExistingTypes = parseOptionList(selectedTeacher?.existing_relationship_types);
@@ -238,7 +230,7 @@ export default function TeachersNetworkPage() {
 
   useEffect(() => {
     setSimilarWarning(null);
-  }, [form.teacherId, form.relationship_type, form.class_year]);
+  }, [form.teacherId, form.relationship_type]);
 
   async function submitLink(e, { confirmSimilar = false } = {}) {
     e.preventDefault();
@@ -256,8 +248,6 @@ export default function TeachersNetworkPage() {
       source_surface: deepLinkedTeacherId > 0 ? 'member_detail_page' : 'teachers_network_page'
     };
     if (confirmSimilar) body.confirm_similar = true;
-    const selectedClassYear = Number(form.class_year || 0);
-    if (selectedClassYear >= 1950 && selectedClassYear <= 2100) body.class_year = selectedClassYear;
 
     setSubmitting(true);
     try {
@@ -286,7 +276,6 @@ export default function TeachersNetworkPage() {
         ...prev,
         teacherId: '',
         relationship_type: 'taught_in_class',
-        class_year: '',
         notes: ''
       }));
       await Promise.all([load(0, false), loadTeacherOptions(teacherSearch)]);
@@ -446,17 +435,6 @@ export default function TeachersNetworkPage() {
                   {RELATIONSHIP_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
                 <span className="network-field-hint">{relationshipHelper}</span>
-              </div>
-              <div className="form-row">
-                <label>{t('teacher_form_label_year')}</label>
-                <select
-                  className="input"
-                  value={form.class_year}
-                  onChange={(e) => setForm((prev) => ({ ...prev, class_year: e.target.value }))}
-                >
-                  <option value="">{t('teacher_form_year_placeholder')}</option>
-                  {years.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
               </div>
               <div className="form-row network-form-wide">
                 <label>{t('teacher_form_label_notes')}</label>

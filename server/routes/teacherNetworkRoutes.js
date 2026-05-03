@@ -244,6 +244,18 @@ export function registerTeacherNetworkRoutes(app, {
           `Sınıf yılı ${TEACHER_NETWORK_MIN_CLASS_YEAR}-${TEACHER_NETWORK_MAX_CLASS_YEAR} aralığında olmalıdır.`
         );
       }
+      // If class_year not provided, fall back to the alumni's own mezuniyetyili
+      let effectiveClassYear = classYear.value;
+      if (effectiveClassYear === null) {
+        const alumniUser = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [alumniUserId]);
+        const alumniCohort = normalizeCohortValue(alumniUser?.mezuniyetyili);
+        if (alumniCohort && alumniCohort !== TEACHER_COHORT_VALUE) {
+          const cohortNum = Number(alumniCohort);
+          if (Number.isInteger(cohortNum) && cohortNum >= TEACHER_NETWORK_MIN_CLASS_YEAR && cohortNum <= TEACHER_NETWORK_MAX_CLASS_YEAR) {
+            effectiveClassYear = cohortNum;
+          }
+        }
+      }
       const notes = String(req.body?.notes || '').trim().slice(0, 500);
       const createdVia = normalizeTeacherLinkCreatedVia(req.body?.created_via);
       const sourceSurface = normalizeTeacherLinkSourceSurface(req.body?.source_surface);
@@ -253,7 +265,7 @@ export function registerTeacherNetworkRoutes(app, {
       const pairLinks = listTeacherLinkPairDuplicates(alumniUserId, teacherUserId);
       const exactDuplicate = pairLinks.find((item) => (
         String(item?.relationship_type || '').trim().toLowerCase() === relationshipType
-        && Number(item?.class_year ?? -1) === Number(classYear.value ?? -1)
+        && Number(item?.class_year ?? -1) === Number(effectiveClassYear ?? -1)
       ));
       if (exactDuplicate) {
         return sendApiError(
@@ -287,7 +299,7 @@ export function registerTeacherNetworkRoutes(app, {
         `INSERT INTO teacher_alumni_links
           (teacher_user_id, alumni_user_id, relationship_type, class_year, notes, confidence_score, created_via, source_surface, review_status, created_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [teacherUserId, alumniUserId, relationshipType, classYear.value, notes, 0.5, createdVia, sourceSurface, 'pending', alumniUserId, now]
+        [teacherUserId, alumniUserId, relationshipType, effectiveClassYear, notes, 0.5, createdVia, sourceSurface, 'pending', alumniUserId, now]
       );
       const linkId = Number(result?.lastInsertRowid || 0);
       const confidenceScore = linkId ? refreshTeacherLinkConfidenceScore(linkId) : 0.5;
@@ -308,7 +320,7 @@ export function registerTeacherNetworkRoutes(app, {
         entityId: linkId,
         metadata: {
           relationship_type: relationshipType,
-          has_class_year: classYear.value !== null,
+          has_class_year: effectiveClassYear !== null,
           review_status: 'pending'
         }
       });
@@ -319,7 +331,7 @@ export function registerTeacherNetworkRoutes(app, {
         {
           status: 'linked',
           relationship_type: relationshipType,
-          class_year: classYear.value,
+          class_year: effectiveClassYear,
           confidence_score: confidenceScore,
           audit: {
             created_via: createdVia,
@@ -331,7 +343,7 @@ export function registerTeacherNetworkRoutes(app, {
         {
           status: 'linked',
           relationship_type: relationshipType,
-          class_year: classYear.value,
+          class_year: effectiveClassYear,
           confidence_score: confidenceScore,
           created_via: createdVia,
           source_surface: sourceSurface,

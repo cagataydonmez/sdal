@@ -15,20 +15,34 @@ const double _kCanvasCenter = _kCanvasSize / 2;
 const double _kTeacherAvatarRadius = 40.0; // 80px diameter on canvas
 
 const double _kMemberAvatarDiameter = 44.0;
-const double _kMemberAvatarOverlapStep = 28.0; // center-to-center for overlap
+const double _kMemberAvatarOverlapStep = 28.0;
 const int _kMaxVisibleAvatars = 5;
 
-// Labels become readable at this canvas-space scale.
-const double _kLodNameThreshold = 1.1;
+// Each cohort cluster lives in a fixed 280×280 canvas-space bounding box.
+const double _kClusterHalf = 140.0;
+
+// At this scale (canvas px → screen px) the cluster expands to the radial view.
+const double _kLodExpandThreshold = 0.45;
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 
+// Returns the orbital radius for a given cohort count.
+// Values are chosen so that adjacent 280-px cluster bounding boxes
+// have at least ~60 px of breathing room even in the expanded radial view.
 double _orbitalRadius(int cohortCount) {
-  if (cohortCount <= 3) return 280.0;
-  if (cohortCount <= 6) return 340.0;
-  if (cohortCount <= 10) return 400.0;
-  if (cohortCount <= 15) return 460.0;
-  return 520.0;
+  if (cohortCount <= 3) return 320.0;
+  if (cohortCount <= 6) return 420.0;
+  if (cohortCount <= 9) return 540.0;
+  if (cohortCount <= 12) return 660.0;
+  return 800.0;
+}
+
+// Ring radius (center-to-member) inside the expanded cluster view.
+double _expandedRingRadius(int memberCount) {
+  if (memberCount <= 6) return 80.0;
+  if (memberCount <= 12) return 100.0;
+  if (memberCount <= 18) return 118.0;
+  return 130.0;
 }
 
 Offset _cohortCenter(int index, int total, double animValue) {
@@ -95,12 +109,12 @@ class _TeacherNetworkMapPageState extends ConsumerState<TeacherNetworkMapPage>
     }
   }
 
-  void _setInitialTransform(Size viewport) {
+  void _setInitialTransform(Size viewport, [int cohortCount = 6]) {
     if (_initialTransformSet) return;
     _initialTransformSet = true;
 
-    // Show the star with small padding around the orbital area.
-    final visibleDiameter = (_orbitalRadius(20) + 160) * 2;
+    // Show the full star with padding; use actual cohort count for a tight fit.
+    final visibleDiameter = (_orbitalRadius(cohortCount) + 200) * 2;
     final scale = math.min(viewport.width, viewport.height - kToolbarHeight) /
         visibleDiameter *
         0.88;
@@ -152,14 +166,14 @@ class _TeacherNetworkMapPageState extends ConsumerState<TeacherNetworkMapPage>
         ),
         actions: [
           state.maybeWhen(
-            data: (_) => LayoutBuilder(
+            data: (data) => LayoutBuilder(
               builder: (ctx, _) => IconButton(
                 tooltip: 'Sıfırla',
                 icon: const Icon(Icons.center_focus_strong_outlined),
                 onPressed: () {
                   final viewport = MediaQuery.sizeOf(context);
                   _initialTransformSet = false;
-                  _setInitialTransform(viewport);
+                  _setInitialTransform(viewport, data.cohorts.length);
                 },
               ),
             ),
@@ -186,8 +200,8 @@ class _TeacherNetworkMapPageState extends ConsumerState<TeacherNetworkMapPage>
             data: data,
             transformController: _transformController,
             revealAnim: _revealAnim,
-            onFirstLayout: (viewport) {
-              _setInitialTransform(viewport);
+            onFirstLayout: (viewport, cohortCount) {
+              _setInitialTransform(viewport, cohortCount);
               _startReveal();
             },
           );
@@ -210,7 +224,7 @@ class _MapView extends ConsumerWidget {
   final TeacherNetworkMapData data;
   final TransformationController transformController;
   final Animation<double> revealAnim;
-  final ValueChanged<Size> onFirstLayout;
+  final void Function(Size viewport, int cohortCount) onFirstLayout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -220,7 +234,7 @@ class _MapView extends ConsumerWidget {
       builder: (context, constraints) {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          onFirstLayout(viewport);
+          onFirstLayout(viewport, data.cohorts.length);
         });
 
         return Stack(
@@ -257,25 +271,18 @@ class _MapView extends ConsumerWidget {
                           ),
                         ),
 
-                        // Cohort clusters
+                        // Cohort clusters — fixed 280×280 bounding box each.
                         ...List.generate(data.cohorts.length, (i) {
                           final cohort = data.cohorts[i];
                           final center = cohortPositions[i];
-                          final visible = math.min(
-                            cohort.members.length,
-                            _kMaxVisibleAvatars,
-                          );
-                          final clusterW = _clusterWidth(cohort.members.length);
 
                           return Positioned(
-                            left: center.dx - clusterW / 2,
-                            top: center.dy - _kMemberAvatarDiameter / 2 - 28,
+                            left: center.dx - _kClusterHalf,
+                            top: center.dy - _kClusterHalf,
                             child: Opacity(
                               opacity: animValue.clamp(0.0, 1.0),
                               child: _CohortCluster(
                                 cohort: cohort,
-                                visible: visible,
-                                clusterWidth: clusterW,
                                 transformController: transformController,
                                 config: config,
                                 onMemberTap: (id) => context.push('/members/$id'),
@@ -389,134 +396,290 @@ class _TeacherCenterNode extends StatelessWidget {
   }
 }
 
-// ── Cohort cluster ────────────────────────────────────────────────────────────
+// ── Cohort cluster (zoom-aware) ───────────────────────────────────────────────
+//
+// Lives in a fixed 280×280 canvas-space bounding box.
+// Below _kLodExpandThreshold: compact horizontal avatar stack + pill label.
+// Above _kLodExpandThreshold: radial layout — cohort year badge at center,
+// every member arranged in a ring around it with their first name below.
 
 class _CohortCluster extends StatelessWidget {
   const _CohortCluster({
     required this.cohort,
-    required this.visible,
-    required this.clusterWidth,
     required this.transformController,
     required this.config,
     required this.onMemberTap,
   });
 
   final TeacherNetworkCohort cohort;
-  final int visible;
-  final double clusterWidth;
   final TransformationController transformController;
   final dynamic config;
   final ValueChanged<int> onMemberTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Avatar stack
-        SizedBox(
-          width: clusterWidth,
-          height: _kMemberAvatarDiameter,
-          child: Stack(
-            children: [
-              for (int i = 0; i < visible; i++)
-                Positioned(
-                  left: i * _kMemberAvatarOverlapStep,
-                  child: i == _kMaxVisibleAvatars - 1 &&
-                          cohort.members.length > _kMaxVisibleAvatars
-                      ? _OverflowBadge(
-                          extra: cohort.members.length - (_kMaxVisibleAvatars - 1),
-                        )
-                      : GestureDetector(
-                          onTap: () => onMemberTap(cohort.members[i].id),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFF2A1F18),
-                                width: 1.5,
+    return ValueListenableBuilder<Matrix4>(
+      valueListenable: transformController,
+      builder: (context, matrix, _) {
+        final scale = matrix.entry(0, 0);
+        final expanded = scale >= _kLodExpandThreshold;
+
+        return SizedBox.square(
+          dimension: _kClusterHalf * 2,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: expanded
+                ? _ExpandedCohortCluster(
+                    key: const ValueKey('exp'),
+                    cohort: cohort,
+                    config: config,
+                    onMemberTap: onMemberTap,
+                  )
+                : _CompactCohortCluster(
+                    key: const ValueKey('cmp'),
+                    cohort: cohort,
+                    config: config,
+                    onMemberTap: onMemberTap,
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Compact cluster (zoomed out) ──────────────────────────────────────────────
+
+class _CompactCohortCluster extends StatelessWidget {
+  const _CompactCohortCluster({
+    super.key,
+    required this.cohort,
+    required this.config,
+    required this.onMemberTap,
+  });
+
+  final TeacherNetworkCohort cohort;
+  final dynamic config;
+  final ValueChanged<int> onMemberTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = math.min(cohort.members.length, _kMaxVisibleAvatars);
+    final clusterW = _clusterWidth(cohort.members.length);
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: clusterW,
+            height: _kMemberAvatarDiameter,
+            child: Stack(
+              children: [
+                for (int i = 0; i < visible; i++)
+                  Positioned(
+                    left: i * _kMemberAvatarOverlapStep,
+                    child: i == _kMaxVisibleAvatars - 1 &&
+                            cohort.members.length > _kMaxVisibleAvatars
+                        ? _OverflowBadge(
+                            extra: cohort.members.length - (_kMaxVisibleAvatars - 1),
+                          )
+                        : GestureDetector(
+                            onTap: () => onMemberTap(cohort.members[i].id),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFF2A1F18),
+                                  width: 1.5,
+                                ),
                               ),
-                            ),
-                            child: RemoteAvatar(
-                              label: cohort.members[i].name,
-                              imageUrl: config
-                                  .resolveUrl(cohort.members[i].photo)
-                                  .toString(),
-                              radius: _kMemberAvatarDiameter / 2,
-                              excludeFromSemantics: false,
+                              child: RemoteAvatar(
+                                label: cohort.members[i].name,
+                                imageUrl: config
+                                    .resolveUrl(cohort.members[i].photo)
+                                    .toString(),
+                                radius: _kMemberAvatarDiameter / 2,
+                                excludeFromSemantics: false,
+                              ),
                             ),
                           ),
-                        ),
-                ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Cohort label — always visible
-        Container(
-          constraints: const BoxConstraints(maxWidth: 110),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A1F18),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: const Color(0xFF3D2E22),
-              width: 1,
+                  ),
+              ],
             ),
           ),
+          const SizedBox(height: 7),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 110),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A1F18),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFF3D2E22), width: 1),
+            ),
+            child: Text(
+              cohort.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFB8A090),
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Expanded cluster (zoomed in) ──────────────────────────────────────────────
+
+class _ExpandedCohortCluster extends StatelessWidget {
+  const _ExpandedCohortCluster({
+    super.key,
+    required this.cohort,
+    required this.config,
+    required this.onMemberTap,
+  });
+
+  final TeacherNetworkCohort cohort;
+  final dynamic config;
+  final ValueChanged<int> onMemberTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const half = _kClusterHalf;
+    final count = cohort.members.length;
+    final ringR = _expandedRingRadius(count);
+    const memberR = _kMemberAvatarDiameter / 2;
+
+    return SizedBox.square(
+      dimension: half * 2,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Cohort year badge at center.
+          Positioned(
+            left: half - 27,
+            top: half - 27,
+            child: _CohortCenterBadge(label: cohort.label),
+          ),
+          // All members arranged in a ring.
+          for (int i = 0; i < count; i++) ..._memberNode(
+            i: i,
+            count: count,
+            half: half,
+            ringR: ringR,
+            memberR: memberR,
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _memberNode({
+    required int i,
+    required int count,
+    required double half,
+    required double ringR,
+    required double memberR,
+  }) {
+    final angle = (2 * math.pi * i / count) - (math.pi / 2);
+    final mx = half + ringR * math.cos(angle);
+    final my = half + ringR * math.sin(angle);
+    final member = cohort.members[i];
+    final firstName = member.name.split(' ').first;
+
+    return [
+      Positioned(
+        left: mx - memberR,
+        top: my - memberR - 10,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () => onMemberTap(member.id),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF3D2E22),
+                    width: 1.5,
+                  ),
+                ),
+                child: RemoteAvatar(
+                  label: member.name,
+                  imageUrl: config.resolveUrl(member.photo).toString(),
+                  radius: memberR,
+                  excludeFromSemantics: false,
+                ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              firstName,
+              style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFF9E8C7D),
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+}
+
+// ── Cohort center badge ───────────────────────────────────────────────────────
+
+class _CohortCenterBadge extends StatelessWidget {
+  const _CohortCenterBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 54,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF261A12),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(0xFFB45637).withValues(alpha: 0.55),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFB45637).withValues(alpha: 0.18),
+              blurRadius: 14,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Center(
           child: Text(
-            cohort.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
+            label,
             style: const TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFFB8A090),
-              letterSpacing: 0.2,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFD4C4B4),
+              height: 1.2,
             ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-
-        // Member names — revealed at higher zoom
-        ValueListenableBuilder<Matrix4>(
-          valueListenable: transformController,
-          builder: (context, matrix, _) {
-            final scale = matrix.entry(0, 0);
-            final showNames = scale >= _kLodNameThreshold;
-
-            return AnimatedOpacity(
-              opacity: showNames ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: showNames
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Column(
-                        children: [
-                          for (int i = 0;
-                              i < math.min(visible, cohort.members.length);
-                              i++)
-                            Text(
-                              cohort.members[i].name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF9E8C7D),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                        ],
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            );
-          },
-        ),
-      ],
+      ),
     );
   }
 }
