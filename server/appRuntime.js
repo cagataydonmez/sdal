@@ -3870,7 +3870,7 @@ const {
   broadcastChatUpdate,
   broadcastChatDelete,
   broadcastChatEventLocal,
-  canManageChatMessage
+  canManageChatMessage,
   createEntityFeedPost,
 } = createEventChatRuntime({
   sqlAll,
