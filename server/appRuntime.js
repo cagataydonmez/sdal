@@ -5447,6 +5447,67 @@ function assignUserToCohort(userId) {
   }
 }
 
+function ensureCohortGroupsSchema() {
+  if (dbDriver !== 'sqlite') return;
+  try {
+    const cols = sqlAll('PRAGMA table_info(groups)').map(r => r.name);
+    if (!cols.includes('is_cohort_group')) sqlRun('ALTER TABLE groups ADD COLUMN is_cohort_group INTEGER DEFAULT 0');
+    if (!cols.includes('cohort_year')) sqlRun('ALTER TABLE groups ADD COLUMN cohort_year TEXT');
+  } catch { /* non-fatal */ }
+}
+
+function ensureCohortGroupsOnStartup() {
+  if (dbDriver !== 'sqlite') return;
+  try {
+    ensureCohortGroupsSchema();
+    const now = new Date().toISOString();
+    const rootUser = sqlGet("SELECT id FROM uyeler WHERE LOWER(COALESCE(role,'')) = 'root' LIMIT 1") || { id: 1 };
+    const admins = sqlAll("SELECT id FROM uyeler WHERE admin = 1 OR LOWER(COALESCE(role,'')) IN ('admin','root')") || [];
+    const MIN_YEAR = 1960;
+    const MAX_YEAR = new Date().getFullYear() + 5;
+    const cohortRows = sqlAll(
+      `SELECT DISTINCT CAST(mezuniyetyili AS TEXT) AS cy FROM uyeler WHERE mezuniyetyili IS NOT NULL AND mezuniyetyili != '' AND mezuniyetyili != '0'`
+    ) || [];
+    for (const row of cohortRows) {
+      const cy = (row.cy || '').trim();
+      if (!cy) continue;
+      const isTeacher = cy === TEACHER_COHORT_VALUE;
+      if (!isTeacher) {
+        const y = parseInt(cy, 10);
+        if (isNaN(y) || y < MIN_YEAR || y > MAX_YEAR) continue;
+      }
+      const groupName = isTeacher ? 'Öğretmenler' : `${cy} Mezunları`;
+      let group = sqlGet('SELECT id FROM groups WHERE name = ?', [groupName]);
+      if (!group) {
+        const desc = isTeacher ? 'SDAL öğretmenlerine özel iletişim ağı.' : `SDAL ${cy} yılı mezunlarına özel iletişim ağı.`;
+        const r = sqlRun(
+          'INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility, show_contact_hint, is_cohort_group, cohort_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [groupName, desc, '/images/cohort_default.jpg', rootUser.id, now, 'public', 1, 1, cy]
+        );
+        group = { id: r.lastInsertRowid };
+        console.log(`[startup] created cohort group: ${groupName}`);
+      } else {
+        try { sqlRun('UPDATE groups SET is_cohort_group = 1, cohort_year = ? WHERE id = ? AND (is_cohort_group IS NULL OR is_cohort_group = 0)', [cy, group.id]); } catch { /* non-fatal */ }
+      }
+      sqlRun('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [group.id, rootUser.id, 'owner', now]);
+      for (const admin of admins) {
+        const existing = sqlGet('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [group.id, admin.id]);
+        if (!existing) {
+          sqlRun('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [group.id, admin.id, 'owner', now]);
+        } else if (existing.role !== 'owner') {
+          sqlRun("UPDATE group_members SET role = 'owner' WHERE group_id = ? AND user_id = ?", [group.id, admin.id]);
+        }
+      }
+      const cohortUsers = sqlAll('SELECT id FROM uyeler WHERE CAST(mezuniyetyili AS TEXT) = ?', [cy]) || [];
+      for (const u of cohortUsers) {
+        sqlRun('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [group.id, u.id, 'member', now]);
+      }
+    }
+  } catch (err) {
+    writeAppLog('warn', 'ensure_cohort_groups_failed', { message: err?.message || 'unknown' });
+  }
+}
+
 function cohortGroupNameForValue(value) {
   const normalized = normalizeCohortValue(value);
   if (!normalized || normalized === '0') return '';
@@ -5734,6 +5795,7 @@ const { attachWebSocketServers } = createWebSocketRuntime({
 async function onServerStarted() {
   await ensureRuntimeDefaults();
   await authSecurity.ensureSchema();
+  ensureCohortGroupsOnStartup();
   await rbacService.seedDefaults();
   await ensureRootBootstrapAccount();
   const usersTableName = dbDriver === 'postgres' ? 'users' : 'uyeler';
