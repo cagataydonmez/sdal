@@ -662,7 +662,8 @@ export function registerCommunityGroupRoutes(app, {
         group: {
           ...group,
           visibility: isCohortGroup ? 'members_only' : normalizeGroupVisibility(group.visibility),
-          show_contact_hint: showContactHint ? 1 : 0
+          show_contact_hint: showContactHint ? 1 : 0,
+          members: members.length
         },
         members,
         managers: groupManagers,
