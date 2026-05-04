@@ -27,7 +27,7 @@ export function registerCommunityGroupRoutes(app, {
 }) {
   app.get('/api/new/groups', requireAuth, async (req, res) => {
     try {
-      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 500);
       const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
       const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
       const user = getCurrentUser(req);

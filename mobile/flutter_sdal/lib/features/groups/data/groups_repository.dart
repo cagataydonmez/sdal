@@ -521,7 +521,7 @@ final groupsListProvider = FutureProvider.autoDispose<List<GroupListItem>>((
 ) {
   return ref
       .watch(groupsRepositoryProvider)
-      .fetchGroups()
+      .fetchGroups(limit: 200)
       .then((value) => value.items);
 });
 
