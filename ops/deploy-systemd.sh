@@ -77,6 +77,8 @@ if [[ "${SDAL_DB_DRIVER:-}" == "postgres" || -n "${DATABASE_URL:-}" ]]; then
 elif [[ -n "${SDAL_DB_PATH:-}" ]]; then
   log "ensuring sqlite runtime schema"
   npm --prefix server run sqlite:ensure-schema -- --db-path "$SDAL_DB_PATH"
+  log "running cohort groups migration"
+  SDAL_DB_PATH="$SDAL_DB_PATH" node server/scripts/migrate-cohort-groups.mjs || log "cohort groups migration skipped (non-fatal)"
 else
   log "sqlite path not configured; runtime bootstrap will handle schema"
 fi
