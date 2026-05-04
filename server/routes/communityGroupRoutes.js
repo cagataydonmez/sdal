@@ -685,38 +685,75 @@ export function registerCommunityGroupRoutes(app, {
       }
       const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
       const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
-      const rawPosts = await sqlAllAsync(
-        `SELECT p.id, p.content, p.image, p.created_at, p.post_type, p.entity_id,
-                u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
-         FROM posts p
-         LEFT JOIN uyeler u ON u.id = p.user_id
-         WHERE p.group_id = ?
-         ORDER BY p.id DESC
-         LIMIT ? OFFSET ?`,
-        [groupId, limit + 1, offset]
-      );
-      const slice = rawPosts.slice(0, limit);
-      const postIds = slice.map((p) => p.id);
-      const likes = postIds.length
-        ? await sqlAllAsync(`SELECT post_id, COUNT(*) AS cnt FROM post_likes WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+
+      const stripHtml = (s) => (s || '').replace(/<[^>]+>/g, '').trim();
+
+      const [regularPosts, events, announcements] = await Promise.all([
+        sqlAllAsync(
+          `SELECT p.id, p.content, p.image, p.created_at, 'post' AS post_type, NULL AS entity_id,
+                  u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+           FROM posts p LEFT JOIN uyeler u ON u.id = p.user_id
+           WHERE p.group_id = ? ORDER BY p.id DESC`,
+          [groupId]
+        ),
+        sqlAllAsync(
+          `SELECT e.id, e.title, e.description, e.location, e.starts_at, e.created_at,
+                  u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+           FROM group_events e LEFT JOIN uyeler u ON u.id = e.created_by
+           WHERE e.group_id = ? ORDER BY e.id DESC`,
+          [groupId]
+        ),
+        sqlAllAsync(
+          `SELECT a.id, a.title, a.body, a.created_at,
+                  u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+           FROM group_announcements a LEFT JOIN uyeler u ON u.id = a.created_by
+           WHERE a.group_id = ? ORDER BY a.id DESC`,
+          [groupId]
+        )
+      ]);
+
+      const eventItems = events.map((e) => ({
+        id: e.id,
+        content: [e.title, stripHtml(e.description), e.location ? `📍 ${e.location}` : '', e.starts_at ? `🗓 ${e.starts_at}` : ''].filter(Boolean).join('\n'),
+        image: null, created_at: e.created_at,
+        post_type: 'group_event', entity_id: e.id,
+        user_id: e.user_id, kadi: e.kadi, isim: e.isim, soyisim: e.soyisim, resim: e.resim, verified: e.verified,
+        likeCount: 0, commentCount: 0, liked: false
+      }));
+
+      const announcementItems = announcements.map((a) => ({
+        id: a.id,
+        content: [a.title, stripHtml(a.body)].filter(Boolean).join('\n'),
+        image: null, created_at: a.created_at,
+        post_type: 'group_announcement', entity_id: a.id,
+        user_id: a.user_id, kadi: a.kadi, isim: a.isim, soyisim: a.soyisim, resim: a.resim, verified: a.verified,
+        likeCount: 0, commentCount: 0, liked: false
+      }));
+
+      const merged = [...regularPosts, ...eventItems, ...announcementItems]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const regularIds = regularPosts.map((p) => p.id);
+      const likes = regularIds.length
+        ? await sqlAllAsync(`SELECT post_id, COUNT(*) AS cnt FROM post_likes WHERE post_id IN (${regularIds.map(() => '?').join(',')}) GROUP BY post_id`, regularIds)
         : [];
-      const comments = postIds.length
-        ? await sqlAllAsync(`SELECT post_id, COUNT(*) AS cnt FROM post_comments WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+      const comments = regularIds.length
+        ? await sqlAllAsync(`SELECT post_id, COUNT(*) AS cnt FROM post_comments WHERE post_id IN (${regularIds.map(() => '?').join(',')}) GROUP BY post_id`, regularIds)
         : [];
-      const liked = postIds.length
-        ? await sqlAllAsync(`SELECT post_id FROM post_likes WHERE user_id = ? AND post_id IN (${postIds.map(() => '?').join(',')})`, [req.session.userId, ...postIds])
+      const likedRows = regularIds.length
+        ? await sqlAllAsync(`SELECT post_id FROM post_likes WHERE user_id = ? AND post_id IN (${regularIds.map(() => '?').join(',')})`, [req.session.userId, ...regularIds])
         : [];
       const likeMap = new Map(likes.map((l) => [l.post_id, l.cnt]));
       const commentMap = new Map(comments.map((c) => [c.post_id, c.cnt]));
-      const likedSet = new Set(liked.map((l) => l.post_id));
+      const likedSet = new Set(likedRows.map((l) => l.post_id));
+
+      const slice = merged.slice(offset, offset + limit);
       res.json({
-        items: slice.map((p) => ({
-          ...p,
-          likeCount: likeMap.get(p.id) || 0,
-          commentCount: commentMap.get(p.id) || 0,
-          liked: likedSet.has(p.id)
-        })),
-        hasMore: rawPosts.length > limit
+        items: slice.map((p) => p.post_type === 'post'
+          ? { ...p, likeCount: likeMap.get(p.id) || 0, commentCount: commentMap.get(p.id) || 0, liked: likedSet.has(p.id) }
+          : p
+        ),
+        hasMore: merged.length > offset + limit
       });
     } catch (err) {
       console.error(err);
@@ -850,11 +887,6 @@ export function registerCommunityGroupRoutes(app, {
         [groupId, title, desc, location, startsAt, endsAt, now, req.session.userId]
       );
       const eventId = result?.lastInsertRowid;
-      const postContent = [title, desc ? desc.replace(/<[^>]+>/g, '') : '', location ? `📍 ${location}` : '', startsAt ? `🗓 ${startsAt}` : ''].filter(Boolean).join('\n');
-      const postResult = await sqlRunAsync(
-        'INSERT INTO posts (user_id, content, image, created_at, group_id, post_type, entity_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [req.session.userId, postContent, null, now, groupId, 'group_event', eventId]
-      );
       const groupForNotif = await sqlGetAsync('SELECT name FROM groups WHERE id = ?', [groupId]);
       const membersForNotif = await sqlAllAsync('SELECT user_id FROM group_members WHERE group_id = ?', [groupId]);
       for (const m of membersForNotif) {
@@ -867,7 +899,7 @@ export function registerCommunityGroupRoutes(app, {
           message: `${groupForNotif?.name || 'Grupta'} yeni etkinlik: ${title}`
         });
       }
-      res.json({ ok: true, id: eventId, postId: postResult?.lastInsertRowid });
+      res.json({ ok: true, id: eventId });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -927,11 +959,6 @@ export function registerCommunityGroupRoutes(app, {
         [groupId, title, body, now, req.session.userId]
       );
       const announcementId = result?.lastInsertRowid;
-      const postContent = [title, body ? body.replace(/<[^>]+>/g, '') : ''].filter(Boolean).join('\n');
-      const postResult = await sqlRunAsync(
-        'INSERT INTO posts (user_id, content, image, created_at, group_id, post_type, entity_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [req.session.userId, postContent, null, now, groupId, 'group_announcement', announcementId]
-      );
       const groupForNotif = await sqlGetAsync('SELECT name FROM groups WHERE id = ?', [groupId]);
       const membersForNotif = await sqlAllAsync('SELECT user_id FROM group_members WHERE group_id = ?', [groupId]);
       for (const m of membersForNotif) {
@@ -944,7 +971,7 @@ export function registerCommunityGroupRoutes(app, {
           message: `${groupForNotif?.name || 'Grupta'} yeni duyuru: ${title}`
         });
       }
-      res.json({ ok: true, id: announcementId, postId: postResult?.lastInsertRowid });
+      res.json({ ok: true, id: announcementId });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
