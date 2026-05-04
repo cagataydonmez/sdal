@@ -124,14 +124,16 @@ class GroupsPage extends ConsumerWidget {
                                 context.push('/groups/${group.id}'),
                             child: Text(l10n.groupsOpenAction),
                           ),
-                          const SizedBox(width: 12),
-                          FilledButton(
-                            onPressed: () =>
-                                _toggleJoin(context, ref, group.id),
-                            child: Text(
-                              _joinLabel(context, group.membershipStatus),
+                          if (!group.isCohortGroup) ...[
+                            const SizedBox(width: 12),
+                            FilledButton(
+                              onPressed: () =>
+                                  _toggleJoin(context, ref, group.id),
+                              child: Text(
+                                _joinLabel(context, group.membershipStatus),
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ],
