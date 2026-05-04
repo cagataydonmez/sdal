@@ -30,11 +30,24 @@ export function registerCommunityGroupRoutes(app, {
       const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
       const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
       const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
+      const user = getCurrentUser(req);
+      const isAdmin = hasAdminRole(user);
       const whereParts = [];
       const whereParams = [];
       if (cursor > 0) {
         whereParts.push('id < ?');
         whereParams.push(cursor);
+      }
+      // Non-admins can only see their own cohort group among cohort groups
+      if (!isAdmin) {
+        const viewerRow = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
+        const viewerCohort = String(viewerRow?.mezuniyetyili || '').trim();
+        if (viewerCohort && viewerCohort !== '0') {
+          whereParts.push("(COALESCE(is_cohort_group, 0) = 0 OR cohort_year = ?)");
+          whereParams.push(viewerCohort);
+        } else {
+          whereParts.push("COALESCE(is_cohort_group, 0) = 0");
+        }
       }
       const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
       const groups = await sqlAllAsync(
@@ -59,8 +72,6 @@ export function registerCommunityGroupRoutes(app, {
          WHERE invited_user_id = ? AND status = 'pending'`,
         [req.session.userId]
       );
-      const user = getCurrentUser(req);
-      const isAdmin = hasAdminRole(user);
       const countMap = new Map(memberCounts.map((c) => [c.group_id, c.cnt]));
       const memberMap = new Map(membership.map((m) => [m.group_id, m.role]));
       const pendingSet = new Set(pending.map((p) => p.group_id));
@@ -437,6 +448,9 @@ export function registerCommunityGroupRoutes(app, {
       if (!req.file) return res.status(400).send('Görsel seçilmedi.');
       const group = await sqlGetAsync('SELECT * FROM groups WHERE id = ?', [req.params.id]);
       if (!group) return res.status(404).send('Grup bulunamadı.');
+      if (Number(group.is_cohort_group || 0) === 1) {
+        return res.status(403).send('Cohort gruplarının kapak görseli değiştirilemez.');
+      }
       if (!isGroupManager(req, req.params.id)) {
         return res.status(403).send('Yetki yok.');
       }
@@ -498,6 +512,14 @@ export function registerCommunityGroupRoutes(app, {
       if (!group) return res.status(404).send('Grup bulunamadı.');
       const user = getCurrentUser(req);
       const isAdmin = hasAdminRole(user);
+      // Non-admins cannot access other cohorts' groups
+      if (!isAdmin && Number(group.is_cohort_group || 0) === 1) {
+        const viewerRow = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
+        const viewerCohort = String(viewerRow?.mezuniyetyili || '').trim();
+        if (!viewerCohort || viewerCohort === '0' || viewerCohort !== String(group.cohort_year || '').trim()) {
+          return res.status(403).send('Bu cohort grubuna erişim izniniz yok.');
+        }
+      }
       const member = getGroupMember(groupId, req.session.userId);
       const invite = await sqlGetAsync(
         `SELECT id, status
@@ -512,14 +534,19 @@ export function registerCommunityGroupRoutes(app, {
         [groupId, req.session.userId]
       );
       const membersOnly = normalizeGroupVisibility(group.visibility) === 'members_only';
-      const groupManagers = await sqlAllAsync(
-        `SELECT m.user_id AS id, m.role, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+      const rawGroupManagers = await sqlAllAsync(
+        `SELECT m.user_id AS id, m.role, u.kadi, u.isim, u.soyisim, u.resim, u.verified,
+                u.admin, LOWER(COALESCE(u.role,'')) AS urole
          FROM group_members m
          LEFT JOIN uyeler u ON u.id = m.user_id
          WHERE m.group_id = ? AND m.role IN ('owner', 'moderator')
          ORDER BY CASE WHEN m.role = 'owner' THEN 0 ELSE 1 END, m.id ASC`,
         [groupId]
       );
+      const isCohortGroupEarly = Number(group.is_cohort_group || 0) === 1;
+      const groupManagers = isCohortGroupEarly && !isAdmin
+        ? rawGroupManagers.filter((m) => !(m.role === 'owner' && (Number(m.admin || 0) === 1 || m.urole === 'admin' || m.urole === 'root')))
+        : rawGroupManagers;
       const showContactHint = Number(group.show_contact_hint || 0) === 1;
 
       if (membersOnly && !isAdmin && !member) {
@@ -540,13 +567,19 @@ export function registerCommunityGroupRoutes(app, {
         });
       }
 
-      const members = await sqlAllAsync(
-        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, m.role
+      // For cohort groups: hide admin/owner members (unless the viewer is admin)
+      const isCohortGroup = isCohortGroupEarly;
+      const memberRows = await sqlAllAsync(
+        `SELECT u.id, u.kadi, u.isim, u.soyisim, u.resim, u.verified, m.role,
+                u.admin, LOWER(COALESCE(u.role,'')) AS urole
          FROM group_members m
          LEFT JOIN uyeler u ON u.id = m.user_id
          WHERE m.group_id = ?`,
         [groupId]
       );
+      const members = isCohortGroup && !isAdmin
+        ? memberRows.filter((m) => !(m.role === 'owner' && (Number(m.admin || 0) === 1 || m.urole === 'admin' || m.urole === 'root')))
+        : memberRows;
       const rawPosts = await sqlAllAsync(
         `SELECT p.id, p.content, p.image, p.created_at,
                 u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified

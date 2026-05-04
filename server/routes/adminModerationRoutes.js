@@ -60,7 +60,33 @@ export function registerAdminModerationRoutes(app, deps) {
     }
   });
 
-  app.post('/admin/users/:id/role', requireAuth, requireRole('admin'), phase1Domain.controllers.admin.updateUserRole);
+  app.post('/admin/users/:id/role', requireAuth, requireRole('admin'), async (req, res, next) => {
+    const targetId = Number(req.params.id || 0);
+    // Intercept response to sync cohort group membership when role becomes 'mod'
+    const origJson = res.json.bind(res);
+    res.json = async (data) => {
+      if (data?.ok && data?.role === 'mod' && targetId) {
+        try {
+          const modUser = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [targetId]);
+          const cy = String(modUser?.mezuniyetyili || '').trim();
+          if (cy && cy !== '0') {
+            const cohortGroup = await sqlGetAsync('SELECT id FROM groups WHERE is_cohort_group = 1 AND cohort_year = ?', [cy]);
+            if (cohortGroup?.id) {
+              const now = new Date().toISOString();
+              const existing = await sqlGetAsync('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [cohortGroup.id, targetId]);
+              if (!existing) {
+                await sqlRunAsync('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [cohortGroup.id, targetId, 'moderator', now]);
+              } else if (existing.role === 'member') {
+                await sqlRunAsync("UPDATE group_members SET role = 'moderator' WHERE group_id = ? AND user_id = ?", [cohortGroup.id, targetId]);
+              }
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+      return origJson(data);
+    };
+    phase1Domain.controllers.admin.updateUserRole(req, res, next);
+  });
 
   app.post('/admin/moderators/:id/scopes', requireAuth, requireRole('admin'), async (req, res) => {
     try {
@@ -76,11 +102,24 @@ export function registerAdminModerationRoutes(app, deps) {
       if (!normalizedYears.length) return res.status(400).send('Geçerli mezuniyet yılı bulunamadı.');
       await sqlRunAsync('UPDATE uyeler SET role = ?, admin = 0 WHERE id = ?', ['mod', targetId]);
       const created = [];
+      const now = new Date().toISOString();
       for (const year of normalizedYears) {
         await sqlRunAsync(`INSERT INTO moderator_scopes (user_id, scope_type, scope_value, graduation_year, created_by, created_at)
           VALUES (?, 'graduation_year', ?, ?, ?, ?)
-          ON CONFLICT(user_id, scope_type, scope_value) DO NOTHING`, [targetId, String(year), year, actor.id, new Date().toISOString()]);
+          ON CONFLICT(user_id, scope_type, scope_value) DO NOTHING`, [targetId, String(year), year, actor.id, now]);
         created.push(year);
+        // Auto-assign moderator role in corresponding cohort group
+        try {
+          const cohortGroup = await sqlGetAsync('SELECT id FROM groups WHERE is_cohort_group = 1 AND cohort_year = ?', [String(year)]);
+          if (cohortGroup?.id) {
+            const existing = await sqlGetAsync('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [cohortGroup.id, targetId]);
+            if (!existing) {
+              await sqlRunAsync('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [cohortGroup.id, targetId, 'moderator', now]);
+            } else if (existing.role === 'member') {
+              await sqlRunAsync("UPDATE group_members SET role = 'moderator' WHERE group_id = ? AND user_id = ?", [cohortGroup.id, targetId]);
+            }
+          }
+        } catch { /* non-fatal */ }
       }
       writeAuditLog(req, { actorUserId: actor.id, action: 'moderator_scope_assigned', targetType: 'user', targetId: String(targetId), metadata: { graduationYears: created } });
       res.json({ ok: true, userId: targetId, scopes: created });
@@ -172,6 +211,7 @@ export function registerAdminModerationRoutes(app, deps) {
       if (!updates.size) return res.status(400).send('En az bir geçerli yetki anahtarı gerekli.');
 
       const now = new Date().toISOString();
+      const targetFull = await sqlGetAsync('SELECT id, mezuniyetyili FROM uyeler WHERE id = ?', [userId]);
       await sqlRunAsync('UPDATE uyeler SET role = ?, admin = 0 WHERE id = ?', ['mod', userId]);
       for (const [permissionKey, enabled] of updates.entries()) {
         await sqlRunAsync(
@@ -182,6 +222,21 @@ export function registerAdminModerationRoutes(app, deps) {
           [userId, permissionKey, toDbBooleanParam(enabled), actor.id, actor.id, now, now]
         );
       }
+      // Auto-assign moderator role in the user's cohort group
+      try {
+        const cy = String(targetFull?.mezuniyetyili || '').trim();
+        if (cy && cy !== '0') {
+          const cohortGroup = await sqlGetAsync('SELECT id FROM groups WHERE is_cohort_group = 1 AND cohort_year = ?', [cy]);
+          if (cohortGroup?.id) {
+            const existing = await sqlGetAsync('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?', [cohortGroup.id, userId]);
+            if (!existing) {
+              await sqlRunAsync('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [cohortGroup.id, userId, 'moderator', now]);
+            } else if (existing.role === 'member') {
+              await sqlRunAsync("UPDATE group_members SET role = 'moderator' WHERE group_id = ? AND user_id = ?", [cohortGroup.id, userId]);
+            }
+          }
+        }
+      } catch { /* non-fatal */ }
 
       writeAuditLog(req, {
         actorUserId: actor.id,

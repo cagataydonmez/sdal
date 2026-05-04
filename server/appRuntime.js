@@ -5405,32 +5405,44 @@ function assignUserToCohort(userId) {
 
   const cohortName = isTeacher ? 'Öğretmenler' : `${year} Mezunları`;
   let group = sqlGet('SELECT id FROM groups WHERE name = ?', [cohortName]);
+  const now = new Date().toISOString();
   if (!group) {
-    const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility, show_contact_hint) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+    const rootUser = sqlGet("SELECT id FROM uyeler WHERE LOWER(COALESCE(role,'')) = 'root' LIMIT 1") || { id: 1 };
+    const result = sqlRun('INSERT INTO groups (name, description, cover_image, owner_id, created_at, visibility, show_contact_hint, is_cohort_group, cohort_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
       cohortName,
       isTeacher ? 'SDAL öğretmenlerine özel iletişim ağı.' : `SDAL ${year} yılı mezunlarına özel iletişim ağı.`,
       '/images/cohort_default.jpg',
-      1,
-      new Date().toISOString(),
+      rootUser.id,
+      now,
       'public',
-      1
+      1,
+      1,
+      normalized
     ]);
     group = { id: result.lastInsertRowid };
-    sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
-      group.id,
-      1,
-      'owner',
-      new Date().toISOString()
-    ]);
+    // Add root as owner
+    sqlRun('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [group.id, rootUser.id, 'owner', now]);
+    // Add all admins as owners
+    try {
+      const admins = sqlAll("SELECT id FROM uyeler WHERE admin = 1 OR LOWER(COALESCE(role,'')) IN ('admin','root')");
+      for (const admin of (admins || [])) {
+        sqlRun('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [group.id, admin.id, 'owner', now]);
+      }
+    } catch { /* non-fatal */ }
+  } else {
+    // Ensure is_cohort_group and cohort_year are set (idempotent for existing groups)
+    try {
+      sqlRun('UPDATE groups SET is_cohort_group = 1, cohort_year = ? WHERE id = ? AND (is_cohort_group IS NULL OR is_cohort_group = 0)', [normalized, group.id]);
+    } catch { /* column may not exist yet before migration */ }
   }
-  
+
   const isMember = sqlGet('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?', [group.id, user.id]);
   if (!isMember) {
-    sqlRun('INSERT INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
+    sqlRun('INSERT OR IGNORE INTO group_members (group_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [
       group.id,
       user.id,
       'member',
-      new Date().toISOString()
+      now
     ]);
   }
 }
