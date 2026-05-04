@@ -33,8 +33,8 @@ const Database = require('better-sqlite3');
 const db = new Database(absDb);
 
 const TEACHER_COHORT_VALUE = '9999';
-const MIN_YEAR = 1960;
-const MAX_YEAR = new Date().getFullYear() + 5;
+const MIN_YEAR = 1999;
+const MAX_YEAR = new Date().getFullYear() + 4;
 
 // --- Step 1: verify table exists, add columns ---
 const hasGroupsTableEarly = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='groups'").get();
@@ -74,25 +74,17 @@ for (const g of allGroups) {
 console.log(`✅  Marked ${marked} existing cohort group(s)`);
 
 // --- Step 3: auto-create missing cohort groups ---
-const cohortRows = db.prepare(
-  `SELECT DISTINCT CAST(mezuniyetyili AS TEXT) AS cy
-   FROM uyeler
-   WHERE mezuniyetyili IS NOT NULL AND mezuniyetyili != '' AND mezuniyetyili != '0'`
-).all();
-
 const rootUser = db.prepare("SELECT id FROM uyeler WHERE LOWER(COALESCE(role,'')) = 'root' LIMIT 1").get();
 const rootId = rootUser?.id || 1;
 const now = new Date().toISOString();
 
+const yearRange = [];
+for (let y = MIN_YEAR; y <= MAX_YEAR; y++) yearRange.push(String(y));
+const allCohortValues = [TEACHER_COHORT_VALUE, ...yearRange];
+
 let created = 0;
-for (const row of cohortRows) {
-  const cy = row.cy?.trim();
-  if (!cy) continue;
+for (const cy of allCohortValues) {
   const isTeacher = cy === TEACHER_COHORT_VALUE;
-  if (!isTeacher) {
-    const y = parseInt(cy, 10);
-    if (isNaN(y) || y < MIN_YEAR || y > MAX_YEAR) continue;
-  }
   const groupName = isTeacher ? 'Öğretmenler' : `${cy} Mezunları`;
   let group = db.prepare('SELECT id FROM groups WHERE name = ?').get(groupName);
   if (!group) {

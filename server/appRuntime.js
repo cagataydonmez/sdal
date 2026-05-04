@@ -5401,7 +5401,7 @@ function assignUserToCohort(userId) {
   const normalized = normalizeCohortValue(user.mezuniyetyili);
   const isTeacher = normalized === TEACHER_COHORT_VALUE;
   const year = parseInt(normalized, 10);
-  if (!isTeacher && (isNaN(year) || year < 1960 || year > new Date().getFullYear() + 5)) return;
+  if (!isTeacher && (isNaN(year) || year < 1999 || year > new Date().getFullYear() + 4)) return;
 
   const cohortName = isTeacher ? 'Öğretmenler' : `${year} Mezunları`;
   let group = sqlGet('SELECT id FROM groups WHERE name = ?', [cohortName]);
@@ -5463,19 +5463,13 @@ function ensureCohortGroupsOnStartup() {
     const now = new Date().toISOString();
     const rootUser = sqlGet("SELECT id FROM uyeler WHERE LOWER(COALESCE(role,'')) = 'root' LIMIT 1") || { id: 1 };
     const admins = sqlAll("SELECT id FROM uyeler WHERE admin = 1 OR LOWER(COALESCE(role,'')) IN ('admin','root')") || [];
-    const MIN_YEAR = 1960;
-    const MAX_YEAR = new Date().getFullYear() + 5;
-    const cohortRows = sqlAll(
-      `SELECT DISTINCT CAST(mezuniyetyili AS TEXT) AS cy FROM uyeler WHERE mezuniyetyili IS NOT NULL AND mezuniyetyili != '' AND mezuniyetyili != '0'`
-    ) || [];
-    for (const row of cohortRows) {
-      const cy = (row.cy || '').trim();
-      if (!cy) continue;
+    const MIN_YEAR = 1999;
+    const MAX_YEAR = new Date().getFullYear() + 4;
+    const yearRange = [];
+    for (let y = MIN_YEAR; y <= MAX_YEAR; y++) yearRange.push(String(y));
+    const allCohortValues = [TEACHER_COHORT_VALUE, ...yearRange];
+    for (const cy of allCohortValues) {
       const isTeacher = cy === TEACHER_COHORT_VALUE;
-      if (!isTeacher) {
-        const y = parseInt(cy, 10);
-        if (isNaN(y) || y < MIN_YEAR || y > MAX_YEAR) continue;
-      }
       const groupName = isTeacher ? 'Öğretmenler' : `${cy} Mezunları`;
       let group = sqlGet('SELECT id FROM groups WHERE name = ?', [groupName]);
       if (!group) {
@@ -5513,7 +5507,7 @@ function cohortGroupNameForValue(value) {
   if (!normalized || normalized === '0') return '';
   if (normalized === TEACHER_COHORT_VALUE) return 'Öğretmenler';
   const year = parseInt(normalized, 10);
-  if (isNaN(year) || year < 1960 || year > new Date().getFullYear() + 5) return '';
+  if (isNaN(year) || year < 1999 || year > new Date().getFullYear() + 4) return '';
   return `${year} Mezunları`;
 }
 
