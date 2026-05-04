@@ -1141,35 +1141,47 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
       final lines = post.content.split('\n').where((l) => l.isNotEmpty).toList();
       final titleLine = lines.isNotEmpty ? lines.first : '';
       final excerptLines = lines.skip(1).join(' ');
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          color: isEvent ? tokens.warningMuted : tokens.successMuted,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isEvent ? tokens.warning.withAlpha(60) : tokens.success.withAlpha(60)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Text(isEvent ? '📅' : '📢', style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (titleLine.isNotEmpty)
-                      Text(titleLine, style: Theme.of(context).textTheme.titleSmall),
-                    if (excerptLines.isNotEmpty)
-                      Text(
-                        excerptLines,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
+      final entityId = post.entityId ?? post.id;
+      return InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          if (isEvent) {
+            context.push('/groups/${widget.groupId}/events/$entityId');
+          } else {
+            context.push('/groups/${widget.groupId}/announcements/$entityId');
+          }
+        },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: isEvent ? tokens.warningMuted : tokens.successMuted,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isEvent ? tokens.warning.withAlpha(60) : tokens.success.withAlpha(60)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Text(isEvent ? '📅' : '📢', style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (titleLine.isNotEmpty)
+                        Text(titleLine, style: Theme.of(context).textTheme.titleSmall),
+                      if (excerptLines.isNotEmpty)
+                        Text(
+                          excerptLines,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                Icon(Icons.chevron_right, size: 18, color: isEvent ? tokens.warning : tokens.success),
+              ],
+            ),
           ),
         ),
       );

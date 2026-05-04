@@ -170,6 +170,103 @@ class EventComment {
   }
 }
 
+class EntityComment {
+  const EntityComment({
+    required this.id,
+    required this.comment,
+    required this.createdAt,
+    required this.userId,
+    required this.handle,
+    required this.displayName,
+    required this.photo,
+    required this.verified,
+  });
+
+  final int id;
+  final String comment;
+  final String createdAt;
+  final int userId;
+  final String handle;
+  final String displayName;
+  final String photo;
+  final bool verified;
+
+  factory EntityComment.fromMap(JsonMap map) {
+    final first = coalesceText([map['isim']], fallback: '');
+    final last = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$first $last'.trim();
+    final handle = coalesceText([map['kadi']], fallback: '');
+    return EntityComment(
+      id: asInt(map['id']) ?? 0,
+      comment: coalesceText([map['comment']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+      userId: asInt(map['user_id']) ?? 0,
+      handle: handle,
+      displayName: fullName.isNotEmpty ? fullName : (handle.isNotEmpty ? '@$handle' : 'SDAL Üyesi'),
+      photo: coalesceText([map['resim']], fallback: ''),
+      verified: asBool(map['verified']) ?? false,
+    );
+  }
+}
+
+class AnnouncementDetail {
+  const AnnouncementDetail({
+    required this.item,
+    required this.comments,
+    required this.likeCount,
+    required this.liked,
+    required this.allowComments,
+    required this.allowLikes,
+  });
+
+  final AnnouncementItem item;
+  final List<EntityComment> comments;
+  final int likeCount;
+  final bool liked;
+  final bool allowComments;
+  final bool allowLikes;
+
+  factory AnnouncementDetail.fromMap(JsonMap map) {
+    return AnnouncementDetail(
+      item: AnnouncementItem.fromMap(map),
+      comments: asJsonMapList(map['comments']).map(EntityComment.fromMap).toList(growable: false),
+      likeCount: asInt(map['like_count']) ?? 0,
+      liked: asBool(map['liked']) ?? false,
+      allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
+      allowLikes: (asInt(map['allow_likes']) ?? 1) == 1,
+    );
+  }
+}
+
+class EventDetail {
+  const EventDetail({
+    required this.item,
+    required this.comments,
+    required this.likeCount,
+    required this.liked,
+    required this.allowComments,
+    required this.allowLikes,
+  });
+
+  final EventItem item;
+  final List<EntityComment> comments;
+  final int likeCount;
+  final bool liked;
+  final bool allowComments;
+  final bool allowLikes;
+
+  factory EventDetail.fromMap(JsonMap map) {
+    return EventDetail(
+      item: EventItem.fromMap(map),
+      comments: asJsonMapList(map['comments']).map(EntityComment.fromMap).toList(growable: false),
+      likeCount: asInt(map['like_count']) ?? 0,
+      liked: asBool(map['liked']) ?? false,
+      allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
+      allowLikes: (asInt(map['allow_likes']) ?? 1) == 1,
+    );
+  }
+}
+
 class CommunityPageData<T> {
   const CommunityPageData({required this.items, required this.hasMore});
 
@@ -344,6 +441,72 @@ class CommunityRepository {
       '/api/new/events/$eventId/notify',
       body: {'mode': mode},
       decoder: asJsonMap,
+    );
+  }
+
+  Future<EventDetail?> fetchEventDetail(int eventId) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/events/$eventId',
+      decoder: asJsonMap,
+    );
+    final map = asJsonMap(result.rawData);
+    if (map.isEmpty) return null;
+    return EventDetail.fromMap(map);
+  }
+
+  Future<ApiResult<dynamic>> toggleEventLike(int eventId) {
+    return _apiClient.post<dynamic>('/api/new/events/$eventId/like');
+  }
+
+  Future<ApiResult<dynamic>> setEventInteractions({
+    required int eventId,
+    bool? allowComments,
+    bool? allowLikes,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/events/$eventId/interactions',
+      body: {
+        if (allowComments != null) 'allowComments': allowComments,
+        if (allowLikes != null) 'allowLikes': allowLikes,
+      },
+    );
+  }
+
+  Future<AnnouncementDetail?> fetchAnnouncementDetail(int announcementId) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/announcements/$announcementId',
+      decoder: asJsonMap,
+    );
+    final map = asJsonMap(result.rawData);
+    if (map.isEmpty) return null;
+    return AnnouncementDetail.fromMap(map);
+  }
+
+  Future<ApiResult<dynamic>> addAnnouncementComment({
+    required int announcementId,
+    required String comment,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/announcements/$announcementId/comments',
+      body: {'comment': comment},
+    );
+  }
+
+  Future<ApiResult<dynamic>> toggleAnnouncementLike(int announcementId) {
+    return _apiClient.post<dynamic>('/api/new/announcements/$announcementId/like');
+  }
+
+  Future<ApiResult<dynamic>> setAnnouncementInteractions({
+    required int announcementId,
+    bool? allowComments,
+    bool? allowLikes,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/announcements/$announcementId/interactions',
+      body: {
+        if (allowComments != null) 'allowComments': allowComments,
+        if (allowLikes != null) 'allowLikes': allowLikes,
+      },
     );
   }
 }

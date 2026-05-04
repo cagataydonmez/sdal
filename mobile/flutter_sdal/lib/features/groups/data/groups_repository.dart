@@ -280,6 +280,109 @@ class GroupDetail {
   }
 }
 
+class GroupEntityComment {
+  const GroupEntityComment({
+    required this.id,
+    required this.comment,
+    required this.createdAt,
+    required this.userId,
+    required this.handle,
+    required this.displayName,
+    required this.photo,
+    required this.verified,
+  });
+
+  final int id;
+  final String comment;
+  final String createdAt;
+  final int userId;
+  final String handle;
+  final String displayName;
+  final String photo;
+  final bool verified;
+
+  factory GroupEntityComment.fromMap(JsonMap map) {
+    final first = coalesceText([map['isim']], fallback: '');
+    final last = coalesceText([map['soyisim']], fallback: '');
+    final fullName = '$first $last'.trim();
+    final handle = coalesceText([map['kadi']], fallback: '');
+    return GroupEntityComment(
+      id: asInt(map['id']) ?? 0,
+      comment: coalesceText([map['comment']], fallback: ''),
+      createdAt: coalesceText([map['created_at']], fallback: ''),
+      userId: asInt(map['user_id']) ?? 0,
+      handle: handle,
+      displayName: fullName.isNotEmpty ? fullName : (handle.isNotEmpty ? '@$handle' : 'SDAL Üyesi'),
+      photo: coalesceText([map['resim']], fallback: ''),
+      verified: asBool(map['verified']) ?? false,
+    );
+  }
+}
+
+class GroupEventDetail {
+  const GroupEventDetail({
+    required this.event,
+    required this.comments,
+    required this.likeCount,
+    required this.liked,
+    required this.allowComments,
+    required this.allowLikes,
+    required this.canManage,
+  });
+
+  final GroupEventItem event;
+  final List<GroupEntityComment> comments;
+  final int likeCount;
+  final bool liked;
+  final bool allowComments;
+  final bool allowLikes;
+  final bool canManage;
+
+  factory GroupEventDetail.fromMap(JsonMap map, {required bool canManage}) {
+    return GroupEventDetail(
+      event: GroupEventItem.fromMap(map),
+      comments: asJsonMapList(map['comments']).map(GroupEntityComment.fromMap).toList(growable: false),
+      likeCount: asInt(map['like_count']) ?? 0,
+      liked: asBool(map['liked']) ?? false,
+      allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
+      allowLikes: (asInt(map['allow_likes']) ?? 1) == 1,
+      canManage: canManage,
+    );
+  }
+}
+
+class GroupAnnouncementDetail {
+  const GroupAnnouncementDetail({
+    required this.announcement,
+    required this.comments,
+    required this.likeCount,
+    required this.liked,
+    required this.allowComments,
+    required this.allowLikes,
+    required this.canManage,
+  });
+
+  final GroupAnnouncementItem announcement;
+  final List<GroupEntityComment> comments;
+  final int likeCount;
+  final bool liked;
+  final bool allowComments;
+  final bool allowLikes;
+  final bool canManage;
+
+  factory GroupAnnouncementDetail.fromMap(JsonMap map, {required bool canManage}) {
+    return GroupAnnouncementDetail(
+      announcement: GroupAnnouncementItem.fromMap(map),
+      comments: asJsonMapList(map['comments']).map(GroupEntityComment.fromMap).toList(growable: false),
+      likeCount: asInt(map['like_count']) ?? 0,
+      liked: asBool(map['liked']) ?? false,
+      allowComments: (asInt(map['allow_comments']) ?? 1) == 1,
+      allowLikes: (asInt(map['allow_likes']) ?? 1) == 1,
+      canManage: canManage,
+    );
+  }
+}
+
 class GroupsPageData<T> {
   const GroupsPageData({required this.items, required this.hasMore});
 
@@ -524,6 +627,100 @@ class GroupsRepository {
 
   bool _shouldFallback(int statusCode) =>
       statusCode == 404 || statusCode == 405 || statusCode == 501;
+
+  Future<GroupEventDetail?> fetchGroupEventDetail({
+    required int groupId,
+    required int eventId,
+    required bool canManage,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/groups/$groupId/events/$eventId',
+      decoder: asJsonMap,
+    );
+    final map = asJsonMap(result.rawData);
+    if (map.isEmpty) return null;
+    return GroupEventDetail.fromMap(map, canManage: canManage);
+  }
+
+  Future<ApiResult<dynamic>> addGroupEventComment({
+    required int groupId,
+    required int eventId,
+    required String comment,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/events/$eventId/comments',
+      body: {'comment': comment},
+    );
+  }
+
+  Future<ApiResult<dynamic>> toggleGroupEventLike({
+    required int groupId,
+    required int eventId,
+  }) {
+    return _apiClient.post<dynamic>('/api/new/groups/$groupId/events/$eventId/like');
+  }
+
+  Future<ApiResult<dynamic>> setGroupEventInteractions({
+    required int groupId,
+    required int eventId,
+    bool? allowComments,
+    bool? allowLikes,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/events/$eventId/interactions',
+      body: {
+        if (allowComments != null) 'allowComments': allowComments,
+        if (allowLikes != null) 'allowLikes': allowLikes,
+      },
+    );
+  }
+
+  Future<GroupAnnouncementDetail?> fetchGroupAnnouncementDetail({
+    required int groupId,
+    required int announcementId,
+    required bool canManage,
+  }) async {
+    final result = await _apiClient.get<JsonMap>(
+      '/api/new/groups/$groupId/announcements/$announcementId',
+      decoder: asJsonMap,
+    );
+    final map = asJsonMap(result.rawData);
+    if (map.isEmpty) return null;
+    return GroupAnnouncementDetail.fromMap(map, canManage: canManage);
+  }
+
+  Future<ApiResult<dynamic>> addGroupAnnouncementComment({
+    required int groupId,
+    required int announcementId,
+    required String comment,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/announcements/$announcementId/comments',
+      body: {'comment': comment},
+    );
+  }
+
+  Future<ApiResult<dynamic>> toggleGroupAnnouncementLike({
+    required int groupId,
+    required int announcementId,
+  }) {
+    return _apiClient.post<dynamic>('/api/new/groups/$groupId/announcements/$announcementId/like');
+  }
+
+  Future<ApiResult<dynamic>> setGroupAnnouncementInteractions({
+    required int groupId,
+    required int announcementId,
+    bool? allowComments,
+    bool? allowLikes,
+  }) {
+    return _apiClient.post<dynamic>(
+      '/api/new/groups/$groupId/announcements/$announcementId/interactions',
+      body: {
+        if (allowComments != null) 'allowComments': allowComments,
+        if (allowLikes != null) 'allowLikes': allowLikes,
+      },
+    );
+  }
 }
 
 final groupsRepositoryProvider = Provider<GroupsRepository>(

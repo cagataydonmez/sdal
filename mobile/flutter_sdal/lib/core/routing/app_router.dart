@@ -9,6 +9,7 @@ import '../../features/albums/presentation/album_photo_page.dart';
 import '../../features/albums/presentation/album_upload_page.dart';
 import '../../features/albums/presentation/albums_page.dart';
 import '../../features/community/presentation/announcements_page.dart';
+import '../../features/community/presentation/entity_detail_page.dart';
 import '../../features/community/presentation/events_page.dart';
 import '../../features/admin/presentation/admin_pages.dart';
 import '../../features/admin/presentation/admin_root_pages.dart';
@@ -224,15 +225,55 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         0,
                   ),
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'events/:eventId',
+                    pageBuilder: (context, state) => _slidePage(
+                      GroupEventDetailPage(
+                        groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
+                        eventId: int.tryParse(state.pathParameters['eventId'] ?? '') ?? 0,
+                      ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'announcements/:announcementId',
+                    pageBuilder: (context, state) => _slidePage(
+                      GroupAnnouncementDetailPage(
+                        groupId: int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0,
+                        announcementId: int.tryParse(state.pathParameters['announcementId'] ?? '') ?? 0,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               GoRoute(
                 path: '/events',
                 pageBuilder: (context, state) => _slidePage(const EventsPage()),
+                routes: [
+                  GoRoute(
+                    path: ':eventId',
+                    pageBuilder: (context, state) => _slidePage(
+                      EventDetailPage(
+                        eventId: int.tryParse(state.pathParameters['eventId'] ?? '') ?? 0,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               GoRoute(
                 path: '/announcements',
                 pageBuilder: (context, state) =>
                     _slidePage(const AnnouncementsPage()),
+                routes: [
+                  GoRoute(
+                    path: ':announcementId',
+                    pageBuilder: (context, state) => _slidePage(
+                      AnnouncementDetailPage(
+                        announcementId: int.tryParse(state.pathParameters['announcementId'] ?? '') ?? 0,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               GoRoute(
                 path: '/following',

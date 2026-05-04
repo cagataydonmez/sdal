@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/l10n/context_l10n.dart';
@@ -172,7 +173,10 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
               ..._items.map(
                 (item) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: SurfaceCard(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(24),
+                    onTap: () => context.push('/announcements/${item.id}'),
+                    child: SurfaceCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -248,6 +252,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),

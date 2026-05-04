@@ -1002,4 +1002,180 @@ export function registerCommunityGroupRoutes(app, {
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
     }
   });
+
+  // ── Single group event detail ──────────────────────────────────────────────
+  app.get('/api/new/groups/:id/events/:eventId', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      const user = getCurrentUser(req);
+      if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const row = await sqlGetAsync(
+        `SELECT e.*, u.kadi AS creator_kadi, u.isim, u.soyisim, u.resim
+         FROM group_events e LEFT JOIN uyeler u ON u.id = e.created_by
+         WHERE e.id = ? AND e.group_id = ?`,
+        [req.params.eventId, groupId]
+      );
+      if (!row) return res.status(404).send('Etkinlik bulunamadı.');
+      const comments = await sqlAllAsync(
+        `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM entity_comments c LEFT JOIN uyeler u ON u.id = c.user_id
+         WHERE c.entity_type = 'group_event' AND c.entity_id = ? ORDER BY c.id ASC`,
+        [req.params.eventId]
+      );
+      const likeCount = (await sqlGetAsync('SELECT COUNT(*) AS cnt FROM entity_reactions WHERE entity_type = ? AND entity_id = ?', ['group_event', req.params.eventId]))?.cnt || 0;
+      const liked = !!(await sqlGetAsync('SELECT id FROM entity_reactions WHERE entity_type = ? AND entity_id = ? AND user_id = ?', ['group_event', req.params.eventId, req.session.userId]));
+      res.json({ ...row, comments, like_count: likeCount, liked, allow_comments: Number(row.allow_comments ?? 1), allow_likes: Number(row.allow_likes ?? 1) });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/events/:eventId/comments', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!hasAdminRole(getCurrentUser(req)) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const event = await sqlGetAsync('SELECT id, created_by, allow_comments FROM group_events WHERE id = ? AND group_id = ?', [req.params.eventId, groupId]);
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+      if (Number(event.allow_comments ?? 1) === 0) return res.status(403).send('Bu etkinlik için yorum kapalı.');
+      const comment = formatUserText(req.body?.comment || '');
+      if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
+      const now = new Date().toISOString();
+      await sqlRunAsync('INSERT INTO entity_comments (user_id, entity_type, entity_id, comment, created_at) VALUES (?, ?, ?, ?, ?)', [req.session.userId, 'group_event', req.params.eventId, comment, now]);
+      if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
+        addNotification({ userId: event.created_by, type: 'group_event_comment', sourceUserId: req.session.userId, entityId: req.params.eventId, message: 'Grup etkinliğine yorum yaptı.' });
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/events/:eventId/like', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!hasAdminRole(getCurrentUser(req)) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const event = await sqlGetAsync('SELECT id, created_by, allow_likes FROM group_events WHERE id = ? AND group_id = ?', [req.params.eventId, groupId]);
+      if (!event) return res.status(404).send('Etkinlik bulunamadı.');
+      if (Number(event.allow_likes ?? 1) === 0) return res.status(403).send('Bu etkinlik için beğeni kapalı.');
+      const existing = await sqlGetAsync('SELECT id FROM entity_reactions WHERE entity_type = ? AND entity_id = ? AND user_id = ?', ['group_event', req.params.eventId, req.session.userId]);
+      if (existing) {
+        await sqlRunAsync('DELETE FROM entity_reactions WHERE id = ?', [existing.id]);
+      } else {
+        await sqlRunAsync('INSERT INTO entity_reactions (user_id, entity_type, entity_id, created_at) VALUES (?, ?, ?, ?)', [req.session.userId, 'group_event', req.params.eventId, new Date().toISOString()]);
+        if (event.created_by && !sameUserId(event.created_by, req.session.userId)) {
+          addNotification({ userId: event.created_by, type: 'group_event_like', sourceUserId: req.session.userId, entityId: req.params.eventId, message: 'Grup etkinliğini beğendi.' });
+        }
+      }
+      const likeCount = (await sqlGetAsync('SELECT COUNT(*) AS cnt FROM entity_reactions WHERE entity_type = ? AND entity_id = ?', ['group_event', req.params.eventId]))?.cnt || 0;
+      res.json({ ok: true, liked: !existing, likeCount });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/events/:eventId/interactions', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!isGroupManager(req, groupId) && !hasAdminRole(getCurrentUser(req))) return res.status(403).send('Yetki yok.');
+      const allowComments = req.body?.allowComments != null ? (req.body.allowComments ? 1 : 0) : undefined;
+      const allowLikes = req.body?.allowLikes != null ? (req.body.allowLikes ? 1 : 0) : undefined;
+      if (allowComments !== undefined) await sqlRunAsync('UPDATE group_events SET allow_comments = ? WHERE id = ? AND group_id = ?', [allowComments, req.params.eventId, groupId]);
+      if (allowLikes !== undefined) await sqlRunAsync('UPDATE group_events SET allow_likes = ? WHERE id = ? AND group_id = ?', [allowLikes, req.params.eventId, groupId]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  // ── Single group announcement detail ──────────────────────────────────────
+  app.get('/api/new/groups/:id/announcements/:announcementId', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      const user = getCurrentUser(req);
+      if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const row = await sqlGetAsync(
+        `SELECT a.*, u.kadi AS creator_kadi, u.isim, u.soyisim, u.resim
+         FROM group_announcements a LEFT JOIN uyeler u ON u.id = a.created_by
+         WHERE a.id = ? AND a.group_id = ?`,
+        [req.params.announcementId, groupId]
+      );
+      if (!row) return res.status(404).send('Duyuru bulunamadı.');
+      const comments = await sqlAllAsync(
+        `SELECT c.id, c.comment, c.created_at, u.id AS user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM entity_comments c LEFT JOIN uyeler u ON u.id = c.user_id
+         WHERE c.entity_type = 'group_announcement' AND c.entity_id = ? ORDER BY c.id ASC`,
+        [req.params.announcementId]
+      );
+      const likeCount = (await sqlGetAsync('SELECT COUNT(*) AS cnt FROM entity_reactions WHERE entity_type = ? AND entity_id = ?', ['group_announcement', req.params.announcementId]))?.cnt || 0;
+      const liked = !!(await sqlGetAsync('SELECT id FROM entity_reactions WHERE entity_type = ? AND entity_id = ? AND user_id = ?', ['group_announcement', req.params.announcementId, req.session.userId]));
+      res.json({ ...row, comments, like_count: likeCount, liked, allow_comments: Number(row.allow_comments ?? 1), allow_likes: Number(row.allow_likes ?? 1) });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/announcements/:announcementId/comments', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!hasAdminRole(getCurrentUser(req)) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const ann = await sqlGetAsync('SELECT id, created_by, allow_comments FROM group_announcements WHERE id = ? AND group_id = ?', [req.params.announcementId, groupId]);
+      if (!ann) return res.status(404).send('Duyuru bulunamadı.');
+      if (Number(ann.allow_comments ?? 1) === 0) return res.status(403).send('Bu duyuru için yorum kapalı.');
+      const comment = formatUserText(req.body?.comment || '');
+      if (isFormattedContentEmpty(comment)) return res.status(400).send('Yorum boş olamaz.');
+      const now = new Date().toISOString();
+      await sqlRunAsync('INSERT INTO entity_comments (user_id, entity_type, entity_id, comment, created_at) VALUES (?, ?, ?, ?, ?)', [req.session.userId, 'group_announcement', req.params.announcementId, comment, now]);
+      if (ann.created_by && !sameUserId(ann.created_by, req.session.userId)) {
+        addNotification({ userId: ann.created_by, type: 'group_announcement_comment', sourceUserId: req.session.userId, entityId: req.params.announcementId, message: 'Grup duyurusuna yorum yaptı.' });
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/announcements/:announcementId/like', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!hasAdminRole(getCurrentUser(req)) && !getGroupMember(groupId, req.session.userId)) return res.status(403).send('Yetki yok.');
+      const ann = await sqlGetAsync('SELECT id, created_by, allow_likes FROM group_announcements WHERE id = ? AND group_id = ?', [req.params.announcementId, groupId]);
+      if (!ann) return res.status(404).send('Duyuru bulunamadı.');
+      if (Number(ann.allow_likes ?? 1) === 0) return res.status(403).send('Bu duyuru için beğeni kapalı.');
+      const existing = await sqlGetAsync('SELECT id FROM entity_reactions WHERE entity_type = ? AND entity_id = ? AND user_id = ?', ['group_announcement', req.params.announcementId, req.session.userId]);
+      if (existing) {
+        await sqlRunAsync('DELETE FROM entity_reactions WHERE id = ?', [existing.id]);
+      } else {
+        await sqlRunAsync('INSERT INTO entity_reactions (user_id, entity_type, entity_id, created_at) VALUES (?, ?, ?, ?)', [req.session.userId, 'group_announcement', req.params.announcementId, new Date().toISOString()]);
+        if (ann.created_by && !sameUserId(ann.created_by, req.session.userId)) {
+          addNotification({ userId: ann.created_by, type: 'group_announcement_like', sourceUserId: req.session.userId, entityId: req.params.announcementId, message: 'Grup duyurusunu beğendi.' });
+        }
+      }
+      const likeCount = (await sqlGetAsync('SELECT COUNT(*) AS cnt FROM entity_reactions WHERE entity_type = ? AND entity_id = ?', ['group_announcement', req.params.announcementId]))?.cnt || 0;
+      res.json({ ok: true, liked: !existing, likeCount });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.post('/api/new/groups/:id/announcements/:announcementId/interactions', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      if (!isGroupManager(req, groupId) && !hasAdminRole(getCurrentUser(req))) return res.status(403).send('Yetki yok.');
+      const allowComments = req.body?.allowComments != null ? (req.body.allowComments ? 1 : 0) : undefined;
+      const allowLikes = req.body?.allowLikes != null ? (req.body.allowLikes ? 1 : 0) : undefined;
+      if (allowComments !== undefined) await sqlRunAsync('UPDATE group_announcements SET allow_comments = ? WHERE id = ? AND group_id = ?', [allowComments, req.params.announcementId, groupId]);
+      if (allowLikes !== undefined) await sqlRunAsync('UPDATE group_announcements SET allow_likes = ? WHERE id = ? AND group_id = ?', [allowLikes, req.params.announcementId, groupId]);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
 }

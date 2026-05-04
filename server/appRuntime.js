@@ -5456,6 +5456,44 @@ function ensureCohortGroupsSchema() {
   } catch { /* non-fatal */ }
 }
 
+function ensureEntityInteractionsSchema() {
+  if (dbDriver !== 'sqlite') return;
+  try {
+    sqlRun(`CREATE TABLE IF NOT EXISTS entity_reactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(user_id, entity_type, entity_id)
+    )`);
+    sqlRun(`CREATE TABLE IF NOT EXISTS entity_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      comment TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`);
+    sqlRun(`CREATE TABLE IF NOT EXISTS announcement_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      announcement_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      comment TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`);
+    // Add allow columns to entity tables
+    const entityTables = ['events', 'announcements', 'group_events', 'group_announcements'];
+    for (const tbl of entityTables) {
+      try {
+        const cols = sqlAll(`PRAGMA table_info(${tbl})`).map(r => r.name);
+        if (!cols.includes('allow_comments')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN allow_comments INTEGER DEFAULT 1`);
+        if (!cols.includes('allow_likes')) sqlRun(`ALTER TABLE ${tbl} ADD COLUMN allow_likes INTEGER DEFAULT 1`);
+      } catch { /* table may not exist yet */ }
+    }
+  } catch (e) { console.error('[ensureEntityInteractionsSchema]', e?.message); }
+}
+
 function ensureCohortGroupsOnStartup() {
   if (dbDriver !== 'sqlite') return;
   try {
@@ -5789,6 +5827,7 @@ const { attachWebSocketServers } = createWebSocketRuntime({
 async function onServerStarted() {
   await ensureRuntimeDefaults();
   await authSecurity.ensureSchema();
+  ensureEntityInteractionsSchema();
   ensureCohortGroupsOnStartup();
   await rbacService.seedDefaults();
   await ensureRootBootstrapAccount();
