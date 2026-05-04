@@ -59,16 +59,29 @@ class GroupsPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (group.coverImage.isNotEmpty) ...[
-                        SdalNetworkImage(
-                          imageUrl: config
-                              .resolveUrl(group.coverImage)
-                              .toString(),
-                          height: 164,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
+                        ClipRRect(
                           borderRadius: BorderRadius.circular(18),
-                          enableLightbox: false,
-                          errorFallback: const SizedBox.shrink(),
+                          child: Stack(
+                            children: [
+                              SdalNetworkImage(
+                                imageUrl: config
+                                    .resolveUrl(group.coverImage)
+                                    .toString(),
+                                height: 164,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.zero,
+                                enableLightbox: false,
+                                errorFallback: const SizedBox.shrink(),
+                              ),
+                              if (group.isCohortGroup)
+                                Positioned(
+                                  bottom: 8,
+                                  right: 10,
+                                  child: _CohortYearListBadge(cohortYear: group.cohortYear),
+                                ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 14),
                       ],
@@ -333,6 +346,34 @@ class _VisibilityBadge extends StatelessWidget {
             fontWeight: FontWeight.w600,
             fontSize: 12,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CohortYearListBadge extends StatelessWidget {
+  const _CohortYearListBadge({required this.cohortYear});
+
+  final String cohortYear;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = cohortYear == '9999' ? 'Öğretmenler' : cohortYear;
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(160),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          letterSpacing: 0.3,
         ),
       ),
     );

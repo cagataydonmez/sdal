@@ -80,7 +80,7 @@ export function registerCommunityGroupRoutes(app, {
       res.json({
         items: slice.map((g) => ({
           ...g,
-          visibility: normalizeGroupVisibility(g.visibility),
+          visibility: Number(g.is_cohort_group || 0) === 1 ? 'members_only' : normalizeGroupVisibility(g.visibility),
           show_contact_hint: Number(g.show_contact_hint || 0),
           members: countMap.get(g.id) || 0,
           joined: memberMap.has(g.id),
@@ -448,10 +448,12 @@ export function registerCommunityGroupRoutes(app, {
       if (!req.file) return res.status(400).send('Görsel seçilmedi.');
       const group = await sqlGetAsync('SELECT * FROM groups WHERE id = ?', [req.params.id]);
       if (!group) return res.status(404).send('Grup bulunamadı.');
-      if (Number(group.is_cohort_group || 0) === 1) {
-        return res.status(403).send('Cohort gruplarının kapak görseli değiştirilemez.');
+      const coverUser = getCurrentUser(req);
+      const isCohortGroupCover = Number(group.is_cohort_group || 0) === 1;
+      if (isCohortGroupCover && !hasAdminRole(coverUser) && !isGroupManager(req, req.params.id)) {
+        return res.status(403).send('Yetki yok. Topluluk grubu kapağını yalnızca yöneticiler değiştirebilir.');
       }
-      if (!isGroupManager(req, req.params.id)) {
+      if (!isCohortGroupCover && !isGroupManager(req, req.params.id)) {
         return res.status(403).send('Yetki yok.');
       }
       const processed = await processDiskImageUpload({
@@ -544,8 +546,9 @@ export function registerCommunityGroupRoutes(app, {
         [groupId]
       );
       const isCohortGroupEarly = Number(group.is_cohort_group || 0) === 1;
+      const _isAdminUser = (m) => Number(m.admin || 0) === 1 || m.urole === 'admin' || m.urole === 'root';
       const groupManagers = isCohortGroupEarly && !isAdmin
-        ? rawGroupManagers.filter((m) => !(m.role === 'owner' && (Number(m.admin || 0) === 1 || m.urole === 'admin' || m.urole === 'root')))
+        ? rawGroupManagers.filter((m) => !_isAdminUser(m))
         : rawGroupManagers;
       const showContactHint = Number(group.show_contact_hint || 0) === 1;
 
@@ -578,7 +581,7 @@ export function registerCommunityGroupRoutes(app, {
         [groupId]
       );
       const members = isCohortGroup && !isAdmin
-        ? memberRows.filter((m) => !(m.role === 'owner' && (Number(m.admin || 0) === 1 || m.urole === 'admin' || m.urole === 'root')))
+        ? memberRows.filter((m) => !_isAdminUser(m))
         : memberRows;
       const rawPosts = await sqlAllAsync(
         `SELECT p.id, p.content, p.image, p.created_at,
@@ -646,7 +649,7 @@ export function registerCommunityGroupRoutes(app, {
       return res.json({
         group: {
           ...group,
-          visibility: normalizeGroupVisibility(group.visibility),
+          visibility: isCohortGroup ? 'members_only' : normalizeGroupVisibility(group.visibility),
           show_contact_hint: showContactHint ? 1 : 0
         },
         members,
@@ -664,6 +667,56 @@ export function registerCommunityGroupRoutes(app, {
           commentCount: commentMap.get(p.id) || 0,
           liked: likedSet.has(p.id)
         }))
+      });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.get('/api/new/groups/:id/posts', requireAuth, async (req, res) => {
+    try {
+      const groupId = req.params.id;
+      const group = await sqlGetAsync('SELECT id FROM groups WHERE id = ?', [groupId]);
+      if (!group) return res.status(404).send('Grup bulunamadı.');
+      const user = getCurrentUser(req);
+      if (!hasAdminRole(user) && !getGroupMember(groupId, req.session.userId)) {
+        return res.status(403).send('Grup üyesi değilsiniz.');
+      }
+      const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
+      const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+      const rawPosts = await sqlAllAsync(
+        `SELECT p.id, p.content, p.image, p.created_at, p.post_type, p.entity_id,
+                u.id as user_id, u.kadi, u.isim, u.soyisim, u.resim, u.verified
+         FROM posts p
+         LEFT JOIN uyeler u ON u.id = p.user_id
+         WHERE p.group_id = ?
+         ORDER BY p.id DESC
+         LIMIT ? OFFSET ?`,
+        [groupId, limit + 1, offset]
+      );
+      const slice = rawPosts.slice(0, limit);
+      const postIds = slice.map((p) => p.id);
+      const likes = postIds.length
+        ? await sqlAllAsync(`SELECT post_id, COUNT(*) AS cnt FROM post_likes WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+        : [];
+      const comments = postIds.length
+        ? await sqlAllAsync(`SELECT post_id, COUNT(*) AS cnt FROM post_comments WHERE post_id IN (${postIds.map(() => '?').join(',')}) GROUP BY post_id`, postIds)
+        : [];
+      const liked = postIds.length
+        ? await sqlAllAsync(`SELECT post_id FROM post_likes WHERE user_id = ? AND post_id IN (${postIds.map(() => '?').join(',')})`, [req.session.userId, ...postIds])
+        : [];
+      const likeMap = new Map(likes.map((l) => [l.post_id, l.cnt]));
+      const commentMap = new Map(comments.map((c) => [c.post_id, c.cnt]));
+      const likedSet = new Set(liked.map((l) => l.post_id));
+      res.json({
+        items: slice.map((p) => ({
+          ...p,
+          likeCount: likeMap.get(p.id) || 0,
+          commentCount: commentMap.get(p.id) || 0,
+          liked: likedSet.has(p.id)
+        })),
+        hasMore: rawPosts.length > limit
       });
     } catch (err) {
       console.error(err);
@@ -787,21 +840,34 @@ export function registerCommunityGroupRoutes(app, {
       const title = sanitizePlainUserText(String(req.body?.title || '').trim(), 180);
       if (!title) return res.status(400).send('Başlık gerekli.');
       const now = new Date().toISOString();
+      const desc = formatUserText(req.body?.description || '');
+      const location = sanitizePlainUserText(String(req.body?.location || '').trim(), 180);
+      const startsAt = String(req.body?.starts_at || '');
+      const endsAt = String(req.body?.ends_at || '');
       const result = await sqlRunAsync(
         `INSERT INTO group_events (group_id, title, description, location, starts_at, ends_at, created_at, created_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          groupId,
-          title,
-          formatUserText(req.body?.description || ''),
-          sanitizePlainUserText(String(req.body?.location || '').trim(), 180),
-          String(req.body?.starts_at || ''),
-          String(req.body?.ends_at || ''),
-          now,
-          req.session.userId
-        ]
+        [groupId, title, desc, location, startsAt, endsAt, now, req.session.userId]
       );
-      res.json({ ok: true, id: result?.lastInsertRowid });
+      const eventId = result?.lastInsertRowid;
+      const postContent = [title, desc ? desc.replace(/<[^>]+>/g, '') : '', location ? `📍 ${location}` : '', startsAt ? `🗓 ${startsAt}` : ''].filter(Boolean).join('\n');
+      const postResult = await sqlRunAsync(
+        'INSERT INTO posts (user_id, content, image, created_at, group_id, post_type, entity_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [req.session.userId, postContent, null, now, groupId, 'group_event', eventId]
+      );
+      const groupForNotif = await sqlGetAsync('SELECT name FROM groups WHERE id = ?', [groupId]);
+      const membersForNotif = await sqlAllAsync('SELECT user_id FROM group_members WHERE group_id = ?', [groupId]);
+      for (const m of membersForNotif) {
+        if (Number(m.user_id) === Number(req.session.userId)) continue;
+        addNotification({
+          userId: Number(m.user_id),
+          type: 'group_event',
+          sourceUserId: req.session.userId,
+          entityId: Number(groupId),
+          message: `${groupForNotif?.name || 'Grupta'} yeni etkinlik: ${title}`
+        });
+      }
+      res.json({ ok: true, id: eventId, postId: postResult?.lastInsertRowid });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -860,7 +926,25 @@ export function registerCommunityGroupRoutes(app, {
          VALUES (?, ?, ?, ?, ?)`,
         [groupId, title, body, now, req.session.userId]
       );
-      res.json({ ok: true, id: result?.lastInsertRowid });
+      const announcementId = result?.lastInsertRowid;
+      const postContent = [title, body ? body.replace(/<[^>]+>/g, '') : ''].filter(Boolean).join('\n');
+      const postResult = await sqlRunAsync(
+        'INSERT INTO posts (user_id, content, image, created_at, group_id, post_type, entity_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [req.session.userId, postContent, null, now, groupId, 'group_announcement', announcementId]
+      );
+      const groupForNotif = await sqlGetAsync('SELECT name FROM groups WHERE id = ?', [groupId]);
+      const membersForNotif = await sqlAllAsync('SELECT user_id FROM group_members WHERE group_id = ?', [groupId]);
+      for (const m of membersForNotif) {
+        if (Number(m.user_id) === Number(req.session.userId)) continue;
+        addNotification({
+          userId: Number(m.user_id),
+          type: 'group_announcement',
+          sourceUserId: req.session.userId,
+          entityId: Number(groupId),
+          message: `${groupForNotif?.name || 'Grupta'} yeni duyuru: ${title}`
+        });
+      }
+      res.json({ ok: true, id: announcementId, postId: postResult?.lastInsertRowid });
     } catch (err) {
       console.error(err);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');

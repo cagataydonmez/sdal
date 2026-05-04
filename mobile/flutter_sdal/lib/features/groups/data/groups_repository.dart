@@ -63,6 +63,8 @@ class GroupListItem {
     required this.myRole,
     required this.membershipStatus,
     required this.showContactHint,
+    required this.isCohortGroup,
+    required this.cohortYear,
   });
 
   final int id;
@@ -77,6 +79,8 @@ class GroupListItem {
   final String myRole;
   final String membershipStatus;
   final bool showContactHint;
+  final bool isCohortGroup;
+  final String cohortYear;
 
   factory GroupListItem.fromMap(JsonMap map) {
     return GroupListItem(
@@ -94,6 +98,8 @@ class GroupListItem {
         map['membershipStatus'],
       ], fallback: 'none'),
       showContactHint: asBool(map['show_contact_hint']) ?? false,
+      isCohortGroup: (asInt(map['is_cohort_group']) ?? 0) == 1,
+      cohortYear: coalesceText([map['cohort_year']], fallback: ''),
     );
   }
 }
@@ -108,6 +114,8 @@ class GroupPost {
     required this.likeCount,
     required this.commentCount,
     required this.liked,
+    required this.postType,
+    this.entityId,
   });
 
   final int id;
@@ -118,6 +126,10 @@ class GroupPost {
   final int likeCount;
   final int commentCount;
   final bool liked;
+  final String postType;
+  final int? entityId;
+
+  bool get isEntityPost => postType == 'group_event' || postType == 'group_announcement' || postType == 'event' || postType == 'announcement';
 
   factory GroupPost.fromMap(JsonMap map) {
     return GroupPost(
@@ -129,6 +141,8 @@ class GroupPost {
       likeCount: asInt(map['likeCount']) ?? 0,
       commentCount: asInt(map['commentCount']) ?? 0,
       liked: asBool(map['liked']) ?? false,
+      postType: coalesceText([map['post_type']], fallback: 'post'),
+      entityId: asInt(map['entity_id']),
     );
   }
 }

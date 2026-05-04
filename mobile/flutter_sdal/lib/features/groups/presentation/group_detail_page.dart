@@ -64,23 +64,11 @@ class GroupDetailPage extends ConsumerWidget {
                   coverUrl: detail.group.coverImage.isNotEmpty
                       ? config.resolveUrl(detail.group.coverImage).toString()
                       : '',
-                  onToggleJoin: () => _toggleJoin(context, ref, groupId),
-                  onRejectInvite: detail.isInvited
+                  onToggleJoin: detail.group.isCohortGroup
+                      ? null
+                      : () => _toggleJoin(context, ref, groupId),
+                  onRejectInvite: !detail.group.isCohortGroup && detail.isInvited
                       ? () => _respondInvite(context, ref, action: 'reject')
-                      : null,
-                  onOpenSettings: detail.canManage && !detail.accessDenied
-                      ? () => _openSettingsSheet(context, ref, detail)
-                      : null,
-                  onOpenInvite: detail.canManage && !detail.accessDenied
-                      ? () => _openInviteSheet(
-                          context,
-                          ref,
-                          groupId,
-                          excludedIds: {
-                            ...detail.members.map((item) => item.id),
-                            ...detail.pendingInvites.map((item) => item.id),
-                          },
-                        )
                       : null,
                   onUpdateCover: detail.canManage && !detail.accessDenied
                       ? () => _pickCover(context, ref)
@@ -105,10 +93,21 @@ class GroupDetailPage extends ConsumerWidget {
                 if (detail.accessDenied)
                   _buildAccessLimited(context, detail)
                 else ...[
-                  if (detail.canManage ||
-                      detail.canReviewRequests ||
-                      detail.pendingInvites.isNotEmpty) ...[
-                    _AdminPanel(detail: detail, groupId: groupId),
+                  if (!detail.group.isCohortGroup && detail.canManage && !detail.accessDenied) ...[
+                    _AdminPanel(
+                      detail: detail,
+                      groupId: groupId,
+                      onOpenSettings: () => _openSettingsSheet(context, ref, detail),
+                      onOpenInvite: () => _openInviteSheet(
+                        context,
+                        ref,
+                        groupId,
+                        excludedIds: {
+                          ...detail.members.map((item) => item.id),
+                          ...detail.pendingInvites.map((item) => item.id),
+                        },
+                      ),
+                    ),
                     const SizedBox(height: 16),
                   ],
                   _SectionCard(
@@ -383,19 +382,15 @@ class _GroupHeroSection extends StatelessWidget {
   const _GroupHeroSection({
     required this.detail,
     required this.coverUrl,
-    required this.onToggleJoin,
+    this.onToggleJoin,
     this.onRejectInvite,
-    this.onOpenSettings,
-    this.onOpenInvite,
     this.onUpdateCover,
   });
 
   final GroupDetail detail;
   final String coverUrl;
-  final VoidCallback onToggleJoin;
+  final VoidCallback? onToggleJoin;
   final VoidCallback? onRejectInvite;
-  final VoidCallback? onOpenSettings;
-  final VoidCallback? onOpenInvite;
   final VoidCallback? onUpdateCover;
 
   @override
@@ -414,12 +409,25 @@ class _GroupHeroSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (coverUrl.isNotEmpty) ...[
-              SdalNetworkImage(
-                imageUrl: coverUrl,
-                height: 210,
-                width: double.infinity,
+              ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                fit: BoxFit.cover,
+                child: Stack(
+                  children: [
+                    SdalNetworkImage(
+                      imageUrl: coverUrl,
+                      height: 210,
+                      width: double.infinity,
+                      borderRadius: BorderRadius.zero,
+                      fit: BoxFit.cover,
+                    ),
+                    if (detail.group.isCohortGroup)
+                      Positioned(
+                        bottom: 10,
+                        right: 12,
+                        child: _CohortYearBadge(cohortYear: detail.group.cohortYear),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 18),
             ],
@@ -478,37 +486,30 @@ class _GroupHeroSection extends StatelessWidget {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                FilledButton(
-                  onPressed: onToggleJoin,
-                  child: Text(_detailJoinLabel(context, detail)),
-                ),
-                if (onRejectInvite != null)
-                  FilledButton.tonal(
-                    onPressed: onRejectInvite,
-                    child: Text(l10n.groupRejectInviteAction),
-                  ),
-                if (onOpenSettings != null)
-                  FilledButton.tonal(
-                    onPressed: onOpenSettings,
-                    child: Text(l10n.groupSettingsAction),
-                  ),
-                if (onOpenInvite != null)
-                  OutlinedButton(
-                    onPressed: onOpenInvite,
-                    child: Text(l10n.groupInviteMembersAction),
-                  ),
-                if (onUpdateCover != null)
-                  OutlinedButton(
-                    onPressed: onUpdateCover,
-                    child: Text(l10n.groupUpdateCoverAction),
-                  ),
-              ],
-            ),
+            if (onToggleJoin != null || onRejectInvite != null || onUpdateCover != null) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  if (onToggleJoin != null)
+                    FilledButton(
+                      onPressed: onToggleJoin,
+                      child: Text(_detailJoinLabel(context, detail)),
+                    ),
+                  if (onRejectInvite != null)
+                    FilledButton.tonal(
+                      onPressed: onRejectInvite,
+                      child: Text(l10n.groupRejectInviteAction),
+                    ),
+                  if (onUpdateCover != null)
+                    OutlinedButton(
+                      onPressed: onUpdateCover,
+                      child: Text(l10n.groupUpdateCoverAction),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -568,10 +569,17 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _AdminPanel extends ConsumerWidget {
-  const _AdminPanel({required this.detail, required this.groupId});
+  const _AdminPanel({
+    required this.detail,
+    required this.groupId,
+    this.onOpenSettings,
+    this.onOpenInvite,
+  });
 
   final GroupDetail detail;
   final int groupId;
+  final VoidCallback? onOpenSettings;
+  final VoidCallback? onOpenInvite;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -598,6 +606,25 @@ class _AdminPanel extends ConsumerWidget {
           ),
           children: [
             const SizedBox(height: 8),
+            if (onOpenSettings != null || onOpenInvite != null) ...[
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  if (onOpenSettings != null)
+                    FilledButton.tonal(
+                      onPressed: onOpenSettings,
+                      child: Text(l10n.groupSettingsAction),
+                    ),
+                  if (onOpenInvite != null)
+                    OutlinedButton(
+                      onPressed: onOpenInvite,
+                      child: Text(l10n.groupInviteMembersAction),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
             if (detail.canReviewRequests && detail.joinRequests.isNotEmpty) ...[
               _RequestsCard(groupId: groupId, items: detail.joinRequests),
               const SizedBox(height: 12),
@@ -1074,6 +1101,44 @@ class _GroupPostTile extends ConsumerWidget {
     final config = ref.watch(appConfigProvider);
     final l10n = context.l10n;
     final tokens = Theme.of(context).sdal;
+    if (post.isEntityPost) {
+      final isEvent = post.postType == 'group_event' || post.postType == 'event';
+      final lines = post.content.split('\n').where((l) => l.isNotEmpty).toList();
+      final titleLine = lines.isNotEmpty ? lines.first : '';
+      final excerptLines = lines.skip(1).join(' ');
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: isEvent ? tokens.warningMuted : tokens.successMuted,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isEvent ? tokens.warning.withAlpha(60) : tokens.success.withAlpha(60)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Text(isEvent ? '📅' : '📢', style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (titleLine.isNotEmpty)
+                      Text(titleLine, style: Theme.of(context).textTheme.titleSmall),
+                    if (excerptLines.isNotEmpty)
+                      Text(
+                        excerptLines,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return DecoratedBox(
       decoration: BoxDecoration(
         color: tokens.panelMuted,
@@ -1231,6 +1296,34 @@ class _GroupAnnouncementTile extends StatelessWidget {
             const SizedBox(height: 8),
             Text(item.createdAt, style: Theme.of(context).textTheme.bodySmall),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CohortYearBadge extends StatelessWidget {
+  const _CohortYearBadge({required this.cohortYear});
+
+  final String cohortYear;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = cohortYear == '9999' ? 'Öğretmenler' : cohortYear;
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(160),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          letterSpacing: 0.4,
         ),
       ),
     );
