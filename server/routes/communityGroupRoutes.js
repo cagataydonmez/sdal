@@ -32,6 +32,8 @@ export function registerCommunityGroupRoutes(app, {
       const cursor = Math.max(parseInt(req.query.cursor || '0', 10), 0);
       const user = getCurrentUser(req);
       const isAdmin = hasAdminRole(user);
+      const viewerRow = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
+      const viewerCohort = String(viewerRow?.mezuniyetyili || '').trim();
       const whereParts = [];
       const whereParams = [];
       if (cursor > 0) {
@@ -40,8 +42,6 @@ export function registerCommunityGroupRoutes(app, {
       }
       // Non-admins can only see their own cohort group among cohort groups
       if (!isAdmin) {
-        const viewerRow = await sqlGetAsync('SELECT mezuniyetyili FROM uyeler WHERE id = ?', [req.session.userId]);
-        const viewerCohort = String(viewerRow?.mezuniyetyili || '').trim();
         if (viewerCohort && viewerCohort !== '0') {
           whereParts.push("(COALESCE(is_cohort_group, 0) = 0 OR cohort_year = ?)");
           whereParams.push(viewerCohort);
@@ -50,13 +50,25 @@ export function registerCommunityGroupRoutes(app, {
         }
       }
       const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+      // Ordering: 1) user's own cohort group first, 2) Öğretmenler + non-cohort groups alphabetically, 3) other cohort years ascending
+      const orderParams = [viewerCohort || '', viewerCohort || ''];
       const groups = await sqlAllAsync(
         `SELECT *
          FROM groups
          ${whereSql}
-         ORDER BY id DESC
+         ORDER BY
+           CASE
+             WHEN COALESCE(is_cohort_group, 0) = 1 AND cohort_year = ? THEN 0
+             WHEN COALESCE(is_cohort_group, 0) = 0 OR (COALESCE(is_cohort_group, 0) = 1 AND cohort_year = '9999') THEN 1
+             ELSE 2
+           END ASC,
+           CASE
+             WHEN COALESCE(is_cohort_group, 0) = 1 AND cohort_year != '9999' AND cohort_year != ? THEN CAST(cohort_year AS INTEGER)
+             ELSE 0
+           END ASC,
+           name ASC
          LIMIT ? OFFSET ?`,
-        [...whereParams, limit + 1, cursor > 0 ? 0 : offset]
+        [...whereParams, ...orderParams, limit + 1, cursor > 0 ? 0 : offset]
       );
       const memberCounts = await sqlAllAsync('SELECT group_id, COUNT(*) AS cnt FROM group_members GROUP BY group_id');
       const membership = await sqlAllAsync('SELECT group_id, role FROM group_members WHERE user_id = ?', [req.session.userId]);

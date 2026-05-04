@@ -13,6 +13,7 @@ import '../../../core/widgets/remote_avatar.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../explore/data/explore_repository.dart';
+import '../../feed/application/feed_action_controller.dart';
 import '../application/groups_action_controller.dart';
 import '../data/groups_repository.dart';
 
@@ -133,7 +134,7 @@ class GroupDetailPage extends ConsumerWidget {
                           : Column(
                               children: [
                                 for (final post in posts) ...[
-                                  _GroupPostTile(post: post),
+                                  _GroupPostTile(post: post, groupId: groupId),
                                   const SizedBox(height: 12),
                                 ],
                               ],
@@ -1091,16 +1092,50 @@ class _InviteMembersSheetState extends ConsumerState<_InviteMembersSheet> {
   }
 }
 
-class _GroupPostTile extends ConsumerWidget {
-  const _GroupPostTile({required this.post});
+class _GroupPostTile extends ConsumerStatefulWidget {
+  const _GroupPostTile({required this.post, required this.groupId});
 
   final GroupPost post;
+  final int groupId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_GroupPostTile> createState() => _GroupPostTileState();
+}
+
+class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
+  late bool _liked;
+  late int _likeCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _liked = widget.post.liked;
+    _likeCount = widget.post.likeCount;
+  }
+
+  Future<void> _toggleLike() async {
+    final wasLiked = _liked;
+    setState(() {
+      _liked = !_liked;
+      _likeCount += _liked ? 1 : -1;
+    });
+    await ref.read(feedActionControllerProvider.notifier).toggleLike(widget.post.id);
+    if (!mounted) return;
+    final actionState = ref.read(feedActionControllerProvider);
+    if (actionState.isError) {
+      setState(() {
+        _liked = wasLiked;
+        _likeCount += wasLiked ? 1 : -1;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final config = ref.watch(appConfigProvider);
-    final l10n = context.l10n;
     final tokens = Theme.of(context).sdal;
+    final post = widget.post;
+
     if (post.isEntityPost) {
       final isEvent = post.postType == 'group_event' || post.postType == 'event';
       final lines = post.content.split('\n').where((l) => l.isNotEmpty).toList();
@@ -1139,53 +1174,124 @@ class _GroupPostTile extends ConsumerWidget {
         ),
       );
     }
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: tokens.panelMuted,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: tokens.panelBorder),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                RemoteAvatar(
-                  label: post.author.displayName,
-                  imageUrl: config.resolveUrl(post.author.photo).toString(),
-                  radius: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: Text(post.author.displayName)),
-                Text(
-                  post.createdAt,
-                  style: Theme.of(context).textTheme.bodySmall,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push('/posts/${post.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  RemoteAvatar(
+                    label: post.author.displayName,
+                    imageUrl: config.resolveUrl(post.author.photo).toString(),
+                    radius: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post.author.displayName,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        if (post.author.handle.isNotEmpty)
+                          Text(
+                            '@${post.author.handle}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    post.createdAt,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+              if (post.content.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(post.content, style: Theme.of(context).textTheme.bodyLarge),
+              ],
+              if (post.image.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                SdalNetworkImage(
+                  imageUrl: config.resolveUrl(post.image).toString(),
+                  borderRadius: BorderRadius.circular(16),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
                 ),
               ],
-            ),
-            if (post.content.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(post.content),
-            ],
-            if (post.image.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              SdalNetworkImage(
-                imageUrl: config.resolveUrl(post.image).toString(),
-                borderRadius: BorderRadius.circular(16),
-                fit: BoxFit.cover,
-                width: double.infinity,
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _PostMetricPill(
+                    icon: _liked ? Icons.favorite : Icons.favorite_border,
+                    label: '$_likeCount',
+                    active: _liked,
+                    onTap: _toggleLike,
+                  ),
+                  const SizedBox(width: 8),
+                  _PostMetricPill(
+                    icon: Icons.chat_bubble_outline,
+                    label: '${post.commentCount}',
+                    onTap: () => context.push('/posts/${post.id}'),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              children: [
-                _DetailChip(label: l10n.groupLikesCount(post.likeCount)),
-                _DetailChip(label: l10n.groupCommentsCount(post.commentCount)),
-              ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PostMetricPill extends StatelessWidget {
+  const _PostMetricPill({
+    required this.icon,
+    required this.label,
+    this.active = false,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return InkWell(
+      borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? tokens.accentMuted : tokens.panelRaised,
+          borderRadius: BorderRadius.circular(SdalThemeTokens.radiusPill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: active ? tokens.accent : null,
             ),
+            const SizedBox(width: 6),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),
