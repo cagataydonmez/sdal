@@ -118,6 +118,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                   .resolveUrl(item.photo)
                                   .toString(),
                               onFollow: () => _toggleFollowMember(item),
+                              onViewMap: _isTeacherMember(item.graduationYear)
+                                  ? () => context.push('/network/teachers/${item.id}/map')
+                                  : null,
                             ),
                           );
                         },
@@ -179,6 +182,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                           .resolveUrl(item.photo)
                                           .toString(),
                                       onFollow: () => _toggleFollowMember(item),
+                                      onViewMap: _isTeacherMember(item.graduationYear)
+                                          ? () => context.push('/network/teachers/${item.id}/map')
+                                          : null,
                                     ),
                                   );
                                 },
@@ -204,6 +210,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                                         .resolveUrl(item.photo)
                                         .toString(),
                                     onFollow: () => _toggleFollowMember(item),
+                                    onViewMap: _isTeacherMember(item.graduationYear)
+                                        ? () => context.push('/network/teachers/${item.id}/map')
+                                        : null,
                                   ),
                                 ),
                             ],
@@ -313,6 +322,9 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
                         onTap: () => context.push('/members/${member.id}'),
                         imageUrl: config.resolveUrl(member.photo).toString(),
                         onFollow: () => _toggleFollowMember(member),
+                        onViewMap: _isTeacherMember(member.graduationYear)
+                            ? () => context.push('/network/teachers/${member.id}/map')
+                            : null,
                       ),
                     ),
                   ),
@@ -902,6 +914,7 @@ class _MemberCard extends StatelessWidget {
     required this.compact,
     required this.isFollowed,
     required this.followInFlight,
+    this.onViewMap,
   });
 
   final MemberSummary member;
@@ -911,6 +924,7 @@ class _MemberCard extends StatelessWidget {
   final bool compact;
   final bool isFollowed;
   final bool followInFlight;
+  final VoidCallback? onViewMap;
 
   @override
   Widget build(BuildContext context) {
@@ -1005,6 +1019,17 @@ class _MemberCard extends StatelessWidget {
                         : l10n.followAction,
                   ),
                 ),
+                if (onViewMap != null) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onViewMap,
+                      icon: const Icon(Icons.hub_outlined, size: 16),
+                      label: const Text('Ağ haritasını gör'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1014,13 +1039,16 @@ class _MemberCard extends StatelessWidget {
   }
 }
 
-String _formatGraduationYear(BuildContext context, dynamic l10n, String value) {
-  final normalized = value.trim().toLowerCase();
-  final isTeacher =
-      normalized == '9999' ||
+bool _isTeacherMember(String graduationYear) {
+  final normalized = graduationYear.trim().toLowerCase();
+  return normalized == '9999' ||
       normalized == 'teacher' ||
       normalized == 'ogretmen' ||
       normalized == 'öğretmen';
+}
+
+String _formatGraduationYear(BuildContext context, dynamic l10n, String value) {
+  final isTeacher = _isTeacherMember(value);
   if (isTeacher) {
     return Localizations.localeOf(context).languageCode == 'tr'
         ? 'Öğretmen'
