@@ -7,38 +7,37 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		01F96299AF6701D542B355BA /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 761FADDD093C85D199C27E47 /* Info.plist */; };
 		057D61A6D28F800B595D3B68 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65165DB5194E7E3C99540D6E /* Pods_RunnerTests.framework */; };
-		109EDE7B742E61CF65C7773B /* WatchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CB335182E86D01DEF63D901 /* WatchViewModel.swift */; };
+		10A74DB5EA237C881B79307D /* WatchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB726CB8672695E22885E0AF /* WatchModels.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		178220FACC20E184270BE09A /* SdalNotificationExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		2490F41C3875DA6CBDEB5F2E /* WatchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E5F107D9E6163FAAE1AF97 /* WatchModels.swift */; };
-		24F080FA48FF364544487963 /* WatchSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681561A1B2DF157F69ADBD97 /* WatchSessionManager.swift */; };
+		3089072191B9214EC522A5E3 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5A82521A8C7178051C75E2 /* Foundation.framework */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		393E680D2F9EB7A20038C34C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 393E680C2F9EB7A20038C34C /* GoogleService-Info.plist */; };
+		3AFF8D8A2123C743AA7DE399 /* WatchAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024BAE1F5D21E4A4C747A4C7 /* WatchAPIClient.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
-		3FE213AE75C6F9AC96A43EC8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F0EF3523FA90425CA112CC /* ContentView.swift */; };
+		41947948C0CD73EB577C2C78 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2B848F9D92FAED546F78ED /* ContentView.swift */; };
 		420C442DAAF31D2832CA82CB /* Pods_SdalNotificationExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 368E865E2ED8EBBECF7DB606 /* Pods_SdalNotificationExtension.framework */; };
-		51A5A4073093BDAED63656AF /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5A82521A8C7178051C75E2 /* Foundation.framework */; };
-		67B32AFA0259479A15FCE9AB /* SdalWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D052C794DEF46F341DB2D721 /* SdalWatchApp.swift */; };
-		69A6DF2D5629E20E7F0519C4 /* SdalWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 81339654971D271EA2DD45B4 /* SdalWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		434C6739919A8AD0FED66EE2 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546D77C464109F1177656BA3 /* NotificationsView.swift */; };
+		59D1FC7D3B89816ABA5DEF1F /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AAA3259DC8863F06C6E67C /* MessagesView.swift */; };
+		6673A8D900580483E341876E /* WatchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8A30BB5C696A6FA38D99A5 /* WatchViewModel.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-		751574B0E4F50A23669AE28E /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232AE5DD2F816C29DFAE8DB8 /* SharedComponents.swift */; };
 		77D0E5D23F94BD0FDA9E8A4A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 871E82307C8BD0C9B48E89A4 /* Foundation.framework */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
-		9364E02FB5F9BC7DBD0AF161 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 967A49A7A7F47962C2B00D1D /* WatchConnectivity.framework */; };
+		7B859C4D2CBF67E0CF8595F9 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7B2A40B43020E3CEE19A098C /* WatchConnectivity.framework */; };
+		7EAA2E48D1D85A73097E576F /* WatchSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B76DAA4376FD657DD7689456 /* WatchSessionManager.swift */; };
+		81FF254D38CDBBEB74B5EFCE /* SdalWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F553E34ED3D99549DA145B5 /* SdalWatchApp.swift */; };
+		8E2864B16F61572E4574BA8C /* WatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1C40FD4C1A1B092D2BF80 /* WatchBridge.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
-		A37E7DBCEAC3FDFF5EDC7EF5 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AE873DD76759EE920227FF3 /* FeedView.swift */; };
-		AB87F9D87420726557733F1D /* WatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7B1361AAAAF4492ECDBDB5 /* WatchBridge.swift */; };
-		AE40903FF722DD89A8302607 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F260A66CBE348B54CC34EF30 /* Assets.xcassets */; };
-		AF2C86A63D1FEFDB355E3B4E /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F50F0FD2D50E1D1CA85999 /* NotificationsView.swift */; };
-		D6FE046C5D806D5C8FAAF61C /* WatchAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58D09FC3D13C076021BEC71 /* WatchAPIClient.swift */; };
-		E24843298F0746D03E7C76ED /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AA1F6DFAB080E0CFB2EAB0 /* MessagesView.swift */; };
+		BD793E6F6A2469215F4B0D46 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B8BBD6EDDCAAF9681B5C872 /* SharedComponents.swift */; };
+		D79F36BD428ACD89890BF698 /* SdalWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = F55097D4FD924EBD2C748CA1 /* SdalWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E1B3522F149282DB3F14799C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3138A981BFEEE8AC53E4F365 /* Assets.xcassets */; };
 		E91D568FFECD676F811DBAE6 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 011278B00633551928D9CFD5 /* WatchConnectivity.framework */; };
 		EE32E2DC68062B100CD9F4C7 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D860A36F6A39E4394800396 /* NotificationService.swift */; };
 		F2A15A981FF7AD8DEEE83020 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E27F67F19DDDD2B742FC84D /* Pods_Runner.framework */; };
+		F420CFF2A2781FF4FF839570 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B10E896851E3C8BD17DEFDB /* FeedView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,11 +55,11 @@
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
 		};
-		AA9035AD22CDFFE4BDB48DEC /* PBXContainerItemProxy */ = {
+		58A3A856FDFF8D748FC941BF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 2F7A849E107151C941555BB8;
+			remoteGlobalIDString = 7CBE429371BD4E21AA16AB37;
 			remoteInfo = SdalWatch;
 		};
 /* End PBXContainerItemProxy section */
@@ -72,7 +71,7 @@
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
-				69A6DF2D5629E20E7F0519C4 /* SdalWatch.app in Embed Watch Content */,
+				D79F36BD428ACD89890BF698 /* SdalWatch.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -102,37 +101,38 @@
 
 /* Begin PBXFileReference section */
 		011278B00633551928D9CFD5 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
+		024BAE1F5D21E4A4C747A4C7 /* WatchAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchAPIClient.swift; sourceTree = "<group>"; };
 		036849AF911A3C8C0CA9267E /* Pods-SdalNotificationExtension.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SdalNotificationExtension.profile.xcconfig"; path = "Target Support Files/Pods-SdalNotificationExtension/Pods-SdalNotificationExtension.profile.xcconfig"; sourceTree = "<group>"; };
+		0F553E34ED3D99549DA145B5 /* SdalWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SdalWatchApp.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		1D7B1361AAAAF4492ECDBDB5 /* WatchBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchBridge.swift; path = Runner/WatchBridge.swift; sourceTree = "<group>"; };
 		1E7267D2966E4F605FF8DF72 /* Pods-SdalNotificationExtension.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SdalNotificationExtension.debug.xcconfig"; path = "Target Support Files/Pods-SdalNotificationExtension/Pods-SdalNotificationExtension.debug.xcconfig"; sourceTree = "<group>"; };
 		219AD00025ADEF320BA60BAB /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		224D55F47BACA12C33E23ED3 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
-		232AE5DD2F816C29DFAE8DB8 /* SharedComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SharedComponents.swift; path = SdalWatch/Views/SharedComponents.swift; sourceTree = "<group>"; };
-		2AE873DD76759EE920227FF3 /* FeedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FeedView.swift; path = SdalWatch/Views/FeedView.swift; sourceTree = "<group>"; };
+		2B2B848F9D92FAED546F78ED /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2D860A36F6A39E4394800396 /* NotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationService.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		2E8A30BB5C696A6FA38D99A5 /* WatchViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchViewModel.swift; sourceTree = "<group>"; };
+		3138A981BFEEE8AC53E4F365 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		35E5F107D9E6163FAAE1AF97 /* WatchModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchModels.swift; path = SdalWatch/Models/WatchModels.swift; sourceTree = "<group>"; };
 		368E865E2ED8EBBECF7DB606 /* Pods_SdalNotificationExtension.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SdalNotificationExtension.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		393E680C2F9EB7A20038C34C /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		3B8BBD6EDDCAAF9681B5C872 /* SharedComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
 		3C1245F79B3BFEEA95BA2E73 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
+		4B10E896851E3C8BD17DEFDB /* FeedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		539301713A0E5BB61A0C1196 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
-		54F0EF3523FA90425CA112CC /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContentView.swift; path = SdalWatch/App/ContentView.swift; sourceTree = "<group>"; };
-		58F50F0FD2D50E1D1CA85999 /* NotificationsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationsView.swift; path = SdalWatch/Views/NotificationsView.swift; sourceTree = "<group>"; };
+		546D77C464109F1177656BA3 /* NotificationsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		65165DB5194E7E3C99540D6E /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		681561A1B2DF157F69ADBD97 /* WatchSessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchSessionManager.swift; path = SdalWatch/Networking/WatchSessionManager.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		761FADDD093C85D199C27E47 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = SdalWatch/Info.plist; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		7B2A40B43020E3CEE19A098C /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
 		81339654971D271EA2DD45B4 /* SdalWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SdalWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		871E82307C8BD0C9B48E89A4 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		8B6E2B7A4D3F4A4C9E1D0A12 /* Profile.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Profile.xcconfig; path = Flutter/Profile.xcconfig; sourceTree = "<group>"; };
-		8CB335182E86D01DEF63D901 /* WatchViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchViewModel.swift; path = SdalWatch/ViewModels/WatchViewModel.swift; sourceTree = "<group>"; };
 		8E27F67F19DDDD2B742FC84D /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		926A1054CD9F64E8D2B09C00 /* Pods-SdalNotificationExtension.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SdalNotificationExtension.release.xcconfig"; path = "Target Support Files/Pods-SdalNotificationExtension/Pods-SdalNotificationExtension.release.xcconfig"; sourceTree = "<group>"; };
 		967A49A7A7F47962C2B00D1D /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
@@ -145,17 +145,28 @@
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9F5A82521A8C7178051C75E2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A73D2C2E5A0C4B71A57C0D91 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
-		B9AA1F6DFAB080E0CFB2EAB0 /* MessagesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessagesView.swift; path = SdalWatch/Views/MessagesView.swift; sourceTree = "<group>"; };
-		C58D09FC3D13C076021BEC71 /* WatchAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchAPIClient.swift; path = SdalWatch/Networking/WatchAPIClient.swift; sourceTree = "<group>"; };
-		D052C794DEF46F341DB2D721 /* SdalWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SdalWatchApp.swift; path = SdalWatch/App/SdalWatchApp.swift; sourceTree = "<group>"; };
+		B76DAA4376FD657DD7689456 /* WatchSessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSessionManager.swift; sourceTree = "<group>"; };
+		B8AAA3259DC8863F06C6E67C /* MessagesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		C0D2FB2F5770ECE0C1758550 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		CB726CB8672695E22885E0AF /* WatchModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchModels.swift; sourceTree = "<group>"; };
 		D9F8467FE60FCAE30FF275C1 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
 		DD2EC2F6461E39CCE8E25A75 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SdalNotificationExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		E6C1C40FD4C1A1B092D2BF80 /* WatchBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBridge.swift; sourceTree = "<group>"; };
 		ED861664D20D0DC2C085B548 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
-		F260A66CBE348B54CC34EF30 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = SdalWatch/Assets.xcassets; sourceTree = "<group>"; };
+		F55097D4FD924EBD2C748CA1 /* SdalWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SdalWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4D2727CB3F1F641F4ECC72A2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3089072191B9214EC522A5E3 /* Foundation.framework in Frameworks */,
+				7B859C4D2CBF67E0CF8595F9 /* WatchConnectivity.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7FB01FF129A9ADD309769121 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -182,25 +193,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E5B39DBB9FA08B8820D31E6F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				51A5A4073093BDAED63656AF /* Foundation.framework in Frameworks */,
-				9364E02FB5F9BC7DBD0AF161 /* WatchConnectivity.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		1FAA7F60F416E8F29AACC187 /* Models */ = {
+		235B70D60BF301F5E08B0035 /* SdalWatch */ = {
 			isa = PBXGroup;
 			children = (
-				35E5F107D9E6163FAAE1AF97 /* WatchModels.swift */,
+				9FF9164FD1B25035C0EE4C99 /* App */,
+				4A099D7FF0D7879400C3576E /* Models */,
+				52B037FB603B710B35361B64 /* Networking */,
+				307A300D95685196C6081B73 /* ViewModels */,
+				EE39FAF4D8E2837145311AB5 /* Views */,
+				3138A981BFEEE8AC53E4F365 /* Assets.xcassets */,
+				C0D2FB2F5770ECE0C1758550 /* Info.plist */,
 			);
-			name = Models;
-			path = Models;
+			name = SdalWatch;
+			path = SdalWatch;
 			sourceTree = "<group>";
 		};
 		2DC5CA6814FDE94EEF4367EA /* watchOS */ = {
@@ -209,6 +217,15 @@
 				9F5A82521A8C7178051C75E2 /* Foundation.framework */,
 			);
 			name = watchOS;
+			sourceTree = "<group>";
+		};
+		307A300D95685196C6081B73 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				2E8A30BB5C696A6FA38D99A5 /* WatchViewModel.swift */,
+			);
+			name = ViewModels;
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
@@ -235,13 +252,23 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
-		7D1C6A7F7EB3466496561452 /* SdalWatch */ = {
+		4A099D7FF0D7879400C3576E /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				F1AF46228FF269A148E28167 /* SdalWatch */,
+				CB726CB8672695E22885E0AF /* WatchModels.swift */,
 			);
-			name = SdalWatch;
-			path = SdalWatch;
+			name = Models;
+			path = Models;
+			sourceTree = "<group>";
+		};
+		52B037FB603B710B35361B64 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				024BAE1F5D21E4A4C747A4C7 /* WatchAPIClient.swift */,
+				B76DAA4376FD657DD7689456 /* WatchSessionManager.swift */,
+			);
+			name = Networking;
+			path = Networking;
 			sourceTree = "<group>";
 		};
 		7E84E4467B564F04A612A987 /* SdalNotificationExtension */ = {
@@ -252,25 +279,6 @@
 			);
 			name = SdalNotificationExtension;
 			path = SdalNotificationExtension;
-			sourceTree = "<group>";
-		};
-		9188E33EBD1FE647E87C4598 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				D052C794DEF46F341DB2D721 /* SdalWatchApp.swift */,
-				54F0EF3523FA90425CA112CC /* ContentView.swift */,
-			);
-			name = App;
-			path = App;
-			sourceTree = "<group>";
-		};
-		91E092E0C0C4583ABC3845D5 /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				8CB335182E86D01DEF63D901 /* WatchViewModel.swift */,
-			);
-			name = ViewModels;
-			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -296,7 +304,7 @@
 				44646CEFE8973D1E0D9132C2 /* Pods */,
 				C9FBC2646BBC90A413F3FEA9 /* Frameworks */,
 				7E84E4467B564F04A612A987 /* SdalNotificationExtension */,
-				7D1C6A7F7EB3466496561452 /* SdalWatch */,
+				235B70D60BF301F5E08B0035 /* SdalWatch */,
 			);
 			sourceTree = "<group>";
 		};
@@ -307,6 +315,7 @@
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 				DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */,
 				81339654971D271EA2DD45B4 /* SdalWatch.app */,
+				F55097D4FD924EBD2C748CA1 /* SdalWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -325,18 +334,19 @@
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				1D7B1361AAAAF4492ECDBDB5 /* WatchBridge.swift */,
+				E6C1C40FD4C1A1B092D2BF80 /* WatchBridge.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
 		};
-		9F649E2F7063DA2DE2898996 /* Networking */ = {
+		9FF9164FD1B25035C0EE4C99 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				C58D09FC3D13C076021BEC71 /* WatchAPIClient.swift */,
-				681561A1B2DF157F69ADBD97 /* WatchSessionManager.swift */,
+				0F553E34ED3D99549DA145B5 /* SdalWatchApp.swift */,
+				2B2B848F9D92FAED546F78ED /* ContentView.swift */,
 			);
-			name = Networking;
-			path = Networking;
+			name = App;
+			path = App;
 			sourceTree = "<group>";
 		};
 		C9FBC2646BBC90A413F3FEA9 /* Frameworks */ = {
@@ -349,20 +359,9 @@
 				2DC5CA6814FDE94EEF4367EA /* watchOS */,
 				011278B00633551928D9CFD5 /* WatchConnectivity.framework */,
 				967A49A7A7F47962C2B00D1D /* WatchConnectivity.framework */,
+				7B2A40B43020E3CEE19A098C /* WatchConnectivity.framework */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		E27713B465E471547DD2C6A9 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				2AE873DD76759EE920227FF3 /* FeedView.swift */,
-				B9AA1F6DFAB080E0CFB2EAB0 /* MessagesView.swift */,
-				58F50F0FD2D50E1D1CA85999 /* NotificationsView.swift */,
-				232AE5DD2F816C29DFAE8DB8 /* SharedComponents.swift */,
-			);
-			name = Views;
-			path = Views;
 			sourceTree = "<group>";
 		};
 		E7161CDC31D49D0D34CAD5F8 /* iOS */ = {
@@ -373,19 +372,16 @@
 			name = iOS;
 			sourceTree = "<group>";
 		};
-		F1AF46228FF269A148E28167 /* SdalWatch */ = {
+		EE39FAF4D8E2837145311AB5 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				9188E33EBD1FE647E87C4598 /* App */,
-				1FAA7F60F416E8F29AACC187 /* Models */,
-				9F649E2F7063DA2DE2898996 /* Networking */,
-				91E092E0C0C4583ABC3845D5 /* ViewModels */,
-				E27713B465E471547DD2C6A9 /* Views */,
-				761FADDD093C85D199C27E47 /* Info.plist */,
-				F260A66CBE348B54CC34EF30 /* Assets.xcassets */,
+				4B10E896851E3C8BD17DEFDB /* FeedView.swift */,
+				B8AAA3259DC8863F06C6E67C /* MessagesView.swift */,
+				546D77C464109F1177656BA3 /* NotificationsView.swift */,
+				3B8BBD6EDDCAAF9681B5C872 /* SharedComponents.swift */,
 			);
-			name = SdalWatch;
-			path = SdalWatch;
+			name = Views;
+			path = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -409,23 +405,6 @@
 			productReference = DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		2F7A849E107151C941555BB8 /* SdalWatch */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A4D211D1C3F77325DBC69180 /* Build configuration list for PBXNativeTarget "SdalWatch" */;
-			buildPhases = (
-				4F08199C2E0B3D509899A480 /* Sources */,
-				E5B39DBB9FA08B8820D31E6F /* Frameworks */,
-				679D4309E65C69B32E69AB4C /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = SdalWatch;
-			productName = SdalWatch;
-			productReference = 81339654971D271EA2DD45B4 /* SdalWatch.app */;
-			productType = "com.apple.product-type.application";
-		};
 		331C8080294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */;
@@ -444,6 +423,23 @@
 			productName = RunnerTests;
 			productReference = 331C8081294A63A400263BE5 /* RunnerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		7CBE429371BD4E21AA16AB37 /* SdalWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A058DF5962FDF2BC738396E /* Build configuration list for PBXNativeTarget "SdalWatch" */;
+			buildPhases = (
+				ED57D5D0C17FFF00BB9709D5 /* Sources */,
+				4D2727CB3F1F641F4ECC72A2 /* Frameworks */,
+				35D71167FC7E827406F81674 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SdalWatch;
+			productName = SdalWatch;
+			productReference = F55097D4FD924EBD2C748CA1 /* SdalWatch.app */;
+			productType = "com.apple.product-type.application";
 		};
 		97C146ED1CF9000F007C117D /* Runner */ = {
 			isa = PBXNativeTarget;
@@ -467,7 +463,7 @@
 			);
 			dependencies = (
 				D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */,
-				B3CA47FF0628ECFD86CB7799 /* PBXTargetDependency */,
+				ACE36C1CBD7E2FEEF3258618 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -510,7 +506,7 @@
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 				2CC7DDDB656D64EFF2CC2121 /* SdalNotificationExtension */,
-				2F7A849E107151C941555BB8 /* SdalWatch */,
+				7CBE429371BD4E21AA16AB37 /* SdalWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -523,19 +519,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		35D71167FC7E827406F81674 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E1B3522F149282DB3F14799C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		393C360673EBE2ED6D2C5084 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		679D4309E65C69B32E69AB4C /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				01F96299AF6701D542B355BA /* Info.plist in Resources */,
-				AE40903FF722DD89A8302607 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -736,23 +731,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4F08199C2E0B3D509899A480 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				67B32AFA0259479A15FCE9AB /* SdalWatchApp.swift in Sources */,
-				3FE213AE75C6F9AC96A43EC8 /* ContentView.swift in Sources */,
-				2490F41C3875DA6CBDEB5F2E /* WatchModels.swift in Sources */,
-				D6FE046C5D806D5C8FAAF61C /* WatchAPIClient.swift in Sources */,
-				24F080FA48FF364544487963 /* WatchSessionManager.swift in Sources */,
-				109EDE7B742E61CF65C7773B /* WatchViewModel.swift in Sources */,
-				A37E7DBCEAC3FDFF5EDC7EF5 /* FeedView.swift in Sources */,
-				E24843298F0746D03E7C76ED /* MessagesView.swift in Sources */,
-				AF2C86A63D1FEFDB355E3B4E /* NotificationsView.swift in Sources */,
-				751574B0E4F50A23669AE28E /* SharedComponents.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		97C146EA1CF9000F007C117D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -760,7 +738,24 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
-				AB87F9D87420726557733F1D /* WatchBridge.swift in Sources */,
+				8E2864B16F61572E4574BA8C /* WatchBridge.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED57D5D0C17FFF00BB9709D5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				81FF254D38CDBBEB74B5EFCE /* SdalWatchApp.swift in Sources */,
+				41947948C0CD73EB577C2C78 /* ContentView.swift in Sources */,
+				10A74DB5EA237C881B79307D /* WatchModels.swift in Sources */,
+				3AFF8D8A2123C743AA7DE399 /* WatchAPIClient.swift in Sources */,
+				7EAA2E48D1D85A73097E576F /* WatchSessionManager.swift in Sources */,
+				6673A8D900580483E341876E /* WatchViewModel.swift in Sources */,
+				F420CFF2A2781FF4FF839570 /* FeedView.swift in Sources */,
+				59D1FC7D3B89816ABA5DEF1F /* MessagesView.swift in Sources */,
+				434C6739919A8AD0FED66EE2 /* NotificationsView.swift in Sources */,
+				BD793E6F6A2469215F4B0D46 /* SharedComponents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -772,11 +767,11 @@
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
 		};
-		B3CA47FF0628ECFD86CB7799 /* PBXTargetDependency */ = {
+		ACE36C1CBD7E2FEEF3258618 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = SdalWatch;
-			target = 2F7A849E107151C941555BB8 /* SdalWatch */;
-			targetProxy = AA9035AD22CDFFE4BDB48DEC /* PBXContainerItemProxy */;
+			target = 7CBE429371BD4E21AA16AB37 /* SdalWatch */;
+			targetProxy = 58A3A856FDFF8D748FC941BF /* PBXContainerItemProxy */;
 		};
 		D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -806,32 +801,6 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		1EEEBEC915F3BC8EBA0B9AA2 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
-				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4P293R4B47;
-				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
-				INFOPLIST_FILE = SdalWatch/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
-				SDKROOT = watchos;
-				SKIP_INSTALL = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 7.0;
-			};
-			name = Release;
-		};
 		249021D3217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -961,7 +930,7 @@
 			};
 			name = Profile;
 		};
-		37670D24E2C179819E86F9F0 /* Profile */ = {
+		35BCC8FA9166ACBBFB8472B1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
@@ -970,22 +939,30 @@
 				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
 				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4P293R4B47;
 				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
-				INFOPLIST_FILE = SdalWatch/Info.plist;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SDAL;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sdal.flutterSdal;
+				INFOPLIST_KEY_WKWatchKitApp = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
+				PRODUCT_MODULE_NAME = SdalWatch;
+				PRODUCT_NAME = SdalWatch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 7.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 			};
-			name = Profile;
+			name = Release;
 		};
 		45B9B3860E3705E30D02942A /* Profile */ = {
 			isa = XCBuildConfiguration;
@@ -1006,6 +983,73 @@
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Profile;
+		};
+		652BB742DACA3103D0A988E3 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SDAL;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sdal.flutterSdal;
+				INFOPLIST_KEY_WKWatchKitApp = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
+				PRODUCT_MODULE_NAME = SdalWatch;
+				PRODUCT_NAME = SdalWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
+			};
+			name = Profile;
+		};
+		66529DA0EE7175262E729F68 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
+				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4P293R4B47;
+				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SDAL;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sdal.flutterSdal;
+				INFOPLIST_KEY_WKWatchKitApp = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
+				PRODUCT_MODULE_NAME = SdalWatch;
+				PRODUCT_NAME = SdalWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
+			};
+			name = Debug;
 		};
 		8DDF8B818F6644D80EE28EC4 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1212,34 +1256,19 @@
 			};
 			name = Debug;
 		};
-		EBC3FF87855AF95FBCE84293 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
-				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4P293R4B47;
-				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
-				INFOPLIST_FILE = SdalWatch/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
-				SDKROOT = watchos;
-				SKIP_INSTALL = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 7.0;
-			};
-			name = Debug;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0A058DF5962FDF2BC738396E /* Build configuration list for PBXNativeTarget "SdalWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				35BCC8FA9166ACBBFB8472B1 /* Release */,
+				66529DA0EE7175262E729F68 /* Debug */,
+				652BB742DACA3103D0A988E3 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		0A45ED436A65EA3BD17901D7 /* Build configuration list for PBXNativeTarget "SdalNotificationExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1276,16 +1305,6 @@
 				97C147061CF9000F007C117D /* Debug */,
 				97C147071CF9000F007C117D /* Release */,
 				249021D4217E4FDB00AE95B9 /* Profile */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A4D211D1C3F77325DBC69180 /* Build configuration list for PBXNativeTarget "SdalWatch" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				1EEEBEC915F3BC8EBA0B9AA2 /* Release */,
-				EBC3FF87855AF95FBCE84293 /* Debug */,
-				37670D24E2C179819E86F9F0 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

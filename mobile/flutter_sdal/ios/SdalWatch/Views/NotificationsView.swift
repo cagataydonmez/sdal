@@ -41,7 +41,7 @@ private struct NotificationRow: View {
         HStack(spacing: 8) {
             Image(systemName: item.systemImageName)
                 .font(.system(size: 14))
-                .foregroundStyle(item.isRead ? .secondary : .blue)
+                .foregroundColor(item.isRead ? .gray : .blue)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 if !item.sourceName.isEmpty {
