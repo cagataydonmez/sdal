@@ -32,7 +32,6 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		BD793E6F6A2469215F4B0D46 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B8BBD6EDDCAAF9681B5C872 /* SharedComponents.swift */; };
-		D79F36BD428ACD89890BF698 /* SdalWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = F55097D4FD924EBD2C748CA1 /* SdalWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E1B3522F149282DB3F14799C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3138A981BFEEE8AC53E4F365 /* Assets.xcassets */; };
 		E91D568FFECD676F811DBAE6 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 011278B00633551928D9CFD5 /* WatchConnectivity.framework */; };
 		EE32E2DC68062B100CD9F4C7 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D860A36F6A39E4394800396 /* NotificationService.swift */; };
@@ -55,27 +54,9 @@
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
 		};
-		58A3A856FDFF8D748FC941BF /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 7CBE429371BD4E21AA16AB37;
-			remoteInfo = SdalWatch;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		4AE56884952EFFABB0351F7D /* Embed Watch Content */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
-			dstSubfolderSpec = 16;
-			files = (
-				D79F36BD428ACD89890BF698 /* SdalWatch.app in Embed Watch Content */,
-			);
-			name = "Embed Watch Content";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		9705A1C41CF9048500538489 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -130,7 +111,6 @@
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7B2A40B43020E3CEE19A098C /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
-		81339654971D271EA2DD45B4 /* SdalWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SdalWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		871E82307C8BD0C9B48E89A4 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		8B6E2B7A4D3F4A4C9E1D0A12 /* Profile.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Profile.xcconfig; path = Flutter/Profile.xcconfig; sourceTree = "<group>"; };
 		8E27F67F19DDDD2B742FC84D /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -314,8 +294,6 @@
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 				DFAE63C0EF95D32AC421520B /* SdalNotificationExtension.appex */,
-				81339654971D271EA2DD45B4 /* SdalWatch.app */,
-				F55097D4FD924EBD2C748CA1 /* SdalWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -431,6 +409,7 @@
 				ED57D5D0C17FFF00BB9709D5 /* Sources */,
 				4D2727CB3F1F641F4ECC72A2 /* Frameworks */,
 				35D71167FC7E827406F81674 /* Resources */,
+				D708DE97A728BA4C030A3350 /* Copy Watch Icons */,
 			);
 			buildRules = (
 			);
@@ -457,13 +436,11 @@
 				72984A24260C997F15464F39 /* [CP] Copy Pods Resources */,
 				98F0E48BE5BE4C22B8CF5EC1 /* Strip Extended Attributes */,
 				28ED53E47F4B1F47B8242A19 /* [CP] Embed Pods Frameworks */,
-				4AE56884952EFFABB0351F7D /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */,
-				ACE36C1CBD7E2FEEF3258618 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -690,6 +667,24 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		D708DE97A728BA4C030A3350 /* Copy Watch Icons */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Watch Icons";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Inject loose icon PNGs (required by altool 90394/90741)\nSRC=\"${SRCROOT}/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png\"\nDEST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app\"\nif [ ! -f \"$SRC\" ]; then\n  echo \"warning: [SdalWatch] Source icon not found at $SRC\"\n  exit 0\nfi\nci() { /usr/bin/sips -z \"$2\" \"$2\" \"$SRC\" --out \"${DEST}/$1\" > /dev/null 2>&1; }\nci AppIcon24x24@2x.png       48\nci AppIcon27.5x27.5@2x.png   55\nci AppIcon40x40@2x.png       80\nci AppIcon44x44@2x.png       88\nci AppIcon50x50@2x.png      100\nci AppIcon86x86@2x.png      172\nci AppIcon98x98@2x.png      196\nci AppIcon108x108@2x.png    216\nci AppIcon117x117@2x.png    234\nci AppIcon129x129@2x.png    258\nci AppIcon1024x1024@1x.png 1024\n\n# Add CFBundleIconFiles to Info.plist (required by altool 90391)\n# GENERATE_INFOPLIST_FILE never emits this key; altool rejects watch apps without it\n# even when the PNGs are present in the bundle.\nPLIST=\"${DEST}/Info.plist\"\nPB=/usr/libexec/PlistBuddy\n\n$PB -c \"Add :CFBundleIcons dict\"                       \"$PLIST\" 2>/dev/null || true\n$PB -c \"Add :CFBundleIcons:CFBundlePrimaryIcon dict\"   \"$PLIST\" 2>/dev/null || true\n$PB -c \"Delete :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles\" \"$PLIST\" 2>/dev/null || true\n$PB -c \"Add    :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles array\" \"$PLIST\"\n\ni=0\nfor NAME in AppIcon24x24@2x AppIcon27.5x27.5@2x AppIcon40x40@2x AppIcon44x44@2x \\\n            AppIcon50x50@2x AppIcon86x86@2x AppIcon98x98@2x AppIcon108x108@2x \\\n            AppIcon117x117@2x AppIcon129x129@2x AppIcon1024x1024@1x; do\n  $PB -c \"Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:$i string $NAME\" \"$PLIST\"\n  i=$((i+1))\ndone\n";
+		};
 		F158F9559779B7062D44A6A5 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -766,12 +761,6 @@
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
-		};
-		ACE36C1CBD7E2FEEF3258618 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = SdalWatch;
-			target = 7CBE429371BD4E21AA16AB37 /* SdalWatch */;
-			targetProxy = 58A3A856FDFF8D748FC941BF /* PBXContainerItemProxy */;
 		};
 		D3A8DF3C87C55AE1687C97AF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -933,9 +922,11 @@
 		35BCC8FA9166ACBBFB8472B1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
 				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -944,6 +935,7 @@
 				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = SDAL;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sdal.flutterSdal;
 				INFOPLIST_KEY_WKWatchKitApp = YES;
@@ -952,11 +944,13 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
 				PRODUCT_MODULE_NAME = SdalWatch;
 				PRODUCT_NAME = SdalWatch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
@@ -987,9 +981,11 @@
 		652BB742DACA3103D0A988E3 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
 				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -998,6 +994,7 @@
 				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = SDAL;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sdal.flutterSdal;
 				INFOPLIST_KEY_WKWatchKitApp = YES;
@@ -1006,11 +1003,13 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
 				PRODUCT_MODULE_NAME = SdalWatch;
 				PRODUCT_NAME = SdalWatch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
@@ -1021,9 +1020,11 @@
 		66529DA0EE7175262E729F68 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				"CODE_SIGNING_ALLOWED[sdk=watchsimulator*]" = NO;
 				"CODE_SIGNING_REQUIRED[sdk=watchsimulator*]" = NO;
 				CODE_SIGN_STYLE = Automatic;
@@ -1032,6 +1033,7 @@
 				"EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]" = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = SDAL;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sdal.flutterSdal;
 				INFOPLIST_KEY_WKWatchKitApp = YES;
@@ -1040,11 +1042,13 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sdal.flutterSdal.SdalWatch;
 				PRODUCT_MODULE_NAME = SdalWatch;
 				PRODUCT_NAME = SdalWatch;
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				WATCHOS_DEPLOYMENT_TARGET = 8.0;

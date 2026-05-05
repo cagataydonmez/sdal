@@ -65,95 +65,83 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     }
 
     private func buildContext() -> [String: Any] {
-        var ctx: [String: Any] = ["baseUrl": "https://sdal.app"]
-        if let cookie = readSessionCookie() {
+        var ctx: [String: Any] = [:]
+        if let (cookie, baseUrl) = readSessionCookieAndUrl() {
             ctx["cookie"] = cookie
+            ctx["baseUrl"] = baseUrl
         }
         return ctx
     }
 
     // MARK: - Cookie extraction
-    // Reads connect.sid from the cookie_jar files written by the Flutter app.
-    // Path: ~/Library/Application Support/flutter_sdal/sdal_cookies/<hostname>.json
-    // Each file is a JSON object where keys are cookie names and values have a "value" sub-key.
+    // Reads connect.sid from the cookie_jar v4 files written by the Flutter app.
+    // cookie_jar v4 with FileStorage layout:
+    //   <appSupport>/flutter_sdal/sdal_cookies/<hash>/<hostname>   (no .json extension)
+    // File format: {"/": {"connect.sid": "connect.sid=VALUE; Expires=...; ..."}}
+    // The filename IS the hostname, so we reconstruct the base URL from it.
 
-    private func readSessionCookie() -> String? {
+    private func readSessionCookieAndUrl() -> (cookie: String, baseUrl: String)? {
         let fm = FileManager.default
-        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let cookieDir = base.appendingPathComponent("flutter_sdal/sdal_cookies")
+        // Flutter may write to either Application Support or the temp directory depending
+        // on whether $HOME is set in the Flutter process. Check both.
+        let candidateBases: [URL] = [
+            fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!,
+            fm.temporaryDirectory,
+        ]
 
-        guard let files = try? fm.contentsOfDirectory(
+        for base in candidateBases {
+            let cookieDir = base.appendingPathComponent("flutter_sdal/sdal_cookies")
+            if let result = searchCookieDir(cookieDir, fm: fm) { return result }
+        }
+        return nil
+    }
+
+    private func searchCookieDir(_ cookieDir: URL, fm: FileManager) -> (cookie: String, baseUrl: String)? {
+        guard let topItems = try? fm.contentsOfDirectory(
             at: cookieDir,
-            includingPropertiesForKeys: nil
+            includingPropertiesForKeys: [.isDirectoryKey]
         ) else { return nil }
 
-        let jsonFiles = files.filter { $0.pathExtension == "json" }
-
-        for fileURL in jsonFiles {
-            guard let data = try? Data(contentsOf: fileURL),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { continue }
-
-            // cookie_jar v4 stores each cookie as a nested JSON string under hostname-keyed entries.
-            // We walk all values looking for connect.sid.
-            if let value = extractConnectSid(from: json) {
-                return "connect.sid=\(value)"
-            }
-
-            // Fallback: raw text search for "connect.sid" value pattern
-            if let raw = String(data: data, encoding: .utf8),
-               let value = regexExtractSid(from: raw) {
-                return "connect.sid=\(value)"
-            }
-        }
-
-        return nil
-    }
-
-    private func extractConnectSid(from json: [String: Any]) -> String? {
-        // Walk nested dictionaries / arrays recursively
-        for (key, val) in json {
-            if key == "connect.sid" || key == "connectSid" {
-                if let nested = val as? [String: Any], let v = nested["value"] as? String {
-                    return v
+        for item in topItems {
+            let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            if isDir {
+                guard let subItems = try? fm.contentsOfDirectory(
+                    at: item,
+                    includingPropertiesForKeys: nil
+                ) else { continue }
+                for subItem in subItems {
+                    if let cookie = parseCookieJarFile(at: subItem) {
+                        let hostname = subItem.lastPathComponent
+                        let baseUrl = hostname.hasPrefix("http") ? hostname : "https://\(hostname)"
+                        return (cookie, baseUrl)
+                    }
                 }
-                if let str = val as? String { return str }
-            }
-            if let nested = val as? [String: Any],
-               let found = extractConnectSid(from: nested) {
-                return found
-            }
-            // cookie_jar may store cookies in an array
-            if let arr = val as? [[String: Any]] {
-                for item in arr {
-                    if (item["name"] as? String) == "connect.sid",
-                       let v = item["value"] as? String { return v }
-                    if let found = extractConnectSid(from: item) { return found }
+            } else {
+                if let cookie = parseCookieJarFile(at: item) {
+                    let hostname = item.lastPathComponent
+                    let baseUrl = hostname.hasPrefix("http") ? hostname : "https://\(hostname)"
+                    return (cookie, baseUrl)
                 }
             }
         }
         return nil
     }
 
-    private func regexExtractSid(from raw: String) -> String? {
-        let pattern = #"connect\.sid["\s]*:["\s]*\{[^}]*"value"\s*:\s*"([^"]{8,})"#
-        if let regex = try? NSRegularExpression(pattern: pattern),
-           let match = regex.firstMatch(
-               in: raw,
-               range: NSRange(raw.startIndex..., in: raw)
-           ),
-           let range = Range(match.range(at: 1), in: raw) {
-            return String(raw[range])
-        }
-        // Simpler fallback: any "value":"<long-string>" near connect.sid
-        let simple = #""value"\s*:\s*"(s%3A[^"]{8,})"#
-        if let regex = try? NSRegularExpression(pattern: simple),
-           let match = regex.firstMatch(
-               in: raw,
-               range: NSRange(raw.startIndex..., in: raw)
-           ),
-           let range = Range(match.range(at: 1), in: raw) {
-            return String(raw[range])
+    // Parses a single cookie_jar v4 file and returns "connect.sid=VALUE" if present.
+    private func parseCookieJarFile(at url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+
+        // Format: { "<path>": { "<cookieName>": "<Set-Cookie header string>" } }
+        for (_, pathValue) in json {
+            guard let cookieDict = pathValue as? [String: Any] else { continue }
+            if let setHeader = cookieDict["connect.sid"] as? String {
+                // setHeader = "connect.sid=VALUE; Expires=...; Path=/; ..."
+                let nameValue = setHeader.components(separatedBy: ";").first?
+                    .trimmingCharacters(in: .whitespaces) ?? ""
+                if nameValue.hasPrefix("connect.sid=") { return nameValue }
+            }
         }
         return nil
     }

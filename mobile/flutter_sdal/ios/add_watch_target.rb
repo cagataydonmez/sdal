@@ -94,46 +94,33 @@ target.build_configurations.each do |config|
   s['LD_RUNPATH_SEARCH_PATHS']         = ['$(inherited)', '@executable_path/Frameworks']
   s['FLUTTER_BUILD_NAME']              = '1.0'
   s['FLUTTER_BUILD_NUMBER']            = '1'
+  s['SUPPORTED_PLATFORMS']  = 'watchos watchsimulator'
+  s['ONLY_ACTIVE_ARCH']     = (config.name == 'Debug') ? 'YES' : 'NO'
   # watchOS simulator does not support code-signing
   s['CODE_SIGNING_ALLOWED[sdk=watchsimulator*]'] = 'NO'
   s['CODE_SIGNING_REQUIRED[sdk=watchsimulator*]'] = 'NO'
   s['EXPANDED_CODE_SIGN_IDENTITY[sdk=watchsimulator*]'] = ''
 end
 
-# ─── Add WatchBridge.swift to Runner ───────────────────────────────────────
+# ─── WatchBridge.swift + WatchConnectivity for Runner (iOS side) ───────────
+# NOTE: SdalWatch is NOT added as a PBXTargetDependency of Runner.
+# Xcode 15+ (and 26 beta) ignores SDKROOT=watchos on embedded dependencies and
+# compiles them with the iOS SDK. Instead, install_local.sh option 7 builds
+# SdalWatch for watchOS separately and injects it into the Runner xcarchive.
 runner = project.targets.find { |t| t.name == 'Runner' }
 if runner
-  runner.add_dependency(target)
-
-  # Register WatchBridge.swift in the project file tree under Runner group.
-  # Path is relative to the Runner group (which itself has path "Runner").
   runner_group = project.main_group['Runner'] ||
                  project.main_group.children.find { |g|
                    g.respond_to?(:path) && g.path == 'Runner'
                  }
   if runner_group
-    bridge_ref = runner_group.new_file('WatchBridge.swift')
-    runner.source_build_phase.add_file_reference(bridge_ref)
+    # Only add WatchBridge.swift if it isn't already in the group
+    unless runner_group.children.any? { |c| c.respond_to?(:path) && c.path.to_s == 'WatchBridge.swift' }
+      bridge_ref = runner_group.new_file('WatchBridge.swift')
+      runner.source_build_phase.add_file_reference(bridge_ref)
+    end
   end
 
-  # Embed Watch Content build phase (dst_subfolder_spec '16' = Watch directory)
-  embed_phase = runner.build_phases.find { |p|
-    p.is_a?(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase) &&
-    p.dst_subfolder_spec == '16'
-  }
-  unless embed_phase
-    embed_phase = project.new(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase)
-    embed_phase.name = 'Embed Watch Content'
-    embed_phase.dst_subfolder_spec = '16'
-    embed_phase.dst_path = '$(CONTENTS_FOLDER_PATH)/Watch'
-    runner.build_phases << embed_phase
-  end
-  watch_build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-  watch_build_file.file_ref = target.product_reference
-  watch_build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
-  embed_phase.files << watch_build_file
-
-  # WatchConnectivity framework for Runner (iOS side)
   runner_frameworks = runner.frameworks_build_phase
   already_has_wc = runner_frameworks.files.any? { |f|
     f.file_ref.respond_to?(:name) && f.file_ref.name.to_s.include?('WatchConnectivity')

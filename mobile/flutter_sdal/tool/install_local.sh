@@ -1118,41 +1118,85 @@ Before installing on Apple Watch:
 EOF
 }
 
-build_install_watch_app() {
-  local device_identifier="$1"
-  local watch_build_dir="$HOME/Library/Caches/flutter_sdal_watch_build"
+# Inject loose icon PNGs into a built SdalWatch.app bundle so that App Store Connect
+# validation passes. altool checks for files matching *{size}@{scale}x.png directly
+# inside the bundle — Assets.car alone is not sufficient for the legacy validator.
+inject_watch_icons() {
+  local app_bundle="$1"
+  local src="$IOS_DIR/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png"
+  [[ -f "$src" ]] || { log "WARNING: iOS source icon not found at $src — skipping icon injection."; return; }
+
+  # (logical_size, scale, pixel_size) — covers every pattern altool validates against
+  local -a ICONS=(
+    "AppIcon24x24@2x.png:48"
+    "AppIcon27.5x27.5@2x.png:55"
+    "AppIcon40x40@2x.png:80"
+    "AppIcon44x44@2x.png:88"
+    "AppIcon50x50@2x.png:100"
+    "AppIcon86x86@2x.png:172"
+    "AppIcon98x98@2x.png:196"
+    "AppIcon108x108@2x.png:216"
+    "AppIcon117x117@2x.png:234"
+    "AppIcon129x129@2x.png:258"
+    "AppIcon1024x1024@1x.png:1024"
+  )
+
+  log "  Injecting loose icon PNGs into $(basename "$app_bundle")..."
+  for entry in "${ICONS[@]}"; do
+    local name="${entry%%:*}"
+    local px="${entry##*:}"
+    sips -z "$px" "$px" "$src" --out "$app_bundle/$name" >/dev/null 2>&1
+  done
+}
+
+# Build SdalWatch for a given SDK (watchos or watchsimulator) using -project -target,
+# which bypasses the CocoaPods workspace and avoids the Xcode 15+/26 bug where
+# embedded watch targets are cross-compiled with the iOS SDK instead of watchOS.
+# Outputs the path to the built .app via stdout; all other output goes to stderr.
+build_watch_app_for_sdk() {
+  local sdk="$1"          # watchos | watchsimulator
+  local configuration="$2" # Debug | Release
+  local extra_args=("${@:3}")
+
+  local subdir="watchos"
+  [[ "$sdk" == "watchsimulator" ]] && subdir="watchsimulator"
+
+  local conf_lower
+  conf_lower="$(printf '%s' "$configuration" | tr '[:upper:]' '[:lower:]')"
+  local watch_build_dir="$HOME/Library/Caches/flutter_sdal_watch_${subdir}_${conf_lower}"
   mkdir -p "$watch_build_dir"
 
-  log "Building SdalWatch for watchOS device..."
   (
     cd "$IOS_DIR"
     xcodebuild \
-      -workspace Runner.xcworkspace \
-      -scheme "$WATCH_SCHEME" \
-      -configuration Release \
-      -sdk watchos \
-      -destination generic/platform=watchOS \
-      -allowProvisioningUpdates \
-      -allowProvisioningDeviceRegistration \
+      -project Runner.xcodeproj \
+      -target SdalWatch \
+      -configuration "$configuration" \
+      -sdk "$sdk" \
       "BUILD_DIR=$watch_build_dir" \
       "OBJROOT=$watch_build_dir/build_objroot" \
       COMPILER_INDEX_STORE_ENABLE=NO \
-      FLUTTER_SUPPRESS_ANALYTICS=true
-  )
+      ONLY_ACTIVE_ARCH=NO \
+      "${extra_args[@]}"
+  ) >&2
 
   local app_path
-  app_path="$(find "$watch_build_dir" -maxdepth 4 -name '*.app' \
-    -path '*Release-watchos*' \
-    ! -name 'Runner.app' \
-    | head -1 || true)"
+  app_path="$(find "$watch_build_dir" -maxdepth 4 -name 'SdalWatch.app' \
+    ! -path '*/SdalWatch.app/*' 2>/dev/null | head -1 || true)"
+  printf '%s' "$app_path"
+}
 
-  if [[ -z "$app_path" ]]; then
-    # Fallback: any .app in Release-watchos
-    app_path="$(find "$watch_build_dir" -maxdepth 4 -name '*.app' \
-      -path '*watchos*' | head -1 || true)"
-  fi
+build_install_watch_app() {
+  local device_identifier="$1"
 
-  [[ -n "$app_path" ]] || die "Watch .app not found after build in: $watch_build_dir"
+  log "Building SdalWatch for watchOS device..."
+  local app_path
+  app_path="$(build_watch_app_for_sdk watchos Release \
+    -destination 'generic/platform=watchOS' \
+    -allowProvisioningUpdates \
+    -allowProvisioningDeviceRegistration)"
+
+  [[ -n "$app_path" ]] || die "Watch .app not found after build."
   log "Watch app: $app_path"
 
   log "Installing SdalWatch on Apple Watch ($device_identifier)..."
@@ -1162,7 +1206,141 @@ build_install_watch_app() {
 
   log ""
   log "SdalWatch installed!"
-  log "Open SDAL on your iPhone — the watch app will receive your session automatically."
+  log "Open SDAL on your iPhone -- the watch app will receive your session automatically."
+}
+
+build_archive_export_upload_testflight_with_watch() {
+  # Step 0: Build SdalWatch for watchOS using -project -target (correct SDK).
+  # Using -workspace causes Xcode 15+/26 to compile with iOS SDK despite SDKROOT=watchos.
+  log ""
+  log "Step 0/4: Building SdalWatch for watchOS Release..."
+  local watch_app_path
+  watch_app_path="$(build_watch_app_for_sdk watchos Release \
+    -allowProvisioningUpdates \
+    -allowProvisioningDeviceRegistration)"
+  [[ -n "$watch_app_path" ]] || die "SdalWatch.app not found after watchOS build."
+  log "SdalWatch built: $watch_app_path"
+
+  # Steps 1-3: Standard iOS archive flow (Runner only — SdalWatch is not a Runner dependency)
+  log ""
+  log "Resetting flutter build-dir for archive (avoids stale simulator native_assets)..."
+  "$FLUTTER_BIN" config --build-dir="" >/dev/null 2>&1 || true
+  rm -f "$ROOT_DIR/ios/Flutter/Generated.xcconfig"
+  rm -rf "$ROOT_DIR/build/native_assets"
+
+  prepare_ios
+
+  mkdir -p "$IOS_ARCHIVE_DIR"
+  log "Clearing stale iOS archive intermediates..."
+  rm -rf "$IOS_ARCHIVE_DIR/build_objroot"
+
+  local timestamp archive_path export_path export_options_plist
+  timestamp="$(date +%Y%m%d_%H%M%S)"
+  archive_path="$IOS_ARCHIVE_DIR/Runner_${timestamp}.xcarchive"
+  export_path="$IOS_ARCHIVE_DIR/Runner_${timestamp}_ipa"
+  export_options_plist="$IOS_ARCHIVE_DIR/ExportOptions_${timestamp}.plist"
+
+  /usr/bin/python3 - "$export_options_plist" "$IOS_TEAM_ID" <<'PY'
+from pathlib import Path
+import sys
+plist_path = Path(sys.argv[1])
+team_id = sys.argv[2]
+plist_path.parent.mkdir(parents=True, exist_ok=True)
+plist_path.write_text(
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"'
+    ' "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+    '<plist version="1.0">\n'
+    '<dict>\n'
+    '    <key>method</key>\n'
+    '    <string>app-store-connect</string>\n'
+    '    <key>teamID</key>\n'
+    f'    <string>{team_id}</string>\n'
+    '    <key>uploadBitcode</key>\n'
+    '    <false/>\n'
+    '    <key>uploadSymbols</key>\n'
+    '    <true/>\n'
+    '    <key>signingStyle</key>\n'
+    '    <string>automatic</string>\n'
+    '</dict>\n'
+    '</plist>\n',
+    encoding="utf-8",
+)
+PY
+
+  log ""
+  log "Step 1/4: Archiving iOS Runner for App Store (this may take a few minutes)..."
+  log "Archive path: $archive_path"
+  (
+    cd "$IOS_DIR"
+    xcodebuild \
+      -workspace Runner.xcworkspace \
+      -scheme Runner \
+      -configuration Release \
+      -sdk iphoneos \
+      -destination 'generic/platform=iOS' \
+      -archivePath "$archive_path" \
+      -allowProvisioningUpdates \
+      FLUTTER_SUPPRESS_ANALYTICS=true \
+      COMPILER_INDEX_STORE_ENABLE=NO \
+      DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+      "OBJROOT=$IOS_ARCHIVE_DIR/build_objroot" \
+      archive
+  )
+
+  # Step 1b: Inject SdalWatch.app into the xcarchive bundle
+  local runner_app_in_archive
+  runner_app_in_archive="$(find "$archive_path/Products/Applications" \
+    -maxdepth 1 -name '*.app' 2>/dev/null | head -1)"
+  if [[ -n "$runner_app_in_archive" && -n "$watch_app_path" ]]; then
+    log ""
+    log "Step 1b/4: Injecting SdalWatch.app into archive bundle..."
+    local watch_dir="$runner_app_in_archive/Watch"
+    mkdir -p "$watch_dir"
+    cp -R "$watch_app_path" "$watch_dir/"
+    log "Injected: $watch_dir/$(basename "$watch_app_path")"
+  fi
+
+  log ""
+  log "Step 2/4: Exporting IPA from archive..."
+  xcodebuild \
+    -exportArchive \
+    -archivePath "$archive_path" \
+    -exportPath "$export_path" \
+    -exportOptionsPlist "$export_options_plist" \
+    -allowProvisioningUpdates
+
+  local ipa_path
+  ipa_path="$(find "$export_path" -name '*.ipa' | head -1)"
+  [[ -f "$ipa_path" ]] || die "IPA not found after export in: $export_path"
+
+  log_testflight_signing_summary "$ipa_path"
+
+  log ""
+  log "Step 3/4: Uploading to App Store Connect / TestFlight..."
+  log "IPA: $ipa_path"
+  log "(Upload may take several minutes depending on app size)"
+  xcrun altool \
+    --upload-app \
+    -f "$ipa_path" \
+    -t ios \
+    --apiKey "$ASC_KEY_ID" \
+    --apiIssuer "$ASC_ISSUER_ID"
+
+  log ""
+  log "Step 4/4: Done!"
+  log ""
+  log "Next steps:"
+  log "  1. Go to: https://appstoreconnect.apple.com -> Your App -> TestFlight"
+  log "  2. Wait for Apple to finish processing (typically 15-30 minutes)"
+  log "  3. The build will appear under 'iOS Builds'"
+  log "  4. The companion SdalWatch app is embedded in Runner.app/Watch/"
+  log "  5. Add internal or external testers as needed"
+  log ""
+  log "Artifacts saved at:"
+  log "  Archive : $archive_path"
+  log "  IPA     : $ipa_path"
+  log "  Watch   : $watch_app_path"
 }
 
 main() {
@@ -1320,17 +1498,17 @@ main() {
     7)
       log ""
       log "watchOS TestFlight"
-      log "  The SdalWatch app is embedded inside the iOS IPA when archiving."
-      log "  Xcode automatically embeds the watch app when it is added to the project."
-      log "  This option runs the standard iOS TestFlight archive + upload flow."
+      log "  Builds SdalWatch for watchOS (Release) with -project -target (correct SDK),"
+      log "  injects the watch app into the iOS xcarchive, then archives + uploads Runner."
+      log "  App Store Connect links the companion watch app to the iOS app automatically."
       log ""
       print_testflight_instructions
       printf '\nChecking prerequisites...\n'
       check_testflight_prereqs || exit 1
       local confirm
-      read -r -p "Proceed with TestFlight build and upload (includes watch app)? [y/N] " confirm < /dev/tty
+      read -r -p "Proceed with watchOS + iOS TestFlight build and upload? [y/N] " confirm < /dev/tty
       [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
-      build_archive_export_upload_testflight
+      build_archive_export_upload_testflight_with_watch
       ;;
   esac
 }
