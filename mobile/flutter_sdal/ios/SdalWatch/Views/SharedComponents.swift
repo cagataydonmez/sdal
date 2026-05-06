@@ -140,6 +140,8 @@ private func watchMediaURL(origin: String, path: String) -> URL? {
     var components = URLComponents(string: "\(origin)/api/media/watch-image")
     components?.queryItems = [
         URLQueryItem(name: "width", value: "520"),
+        URLQueryItem(name: "format", value: "jpeg"),
+        URLQueryItem(name: "v", value: "2"),
         URLQueryItem(name: "src", value: path)
     ]
     return components?.url ?? mediaURL(from: "\(origin)\(path)")

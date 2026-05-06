@@ -9,6 +9,7 @@ import fs from 'fs';
 import os from 'os';
 import { execFileSync } from 'child_process';
 import crypto from 'crypto';
+import sharp from 'sharp';
 import { metinDuzenle } from './textFormat.js';
 import { processUpload, deleteImageRecord, getImageVariants, getImageVariantsBatch, loadMediaSettings } from './media/uploadPipeline.js';
 import { getDirname } from './config/paths.js';

@@ -294,7 +294,33 @@ export function createNotificationPushRuntime({
         now
       ]
     );
+    await pruneDuplicatePushDevicesForPlatform(safeUserId, normalizedPlatform);
     return true;
+  }
+
+  async function pruneDuplicatePushDevicesForPlatform(userId, platform) {
+    const normalizedPlatform = sanitizeText(platform).toLowerCase();
+    if (!['ios', 'watchos'].includes(normalizedPlatform)) return;
+    const keepCount = Math.max(Number(process.env.PUSH_KEEP_DEVICES_PER_USER_PLATFORM || 1), 1);
+    const execAll = sqlAllAsync || ((...args) => Promise.resolve([]));
+    const execRun = sqlRunAsync || ((...args) => Promise.resolve(sqlRun(...args)));
+    const rows = await execAll(
+      `SELECT id
+       FROM notification_push_devices
+       WHERE user_id = ? AND platform = ? AND enabled = ?
+       ORDER BY updated_at DESC, id DESC`,
+      [Number(userId || 0), normalizedPlatform, toDbBooleanParam(dbDriver, true)]
+    );
+    const staleIds = (rows || [])
+      .slice(keepCount)
+      .map((row) => Number(row?.id || 0))
+      .filter(Boolean);
+    for (const id of staleIds) {
+      await execRun(
+        'UPDATE notification_push_devices SET enabled = ?, updated_at = ? WHERE id = ?',
+        [toDbBooleanParam(dbDriver, false), new Date().toISOString(), id]
+      );
+    }
   }
 
   async function unregisterPushDevice({
