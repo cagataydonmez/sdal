@@ -4,13 +4,15 @@ import WatchKit
 
 // MARK: - App Delegate
 
-class WatchAppDelegate: NSObject, WKApplicationDelegate {
+class WatchAppDelegate: NSObject, WKApplicationDelegate, UNUserNotificationCenterDelegate {
 
     weak var viewModel: WatchViewModel?
     weak var sessionManager: WatchSessionManager?
 
     func applicationDidFinishLaunching() {
-        UNUserNotificationCenter.current().requestAuthorization(
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        center.requestAuthorization(
             options: [.alert, .badge, .sound]
         ) { granted, _ in
             if granted {
@@ -19,6 +21,23 @@ class WatchAppDelegate: NSObject, WKApplicationDelegate {
                 }
             }
         }
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        routeNotification(response.notification.request.content.userInfo)
+        completionHandler()
     }
 
     func didRegisterForRemoteNotifications(withDeviceToken deviceToken: Data) {
@@ -49,22 +68,35 @@ class WatchAppDelegate: NSObject, WKApplicationDelegate {
             return
         }
         Task { @MainActor in
-            if let type = userInfo["type"] as? String {
-                switch type {
-                case "message":
-                    if let tid = userInfo["thread_id"] as? Int {
-                        vm.deepLinkTarget = .thread(tid)
-                    }
-                case "like", "comment", "mention":
-                    if let pid = userInfo["post_id"] as? Int {
-                        vm.deepLinkTarget = .post(pid)
-                    }
-                default:
-                    vm.deepLinkTarget = .notifications
-                }
-            }
+            routeNotification(userInfo)
             completionHandler(.newData)
         }
+    }
+
+    @MainActor
+    private func routeNotification(_ userInfo: [AnyHashable: Any]) {
+        guard let vm = viewModel else { return }
+        let type = String(describing: userInfo["type"] ?? "")
+        let route = String(describing: userInfo["route"] ?? "")
+        let notificationId = intValue(userInfo["notificationId"])
+        if type == "message", let tid = intValue(userInfo["thread_id"] ?? userInfo["threadId"]) {
+            vm.deepLinkTarget = .thread(tid)
+        } else if let pid = intValue(userInfo["post_id"] ?? userInfo["postId"]) {
+            vm.deepLinkTarget = .post(pid)
+        } else if route.contains("/posts/"),
+                  let last = route.split(separator: "/").last,
+                  let postId = Int(last) {
+            vm.deepLinkTarget = .post(postId)
+        } else if notificationId != nil || !type.isEmpty {
+            vm.deepLinkTarget = .notifications
+        }
+    }
+
+    private func intValue(_ value: Any?) -> Int? {
+        if let int = value as? Int { return int }
+        if let string = value as? String { return Int(string) }
+        if let number = value as? NSNumber { return number.intValue }
+        return nil
     }
 }
 

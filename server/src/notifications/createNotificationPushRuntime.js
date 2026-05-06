@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http2 from 'node:http2';
 
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const FCM_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -40,6 +41,10 @@ function resolvePublicMediaUrl(raw) {
 
 function resolveApnsTopic() {
   return sanitizeText(process.env.IOS_BUNDLE_ID || process.env.APNS_TOPIC || 'com.sdal.flutterSdal');
+}
+
+function resolveWatchApnsTopic() {
+  return sanitizeText(process.env.APNS_WATCH_TOPIC || process.env.WATCH_BUNDLE_ID || 'com.sdal.flutterSdal.SdalWatch');
 }
 
 function base64UrlEncode(value) {
@@ -139,6 +144,7 @@ export function createNotificationPushRuntime({
       enabled: isDbBooleanTrue(row?.push_enabled),
       updated_at: row?.updated_at || null,
       firebase_configured: isFirebaseConfigured(),
+      apns_configured: isApnsConfigured(),
       mock_mode: isMockMode()
     };
   }
@@ -188,6 +194,33 @@ export function createNotificationPushRuntime({
       && serviceAccount.client_email
       && serviceAccount.private_key
     );
+  }
+
+  function readApnsAuthConfig() {
+    const inlineKey = String(process.env.APNS_AUTH_KEY || process.env.APNS_PRIVATE_KEY || '').trim();
+    const keyFile = String(process.env.APNS_AUTH_KEY_FILE || process.env.APNS_PRIVATE_KEY_FILE || '').trim();
+    let privateKey = inlineKey;
+    if (!privateKey && keyFile) {
+      try {
+        privateKey = fs.readFileSync(keyFile, 'utf-8');
+      } catch {
+        privateKey = '';
+      }
+    }
+    const environment = sanitizeText(process.env.APNS_ENV || process.env.APNS_ENVIRONMENT || 'production').toLowerCase();
+    return {
+      keyId: sanitizeText(process.env.APNS_KEY_ID),
+      teamId: sanitizeText(process.env.APNS_TEAM_ID),
+      privateKey: String(privateKey || '').replace(/\\n/g, '\n').trim(),
+      environment: environment === 'sandbox' || environment === 'development' ? 'sandbox' : 'production',
+      watchTopic: resolveWatchApnsTopic()
+    };
+  }
+
+  function isApnsConfigured() {
+    if (isMockMode()) return true;
+    const config = readApnsAuthConfig();
+    return Boolean(config.keyId && config.teamId && config.privateKey && config.watchTopic);
   }
 
   async function recordPushDeliveryAudit({
@@ -558,6 +591,118 @@ export function createNotificationPushRuntime({
     };
   }
 
+  function createApnsJwt(config) {
+    const header = base64UrlEncode(JSON.stringify({ alg: 'ES256', kid: config.keyId }));
+    const claims = base64UrlEncode(JSON.stringify({
+      iss: config.teamId,
+      iat: Math.floor(Date.now() / 1000)
+    }));
+    const signer = crypto.createSign('SHA256');
+    signer.update(`${header}.${claims}`);
+    signer.end();
+    const signature = derEcdsaSignatureToJose(signer.sign(config.privateKey));
+    return `${header}.${claims}.${signature}`;
+  }
+
+  function derEcdsaSignatureToJose(signature) {
+    const buffer = Buffer.from(signature);
+    if (buffer[0] !== 0x30) return buffer.toString('base64url');
+    let offset = 2;
+    if (buffer[1] & 0x80) {
+      offset = 2 + (buffer[1] & 0x7f);
+    }
+    if (buffer[offset] !== 0x02) return buffer.toString('base64url');
+    const rLength = buffer[offset + 1];
+    const r = buffer.subarray(offset + 2, offset + 2 + rLength);
+    offset += 2 + rLength;
+    if (buffer[offset] !== 0x02) return buffer.toString('base64url');
+    const sLength = buffer[offset + 1];
+    const s = buffer.subarray(offset + 2, offset + 2 + sLength);
+    const normalize = (part) => {
+      let value = part;
+      while (value.length > 32 && value[0] === 0) value = value.subarray(1);
+      if (value.length === 32) return value;
+      return Buffer.concat([Buffer.alloc(32 - value.length), value]);
+    };
+    return Buffer.concat([normalize(r), normalize(s)]).toString('base64url');
+  }
+
+  async function sendWatchApnsMessageToDevice(device, payload) {
+    if (isMockMode()) {
+      return { ok: true };
+    }
+    const config = readApnsAuthConfig();
+    if (!config.keyId || !config.teamId || !config.privateKey || !config.watchTopic) {
+      return { ok: false, errorMessage: 'apns_watch_not_configured' };
+    }
+    const host = config.environment === 'sandbox'
+      ? 'https://api.sandbox.push.apple.com'
+      : 'https://api.push.apple.com';
+    const requestBody = JSON.stringify({
+      aps: {
+        alert: {
+          title: payload.title,
+          body: payload.body
+        },
+        sound: 'default'
+      },
+      ...payload.data
+    });
+
+    return new Promise((resolve) => {
+      const client = http2.connect(host);
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        try { client.close(); } catch { /* ignore */ }
+        resolve(result);
+      };
+      client.on('error', (err) => {
+        finish({ ok: false, errorMessage: err?.message || 'apns_connection_failed' });
+      });
+      const request = client.request({
+        ':method': 'POST',
+        ':path': `/3/device/${sanitizeText(device.push_token)}`,
+        authorization: `bearer ${createApnsJwt(config)}`,
+        'apns-topic': config.watchTopic,
+        'apns-push-type': 'alert',
+        'apns-priority': '10',
+        'content-type': 'application/json'
+      });
+      let status = 0;
+      let responseBody = '';
+      request.setEncoding('utf8');
+      request.on('response', (headers) => {
+        status = Number(headers[':status'] || 0);
+      });
+      request.on('data', (chunk) => {
+        responseBody += chunk;
+      });
+      request.on('end', () => {
+        if (status >= 200 && status < 300) {
+          finish({ ok: true });
+          return;
+        }
+        const parsed = safeJsonParse(responseBody, {}) || {};
+        const reason = sanitizeText(parsed.reason || responseBody, `APNs ${status}`);
+        finish({
+          ok: false,
+          errorMessage: `[APNs ${status}] ${reason}`,
+          invalidToken: ['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'].includes(reason)
+        });
+      });
+      request.on('error', (err) => {
+        finish({ ok: false, errorMessage: err?.message || 'apns_request_failed' });
+      });
+      request.setTimeout(15000, () => {
+        request.close();
+        finish({ ok: false, errorMessage: 'apns_request_timeout' });
+      });
+      request.end(requestBody);
+    });
+  }
+
   async function removePushDeviceById(deviceId) {
     ensureNotificationPushDevicesTable();
     const execRun = sqlRunAsync || ((...args) => Promise.resolve(sqlRun(...args)));
@@ -665,19 +810,9 @@ export function createNotificationPushRuntime({
 
     for (const device of devices) {
       try {
-        if (sanitizeText(device.platform).toLowerCase() === 'watchos') {
-          await recordPushDeliveryAudit({
-            notificationId,
-            userId,
-            deviceId: device.id,
-            platform: device.platform,
-            notificationType,
-            deliveryStatus: 'skipped',
-            skipReason: 'watchos_apns_provider_not_configured'
-          });
-          continue;
-        }
-        const result = await sendPushMessageToDevice(device, payload);
+        const result = sanitizeText(device.platform).toLowerCase() === 'watchos'
+          ? await sendWatchApnsMessageToDevice(device, payload)
+          : await sendPushMessageToDevice(device, payload);
         if (result.ok) {
           await recordPushDeliveryAudit({
             notificationId,
