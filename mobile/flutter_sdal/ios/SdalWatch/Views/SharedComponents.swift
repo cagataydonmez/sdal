@@ -7,6 +7,7 @@ struct AvatarView: View {
     let photoUrl: String
     let size: CGFloat
     var ringColor: Color? = nil
+    @EnvironmentObject private var sessionManager: WatchSessionManager
 
     var body: some View {
         ZStack {
@@ -18,7 +19,7 @@ struct AvatarView: View {
             Circle()
                 .fill(Color.accentColor.opacity(0.18))
             if !photoUrl.isEmpty {
-                AsyncImage(url: URL(string: photoUrl)) { phase in
+                AsyncImage(url: resolvedMediaURL(photoUrl, baseUrl: sessionManager.apiBaseUrl, profilePhoto: true)) { phase in
                     switch phase {
                     case .success(let img):
                         img.resizable().scaledToFill()
@@ -95,4 +96,25 @@ private func relativeString(from date: Date) -> String {
 
 func feedTypeLabel(_ type: String) -> String {
     type == "community" ? "Topluluk" : "Genel"
+}
+
+func resolvedMediaURL(_ raw: String, baseUrl: String, profilePhoto: Bool = false) -> URL? {
+    let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !value.isEmpty, value.lowercased() != "yok" else { return nil }
+    if value.hasPrefix("http://") || value.hasPrefix("https://") {
+        return URL(string: value)
+    }
+    if value.hasPrefix("//") {
+        return URL(string: "https:\(value)")
+    }
+
+    guard let base = URL(string: baseUrl) else { return URL(string: value) }
+    let origin = "\(base.scheme ?? "https")://\(base.host ?? "sdal.app")"
+    if value.hasPrefix("/") {
+        return URL(string: "\(origin)\(value)")
+    }
+    if profilePhoto && !value.contains("/") {
+        return URL(string: "\(origin)/api/media/vesikalik/\(value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value)")
+    }
+    return URL(string: "\(origin)/\(value)")
 }

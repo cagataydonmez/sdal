@@ -37,6 +37,12 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         session.activate()
     }
 
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        if session.isReachable {
+            pushContext(to: session)
+        }
+    }
+
     func session(
         _ session: WCSession,
         didReceiveMessage message: [String: Any],
@@ -46,7 +52,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             let context = buildContext()
             replyHandler(context)
             if !context.isEmpty {
-                try? session.updateApplicationContext(context)
+                deliverContext(context, via: session)
             }
         } else {
             replyHandler([:])
@@ -58,6 +64,12 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         didReceiveMessage message: [String: Any]
     ) {
         if (message["action"] as? String) == "requestSessionContext" {
+            pushContext(to: session)
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        if (userInfo["action"] as? String) == "requestSessionContext" {
             pushContext(to: session)
         }
     }
@@ -75,11 +87,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
 
         guard WCSession.isSupported(),
               WCSession.default.activationState == .activated else { return }
-        let session = WCSession.default
-        guard session.isPaired else { return }
-        var context: [String: Any] = ["cookie": cookie, "baseUrl": baseUrl]
-        if userId > 0 { context["userId"] = userId }
-        try? session.updateApplicationContext(context)
+        deliverContext(buildContext(), via: WCSession.default)
     }
 
     func clearSession() {
@@ -90,9 +98,13 @@ final class WatchBridge: NSObject, WCSessionDelegate {
 
         guard WCSession.isSupported(),
               WCSession.default.activationState == .activated else { return }
-        let session = WCSession.default
-        guard session.isPaired else { return }
-        try? session.updateApplicationContext(["cookie": "", "baseUrl": ""])
+        deliverContext(["cookie": "", "baseUrl": "", "issuedAt": Date().timeIntervalSince1970], via: WCSession.default)
+    }
+
+    func resendSessionIfAvailable() {
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated else { return }
+        pushContext(to: WCSession.default)
     }
 
     // MARK: - Push helpers
@@ -101,7 +113,16 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         guard session.isPaired else { return }
         let context = buildContext()
         guard !context.isEmpty else { return }
+        deliverContext(context, via: session)
+    }
+
+    private func deliverContext(_ context: [String: Any], via session: WCSession) {
+        guard session.isPaired else { return }
         try? session.updateApplicationContext(context)
+        session.transferUserInfo(context)
+        if session.isReachable {
+            session.sendMessage(context, replyHandler: nil, errorHandler: nil)
+        }
     }
 
     private func buildContext() -> [String: Any] {
@@ -109,14 +130,22 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         let ud = UserDefaults.standard
         if let cookie = ud.string(forKey: cookieKey), !cookie.isEmpty,
            let baseUrl = ud.string(forKey: baseUrlKey), !baseUrl.isEmpty {
-            var ctx: [String: Any] = ["cookie": cookie, "baseUrl": baseUrl]
+            var ctx: [String: Any] = [
+                "cookie": cookie,
+                "baseUrl": baseUrl,
+                "issuedAt": Date().timeIntervalSince1970,
+            ]
             let uid = ud.integer(forKey: userIdKey)
             if uid > 0 { ctx["userId"] = uid }
             return ctx
         }
         // Fallback: read cookie_jar v4 files written by Flutter.
         if let (cookie, baseUrl) = readSessionCookieAndUrl() {
-            return ["cookie": cookie, "baseUrl": baseUrl]
+            return [
+                "cookie": cookie,
+                "baseUrl": baseUrl,
+                "issuedAt": Date().timeIntervalSince1970,
+            ]
         }
         return [:]
     }

@@ -36,6 +36,7 @@ final class WatchViewModel: ObservableObject {
 
     // Pending push token — registered as soon as a session is available
     private var pendingPushToken: Data? = nil
+    private var pushRegistrationTask: Task<Void, Never>?
 
     private let api = WatchAPIClient.shared
     private var autoRefreshTask: Task<Void, Never>?
@@ -71,9 +72,9 @@ final class WatchViewModel: ObservableObject {
 
     private func silentRefresh(cookie: String, baseUrl: String) async {
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.loadPosts(cookie: cookie, baseUrl: baseUrl) }
-            group.addTask { await self.loadThreads(cookie: cookie, baseUrl: baseUrl) }
-            group.addTask { await self.loadNotifications(cookie: cookie, baseUrl: baseUrl) }
+            group.addTask { await self.loadPosts(cookie: cookie, baseUrl: baseUrl, silent: true) }
+            group.addTask { await self.loadThreads(cookie: cookie, baseUrl: baseUrl, silent: true) }
+            group.addTask { await self.loadNotifications(cookie: cookie, baseUrl: baseUrl, silent: true) }
             group.addTask { await self.loadOnlineMembers(cookie: cookie, baseUrl: baseUrl) }
         }
     }
@@ -96,29 +97,57 @@ final class WatchViewModel: ObservableObject {
     /// Called whenever the session cookie becomes available.
     func registerPendingTokenIfNeeded(cookie: String, baseUrl: String) {
         guard !cookie.isEmpty, let token = pendingPushToken else { return }
-        pendingPushToken = nil
         let hex = token.map { String(format: "%02x", $0) }.joined()
-        Task {
-            try? await api.post(
-                path: "/api/new/mobile/push/register",
-                body: ["push_token": hex, "platform": "apns-watch"],
-                baseUrl: baseUrl,
-                cookie: cookie
-            )
+        let installationId = watchInstallationId()
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        pushRegistrationTask?.cancel()
+        pushRegistrationTask = Task { [weak self] in
+            do {
+                try await self?.api.post(
+                    path: "/api/new/mobile/push/register",
+                    body: [
+                        "installation_id": installationId,
+                        "push_token": hex,
+                        "platform": "watchos",
+                        "app_version": appVersion,
+                    ],
+                    baseUrl: baseUrl,
+                    cookie: cookie
+                )
+                await MainActor.run {
+                    self?.pendingPushToken = nil
+                }
+            } catch {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.registerPendingTokenIfNeeded(cookie: cookie, baseUrl: baseUrl)
+                }
+            }
         }
+    }
+
+    private func watchInstallationId() -> String {
+        let key = "sdal_watch_installation_id"
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let next = "watch-\(UUID().uuidString)"
+        UserDefaults.standard.set(next, forKey: key)
+        return next
     }
 
     // MARK: - Feed
 
-    func loadPosts(cookie: String, baseUrl: String) async {
-        postsState = .loading
+    func loadPosts(cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { postsState = .loading }
         do {
             let path = "/api/new/feed?feedType=\(selectedFeedType)&limit=20&offset=0"
             let raw = try await api.fetchArray(path: path, baseUrl: baseUrl, cookie: cookie)
             let posts = raw.compactMap { WatchPost(json: $0) }
             postsState = .loaded(posts)
         } catch {
-            postsState = .failed(error.localizedDescription)
+            if !silent { postsState = .failed(error.localizedDescription) }
         }
     }
 
@@ -142,15 +171,15 @@ final class WatchViewModel: ObservableObject {
         return raw.compactMap { WatchComment(json: $0) }
     }
 
-    func toggleLike(postId: Int, cookie: String, baseUrl: String) async throws -> (liked: Bool, count: Int) {
+    func toggleLike(postId: Int, cookie: String, baseUrl: String) async throws -> (liked: Bool, count: Int?) {
         let result = try await api.postDict(
-            path: "/api/new/posts/\(postId)/react",
-            body: ["type": "like"],
+            path: "/api/new/posts/\(postId)/like",
+            body: [:],
             baseUrl: baseUrl,
             cookie: cookie
         )
         let liked = (result["liked"] as? Bool) ?? false
-        let count = (result["likeCount"] as? Int) ?? (result["like_count"] as? Int) ?? 0
+        let count = (result["likeCount"] as? Int) ?? (result["like_count"] as? Int)
         return (liked, count)
     }
 
@@ -175,15 +204,15 @@ final class WatchViewModel: ObservableObject {
 
     // MARK: - Stories
 
-    func loadStories(cookie: String, baseUrl: String) async {
-        storiesState = .loading
+    func loadStories(cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { storiesState = .loading }
         do {
             let path = "/api/new/stories?feedType=\(selectedFeedType)"
             let raw = try await api.fetchArray(path: path, baseUrl: baseUrl, cookie: cookie)
             let stories = raw.compactMap { WatchStory(json: $0) }
             storiesState = .loaded(stories)
         } catch {
-            storiesState = .failed(error.localizedDescription)
+            if !silent { storiesState = .failed(error.localizedDescription) }
         }
     }
 
@@ -204,8 +233,8 @@ final class WatchViewModel: ObservableObject {
 
     // MARK: - Explore / Members
 
-    func searchMembers(query: String, cookie: String, baseUrl: String) async {
-        membersState = .loading
+    func searchMembers(query: String, cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { membersState = .loading }
         do {
             let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             let path = "/api/members?q=\(encoded)&page=1&pageSize=20"
@@ -213,7 +242,7 @@ final class WatchViewModel: ObservableObject {
             let members = raw.compactMap { WatchMember(json: $0) }
             membersState = .loaded(members)
         } catch {
-            membersState = .failed(error.localizedDescription)
+            if !silent { membersState = .failed(error.localizedDescription) }
         }
     }
 
@@ -276,8 +305,8 @@ final class WatchViewModel: ObservableObject {
 
     // MARK: - Messages
 
-    func loadThreads(cookie: String, baseUrl: String) async {
-        threadsState = .loading
+    func loadThreads(cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { threadsState = .loading }
         do {
             let raw = try await api.fetchArray(
                 path: "/api/sdal-messenger/threads",
@@ -287,7 +316,7 @@ final class WatchViewModel: ObservableObject {
             let threads = raw.compactMap { WatchThread(json: $0) }
             threadsState = .loaded(threads)
         } catch {
-            threadsState = .failed(error.localizedDescription)
+            if !silent { threadsState = .failed(error.localizedDescription) }
         }
     }
 
@@ -321,8 +350,8 @@ final class WatchViewModel: ObservableObject {
         return tid
     }
 
-    func loadContacts(cookie: String, baseUrl: String) async {
-        contactsState = .loading
+    func loadContacts(cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { contactsState = .loading }
         do {
             let raw = try await api.fetchArray(
                 path: "/api/sdal-messenger/contacts",
@@ -332,14 +361,14 @@ final class WatchViewModel: ObservableObject {
             let contacts = raw.compactMap { WatchContact(json: $0) }
             contactsState = .loaded(contacts)
         } catch {
-            contactsState = .failed(error.localizedDescription)
+            if !silent { contactsState = .failed(error.localizedDescription) }
         }
     }
 
     // MARK: - Notifications
 
-    func loadNotifications(cookie: String, baseUrl: String) async {
-        notificationsState = .loading
+    func loadNotifications(cookie: String, baseUrl: String, silent: Bool = false) async {
+        if !silent { notificationsState = .loading }
         do {
             let raw = try await api.fetchArray(
                 path: "/api/new/notifications",
@@ -349,7 +378,7 @@ final class WatchViewModel: ObservableObject {
             let items = raw.compactMap { WatchNotificationItem(json: $0) }
             notificationsState = .loaded(items)
         } catch {
-            notificationsState = .failed(error.localizedDescription)
+            if !silent { notificationsState = .failed(error.localizedDescription) }
         }
     }
 

@@ -157,6 +157,7 @@ struct FeedView: View {
 
 struct PostRow: View {
     let post: WatchPost
+    @EnvironmentObject private var sessionManager: WatchSessionManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -179,7 +180,7 @@ struct PostRow: View {
 
             // Thumbnail
             if !post.imageUrl.isEmpty {
-                AsyncImage(url: URL(string: post.imageUrl)) { phase in
+                AsyncImage(url: resolvedMediaURL(post.imageUrl, baseUrl: sessionManager.apiBaseUrl)) { phase in
                     switch phase {
                     case .success(let img):
                         img.resizable()

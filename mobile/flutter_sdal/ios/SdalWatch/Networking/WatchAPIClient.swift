@@ -1,5 +1,19 @@
 import Foundation
 
+enum WatchAPIError: LocalizedError {
+    case httpStatus(Int)
+    case emptyResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .httpStatus(let status):
+            return "HTTP \(status)"
+        case .emptyResponse:
+            return "Boş yanıt"
+        }
+    }
+}
+
 actor WatchAPIClient {
     static let shared = WatchAPIClient()
     private init() {}
@@ -31,11 +45,8 @@ actor WatchAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("SDAL-Watch/1.0", forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await session.data(for: request)
-        if let http = response as? HTTPURLResponse,
-           !(200...299).contains(http.statusCode) {
-            throw URLError(.badServerResponse)
-        }
+        let (data, _) = try await send(request)
+        if data.isEmpty { throw WatchAPIError.emptyResponse }
         return try JSONSerialization.jsonObject(with: data)
     }
 
@@ -45,12 +56,7 @@ actor WatchAPIClient {
         let raw = try await fetch(path: path, baseUrl: baseUrl, cookie: cookie)
         if let arr = raw as? [[String: Any]] { return arr }
         if let dict = raw as? [String: Any] {
-            // Ordered by specificity — add new response envelope keys here
-            for key in ["data", "items", "results", "posts", "threads",
-                        "notifications", "messages", "contacts",
-                        "members", "users", "stories", "list", "records"] {
-                if let arr = dict[key] as? [[String: Any]] { return arr }
-            }
+            if let arr = extractArray(from: dict) { return arr }
         }
         return []
     }
@@ -78,11 +84,7 @@ actor WatchAPIClient {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
 
-        let (data, response) = try await session.data(for: request)
-        if let http = response as? HTTPURLResponse,
-           !(200...299).contains(http.statusCode) {
-            throw URLError(.badServerResponse)
-        }
+        let (data, _) = try await send(request)
         if data.isEmpty { return [:] as [String: Any] }
         return (try? JSONSerialization.jsonObject(with: data)) ?? [:]
     }
@@ -92,5 +94,63 @@ actor WatchAPIClient {
     func postDict(path: String, body: [String: Any], baseUrl: String, cookie: String) async throws -> [String: Any] {
         let raw = try await post(path: path, body: body, baseUrl: baseUrl, cookie: cookie)
         return (raw as? [String: Any]) ?? [:]
+    }
+
+    private func extractArray(from dict: [String: Any]) -> [[String: Any]]? {
+        for key in ["items", "results", "posts", "threads",
+                    "notifications", "messages", "contacts",
+                    "members", "users", "stories", "list", "records"] {
+            if let arr = dict[key] as? [[String: Any]] { return arr }
+        }
+        for key in ["data", "payload", "result"] {
+            if let nestedArr = dict[key] as? [[String: Any]] { return nestedArr }
+            if let nestedDict = dict[key] as? [String: Any],
+               let arr = extractArray(from: nestedDict) {
+                return arr
+            }
+        }
+        return nil
+    }
+
+    private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse?) {
+        var lastError: Error?
+        for attempt in 0..<3 {
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else { return (data, nil) }
+                if (200...299).contains(http.statusCode) {
+                    return (data, http)
+                }
+                if http.statusCode == 401 || http.statusCode == 403 {
+                    NotificationCenter.default.post(name: .sdalWatchAuthRejected, object: nil)
+                    throw WatchAPIError.httpStatus(http.statusCode)
+                }
+                if [408, 425, 429, 500, 502, 503, 504].contains(http.statusCode), attempt < 2 {
+                    try await Task.sleep(nanoseconds: UInt64(attempt + 1) * 350_000_000)
+                    continue
+                }
+                throw WatchAPIError.httpStatus(http.statusCode)
+            } catch {
+                lastError = error
+                if Task.isCancelled { throw error }
+                if attempt < 2, shouldRetry(error) {
+                    try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * 350_000_000)
+                    continue
+                }
+                throw error
+            }
+        }
+        throw lastError ?? URLError(.unknown)
+    }
+
+    private func shouldRetry(_ error: Error) -> Bool {
+        if error is WatchAPIError { return false }
+        let code = (error as? URLError)?.code
+        return code == .timedOut
+            || code == .cannotFindHost
+            || code == .cannotConnectToHost
+            || code == .networkConnectionLost
+            || code == .notConnectedToInternet
+            || code == .dnsLookupFailed
     }
 }

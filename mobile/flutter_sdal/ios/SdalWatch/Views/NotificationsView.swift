@@ -152,7 +152,7 @@ struct NotificationDetailView: View {
 
                 // ── Target image (e.g. the liked post image) ─────────────
                 if !item.targetImageUrl.isEmpty {
-                    AsyncImage(url: URL(string: item.targetImageUrl)) { phase in
+                    AsyncImage(url: resolvedMediaURL(item.targetImageUrl, baseUrl: sessionManager.apiBaseUrl)) { phase in
                         switch phase {
                         case .success(let img):
                             img.resizable()

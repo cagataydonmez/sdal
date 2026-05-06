@@ -5,7 +5,7 @@ const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const FCM_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DEFAULT_PUSH_TITLE = 'SDAL Bildirim';
 const PUSH_DELIVERY_STATUS_SET = new Set(['sent', 'skipped', 'failed']);
-const PUSH_PLATFORM_SET = new Set(['android', 'ios']);
+const PUSH_PLATFORM_SET = new Set(['android', 'ios', 'watchos']);
 
 function toDbBooleanParam(dbDriver, value) {
   return dbDriver === 'postgres' ? !!value : (value ? 1 : 0);
@@ -234,7 +234,8 @@ export function createNotificationPushRuntime({
     const safeUserId = Number(userId || 0);
     const normalizedInstallationId = sanitizeText(installationId);
     const normalizedToken = sanitizeText(pushToken);
-    const normalizedPlatform = sanitizeText(platform).toLowerCase();
+    const requestedPlatform = sanitizeText(platform).toLowerCase();
+    const normalizedPlatform = requestedPlatform === 'apns-watch' ? 'watchos' : requestedPlatform;
     if (!safeUserId || !normalizedInstallationId || !normalizedToken || !PUSH_PLATFORM_SET.has(normalizedPlatform)) {
       return false;
     }
@@ -664,6 +665,18 @@ export function createNotificationPushRuntime({
 
     for (const device of devices) {
       try {
+        if (sanitizeText(device.platform).toLowerCase() === 'watchos') {
+          await recordPushDeliveryAudit({
+            notificationId,
+            userId,
+            deviceId: device.id,
+            platform: device.platform,
+            notificationType,
+            deliveryStatus: 'skipped',
+            skipReason: 'watchos_apns_provider_not_configured'
+          });
+          continue;
+        }
         const result = await sendPushMessageToDevice(device, payload);
         if (result.ok) {
           await recordPushDeliveryAudit({

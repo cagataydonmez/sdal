@@ -41,8 +41,9 @@ struct ConversationView: View {
         .task { await load() }
         // Poll for incoming messages every 10 seconds
         .task(id: thread.id) {
-            while true {
+            while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
+                guard !Task.isCancelled else { return }
                 let fresh = try? await viewModel.loadMessages(
                     threadId: thread.id, cookie: cookie, baseUrl: baseUrl
                 )

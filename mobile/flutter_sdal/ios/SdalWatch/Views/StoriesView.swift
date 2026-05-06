@@ -84,7 +84,7 @@ struct StoryDetailView: View {
         ZStack(alignment: .bottom) {
             // Full image
             if !story.fullUrl.isEmpty {
-                AsyncImage(url: URL(string: story.fullUrl)) { phase in
+                AsyncImage(url: resolvedMediaURL(story.fullUrl, baseUrl: sessionManager.apiBaseUrl)) { phase in
                     switch phase {
                     case .success(let img):
                         img.resizable()

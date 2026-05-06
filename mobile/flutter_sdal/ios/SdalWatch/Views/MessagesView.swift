@@ -41,9 +41,10 @@ struct MessagesView: View {
         // Poll for new messages every 15 seconds
         .task(id: cookie) {
             guard !cookie.isEmpty else { return }
-            while true {
+            while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
-                await viewModel.loadThreads(cookie: cookie, baseUrl: baseUrl)
+                guard !Task.isCancelled else { return }
+                await viewModel.loadThreads(cookie: cookie, baseUrl: baseUrl, silent: true)
             }
         }
     }

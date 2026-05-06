@@ -20,7 +20,7 @@ struct WatchPost: Identifiable {
         guard let id = json["id"] as? Int else { return nil }
         self.id = id
         self.feedType = (json["feedType"] as? String) ?? (json["feed_type"] as? String) ?? "main"
-        self.liked = (json["liked"] as? Bool) ?? false
+        self.liked = boolValue(json["liked"]) ?? boolValue(json["liked_by_viewer"]) ?? false
 
         let author = (json["author"] as? [String: Any]) ?? json
         self.authorId = (author["id"] as? Int) ?? 0
@@ -44,8 +44,14 @@ struct WatchPost: Identifiable {
             ?? (json["created_at"] as? String)
             ?? ""
 
-        // Image: try multiple field names / shapes
-        if let direct = (json["imageUrl"] as? String) ?? (json["image_url"] as? String), !direct.isEmpty {
+        let variants = (json["variants"] as? [String: Any]) ?? [:]
+        if let variant = (variants["feedUrl"] as? String)
+            ?? (variants["feed_url"] as? String)
+            ?? (variants["fullUrl"] as? String)
+            ?? (variants["full_url"] as? String),
+            !variant.isEmpty {
+            self.imageUrl = variant
+        } else if let direct = (json["imageUrl"] as? String) ?? (json["image_url"] as? String), !direct.isEmpty {
             self.imageUrl = direct
         } else if let image = json["image"] as? String, !image.isEmpty {
             self.imageUrl = image
@@ -119,7 +125,7 @@ struct WatchStory: Identifiable {
         guard let id = json["id"] as? Int else { return nil }
         self.id = id
         self.caption = (json["caption"] as? String) ?? ""
-        self.viewed = (json["viewed"] as? Bool) ?? false
+        self.viewed = boolValue(json["viewed"]) ?? false
         self.createdAt = (json["createdAt"] as? String) ?? (json["created_at"] as? String) ?? ""
 
         let author = (json["author"] as? [String: Any]) ?? [:]
@@ -131,10 +137,16 @@ struct WatchStory: Identifiable {
         self.authorPhoto = (author["resim"] as? String) ?? ""
 
         let variants = (json["variants"] as? [String: Any]) ?? [:]
-        let feedRaw = (variants["feedUrl"] as? String) ?? (json["image"] as? String)
+        let feedRaw = (variants["feedUrl"] as? String)
+            ?? (variants["feed_url"] as? String)
+            ?? (variants["thumbUrl"] as? String)
+            ?? (variants["thumb_url"] as? String)
+            ?? (json["image"] as? String)
             ?? (json["imageUrl"] as? String) ?? (json["image_url"] as? String) ?? ""
         self.feedUrl = feedRaw
-        self.fullUrl = (variants["fullUrl"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? feedRaw
+        self.fullUrl = ((variants["fullUrl"] as? String)
+            ?? (variants["full_url"] as? String))
+            .flatMap { $0.isEmpty ? nil : $0 } ?? feedRaw
     }
 
     var initials: String {
@@ -171,8 +183,8 @@ struct WatchMember: Identifiable {
             ?? (json["mezuniyetyili"] as? String)
             ?? ""
         self.graduationYear = year
-        self.following = (json["following"] as? Bool) ?? false
-        self.isOnline = (json["isOnline"] as? Bool) ?? (json["is_online"] as? Bool) ?? false
+        self.following = boolValue(json["following"]) ?? false
+        self.isOnline = boolValue(json["isOnline"]) ?? boolValue(json["is_online"]) ?? false
     }
 
     var fullName: String {
@@ -308,8 +320,8 @@ struct WatchNotificationItem: Identifiable {
             ?? (json["message"] as? String)
             ?? (json["content"] as? String)
             ?? ""
-        self.isRead = (json["is_read"] as? Bool)
-            ?? (json["read"] as? Bool)
+        self.isRead = boolValue(json["is_read"])
+            ?? boolValue(json["read"])
             ?? false
         self.createdAt = (json["created_at"] as? String)
             ?? (json["createdAt"] as? String)
@@ -352,6 +364,18 @@ struct WatchNotificationItem: Identifiable {
         let letters = words.prefix(2).compactMap { $0.first }
         return letters.isEmpty ? "?" : String(letters).uppercased()
     }
+}
+
+private func boolValue(_ raw: Any?) -> Bool? {
+    if let value = raw as? Bool { return value }
+    if let value = raw as? Int { return value != 0 }
+    if let value = raw as? NSNumber { return value.intValue != 0 }
+    if let value = raw as? String {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if ["1", "true", "yes", "evet"].contains(normalized) { return true }
+        if ["0", "false", "no", "hayir", "hayır"].contains(normalized) { return false }
+    }
+    return nil
 }
 
 // MARK: - Deep Link Target

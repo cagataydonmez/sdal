@@ -48,7 +48,7 @@ struct PostDetailView: View {
 
                         // ── Post image ──────────────────────────────────
                         if !post.imageUrl.isEmpty {
-                            AsyncImage(url: URL(string: post.imageUrl)) { phase in
+                            AsyncImage(url: resolvedMediaURL(post.imageUrl, baseUrl: sessionManager.apiBaseUrl)) { phase in
                                 switch phase {
                                 case .success(let img):
                                     img.resizable()
@@ -174,7 +174,7 @@ struct PostDetailView: View {
         do {
             let result = try await viewModel.toggleLike(postId: postId, cookie: cookie, baseUrl: baseUrl)
             p.liked     = result.liked
-            p.likeCount = result.count
+            if let count = result.count { p.likeCount = count }
             post = p
         } catch {
             // Revert
