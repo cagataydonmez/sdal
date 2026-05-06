@@ -7,6 +7,10 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     static let shared = WatchBridge()
     private override init() {}
 
+    private let cookieKey  = "sdal_bridge_cookie"
+    private let baseUrlKey = "sdal_bridge_base_url"
+    private let userIdKey  = "sdal_bridge_user_id"
+
     // MARK: - Lifecycle
 
     func start() {
@@ -41,7 +45,9 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         if (message["action"] as? String) == "requestSessionContext" {
             let context = buildContext()
             replyHandler(context)
-            try? session.updateApplicationContext(context)
+            if !context.isEmpty {
+                try? session.updateApplicationContext(context)
+            }
         } else {
             replyHandler([:])
         }
@@ -56,24 +62,66 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         }
     }
 
+    // MARK: - Flutter → Watch push
+
+    /// Called by the Flutter MethodChannel when the session changes.
+    func pushSession(cookie: String, baseUrl: String, userId: Int = 0) {
+        // Always persist so buildContext() can serve Watch requests even if
+        // isWatchAppInstalled was false when this was first called.
+        let ud = UserDefaults.standard
+        ud.set(cookie, forKey: cookieKey)
+        ud.set(baseUrl, forKey: baseUrlKey)
+        if userId > 0 { ud.set(userId, forKey: userIdKey) }
+
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated else { return }
+        let session = WCSession.default
+        guard session.isPaired else { return }
+        var context: [String: Any] = ["cookie": cookie, "baseUrl": baseUrl]
+        if userId > 0 { context["userId"] = userId }
+        try? session.updateApplicationContext(context)
+    }
+
+    func clearSession() {
+        let ud = UserDefaults.standard
+        ud.removeObject(forKey: cookieKey)
+        ud.removeObject(forKey: baseUrlKey)
+        ud.removeObject(forKey: userIdKey)
+
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated else { return }
+        let session = WCSession.default
+        guard session.isPaired else { return }
+        try? session.updateApplicationContext(["cookie": "", "baseUrl": ""])
+    }
+
     // MARK: - Push helpers
 
     private func pushContext(to session: WCSession) {
-        guard session.isPaired, session.isWatchAppInstalled else { return }
+        guard session.isPaired else { return }
         let context = buildContext()
+        guard !context.isEmpty else { return }
         try? session.updateApplicationContext(context)
     }
 
     private func buildContext() -> [String: Any] {
-        var ctx: [String: Any] = [:]
-        if let (cookie, baseUrl) = readSessionCookieAndUrl() {
-            ctx["cookie"] = cookie
-            ctx["baseUrl"] = baseUrl
+        // Prefer UserDefaults (written by Flutter MethodChannel push) over disk.
+        let ud = UserDefaults.standard
+        if let cookie = ud.string(forKey: cookieKey), !cookie.isEmpty,
+           let baseUrl = ud.string(forKey: baseUrlKey), !baseUrl.isEmpty {
+            var ctx: [String: Any] = ["cookie": cookie, "baseUrl": baseUrl]
+            let uid = ud.integer(forKey: userIdKey)
+            if uid > 0 { ctx["userId"] = uid }
+            return ctx
         }
-        return ctx
+        // Fallback: read cookie_jar v4 files written by Flutter.
+        if let (cookie, baseUrl) = readSessionCookieAndUrl() {
+            return ["cookie": cookie, "baseUrl": baseUrl]
+        }
+        return [:]
     }
 
-    // MARK: - Cookie extraction
+    // MARK: - Cookie extraction (fallback)
     // Reads connect.sid from the cookie_jar v4 files written by the Flutter app.
     // cookie_jar v4 with FileStorage layout:
     //   <appSupport>/flutter_sdal/sdal_cookies/<hash>/<hostname>   (no .json extension)
@@ -82,8 +130,6 @@ final class WatchBridge: NSObject, WCSessionDelegate {
 
     private func readSessionCookieAndUrl() -> (cookie: String, baseUrl: String)? {
         let fm = FileManager.default
-        // Flutter may write to either Application Support or the temp directory depending
-        // on whether $HOME is set in the Flutter process. Check both.
         let candidateBases: [URL] = [
             fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!,
             fm.temporaryDirectory,
@@ -127,7 +173,6 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         return nil
     }
 
-    // Parses a single cookie_jar v4 file and returns "connect.sid=VALUE" if present.
     private func parseCookieJarFile(at url: URL) -> String? {
         guard let data = try? Data(contentsOf: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]

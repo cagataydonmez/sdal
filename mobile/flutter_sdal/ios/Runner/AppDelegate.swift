@@ -12,6 +12,32 @@ import UIKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SdalWatchBridgePlugin") else { return }
+    let channel = FlutterMethodChannel(
+      name: "com.sdal/watch",
+      binaryMessenger: registrar.messenger()
+    )
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "pushSession":
+        if let args = call.arguments as? [String: Any],
+           let cookie = args["cookie"] as? String,
+           let baseUrl = args["baseUrl"] as? String {
+          let userId = args["userId"] as? Int ?? 0
+          WatchBridge.shared.pushSession(cookie: cookie, baseUrl: baseUrl, userId: userId)
+        }
+        result(nil)
+      case "clearSession":
+        WatchBridge.shared.clearSession()
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
   override func application(
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
@@ -47,7 +73,4 @@ import UIKit
     return super.application(app, open: url, options: options)
   }
 
-  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-  }
 }

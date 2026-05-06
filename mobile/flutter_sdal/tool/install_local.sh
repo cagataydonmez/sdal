@@ -36,14 +36,13 @@ Interactive launcher for:
 1. iPhone (cable or wireless) — debug or release install
 2. iOS Simulator — debug
 3. Android Emulator — debug or release
-4. TestFlight — archive, export IPA, upload to App Store Connect  [no version bump]
-5. Android GitHub Release — flutter build apk + gh release create  [no version bump]
-6. Apple Watch (WiFi) — build SdalWatch scheme + install to paired watch
-7. watchOS TestFlight — embeds watch app in iOS IPA; runs TestFlight flow  [no version bump]
+4. TestFlight — archive, export IPA, upload to App Store Connect
+5. Android GitHub Release — flutter build apk + gh release create
+6. Apple Watch (WiFi) — build iOS + Watch, embed Watch into Runner.app, install on iPhone
+7. watchOS TestFlight — embeds watch app in iOS IPA; runs TestFlight flow
 
 Behavior:
-- Options 1-3: prompts for version bump before building.
-- Options 4-5 (distribution): use the current version as-is, no build number change.
+- All options prompt for a version bump before building.
 - iPhone release builds into ~/Library/Caches to avoid Desktop/iCloud xattrs breaking codesign.
 - The script restores your previous global flutter build-dir setting on exit.
 
@@ -504,6 +503,16 @@ elif mode == "simctl":
             )
             print(f"{label}|||{device['udid']}")
 PY
+}
+
+get_watch_devices() {
+  local tmp
+  tmp="$(make_temp_json devicectl-watch-devices)"
+  xcrun devicectl list devices --json-output "$tmp" >/dev/null 2>&1 || true
+  if [[ -s "$tmp" ]]; then
+    json_to_entries "devicectl-watch" "$tmp" 2>/dev/null || true
+  fi
+  rm -f "$tmp"
 }
 
 get_ios_release_devices() {
@@ -1093,17 +1102,6 @@ build_upload_android_github_release() {
 WATCH_BUNDLE_ID="${WATCH_BUNDLE_ID:-com.sdal.flutterSdal.SdalWatch}"
 WATCH_SCHEME="${WATCH_SCHEME:-SdalWatch}"
 
-get_watch_devices() {
-  local tmp
-  tmp="$(make_temp_json devicectl-watch-devices)"
-  xcrun devicectl list devices --json-output "$tmp" >/dev/null 2>&1 || true
-  if [[ ! -s "$tmp" ]]; then
-    rm -f "$tmp"
-    return
-  fi
-  json_to_entries "devicectl-watch" "$tmp"
-  rm -f "$tmp"
-}
 
 print_watch_instructions() {
   cat <<'EOF'
@@ -1186,42 +1184,71 @@ build_watch_app_for_sdk() {
   printf '%s' "$app_path"
 }
 
-build_install_watch_app() {
-  local device_identifier="$1"
+build_install_ios_and_watch() {
+  local iphone_identifier="$1"
 
-  log "Building SdalWatch for watchOS device..."
-  local app_path
-  app_path="$(build_watch_app_for_sdk watchos Release \
-    -destination 'generic/platform=watchOS' \
-    -allowProvisioningUpdates \
-    -allowProvisioningDeviceRegistration)"
+  prepare_ios
 
-  [[ -n "$app_path" ]] || die "Watch .app not found after build."
-  log "Watch app: $app_path"
+  # SdalWatch is now embedded via "Embed Watch Content" Xcode build phase.
+  # One workspace build produces Runner.app with SdalWatch.app inside Watch/.
 
-  log "Installing SdalWatch on Apple Watch ($device_identifier)..."
+  # ── Step 1: Build Runner.app (embeds SdalWatch automatically) ─────────────
+  log ""
+  log "Step 1/2: Building Runner.app + embedded SdalWatch (Release)..."
+  (
+    cd "$IOS_DIR"
+    xcodebuild \
+      -configuration Release \
+      -allowProvisioningUpdates \
+      -allowProvisioningDeviceRegistration \
+      -workspace Runner.xcworkspace \
+      -scheme Runner \
+      "BUILD_DIR=$IOS_RELEASE_BUILD_DIR_ABS" \
+      "OBJROOT=$IOS_RELEASE_BUILD_DIR_ABS" \
+      -destination "id:$iphone_identifier" \
+      FLUTTER_SUPPRESS_ANALYTICS=true \
+      COMPILER_INDEX_STORE_ENABLE=NO \
+      build
+  )
+
+  local ios_app_path="$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app"
+  [[ -d "$ios_app_path" ]] || die "Runner.app not found after build: $ios_app_path"
+
+  # Verify Watch is embedded
+  local watch_check
+  watch_check="$(find "$ios_app_path/Watch" -name 'SdalWatch.app' 2>/dev/null | head -1)"
+  if [[ -n "$watch_check" ]]; then
+    log "SdalWatch.app embedded: $watch_check"
+  else
+    log "[WARN] SdalWatch.app not found in Runner.app/Watch/ — Watch app will not update."
+  fi
+
+  # ── Step 2: Install on iPhone + launch ────────────────────────────────────
+  log ""
+  log "Step 2/2: Installing Runner.app on iPhone..."
   xcrun devicectl device install app \
-    --device "$device_identifier" \
-    "$app_path"
+    --device "$iphone_identifier" \
+    "$ios_app_path"
 
   log ""
-  log "SdalWatch installed!"
-  log "Open SDAL on your iPhone -- the watch app will receive your session automatically."
+  log "Launching SDAL on iPhone..."
+  xcrun devicectl device process launch \
+    --device "$iphone_identifier" \
+    --terminate-existing \
+    "$IOS_BUNDLE_ID"
+
+  log ""
+  log "Done!"
+  log "SdalWatch will appear on Apple Watch within 1-2 minutes after SDAL launches on iPhone."
+  log "If it doesn\'t appear: open the Watch app on iPhone \u2192 Available Apps \u2192 install SdalWatch."
+  log "Open SDAL on iPhone \u2014 the Watch app will receive your session automatically."
 }
-
 build_archive_export_upload_testflight_with_watch() {
-  # Step 0: Build SdalWatch for watchOS using -project -target (correct SDK).
-  # Using -workspace causes Xcode 15+/26 to compile with iOS SDK despite SDKROOT=watchos.
-  log ""
-  log "Step 0/4: Building SdalWatch for watchOS Release..."
-  local watch_app_path
-  watch_app_path="$(build_watch_app_for_sdk watchos Release \
-    -allowProvisioningUpdates \
-    -allowProvisioningDeviceRegistration)"
-  [[ -n "$watch_app_path" ]] || die "SdalWatch.app not found after watchOS build."
-  log "SdalWatch built: $watch_app_path"
+  # SdalWatch is now a proper Embed Watch Content dependency of Runner in the Xcode project.
+  # xcodebuild archives both targets together — no manual injection needed.
+  # SdalWatch has SDKROOT=watchos in its build settings so the Xcode 15 cross-
+  # compilation bug (wrong SDK leaking from the iOS scheme) does not apply.
 
-  # Steps 1-3: Standard iOS archive flow (Runner only — SdalWatch is not a Runner dependency)
   log ""
   log "Resetting flutter build-dir for archive (avoids stale simulator native_assets)..."
   "$FLUTTER_BIN" config --build-dir="" >/dev/null 2>&1 || true
@@ -1269,7 +1296,8 @@ plist_path.write_text(
 PY
 
   log ""
-  log "Step 1/4: Archiving iOS Runner for App Store (this may take a few minutes)..."
+  log "Step 1/3: Archiving iOS Runner + SdalWatch for App Store..."
+  log "  (SdalWatch is embedded via Xcode 'Embed Watch Content' phase)"
   log "Archive path: $archive_path"
   (
     cd "$IOS_DIR"
@@ -1277,7 +1305,6 @@ PY
       -workspace Runner.xcworkspace \
       -scheme Runner \
       -configuration Release \
-      -sdk iphoneos \
       -destination 'generic/platform=iOS' \
       -archivePath "$archive_path" \
       -allowProvisioningUpdates \
@@ -1288,21 +1315,19 @@ PY
       archive
   )
 
-  # Step 1b: Inject SdalWatch.app into the xcarchive bundle
-  local runner_app_in_archive
+  # Verify Watch app made it into the archive
+  local runner_app_in_archive watch_in_archive
   runner_app_in_archive="$(find "$archive_path/Products/Applications" \
     -maxdepth 1 -name '*.app' 2>/dev/null | head -1)"
-  if [[ -n "$runner_app_in_archive" && -n "$watch_app_path" ]]; then
-    log ""
-    log "Step 1b/4: Injecting SdalWatch.app into archive bundle..."
-    local watch_dir="$runner_app_in_archive/Watch"
-    mkdir -p "$watch_dir"
-    cp -R "$watch_app_path" "$watch_dir/"
-    log "Injected: $watch_dir/$(basename "$watch_app_path")"
+  watch_in_archive="$(find "$runner_app_in_archive/Watch" -name 'SdalWatch.app' 2>/dev/null | head -1)"
+  if [[ -n "$watch_in_archive" ]]; then
+    log "Watch app verified in archive: $watch_in_archive"
+  else
+    log "[WARN] SdalWatch.app not found in archive — Watch may not deploy to Apple Watch."
   fi
 
   log ""
-  log "Step 2/4: Exporting IPA from archive..."
+  log "Step 2/3: Exporting IPA from archive..."
   xcodebuild \
     -exportArchive \
     -archivePath "$archive_path" \
@@ -1314,10 +1339,19 @@ PY
   ipa_path="$(find "$export_path" -name '*.ipa' | head -1)"
   [[ -f "$ipa_path" ]] || die "IPA not found after export in: $export_path"
 
+  # Verify Watch app made it into the IPA
+  local watch_in_ipa
+  watch_in_ipa="$(unzip -l "$ipa_path" 2>/dev/null | grep -c 'SdalWatch' || true)"
+  if [[ "$watch_in_ipa" -gt 0 ]]; then
+    log "Watch app verified in IPA ($watch_in_ipa files)"
+  else
+    log "[WARN] SdalWatch not found inside IPA — Watch companion app will NOT be distributed."
+  fi
+
   log_testflight_signing_summary "$ipa_path"
 
   log ""
-  log "Step 3/4: Uploading to App Store Connect / TestFlight..."
+  log "Step 3/3: Uploading to App Store Connect / TestFlight..."
   log "IPA: $ipa_path"
   log "(Upload may take several minutes depending on app size)"
   xcrun altool \
@@ -1328,19 +1362,18 @@ PY
     --apiIssuer "$ASC_ISSUER_ID"
 
   log ""
-  log "Step 4/4: Done!"
+  log "Done!"
   log ""
   log "Next steps:"
   log "  1. Go to: https://appstoreconnect.apple.com -> Your App -> TestFlight"
   log "  2. Wait for Apple to finish processing (typically 15-30 minutes)"
   log "  3. The build will appear under 'iOS Builds'"
-  log "  4. The companion SdalWatch app is embedded in Runner.app/Watch/"
-  log "  5. Add internal or external testers as needed"
+  log "  4. SdalWatch is embedded — iPhone auto-deploys it to Apple Watch"
+  log "  5. On Watch: open the App Store app or wait for auto-install"
   log ""
   log "Artifacts saved at:"
   log "  Archive : $archive_path"
   log "  IPA     : $ipa_path"
-  log "  Watch   : $watch_app_path"
 }
 
 main() {
@@ -1358,23 +1391,15 @@ main() {
   printf '  1. iPhone (cable or wireless)\n'
   printf '  2. iOS Simulator\n'
   printf '  3. Android Emulator\n'
-  printf '  4. TestFlight (archive + upload to App Store Connect)  [no version bump]\n'
-  printf '  5. Android GitHub Release (build APK + gh release)     [no version bump]\n'
-  printf '  6. Apple Watch (WiFi)                                  [no version bump]\n'
-  printf '  7. watchOS TestFlight (embedded in iOS IPA)            [no version bump]\n'
+  printf '  4. TestFlight (archive + upload to App Store Connect)\n'
+  printf '  5. Android GitHub Release (build APK + gh release)\n'
+  printf '  6. Apple Watch (WiFi) — iOS + Watch, deploy via iPhone\n'
+  printf '  7. watchOS TestFlight (embedded in iOS IPA)\n'
   local target_choice
   target_choice="$(prompt_number 7 "Choose target: ")"
 
-  # Version bump: only for local install flows (1-3).
-  # Distribution flows (4-7) use the current version as-is.
-  if [[ "$target_choice" =~ ^[123]$ ]]; then
-    prompt_app_version_update
-  else
-    local _cur_maj _cur_min _cur_patch _cur_build
-    read -r _cur_maj _cur_min _cur_patch _cur_build <<< "$(current_version_parts)"
-    printf '\nCurrent version: v.%s.%s.%s (build number unchanged)\n' \
-      "$_cur_maj" "$_cur_min" "$_cur_build"
-  fi
+  # Version bump: prompt for all options.
+  prompt_app_version_update
 
   # Build type prompt: only for local flows that support debug/release.
   local build_mode=""
@@ -1471,6 +1496,7 @@ main() {
       local confirm
       read -r -p "Proceed with TestFlight build and upload? [y/N] " confirm < /dev/tty
       [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+      apply_app_version_update
       build_archive_export_upload_testflight
       ;;
     5)
@@ -1480,26 +1506,30 @@ main() {
       local confirm
       read -r -p "Proceed with Android release build and GitHub upload? [y/N] " confirm < /dev/tty
       [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+      apply_app_version_update
       build_upload_android_github_release
       ;;
     6)
       print_watch_instructions
-      load_entries get_watch_devices || true
+      print_phone_instructions
+      load_entries get_ios_release_devices
       if (( ${#entries[@]} == 0 )); then
-        die "No paired Apple Watch found. Make sure the watch is paired and connected via Wi-Fi, then retry."
+        die "No iPhone found. Connect it and pair in Xcode > Window > Devices and Simulators."
       fi
       local selected label identifier
-      selected="$(select_from_entries "Available Apple Watch devices" "${entries[@]}")"
+      selected="$(select_from_entries "Available iPhone devices" "${entries[@]}")"
       label="${selected%%|||*}"
       identifier="${selected##*|||}"
       log "Selected: $label"
-      build_install_watch_app "$identifier"
+      prompt_local_cleanup_options
+      apply_app_version_update
+      build_install_ios_and_watch "$identifier"
       ;;
     7)
       log ""
       log "watchOS TestFlight"
-      log "  Builds SdalWatch for watchOS (Release) with -project -target (correct SDK),"
-      log "  injects the watch app into the iOS xcarchive, then archives + uploads Runner."
+      log "  Archives Runner with embedded SdalWatch, letting Xcode select watchOS for the watch target,"
+      log "  then exports the IPA and uploads to App Store Connect."
       log "  App Store Connect links the companion watch app to the iOS app automatically."
       log ""
       print_testflight_instructions
@@ -1508,6 +1538,7 @@ main() {
       local confirm
       read -r -p "Proceed with watchOS + iOS TestFlight build and upload? [y/N] " confirm < /dev/tty
       [[ "$confirm" =~ ^[Yy]$ ]] || { log "Aborted."; exit 0; }
+      apply_app_version_update
       build_archive_export_upload_testflight_with_watch
       ;;
   esac
