@@ -31,7 +31,8 @@ import UIKit
            let cookie = args["cookie"] as? String,
            let baseUrl = args["baseUrl"] as? String {
           let userId = args["userId"] as? Int ?? 0
-          WatchBridge.shared.pushSession(cookie: cookie, baseUrl: baseUrl, userId: userId)
+          let userPhoto = args["userPhoto"] as? String ?? ""
+          WatchBridge.shared.pushSession(cookie: cookie, baseUrl: baseUrl, userId: userId, userPhoto: userPhoto)
         }
         result(nil)
       case "clearSession":

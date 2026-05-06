@@ -47,7 +47,10 @@ struct ConversationView: View {
                 let fresh = try? await viewModel.loadMessages(
                     threadId: thread.id, cookie: cookie, baseUrl: baseUrl
                 )
-                if let fresh, !fresh.isEmpty { messages = fresh }
+                if let fresh, !fresh.isEmpty {
+                    messages = fresh
+                    await viewModel.markThreadRead(threadId: thread.id, cookie: cookie, baseUrl: baseUrl)
+                }
             }
         }
     }
@@ -113,6 +116,7 @@ struct ConversationView: View {
             messages = try await viewModel.loadMessages(
                 threadId: thread.id, cookie: cookie, baseUrl: baseUrl
             )
+            await viewModel.markThreadRead(threadId: thread.id, cookie: cookie, baseUrl: baseUrl)
         } catch {
             loadError = error.localizedDescription
         }
@@ -135,6 +139,7 @@ struct ConversationView: View {
                 threadId: thread.id, cookie: cookie, baseUrl: baseUrl
             )
             if let fresh { messages = fresh }
+            await viewModel.markThreadRead(threadId: thread.id, cookie: cookie, baseUrl: baseUrl)
         } catch {
             messageText = text   // restore so user can retry
             sendError = "Gönderilemedi. Tekrar dene."

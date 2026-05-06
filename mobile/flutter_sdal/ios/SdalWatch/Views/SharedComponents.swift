@@ -101,20 +101,46 @@ func feedTypeLabel(_ type: String) -> String {
 func resolvedMediaURL(_ raw: String, baseUrl: String, profilePhoto: Bool = false) -> URL? {
     let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !value.isEmpty, value.lowercased() != "yok" else { return nil }
-    if value.hasPrefix("http://") || value.hasPrefix("https://") {
-        return URL(string: value)
-    }
-    if value.hasPrefix("//") {
-        return URL(string: "https:\(value)")
+    guard let base = URL(string: baseUrl) else { return URL(string: value) }
+    var origin = "\(base.scheme ?? "https")://\(base.host ?? "sdal.app")"
+    if let port = base.port {
+        origin += ":\(port)"
     }
 
-    guard let base = URL(string: baseUrl) else { return URL(string: value) }
-    let origin = "\(base.scheme ?? "https")://\(base.host ?? "sdal.app")"
+    if value.hasPrefix("http://") || value.hasPrefix("https://") {
+        if let url = URL(string: value),
+           url.host == base.host,
+           url.port == base.port,
+           url.path.hasPrefix("/uploads/") || url.path.hasPrefix("/api/media/") {
+            return watchMediaURL(origin: origin, path: url.path)
+        }
+        return mediaURL(from: value)
+    }
+    if value.hasPrefix("//") {
+        return mediaURL(from: "https:\(value)")
+    }
+
     if value.hasPrefix("/") {
-        return URL(string: "\(origin)\(value)")
+        return watchMediaURL(origin: origin, path: value)
     }
     if profilePhoto && !value.contains("/") {
-        return URL(string: "\(origin)/api/media/vesikalik/\(value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value)")
+        let encoded = value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+        return watchMediaURL(origin: origin, path: "/api/media/vesikalik/\(encoded)")
     }
-    return URL(string: "\(origin)/\(value)")
+    return watchMediaURL(origin: origin, path: "/\(value)")
+}
+
+private func mediaURL(from value: String) -> URL? {
+    if let url = URL(string: value) { return url }
+    let allowed = CharacterSet.urlQueryAllowed.union(.init(charactersIn: "/:#[]@!$&'()*+,;="))
+    return URL(string: value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value)
+}
+
+private func watchMediaURL(origin: String, path: String) -> URL? {
+    var components = URLComponents(string: "\(origin)/api/media/watch-image")
+    components?.queryItems = [
+        URLQueryItem(name: "width", value: "520"),
+        URLQueryItem(name: "src", value: path)
+    ]
+    return components?.url ?? mediaURL(from: "\(origin)\(path)")
 }

@@ -10,6 +10,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private let cookieKey  = "sdal_bridge_cookie"
     private let baseUrlKey = "sdal_bridge_base_url"
     private let userIdKey  = "sdal_bridge_user_id"
+    private let userPhotoKey = "sdal_bridge_user_photo"
 
     // MARK: - Lifecycle
 
@@ -77,13 +78,14 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     // MARK: - Flutter → Watch push
 
     /// Called by the Flutter MethodChannel when the session changes.
-    func pushSession(cookie: String, baseUrl: String, userId: Int = 0) {
+    func pushSession(cookie: String, baseUrl: String, userId: Int = 0, userPhoto: String = "") {
         // Always persist so buildContext() can serve Watch requests even if
         // isWatchAppInstalled was false when this was first called.
         let ud = UserDefaults.standard
         ud.set(cookie, forKey: cookieKey)
         ud.set(baseUrl, forKey: baseUrlKey)
         if userId > 0 { ud.set(userId, forKey: userIdKey) }
+        if !userPhoto.isEmpty { ud.set(userPhoto, forKey: userPhotoKey) }
 
         guard WCSession.isSupported(),
               WCSession.default.activationState == .activated else { return }
@@ -95,6 +97,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         ud.removeObject(forKey: cookieKey)
         ud.removeObject(forKey: baseUrlKey)
         ud.removeObject(forKey: userIdKey)
+        ud.removeObject(forKey: userPhotoKey)
 
         guard WCSession.isSupported(),
               WCSession.default.activationState == .activated else { return }
@@ -137,6 +140,9 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             ]
             let uid = ud.integer(forKey: userIdKey)
             if uid > 0 { ctx["userId"] = uid }
+            if let photo = ud.string(forKey: userPhotoKey), !photo.isEmpty {
+                ctx["userPhoto"] = photo
+            }
             return ctx
         }
         // Fallback: read cookie_jar v4 files written by Flutter.

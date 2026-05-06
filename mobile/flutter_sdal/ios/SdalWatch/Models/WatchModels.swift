@@ -176,7 +176,7 @@ struct WatchMember: Identifiable {
         self.firstName = (json["isim"] as? String) ?? ""
         self.lastName = (json["soyisim"] as? String) ?? ""
         self.handle = (json["kadi"] as? String) ?? ""
-        self.photo = (json["resim"] as? String) ?? ""
+        self.photo = (json["resim"] as? String) ?? (json["photo"] as? String) ?? ""
         self.profession = (json["meslek"] as? String) ?? ""
         self.city = (json["sehir"] as? String) ?? ""
         let year = (json["mezuniyetyili"] as? Int).map { String($0) }
@@ -184,7 +184,10 @@ struct WatchMember: Identifiable {
             ?? ""
         self.graduationYear = year
         self.following = boolValue(json["following"]) ?? false
-        self.isOnline = boolValue(json["isOnline"]) ?? boolValue(json["is_online"]) ?? false
+        self.isOnline = boolValue(json["online"])
+            ?? boolValue(json["isOnline"])
+            ?? boolValue(json["is_online"])
+            ?? false
     }
 
     var fullName: String {
@@ -226,10 +229,14 @@ struct WatchThread: Identifiable {
 
         let lastMsg = (json["last_message"] as? [String: Any])
             ?? (json["latest_message"] as? [String: Any])
+            ?? (json["lastMessage"] as? [String: Any])
         self.lastMessage = (lastMsg?["body"] as? String)
             ?? (json["last_message"] as? String)
+            ?? (json["lastMessage"] as? String)
             ?? ""
-        self.unreadCount = (json["unread_count"] as? Int) ?? 0
+        self.unreadCount = (json["unread_count"] as? Int)
+            ?? (json["unreadCount"] as? Int)
+            ?? 0
         self.updatedAt = (json["updated_at"] as? String)
             ?? (json["updatedAt"] as? String)
             ?? ""
@@ -274,7 +281,7 @@ struct WatchContact: Identifiable {
         self.firstName = (json["isim"] as? String) ?? ""
         self.lastName = (json["soyisim"] as? String) ?? ""
         self.handle = (json["kadi"] as? String) ?? ""
-        self.photo = (json["resim"] as? String) ?? ""
+        self.photo = (json["resim"] as? String) ?? (json["photo"] as? String) ?? ""
     }
 
     var fullName: String {

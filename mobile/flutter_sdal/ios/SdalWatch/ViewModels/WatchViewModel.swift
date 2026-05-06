@@ -40,6 +40,7 @@ final class WatchViewModel: ObservableObject {
 
     private let api = WatchAPIClient.shared
     private var autoRefreshTask: Task<Void, Never>?
+    private var lastNotifiedUnreadCount: Int?
 
     // MARK: - Bootstrap
 
@@ -73,6 +74,7 @@ final class WatchViewModel: ObservableObject {
     private func silentRefresh(cookie: String, baseUrl: String) async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadPosts(cookie: cookie, baseUrl: baseUrl, silent: true) }
+            group.addTask { await self.loadStories(cookie: cookie, baseUrl: baseUrl, silent: true) }
             group.addTask { await self.loadThreads(cookie: cookie, baseUrl: baseUrl, silent: true) }
             group.addTask { await self.loadNotifications(cookie: cookie, baseUrl: baseUrl, silent: true) }
             group.addTask { await self.loadOnlineMembers(cookie: cookie, baseUrl: baseUrl) }
@@ -237,7 +239,7 @@ final class WatchViewModel: ObservableObject {
         if !silent { membersState = .loading }
         do {
             let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            let path = "/api/members?q=\(encoded)&page=1&pageSize=20"
+            let path = "/api/members?term=\(encoded)&excludeSelf=1&page=1&pageSize=20"
             let raw = try await api.fetchArray(path: path, baseUrl: baseUrl, cookie: cookie)
             let members = raw.compactMap { WatchMember(json: $0) }
             membersState = .loaded(members)
@@ -260,7 +262,7 @@ final class WatchViewModel: ObservableObject {
             // Fallback: query with online flag
             do {
                 let raw = try await api.fetchArray(
-                    path: "/api/members?online=true&page=1&pageSize=50",
+                    path: "/api/members?online=1&excludeSelf=1&sort=online&page=1&pageSize=50",
                     baseUrl: baseUrl,
                     cookie: cookie
                 )
@@ -314,6 +316,7 @@ final class WatchViewModel: ObservableObject {
                 cookie: cookie
             )
             let threads = raw.compactMap { WatchThread(json: $0) }
+            maybeNotifyUnreadMessages(threads)
             threadsState = .loaded(threads)
         } catch {
             if !silent { threadsState = .failed(error.localizedDescription) }
@@ -332,20 +335,37 @@ final class WatchViewModel: ObservableObject {
     func sendMessage(threadId: Int, body: String, cookie: String, baseUrl: String) async throws {
         try await api.post(
             path: "/api/sdal-messenger/threads/\(threadId)/messages",
-            body: ["body": body],
+            body: ["text": body],
             baseUrl: baseUrl,
             cookie: cookie
         )
     }
 
-    func createThread(recipientId: Int, body: String, cookie: String, baseUrl: String) async throws -> Int {
-        let result = try await api.postDict(
-            path: "/api/sdal-messenger/threads",
-            body: ["recipient_id": recipientId, "body": body],
+    func markThreadRead(threadId: Int, cookie: String, baseUrl: String) async {
+        try? await api.post(
+            path: "/api/sdal-messenger/threads/\(threadId)/read",
+            body: [:],
             baseUrl: baseUrl,
             cookie: cookie
         )
-        let tid = (result["id"] as? Int) ?? (result["thread_id"] as? Int) ?? 0
+        await loadThreads(cookie: cookie, baseUrl: baseUrl, silent: true)
+    }
+
+    func createThread(recipientId: Int, body: String, cookie: String, baseUrl: String) async throws -> Int {
+        let result = try await api.postDict(
+            path: "/api/sdal-messenger/threads",
+            body: ["recipientIds": [recipientId]],
+            baseUrl: baseUrl,
+            cookie: cookie
+        )
+        let tid = (result["threadId"] as? Int)
+            ?? (result["thread_id"] as? Int)
+            ?? (result["id"] as? Int)
+            ?? 0
+        guard tid > 0 else { throw WatchAPIError.emptyResponse }
+        if tid > 0 {
+            try await sendMessage(threadId: tid, body: body, cookie: cookie, baseUrl: baseUrl)
+        }
         await loadThreads(cookie: cookie, baseUrl: baseUrl)
         return tid
     }
@@ -418,5 +438,22 @@ final class WatchViewModel: ObservableObject {
 
     var unreadMessageCount: Int {
         (threadsState.value ?? []).reduce(0) { $0 + $1.unreadCount }
+    }
+
+    private func maybeNotifyUnreadMessages(_ threads: [WatchThread]) {
+        let count = threads.reduce(0) { $0 + $1.unreadCount }
+        defer { lastNotifiedUnreadCount = count }
+        guard let previous = lastNotifiedUnreadCount, count > previous else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Yeni mesaj"
+        content.body = count == 1 ? "Okunmamış 1 mesajın var." : "\(count) okunmamış mesajın var."
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "sdal-watch-message-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
     }
 }

@@ -10,6 +10,7 @@ abstract final class WatchBridgeService {
     required String cookie,
     required String baseUrl,
     int userId = 0,
+    String userPhoto = '',
   }) async {
     if (!Platform.isIOS) return;
     try {
@@ -17,6 +18,7 @@ abstract final class WatchBridgeService {
         'cookie': cookie,
         'baseUrl': baseUrl,
         'userId': userId,
+        'userPhoto': userPhoto,
       });
     } on PlatformException {
       // Best-effort — watch sync failures must never crash the main app.

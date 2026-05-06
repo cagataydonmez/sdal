@@ -28,8 +28,12 @@ actor WatchAPIClient {
     // MARK: - URL builder
 
     private func buildURL(path: String, baseUrl: String) throws -> URL {
-        let base = baseUrl.hasSuffix("/") ? String(baseUrl.dropLast()) : baseUrl
         let p = path.hasPrefix("/") ? path : "/\(path)"
+        var base = baseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.hasSuffix("/") { base.removeLast() }
+        if base.hasSuffix("/api"), p.hasPrefix("/api/") {
+            base = String(base.dropLast(4))
+        }
         guard let url = URL(string: "\(base)\(p)") else {
             throw URLError(.badURL)
         }
@@ -97,7 +101,7 @@ actor WatchAPIClient {
     }
 
     private func extractArray(from dict: [String: Any]) -> [[String: Any]]? {
-        for key in ["items", "results", "posts", "threads",
+        for key in ["items", "rows", "results", "posts", "threads",
                     "notifications", "messages", "contacts",
                     "members", "users", "stories", "list", "records"] {
             if let arr = dict[key] as? [[String: Any]] { return arr }

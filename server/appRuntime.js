@@ -3845,6 +3845,7 @@ function issueCaptcha(req, res) {
 registerLegacyUtilityRoutes(app, {
   legacyMediaDir,
   legacyRoot,
+  uploadsDir,
   issueCaptcha,
   resolveMediaFile,
   sendImage,

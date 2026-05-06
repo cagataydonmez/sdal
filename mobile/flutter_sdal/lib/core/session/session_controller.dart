@@ -25,6 +25,7 @@ class SessionController extends AsyncNotifier<SessionSnapshot> {
           cookie: cookie,
           baseUrl: snapshot.config.siteBaseUrl,
           userId: snapshot.user?.id ?? 0,
+          userPhoto: snapshot.user?.photo ?? '',
         );
       }
     });

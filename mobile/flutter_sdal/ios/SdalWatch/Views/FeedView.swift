@@ -108,7 +108,7 @@ struct FeedView: View {
             // Right half – my profile avatar
             if sessionManager.myUserId > 0 {
                 NavigationLink(destination: MemberProfileView(memberId: sessionManager.myUserId)) {
-                    AvatarView(initials: "Ben", photoUrl: "", size: 36)
+                    AvatarView(initials: "Ben", photoUrl: sessionManager.myUserPhoto, size: 36)
                         .overlay(
                             Circle().stroke(Color.accentColor.opacity(0.4), lineWidth: 1.5)
                         )

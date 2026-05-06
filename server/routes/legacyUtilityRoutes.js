@@ -4,6 +4,7 @@ export function registerLegacyUtilityRoutes(app, deps) {
   const {
     legacyMediaDir,
     legacyRoot,
+    uploadsDir,
     issueCaptcha,
     resolveMediaFile,
     sendImage,
@@ -21,6 +22,46 @@ export function registerLegacyUtilityRoutes(app, deps) {
     formatUserText
   } = deps;
 
+  function safeDecodeURIComponent(value) {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+
+  function resolveWatchImageSource(src) {
+    const value = String(src || '').trim();
+    if (!value) return null;
+
+    let pathValue = value;
+    try {
+      const parsed = new URL(value);
+      pathValue = parsed.pathname;
+    } catch {
+      // Relative server path or bare filename.
+    }
+
+    if (pathValue.startsWith('/api/media/vesikalik/')) {
+      return resolveMediaFile(safeDecodeURIComponent(path.basename(pathValue)));
+    }
+
+    if (pathValue.startsWith('/uploads/')) {
+      const relative = safeDecodeURIComponent(pathValue.slice('/uploads/'.length))
+        .replace(/\\/g, '/')
+        .split('/')
+        .filter((segment) => segment && segment !== '.' && segment !== '..')
+        .join('/');
+      if (!relative) return null;
+      const filePath = path.resolve(uploadsDir, relative);
+      const root = path.resolve(uploadsDir);
+      if (filePath === root || !filePath.startsWith(`${root}${path.sep}`)) return null;
+      return filePath;
+    }
+
+    return resolveMediaFile(path.basename(pathValue));
+  }
+
   app.get('/api/media/vesikalik/:file', (req, res) => {
     const filePath = resolveMediaFile(req.params.file) || path.join(legacyMediaDir, 'vesikalik', 'nophoto.jpg');
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
@@ -37,6 +78,15 @@ export function registerLegacyUtilityRoutes(app, deps) {
 
     const resize = width || height ? { width: width || null, height: height || null, fit: 'inside' } : null;
     await sendImage(res, filePath, { resize });
+  });
+
+  app.get('/api/media/watch-image', async (req, res) => {
+    const filePath = resolveWatchImageSource(req.query.src || req.query.file || '');
+    if (!filePath) return res.status(404).send('File not found');
+    const width = Math.min(Math.max(parseInt(req.query.width || '520', 10) || 520, 80), 1200);
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    res.setHeader('Vary', 'Accept-Encoding');
+    await sendImage(res, filePath, { resize: { width, fit: 'inside' } });
   });
 
   app.get('/aspcaptcha.asp', (req, res) => issueCaptcha(req, res));
