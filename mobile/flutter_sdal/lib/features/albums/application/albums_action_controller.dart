@@ -53,6 +53,8 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
     Map<String, dynamic> editMetadata = const <String, dynamic>{},
+    String albumGroupKey = '',
+    int albumGroupIndex = 0,
   }) async {
     state = const AsyncActionState.loading(scope: 'albums:upload');
     final result = await _repository.uploadPhoto(
@@ -64,6 +66,8 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       allowComments: allowComments,
       taggedUserIds: taggedUserIds,
       editMetadata: editMetadata,
+      albumGroupKey: albumGroupKey,
+      albumGroupIndex: albumGroupIndex,
     );
     if (result.ok) {
       final payload = asJsonMap(result.rawData);

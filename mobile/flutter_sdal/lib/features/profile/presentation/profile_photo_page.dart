@@ -98,9 +98,7 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
                             ? null
                             : _upload,
                         child: Text(
-                          uploading
-                              ? l10n.submitInProgress
-                              : l10n.proofUploadAction,
+                          uploading ? l10n.submitInProgress : 'Fotoğrafı yükle',
                         ),
                       ),
                     ),

@@ -508,6 +508,26 @@ export function registerAlbumRoutes(app, {
     return values.map(() => '?').join(', ');
   }
 
+  function runAlbumUpload(req, res, next, fields) {
+    return albumUpload.fields(fields)(req, res, (error) => {
+      if (!error) return next();
+      const code = String(error?.code || '').trim();
+      const message = String(error?.message || '').trim();
+      if (code === 'LIMIT_FILE_SIZE' || message.toLowerCase().includes('too large')) {
+        return res.status(413).json({
+          ok: false,
+          message: 'Fotoğraf dosyası çok büyük. Lütfen fotoğrafları biraz küçültüp tekrar dene.',
+          code: 'UPLOAD_TOO_LARGE',
+        });
+      }
+      return res.status(400).json({
+        ok: false,
+        message: message || 'Fotoğraf yükleme tamamlanamadı.',
+        code: code || 'UPLOAD_FAILED',
+      });
+    });
+  }
+
   async function readTaggedUsers(taggedUserIds) {
     const ids = parseIdArray(taggedUserIds);
     if (!ids.length) return [];
@@ -1094,13 +1114,10 @@ export function registerAlbumRoutes(app, {
 
   app.post('/api/album/upload', (req, res, next) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    return albumUpload.fields([
+    return runAlbumUpload(req, res, next, [
       { name: 'file', maxCount: 1 },
       { name: 'sourceFile', maxCount: 1 },
-    ])(req, res, (error) => {
-      if (error) return next(error);
-      next();
-    });
+    ]);
   }, async (req, res) => {
     try {
       await schemaReady;
@@ -1121,6 +1138,14 @@ export function registerAlbumRoutes(app, {
       const allowComments = isTruthy(req.body?.yorumlaraIzin ?? req.body?.allowComments ?? true);
       const taggedUserIds = parseIdArray(req.body?.taggedUserIds);
       const editMetadata = parseJsonObjectField(req.body?.editMetadata);
+      const albumGroupKey = sanitizePlainUserText(
+        String(req.body?.albumGroupKey || req.body?.groupKey || '').trim(),
+        80,
+      );
+      const albumGroupIndex = Math.max(
+        0,
+        Number.parseInt(String(req.body?.albumGroupIndex || req.body?.groupIndex || '0'), 10) || 0,
+      );
 
       if (!categoryId) return res.status(400).send('Albüm seçmelisin.');
       if (!uploadFile?.filename) return res.status(400).send('Geçerli bir resim dosyası girmedin.');
@@ -1165,8 +1190,8 @@ export function registerAlbumRoutes(app, {
             0,
             boolValue(allowComments),
             JSON.stringify(taggedUserIds),
-            null,
-            0,
+            albumGroupKey || null,
+            albumGroupKey ? albumGroupIndex : 0,
           ],
         );
         await sqlRunAsync(
@@ -1192,8 +1217,8 @@ export function registerAlbumRoutes(app, {
             0,
             boolValue(allowComments),
             JSON.stringify(taggedUserIds),
-            null,
-            0,
+            albumGroupKey || null,
+            albumGroupKey ? albumGroupIndex : 0,
           ],
         );
         await sqlRunAsync(
@@ -1221,6 +1246,8 @@ export function registerAlbumRoutes(app, {
         id: photoId,
         file: storedFilename,
         categoryId,
+        groupKey: albumGroupKey,
+        groupIndex: albumGroupKey ? albumGroupIndex : 0,
         active: !requireApproval,
         requiresApproval: requireApproval,
       });
@@ -1232,13 +1259,10 @@ export function registerAlbumRoutes(app, {
 
   app.post('/api/album/upload-batch', (req, res, next) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    return albumUpload.fields([
+    return runAlbumUpload(req, res, next, [
       { name: 'files', maxCount: 20 },
       { name: 'sourceFiles', maxCount: 20 },
-    ])(req, res, (error) => {
-      if (error) return next(error);
-      next();
-    });
+    ]);
   }, async (req, res) => {
     try {
       await schemaReady;
@@ -1644,13 +1668,10 @@ export function registerAlbumRoutes(app, {
   // Replace the actual photo file while keeping all metadata/comments/likes.
   app.put('/api/photos/:id/file', (req, res, next) => {
     if (!req.session.userId) return res.status(401).send('Login required');
-    return albumUpload.fields([
+    return runAlbumUpload(req, res, next, [
       { name: 'file', maxCount: 1 },
       { name: 'sourceFile', maxCount: 1 },
-    ])(req, res, (error) => {
-      if (error) return next(error);
-      next();
-    });
+    ]);
   }, async (req, res) => {
     try {
       await schemaReady;

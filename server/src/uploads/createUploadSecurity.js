@@ -56,7 +56,9 @@ function buildStampedFilename(prefix, ext, userId = 'anon', separator = '') {
   return `${prefix}${userId}${separator}${stamp}${ext || '.jpg'}`;
 }
 
-function buildImageDiskUpload(destination, filenameBuilder, errorMessage) {
+function buildImageDiskUpload(destination, filenameBuilder, errorMessage, {
+  maxFileSizeBytes = 20 * 1024 * 1024,
+} = {}) {
   return multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, destination),
@@ -70,7 +72,7 @@ function buildImageDiskUpload(destination, filenameBuilder, errorMessage) {
         cb(null, true);
       }
     },
-    limits: { fileSize: 20 * 1024 * 1024 }
+    limits: { fileSize: maxFileSizeBytes }
   });
 }
 
@@ -124,7 +126,8 @@ export function createUploadSecurity({
       const ext = path.extname(file.originalname || '').toLowerCase();
       cb(null, buildStampedFilename('', ext, req.session.userId));
     },
-    'Geçerli bir resim dosyası girmedin. ( Geçerli dosya türleri : jpg,gif,png )'
+    'Geçerli bir resim dosyası girmedin. ( Geçerli dosya türleri : jpg,gif,png )',
+    { maxFileSizeBytes: 40 * 1024 * 1024 }
   );
 
   const postUpload = buildImageDiskUpload(

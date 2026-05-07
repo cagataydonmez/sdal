@@ -180,14 +180,26 @@ Future<ImageSource?> _chooseImageSource(BuildContext context) {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.photo_library_outlined, color: Colors.white),
-                    title: const Text('Galeri', style: TextStyle(color: Colors.white)),
+                    leading: const Icon(
+                      Icons.photo_library_outlined,
+                      color: Colors.white,
+                    ),
+                    title: const Text(
+                      'Galeri',
+                      style: TextStyle(color: Colors.white),
+                    ),
                     onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
                   ),
                   const Divider(height: 1, color: Color(0xFF3A3A3C)),
                   ListTile(
-                    leading: const Icon(Icons.camera_alt_outlined, color: Colors.white),
-                    title: const Text('Kamera', style: TextStyle(color: Colors.white)),
+                    leading: const Icon(
+                      Icons.camera_alt_outlined,
+                      color: Colors.white,
+                    ),
+                    title: const Text(
+                      'Kamera',
+                      style: TextStyle(color: Colors.white),
+                    ),
                     onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
                   ),
                 ],
@@ -201,10 +213,15 @@ Future<ImageSource?> _chooseImageSource(BuildContext context) {
                   backgroundColor: const Color(0xFF1C1C1E),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Vazgeç', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Vazgeç',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -314,7 +331,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     'sdal/photo_editor_capture',
   );
   static const double _maxDecodedDimension = 2048;
-  static const double _maxExportDimension = 1800;
+  static const double _maxExportDimension = 1600;
   static const List<_AspectChoice> _aspectChoices = [
     _AspectChoice('Serbest', null),
     _AspectChoice('1:1', 1),
@@ -397,7 +414,8 @@ class _CropImagePageState extends State<_CropImagePage> {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = _selectedAspectRatio ??
+    final ratio =
+        _selectedAspectRatio ??
         _rotatedImageRatio ??
         MediaQuery.sizeOf(context).aspectRatio;
     final canTransformImage =
@@ -460,14 +478,12 @@ class _CropImagePageState extends State<_CropImagePage> {
                                         ? Image.file(
                                             widget.sourceFile,
                                             fit: BoxFit.fill,
-                                            filterQuality:
-                                                FilterQuality.medium,
+                                            filterQuality: FilterQuality.medium,
                                             cacheWidth: _cacheWidth,
                                             cacheHeight: _cacheHeight,
                                           )
                                         : ColorFiltered(
-                                            colorFilter:
-                                                ColorFilter.matrix(
+                                            colorFilter: ColorFilter.matrix(
                                               _buildColorMatrix(),
                                             ),
                                             child: Image.file(
@@ -499,8 +515,8 @@ class _CropImagePageState extends State<_CropImagePage> {
                             ),
                             Positioned.fill(
                               child: IgnorePointer(
-                                ignoring: _activePanel ==
-                                        _EditorPanel.crop ||
+                                ignoring:
+                                    _activePanel == _EditorPanel.crop ||
                                     _showOriginalPreview,
                                 child: Stack(
                                   clipBehavior: Clip.none,
@@ -568,10 +584,7 @@ class _CropImagePageState extends State<_CropImagePage> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.72),
-            Colors.transparent,
-          ],
+          colors: [Colors.black.withValues(alpha: 0.72), Colors.transparent],
         ),
       ),
       child: SafeArea(
@@ -581,9 +594,7 @@ class _CropImagePageState extends State<_CropImagePage> {
           child: Row(
             children: [
               IconButton(
-                onPressed: _isSaving
-                    ? null
-                    : () => Navigator.of(context).pop(),
+                onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
                 icon: const Icon(
                   Icons.close_rounded,
                   color: Colors.white,
@@ -593,8 +604,9 @@ class _CropImagePageState extends State<_CropImagePage> {
               ),
               const Spacer(),
               IconButton(
-                onPressed:
-                    _decodedImage == null || _isSaving ? null : _rotateImage,
+                onPressed: _decodedImage == null || _isSaving
+                    ? null
+                    : _rotateImage,
                 icon: const Icon(
                   Icons.rotate_90_degrees_ccw_rounded,
                   color: Colors.white,
@@ -602,8 +614,9 @@ class _CropImagePageState extends State<_CropImagePage> {
                 tooltip: 'Döndür',
               ),
               IconButton(
-                onPressed:
-                    _decodedImage == null || _isSaving ? null : _resetAll,
+                onPressed: _decodedImage == null || _isSaving
+                    ? null
+                    : _resetAll,
                 icon: const Icon(Icons.refresh_rounded, color: Colors.white),
                 tooltip: 'Sıfırla',
               ),
@@ -619,8 +632,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                         ),
                       )
                     : FilledButton(
-                        onPressed:
-                            _decodedImage == null ? null : _saveCrop,
+                        onPressed: _decodedImage == null ? null : _saveCrop,
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.black,
@@ -659,10 +671,7 @@ class _CropImagePageState extends State<_CropImagePage> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Colors.transparent,
-            Colors.black.withValues(alpha: 0.82),
-          ],
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.82)],
         ),
       ),
       child: SafeArea(
@@ -692,26 +701,23 @@ class _CropImagePageState extends State<_CropImagePage> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildTabIcon(_EditorPanel.crop, Icons.crop_rounded, 'Kırp'),
-          _buildTabIcon(
-              _EditorPanel.text, Icons.text_fields_rounded, 'Yazı'),
+          _buildTabIcon(_EditorPanel.text, Icons.text_fields_rounded, 'Yazı'),
           _buildTabIcon(_EditorPanel.draw, Icons.brush_rounded, 'Çiz'),
-          _buildTabIcon(
-              _EditorPanel.hide, Icons.hide_image_outlined, 'Gizle'),
+          _buildTabIcon(_EditorPanel.hide, Icons.hide_image_outlined, 'Gizle'),
           _buildTabIcon(_EditorPanel.filter, Icons.tune_rounded, 'Filtre'),
         ],
       ),
     );
   }
 
-  Widget _buildTabIcon(
-      _EditorPanel panel, IconData icon, String label) {
+  Widget _buildTabIcon(_EditorPanel panel, IconData icon, String label) {
     final selected = _activePanel == panel;
     final active = _decodedImage != null && !_isSaving;
     final color = selected
         ? Colors.white
         : active
-            ? Colors.white60
-            : Colors.white30;
+        ? Colors.white60
+        : Colors.white30;
     return GestureDetector(
       onTap: active ? () => _changePanel(panel) : null,
       child: Padding(
@@ -726,8 +732,7 @@ class _CropImagePageState extends State<_CropImagePage> {
               style: TextStyle(
                 color: color,
                 fontSize: 11,
-                fontWeight:
-                    selected ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
             const SizedBox(height: 3),
@@ -760,11 +765,9 @@ class _CropImagePageState extends State<_CropImagePage> {
         key: ValueKey(_activePanel),
         child: switch (_activePanel) {
           _EditorPanel.crop => _buildCropControls(context),
-          _EditorPanel.text =>
-            _buildTextControls(context, selectedSticker),
+          _EditorPanel.text => _buildTextControls(context, selectedSticker),
           _EditorPanel.draw => _buildDrawControls(context),
-          _EditorPanel.hide =>
-            _buildHideControls(context, selectedHideRegion),
+          _EditorPanel.hide => _buildHideControls(context, selectedHideRegion),
           _EditorPanel.filter => _buildFilterControls(context),
         },
       ),
@@ -786,12 +789,11 @@ class _CropImagePageState extends State<_CropImagePage> {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final choice = _aspectChoices[index];
-                final selected = (choice.ratio == null &&
-                        _selectedAspectRatio == null) ||
+                final selected =
+                    (choice.ratio == null && _selectedAspectRatio == null) ||
                     (choice.ratio != null &&
                         _selectedAspectRatio != null &&
-                        (choice.ratio! - _selectedAspectRatio!).abs() <
-                            0.001);
+                        (choice.ratio! - _selectedAspectRatio!).abs() < 0.001);
                 return _OverlayChip(
                   label: choice.label,
                   selected: selected,
@@ -824,8 +826,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     );
   }
 
-  Widget _buildTextControls(
-      BuildContext context, _OverlaySticker? sticker) {
+  Widget _buildTextControls(BuildContext context, _OverlaySticker? sticker) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
@@ -872,8 +873,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                   return GestureDetector(
                     onTap: _isSaving
                         ? null
-                        : () =>
-                            _updateSelectedStickerColor(choice.color),
+                        : () => _updateSelectedStickerColor(choice.color),
                     child: Container(
                       width: 36,
                       height: 36,
@@ -914,15 +914,13 @@ class _CropImagePageState extends State<_CropImagePage> {
                     (_StickerBackgroundStyle.dark, 'Koyu'),
                     (_StickerBackgroundStyle.light, 'Açık'),
                   ];
-                  final (style, lbl) =
-                      bgs[index - _stickerFonts.length];
+                  final (style, lbl) = bgs[index - _stickerFonts.length];
                   return _OverlayChip(
                     label: lbl,
                     selected: sticker.backgroundStyle == style,
                     onTap: _isSaving
                         ? null
-                        : () =>
-                            _updateSelectedStickerBackground(style),
+                        : () => _updateSelectedStickerBackground(style),
                   );
                 },
               ),
@@ -932,8 +930,7 @@ class _CropImagePageState extends State<_CropImagePage> {
               value: sticker.scale.clamp(0.7, 2.8),
               min: 0.7,
               max: 2.8,
-              onChanged:
-                  _isSaving ? null : _updateSelectedStickerScale,
+              onChanged: _isSaving ? null : _updateSelectedStickerScale,
             ),
           ],
         ],
@@ -965,8 +962,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                   selected: _brushMode == _BrushMode.highlighter,
                   onTap: _isSaving
                       ? null
-                      : () =>
-                          _changeBrushMode(_BrushMode.highlighter),
+                      : () => _changeBrushMode(_BrushMode.highlighter),
                 ),
                 const Spacer(),
                 if (_strokes.isNotEmpty)
@@ -997,9 +993,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                 final swatch = swatches[index];
                 final sel = _drawColor == swatch;
                 return GestureDetector(
-                  onTap: _isSaving
-                      ? null
-                      : () => _changeDrawColor(swatch),
+                  onTap: _isSaving ? null : () => _changeDrawColor(swatch),
                   child: Container(
                     width: 36,
                     height: 36,
@@ -1028,8 +1022,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     );
   }
 
-  Widget _buildHideControls(
-      BuildContext context, _HideRegion? region) {
+  Widget _buildHideControls(BuildContext context, _HideRegion? region) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: SizedBox(
@@ -1048,8 +1041,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                 selected: region.style == _HideRegionStyle.blur,
                 onTap: _isSaving
                     ? null
-                    : () =>
-                        _updateSelectedHideStyle(_HideRegionStyle.blur),
+                    : () => _updateSelectedHideStyle(_HideRegionStyle.blur),
               ),
               const SizedBox(width: 8),
               _OverlayChip(
@@ -1057,9 +1049,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                 selected: region.style == _HideRegionStyle.mosaic,
                 onTap: _isSaving
                     ? null
-                    : () => _updateSelectedHideStyle(
-                          _HideRegionStyle.mosaic,
-                        ),
+                    : () => _updateSelectedHideStyle(_HideRegionStyle.mosaic),
               ),
               const Spacer(),
               _OverlayIconBtn(
@@ -1099,9 +1089,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                 return _OverlayChip(
                   label: preset.label,
                   selected: false,
-                  onTap: _isSaving
-                      ? null
-                      : () => _applyFilterPreset(preset),
+                  onTap: _isSaving ? null : () => _applyFilterPreset(preset),
                 );
               },
             ),
@@ -2145,7 +2133,12 @@ class _CropImagePageState extends State<_CropImagePage> {
         ),
       );
     } finally {
-      if (mounted) setState(() { _isSaving = false; _isCapturing = false; });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _isCapturing = false;
+        });
+      }
     }
   }
 
@@ -2172,7 +2165,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     }
     _logSaveStage('image-encode-begin');
     final bitmap = await _buildExportBitmap();
-    final bytes = Uint8List.fromList(img.encodeJpg(bitmap, quality: 90));
+    final bytes = Uint8List.fromList(img.encodeJpg(bitmap, quality: 84));
     _logSaveStage(
       'image-encode-done',
       details: '${bitmap.width}x${bitmap.height} -> ${bytes.length} bytes',
@@ -2673,7 +2666,6 @@ class _FilterPreset {
   final double saturation;
 }
 
-
 class _OverlayChip extends StatelessWidget {
   const _OverlayChip({
     required this.label,
@@ -2692,13 +2684,9 @@ class _OverlayChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.15),
+          color: selected ? Colors.white : Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.white : Colors.white30,
-          ),
+          border: Border.all(color: selected ? Colors.white : Colors.white30),
         ),
         child: Text(
           label,
@@ -2783,9 +2771,7 @@ class _OverlaySlider extends StatelessWidget {
               thumbColor: Colors.white,
               overlayColor: Colors.white24,
               trackHeight: 2,
-              thumbShape: const RoundSliderThumbShape(
-                enabledThumbRadius: 7,
-              ),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
             ),
             child: Slider(
               value: value.clamp(min, max),

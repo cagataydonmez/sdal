@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -411,30 +412,8 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     ];
     final notifier = ref.read(albumsActionControllerProvider.notifier);
     final uploadResult = _mediaItems.length == 1
-        ? await notifier.uploadPhoto(
-            categoryId: _selectedCategoryId,
-            title: titles.first,
-            description: _descriptionController.text.trim(),
-            file: _mediaItems.first.file,
-            sourceFile: _mediaItems.first.sourceFile,
-            allowComments: _allowComments,
-            taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
-            editMetadata: _mediaItems.first.metadata,
-          )
-        : await notifier.uploadPhotosBatch(
-            categoryId: _selectedCategoryId,
-            description: _descriptionController.text.trim(),
-            allowComments: _allowComments,
-            files: _mediaItems.map((item) => item.file).toList(growable: false),
-            sourceFiles: _mediaItems
-                .map((item) => item.sourceFile)
-                .toList(growable: false),
-            titles: titles,
-            taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
-            metadataList: _mediaItems
-                .map((item) => item.metadata)
-                .toList(growable: false),
-          );
+        ? await _uploadSingleMedia(notifier, titles.first, _mediaItems.first)
+        : await _uploadMediaSequentially(notifier, titles);
     if (!mounted) return;
     final state = ref.read(albumsActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -460,6 +439,61 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     if (uploadResult.photoId > 0) {
       context.replace('/albums/photo/${uploadResult.photoId}');
     }
+  }
+
+  Future<AlbumUploadResult> _uploadSingleMedia(
+    AlbumsActionController notifier,
+    String title,
+    EditedMediaResult item, {
+    String albumGroupKey = '',
+    int albumGroupIndex = 0,
+  }) {
+    return notifier.uploadPhoto(
+      categoryId: _selectedCategoryId,
+      title: title,
+      description: _descriptionController.text.trim(),
+      file: item.file,
+      sourceFile: item.sourceFile,
+      allowComments: _allowComments,
+      taggedUserIds: _taggedMembers.map((member) => member.id).toList(),
+      editMetadata: item.metadata,
+      albumGroupKey: albumGroupKey,
+      albumGroupIndex: albumGroupIndex,
+    );
+  }
+
+  Future<AlbumUploadResult> _uploadMediaSequentially(
+    AlbumsActionController notifier,
+    List<String> titles,
+  ) async {
+    final groupKey = _buildAlbumGroupKey();
+    var firstPhotoId = 0;
+    for (var index = 0; index < _mediaItems.length; index += 1) {
+      if (!mounted) {
+        return const AlbumUploadResult(ok: false, message: 'Yükleme durdu.');
+      }
+      final result = await _uploadSingleMedia(
+        notifier,
+        titles[index],
+        _mediaItems[index],
+        albumGroupKey: groupKey,
+        albumGroupIndex: index,
+      );
+      if (!result.ok) {
+        return result;
+      }
+      firstPhotoId = firstPhotoId == 0 ? result.photoId : firstPhotoId;
+    }
+    return AlbumUploadResult(
+      ok: true,
+      photoId: firstPhotoId,
+      message: '${_mediaItems.length} fotoğraf yüklendi.',
+    );
+  }
+
+  String _buildAlbumGroupKey() {
+    final random = math.Random().nextInt(1 << 32);
+    return 'album-${DateTime.now().microsecondsSinceEpoch}-$random';
   }
 
   String _buildTitleForUpload(String prefix, File file, int index, int total) {

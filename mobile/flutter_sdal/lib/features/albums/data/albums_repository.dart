@@ -665,6 +665,8 @@ class AlbumsRepository {
     required bool allowComments,
     List<int> taggedUserIds = const <int>[],
     JsonMap editMetadata = const <String, dynamic>{},
+    String albumGroupKey = '',
+    int albumGroupIndex = 0,
   }) {
     final files = <String, File>{'file': file};
     if (sourceFile != null) {
@@ -680,6 +682,10 @@ class AlbumsRepository {
         'aciklama': description,
         'yorumlaraIzin': allowComments ? '1' : '0',
         'taggedUserIds': taggedUserIds.join(','),
+        if (albumGroupKey.trim().isNotEmpty)
+          'albumGroupKey': albumGroupKey.trim(),
+        if (albumGroupKey.trim().isNotEmpty)
+          'albumGroupIndex': albumGroupIndex.toString(),
         if (editMetadata.isNotEmpty) 'editMetadata': editMetadata,
       },
       files: files,
