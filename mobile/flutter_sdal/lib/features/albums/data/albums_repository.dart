@@ -105,6 +105,9 @@ class AlbumPhotoCard {
     required this.commentCount,
     required this.liked,
     required this.allowComments,
+    this.groupKey = '',
+    this.groupCount = 1,
+    this.groupIndex = 0,
   });
 
   final int id;
@@ -118,6 +121,9 @@ class AlbumPhotoCard {
   final int commentCount;
   final bool liked;
   final bool allowComments;
+  final String groupKey;
+  final int groupCount;
+  final int groupIndex;
 
   factory AlbumPhotoCard.fromMap(JsonMap map) {
     return AlbumPhotoCard(
@@ -135,6 +141,35 @@ class AlbumPhotoCard {
       commentCount: asInt(map['commentCount']) ?? 0,
       liked: asBool(map['liked']) ?? false,
       allowComments: asBool(map['allowComments']) ?? true,
+      groupKey: coalesceText([
+        map['groupKey'],
+        map['album_group_key'],
+      ], fallback: ''),
+      groupCount: asInt(map['groupCount']) ?? 1,
+      groupIndex: asInt(map['groupIndex']) ?? 0,
+    );
+  }
+}
+
+class AlbumPhotoGroupItem {
+  const AlbumPhotoGroupItem({
+    required this.id,
+    required this.fileName,
+    required this.title,
+    required this.groupIndex,
+  });
+
+  final int id;
+  final String fileName;
+  final String title;
+  final int groupIndex;
+
+  factory AlbumPhotoGroupItem.fromMap(JsonMap map) {
+    return AlbumPhotoGroupItem(
+      id: asInt(map['id']) ?? 0,
+      fileName: coalesceText([map['fileName'], map['dosyaadi']], fallback: ''),
+      title: coalesceText([map['title'], map['baslik']], fallback: 'Fotoğraf'),
+      groupIndex: asInt(map['groupIndex']) ?? 0,
     );
   }
 }
@@ -286,6 +321,10 @@ class AlbumPhotoDetail {
     required this.taggedUsers,
     required this.editMetadata,
     required this.editSourceFileName,
+    this.groupKey = '',
+    this.groupCount = 1,
+    this.groupIndex = 0,
+    this.groupPhotos = const <AlbumPhotoGroupItem>[],
   });
 
   final int id;
@@ -308,6 +347,10 @@ class AlbumPhotoDetail {
   final List<AlbumTaggedMember> taggedUsers;
   final JsonMap editMetadata;
   final String editSourceFileName;
+  final String groupKey;
+  final int groupCount;
+  final int groupIndex;
+  final List<AlbumPhotoGroupItem> groupPhotos;
 
   factory AlbumPhotoDetail.fromPayload(JsonMap payload) {
     final row = asJsonMap(payload['row']);
@@ -342,6 +385,15 @@ class AlbumPhotoDetail {
       editSourceFileName: coalesceText([
         payload['editSourceFileName'],
       ], fallback: ''),
+      groupKey: coalesceText([
+        row['groupKey'],
+        row['album_group_key'],
+      ], fallback: ''),
+      groupCount: asInt(row['groupCount']) ?? 1,
+      groupIndex: asInt(row['groupIndex']) ?? 0,
+      groupPhotos: asJsonMapList(
+        payload['groupPhotos'],
+      ).map(AlbumPhotoGroupItem.fromMap).toList(growable: false),
     );
   }
 }

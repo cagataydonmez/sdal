@@ -126,15 +126,80 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
                                   SizedBox(
                                     width: itemWidth,
                                     height: itemWidth,
-                                    child: SdalNetworkImage(
-                                      imageUrl: config.siteBaseUri
-                                          .resolve(_thumbPath(photo.fileName))
-                                          .toString(),
-                                      fit: BoxFit.cover,
-                                      borderRadius: BorderRadius.circular(18),
-                                      enableLightbox: false,
-                                      cacheWidth: (itemWidth * 2).round(),
-                                      cacheHeight: (itemWidth * 2).round(),
+                                    child: Stack(
+                                      children: [
+                                        if (photo.groupCount > 1) ...[
+                                          Positioned.fill(
+                                            top: 8,
+                                            left: 8,
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .surfaceContainerHighest,
+                                                borderRadius:
+                                                    BorderRadius.circular(18),
+                                              ),
+                                            ),
+                                          ),
+                                          Positioned.fill(
+                                            top: 4,
+                                            left: 4,
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.surfaceContainer,
+                                                borderRadius:
+                                                    BorderRadius.circular(18),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        Positioned.fill(
+                                          child: SdalNetworkImage(
+                                            imageUrl: config.siteBaseUri
+                                                .resolve(
+                                                  _thumbPath(photo.fileName),
+                                                )
+                                                .toString(),
+                                            fit: BoxFit.cover,
+                                            borderRadius: BorderRadius.circular(
+                                              18,
+                                            ),
+                                            enableLightbox: false,
+                                            cacheWidth: (itemWidth * 2).round(),
+                                            cacheHeight: (itemWidth * 2)
+                                                .round(),
+                                          ),
+                                        ),
+                                        if (photo.groupCount > 1)
+                                          Positioned(
+                                            right: 8,
+                                            top: 8,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 5,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.58,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Text(
+                                                '${photo.groupCount}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                   const SizedBox(height: 8),

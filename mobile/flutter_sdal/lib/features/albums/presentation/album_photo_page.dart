@@ -35,12 +35,14 @@ class AlbumPhotoPage extends ConsumerStatefulWidget {
 class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   final TextEditingController _commentController = TextEditingController();
   final List<MemberSummary> _selectedMentions = <MemberSummary>[];
+  final PageController _groupPageController = PageController();
 
   AlbumPhotoDetail? _photo;
   List<AlbumComment> _comments = const <AlbumComment>[];
   bool _commentsHidden = false;
   bool _isLoading = true;
   String _error = '';
+  int _activeGroupIndex = 0;
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   @override
   void dispose() {
     _commentController.dispose();
+    _groupPageController.dispose();
     super.dispose();
   }
 
@@ -79,11 +82,11 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
             itemBuilder: (context) => const [
               PopupMenuItem<String>(
                 value: 'edit',
-                child: Text('Fotoğrafı düzenle'),
+                child: Text('Fotoğrafı/seriyi düzenle'),
               ),
               PopupMenuItem<String>(
                 value: 'delete',
-                child: Text('Fotoğrafı sil'),
+                child: Text('Fotoğrafı/seriyi sil'),
               ),
             ],
           ),
@@ -120,14 +123,14 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SdalNetworkImage(
-                    imageUrl: config.siteBaseUri
-                        .resolve(
-                          '/api/media/kucukresim?width=1400&file=${Uri.encodeComponent(_photo!.fileName)}',
-                        )
-                        .toString(),
-                    borderRadius: BorderRadius.circular(16),
-                    semanticLabel: _photo!.title,
+                  _PhotoGroupViewer(
+                    photo: _photo!,
+                    activeIndex: _activeGroupIndex,
+                    controller: _groupPageController,
+                    onChanged: (index) =>
+                        setState(() => _activeGroupIndex = index),
+                    onPrevious: _previousGroupPhoto,
+                    onNext: _nextGroupPhoto,
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -147,6 +150,10 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                       _MetaChip(label: '${_photo!.viewCount} görüntüleme'),
                       _MetaChip(label: '${_photo!.likeCount} beğeni'),
                       _MetaChip(label: '${_photo!.commentCount} yorum'),
+                      if (_photo!.groupCount > 1)
+                        _MetaChip(
+                          label: '${_photo!.groupCount} fotoğraflık seri',
+                        ),
                     ],
                   ),
                   if (_photo!.taggedUsers.isNotEmpty) ...[
@@ -344,7 +351,14 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
         _photo = photo;
         _comments = commentsPayload.$1;
         _commentsHidden = commentsPayload.$2;
+        _activeGroupIndex = _initialGroupIndex(photo);
       });
+      if (photo.groupPhotos.length > 1) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_groupPageController.hasClients) return;
+          _groupPageController.jumpToPage(_activeGroupIndex);
+        });
+      }
       ref.invalidate(albumPhotoLikesProvider(widget.photoId));
     } catch (error) {
       if (!mounted) return;
@@ -352,6 +366,32 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  int _initialGroupIndex(AlbumPhotoDetail photo) {
+    final photos = photo.groupPhotos;
+    if (photos.isEmpty) return 0;
+    final byId = photos.indexWhere((item) => item.id == widget.photoId);
+    if (byId >= 0) return byId;
+    final byFile = photos.indexWhere((item) => item.fileName == photo.fileName);
+    return byFile >= 0 ? byFile : 0;
+  }
+
+  void _previousGroupPhoto() {
+    if (_activeGroupIndex <= 0) return;
+    _groupPageController.previousPage(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _nextGroupPhoto() {
+    final total = _photo?.groupPhotos.length ?? 0;
+    if (_activeGroupIndex >= total - 1) return;
+    _groupPageController.nextPage(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _submitComment() async {
@@ -433,7 +473,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
               shrinkWrap: true,
               children: [
                 Text(
-                  'Fotoğrafı düzenle',
+                  photo.groupCount > 1
+                      ? 'Fotoğraf serisini düzenle'
+                      : 'Fotoğrafı düzenle',
                   style: Theme.of(ctx).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
@@ -838,8 +880,10 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Fotoğrafı sil'),
-        content: const Text(
-          'Bu fotoğraf ve altındaki yorumlar kaldırılacak. Bu işlem geri alınamaz.',
+        content: Text(
+          (_photo?.groupCount ?? 1) > 1
+              ? 'Bu serideki tüm fotoğraflar ve altındaki yorumlar kaldırılacak. Bu işlem geri alınamaz.'
+              : 'Bu fotoğraf ve altındaki yorumlar kaldırılacak. Bu işlem geri alınamaz.',
         ),
         actions: [
           TextButton(
@@ -870,6 +914,129 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     ref.invalidate(albumsDashboardProvider);
     ref.invalidate(myAlbumsProvider);
     context.pop();
+  }
+}
+
+class _PhotoGroupViewer extends ConsumerWidget {
+  const _PhotoGroupViewer({
+    required this.photo,
+    required this.activeIndex,
+    required this.controller,
+    required this.onChanged,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final AlbumPhotoDetail photo;
+  final int activeIndex;
+  final PageController controller;
+  final ValueChanged<int> onChanged;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(appConfigProvider);
+    final photos = photo.groupPhotos.isEmpty
+        ? [
+            AlbumPhotoGroupItem(
+              id: photo.id,
+              fileName: photo.fileName,
+              title: photo.title,
+              groupIndex: 0,
+            ),
+          ]
+        : photo.groupPhotos;
+    final hasMultiple = photos.length > 1;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: PageView.builder(
+              controller: controller,
+              onPageChanged: onChanged,
+              itemCount: photos.length,
+              itemBuilder: (context, index) {
+                final item = photos[index];
+                return SdalNetworkImage(
+                  imageUrl: config.siteBaseUri
+                      .resolve(
+                        '/api/media/kucukresim?width=1400&file=${Uri.encodeComponent(item.fileName)}',
+                      )
+                      .toString(),
+                  semanticLabel: item.title,
+                );
+              },
+            ),
+          ),
+        ),
+        if (hasMultiple) ...[
+          Positioned(
+            left: 8,
+            child: _PhotoGroupArrowButton(
+              icon: Icons.chevron_left_rounded,
+              enabled: activeIndex > 0,
+              onPressed: onPrevious,
+            ),
+          ),
+          Positioned(
+            right: 8,
+            child: _PhotoGroupArrowButton(
+              icon: Icons.chevron_right_rounded,
+              enabled: activeIndex < photos.length - 1,
+              onPressed: onNext,
+            ),
+          ),
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.56),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${activeIndex + 1}/${photos.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PhotoGroupArrowButton extends StatelessWidget {
+  const _PhotoGroupArrowButton({
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(icon),
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.black.withValues(alpha: enabled ? 0.52 : 0.22),
+        foregroundColor: Colors.white,
+        disabledForegroundColor: Colors.white54,
+      ),
+    );
   }
 }
 

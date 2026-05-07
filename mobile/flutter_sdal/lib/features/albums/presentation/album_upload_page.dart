@@ -270,16 +270,21 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(18),
-                                child: SizedBox(
-                                  width: 144,
-                                  child: AspectRatio(
-                                    aspectRatio: 4 / 3,
-                                    child: SdalLightboxImage(
-                                      imageProvider: FileImage(item.file),
-                                      semanticLabel: 'Yüklenecek fotoğraf',
-                                      child: Image.file(
-                                        item.file,
-                                        fit: BoxFit.cover,
+                                child: InkWell(
+                                  onTap: isSaving
+                                      ? null
+                                      : () => _editSelectedMedia(index),
+                                  child: SizedBox(
+                                    width: 144,
+                                    child: AspectRatio(
+                                      aspectRatio: 4 / 3,
+                                      child: SdalLightboxImage(
+                                        imageProvider: FileImage(item.file),
+                                        semanticLabel: 'Yüklenecek fotoğraf',
+                                        child: Image.file(
+                                          item.file,
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -358,6 +363,25 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     });
   }
 
+  Future<void> _editSelectedMedia(int index) async {
+    if (index < 0 || index >= _mediaItems.length) return;
+    final item = _mediaItems[index];
+    final edited = await editImageFile(
+      context,
+      sourceFile: item.sourceFile,
+      title: 'Fotoğrafı düzenle ${index + 1}/${_mediaItems.length}',
+      initialMetadata: item.metadata,
+    );
+    if (!mounted || edited == null) return;
+    setState(() {
+      _mediaItems = [
+        ..._mediaItems.take(index),
+        edited,
+        ..._mediaItems.skip(index + 1),
+      ];
+    });
+  }
+
   Future<void> _upload() async {
     if (_selectedCategoryId <= 0 || _mediaItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -366,14 +390,24 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       return;
     }
     final titlePrefix = _titleController.text.trim();
+    final sharedBatchTitle = titlePrefix.isNotEmpty
+        ? titlePrefix
+        : _buildTitleForUpload(
+            '',
+            _mediaItems.first.file,
+            0,
+            _mediaItems.length,
+          );
     final titles = <String>[
       for (var index = 0; index < _mediaItems.length; index += 1)
-        _buildTitleForUpload(
-          titlePrefix,
-          _mediaItems[index].file,
-          index,
-          _mediaItems.length,
-        ),
+        _mediaItems.length > 1
+            ? sharedBatchTitle
+            : _buildTitleForUpload(
+                titlePrefix,
+                _mediaItems[index].file,
+                index,
+                _mediaItems.length,
+              ),
     ];
     final notifier = ref.read(albumsActionControllerProvider.notifier);
     final uploadResult = _mediaItems.length == 1

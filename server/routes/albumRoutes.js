@@ -1,4 +1,5 @@
 import path from 'path';
+import { randomUUID } from 'crypto';
 
 export function registerAlbumRoutes(app, {
   dbDriver,
@@ -72,7 +73,9 @@ export function registerAlbumRoutes(app, {
        COALESCE(${alias}.updated_at::text, '') AS updated_at,
        COALESCE(${alias}.view_count, 0) AS view_count,
        COALESCE(${alias}.allow_comments, TRUE) AS allow_comments,
-       COALESCE(${alias}.tagged_user_ids_json, '[]') AS tagged_user_ids_json`
+       COALESCE(${alias}.tagged_user_ids_json, '[]') AS tagged_user_ids_json,
+       COALESCE(${alias}.album_group_key, '') AS album_group_key,
+       COALESCE(${alias}.album_group_index, 0) AS album_group_index`
     : `${alias}.id,
        ${alias}.katid AS category_id,
        COALESCE(${alias}.dosyaadi, '') AS file_name,
@@ -84,7 +87,9 @@ export function registerAlbumRoutes(app, {
        COALESCE(${alias}.updated_at, '') AS updated_at,
        COALESCE(${alias}.hit, 0) AS view_count,
        COALESCE(${alias}.allow_comments, 1) AS allow_comments,
-       COALESCE(${alias}.tagged_user_ids_json, '[]') AS tagged_user_ids_json`;
+       COALESCE(${alias}.tagged_user_ids_json, '[]') AS tagged_user_ids_json,
+       COALESCE(${alias}.album_group_key, '') AS album_group_key,
+       COALESCE(${alias}.album_group_index, 0) AS album_group_index`;
 
   const userSelect = (alias = 'u') => isPostgres
     ? `${alias}.id,
@@ -261,6 +266,8 @@ export function registerAlbumRoutes(app, {
       'ALTER TABLE album_foto ADD COLUMN allow_comments INTEGER DEFAULT 1',
       'ALTER TABLE album_foto ADD COLUMN updated_at TEXT',
       "ALTER TABLE album_foto ADD COLUMN tagged_user_ids_json TEXT DEFAULT '[]'",
+      'ALTER TABLE album_foto ADD COLUMN album_group_key TEXT',
+      'ALTER TABLE album_foto ADD COLUMN album_group_index INTEGER DEFAULT 0',
       'ALTER TABLE album_fotoyorum ADD COLUMN author_user_id INTEGER',
       'ALTER TABLE album_fotoyorum ADD COLUMN updated_at TEXT',
       `CREATE TABLE IF NOT EXISTS ${likeTable} (
@@ -468,6 +475,37 @@ export function registerAlbumRoutes(app, {
        WHERE p.id = ?`,
       [photoId],
     );
+  }
+
+  async function listPhotoGroup(photo) {
+    const groupKey = String(photo?.album_group_key || '').trim();
+    if (!photo || !groupKey) return photo ? [photo] : [];
+    return sqlAllAsync(
+      `SELECT ${photoSelect('p')}
+       FROM ${photoTable} p
+       WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
+         AND COALESCE(p.album_group_key, '') = ?
+         AND ${photoActiveSql}
+       ORDER BY COALESCE(p.album_group_index, 0) ASC, p.id ASC`,
+      [photo.category_id, groupKey],
+    );
+  }
+
+  async function getPhotoGroupContext(photo) {
+    const photos = await listPhotoGroup(photo);
+    const ids = photos.map((item) => Number(item.id || 0)).filter(Boolean);
+    const canonical = photos[0] || photo;
+    return {
+      photos,
+      ids,
+      canonical,
+      canonicalId: Number(canonical?.id || photo?.id || 0),
+      isGroup: ids.length > 1,
+    };
+  }
+
+  function sqlInPlaceholders(values) {
+    return values.map(() => '?').join(', ');
   }
 
   async function readTaggedUsers(taggedUserIds) {
@@ -1113,8 +1151,8 @@ export function registerAlbumRoutes(app, {
       if (isPostgres) {
         result = await sqlRunAsync(
           `INSERT INTO ${photoTable}
-            (category_id, file_name, title, description, is_active, uploaded_by_user_id, created_at, updated_at, view_count, allow_comments, tagged_user_ids_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (category_id, file_name, title, description, is_active, uploaded_by_user_id, created_at, updated_at, view_count, allow_comments, tagged_user_ids_json, album_group_key, album_group_index)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             categoryId,
             storedFilename,
@@ -1127,6 +1165,8 @@ export function registerAlbumRoutes(app, {
             0,
             boolValue(allowComments),
             JSON.stringify(taggedUserIds),
+            null,
+            0,
           ],
         );
         await sqlRunAsync(
@@ -1138,8 +1178,8 @@ export function registerAlbumRoutes(app, {
       } else {
         result = await sqlRunAsync(
           `INSERT INTO ${photoTable}
-            (katid, dosyaadi, baslik, aciklama, aktif, ekleyenid, tarih, updated_at, hit, allow_comments, tagged_user_ids_json)
-           VALUES (CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (katid, dosyaadi, baslik, aciklama, aktif, ekleyenid, tarih, updated_at, hit, allow_comments, tagged_user_ids_json, album_group_key, album_group_index)
+           VALUES (CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             categoryId,
             storedFilename,
@@ -1152,6 +1192,8 @@ export function registerAlbumRoutes(app, {
             0,
             boolValue(allowComments),
             JSON.stringify(taggedUserIds),
+            null,
+            0,
           ],
         );
         await sqlRunAsync(
@@ -1232,6 +1274,8 @@ export function registerAlbumRoutes(app, {
       const createdItems = [];
       let lastStoredFilename = '';
       const now = new Date().toISOString();
+      const groupKey = files.length > 1 ? randomUUID() : null;
+      const sharedTitle = titles.find((item) => String(item || '').trim()) || '';
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
         const processed = await processDiskImageUpload({
@@ -1250,13 +1294,13 @@ export function registerAlbumRoutes(app, {
         const fallbackTitle = String(file.originalname || 'Fotoğraf')
           .replace(/\.[^.]+$/, '')
           .trim();
-        const title = titles[index] || fallbackTitle || `Fotoğraf ${index + 1}`;
+        const title = sharedTitle || fallbackTitle || `Fotoğraf ${index + 1}`;
         let result;
         if (isPostgres) {
           result = await sqlRunAsync(
             `INSERT INTO ${photoTable}
-              (category_id, file_name, title, description, is_active, uploaded_by_user_id, created_at, updated_at, view_count, allow_comments, tagged_user_ids_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (category_id, file_name, title, description, is_active, uploaded_by_user_id, created_at, updated_at, view_count, allow_comments, tagged_user_ids_json, album_group_key, album_group_index)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               categoryId,
               storedFilename,
@@ -1269,13 +1313,15 @@ export function registerAlbumRoutes(app, {
               0,
               boolValue(allowComments),
               JSON.stringify(taggedUserIds),
+              groupKey,
+              groupKey ? index : 0,
             ],
           );
         } else {
           result = await sqlRunAsync(
             `INSERT INTO ${photoTable}
-              (katid, dosyaadi, baslik, aciklama, aktif, ekleyenid, tarih, updated_at, hit, allow_comments, tagged_user_ids_json)
-             VALUES (CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (katid, dosyaadi, baslik, aciklama, aktif, ekleyenid, tarih, updated_at, hit, allow_comments, tagged_user_ids_json, album_group_key, album_group_index)
+             VALUES (CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               categoryId,
               storedFilename,
@@ -1288,6 +1334,8 @@ export function registerAlbumRoutes(app, {
               0,
               boolValue(allowComments),
               JSON.stringify(taggedUserIds),
+              groupKey,
+              groupKey ? index : 0,
             ],
           );
         }
@@ -1307,6 +1355,8 @@ export function registerAlbumRoutes(app, {
           id: photoId,
           file: storedFilename,
           title,
+          groupKey: groupKey || '',
+          groupIndex: groupKey ? index : 0,
         });
       }
 
@@ -1330,6 +1380,7 @@ export function registerAlbumRoutes(app, {
         ok: true,
         count: createdItems.length,
         items: createdItems,
+        groupKey: groupKey || '',
         categoryId,
       });
     } catch (error) {
@@ -1371,21 +1422,36 @@ export function registerAlbumRoutes(app, {
       );
 
       const photos = [];
+      const seenPhotoGroups = new Set();
       for (const row of rows) {
-        const likeCountRow = await sqlGetAsync(`SELECT COUNT(*) AS cnt FROM ${likeTable} WHERE photo_id = ?`, [row.id]);
+        const groupKey = String(row.album_group_key || '').trim();
+        const dedupeKey = groupKey ? `group:${groupKey}` : `photo:${row.id}`;
+        if (seenPhotoGroups.has(dedupeKey)) continue;
+        seenPhotoGroups.add(dedupeKey);
+        const group = await getPhotoGroupContext(row);
+        const displayPhoto = group.canonical || row;
+        const aggregateIds = group.ids.length ? group.ids : [row.id];
+        const placeholders = sqlInPlaceholders(aggregateIds);
+        const likeCountRow = await sqlGetAsync(
+          `SELECT COUNT(DISTINCT user_id) AS cnt FROM ${likeTable} WHERE photo_id IN (${placeholders})`,
+          aggregateIds,
+        );
         const commentCountRow = await sqlGetAsync(
-          `SELECT COUNT(*) AS cnt FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} = ?`,
-          [row.id],
+          `SELECT COUNT(*) AS cnt FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} IN (${placeholders})`,
+          aggregateIds,
         );
         photos.push({
-          id: Number(row.id || 0),
-          dosyaadi: row.file_name || '',
-          baslik: row.title || 'Fotoğraf',
-          tarih: row.created_at || '',
-          viewCount: Number(row.view_count || 0),
+          id: Number(displayPhoto.id || 0),
+          dosyaadi: displayPhoto.file_name || '',
+          baslik: displayPhoto.title || 'Fotoğraf',
+          tarih: displayPhoto.created_at || '',
+          viewCount: Number(displayPhoto.view_count || 0),
           likeCount: Number(likeCountRow?.cnt || 0),
           commentCount: Number(commentCountRow?.cnt || 0),
-          allowComments: isTruthy(row.allow_comments),
+          allowComments: isTruthy(displayPhoto.allow_comments),
+          groupKey,
+          groupCount: group.ids.length,
+          groupIndex: Number(displayPhoto.album_group_index || 0),
         });
       }
 
@@ -1426,6 +1492,9 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
+      const placeholders = sqlInPlaceholders(aggregateIds);
 
       const canEditPhoto = sameUserId(context.photo.uploaded_by_user_id, req.session.userId) || hasCategoryManagementAccess(currentUser);
       if (isPostgres) {
@@ -1434,14 +1503,17 @@ export function registerAlbumRoutes(app, {
         await sqlRunAsync(`UPDATE ${photoTable} SET hit = COALESCE(hit, 0) + 1 WHERE id = ?`, [context.photo.id]);
       }
 
-      const likeCountRow = await sqlGetAsync(`SELECT COUNT(*) AS cnt FROM ${likeTable} WHERE photo_id = ?`, [context.photo.id]);
+      const likeCountRow = await sqlGetAsync(
+        `SELECT COUNT(DISTINCT user_id) AS cnt FROM ${likeTable} WHERE photo_id IN (${placeholders})`,
+        aggregateIds,
+      );
       const commentCountRow = await sqlGetAsync(
-        `SELECT COUNT(*) AS cnt FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} = ?`,
-        [context.photo.id],
+        `SELECT COUNT(*) AS cnt FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} IN (${placeholders})`,
+        aggregateIds,
       );
       const likedRow = await sqlGetAsync(
-        `SELECT id FROM ${likeTable} WHERE photo_id = ? AND user_id = ? LIMIT 1`,
-        [context.photo.id, req.session.userId],
+        `SELECT id FROM ${likeTable} WHERE photo_id IN (${placeholders}) AND user_id = ? LIMIT 1`,
+        [...aggregateIds, req.session.userId],
       );
       const taggedUsers = await readTaggedUsers(parseStringArrayJson(context.photo.tagged_user_ids_json));
       const editState = await getPhotoEditState(context.photo.id);
@@ -1461,7 +1533,16 @@ export function registerAlbumRoutes(app, {
           commentCount: Number(commentCountRow?.cnt || 0),
           liked: !!likedRow,
           ekleyenid: normalizeUserId(context.photo.uploaded_by_user_id),
+          groupKey: context.photo.album_group_key || '',
+          groupIndex: Number(context.photo.album_group_index || 0),
+          groupCount: group.ids.length,
         },
+        groupPhotos: group.photos.map((item) => ({
+          id: Number(item.id || 0),
+          fileName: item.file_name || '',
+          title: item.title || 'Fotoğraf',
+          groupIndex: Number(item.album_group_index || 0),
+        })),
         category: await summarizeCategory(context.category, viewer, currentUser),
         taggedUsers: taggedUsers.map((row) => ({
           id: Number(row.id || 0),
@@ -1492,6 +1573,9 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
+      const placeholders = sqlInPlaceholders(aggregateIds);
       const canEditPhoto = sameUserId(context.photo.uploaded_by_user_id, req.session.userId) || hasCategoryManagementAccess(currentUser);
       if (!canEditPhoto) return res.status(403).send('Bu fotoğrafı düzenleme yetkin yok.');
 
@@ -1514,28 +1598,28 @@ export function registerAlbumRoutes(app, {
         await sqlRunAsync(
           `UPDATE ${photoTable}
            SET title = ?, description = ?, allow_comments = ?, tagged_user_ids_json = ?, updated_at = ?
-           WHERE id = ?`,
+           WHERE id IN (${placeholders})`,
           [
             title,
             description,
             boolValue(allowComments),
             JSON.stringify(taggedUserIds),
             new Date().toISOString(),
-            context.photo.id,
+            ...aggregateIds,
           ],
         );
       } else {
         await sqlRunAsync(
           `UPDATE ${photoTable}
            SET baslik = ?, aciklama = ?, allow_comments = ?, tagged_user_ids_json = ?, updated_at = ?
-           WHERE id = ?`,
+           WHERE id IN (${placeholders})`,
           [
             title,
             description,
             boolValue(allowComments),
             JSON.stringify(taggedUserIds),
             new Date().toISOString(),
-            context.photo.id,
+            ...aggregateIds,
           ],
         );
       }
@@ -1646,6 +1730,9 @@ export function registerAlbumRoutes(app, {
       if (context.error) {
         return res.status(context.error.status).send(context.error.message);
       }
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
+      const placeholders = sqlInPlaceholders(aggregateIds);
 
       const canEditPhoto =
         sameUserId(context.photo.uploaded_by_user_id, req.session.userId) ||
@@ -1655,25 +1742,28 @@ export function registerAlbumRoutes(app, {
       }
 
       await sqlRunAsync(
-        `DELETE FROM ${likeTable} WHERE photo_id = ?`,
-        [context.photo.id],
+        `DELETE FROM ${likeTable} WHERE photo_id IN (${placeholders})`,
+        aggregateIds,
       );
       await sqlRunAsync(
-        `DELETE FROM ${editTable} WHERE photo_id = ?`,
-        [context.photo.id],
+        `DELETE FROM ${editTable} WHERE photo_id IN (${placeholders})`,
+        aggregateIds,
       );
       await sqlRunAsync(
-        `DELETE FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} = ?`,
-        [context.photo.id],
+        `DELETE FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} IN (${placeholders})`,
+        aggregateIds,
       );
-      await sqlRunAsync(`DELETE FROM ${photoTable} WHERE id = ?`, [context.photo.id]);
+      await sqlRunAsync(`DELETE FROM ${photoTable} WHERE id IN (${placeholders})`, aggregateIds);
       await sqlRunAsync(
         `UPDATE ${categoryTable}
          SET cover_mode = 'latest',
              cover_file_name = NULL
          WHERE id = ?
-           AND COALESCE(cover_file_name, '') = ?`,
-        [context.category.id, context.photo.file_name || ''],
+           AND COALESCE(cover_file_name, '') IN (${sqlInPlaceholders(group.photos.map((item) => item.file_name || ''))})`,
+        [
+          context.category.id,
+          ...group.photos.map((item) => item.file_name || ''),
+        ],
       );
 
       res.json({ ok: true });
@@ -1691,6 +1781,9 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
+      const placeholders = sqlInPlaceholders(aggregateIds);
 
       const canManageComments = sameUserId(context.photo.uploaded_by_user_id, req.session.userId) || hasCategoryManagementAccess(currentUser);
       const commentsHidden = !isTruthy(context.photo.allow_comments);
@@ -1708,9 +1801,9 @@ export function registerAlbumRoutes(app, {
                 ${userSelect('u')}
          FROM ${commentTable} c
          LEFT JOIN ${userTable} u ON u.id = c.${isPostgres ? 'author_user_id' : 'author_user_id'}
-         WHERE c.${isPostgres ? 'photo_id' : 'fotoid'} = ?
+         WHERE c.${isPostgres ? 'photo_id' : 'fotoid'} IN (${placeholders})
          ORDER BY c.id DESC`,
-        [context.photo.id],
+        aggregateIds,
       );
 
       const comments = rows.map((row) => {
@@ -1747,6 +1840,7 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
       if (!isTruthy(context.photo.allow_comments)) {
         return res.status(400).send('Fotoğraf şu anda yoruma kapalı.');
       }
@@ -1761,13 +1855,13 @@ export function registerAlbumRoutes(app, {
         await sqlRunAsync(
           `INSERT INTO ${commentTable} (photo_id, author_username, author_user_id, comment_body, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [context.photo.id, authorHandle, req.session.userId, comment, now, now],
+          [group.canonicalId, authorHandle, req.session.userId, comment, now, now],
         );
       } else {
         await sqlRunAsync(
           `INSERT INTO ${commentTable} (fotoid, uyeadi, author_user_id, yorum, tarih, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [context.photo.id, authorHandle, req.session.userId, comment, now, now],
+          [group.canonicalId, authorHandle, req.session.userId, comment, now, now],
         );
       }
 
@@ -1777,7 +1871,7 @@ export function registerAlbumRoutes(app, {
           userId: ownerId,
           type: 'photo_comment',
           sourceUserId: req.session.userId,
-          entityId: context.photo.id,
+          entityId: group.canonicalId,
           message: 'Fotoğrafına yorum yaptı.',
         });
       }
@@ -1785,7 +1879,7 @@ export function registerAlbumRoutes(app, {
       notifyMentions({
         text: rawComment,
         sourceUserId: req.session.userId,
-        entityId: context.photo.id,
+        entityId: group.canonicalId,
         type: 'mention_photo',
         message: 'Fotoğraf yorumunda senden bahsetti.',
       });
@@ -1805,6 +1899,8 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
 
       const commentId = Number(req.params.commentId || 0);
       const row = await sqlGetAsync(
@@ -1813,7 +1909,7 @@ export function registerAlbumRoutes(app, {
          WHERE id = ?`,
         [commentId],
       );
-      if (!row || Number(row.photo_id || 0) !== Number(context.photo.id || 0)) {
+      if (!row || !aggregateIds.includes(Number(row.photo_id || 0))) {
         return res.status(404).send('Yorum bulunamadı.');
       }
       if (!sameUserId(row.author_user_id, req.session.userId) && !hasCategoryManagementAccess(currentUser)) {
@@ -1856,6 +1952,8 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
 
       const commentId = Number(req.params.commentId || 0);
       const row = await sqlGetAsync(
@@ -1864,7 +1962,7 @@ export function registerAlbumRoutes(app, {
          WHERE id = ?`,
         [commentId],
       );
-      if (!row || Number(row.photo_id || 0) !== Number(context.photo.id || 0)) {
+      if (!row || !aggregateIds.includes(Number(row.photo_id || 0))) {
         return res.status(404).send('Yorum bulunamadı.');
       }
 
@@ -1889,14 +1987,17 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
+      const placeholders = sqlInPlaceholders(aggregateIds);
 
       const canDeleteAll = sameUserId(context.photo.uploaded_by_user_id, req.session.userId) ||
         hasCategoryManagementAccess(currentUser);
       if (!canDeleteAll) return res.status(403).send('Bu fotoğrafın yorumlarını topluca silemezsin.');
 
       await sqlRunAsync(
-        `DELETE FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} = ?`,
-        [context.photo.id],
+        `DELETE FROM ${commentTable} WHERE ${isPostgres ? 'photo_id' : 'fotoid'} IN (${placeholders})`,
+        aggregateIds,
       );
       res.json({ ok: true });
     } catch (error) {
@@ -1913,19 +2014,25 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
+      const placeholders = sqlInPlaceholders(aggregateIds);
 
       const existing = await sqlGetAsync(
-        `SELECT id FROM ${likeTable} WHERE photo_id = ? AND user_id = ? LIMIT 1`,
-        [context.photo.id, req.session.userId],
+        `SELECT id FROM ${likeTable} WHERE photo_id IN (${placeholders}) AND user_id = ? LIMIT 1`,
+        [...aggregateIds, req.session.userId],
       );
       let liked = false;
       if (existing) {
-        await sqlRunAsync(`DELETE FROM ${likeTable} WHERE id = ?`, [existing.id]);
+        await sqlRunAsync(
+          `DELETE FROM ${likeTable} WHERE photo_id IN (${placeholders}) AND user_id = ?`,
+          [...aggregateIds, req.session.userId],
+        );
       } else {
         liked = true;
         await sqlRunAsync(
           `INSERT INTO ${likeTable} (photo_id, user_id, created_at) VALUES (?, ?, ?)`,
-          [context.photo.id, req.session.userId, new Date().toISOString()],
+          [group.canonicalId, req.session.userId, new Date().toISOString()],
         );
         const ownerId = normalizeUserId(context.photo.uploaded_by_user_id);
         if (ownerId && !sameUserId(ownerId, req.session.userId)) {
@@ -1933,7 +2040,7 @@ export function registerAlbumRoutes(app, {
             userId: ownerId,
             type: 'mention_photo',
             sourceUserId: req.session.userId,
-            entityId: context.photo.id,
+            entityId: group.canonicalId,
             message: 'Fotoğrafını beğendi.',
           });
         }
@@ -1953,17 +2060,26 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const group = await getPhotoGroupContext(context.photo);
+      const aggregateIds = group.ids.length ? group.ids : [context.photo.id];
+      const placeholders = sqlInPlaceholders(aggregateIds);
 
       const rows = await sqlAllAsync(
-        `SELECT ${userSelect('u')}
+        `SELECT ${userSelect('u')}, l.created_at AS liked_at
          FROM ${likeTable} l
          JOIN ${userTable} u ON u.id = l.user_id
-         WHERE l.photo_id = ?
+         WHERE l.photo_id IN (${placeholders})
          ORDER BY l.created_at DESC, l.id DESC`,
-        [context.photo.id],
+        aggregateIds,
       );
+      const seenLikeUsers = new Set();
       res.json({
-        items: rows.map((row) => ({
+        items: rows.filter((row) => {
+          const id = Number(row.id || 0);
+          if (!id || seenLikeUsers.has(id)) return false;
+          seenLikeUsers.add(id);
+          return true;
+        }).map((row) => ({
           id: Number(row.id || 0),
           username: row.kadi || '',
           firstName: row.isim || '',

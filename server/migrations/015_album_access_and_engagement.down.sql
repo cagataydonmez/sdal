@@ -15,6 +15,8 @@ ALTER TABLE album_photo_comments
   DROP COLUMN IF EXISTS author_user_id;
 
 ALTER TABLE album_photos
+  DROP COLUMN IF EXISTS album_group_index,
+  DROP COLUMN IF EXISTS album_group_key,
   DROP COLUMN IF EXISTS tagged_user_ids_json,
   DROP COLUMN IF EXISTS updated_at,
   DROP COLUMN IF EXISTS allow_comments;
