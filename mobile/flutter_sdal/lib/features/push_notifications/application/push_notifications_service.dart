@@ -79,9 +79,9 @@ class PushNotificationsService {
     if (Platform.isIOS) {
       await FirebaseMessaging.instance
           .setForegroundNotificationPresentationOptions(
-            alert: true,
-            badge: true,
-            sound: true,
+            alert: false,
+            badge: false,
+            sound: false,
           );
     }
 
@@ -369,10 +369,25 @@ class PushNotificationsService {
   ) async {
     if (!Platform.isIOS) return const DarwinNotificationDetails();
     final imageUrl = message.data['imageUrl']?.toString().trim() ?? '';
-    if (imageUrl.isEmpty) return const DarwinNotificationDetails();
+    if (imageUrl.isEmpty) {
+      return const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+    }
     final imagePath = await _downloadImageToTemp(imageUrl);
-    if (imagePath == null) return const DarwinNotificationDetails();
+    if (imagePath == null) {
+      return const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+    }
     return DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
       attachments: [DarwinNotificationAttachment(imagePath)],
     );
   }

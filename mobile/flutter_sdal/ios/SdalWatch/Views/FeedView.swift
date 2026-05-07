@@ -21,7 +21,7 @@ struct FeedView: View {
                 postList(posts)
             }
         }
-        .navigationTitle("Feed")
+        .navigationTitle("")
         .sheet(isPresented: $showCompose) {
             ComposePostView()
         }
@@ -30,6 +30,9 @@ struct FeedView: View {
     @ViewBuilder
     private func postList(_ posts: [WatchPost]) -> some View {
         List {
+            feedHeaderTitle
+                .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 2, trailing: 4))
+
             // ── Compose header: left = new post, right = my avatar ──────────
             composeHeader
                 .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 4))
@@ -86,6 +89,21 @@ struct FeedView: View {
 
     // ── Compose + My Profile header ──────────────────────────────────────
 
+    private var feedHeaderTitle: some View {
+        HStack(spacing: 6) {
+            Image("SdalLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 20, height: 20)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+            Text("Akış")
+                .font(.headline)
+                .fontWeight(.semibold)
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+
     private var composeHeader: some View {
         HStack(spacing: 6) {
             // Left half – new post button
@@ -114,6 +132,10 @@ struct FeedView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .task(id: sessionManager.myUserPhoto) {
+                    guard !cookie.isEmpty else { return }
+                    await sessionManager.refreshCurrentUserPhotoIfNeeded(cookie: cookie, baseUrl: baseUrl)
+                }
             }
         }
     }

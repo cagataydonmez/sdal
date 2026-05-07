@@ -38,11 +38,15 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
         if (_detail?.canEdit ?? false)
           PopupMenuButton<String>(
             onSelected: (value) {
+              if (value == 'edit') {
+                _editAlbum();
+              }
               if (value == 'delete') {
                 _deleteAlbum();
               }
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('Albümü düzenle')),
               PopupMenuItem(value: 'delete', child: Text('Albümü sil')),
             ],
           ),
@@ -212,6 +216,10 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
             albumType: detail.albumType,
             canUpload: detail.canUpload,
             canEdit: detail.canEdit,
+            coverMode: detail.coverMode,
+            coverFileName: detail.coverFileName,
+            allowedMembers: detail.allowedMembers,
+            allowedGroups: detail.allowedGroups,
           );
         }
       });
@@ -226,6 +234,11 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
         });
       }
     }
+  }
+
+  Future<void> _editAlbum() async {
+    await context.push('/albums/${widget.categoryId}/edit');
+    if (mounted) await _load(reset: true);
   }
 
   Future<void> _deleteAlbum() async {

@@ -3535,11 +3535,24 @@ function sendSvg(res, svg) {
 
 async function sendImage(res, filePath, options = {}) {
   try {
+    if (options.cachePath && fs.existsSync(options.cachePath)) {
+      res.type('image/jpeg');
+      return res.sendFile(options.cachePath);
+    }
     let image = sharp(filePath);
     if (options.grayscale) image = image.grayscale();
     if (options.threshold != null) image = image.threshold(options.threshold);
     if (options.resize) image = image.resize({ ...options.resize, withoutEnlargement: true });
-    const buf = await image.jpeg({ quality: 85 }).toBuffer();
+    const quality = Math.min(Math.max(Number(options.quality || 85), 55), 90);
+    const buf = await image.jpeg({ quality }).toBuffer();
+    if (options.cachePath) {
+      try {
+        fs.mkdirSync(path.dirname(options.cachePath), { recursive: true });
+        fs.writeFileSync(options.cachePath, buf);
+      } catch {
+        // Cache misses should not break image delivery.
+      }
+    }
     res.type('image/jpeg');
     res.send(buf);
   } catch (err) {

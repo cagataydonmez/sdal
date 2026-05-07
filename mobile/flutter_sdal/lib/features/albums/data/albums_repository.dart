@@ -4,6 +4,8 @@ import '../../../app/providers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_result.dart';
 import '../../../core/network/json_utils.dart';
+import '../../explore/data/explore_repository.dart';
+import '../../groups/data/groups_repository.dart';
 
 class AlbumCategoryItem {
   const AlbumCategoryItem({
@@ -17,6 +19,8 @@ class AlbumCategoryItem {
     required this.albumType,
     required this.ownerUserId,
     required this.isSystemAlbum,
+    this.coverMode = 'latest',
+    this.coverFileName = '',
     required this.canUpload,
     required this.canEdit,
   });
@@ -31,6 +35,8 @@ class AlbumCategoryItem {
   final String albumType;
   final int? ownerUserId;
   final bool isSystemAlbum;
+  final String coverMode;
+  final String coverFileName;
   final bool canUpload;
   final bool canEdit;
 
@@ -72,6 +78,14 @@ class AlbumCategoryItem {
       ownerUserId: asInt(map['ownerUserId'] ?? map['owner_user_id']),
       isSystemAlbum:
           asBool(map['isSystemAlbum'] ?? map['is_system_album']) ?? false,
+      coverMode: coalesceText([
+        map['coverMode'],
+        map['cover_mode'],
+      ], fallback: 'latest'),
+      coverFileName: coalesceText([
+        map['coverFileName'],
+        map['cover_file_name'],
+      ], fallback: ''),
       canUpload: asBool(map['canUpload']) ?? false,
       canEdit: asBool(map['canEdit']) ?? false,
     );
@@ -344,6 +358,10 @@ class AlbumCategoryDetail {
     required this.visibilityScope,
     required this.cohortYear,
     required this.albumType,
+    this.coverMode = 'latest',
+    this.coverFileName = '',
+    this.allowedMembers = const <MemberSummary>[],
+    this.allowedGroups = const <GroupListItem>[],
     required this.canUpload,
     required this.canEdit,
   });
@@ -358,6 +376,10 @@ class AlbumCategoryDetail {
   final String visibilityScope;
   final String cohortYear;
   final String albumType;
+  final String coverMode;
+  final String coverFileName;
+  final List<MemberSummary> allowedMembers;
+  final List<GroupListItem> allowedGroups;
   final bool canUpload;
   final bool canEdit;
 
@@ -393,6 +415,20 @@ class AlbumCategoryDetail {
         category['albumType'],
         category['album_type'],
       ], fallback: 'general'),
+      coverMode: coalesceText([
+        category['coverMode'],
+        category['cover_mode'],
+      ], fallback: 'latest'),
+      coverFileName: coalesceText([
+        category['coverFileName'],
+        category['cover_file_name'],
+      ], fallback: ''),
+      allowedMembers: asJsonMapList(
+        payload['allowedMembers'],
+      ).map(MemberSummary.fromMap).toList(growable: false),
+      allowedGroups: asJsonMapList(
+        payload['allowedGroups'],
+      ).map(GroupListItem.fromMap).toList(growable: false),
       canUpload: asBool(category['canUpload']) ?? false,
       canEdit: asBool(category['canEdit']) ?? false,
     );
@@ -667,6 +703,33 @@ class AlbumsRepository {
         if (cohortYear.trim().isNotEmpty) 'cohortYear': cohortYear.trim(),
         if (allowedUserIds.isNotEmpty) 'allowedUserIds': allowedUserIds,
         if (allowedGroupIds.isNotEmpty) 'allowedGroupIds': allowedGroupIds,
+      },
+    );
+  }
+
+  Future<ApiResult<dynamic>> updateAlbum({
+    required int categoryId,
+    required String title,
+    required String description,
+    required String visibilityScope,
+    String cohortYear = '',
+    String coverMode = 'latest',
+    int? coverPhotoId,
+    List<int> allowedUserIds = const <int>[],
+    List<int> allowedGroupIds = const <int>[],
+  }) {
+    return _apiClient.put<dynamic>(
+      '/api/albums/$categoryId',
+      body: {
+        'title': title,
+        'description': description,
+        'visibilityScope': visibilityScope,
+        'cohortYear': cohortYear.trim(),
+        'coverMode': coverMode,
+        if (coverPhotoId != null && coverPhotoId > 0)
+          'coverPhotoId': coverPhotoId,
+        'allowedUserIds': allowedUserIds,
+        'allowedGroupIds': allowedGroupIds,
       },
     );
   }

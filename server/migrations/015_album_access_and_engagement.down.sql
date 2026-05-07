@@ -20,6 +20,7 @@ ALTER TABLE album_photos
   DROP COLUMN IF EXISTS allow_comments;
 
 ALTER TABLE album_categories
+  DROP COLUMN IF EXISTS cover_mode,
   DROP COLUMN IF EXISTS cover_file_name,
   DROP COLUMN IF EXISTS is_system_album,
   DROP COLUMN IF EXISTS owner_user_id,

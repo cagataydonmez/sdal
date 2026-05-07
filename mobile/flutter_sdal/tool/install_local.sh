@@ -641,9 +641,55 @@ resolve_signing_identity_sha() {
   printf '%s' "$sha"
 }
 
+resign_ios_release_app_for_device_install() {
+  local app_path="$1"
+  local xcent_path="$2"
+  local sign_sha framework watch_app_path watch_xcent_path
+
+  [[ -d "$app_path" ]] || die "Runner.app not found after build: $app_path"
+  [[ -f "$xcent_path" ]] || die "Missing entitlements file: $xcent_path"
+
+  sign_sha="$(resolve_signing_identity_sha)"
+
+  log "Re-signing embedded frameworks with $sign_sha."
+  while IFS= read -r framework; do
+    codesign --force --sign "$sign_sha" --timestamp=none "$framework"
+  done < <(find "$app_path/Frameworks" -maxdepth 1 -type d -name '*.framework' | sort)
+
+  watch_app_path="$app_path/Watch/SdalWatch.app"
+  watch_xcent_path="$IOS_RELEASE_BUILD_DIR_ABS/Runner.build/Release-watchos/SdalWatch.build/SdalWatch.app.xcent"
+  if [[ -d "$watch_app_path" ]]; then
+    [[ -f "$watch_xcent_path" ]] || die "Missing Watch entitlements file: $watch_xcent_path"
+
+    log "Re-signing embedded Watch app."
+    if [[ -d "$watch_app_path/Frameworks" ]]; then
+      while IFS= read -r framework; do
+        codesign --force --sign "$sign_sha" --timestamp=none "$framework"
+      done < <(find "$watch_app_path/Frameworks" -maxdepth 1 -type d -name '*.framework' | sort)
+    fi
+
+    codesign \
+      --force \
+      --sign "$sign_sha" \
+      --entitlements "$watch_xcent_path" \
+      --timestamp=none \
+      --generate-entitlement-der \
+      "$watch_app_path"
+  fi
+
+  log "Re-signing app bundle."
+  codesign \
+    --force \
+    --sign "$sign_sha" \
+    --entitlements "$xcent_path" \
+    --timestamp=none \
+    --generate-entitlement-der \
+    "$app_path"
+}
+
 build_sign_install_launch_ios_release() {
   local device_identifier="$1"
-  local sign_sha xcent_path framework
+  local app_path xcent_path
 
   prepare_ios
 
@@ -664,28 +710,14 @@ build_sign_install_launch_ios_release() {
       COMPILER_INDEX_STORE_ENABLE=NO
   )
 
-  sign_sha="$(resolve_signing_identity_sha)"
+  app_path="$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app"
   xcent_path="$IOS_RELEASE_BUILD_DIR_ABS/Runner.build/Release-iphoneos/Runner.build/Runner.app.xcent"
-  [[ -f "$xcent_path" ]] || die "Missing entitlements file: $xcent_path"
-
-  log "Re-signing embedded frameworks with $sign_sha."
-  while IFS= read -r framework; do
-    codesign --force --sign "$sign_sha" --timestamp=none "$framework"
-  done < <(find "$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app/Frameworks" -maxdepth 1 -type d -name '*.framework' | sort)
-
-  log "Re-signing app bundle."
-  codesign \
-    --force \
-    --sign "$sign_sha" \
-    --entitlements "$xcent_path" \
-    --timestamp=none \
-    --generate-entitlement-der \
-    "$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app"
+  resign_ios_release_app_for_device_install "$app_path" "$xcent_path"
 
   log "Installing release app on device."
   xcrun devicectl device install app \
     --device "$device_identifier" \
-    "$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app"
+    "$app_path"
 
   log "Launching release app on device."
   xcrun devicectl device process launch \
@@ -1186,11 +1218,15 @@ build_watch_app_for_sdk() {
 
 build_install_ios_and_watch() {
   local iphone_identifier="$1"
+  iphone_identifier="$(trim "$iphone_identifier")"
+  [[ -n "$iphone_identifier" ]] || die "No iPhone identifier selected for Apple Watch install."
 
   prepare_ios
 
   # SdalWatch is now embedded via "Embed Watch Content" Xcode build phase.
   # One workspace build produces Runner.app with SdalWatch.app inside Watch/.
+  # Build for the selected iPhone so Xcode can refresh development
+  # provisioning for the paired Apple Watch as well.
 
   # ── Step 1: Build Runner.app (embeds SdalWatch automatically) ─────────────
   log ""
@@ -1205,14 +1241,15 @@ build_install_ios_and_watch() {
       -scheme Runner \
       "BUILD_DIR=$IOS_RELEASE_BUILD_DIR_ABS" \
       "OBJROOT=$IOS_RELEASE_BUILD_DIR_ABS" \
-      -destination "id:$iphone_identifier" \
+      -destination "id=$iphone_identifier" \
       FLUTTER_SUPPRESS_ANALYTICS=true \
       COMPILER_INDEX_STORE_ENABLE=NO \
       build
   )
 
   local ios_app_path="$IOS_RELEASE_BUILD_DIR_ABS/Release-iphoneos/Runner.app"
-  [[ -d "$ios_app_path" ]] || die "Runner.app not found after build: $ios_app_path"
+  local xcent_path="$IOS_RELEASE_BUILD_DIR_ABS/Runner.build/Release-iphoneos/Runner.build/Runner.app.xcent"
+  resign_ios_release_app_for_device_install "$ios_app_path" "$xcent_path"
 
   # Verify Watch is embedded
   local watch_check

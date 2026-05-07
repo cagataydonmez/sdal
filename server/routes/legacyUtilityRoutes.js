@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+import fs from 'fs';
 import path from 'path';
 
 export function registerLegacyUtilityRoutes(app, deps) {
@@ -62,6 +64,21 @@ export function registerLegacyUtilityRoutes(app, deps) {
     return resolveMediaFile(path.basename(pathValue));
   }
 
+  function buildWatchImageCachePath(filePath, { width, quality }) {
+    try {
+      const stat = fs.statSync(filePath);
+      const cacheDir = path.join(uploadsDir, '.cache', 'watch-image');
+      fs.mkdirSync(cacheDir, { recursive: true });
+      const key = crypto
+        .createHash('sha256')
+        .update(`${filePath}|${stat.mtimeMs}|${stat.size}|${width}|${quality}`)
+        .digest('hex');
+      return path.join(cacheDir, `${key}.jpg`);
+    } catch {
+      return null;
+    }
+  }
+
   app.get('/api/media/vesikalik/:file', (req, res) => {
     const filePath = resolveMediaFile(req.params.file) || path.join(legacyMediaDir, 'vesikalik', 'nophoto.jpg');
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
@@ -83,10 +100,12 @@ export function registerLegacyUtilityRoutes(app, deps) {
   app.get('/api/media/watch-image', async (req, res) => {
     const filePath = resolveWatchImageSource(req.query.src || req.query.file || '');
     if (!filePath) return res.status(404).send('File not found');
-    const width = Math.min(Math.max(parseInt(req.query.width || '520', 10) || 520, 80), 1200);
-    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    const width = Math.min(Math.max(parseInt(req.query.width || '360', 10) || 360, 48), 720);
+    const quality = Math.min(Math.max(parseInt(req.query.quality || '72', 10) || 72, 55), 85);
+    const cachePath = buildWatchImageCachePath(filePath, { width, quality });
+    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=2592000, immutable');
     res.setHeader('Vary', 'Accept-Encoding');
-    await sendImage(res, filePath, { resize: { width, fit: 'inside' } });
+    await sendImage(res, filePath, { resize: { width, fit: 'inside' }, quality, cachePath });
   });
 
   app.get('/aspcaptcha.asp', (req, res) => issueCaptcha(req, res));

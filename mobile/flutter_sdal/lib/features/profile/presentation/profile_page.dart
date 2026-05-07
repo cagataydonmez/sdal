@@ -174,6 +174,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 ),
                             ],
                           ),
+                          if (!user.isVerified) ...[
+                            const SizedBox(height: 14),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: FilledButton.tonalIcon(
+                                onPressed: () =>
+                                    context.push('/profile/verification'),
+                                icon: const Icon(Icons.verified_user_outlined),
+                                label: Text(l10n.profileVerificationAction),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -189,8 +201,58 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     'Fotoğraf, dönem, şehir ve meslek bilgilerini tamamlamak önerileri, rehberi ve güven sinyallerini daha doğru yapar.',
                 primaryActionLabel: l10n.editAction,
                 onPrimaryAction: () => context.push('/profile/edit'),
-                secondaryActionLabel: l10n.profileVerificationAction,
-                onSecondaryAction: () => context.push('/profile/verification'),
+              ),
+              const SizedBox(height: 16),
+              ProfileAlbumSection(
+                title: 'Profil albümleri',
+                subtitle:
+                    'Profiline bakanlar anılarını ve seçtiğin koleksiyonları burada görür.',
+                albumsState: myAlbumsState,
+                isOwner: true,
+                onCreateAlbum: () async {
+                  await context.push('/albums/new?profile=1');
+                  if (!mounted) return;
+                  ref.invalidate(albumsDashboardProvider);
+                  ref.invalidate(myAlbumsProvider);
+                  ref.invalidate(memberProfileAlbumsProvider(profile.id));
+                },
+                onOpenAlbum: (album) async {
+                  await context.push('/albums/${album.id}');
+                  if (!mounted) return;
+                  ref.invalidate(albumsDashboardProvider);
+                  ref.invalidate(myAlbumsProvider);
+                  ref.invalidate(memberProfileAlbumsProvider(profile.id));
+                },
+                onEditAlbum: (album) async {
+                  await context.push('/albums/${album.id}/edit');
+                  if (!mounted) return;
+                  ref.invalidate(albumsDashboardProvider);
+                  ref.invalidate(myAlbumsProvider);
+                  ref.invalidate(memberProfileAlbumsProvider(profile.id));
+                },
+                onDeleteAlbum: _deleteProfileAlbum,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => context.push('/profile/photo'),
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: Text(l10n.profilePhotoAction),
+                    ),
+                  ),
+                  if (requestsVisible) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: () => context.push('/requests'),
+                        icon: const Icon(Icons.assignment_outlined),
+                        label: Text(l10n.requestsListTitle),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 16),
               SurfaceCard(
@@ -234,60 +296,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              ProfileAlbumSection(
-                title: 'Profil albümleri',
-                subtitle:
-                    'Profiline bakanlar anılarını ve seçtiğin koleksiyonları burada görür.',
-                albumsState: myAlbumsState,
-                isOwner: true,
-                onCreateAlbum: () async {
-                  await context.push('/albums/new?profile=1');
-                  if (!mounted) return;
-                  ref.invalidate(albumsDashboardProvider);
-                  ref.invalidate(myAlbumsProvider);
-                  ref.invalidate(memberProfileAlbumsProvider(profile.id));
-                },
-                onOpenAlbum: (album) async {
-                  await context.push('/albums/${album.id}');
-                  if (!mounted) return;
-                  ref.invalidate(albumsDashboardProvider);
-                  ref.invalidate(myAlbumsProvider);
-                  ref.invalidate(memberProfileAlbumsProvider(profile.id));
-                },
-                onDeleteAlbum: _deleteProfileAlbum,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => context.push('/profile/photo'),
-                      icon: const Icon(Icons.photo_camera_outlined),
-                      label: Text(l10n.profilePhotoAction),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => context.push('/profile/verification'),
-                      icon: const Icon(Icons.verified_user_outlined),
-                      label: Text(l10n.profileVerificationAction),
-                    ),
-                  ),
-                ],
-              ),
-              if (requestsVisible) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonalIcon(
-                    onPressed: () => context.push('/requests'),
-                    icon: const Icon(Icons.assignment_outlined),
-                    label: Text(l10n.requestsListTitle),
-                  ),
-                ),
-              ],
               const SizedBox(height: 20),
               SurfaceCard(
                 child: Column(

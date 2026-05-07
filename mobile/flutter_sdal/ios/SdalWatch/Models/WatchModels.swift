@@ -220,12 +220,34 @@ struct WatchThread: Identifiable {
         let peer = (json["other_user"] as? [String: Any])
             ?? (json["peer"] as? [String: Any])
             ?? json
-        self.peerUserId = (peer["id"] as? Int) ?? 0
-        let first = (peer["isim"] as? String) ?? (peer["name"] as? String) ?? ""
-        let last = (peer["soyisim"] as? String) ?? ""
+        self.peerUserId = (peer["id"] as? Int)
+            ?? (json["peer_id"] as? Int)
+            ?? (json["peerId"] as? Int)
+            ?? 0
+        let first = (peer["isim"] as? String)
+            ?? (peer["firstName"] as? String)
+            ?? (peer["first_name"] as? String)
+            ?? (peer["name"] as? String)
+            ?? ""
+        let last = (peer["soyisim"] as? String)
+            ?? (peer["lastName"] as? String)
+            ?? (peer["last_name"] as? String)
+            ?? ""
         self.peerName = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
-        self.peerHandle = (peer["kadi"] as? String) ?? (peer["handle"] as? String) ?? ""
-        self.peerPhoto = (peer["resim"] as? String) ?? (peer["photo"] as? String) ?? ""
+        self.peerHandle = (peer["kadi"] as? String)
+            ?? (peer["handle"] as? String)
+            ?? (json["peer_kadi"] as? String)
+            ?? ""
+        self.peerPhoto = (peer["resim"] as? String)
+            ?? (peer["photo"] as? String)
+            ?? (peer["photoUrl"] as? String)
+            ?? (peer["photo_url"] as? String)
+            ?? (peer["avatarUrl"] as? String)
+            ?? (peer["avatar_url"] as? String)
+            ?? (json["peer_resim"] as? String)
+            ?? (json["peerPhoto"] as? String)
+            ?? (json["peer_photo"] as? String)
+            ?? ""
 
         let lastMsg = (json["last_message"] as? [String: Any])
             ?? (json["latest_message"] as? [String: Any])
@@ -318,11 +340,38 @@ struct WatchNotificationItem: Identifiable {
             ?? "general"
         let actor = (json["actor"] as? [String: Any])
             ?? (json["source"] as? [String: Any])
-        self.actorId = (actor?["id"] as? Int) ?? 0
-        let first = (actor?["isim"] as? String) ?? (actor?["name"] as? String) ?? ""
-        let last = (actor?["soyisim"] as? String) ?? ""
+        self.actorId = (actor?["id"] as? Int)
+            ?? (json["source_user_id"] as? Int)
+            ?? (json["sourceUserId"] as? Int)
+            ?? 0
+        let first = (actor?["isim"] as? String)
+            ?? (actor?["firstName"] as? String)
+            ?? (actor?["first_name"] as? String)
+            ?? (actor?["name"] as? String)
+            ?? (json["sourceName"] as? String)
+            ?? (json["source_name"] as? String)
+            ?? (json["isim"] as? String)
+            ?? ""
+        let last = (actor?["soyisim"] as? String)
+            ?? (actor?["lastName"] as? String)
+            ?? (actor?["last_name"] as? String)
+            ?? (json["soyisim"] as? String)
+            ?? ""
         self.actorName = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
-        self.actorPhoto = (actor?["resim"] as? String) ?? ""
+        self.actorPhoto = (actor?["resim"] as? String)
+            ?? (actor?["photo"] as? String)
+            ?? (actor?["photoUrl"] as? String)
+            ?? (actor?["photo_url"] as? String)
+            ?? (actor?["avatarUrl"] as? String)
+            ?? (actor?["avatar_url"] as? String)
+            ?? (json["sourcePhoto"] as? String)
+            ?? (json["source_photo"] as? String)
+            ?? (json["senderPhoto"] as? String)
+            ?? (json["sender_photo"] as? String)
+            ?? (json["imageUrl"] as? String)
+            ?? (json["image_url"] as? String)
+            ?? (json["resim"] as? String)
+            ?? ""
         self.body = (json["body"] as? String)
             ?? (json["message"] as? String)
             ?? (json["content"] as? String)

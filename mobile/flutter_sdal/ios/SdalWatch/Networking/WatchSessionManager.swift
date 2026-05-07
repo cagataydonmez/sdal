@@ -19,6 +19,7 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
     private let userIdKey   = "sdal_watch_user_id"
     private let userPhotoKey = "sdal_watch_user_photo"
     private var recoveryTask: Task<Void, Never>?
+    private var photoRefreshTask: Task<Void, Never>?
 
     override private init() {
         super.init()
@@ -56,6 +57,43 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
                 WCSession.default.transferUserInfo(["action": "requestSessionContext"])
             }
         )
+    }
+
+    @MainActor
+    func refreshCurrentUserPhotoIfNeeded(cookie: String, baseUrl: String) async {
+        guard myUserId > 0, myUserPhoto.isEmpty, photoRefreshTask == nil else { return }
+        let userId = myUserId
+        photoRefreshTask = Task { [weak self] in
+            defer {
+                Task { @MainActor in self?.photoRefreshTask = nil }
+            }
+            do {
+                let dict = try await WatchAPIClient.shared.fetchDict(
+                    path: "/api/members/\(userId)",
+                    baseUrl: baseUrl,
+                    cookie: cookie
+                )
+                let row = (dict["row"] as? [String: Any])
+                    ?? (dict["item"] as? [String: Any])
+                    ?? (dict["member"] as? [String: Any])
+                    ?? dict
+                let photo = (row["resim"] as? String)
+                    ?? (row["photo"] as? String)
+                    ?? (row["photoUrl"] as? String)
+                    ?? (row["photo_url"] as? String)
+                    ?? (row["avatarUrl"] as? String)
+                    ?? (row["avatar_url"] as? String)
+                    ?? ""
+                guard !photo.isEmpty else { return }
+                await MainActor.run {
+                    self?.myUserPhoto = photo
+                    UserDefaults.standard.set(photo, forKey: self?.userPhotoKey ?? "sdal_watch_user_photo")
+                }
+            } catch {
+                // Best effort; the iPhone session bridge retries too.
+            }
+        }
+        await photoRefreshTask?.value
     }
 
     // MARK: - WCSessionDelegate

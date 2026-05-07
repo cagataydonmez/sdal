@@ -49,6 +49,7 @@ export function createNotificationPresentationRuntime({
   const NOTIFICATION_CATEGORY_MAP = Object.freeze({
     like: 'social',
     comment: 'social',
+    message: 'messaging',
     mention_post: 'social',
     mention_photo: 'social',
     photo_comment: 'social',
@@ -93,6 +94,7 @@ export function createNotificationPresentationRuntime({
   const NOTIFICATION_PRIORITY_MAP = Object.freeze({
     like: 'informational',
     comment: 'important',
+    message: 'important',
     mention_post: 'important',
     mention_photo: 'important',
     photo_comment: 'important',
@@ -272,7 +274,7 @@ export function createNotificationPresentationRuntime({
         context: { photo: entityId || null, notification: notificationId }
       };
     }
-    if (type === 'mention_message') {
+    if (type === 'message' || type === 'mention_message') {
       const href = entityId ? `/new/messages/${entityId}?notification=${notificationId}` : `/new/messages?notification=${notificationId}`;
       return {
         href,
@@ -629,6 +631,9 @@ export function createNotificationPresentationRuntime({
       const broadcastMessage = broadcastPayload
         ? [broadcastPayload.title, broadcastPayload.body].filter(Boolean).join(': ')
         : '';
+      const sourcePhoto = isAdminBroadcast
+        ? (broadcastPayload?.imageUrl || '/uploads/app-icon.png')
+        : String(baseRow?.resim || '').trim();
       return {
         ...baseRow,
         ...(broadcastPayload ? {
@@ -643,8 +648,8 @@ export function createNotificationPresentationRuntime({
           broadcastId: broadcastPayload.broadcastId || 0,
           broadcast_id: broadcastPayload.broadcastId || 0
         } : {}),
-        sourcePhoto: String(baseRow?.resim || '').trim(),
-        source_photo: String(baseRow?.resim || '').trim(),
+        sourcePhoto,
+        source_photo: sourcePhoto,
         sourceInitials: buildNotificationInitials(baseRow),
         source_initials: buildNotificationInitials(baseRow),
         category: getNotificationCategory(baseRow?.type),

@@ -112,7 +112,7 @@ func resolvedMediaURL(_ raw: String, baseUrl: String, profilePhoto: Bool = false
            url.host == base.host,
            url.port == base.port,
            url.path.hasPrefix("/uploads/") || url.path.hasPrefix("/api/media/") {
-            return watchMediaURL(origin: origin, path: url.path)
+            return watchMediaURL(origin: origin, path: url.path, profilePhoto: profilePhoto)
         }
         return mediaURL(from: value)
     }
@@ -121,13 +121,13 @@ func resolvedMediaURL(_ raw: String, baseUrl: String, profilePhoto: Bool = false
     }
 
     if value.hasPrefix("/") {
-        return watchMediaURL(origin: origin, path: value)
+        return watchMediaURL(origin: origin, path: value, profilePhoto: profilePhoto)
     }
     if profilePhoto && !value.contains("/") {
         let encoded = value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
-        return watchMediaURL(origin: origin, path: "/api/media/vesikalik/\(encoded)")
+        return watchMediaURL(origin: origin, path: "/api/media/vesikalik/\(encoded)", profilePhoto: true)
     }
-    return watchMediaURL(origin: origin, path: "/\(value)")
+    return watchMediaURL(origin: origin, path: "/\(value)", profilePhoto: profilePhoto)
 }
 
 private func mediaURL(from value: String) -> URL? {
@@ -136,12 +136,14 @@ private func mediaURL(from value: String) -> URL? {
     return URL(string: value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value)
 }
 
-private func watchMediaURL(origin: String, path: String) -> URL? {
+private func watchMediaURL(origin: String, path: String, profilePhoto: Bool = false) -> URL? {
     var components = URLComponents(string: "\(origin)/api/media/watch-image")
+    let width = profilePhoto ? "96" : "360"
     components?.queryItems = [
-        URLQueryItem(name: "width", value: "520"),
+        URLQueryItem(name: "width", value: width),
         URLQueryItem(name: "format", value: "jpeg"),
-        URLQueryItem(name: "v", value: "2"),
+        URLQueryItem(name: "quality", value: "72"),
+        URLQueryItem(name: "v", value: "3"),
         URLQueryItem(name: "src", value: path)
     ]
     return components?.url ?? mediaURL(from: "\(origin)\(path)")

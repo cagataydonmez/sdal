@@ -126,6 +126,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
                           title: 'Yönettiğin albümler',
                           items: managedAlbums,
                           compact: true,
+                          onEdit: _editAlbum,
                           onDelete: _deleteAlbum,
                         ),
                       ],
@@ -195,6 +196,14 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       ref.invalidate(myAlbumsProvider);
       await _load();
     }
+  }
+
+  Future<void> _editAlbum(AlbumCategoryItem item) async {
+    await context.push('/albums/${item.id}/edit');
+    if (!mounted) return;
+    ref.invalidate(albumsDashboardProvider);
+    ref.invalidate(myAlbumsProvider);
+    await _load();
   }
 }
 
@@ -281,12 +290,14 @@ class _AlbumCategorySection extends StatelessWidget {
     required this.title,
     required this.items,
     this.compact = false,
+    this.onEdit,
     this.onDelete,
   });
 
   final String title;
   final List<AlbumCategoryItem> items;
   final bool compact;
+  final Future<void> Function(AlbumCategoryItem item)? onEdit;
   final Future<void> Function(AlbumCategoryItem item)? onDelete;
 
   @override
@@ -340,11 +351,18 @@ class _AlbumCategorySection extends StatelessWidget {
                           if (item.canEdit && onDelete != null)
                             PopupMenuButton<String>(
                               onSelected: (value) {
+                                if (value == 'edit' && onEdit != null) {
+                                  onEdit!(item);
+                                }
                                 if (value == 'delete') {
                                   onDelete!(item);
                                 }
                               },
                               itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Albümü düzenle'),
+                                ),
                                 PopupMenuItem(
                                   value: 'delete',
                                   child: Text('Albümü sil'),

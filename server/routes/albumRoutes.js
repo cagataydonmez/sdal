@@ -43,7 +43,8 @@ export function registerAlbumRoutes(app, {
        COALESCE(${alias}.album_type, 'general') AS album_type,
        ${alias}.owner_user_id AS owner_user_id,
        COALESCE(${alias}.is_system_album, FALSE) AS is_system_album,
-       COALESCE(${alias}.cover_file_name, '') AS cover_file_name`
+       COALESCE(${alias}.cover_file_name, '') AS cover_file_name,
+       COALESCE(${alias}.cover_mode, 'latest') AS cover_mode`
     : `${alias}.id,
        ${alias}.kategori AS title,
        COALESCE(${alias}.aciklama, '') AS description,
@@ -56,7 +57,8 @@ export function registerAlbumRoutes(app, {
        COALESCE(${alias}.album_type, 'general') AS album_type,
        ${alias}.owner_user_id AS owner_user_id,
        COALESCE(${alias}.is_system_album, 0) AS is_system_album,
-       COALESCE(${alias}.cover_file_name, '') AS cover_file_name`;
+       COALESCE(${alias}.cover_file_name, '') AS cover_file_name,
+       COALESCE(${alias}.cover_mode, 'latest') AS cover_mode`;
 
   const photoSelect = (alias = 'p') => isPostgres
     ? `${alias}.id,
@@ -255,6 +257,7 @@ export function registerAlbumRoutes(app, {
       'ALTER TABLE album_kat ADD COLUMN owner_user_id INTEGER',
       'ALTER TABLE album_kat ADD COLUMN is_system_album INTEGER DEFAULT 0',
       'ALTER TABLE album_kat ADD COLUMN cover_file_name TEXT',
+      "ALTER TABLE album_kat ADD COLUMN cover_mode TEXT DEFAULT 'latest'",
       'ALTER TABLE album_foto ADD COLUMN allow_comments INTEGER DEFAULT 1',
       'ALTER TABLE album_foto ADD COLUMN updated_at TEXT',
       "ALTER TABLE album_foto ADD COLUMN tagged_user_ids_json TEXT DEFAULT '[]'",
@@ -501,6 +504,57 @@ export function registerAlbumRoutes(app, {
     }
   }
 
+  async function listCategoryPermissionMembers(categoryId) {
+    return sqlAllAsync(
+      `SELECT ${userSelect('u')}
+       FROM ${permissionTable} p
+       JOIN ${userTable} u ON u.id = p.user_id
+       WHERE p.category_id = ?
+         AND p.user_id IS NOT NULL
+       ORDER BY ${isPostgres ? 'u.first_name, u.last_name, u.username' : 'u.isim, u.soyisim, u.kadi'}`,
+      [categoryId],
+    );
+  }
+
+  async function listCategoryPermissionGroups(categoryId) {
+    return sqlAllAsync(
+      `SELECT g.id,
+              COALESCE(g.name, '') AS name,
+              COALESCE(g.description, '') AS description,
+              COALESCE(g.cover_image, '') AS cover_image,
+              COALESCE(g.visibility, 'public') AS visibility,
+              COALESCE(g.is_cohort_group, 0) AS is_cohort_group,
+              COALESCE(g.cohort_year, '') AS cohort_year,
+              0 AS members
+       FROM ${permissionTable} p
+       JOIN groups g ON g.id = p.group_id
+       WHERE p.category_id = ?
+         AND p.group_id IS NOT NULL
+       ORDER BY g.name`,
+      [categoryId],
+    );
+  }
+
+  function normalizeCoverMode(value) {
+    const mode = String(value || '').trim().toLowerCase();
+    return ['latest', 'fixed', 'shuffle'].includes(mode) ? mode : 'latest';
+  }
+
+  async function resolveCoverFileName(categoryId, coverPhotoId) {
+    const normalizedPhotoId = normalizeIntegerId(coverPhotoId);
+    if (!normalizedPhotoId) return '';
+    const row = await sqlGetAsync(
+      `SELECT COALESCE(p.${isPostgres ? 'file_name' : 'dosyaadi'}, '') AS file_name
+       FROM ${photoTable} p
+       WHERE p.id = ?
+         AND p.${isPostgres ? 'category_id' : 'katid'} = ?
+         AND ${photoActiveSql}
+       LIMIT 1`,
+      [normalizedPhotoId, categoryId],
+    );
+    return String(row?.file_name || '').trim();
+  }
+
   async function summarizeCategory(category, viewer, currentUser) {
     const categoryIdParam = String(category.id);
     const countRow = await sqlGetAsync(
@@ -510,27 +564,38 @@ export function registerAlbumRoutes(app, {
          AND ${photoActiveSql}`,
       [categoryIdParam],
     );
-    const previews = await sqlAllAsync(
+    const coverMode = normalizeCoverMode(category.cover_mode);
+    const coverFileName = String(category.cover_file_name || '').trim();
+    const previewRows = await sqlAllAsync(
       `SELECT COALESCE(p.${isPostgres ? 'file_name' : 'dosyaadi'}, '') AS file_name
        FROM ${photoTable} p
        WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
          AND ${photoActiveSql}
-       ORDER BY p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC
-       LIMIT 5`,
-      [categoryIdParam],
+         ${coverMode === 'fixed' && coverFileName ? `AND COALESCE(p.${isPostgres ? 'file_name' : 'dosyaadi'}, '') <> ?` : ''}
+       ORDER BY ${coverMode === 'shuffle' ? (isPostgres ? 'RANDOM()' : 'RANDOM()') : `p.${isPostgres ? 'created_at' : 'tarih'} DESC, p.id DESC`}
+       LIMIT ${coverMode === 'fixed' && coverFileName ? 4 : 5}`,
+      coverMode === 'fixed' && coverFileName
+        ? [categoryIdParam, coverFileName]
+        : [categoryIdParam],
     );
+    const previews = [
+      ...(coverMode === 'fixed' && coverFileName ? [coverFileName] : []),
+      ...previewRows.map((item) => item.file_name).filter(Boolean),
+    ];
 
     return {
       id: Number(category.id || 0),
       kategori: category.title || 'Albüm',
       aciklama: category.description || '',
       count: Number(countRow?.cnt || 0),
-      previews: previews.map((item) => item.file_name).filter(Boolean),
+      previews,
       visibilityScope: String(category.visibility_scope || 'public'),
       cohortYear: String(category.cohort_year || ''),
       albumType: String(category.album_type || 'general'),
       ownerUserId: normalizeUserId(category.owner_user_id),
       isSystemAlbum: isTruthy(category.is_system_album),
+      coverMode,
+      coverFileName,
       canUpload: await canUploadToCategory(category, viewer, currentUser),
       canEdit: canEditCategory(category, viewer, currentUser),
     };
@@ -867,6 +932,103 @@ export function registerAlbumRoutes(app, {
 
       const category = await getCategoryById(categoryId);
       res.json({ ok: true, category: await summarizeCategory(category, viewer, currentUser) });
+    } catch (error) {
+      console.error(error);
+      if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
+    }
+  });
+
+  app.put('/api/albums/:id', async (req, res) => {
+    try {
+      await schemaReady;
+      if (!req.session.userId) return res.status(401).send('Login required');
+      const viewer = await findViewer(req.session.userId);
+      const currentUser = getCurrentUser(req);
+      const category = await getCategoryById(Number(req.params.id || 0));
+      if (!category) return res.status(404).send('Albüm bulunamadı.');
+      if (!canEditCategory(category, viewer, currentUser)) {
+        return res.status(403).send('Bu albümü düzenleme yetkin yok.');
+      }
+
+      const title = sanitizePlainUserText(String(req.body?.title || req.body?.kategori || '').trim(), 120);
+      const description = formatUserText(req.body?.description || req.body?.aciklama || '');
+      let visibilityScope = String(req.body?.visibilityScope || req.body?.visibility || category.visibility_scope || 'public').trim().toLowerCase();
+      if (!['public', 'cohort', 'private', 'custom'].includes(visibilityScope)) {
+        visibilityScope = 'public';
+      }
+
+      const viewerCohort = String(viewer?.mezuniyetyili || '').trim();
+      const requestedCohort = visibilityScope === 'cohort'
+        ? String(req.body?.cohortYear || req.body?.cohort || viewerCohort || '').trim()
+        : '';
+      const userIds = parseIdArray(req.body?.allowedUserIds);
+      const groupIds = parseIdArray(req.body?.allowedGroupIds);
+      const coverMode = normalizeCoverMode(req.body?.coverMode);
+      const coverFileName = coverMode === 'fixed'
+        ? await resolveCoverFileName(category.id, req.body?.coverPhotoId)
+        : '';
+
+      if (!title) return res.status(400).send('Albüm başlığı zorunlu.');
+      if (visibilityScope === 'cohort' && !/^\d{4}$/.test(requestedCohort)) {
+        return res.status(400).send('Geçerli bir cohort yılı seçmelisin.');
+      }
+      if ((visibilityScope === 'private' || visibilityScope === 'custom') && !userIds.length && !groupIds.length) {
+        return res.status(400).send('Özel albüm için en az bir kişi veya grup seçmelisin.');
+      }
+      if (coverMode === 'fixed' && !coverFileName) {
+        return res.status(400).send('Sabit kapak için bu albümden bir fotoğraf seçmelisin.');
+      }
+
+      if (isPostgres) {
+        await sqlRunAsync(
+          `UPDATE ${categoryTable}
+           SET name = ?,
+               description = ?,
+               visibility_scope = ?,
+               cohort_year = ?,
+               cover_mode = ?,
+               cover_file_name = ?
+           WHERE id = ?`,
+          [
+            title,
+            description,
+            visibilityScope,
+            visibilityScope === 'cohort' ? requestedCohort : null,
+            coverMode,
+            coverMode === 'fixed' ? coverFileName : null,
+            category.id,
+          ],
+        );
+      } else {
+        await sqlRunAsync(
+          `UPDATE ${categoryTable}
+           SET kategori = ?,
+               aciklama = ?,
+               visibility_scope = ?,
+               cohort_year = ?,
+               cover_mode = ?,
+               cover_file_name = ?
+           WHERE id = ?`,
+          [
+            title,
+            description,
+            visibilityScope,
+            visibilityScope === 'cohort' ? requestedCohort : null,
+            coverMode,
+            coverMode === 'fixed' ? coverFileName : null,
+            category.id,
+          ],
+        );
+      }
+
+      await replaceCategoryPermissions(category.id, {
+        userIds,
+        groupIds,
+        createdByUserId: req.session.userId,
+      });
+
+      const updated = await getCategoryById(category.id);
+      res.json({ ok: true, category: await summarizeCategory(updated, viewer, currentUser) });
     } catch (error) {
       console.error(error);
       if (!res.headersSent) res.status(500).send('Beklenmeyen bir hata oluştu.');
@@ -1234,6 +1396,17 @@ export function registerAlbumRoutes(app, {
           id: context.category.id,
         },
         photos,
+        allowedMembers: (await listCategoryPermissionMembers(context.category.id)).map((row) => ({
+          id: Number(row.id || 0),
+          kadi: row.kadi || '',
+          isim: row.isim || '',
+          soyisim: row.soyisim || '',
+          resim: row.resim || '',
+          verified: isTruthy(row.verified),
+          mezuniyetyili: row.mezuniyetyili || '',
+          role: row.role || 'user',
+        })),
+        allowedGroups: await listCategoryPermissionGroups(context.category.id),
         page: safePage,
         pages,
         total,
@@ -1494,6 +1667,14 @@ export function registerAlbumRoutes(app, {
         [context.photo.id],
       );
       await sqlRunAsync(`DELETE FROM ${photoTable} WHERE id = ?`, [context.photo.id]);
+      await sqlRunAsync(
+        `UPDATE ${categoryTable}
+         SET cover_mode = 'latest',
+             cover_file_name = NULL
+         WHERE id = ?
+           AND COALESCE(cover_file_name, '') = ?`,
+        [context.category.id, context.photo.file_name || ''],
+      );
 
       res.json({ ok: true });
     } catch (error) {

@@ -16,6 +16,7 @@ class ProfileAlbumSection extends ConsumerWidget {
     required this.onOpenAlbum,
     this.isOwner = false,
     this.onCreateAlbum,
+    this.onEditAlbum,
     this.onDeleteAlbum,
   });
 
@@ -25,6 +26,7 @@ class ProfileAlbumSection extends ConsumerWidget {
   final ValueChanged<AlbumCategoryItem> onOpenAlbum;
   final bool isOwner;
   final VoidCallback? onCreateAlbum;
+  final ValueChanged<AlbumCategoryItem>? onEditAlbum;
   final ValueChanged<AlbumCategoryItem>? onDeleteAlbum;
 
   @override
@@ -89,6 +91,10 @@ class ProfileAlbumSection extends ConsumerWidget {
                             albums[index].canEdit &&
                             onDeleteAlbum != null
                         ? () => onDeleteAlbum!(albums[index])
+                        : null,
+                    onEdit:
+                        isOwner && albums[index].canEdit && onEditAlbum != null
+                        ? () => onEditAlbum!(albums[index])
                         : null,
                   ),
                 ),
@@ -171,11 +177,13 @@ class _ProfileAlbumCard extends ConsumerWidget {
   const _ProfileAlbumCard({
     required this.album,
     required this.onOpen,
+    this.onEdit,
     this.onDelete,
   });
 
   final AlbumCategoryItem album;
   final VoidCallback onOpen;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   @override
@@ -217,34 +225,41 @@ class _ProfileAlbumCard extends ConsumerWidget {
                     ),
                     child: AspectRatio(
                       aspectRatio: 4 / 3,
-                      child: preview.isNotEmpty
-                          ? SdalNetworkImage(
-                              imageUrl: preview,
-                              fit: BoxFit.cover,
-                              borderRadius: BorderRadius.circular(
-                                SdalThemeTokens.radiusLg,
-                              ),
-                              enableLightbox: false,
-                              cacheWidth: 520,
-                              cacheHeight: 390,
-                            )
-                          : Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    tokens.accentMuted,
-                                    tokens.panelRaised,
-                                  ],
+                      child: ColoredBox(
+                        color: tokens.panelRaised,
+                        child: preview.isNotEmpty
+                            ? Center(
+                                child: SdalNetworkImage(
+                                  imageUrl: preview,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  fit: BoxFit.contain,
+                                  borderRadius: BorderRadius.circular(
+                                    SdalThemeTokens.radiusLg,
+                                  ),
+                                  enableLightbox: false,
+                                  cacheWidth: 520,
+                                  cacheHeight: 390,
+                                ),
+                              )
+                            : DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      tokens.accentMuted,
+                                      tokens.panelRaised,
+                                    ],
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.photo_library_outlined,
+                                  size: 34,
+                                  color: tokens.accent,
                                 ),
                               ),
-                              child: Icon(
-                                Icons.photo_library_outlined,
-                                size: 34,
-                                color: tokens.accent,
-                              ),
-                            ),
+                      ),
                     ),
                   ),
                   Positioned(
@@ -270,20 +285,27 @@ class _ProfileAlbumCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (onDelete != null)
+                  if (onEdit != null || onDelete != null)
                     Positioned(
                       right: 6,
                       top: 6,
                       child: PopupMenuButton<String>(
                         tooltip: 'Albümü yönet',
                         onSelected: (value) {
+                          if (value == 'edit') onEdit?.call();
                           if (value == 'delete') onDelete!();
                         },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Albümü sil'),
-                          ),
+                        itemBuilder: (context) => [
+                          if (onEdit != null)
+                            const PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Text('Albümü düzenle'),
+                            ),
+                          if (onDelete != null)
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Text('Albümü sil'),
+                            ),
                         ],
                         child: Container(
                           width: 34,

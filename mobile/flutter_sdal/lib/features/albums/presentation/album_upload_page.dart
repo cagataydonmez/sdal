@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../explore/data/explore_repository.dart';
 import '../../../core/media/pick_cropped_image.dart';
 import '../../../core/widgets/feature_scaffold.dart';
@@ -332,19 +333,13 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   }
 
   Future<void> _pickSingleFile() async {
-    final picked = await pickAndEditImage(
-      context,
-      title: 'Fotoğrafı kırp',
-    );
+    final picked = await pickAndEditImage(context, title: 'Fotoğrafı kırp');
     if (picked == null || !mounted) return;
     setState(() => _mediaItems = [picked]);
   }
 
   Future<void> _pickMultipleFiles() async {
-    final picked = await pickAndEditImages(
-      context,
-      title: 'Fotoğrafı düzenle',
-    );
+    final picked = await pickAndEditImages(context, title: 'Fotoğrafı düzenle');
     if (!mounted || picked.isEmpty) return;
     setState(() => _mediaItems = picked);
   }
@@ -381,7 +376,7 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
         ),
     ];
     final notifier = ref.read(albumsActionControllerProvider.notifier);
-    final ok = _mediaItems.length == 1
+    final uploadResult = _mediaItems.length == 1
         ? await notifier.uploadPhoto(
             categoryId: _selectedCategoryId,
             title: titles.first,
@@ -412,11 +407,15 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       SnackBar(
         content: Text(
           state.message ??
-              (ok ? 'Fotoğraf yüklendi.' : 'Fotoğraf yüklenemedi.'),
+              (uploadResult.ok
+                  ? 'Fotoğraf yüklendi.'
+                  : 'Fotoğraf yüklenemedi.'),
         ),
       ),
     );
-    if (!ok) return;
+    if (!uploadResult.ok) return;
+    ref.invalidate(albumsDashboardProvider);
+    ref.invalidate(myAlbumsProvider);
     _titleController.clear();
     _descriptionController.clear();
     setState(() {
@@ -424,6 +423,9 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       _allowComments = true;
       _taggedMembers.clear();
     });
+    if (uploadResult.photoId > 0) {
+      context.replace('/albums/photo/${uploadResult.photoId}');
+    }
   }
 
   String _buildTitleForUpload(String prefix, File file, int index, int total) {

@@ -80,7 +80,7 @@ private struct MainTabView: View {
             .tag(0)
             .tabItem {
                 Image(systemName: "newspaper.fill")
-                Text("Feed")
+                Text("Akış")
             }
 
             NavigationStack {

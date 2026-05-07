@@ -1253,7 +1253,7 @@ abstract class AppLocalizations {
   /// No description provided for @profilePhotoAction.
   ///
   /// In tr, this message translates to:
-  /// **'Fotoğraf'**
+  /// **'Profil Fotoğrafım'**
   String get profilePhotoAction;
 
   /// No description provided for @profileVerificationAction.

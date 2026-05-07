@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE album_categories
+  ADD COLUMN IF NOT EXISTS cover_mode TEXT NOT NULL DEFAULT 'latest';
+
+COMMIT;

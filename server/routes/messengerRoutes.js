@@ -11,7 +11,8 @@ export function registerMessengerRoutes(app, {
   getMessengerThreadForUser,
   markMessengerMessagesDelivered,
   broadcastMessengerEvent,
-  messengerSendIdempotency
+  messengerSendIdempotency,
+  addNotification
 }) {
   app.get('/api/sdal-messenger/contacts', requireAuth, async (req, res) => {
     try {
@@ -310,6 +311,15 @@ export function registerMessengerRoutes(app, {
           threadId: Number(thread.id),
           item
         });
+      }
+      if (receiverId && Number(receiverId) !== Number(req.session.userId)) {
+        await Promise.resolve(addNotification?.({
+          userId: receiverId,
+          type: 'message',
+          sourceUserId: req.session.userId,
+          entityId: thread.id,
+          message: text
+        })).catch(() => null);
       }
       res.status(201).json({ ok: true, item });
     } catch (err) {

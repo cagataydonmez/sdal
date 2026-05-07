@@ -327,6 +327,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ),
               GoRoute(
+                path: '/albums/:categoryId/edit',
+                pageBuilder: (context, state) => _slidePage(
+                  AlbumEditPage(
+                    categoryId:
+                        int.tryParse(
+                          state.pathParameters['categoryId'] ?? '',
+                        ) ??
+                        0,
+                  ),
+                ),
+              ),
+              GoRoute(
                 path: '/albums/:categoryId',
                 pageBuilder: (context, state) => _liftPage(
                   AlbumCategoryPage(

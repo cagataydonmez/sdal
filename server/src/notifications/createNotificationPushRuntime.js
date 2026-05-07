@@ -5,6 +5,7 @@ import http2 from 'node:http2';
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const FCM_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DEFAULT_PUSH_TITLE = 'SDAL Bildirim';
+const DEFAULT_APP_ICON_PATH = '/uploads/app-icon.png?v=flutter-app-icon-20260506';
 const PUSH_DELIVERY_STATUS_SET = new Set(['sent', 'skipped', 'failed']);
 const PUSH_PLATFORM_SET = new Set(['android', 'ios', 'watchos']);
 
@@ -37,6 +38,10 @@ function resolvePublicMediaUrl(raw) {
     .replace(/\/+$/, '');
   if (!base) return '';
   return `${base}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
+function resolveAppIconUrl() {
+  return resolvePublicMediaUrl(process.env.PUSH_APP_ICON_URL || DEFAULT_APP_ICON_PATH);
 }
 
 function resolveApnsTopic() {
@@ -817,20 +822,24 @@ export function createNotificationPushRuntime({
       message
     });
     const pushMessage = normalizePushMessage(notificationType, message, senderName);
+    const normalizedType = sanitizeText(notificationType).toLowerCase();
+    const isAdminBroadcast = normalizedType === 'admin_broadcast';
+    const displayImageUrl = pushMessage.imageUrl || senderPhoto || (isAdminBroadcast ? resolveAppIconUrl() : '');
+    const displaySenderPhoto = senderPhoto || (isAdminBroadcast ? resolveAppIconUrl() : '');
     const payload = {
       title: pushMessage.title,
       body: pushMessage.body,
-      imageUrl: pushMessage.imageUrl || '',
+      imageUrl: displayImageUrl,
       data: {
         notificationId: String(Number(notificationId || 0) || 0),
-        type: sanitizeText(notificationType).toLowerCase(),
+        type: normalizedType,
         route: sanitizeText(target?.route),
         href: sanitizeText(target?.href),
         category: sanitizeText(getNotificationCategory(notificationType)).toLowerCase(),
         senderName,
-        senderPhoto,
+        senderPhoto: displaySenderPhoto,
         senderInitials,
-        imageUrl: sanitizeText(pushMessage.imageUrl || '')
+        imageUrl: sanitizeText(displayImageUrl || '')
       }
     };
 

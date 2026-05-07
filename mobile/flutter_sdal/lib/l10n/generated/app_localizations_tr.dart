@@ -636,7 +636,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get profilePendingVerification => 'Doğrulama bekliyor';
 
   @override
-  String get profilePhotoAction => 'Fotoğraf';
+  String get profilePhotoAction => 'Profil Fotoğrafım';
 
   @override
   String get profileVerificationAction => 'Doğrulama';

@@ -1,7 +1,20 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/async_action_state.dart';
+import '../../../core/network/json_utils.dart';
 import '../data/albums_repository.dart';
+
+class AlbumUploadResult {
+  const AlbumUploadResult({
+    required this.ok,
+    this.photoId = 0,
+    this.message = '',
+  });
+
+  final bool ok;
+  final int photoId;
+  final String message;
+}
 
 class AlbumsActionController extends Notifier<AsyncActionState> {
   AlbumsRepository get _repository => ref.read(albumsRepositoryProvider);
@@ -31,7 +44,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     return false;
   }
 
-  Future<bool> uploadPhoto({
+  Future<AlbumUploadResult> uploadPhoto({
     required int categoryId,
     required String title,
     required String description,
@@ -53,24 +66,25 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       editMetadata: editMetadata,
     );
     if (result.ok) {
+      final payload = asJsonMap(result.rawData);
+      final photoId = asInt(payload['id'] ?? payload['photoId']) ?? 0;
+      final message = result.message.isNotEmpty
+          ? result.message
+          : 'Fotoğraf yüklendi.';
       state = AsyncActionState.success(
         scope: 'albums:upload',
-        message: result.message.isNotEmpty
-            ? result.message
-            : 'Fotoğraf yüklendi.',
+        message: message,
       );
-      return true;
+      return AlbumUploadResult(ok: true, photoId: photoId, message: message);
     }
-    state = AsyncActionState.error(
-      scope: 'albums:upload',
-      message: result.message.isNotEmpty
-          ? result.message
-          : 'Fotoğraf yüklenemedi.',
-    );
-    return false;
+    final message = result.message.isNotEmpty
+        ? result.message
+        : 'Fotoğraf yüklenemedi.';
+    state = AsyncActionState.error(scope: 'albums:upload', message: message);
+    return AlbumUploadResult(ok: false, message: message);
   }
 
-  Future<bool> uploadPhotosBatch({
+  Future<AlbumUploadResult> uploadPhotosBatch({
     required int categoryId,
     required String description,
     required bool allowComments,
@@ -92,21 +106,25 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       metadataList: metadataList,
     );
     if (result.ok) {
+      final payload = asJsonMap(result.rawData);
+      final items = asJsonMapList(payload['items']);
+      final photoId = items.isEmpty
+          ? asInt(payload['id'] ?? payload['photoId']) ?? 0
+          : asInt(items.first['id'] ?? items.first['photoId']) ?? 0;
+      final message = result.message.isNotEmpty
+          ? result.message
+          : 'Fotoğraflar yüklendi.';
       state = AsyncActionState.success(
         scope: 'albums:upload',
-        message: result.message.isNotEmpty
-            ? result.message
-            : 'Fotoğraflar yüklendi.',
+        message: message,
       );
-      return true;
+      return AlbumUploadResult(ok: true, photoId: photoId, message: message);
     }
-    state = AsyncActionState.error(
-      scope: 'albums:upload',
-      message: result.message.isNotEmpty
-          ? result.message
-          : 'Fotoğraflar yüklenemedi.',
-    );
-    return false;
+    final message = result.message.isNotEmpty
+        ? result.message
+        : 'Fotoğraflar yüklenemedi.';
+    state = AsyncActionState.error(scope: 'albums:upload', message: message);
+    return AlbumUploadResult(ok: false, message: message);
   }
 
   Future<bool> toggleLike(int photoId) async {
@@ -290,6 +308,47 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       message: result.message.isNotEmpty
           ? result.message
           : 'Albüm oluşturulamadı.',
+    );
+    return false;
+  }
+
+  Future<bool> updateAlbum({
+    required int categoryId,
+    required String title,
+    required String description,
+    required String visibilityScope,
+    String cohortYear = '',
+    String coverMode = 'latest',
+    int? coverPhotoId,
+    List<int> allowedUserIds = const <int>[],
+    List<int> allowedGroupIds = const <int>[],
+  }) async {
+    state = AsyncActionState.loading(scope: 'albums:update:$categoryId');
+    final result = await _repository.updateAlbum(
+      categoryId: categoryId,
+      title: title,
+      description: description,
+      visibilityScope: visibilityScope,
+      cohortYear: cohortYear,
+      coverMode: coverMode,
+      coverPhotoId: coverPhotoId,
+      allowedUserIds: allowedUserIds,
+      allowedGroupIds: allowedGroupIds,
+    );
+    if (result.ok) {
+      state = AsyncActionState.success(
+        scope: 'albums:update',
+        message: result.message.isNotEmpty
+            ? result.message
+            : 'Albüm güncellendi.',
+      );
+      return true;
+    }
+    state = AsyncActionState.error(
+      scope: 'albums:update:$categoryId',
+      message: result.message.isNotEmpty
+          ? result.message
+          : 'Albüm güncellenemedi.',
     );
     return false;
   }
