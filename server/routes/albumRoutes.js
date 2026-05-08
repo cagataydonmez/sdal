@@ -624,8 +624,19 @@ export function registerAlbumRoutes(app, {
     );
     const coverMode = normalizeCoverMode(category.cover_mode);
     const coverFileName = String(category.cover_file_name || '').trim();
+    const coverRow = coverMode === 'fixed' && coverFileName
+      ? await sqlGetAsync(
+          `SELECT ${photoSelect('p')}
+           FROM ${photoTable} p
+           WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
+             AND COALESCE(p.${isPostgres ? 'file_name' : 'dosyaadi'}, '') = ?
+             AND ${photoActiveSql}
+           LIMIT 1`,
+          [categoryIdParam, coverFileName],
+        )
+      : null;
     const previewRows = await sqlAllAsync(
-      `SELECT COALESCE(p.${isPostgres ? 'file_name' : 'dosyaadi'}, '') AS file_name
+      `SELECT ${photoSelect('p')}
        FROM ${photoTable} p
        WHERE p.${isPostgres ? 'category_id' : 'katid'} = ?
          AND ${photoActiveSql}
@@ -640,6 +651,14 @@ export function registerAlbumRoutes(app, {
       ...(coverMode === 'fixed' && coverFileName ? [coverFileName] : []),
       ...previewRows.map((item) => item.file_name).filter(Boolean),
     ];
+    const previewMediaRows = [
+      ...(coverRow ? [coverRow] : []),
+      ...previewRows,
+    ].filter(Boolean);
+    const previewMedia = [];
+    for (const row of previewMediaRows) {
+      previewMedia.push(await buildAlbumPhotoMediaPayload(row));
+    }
 
     return {
       id: Number(category.id || 0),
@@ -647,6 +666,7 @@ export function registerAlbumRoutes(app, {
       aciklama: category.description || '',
       count: Number(countRow?.cnt || 0),
       previews,
+      previewMedia,
       visibilityScope: String(category.visibility_scope || 'public'),
       cohortYear: String(category.cohort_year || ''),
       albumType: String(category.album_type || 'general'),
@@ -722,6 +742,7 @@ export function registerAlbumRoutes(app, {
         id: Number(row.id || 0),
         katid: Number(row.category_id || 0),
         dosyaadi: row.file_name || '',
+        media: await buildAlbumPhotoMediaPayload(row),
         baslik: row.title || 'Fotoğraf',
         tarih: row.created_at || '',
         kategori: row.category_title || '',
@@ -784,6 +805,52 @@ export function registerAlbumRoutes(app, {
     return {
       metadata: parseJsonObjectField(row?.metadata_json),
       sourceFileName: String(row?.source_file_name || '').trim(),
+    };
+  }
+
+  function albumMediaUrl(fileName, { width } = {}) {
+    const clean = String(fileName || '').trim();
+    if (!clean) return '';
+    const params = new URLSearchParams();
+    if (width) params.set('width', String(width));
+    params.set('file', clean);
+    return `/api/media/kucukresim?${params.toString()}`;
+  }
+
+  function resolveEditAspectRatio(metadata) {
+    const data = parseJsonObjectField(metadata);
+    const explicit = Number(data.aspectRatio || 0);
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+    const widthFactor = Number(data.freeformWidthFactor || 0);
+    const heightFactor = Number(data.freeformHeightFactor || 0);
+    if (
+      Number.isFinite(widthFactor) &&
+      Number.isFinite(heightFactor) &&
+      widthFactor > 0 &&
+      heightFactor > 0
+    ) {
+      return widthFactor / heightFactor;
+    }
+    return 4 / 3;
+  }
+
+  async function buildAlbumPhotoMediaPayload(photo, editStateArg = null) {
+    const fileName = String(photo?.file_name || '').trim();
+    const editState = editStateArg || await getPhotoEditState(photo?.id);
+    const metadata = parseJsonObjectField(editState.metadata);
+    const sourceFileName = String(editState.sourceFileName || '').trim();
+    const aspectRatio = resolveEditAspectRatio(metadata);
+    return {
+      fileName,
+      displayFileName: fileName,
+      displayUrl: albumMediaUrl(fileName, { width: 1400 }),
+      thumbnailUrl: albumMediaUrl(fileName, { width: 640 }),
+      lightboxUrl: albumMediaUrl(fileName, { width: 2200 }),
+      sourceFileName,
+      editSourceFileName: sourceFileName,
+      editMetadata: metadata,
+      aspectRatio,
+      isEdited: Object.keys(metadata).length > 0 || !!sourceFileName,
     };
   }
 
@@ -1467,6 +1534,7 @@ export function registerAlbumRoutes(app, {
         photos.push({
           id: Number(displayPhoto.id || 0),
           dosyaadi: displayPhoto.file_name || '',
+          media: await buildAlbumPhotoMediaPayload(displayPhoto),
           baslik: displayPhoto.title || 'Fotoğraf',
           tarih: displayPhoto.created_at || '',
           viewCount: Number(displayPhoto.view_count || 0),
@@ -1541,12 +1609,30 @@ export function registerAlbumRoutes(app, {
       );
       const taggedUsers = await readTaggedUsers(parseStringArrayJson(context.photo.tagged_user_ids_json));
       const editState = await getPhotoEditState(context.photo.id);
+      const rowMedia = await buildAlbumPhotoMediaPayload(context.photo, editState);
+      const groupPhotos = [];
+      for (const item of group.photos) {
+        const itemEditState = Number(item.id || 0) === Number(context.photo.id || 0)
+          ? editState
+          : await getPhotoEditState(item.id);
+        const itemMedia = await buildAlbumPhotoMediaPayload(item, itemEditState);
+        groupPhotos.push({
+          id: Number(item.id || 0),
+          fileName: item.file_name || '',
+          title: item.title || 'Fotoğraf',
+          groupIndex: Number(item.album_group_index || 0),
+          media: itemMedia,
+          editMetadata: itemMedia.editMetadata,
+          editSourceFileName: itemMedia.editSourceFileName,
+        });
+      }
 
       res.json({
         row: {
           id: Number(context.photo.id || 0),
           katid: Number(context.photo.category_id || 0),
           dosyaadi: context.photo.file_name || '',
+          media: rowMedia,
           baslik: context.photo.title || 'Fotoğraf',
           aciklama: context.photo.description || '',
           tarih: context.photo.created_at || '',
@@ -1561,12 +1647,7 @@ export function registerAlbumRoutes(app, {
           groupIndex: Number(context.photo.album_group_index || 0),
           groupCount: group.ids.length,
         },
-        groupPhotos: group.photos.map((item) => ({
-          id: Number(item.id || 0),
-          fileName: item.file_name || '',
-          title: item.title || 'Fotoğraf',
-          groupIndex: Number(item.album_group_index || 0),
-        })),
+        groupPhotos,
         category: await summarizeCategory(context.category, viewer, currentUser),
         taggedUsers: taggedUsers.map((row) => ({
           id: Number(row.id || 0),

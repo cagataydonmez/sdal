@@ -369,6 +369,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                         const SizedBox(height: 14),
                         SdalNetworkImage(
                           imageUrl: config.resolveUrl(item.imageUrl).toString(),
+                          lightboxImageUrl: config.resolveUrl(item.lightboxUrl).toString(),
                           borderRadius: BorderRadius.circular(18),
                           semanticLabel: item.authorName,
                           cacheWidth: (MediaQuery.sizeOf(context).width * 2)

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/page_onboarding_card.dart';
 import '../../../core/widgets/sdal_network_image.dart';
@@ -248,15 +249,26 @@ class _AlbumBarSection extends ConsumerWidget {
                         SizedBox(
                           width: 98,
                           height: 98,
-                          child: SdalNetworkImage(
-                            imageUrl: config.siteBaseUri
-                                .resolve(_thumbPath(item.fileName, width: 220))
-                                .toString(),
-                            borderRadius: BorderRadius.circular(18),
-                            fit: BoxFit.cover,
-                            enableLightbox: false,
-                            cacheWidth: 220,
-                            cacheHeight: 220,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: SdalNetworkImage(
+                              imageUrl: _photoMediaUrl(
+                                config,
+                                item.media,
+                                width: 220,
+                                fallbackFileName: item.fileName,
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                              fit: BoxFit.contain,
+                              enableLightbox: false,
+                              cacheWidth: 220,
+                              cacheHeight: 220,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -402,5 +414,17 @@ class _AlbumCategorySection extends StatelessWidget {
   }
 }
 
-String _thumbPath(String fileName, {int width = 240}) =>
-    '/api/media/kucukresim?width=$width&file=${Uri.encodeComponent(fileName)}';
+String _photoMediaUrl(
+  AppConfig config,
+  AlbumPhotoMedia media, {
+  required int width,
+  required String fallbackFileName,
+}) {
+  final preferred = width >= 1400
+      ? (media.lightboxUrl.isNotEmpty ? media.lightboxUrl : media.displayUrl)
+      : (media.thumbnailUrl.isNotEmpty ? media.thumbnailUrl : media.displayUrl);
+  final path = preferred.isNotEmpty
+      ? preferred
+      : '/api/media/kucukresim?width=$width&file=${Uri.encodeComponent(fallbackFileName)}';
+  return config.siteBaseUri.resolve(path).toString();
+}

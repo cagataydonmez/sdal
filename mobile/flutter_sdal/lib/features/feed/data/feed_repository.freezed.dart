@@ -287,7 +287,7 @@ as String,
 /// @nodoc
 mixin _$FeedVariants {
 
-@JsonKey(fromJson: readRequiredText) String get feedUrl;
+@JsonKey(fromJson: readRequiredText) String get feedUrl;@JsonKey(fromJson: readOptionalText) String? get thumbUrl;@JsonKey(fromJson: readOptionalText) String? get fullUrl;
 /// Create a copy of FeedVariants
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -300,16 +300,16 @@ $FeedVariantsCopyWith<FeedVariants> get copyWith => _$FeedVariantsCopyWithImpl<F
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FeedVariants&&(identical(other.feedUrl, feedUrl) || other.feedUrl == feedUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FeedVariants&&(identical(other.feedUrl, feedUrl) || other.feedUrl == feedUrl)&&(identical(other.thumbUrl, thumbUrl) || other.thumbUrl == thumbUrl)&&(identical(other.fullUrl, fullUrl) || other.fullUrl == fullUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,feedUrl);
+int get hashCode => Object.hash(runtimeType,feedUrl,thumbUrl,fullUrl);
 
 @override
 String toString() {
-  return 'FeedVariants(feedUrl: $feedUrl)';
+  return 'FeedVariants(feedUrl: $feedUrl, thumbUrl: $thumbUrl, fullUrl: $fullUrl)';
 }
 
 
@@ -320,7 +320,9 @@ abstract mixin class $FeedVariantsCopyWith<$Res>  {
   factory $FeedVariantsCopyWith(FeedVariants value, $Res Function(FeedVariants) _then) = _$FeedVariantsCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(fromJson: readRequiredText) String feedUrl
+@JsonKey(fromJson: readRequiredText) String feedUrl,
+@JsonKey(fromJson: readOptionalText) String? thumbUrl,
+@JsonKey(fromJson: readOptionalText) String? fullUrl
 });
 
 
@@ -337,10 +339,12 @@ class _$FeedVariantsCopyWithImpl<$Res>
 
 /// Create a copy of FeedVariants
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? feedUrl = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? feedUrl = null,Object? thumbUrl = freezed,Object? fullUrl = freezed,}) {
   return _then(_self.copyWith(
 feedUrl: null == feedUrl ? _self.feedUrl : feedUrl // ignore: cast_nullable_to_non_nullable
-as String,
+as String,thumbUrl: freezed == thumbUrl ? _self.thumbUrl : thumbUrl // ignore: cast_nullable_to_non_nullable
+as String?,fullUrl: freezed == fullUrl ? _self.fullUrl : fullUrl // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -414,62 +418,31 @@ return $default(_that);case _:
 }
 }
 /// A variant of `when` that fallback to an `orElse` callback.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return orElse();
-/// }
-/// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredText)  String feedUrl)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredText)  String feedUrl, @JsonKey(fromJson: readOptionalText)  String? thumbUrl, @JsonKey(fromJson: readOptionalText)  String? fullUrl)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _FeedVariants() when $default != null:
-return $default(_that.feedUrl);case _:
+return $default(_that.feedUrl,_that.thumbUrl,_that.fullUrl);case _:
   return orElse();
 
 }
 }
 /// A `switch`-like method, using callbacks.
-///
-/// As opposed to `map`, this offers destructuring.
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case Subclass2(:final field2):
-///     return ...;
-/// }
-/// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredText)  String feedUrl)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: readRequiredText)  String feedUrl, @JsonKey(fromJson: readOptionalText)  String? thumbUrl, @JsonKey(fromJson: readOptionalText)  String? fullUrl)  $default,) {final _that = this;
 switch (_that) {
 case _FeedVariants():
-return $default(_that.feedUrl);case _:
+return $default(_that.feedUrl,_that.thumbUrl,_that.fullUrl);case _:
   throw StateError('Unexpected subclass');
 
 }
 }
 /// A variant of `when` that fallback to returning `null`
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return null;
-/// }
-/// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredText)  String feedUrl)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: readRequiredText)  String feedUrl, @JsonKey(fromJson: readOptionalText)  String? thumbUrl, @JsonKey(fromJson: readOptionalText)  String? fullUrl)?  $default,) {final _that = this;
 switch (_that) {
 case _FeedVariants() when $default != null:
-return $default(_that.feedUrl);case _:
+return $default(_that.feedUrl,_that.thumbUrl,_that.fullUrl);case _:
   return null;
 
 }
@@ -481,10 +454,12 @@ return $default(_that.feedUrl);case _:
 @JsonSerializable()
 
 class _FeedVariants implements FeedVariants {
-  const _FeedVariants({@JsonKey(fromJson: readRequiredText) required this.feedUrl});
+  const _FeedVariants({@JsonKey(fromJson: readRequiredText) required this.feedUrl, @JsonKey(fromJson: readOptionalText) this.thumbUrl, @JsonKey(fromJson: readOptionalText) this.fullUrl});
   factory _FeedVariants.fromJson(Map<String, dynamic> json) => _$FeedVariantsFromJson(json);
 
 @override@JsonKey(fromJson: readRequiredText) final  String feedUrl;
+@override@JsonKey(fromJson: readOptionalText) final  String? thumbUrl;
+@override@JsonKey(fromJson: readOptionalText) final  String? fullUrl;
 
 /// Create a copy of FeedVariants
 /// with the given fields replaced by the non-null parameter values.
@@ -499,16 +474,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FeedVariants&&(identical(other.feedUrl, feedUrl) || other.feedUrl == feedUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FeedVariants&&(identical(other.feedUrl, feedUrl) || other.feedUrl == feedUrl)&&(identical(other.thumbUrl, thumbUrl) || other.thumbUrl == thumbUrl)&&(identical(other.fullUrl, fullUrl) || other.fullUrl == fullUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,feedUrl);
+int get hashCode => Object.hash(runtimeType,feedUrl,thumbUrl,fullUrl);
 
 @override
 String toString() {
-  return 'FeedVariants(feedUrl: $feedUrl)';
+  return 'FeedVariants(feedUrl: $feedUrl, thumbUrl: $thumbUrl, fullUrl: $fullUrl)';
 }
 
 
@@ -519,7 +494,9 @@ abstract mixin class _$FeedVariantsCopyWith<$Res> implements $FeedVariantsCopyWi
   factory _$FeedVariantsCopyWith(_FeedVariants value, $Res Function(_FeedVariants) _then) = __$FeedVariantsCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(fromJson: readRequiredText) String feedUrl
+@JsonKey(fromJson: readRequiredText) String feedUrl,
+@JsonKey(fromJson: readOptionalText) String? thumbUrl,
+@JsonKey(fromJson: readOptionalText) String? fullUrl
 });
 
 
@@ -536,10 +513,12 @@ class __$FeedVariantsCopyWithImpl<$Res>
 
 /// Create a copy of FeedVariants
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? feedUrl = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? feedUrl = null,Object? thumbUrl = freezed,Object? fullUrl = freezed,}) {
   return _then(_FeedVariants(
 feedUrl: null == feedUrl ? _self.feedUrl : feedUrl // ignore: cast_nullable_to_non_nullable
-as String,
+as String,thumbUrl: freezed == thumbUrl ? _self.thumbUrl : thumbUrl // ignore: cast_nullable_to_non_nullable
+as String?,fullUrl: freezed == fullUrl ? _self.fullUrl : fullUrl // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

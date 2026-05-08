@@ -31,6 +31,17 @@ enum _BrushMode { pen, highlighter }
 
 enum _HideRegionStyle { blur, mosaic }
 
+enum _ResizeHandle {
+  topLeft,
+  top,
+  topRight,
+  right,
+  bottomRight,
+  bottom,
+  bottomLeft,
+  left,
+}
+
 class _AspectChoice {
   const _AspectChoice(this.label, this.ratio);
 
@@ -371,6 +382,7 @@ class _CropImagePageState extends State<_CropImagePage> {
 
   ui.Image? _decodedImage;
   Size _viewportSize = Size.zero;
+  Size _stageSize = Size.zero;
   Size _displayImageSize = Size.zero;
   double _baseScale = 1;
   bool _isSaving = false;
@@ -434,14 +446,20 @@ class _CropImagePageState extends State<_CropImagePage> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final screen = constraints.biggest;
-          final viewport = _computeViewportSize(screen, ratio);
-          _updateViewport(viewport);
+          final stage = _computeStageSize(screen);
+          final viewport = _computeCropFrameSize(stage, ratio);
+          final cropFrame = Rect.fromCenter(
+            center: Offset(stage.width / 2, stage.height / 2),
+            width: viewport.width,
+            height: viewport.height,
+          );
+          _updateViewport(viewport, stage);
 
           return Stack(
             children: [
               const Positioned.fill(child: ColoredBox(color: Colors.black)),
 
-              // Image canvas — the region that gets captured
+              // Image stage — the crop frame is a window inside this stage.
               Align(
                 child: GestureDetector(
                   behavior: HitTestBehavior.deferToChild,
@@ -456,27 +474,20 @@ class _CropImagePageState extends State<_CropImagePage> {
                     child: ClipRect(
                       key: _captureRegionKey,
                       child: SizedBox(
-                        width: viewport.width,
-                        height: viewport.height,
+                        width: stage.width,
+                        height: stage.height,
                         child: Stack(
                           children: [
                             const Positioned.fill(
                               child: ColoredBox(color: Colors.black),
-                            ),
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: CustomPaint(
-                                  painter: _CropFramePainter(),
-                                ),
-                              ),
                             ),
                             InteractiveViewer(
                               transformationController: _controller,
                               constrained: false,
                               minScale: _baseScale,
                               maxScale: math.max(_baseScale * 6, 6),
-                              boundaryMargin: EdgeInsets.zero,
-                              clipBehavior: Clip.hardEdge,
+                              boundaryMargin: const EdgeInsets.all(320),
+                              clipBehavior: Clip.none,
                               panEnabled: canTransformImage,
                               scaleEnabled: canTransformImage,
                               child: SizedBox(
@@ -512,42 +523,49 @@ class _CropImagePageState extends State<_CropImagePage> {
                                 ),
                               ),
                             ),
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: CustomPaint(
-                                  painter: _DrawOverlayPainter(
-                                    strokes: _showOriginalPreview
-                                        ? const <_DrawStroke>[]
-                                        : _strokes,
-                                    currentStroke: _showOriginalPreview
-                                        ? null
-                                        : _currentStroke,
-                                    viewport: viewport,
+                            Positioned.fromRect(
+                              rect: cropFrame,
+                              child: ClipRect(
+                                child: IgnorePointer(
+                                  child: CustomPaint(
+                                    painter: _DrawOverlayPainter(
+                                      strokes: _showOriginalPreview
+                                          ? const <_DrawStroke>[]
+                                          : _strokes,
+                                      currentStroke: _showOriginalPreview
+                                          ? null
+                                          : _currentStroke,
+                                      viewport: viewport,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                            Positioned.fill(
+                            Positioned.fromRect(
+                              rect: cropFrame,
                               child: IgnorePointer(
                                 ignoring:
                                     _activePanel == _EditorPanel.crop ||
                                     _showOriginalPreview,
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    if (!_showOriginalPreview)
-                                      for (final region in _hideRegions)
-                                        _buildHideRegion(region, viewport),
-                                    if (!_showOriginalPreview)
-                                      for (final sticker in _stickers)
-                                        _buildSticker(sticker, viewport),
-                                  ],
+                                child: ClipRect(
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      if (!_showOriginalPreview)
+                                        for (final region in _hideRegions)
+                                          _buildHideRegion(region, viewport),
+                                      if (!_showOriginalPreview)
+                                        for (final sticker in _stickers)
+                                          _buildSticker(sticker, viewport),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                             if (_activePanel == _EditorPanel.draw &&
                                 !_showOriginalPreview)
-                              Positioned.fill(
+                              Positioned.fromRect(
+                                rect: cropFrame,
                                 child: GestureDetector(
                                   behavior: HitTestBehavior.opaque,
                                   onPanStart: _startStroke,
@@ -555,6 +573,15 @@ class _CropImagePageState extends State<_CropImagePage> {
                                   onPanEnd: _finishStroke,
                                 ),
                               ),
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: CustomPaint(
+                                  painter: _CropFramePainter(
+                                    cropFrame: cropFrame,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -941,9 +968,9 @@ class _CropImagePageState extends State<_CropImagePage> {
             ),
             _OverlaySlider(
               label: 'Boyut',
-              value: sticker.scale.clamp(0.7, 2.8),
-              min: 0.7,
-              max: 2.8,
+              value: sticker.scale.clamp(0.5, 4.0),
+              min: 0.5,
+              max: 4.0,
               onChanged: _isSaving ? null : _updateSelectedStickerScale,
             ),
           ],
@@ -1265,9 +1292,15 @@ class _CropImagePageState extends State<_CropImagePage> {
     });
   }
 
-  Size _computeViewportSize(Size available, double ratio) {
+  Size _computeStageSize(Size available) {
     final maxWidth = math.max(available.width, 160.0);
     final maxHeight = math.max(available.height, 160.0);
+    return Size(maxWidth, maxHeight);
+  }
+
+  Size _computeCropFrameSize(Size stage, double ratio) {
+    final maxWidth = math.max(stage.width * 0.9, 160.0);
+    final maxHeight = math.max(stage.height * 0.76, 160.0);
     if (_isFreeformCrop) {
       return Size(
         maxWidth * _freeformWidthFactor,
@@ -1283,12 +1316,16 @@ class _CropImagePageState extends State<_CropImagePage> {
     return Size(width, height);
   }
 
-  void _updateViewport(Size nextViewport) {
+  void _updateViewport(Size nextViewport, Size nextStage) {
     if (_decodedImage == null) return;
     final widthDelta = (nextViewport.width - _viewportSize.width).abs();
     final heightDelta = (nextViewport.height - _viewportSize.height).abs();
+    final stageWidthDelta = (nextStage.width - _stageSize.width).abs();
+    final stageHeightDelta = (nextStage.height - _stageSize.height).abs();
     if (widthDelta < 0.5 &&
         heightDelta < 0.5 &&
+        stageWidthDelta < 0.5 &&
+        stageHeightDelta < 0.5 &&
         _displayImageSize != Size.zero) {
       return;
     }
@@ -1301,9 +1338,10 @@ class _CropImagePageState extends State<_CropImagePage> {
     if (previousViewport != Size.zero &&
         previousDisplaySize != Size.zero &&
         previousBaseScale > 0) {
-      final topLeft = _controller.toScene(Offset.zero);
+      final cropOrigin = _cropFrameOrigin(previousViewport, _stageSize);
+      final topLeft = _controller.toScene(cropOrigin);
       final bottomRight = _controller.toScene(
-        Offset(previousViewport.width, previousViewport.height),
+        cropOrigin + Offset(previousViewport.width, previousViewport.height),
       );
       normalizedCenter = Offset(
         ((topLeft.dx + bottomRight.dx) / 2 / previousDisplaySize.width).clamp(
@@ -1320,6 +1358,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     }
 
     _viewportSize = nextViewport;
+    _stageSize = nextStage;
     final originalSize = _unrotatedDisplaySize;
     _displayImageSize = (_quarterTurns % 2 == 0)
         ? originalSize
@@ -1343,16 +1382,31 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   void _setImageTransform({required Offset center, required double zoom}) {
-    if (_displayImageSize == Size.zero || _viewportSize == Size.zero) return;
+    if (_displayImageSize == Size.zero ||
+        _viewportSize == Size.zero ||
+        _stageSize == Size.zero) {
+      return;
+    }
     final scale = _baseScale * zoom.clamp(1.0, 6.0);
     final sceneCenter = Offset(
       center.dx.clamp(0.0, 1.0) * _displayImageSize.width,
       center.dy.clamp(0.0, 1.0) * _displayImageSize.height,
     );
-    final dx = (_viewportSize.width / 2) - (sceneCenter.dx * scale);
-    final dy = (_viewportSize.height / 2) - (sceneCenter.dy * scale);
+    final cropOrigin = _cropFrameOrigin(_viewportSize, _stageSize);
+    final cropCenter =
+        cropOrigin + Offset(_viewportSize.width / 2, _viewportSize.height / 2);
+    final dx = cropCenter.dx - (sceneCenter.dx * scale);
+    final dy = cropCenter.dy - (sceneCenter.dy * scale);
     _controller.value = Matrix4.diagonal3Values(scale, scale, 1)
       ..setTranslationRaw(dx, dy, 0);
+  }
+
+  Offset _cropFrameOrigin(Size viewport, Size stage) {
+    if (viewport == Size.zero || stage == Size.zero) return Offset.zero;
+    return Offset(
+      (stage.width - viewport.width) / 2,
+      (stage.height - viewport.height) / 2,
+    );
   }
 
   void _resetAll() {
@@ -1377,6 +1431,7 @@ class _CropImagePageState extends State<_CropImagePage> {
       _drawWidth = 8;
       _brushMode = _BrushMode.pen;
       _viewportSize = Size.zero;
+      _stageSize = Size.zero;
     });
   }
 
@@ -1395,6 +1450,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     setState(() {
       _quarterTurns = (_quarterTurns + 1) % 4;
       _viewportSize = Size.zero;
+      _stageSize = Size.zero;
       _selectedStickerId = null;
       _selectedHideRegionId = null;
     });
@@ -1408,6 +1464,7 @@ class _CropImagePageState extends State<_CropImagePage> {
         _freeformHeightFactor = _freeformHeightFactor.clamp(0.35, 1.0);
       }
       _viewportSize = Size.zero;
+      _stageSize = Size.zero;
     });
   }
 
@@ -1416,6 +1473,7 @@ class _CropImagePageState extends State<_CropImagePage> {
       _selectedAspectRatio = null;
       _freeformWidthFactor = value.clamp(0.35, 1.0);
       _viewportSize = Size.zero;
+      _stageSize = Size.zero;
     });
   }
 
@@ -1424,6 +1482,7 @@ class _CropImagePageState extends State<_CropImagePage> {
       _selectedAspectRatio = null;
       _freeformHeightFactor = value.clamp(0.35, 1.0);
       _viewportSize = Size.zero;
+      _stageSize = Size.zero;
     });
   }
 
@@ -1600,51 +1659,80 @@ class _CropImagePageState extends State<_CropImagePage> {
         onScaleEnd: (_) => _stickerBaseScale = null,
         child: Transform.translate(
           offset: const Offset(-38, -20),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: _stickerBackgroundColor(sticker.backgroundStyle),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: selected ? Colors.white : Colors.white24,
-                width: selected ? 1.6 : 1,
-              ),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 220),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: _stickerBackgroundColor(sticker.backgroundStyle),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: selected ? Colors.white : Colors.white24,
+                    width: selected ? 1.6 : 1,
+                  ),
                 ),
-                child: Text(
-                  sticker.text,
-                  textAlign: sticker.textAlign,
-                  style: TextStyle(
-                    color: sticker.textColor,
-                    fontSize: 20 * sticker.scale,
-                    fontWeight: sticker.bold
-                        ? FontWeight.w800
-                        : FontWeight.w500,
-                    height: 1.08,
-                    fontFamily: _fontFamilyFor(sticker.fontKind),
-                    shadows: [
-                      Shadow(
-                        color: _shadowColorFor(
-                          sticker.textColor,
-                          sticker.backgroundStyle,
-                        ),
-                        blurRadius: 12,
-                        offset: const Offset(0, 2),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 220),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      sticker.text,
+                      textAlign: sticker.textAlign,
+                      style: TextStyle(
+                        color: sticker.textColor,
+                        fontSize: 20 * sticker.scale,
+                        fontWeight: sticker.bold
+                            ? FontWeight.w800
+                            : FontWeight.w500,
+                        height: 1.08,
+                        fontFamily: _fontFamilyFor(sticker.fontKind),
+                        shadows: [
+                          Shadow(
+                            color: _shadowColorFor(
+                              sticker.textColor,
+                              sticker.backgroundStyle,
+                            ),
+                            blurRadius: 12,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
+              if (selected)
+                Positioned(
+                  right: -12,
+                  bottom: -12,
+                  child: _LayerResizeHandle(
+                    onPanUpdate: (details) =>
+                        _resizeStickerByDrag(sticker.id, details),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  void _resizeStickerByDrag(int id, DragUpdateDetails details) {
+    final delta = details.delta.dx + details.delta.dy;
+    setState(() {
+      _stickers = [
+        for (final sticker in _stickers)
+          if (sticker.id == id)
+            sticker.copyWith(
+              scale: (sticker.scale + (delta / 160)).clamp(0.5, 4.0),
+            )
+          else
+            sticker,
+      ];
+    });
   }
 
   String? _fontFamilyFor(_StickerFontKind kind) {
@@ -1670,7 +1758,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                 (sticker.anchor.dy + (details.focalPointDelta.dy / height))
                     .clamp(0.08, 0.92),
               ),
-              scale: (baseScale * details.scale).clamp(0.7, 2.8),
+              scale: (baseScale * details.scale).clamp(0.5, 4.0),
             )
           else
             sticker,
@@ -1815,55 +1903,297 @@ class _CropImagePageState extends State<_CropImagePage> {
       top: top,
       width: width,
       height: height,
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _activePanel = _EditorPanel.hide;
-            _selectedHideRegionId = region.id;
-          });
-        },
-        onScaleStart: (_) {
-          setState(() {
-            _activePanel = _EditorPanel.hide;
-            _selectedHideRegionId = region.id;
-          });
-          _hideRegionBaseSize = region.size;
-        },
-        onScaleUpdate: (details) =>
-            _transformHideRegion(region.id, details, viewport),
-        onScaleEnd: (_) => _hideRegionBaseSize = null,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              BackdropFilter(
-                filter: ui.ImageFilter.blur(
-                  sigmaX: region.style == _HideRegionStyle.blur ? 14 : 6,
-                  sigmaY: region.style == _HideRegionStyle.blur ? 14 : 6,
-                ),
-                child: Container(
-                  color: region.style == _HideRegionStyle.blur
-                      ? Colors.black.withValues(alpha: 0.12)
-                      : Colors.black.withValues(alpha: 0.28),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _activePanel = _EditorPanel.hide;
+                  _selectedHideRegionId = region.id;
+                });
+              },
+              onScaleStart: (_) {
+                setState(() {
+                  _activePanel = _EditorPanel.hide;
+                  _selectedHideRegionId = region.id;
+                });
+                _hideRegionBaseSize = region.size;
+              },
+              onScaleUpdate: (details) =>
+                  _transformHideRegion(region.id, details, viewport),
+              onScaleEnd: (_) => _hideRegionBaseSize = null,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    BackdropFilter(
+                      filter: ui.ImageFilter.blur(
+                        sigmaX: region.style == _HideRegionStyle.blur ? 14 : 6,
+                        sigmaY: region.style == _HideRegionStyle.blur ? 14 : 6,
+                      ),
+                      child: Container(
+                        color: region.style == _HideRegionStyle.blur
+                            ? Colors.black.withValues(alpha: 0.12)
+                            : Colors.black.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    if (region.style == _HideRegionStyle.mosaic)
+                      CustomPaint(painter: _MosaicOverlayPainter()),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: selected ? Colors.white : Colors.white24,
+                          width: selected ? 1.8 : 1,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (region.style == _HideRegionStyle.mosaic)
-                CustomPaint(painter: _MosaicOverlayPainter()),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: selected ? Colors.white : Colors.white24,
-                    width: selected ? 1.8 : 1,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          if (selected) ..._buildHideResizeHandles(region, viewport),
+        ],
       ),
     );
+  }
+
+  List<Widget> _buildHideResizeHandles(_HideRegion region, Size viewport) {
+    final handles = <Widget>[
+      _positionedResizeHandle(
+        left: -12,
+        top: -12,
+        onPanUpdate: (details) => _resizeHideRegionByHandle(
+          region.id,
+          _ResizeHandle.topLeft,
+          details,
+          viewport,
+        ),
+      ),
+      _positionedResizeHandle(
+        right: -12,
+        top: -12,
+        onPanUpdate: (details) => _resizeHideRegionByHandle(
+          region.id,
+          _ResizeHandle.topRight,
+          details,
+          viewport,
+        ),
+      ),
+      _positionedResizeHandle(
+        right: -12,
+        bottom: -12,
+        onPanUpdate: (details) => _resizeHideRegionByHandle(
+          region.id,
+          _ResizeHandle.bottomRight,
+          details,
+          viewport,
+        ),
+      ),
+      _positionedResizeHandle(
+        left: -12,
+        bottom: -12,
+        onPanUpdate: (details) => _resizeHideRegionByHandle(
+          region.id,
+          _ResizeHandle.bottomLeft,
+          details,
+          viewport,
+        ),
+      ),
+    ];
+
+    if (!region.aspectLocked) {
+      handles.addAll([
+        _positionedResizeHandle(
+          top: -12,
+          centerX: true,
+          onPanUpdate: (details) => _resizeHideRegionByHandle(
+            region.id,
+            _ResizeHandle.top,
+            details,
+            viewport,
+          ),
+        ),
+        _positionedResizeHandle(
+          right: -12,
+          centerY: true,
+          onPanUpdate: (details) => _resizeHideRegionByHandle(
+            region.id,
+            _ResizeHandle.right,
+            details,
+            viewport,
+          ),
+        ),
+        _positionedResizeHandle(
+          bottom: -12,
+          centerX: true,
+          onPanUpdate: (details) => _resizeHideRegionByHandle(
+            region.id,
+            _ResizeHandle.bottom,
+            details,
+            viewport,
+          ),
+        ),
+        _positionedResizeHandle(
+          left: -12,
+          centerY: true,
+          onPanUpdate: (details) => _resizeHideRegionByHandle(
+            region.id,
+            _ResizeHandle.left,
+            details,
+            viewport,
+          ),
+        ),
+      ]);
+    }
+
+    return handles;
+  }
+
+  Widget _positionedResizeHandle({
+    double? left,
+    double? top,
+    double? right,
+    double? bottom,
+    bool centerX = false,
+    bool centerY = false,
+    required GestureDragUpdateCallback onPanUpdate,
+  }) {
+    final handle = _LayerResizeHandle(onPanUpdate: onPanUpdate);
+    if (centerX) {
+      return Positioned(
+        left: 0,
+        top: top,
+        right: 0,
+        bottom: bottom,
+        child: Center(child: handle),
+      );
+    }
+    if (centerY) {
+      return Positioned(
+        left: left,
+        top: 0,
+        right: right,
+        bottom: 0,
+        child: Center(child: handle),
+      );
+    }
+    return Positioned(
+      left: left,
+      top: top,
+      right: right,
+      bottom: bottom,
+      child: handle,
+    );
+  }
+
+  void _resizeHideRegionByHandle(
+    int id,
+    _ResizeHandle handle,
+    DragUpdateDetails details,
+    Size viewport,
+  ) {
+    final viewportWidth = viewport.width <= 0 ? 1.0 : viewport.width;
+    final viewportHeight = viewport.height <= 0 ? 1.0 : viewport.height;
+    final dx = details.delta.dx / viewportWidth;
+    final dy = details.delta.dy / viewportHeight;
+
+    setState(() {
+      _hideRegions = [
+        for (final region in _hideRegions)
+          if (region.id == id)
+            _resizeHideRegion(region, handle, dx, dy)
+          else
+            region,
+      ];
+    });
+  }
+
+  _HideRegion _resizeHideRegion(
+    _HideRegion region,
+    _ResizeHandle handle,
+    double dx,
+    double dy,
+  ) {
+    var left = region.center.dx - (region.size.width / 2);
+    var right = region.center.dx + (region.size.width / 2);
+    var top = region.center.dy - (region.size.height / 2);
+    var bottom = region.center.dy + (region.size.height / 2);
+
+    switch (handle) {
+      case _ResizeHandle.topLeft:
+        left += dx;
+        top += dy;
+      case _ResizeHandle.top:
+        top += dy;
+      case _ResizeHandle.topRight:
+        right += dx;
+        top += dy;
+      case _ResizeHandle.right:
+        right += dx;
+      case _ResizeHandle.bottomRight:
+        right += dx;
+        bottom += dy;
+      case _ResizeHandle.bottom:
+        bottom += dy;
+      case _ResizeHandle.bottomLeft:
+        left += dx;
+        bottom += dy;
+      case _ResizeHandle.left:
+        left += dx;
+    }
+
+    if (region.aspectLocked) {
+      final aspect = region.size.width / math.max(region.size.height, 0.01);
+      final oldWidth = region.size.width;
+      final oldHeight = region.size.height;
+      final widthDelta = (right - left) - oldWidth;
+      final heightDelta = ((bottom - top) - oldHeight) * aspect;
+      final nextWidth = (oldWidth + _dominantDelta(widthDelta, heightDelta))
+          .clamp(0.12, 0.82);
+      final nextHeight = (nextWidth / aspect).clamp(0.08, 0.82);
+      final fixedCenter = region.center;
+      return region.copyWith(
+        center: Offset(
+          fixedCenter.dx.clamp(0.06, 0.94),
+          fixedCenter.dy.clamp(0.06, 0.94),
+        ),
+        size: Size(nextWidth, nextHeight),
+      );
+    }
+
+    const minWidth = 0.12;
+    const minHeight = 0.08;
+    left = left.clamp(0.0, 1.0 - minWidth);
+    right = right.clamp(minWidth, 1.0);
+    top = top.clamp(0.0, 1.0 - minHeight);
+    bottom = bottom.clamp(minHeight, 1.0);
+    if (right - left < minWidth) {
+      handle == _ResizeHandle.left
+          ? left = right - minWidth
+          : right = left + minWidth;
+    }
+    if (bottom - top < minHeight) {
+      handle == _ResizeHandle.top
+          ? top = bottom - minHeight
+          : bottom = top + minHeight;
+    }
+
+    return region.copyWith(
+      center: Offset((left + right) / 2, (top + bottom) / 2),
+      size: Size(
+        (right - left).clamp(0.12, 0.82),
+        (bottom - top).clamp(0.08, 0.82),
+      ),
+    );
+  }
+
+  double _dominantDelta(double widthDelta, double heightDelta) {
+    return widthDelta.abs() >= heightDelta.abs() ? widthDelta : heightDelta;
   }
 
   void _transformHideRegion(int id, ScaleUpdateDetails details, Size viewport) {
@@ -2429,13 +2759,16 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   Rect _resolveCropRectInRotatedBitmap(img.Image rotatedImage) {
-    if (_viewportSize == Size.zero || _displayImageSize == Size.zero) {
+    if (_viewportSize == Size.zero ||
+        _stageSize == Size.zero ||
+        _displayImageSize == Size.zero) {
       throw StateError('Kirpma alani hazir degil.');
     }
 
-    final topLeft = _controller.toScene(Offset.zero);
+    final cropOrigin = _cropFrameOrigin(_viewportSize, _stageSize);
+    final topLeft = _controller.toScene(cropOrigin);
     final bottomRight = _controller.toScene(
-      Offset(_viewportSize.width, _viewportSize.height),
+      cropOrigin + Offset(_viewportSize.width, _viewportSize.height),
     );
     final left = math
         .min(topLeft.dx, bottomRight.dx)
@@ -2714,17 +3047,66 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 }
 
+class _LayerResizeHandle extends StatelessWidget {
+  const _LayerResizeHandle({required this.onPanUpdate});
+
+  final GestureDragUpdateCallback onPanUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanUpdate: onPanUpdate,
+      child: SizedBox(
+        width: 32,
+        height: 32,
+        child: Center(
+          child: Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black87, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.32),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CropFramePainter extends CustomPainter {
+  const _CropFramePainter({required this.cropFrame});
+
+  final Rect cropFrame;
+
   @override
   void paint(Canvas canvas, Size size) {
+    final overlayPath = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(Offset.zero & size)
+      ..addRRect(RRect.fromRectXY(cropFrame, 14, 14));
+    canvas.drawPath(
+      overlayPath,
+      Paint()..color = Colors.black.withValues(alpha: 0.48),
+    );
+
     final paint = Paint()
       ..color = Colors.white.withValues(alpha: 0.86)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
     const dash = 10.0;
     const gap = 7.0;
-    final rect = Offset.zero & size;
-    final path = Path()..addRRect(RRect.fromRectXY(rect.deflate(0.7), 14, 14));
+    final path = Path()
+      ..addRRect(RRect.fromRectXY(cropFrame.deflate(0.7), 14, 14));
     for (final metric in path.computeMetrics()) {
       double distance = 0;
       while (distance < metric.length) {
@@ -2736,7 +3118,9 @@ class _CropFramePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CropFramePainter oldDelegate) {
+    return oldDelegate.cropFrame != cropFrame;
+  }
 }
 
 class _DrawOverlayPainter extends CustomPainter {

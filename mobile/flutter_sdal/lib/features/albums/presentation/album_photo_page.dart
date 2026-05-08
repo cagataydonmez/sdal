@@ -447,6 +447,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
               fileName: photo.fileName,
               title: photo.title,
               groupIndex: 0,
+              media: photo.media,
+              editMetadata: photo.editMetadata,
+              editSourceFileName: photo.editSourceFileName,
             ),
           ]
         : photo.groupPhotos;
@@ -553,9 +556,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                                             fit: BoxFit.cover,
                                           )
                                         : SdalNetworkImage(
-                                            imageUrl: _albumImageUrl(
+                                            imageUrl: _albumMediaImageUrl(
                                               config,
-                                              item.fileName,
+                                              item.media,
                                               width: 240,
                                             ),
                                             fit: BoxFit.cover,
@@ -600,9 +603,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                                   ),
                                 )
                               : SdalNetworkImage(
-                                  imageUrl: _albumImageUrl(
+                                  imageUrl: _albumMediaImageUrl(
                                     config,
-                                    editingItem.fileName,
+                                    editingItem.media,
                                     width: 900,
                                   ),
                                   fit: BoxFit.cover,
@@ -878,6 +881,8 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
       initialMetadata:
           photo.editSourceFileName.isNotEmpty && item.id == photo.id
           ? photo.editMetadata
+          : item.editMetadata.isNotEmpty
+          ? item.editMetadata
           : const <String, dynamic>{},
     );
   }
@@ -888,8 +893,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     AlbumPhotoGroupItem item,
   ) async {
     final apiClient = ref.read(apiClientProvider);
-    final sourceFileName =
-        photo.editSourceFileName.isNotEmpty && item.id == photo.id
+    final sourceFileName = item.editSourceFileName.isNotEmpty
+        ? item.editSourceFileName
+        : photo.editSourceFileName.isNotEmpty && item.id == photo.id
         ? photo.editSourceFileName
         : item.fileName;
     if (sourceFileName.isEmpty) return null;
@@ -898,7 +904,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
       '/uploads/album/${Uri.encodeComponent(sourceFileName)}',
     );
     final fallbackUri = apiClient.buildApiUri(
-      '/api/media/kucukresim?width=1600&file=${Uri.encodeComponent(item.fileName)}',
+      _albumMediaPath(item.media, width: 1600, fallbackFileName: item.fileName),
     );
     var resolvedFile = await _downloadEditablePhotoFile(
       apiClient,
@@ -1119,12 +1125,32 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   }
 }
 
-String _albumImageUrl(AppConfig config, String fileName, {int width = 900}) {
+String _albumMediaImageUrl(
+  AppConfig config,
+  AlbumPhotoMedia media, {
+  int width = 900,
+}) {
   return config.siteBaseUri
       .resolve(
-        '/api/media/kucukresim?width=$width&file=${Uri.encodeComponent(fileName)}',
+        _albumMediaPath(
+          media,
+          width: width,
+          fallbackFileName: media.displayFileName,
+        ),
       )
       .toString();
+}
+
+String _albumMediaPath(
+  AlbumPhotoMedia media, {
+  required int width,
+  required String fallbackFileName,
+}) {
+  final preferred = width >= 1400
+      ? (media.lightboxUrl.isNotEmpty ? media.lightboxUrl : media.displayUrl)
+      : (media.thumbnailUrl.isNotEmpty ? media.thumbnailUrl : media.displayUrl);
+  if (preferred.isNotEmpty) return preferred;
+  return '/api/media/kucukresim?width=$width&file=${Uri.encodeComponent(fallbackFileName)}';
 }
 
 class _PhotoGroupViewer extends ConsumerWidget {
@@ -1154,6 +1180,9 @@ class _PhotoGroupViewer extends ConsumerWidget {
               fileName: photo.fileName,
               title: photo.title,
               groupIndex: 0,
+              media: photo.media,
+              editMetadata: photo.editMetadata,
+              editSourceFileName: photo.editSourceFileName,
             ),
           ]
         : photo.groupPhotos;
@@ -1173,11 +1202,21 @@ class _PhotoGroupViewer extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final item = photos[index];
                 return SdalNetworkImage(
-                  imageUrl: config.siteBaseUri
+                  imageUrl: _albumMediaImageUrl(
+                    config,
+                    item.media,
+                    width: 1400,
+                  ),
+                  lightboxImageUrl: config.siteBaseUri
                       .resolve(
-                        '/api/media/kucukresim?width=1400&file=${Uri.encodeComponent(item.fileName)}',
+                        _albumMediaPath(
+                          item.media,
+                          width: 2200,
+                          fallbackFileName: item.fileName,
+                        ),
                       )
                       .toString(),
+                  fit: BoxFit.contain,
                   semanticLabel: item.title,
                 );
               },

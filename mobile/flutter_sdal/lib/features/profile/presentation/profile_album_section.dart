@@ -191,9 +191,24 @@ class _ProfileAlbumCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final tokens = theme.sdal;
     final config = ref.watch(appConfigProvider);
-    final preview = album.previews.isEmpty
-        ? ''
-        : config.resolveUrl(album.previews.first).toString();
+    final previewMedia = album.previewMedia.isEmpty
+        ? null
+        : album.previewMedia.first;
+    final preview = previewMedia == null
+        ? (album.previews.isEmpty
+              ? ''
+              : config.siteBaseUri
+                    .resolve(
+                      '/api/media/kucukresim?width=640&file=${Uri.encodeComponent(album.previews.first)}',
+                    )
+                    .toString())
+        : config.siteBaseUri
+              .resolve(
+                previewMedia.thumbnailUrl.isNotEmpty
+                    ? previewMedia.thumbnailUrl
+                    : previewMedia.displayUrl,
+              )
+              .toString();
 
     return SizedBox(
       width: 214,

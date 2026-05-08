@@ -7,6 +7,7 @@ class SdalNetworkImage extends StatelessWidget {
   const SdalNetworkImage({
     super.key,
     required this.imageUrl,
+    this.lightboxImageUrl,
     this.width,
     this.height,
     this.fit = BoxFit.cover,
@@ -21,6 +22,7 @@ class SdalNetworkImage extends StatelessWidget {
   });
 
   final String imageUrl;
+  final String? lightboxImageUrl;
   final double? width;
   final double? height;
   final BoxFit fit;
@@ -101,8 +103,9 @@ class SdalNetworkImage extends StatelessWidget {
       child = ClipRRect(borderRadius: borderRadius!, child: child);
     }
 
+    final lightboxUrl = normalizeLegacyMediaValue(lightboxImageUrl ?? '');
     child = SdalLightboxImage(
-      imageProvider: NetworkImage(trimmed),
+      imageProvider: NetworkImage(lightboxUrl.isEmpty ? trimmed : lightboxUrl),
       semanticLabel: semanticLabel,
       enabled: enableLightbox,
       child: child,

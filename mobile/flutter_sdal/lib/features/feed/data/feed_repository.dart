@@ -87,6 +87,8 @@ abstract class FeedAuthor with _$FeedAuthor {
 abstract class FeedVariants with _$FeedVariants {
   const factory FeedVariants({
     @JsonKey(fromJson: readRequiredText) required String feedUrl,
+    @JsonKey(fromJson: readOptionalText) String? thumbUrl,
+    @JsonKey(fromJson: readOptionalText) String? fullUrl,
   }) = _FeedVariants;
 
   factory FeedVariants.fromJson(Map<String, dynamic> json) =>
@@ -118,6 +120,11 @@ abstract class FeedItem with _$FeedItem {
     final variantUrl = variants?.feedUrl ?? '';
     if (variantUrl.isNotEmpty) return variantUrl;
     return image;
+  }
+
+  String get lightboxUrl {
+    final url = variants?.fullUrl ?? variants?.feedUrl ?? '';
+    return url.isNotEmpty ? url : image;
   }
 
   factory FeedItem.fromJson(Map<String, dynamic> json) => _$FeedItemFromJson(

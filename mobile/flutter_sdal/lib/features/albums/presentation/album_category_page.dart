@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/widgets/feature_scaffold.dart';
 import '../../../core/widgets/sdal_network_image.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -157,20 +158,38 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
                                           ),
                                         ],
                                         Positioned.fill(
-                                          child: SdalNetworkImage(
-                                            imageUrl: config.siteBaseUri
-                                                .resolve(
-                                                  _thumbPath(photo.fileName),
-                                                )
-                                                .toString(),
-                                            fit: BoxFit.cover,
-                                            borderRadius: BorderRadius.circular(
-                                              18,
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
                                             ),
-                                            enableLightbox: false,
-                                            cacheWidth: (itemWidth * 2).round(),
-                                            cacheHeight: (itemWidth * 2)
-                                                .round(),
+                                            child: SdalNetworkImage(
+                                              imageUrl: _photoMediaUrl(
+                                                config,
+                                                photo.media,
+                                                width: 640,
+                                                fallbackFileName:
+                                                    photo.fileName,
+                                              ),
+                                              lightboxImageUrl: _photoMediaUrl(
+                                                config,
+                                                photo.media,
+                                                width: 2200,
+                                                fallbackFileName:
+                                                    photo.fileName,
+                                              ),
+                                              fit: BoxFit.contain,
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
+                                              enableLightbox: false,
+                                              cacheWidth: (itemWidth * 2)
+                                                  .round(),
+                                              cacheHeight: (itemWidth * 2)
+                                                  .round(),
+                                            ),
                                           ),
                                         ),
                                         if (photo.groupCount > 1)
@@ -347,5 +366,17 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
   }
 }
 
-String _thumbPath(String fileName) =>
-    '/api/media/kucukresim?width=320&file=${Uri.encodeComponent(fileName)}';
+String _photoMediaUrl(
+  AppConfig config,
+  AlbumPhotoMedia media, {
+  required int width,
+  required String fallbackFileName,
+}) {
+  final preferred = width >= 1400
+      ? (media.lightboxUrl.isNotEmpty ? media.lightboxUrl : media.displayUrl)
+      : (media.thumbnailUrl.isNotEmpty ? media.thumbnailUrl : media.displayUrl);
+  final path = preferred.isNotEmpty
+      ? preferred
+      : '/api/media/kucukresim?width=$width&file=${Uri.encodeComponent(fallbackFileName)}';
+  return config.siteBaseUri.resolve(path).toString();
+}

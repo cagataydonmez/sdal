@@ -341,6 +341,7 @@ class _PostCard extends ConsumerWidget {
             const SizedBox(height: 14),
             SdalNetworkImage(
               imageUrl: config.resolveUrl(post.imageUrl).toString(),
+              lightboxImageUrl: config.resolveUrl(post.lightboxUrl).toString(),
               fit: BoxFit.cover,
               borderRadius: BorderRadius.circular(18),
               errorFallback: const SizedBox.shrink(),

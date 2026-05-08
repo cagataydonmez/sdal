@@ -22,10 +22,18 @@ Map<String, dynamic> _$FeedAuthorToJson(_FeedAuthor instance) =>
     };
 
 _FeedVariants _$FeedVariantsFromJson(Map<String, dynamic> json) =>
-    _FeedVariants(feedUrl: readRequiredText(json['feedUrl']));
+    _FeedVariants(
+      feedUrl: readRequiredText(json['feedUrl']),
+      thumbUrl: readOptionalText(json['thumbUrl']),
+      fullUrl: readOptionalText(json['fullUrl']),
+    );
 
 Map<String, dynamic> _$FeedVariantsToJson(_FeedVariants instance) =>
-    <String, dynamic>{'feedUrl': instance.feedUrl};
+    <String, dynamic>{
+      'feedUrl': instance.feedUrl,
+      'thumbUrl': instance.thumbUrl,
+      'fullUrl': instance.fullUrl,
+    };
 
 _FeedItem _$FeedItemFromJson(Map<String, dynamic> json) => _FeedItem(
   id: readRequiredInt(json['id']),

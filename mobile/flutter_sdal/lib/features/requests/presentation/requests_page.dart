@@ -412,6 +412,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final picked = await pickAndCropImage(
       context,
       source: source,
+      aspectPreset: CropAspectPreset.album43,
       title: 'Eki kırp',
     );
     if (picked == null || !mounted) return;

@@ -7,6 +7,78 @@ import '../../../core/network/json_utils.dart';
 import '../../explore/data/explore_repository.dart';
 import '../../groups/data/groups_repository.dart';
 
+double? _asDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+class AlbumPhotoMedia {
+  const AlbumPhotoMedia({
+    required this.fileName,
+    required this.displayFileName,
+    required this.displayUrl,
+    required this.thumbnailUrl,
+    required this.lightboxUrl,
+    required this.sourceFileName,
+    required this.editMetadata,
+    required this.aspectRatio,
+    required this.isEdited,
+  });
+
+  final String fileName;
+  final String displayFileName;
+  final String displayUrl;
+  final String thumbnailUrl;
+  final String lightboxUrl;
+  final String sourceFileName;
+  final JsonMap editMetadata;
+  final double aspectRatio;
+  final bool isEdited;
+
+  factory AlbumPhotoMedia.empty(String fileName) {
+    final clean = fileName.trim();
+    return AlbumPhotoMedia(
+      fileName: clean,
+      displayFileName: clean,
+      displayUrl: '',
+      thumbnailUrl: '',
+      lightboxUrl: '',
+      sourceFileName: '',
+      editMetadata: const <String, dynamic>{},
+      aspectRatio: 4 / 3,
+      isEdited: false,
+    );
+  }
+
+  factory AlbumPhotoMedia.fromMap(JsonMap map, {String fallbackFileName = ''}) {
+    final fileName = coalesceText([
+      map['fileName'],
+      map['displayFileName'],
+      fallbackFileName,
+    ], fallback: '');
+    return AlbumPhotoMedia(
+      fileName: fileName,
+      displayFileName: coalesceText([
+        map['displayFileName'],
+        map['fileName'],
+        fallbackFileName,
+      ], fallback: fileName),
+      displayUrl: coalesceText([map['displayUrl']], fallback: ''),
+      thumbnailUrl: coalesceText([map['thumbnailUrl']], fallback: ''),
+      lightboxUrl: coalesceText([map['lightboxUrl']], fallback: ''),
+      sourceFileName: coalesceText([
+        map['sourceFileName'],
+        map['editSourceFileName'],
+      ], fallback: ''),
+      editMetadata: asJsonMap(map['editMetadata']),
+      aspectRatio: _asDouble(map['aspectRatio']) ?? 4 / 3,
+      isEdited: asBool(map['isEdited']) ?? false,
+    );
+  }
+}
+
 class AlbumCategoryItem {
   const AlbumCategoryItem({
     required this.id,
@@ -14,6 +86,7 @@ class AlbumCategoryItem {
     required this.description,
     required this.count,
     required this.previews,
+    this.previewMedia = const <AlbumPhotoMedia>[],
     required this.visibilityScope,
     required this.cohortYear,
     required this.albumType,
@@ -30,6 +103,7 @@ class AlbumCategoryItem {
   final String description;
   final int count;
   final List<String> previews;
+  final List<AlbumPhotoMedia> previewMedia;
   final String visibilityScope;
   final String cohortYear;
   final String albumType;
@@ -63,6 +137,9 @@ class AlbumCategoryItem {
                 .where((item) => item.isNotEmpty)
                 .toList(growable: false)
           : const <String>[],
+      previewMedia: asJsonMapList(
+        map['previewMedia'],
+      ).map(AlbumPhotoMedia.fromMap).toList(growable: false),
       visibilityScope: coalesceText([
         map['visibilityScope'],
         map['visibility_scope'],
@@ -105,6 +182,7 @@ class AlbumPhotoCard {
     required this.commentCount,
     required this.liked,
     required this.allowComments,
+    required this.media,
     this.groupKey = '',
     this.groupCount = 1,
     this.groupIndex = 0,
@@ -121,15 +199,20 @@ class AlbumPhotoCard {
   final int commentCount;
   final bool liked;
   final bool allowComments;
+  final AlbumPhotoMedia media;
   final String groupKey;
   final int groupCount;
   final int groupIndex;
 
   factory AlbumPhotoCard.fromMap(JsonMap map) {
+    final fileName = coalesceText([
+      map['dosyaadi'],
+      map['file_name'],
+    ], fallback: '');
     return AlbumPhotoCard(
       id: asInt(map['id']) ?? 0,
       categoryId: asInt(map['katid'] ?? map['categoryId']) ?? 0,
-      fileName: coalesceText([map['dosyaadi'], map['file_name']], fallback: ''),
+      fileName: fileName,
       title: coalesceText([map['baslik'], map['title']], fallback: 'Fotoğraf'),
       date: coalesceText([map['tarih'], map['created_at']], fallback: ''),
       categoryTitle: coalesceText([
@@ -141,6 +224,10 @@ class AlbumPhotoCard {
       commentCount: asInt(map['commentCount']) ?? 0,
       liked: asBool(map['liked']) ?? false,
       allowComments: asBool(map['allowComments']) ?? true,
+      media: AlbumPhotoMedia.fromMap(
+        asJsonMap(map['media']),
+        fallbackFileName: fileName,
+      ),
       groupKey: coalesceText([
         map['groupKey'],
         map['album_group_key'],
@@ -157,19 +244,41 @@ class AlbumPhotoGroupItem {
     required this.fileName,
     required this.title,
     required this.groupIndex,
+    required this.media,
+    this.editMetadata = const <String, dynamic>{},
+    this.editSourceFileName = '',
   });
 
   final int id;
   final String fileName;
   final String title;
   final int groupIndex;
+  final AlbumPhotoMedia media;
+  final JsonMap editMetadata;
+  final String editSourceFileName;
 
   factory AlbumPhotoGroupItem.fromMap(JsonMap map) {
+    final fileName = coalesceText([
+      map['fileName'],
+      map['dosyaadi'],
+    ], fallback: '');
+    final media = AlbumPhotoMedia.fromMap(
+      asJsonMap(map['media']),
+      fallbackFileName: fileName,
+    );
     return AlbumPhotoGroupItem(
       id: asInt(map['id']) ?? 0,
-      fileName: coalesceText([map['fileName'], map['dosyaadi']], fallback: ''),
+      fileName: fileName,
       title: coalesceText([map['title'], map['baslik']], fallback: 'Fotoğraf'),
       groupIndex: asInt(map['groupIndex']) ?? 0,
+      media: media,
+      editMetadata: asJsonMap(map['editMetadata']).isNotEmpty
+          ? asJsonMap(map['editMetadata'])
+          : media.editMetadata,
+      editSourceFileName: coalesceText([
+        map['editSourceFileName'],
+        media.sourceFileName,
+      ], fallback: ''),
     );
   }
 }
@@ -321,6 +430,7 @@ class AlbumPhotoDetail {
     required this.taggedUsers,
     required this.editMetadata,
     required this.editSourceFileName,
+    required this.media,
     this.groupKey = '',
     this.groupCount = 1,
     this.groupIndex = 0,
@@ -347,6 +457,7 @@ class AlbumPhotoDetail {
   final List<AlbumTaggedMember> taggedUsers;
   final JsonMap editMetadata;
   final String editSourceFileName;
+  final AlbumPhotoMedia media;
   final String groupKey;
   final int groupCount;
   final int groupIndex;
@@ -356,10 +467,15 @@ class AlbumPhotoDetail {
     final row = asJsonMap(payload['row']);
     final category = asJsonMap(payload['category']);
     final permissions = asJsonMap(payload['permissions']);
+    final fileName = coalesceText([row['dosyaadi']], fallback: '');
+    final media = AlbumPhotoMedia.fromMap(
+      asJsonMap(row['media']),
+      fallbackFileName: fileName,
+    );
     return AlbumPhotoDetail(
       id: asInt(row['id']) ?? 0,
       categoryId: asInt(row['katid']) ?? 0,
-      fileName: coalesceText([row['dosyaadi']], fallback: ''),
+      fileName: fileName,
       title: coalesceText([row['baslik']], fallback: 'Fotoğraf'),
       description: coalesceText([row['aciklama']], fallback: ''),
       date: coalesceText([row['tarih']], fallback: ''),
@@ -381,10 +497,14 @@ class AlbumPhotoDetail {
       taggedUsers: asJsonMapList(
         payload['taggedUsers'],
       ).map(AlbumTaggedMember.fromMap).toList(growable: false),
-      editMetadata: asJsonMap(payload['editMetadata']),
+      editMetadata: asJsonMap(payload['editMetadata']).isNotEmpty
+          ? asJsonMap(payload['editMetadata'])
+          : media.editMetadata,
       editSourceFileName: coalesceText([
         payload['editSourceFileName'],
+        media.sourceFileName,
       ], fallback: ''),
+      media: media,
       groupKey: coalesceText([
         row['groupKey'],
         row['album_group_key'],
