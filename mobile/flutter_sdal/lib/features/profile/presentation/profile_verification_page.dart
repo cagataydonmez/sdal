@@ -167,7 +167,7 @@ class _ProfileVerificationPageState
     final picked = await pickAndCropImage(
       context,
       source: source,
-      title: 'Belgeyi kırp',
+      title: 'Belgeyi hazırla',
     );
     if (picked == null || !mounted) return;
     setState(() => _proofFile = picked);

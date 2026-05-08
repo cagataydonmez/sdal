@@ -762,7 +762,7 @@ class AlbumsRepository {
     int? albumGroupIndex,
   }) {
     final files = <String, File>{'file': file};
-    if (sourceFile != null) {
+    if (sourceFile != null && !_isCropOnlyMetadata(editMetadata)) {
       files['sourceFile'] = sourceFile;
     }
     return _apiClient.multipart<dynamic>(
@@ -793,7 +793,7 @@ class AlbumsRepository {
     int albumGroupIndex = 0,
   }) {
     final files = <String, File>{'file': file};
-    if (sourceFile != null) {
+    if (sourceFile != null && !_isCropOnlyMetadata(editMetadata)) {
       files['sourceFile'] = sourceFile;
     }
     return _apiClient.multipart<dynamic>(
@@ -826,6 +826,8 @@ class AlbumsRepository {
     List<int> taggedUserIds = const <int>[],
     List<JsonMap> metadataList = const <JsonMap>[],
   }) {
+    final cropOnly =
+        metadataList.isNotEmpty && metadataList.every(_isCropOnlyMetadata);
     return _apiClient.multipart<dynamic>(
       '/api/album/upload-batch',
       fields: {
@@ -841,9 +843,13 @@ class AlbumsRepository {
       files: const <String, File>{},
       extraFiles: {
         'files': files,
-        if (sourceFiles.isNotEmpty) 'sourceFiles': sourceFiles,
+        if (sourceFiles.isNotEmpty && !cropOnly) 'sourceFiles': sourceFiles,
       },
     );
+  }
+
+  bool _isCropOnlyMetadata(JsonMap metadata) {
+    return coalesceText([metadata['editorMode']], fallback: '') == 'cropOnly';
   }
 
   Future<ApiResult<dynamic>> updatePhoto({

@@ -68,7 +68,8 @@ class GroupDetailPage extends ConsumerWidget {
                   onToggleJoin: detail.group.isCohortGroup
                       ? null
                       : () => _toggleJoin(context, ref, groupId),
-                  onRejectInvite: !detail.group.isCohortGroup && detail.isInvited
+                  onRejectInvite:
+                      !detail.group.isCohortGroup && detail.isInvited
                       ? () => _respondInvite(context, ref, action: 'reject')
                       : null,
                   onUpdateCover: detail.canManage && !detail.accessDenied
@@ -94,11 +95,14 @@ class GroupDetailPage extends ConsumerWidget {
                 if (detail.accessDenied)
                   _buildAccessLimited(context, detail)
                 else ...[
-                  if (!detail.group.isCohortGroup && detail.canManage && !detail.accessDenied) ...[
+                  if (!detail.group.isCohortGroup &&
+                      detail.canManage &&
+                      !detail.accessDenied) ...[
                     _AdminPanel(
                       detail: detail,
                       groupId: groupId,
-                      onOpenSettings: () => _openSettingsSheet(context, ref, detail),
+                      onOpenSettings: () =>
+                          _openSettingsSheet(context, ref, detail),
                       onOpenInvite: () => _openInviteSheet(
                         context,
                         ref,
@@ -283,7 +287,7 @@ Future<void> _pickCover(BuildContext context, WidgetRef ref) async {
   final file = await pickAndCropImage(
     context,
     aspectPreset: CropAspectPreset.wide169,
-    title: 'Grup kapağını kırp',
+    title: 'Grup kapağını hazırla',
   );
   if (file == null) return;
   final ok = await ref
@@ -425,7 +429,9 @@ class _GroupHeroSection extends StatelessWidget {
                       Positioned(
                         bottom: 10,
                         right: 12,
-                        child: _CohortYearBadge(cohortYear: detail.group.cohortYear),
+                        child: _CohortYearBadge(
+                          cohortYear: detail.group.cohortYear,
+                        ),
                       ),
                   ],
                 ),
@@ -487,7 +493,9 @@ class _GroupHeroSection extends StatelessWidget {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
-            if (onToggleJoin != null || onRejectInvite != null || onUpdateCover != null) ...[
+            if (onToggleJoin != null ||
+                onRejectInvite != null ||
+                onUpdateCover != null) ...[
               const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
@@ -1119,7 +1127,9 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
       _liked = !_liked;
       _likeCount += _liked ? 1 : -1;
     });
-    await ref.read(feedActionControllerProvider.notifier).toggleLike(widget.post.id);
+    await ref
+        .read(feedActionControllerProvider.notifier)
+        .toggleLike(widget.post.id);
     if (!mounted) return;
     final actionState = ref.read(feedActionControllerProvider);
     if (actionState.isError) {
@@ -1137,8 +1147,12 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
     final post = widget.post;
 
     if (post.isEntityPost) {
-      final isEvent = post.postType == 'group_event' || post.postType == 'event';
-      final lines = post.content.split('\n').where((l) => l.isNotEmpty).toList();
+      final isEvent =
+          post.postType == 'group_event' || post.postType == 'event';
+      final lines = post.content
+          .split('\n')
+          .where((l) => l.isNotEmpty)
+          .toList();
       final titleLine = lines.isNotEmpty ? lines.first : '';
       final excerptLines = lines.skip(1).join(' ');
       final entityId = post.entityId ?? post.id;
@@ -1155,20 +1169,30 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
           decoration: BoxDecoration(
             color: isEvent ? tokens.warningMuted : tokens.successMuted,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: isEvent ? tokens.warning.withAlpha(60) : tokens.success.withAlpha(60)),
+            border: Border.all(
+              color: isEvent
+                  ? tokens.warning.withAlpha(60)
+                  : tokens.success.withAlpha(60),
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                Text(isEvent ? '📅' : '📢', style: const TextStyle(fontSize: 22)),
+                Text(
+                  isEvent ? '📅' : '📢',
+                  style: const TextStyle(fontSize: 22),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (titleLine.isNotEmpty)
-                        Text(titleLine, style: Theme.of(context).textTheme.titleSmall),
+                        Text(
+                          titleLine,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                       if (excerptLines.isNotEmpty)
                         Text(
                           excerptLines,
@@ -1179,7 +1203,11 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, size: 18, color: isEvent ? tokens.warning : tokens.success),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: isEvent ? tokens.warning : tokens.success,
+                ),
               ],
             ),
           ),
@@ -1233,7 +1261,10 @@ class _GroupPostTileState extends ConsumerState<_GroupPostTile> {
               ),
               if (post.content.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Text(post.content, style: Theme.of(context).textTheme.bodyLarge),
+                Text(
+                  post.content,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
               ],
               if (post.image.isNotEmpty) ...[
                 const SizedBox(height: 10),
@@ -1297,11 +1328,7 @@ class _PostMetricPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: active ? tokens.accent : null,
-            ),
+            Icon(icon, size: 16, color: active ? tokens.accent : null),
             const SizedBox(width: 6),
             Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
@@ -1591,7 +1618,7 @@ class _PostSheetState extends ConsumerState<_PostSheet> {
                 final file = await pickAndCropImage(
                   context,
                   aspectPreset: CropAspectPreset.portrait45,
-                  title: 'Gönderi görselini kırp',
+                  title: 'Gönderi görselini hazırla',
                 );
                 if (file != null) setState(() => _imageFile = file);
               },

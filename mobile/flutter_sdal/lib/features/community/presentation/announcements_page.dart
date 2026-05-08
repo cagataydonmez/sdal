@@ -272,7 +272,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
       context,
       source: source,
       aspectPreset: CropAspectPreset.wide169,
-      title: 'Duyuru görselini kırp',
+      title: 'Duyuru görselini hazırla',
     );
     if (picked == null || !mounted) return;
     setState(() => _imageFile = picked);

@@ -981,7 +981,8 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                         title: item.requesterHandle.isNotEmpty
                             ? '@${item.requesterHandle}'
                             : item.requesterName,
-                        subtitle: '${item.isTeacherVerification ? 'Öğretmen' : 'Mezun'} · ${_formatGraduationYear(item.graduationYear)}',
+                        subtitle:
+                            '${item.isTeacherVerification ? 'Öğretmen' : 'Mezun'} · ${_formatGraduationYear(item.graduationYear)}',
                         trailing: item.createdAt,
                         action: IconButton(
                           tooltip: 'Bildirimi tekrar gönder',
@@ -1017,7 +1018,12 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
                       children: [
                         Text(
                           'Doğrulama kapatıldığında yeni kayıtlar ve doğrulamasını tamamlamamış üyeler uygulamaya erişebilir. Tekrar açıldığında hiç doğrulanmamış üyeler kısıtlanır.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                         const SizedBox(height: 12),
                         _AdminSettingToggleRow(
@@ -2351,10 +2357,18 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Bildirimi tekrar gönder'),
-        content: Text('$name adlı üyeye onay bildirimi ve e-posta tekrar gönderilecek. Emin misiniz?'),
+        content: Text(
+          '$name adlı üyeye onay bildirimi ve e-posta tekrar gönderilecek. Emin misiniz?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('İptal')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Gönder')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Gönder'),
+          ),
         ],
       ),
     );
@@ -2367,7 +2381,9 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          ok ? 'Bildirim tekrar gönderildi.' : (actionState.message ?? 'İşlem tamamlanamadı.'),
+          ok
+              ? 'Bildirim tekrar gönderildi.'
+              : (actionState.message ?? 'İşlem tamamlanamadı.'),
         ),
       ),
     );
@@ -2387,11 +2403,19 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('${label[0].toUpperCase()}${label.substring(1)} doğrulaması $action'),
+        title: Text(
+          '${label[0].toUpperCase()}${label.substring(1)} doğrulaması $action',
+        ),
         content: Text(warningText),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('İptal')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Onayla')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Onayla'),
+          ),
         ],
       ),
     );
@@ -2404,7 +2428,9 @@ class _AdminSectionPageState extends ConsumerState<AdminSectionPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          ok ? 'Doğrulama ayarı güncellendi.' : (actionState.message ?? 'İşlem tamamlanamadı.'),
+          ok
+              ? 'Doğrulama ayarı güncellendi.'
+              : (actionState.message ?? 'İşlem tamamlanamadı.'),
         ),
       ),
     );
@@ -4304,9 +4330,17 @@ class _AdminUserDetailOverviewPage extends ConsumerWidget {
                   FilledButton.icon(
                     onPressed: actionState.isLoading
                         ? null
-                        : () => _handleManualVerify(context, ref, userId: detail.id),
+                        : () => _handleManualVerify(
+                            context,
+                            ref,
+                            userId: detail.id,
+                          ),
                     icon: actionState.isLoading
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.verified_user_outlined),
                     label: const Text('Doğrula'),
                   ),
@@ -4887,9 +4921,19 @@ class _AdminSettingToggleRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  label,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
                 if (subtitle.isNotEmpty)
-                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -5473,7 +5517,7 @@ class _NotificationBroadcastDialogState
     final picked = await pickAndEditImage(
       context,
       aspectPreset: CropAspectPreset.square,
-      title: 'Bildirim görseli',
+      title: 'Bildirim görselini hazırla',
     );
     if (picked == null || !mounted) return;
     setState(() => _uploadingImage = true);
@@ -6131,10 +6175,18 @@ Future<void> _handleManualVerify(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Üyeyi doğrula'),
-      content: const Text('Bu üye için profil doğrulaması yapılacak ve onay bildirimi gönderilecek. Emin misiniz?'),
+      content: const Text(
+        'Bu üye için profil doğrulaması yapılacak ve onay bildirimi gönderilecek. Emin misiniz?',
+      ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('İptal')),
-        FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Doğrula')),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('İptal'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Doğrula'),
+        ),
       ],
     ),
   );
@@ -6147,7 +6199,9 @@ Future<void> _handleManualVerify(
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
-        ok ? 'Üye başarıyla doğrulandı.' : (actionState.message ?? 'İşlem tamamlanamadı.'),
+        ok
+            ? 'Üye başarıyla doğrulandı.'
+            : (actionState.message ?? 'İşlem tamamlanamadı.'),
       ),
     ),
   );

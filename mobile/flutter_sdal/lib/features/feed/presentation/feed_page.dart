@@ -369,7 +369,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                         const SizedBox(height: 14),
                         SdalNetworkImage(
                           imageUrl: config.resolveUrl(item.imageUrl).toString(),
-                          lightboxImageUrl: config.resolveUrl(item.lightboxUrl).toString(),
+                          lightboxImageUrl: config
+                              .resolveUrl(item.lightboxUrl)
+                              .toString(),
                           borderRadius: BorderRadius.circular(18),
                           semanticLabel: item.authorName,
                           cacheWidth: (MediaQuery.sizeOf(context).width * 2)
@@ -861,7 +863,7 @@ class _ComposerSheetState extends ConsumerState<_ComposerSheet> {
     final file = await pickAndCropImage(
       context,
       aspectPreset: CropAspectPreset.portrait45,
-      title: 'Gönderi görselini kırp',
+      title: 'Gönderi görselini hazırla',
     );
     if (file == null || !mounted) return;
     setState(() => _selectedImage = file);

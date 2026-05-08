@@ -455,7 +455,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
       context,
       source: source,
       aspectPreset: CropAspectPreset.wide169,
-      title: 'Etkinlik görselini kırp',
+      title: 'Etkinlik görselini hazırla',
     );
     if (picked == null || !mounted) return;
     setState(() => _imageFile = picked);

@@ -838,7 +838,10 @@ export function registerAlbumRoutes(app, {
     const fileName = String(photo?.file_name || '').trim();
     const editState = editStateArg || await getPhotoEditState(photo?.id);
     const metadata = parseJsonObjectField(editState.metadata);
-    const sourceFileName = String(editState.sourceFileName || '').trim();
+    const isCropOnly = String(metadata.editorMode || '').trim() === 'cropOnly';
+    const sourceFileName = isCropOnly
+      ? ''
+      : String(editState.sourceFileName || '').trim();
     const aspectRatio = resolveEditAspectRatio(metadata);
     return {
       fileName,

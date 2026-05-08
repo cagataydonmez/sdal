@@ -659,7 +659,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                           onPressed: () async {
                             final picked = await pickAndEditImage(
                               ctx,
-                              title: 'Yeni fotoğrafı kırp',
+                              title: 'Yeni fotoğrafı hazırla',
                             );
                             if (picked == null) return;
                             setModalState(
@@ -844,7 +844,9 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                       );
                       if (!ok) return;
                       ref.invalidate(albumPhotoLikesProvider(widget.photoId));
-                      ref.read(albumPhotoEditCounterProvider.notifier).increment();
+                      ref
+                          .read(albumPhotoEditCounterProvider.notifier)
+                          .increment();
                       Navigator.of(ctx).pop();
                       await _load();
                     },
@@ -877,8 +879,8 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
       editorContext,
       sourceFile: sourceFile,
       title: photo.groupCount > 1
-          ? 'Fotoğrafı düzenle ${item.groupIndex + 1}/${photo.groupCount}'
-          : 'Fotoğrafı düzenle',
+          ? 'Fotoğrafı hazırla ${item.groupIndex + 1}/${photo.groupCount}'
+          : 'Fotoğrafı hazırla',
       initialMetadata:
           photo.editSourceFileName.isNotEmpty && item.id == photo.id
           ? photo.editMetadata

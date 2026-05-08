@@ -55,7 +55,7 @@ class _FeedEditPostSheetState extends State<FeedEditPostSheet> {
     final file = await pickAndCropImage(
       context,
       aspectPreset: CropAspectPreset.portrait45,
-      title: 'Gönderi görselini kırp',
+      title: 'Gönderi görselini hazırla',
     );
     if (!mounted) return;
     if (file != null) {

@@ -21,6 +21,104 @@ class AlbumUploadPage extends ConsumerStatefulWidget {
   ConsumerState<AlbumUploadPage> createState() => _AlbumUploadPageState();
 }
 
+class _UploadProgressPanel extends StatelessWidget {
+  const _UploadProgressPanel({
+    required this.current,
+    required this.total,
+    required this.progress,
+  });
+
+  final int current;
+  final int total;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final safeTotal = total <= 0 ? 1 : total;
+    final safeCurrent = current.clamp(1, safeTotal);
+    final safeProgress = progress.clamp(0.0, 1.0);
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  safeTotal > 1
+                      ? '$safeCurrent/$safeTotal fotoğraf yükleniyor'
+                      : 'Fotoğraf yükleniyor',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (safeTotal > 1)
+            Row(
+              children: [
+                for (var i = 0; i < safeTotal; i += 1)
+                  Expanded(
+                    child: Container(
+                      height: 5,
+                      margin: EdgeInsets.only(
+                        right: i == safeTotal - 1 ? 0 : 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: TweenAnimationBuilder<double>(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          tween: Tween<double>(
+                            end: ((safeProgress * safeTotal) - i).clamp(
+                              0.0,
+                              1.0,
+                            ),
+                          ),
+                          builder: (context, value, child) {
+                            return FractionallySizedBox(
+                              widthFactor: value,
+                              child: child,
+                            );
+                          },
+                          child: SizedBox.expand(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            )
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(value: safeProgress),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
@@ -31,6 +129,10 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   List<EditedMediaResult> _mediaItems = const <EditedMediaResult>[];
   bool _allowComments = true;
   bool _isLoading = true;
+  bool _isUploading = false;
+  int _uploadIndex = 0;
+  int _uploadTotal = 0;
+  double _uploadProgress = 0;
   String _error = '';
 
   AlbumCategoryItem? get _selectedCategory {
@@ -58,7 +160,8 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   Widget build(BuildContext context) {
     final actionState = ref.watch(albumsActionControllerProvider);
     final isSaving =
-        actionState.isLoading && actionState.scope == 'albums:upload';
+        _isUploading ||
+        (actionState.isLoading && actionState.scope == 'albums:upload');
     final albumLocked =
         widget.initialCategoryId > 0 &&
         _selectedCategoryId == widget.initialCategoryId;
@@ -224,12 +327,12 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Görsel seç ve düzenle',
+                    'Görsel seç ve hazırla',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Tek fotoğraf ya da bir seri seçebilirsin. Seçimden sonra düzenleme ekranı açılır.',
+                    'Tek fotoğraf ya da bir seri seçebilirsin. Seçimden sonra kırpma ekranı açılır.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 14),
@@ -328,6 +431,14 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
               ),
             ),
             const SizedBox(height: 16),
+            if (isSaving) ...[
+              _UploadProgressPanel(
+                current: _uploadIndex,
+                total: _uploadTotal <= 0 ? _mediaItems.length : _uploadTotal,
+                progress: _uploadProgress,
+              ),
+              const SizedBox(height: 12),
+            ],
             FilledButton(
               onPressed: isSaving ? null : _upload,
               child: Text(isSaving ? 'Yükleniyor...' : 'Fotoğrafı yükle'),
@@ -339,13 +450,13 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
   }
 
   Future<void> _pickSingleFile() async {
-    final picked = await pickAndEditImage(context, title: 'Fotoğrafı kırp');
+    final picked = await pickAndEditImage(context, title: 'Fotoğrafı hazırla');
     if (picked == null || !mounted) return;
     setState(() => _mediaItems = [picked]);
   }
 
   Future<void> _pickMultipleFiles() async {
-    final picked = await pickAndEditImages(context, title: 'Fotoğrafı düzenle');
+    final picked = await pickAndEditImages(context, title: 'Fotoğrafı hazırla');
     if (!mounted || picked.isEmpty) return;
     setState(() => _mediaItems = picked);
   }
@@ -370,7 +481,7 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     final edited = await editImageFile(
       context,
       sourceFile: item.sourceFile,
-      title: 'Fotoğrafı düzenle ${index + 1}/${_mediaItems.length}',
+      title: 'Fotoğrafı hazırla ${index + 1}/${_mediaItems.length}',
       initialMetadata: item.metadata,
     );
     if (!mounted || edited == null) return;
@@ -411,9 +522,27 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
               ),
     ];
     final notifier = ref.read(albumsActionControllerProvider.notifier);
-    final uploadResult = _mediaItems.length == 1
-        ? await _uploadSingleMedia(notifier, titles.first, _mediaItems.first)
-        : await _uploadMediaSequentially(notifier, titles);
+    setState(() {
+      _isUploading = true;
+      _uploadTotal = _mediaItems.length;
+      _uploadIndex = 1;
+      _uploadProgress = 0;
+    });
+    final AlbumUploadResult uploadResult;
+    try {
+      uploadResult = _mediaItems.length == 1
+          ? await _uploadSingleMedia(notifier, titles.first, _mediaItems.first)
+          : await _uploadMediaSequentially(notifier, titles);
+      if (mounted) {
+        setState(() {
+          _uploadProgress = uploadResult.ok ? 1 : _uploadProgress;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
     if (!mounted) return;
     final state = ref.read(albumsActionControllerProvider);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -435,6 +564,9 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       _mediaItems = const <EditedMediaResult>[];
       _allowComments = true;
       _taggedMembers.clear();
+      _uploadIndex = 0;
+      _uploadTotal = 0;
+      _uploadProgress = 0;
     });
     if (uploadResult.photoId > 0) {
       context.replace('/albums/photo/${uploadResult.photoId}');
@@ -448,6 +580,11 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
     String albumGroupKey = '',
     int albumGroupIndex = 0,
   }) {
+    if (mounted) {
+      setState(() {
+        _uploadProgress = _mediaItems.length <= 1 ? 0.18 : _uploadProgress;
+      });
+    }
     return notifier.uploadPhoto(
       categoryId: _selectedCategoryId,
       title: title,
@@ -472,6 +609,10 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
       if (!mounted) {
         return const AlbumUploadResult(ok: false, message: 'Yükleme durdu.');
       }
+      setState(() {
+        _uploadIndex = index + 1;
+        _uploadProgress = (index + 0.15) / _mediaItems.length;
+      });
       final result = await _uploadSingleMedia(
         notifier,
         titles[index],
@@ -483,6 +624,11 @@ class _AlbumUploadPageState extends ConsumerState<AlbumUploadPage> {
         return result;
       }
       firstPhotoId = firstPhotoId == 0 ? result.photoId : firstPhotoId;
+      if (mounted) {
+        setState(() {
+          _uploadProgress = (index + 1) / _mediaItems.length;
+        });
+      }
     }
     return AlbumUploadResult(
       ok: true,

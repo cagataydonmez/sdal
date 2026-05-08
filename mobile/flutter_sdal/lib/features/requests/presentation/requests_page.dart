@@ -413,7 +413,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       context,
       source: source,
       aspectPreset: CropAspectPreset.album43,
-      title: 'Eki kırp',
+      title: 'Eki hazırla',
     );
     if (picked == null || !mounted) return;
     final attachment = await ref

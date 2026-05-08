@@ -108,7 +108,13 @@ private struct MainTabView: View {
                 }
             }
             .frame(height: 50)
-            .background(.ultraThinMaterial)
+            .background {
+                if #available(watchOS 10.0, *) {
+                    Rectangle().fill(.ultraThinMaterial)
+                } else {
+                    Rectangle().fill(Color.black.opacity(0.85))
+                }
+            }
         }
         .ignoresSafeArea(edges: .bottom)
         .onChange(of: viewModel.deepLinkTarget) { target in

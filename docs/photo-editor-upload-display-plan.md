@@ -1,7 +1,7 @@
 # Photo Editor, Upload, Preview, and Lightbox Stabilization Plan
 
 Date: 2026-05-08
-Status: Implementation in progress. Phases 0-4 complete. Phase 5 complete. Phase 6 is the regression validation matrix (manual testing).
+Status: Direction changed after review. The new implementation target is crop-only image preparation with `image_cropper`; custom text/draw/blur/filter editing is no longer part of the user-facing flow for new uploads.
 
 ## Implementation Log
 
@@ -11,6 +11,45 @@ Status: Implementation in progress. Phases 0-4 complete. Phase 5 complete. Phase
 - 2026-05-08: Refactored the editor stage to separate the full stage from the crop frame, with topmost dashed border and outside-frame dim overlay.
 - 2026-05-08: Added selected text resize handle, larger text scale range, and hide-region corner/side handles for locked/free resize modes.
 - 2026-05-08: Phase 5 — Feed: FeedVariants extended with thumbUrl/fullUrl; FeedItem.lightboxUrl getter added; SdalNetworkImage in feed_page and post_detail_page now passes lightboxImageUrl from fullUrl. Requests upload: aspectPreset set to album43. All other upload entry points were already using correct aspect presets (wide169 for groups/events/announcements, story916 for stories, square for admin broadcast). All display surfaces that had no variants (community events/announcements, group posts) continue to use their existing image field; lightbox correctly falls back to the same processed URL.
+- 2026-05-08: Bug fix — zoom/pan sticking and free-rotation: InteractiveViewer minScale lowered to 0.15×base, boundaryMargin set to double.maxFinite, pinch-rotate gesture tracked via onInteractionUpdate, image wrapped with Transform.rotate; export pipeline applies img.copyRotate (expanded canvas) followed by a center-relative crop-rect formula.
+- 2026-05-08: Bug fix — gallery stale after photo edit: added AlbumPhotoEditCounter Notifier + albumPhotoEditCounterProvider; album_photo_page.dart increments it after replacePhotoFile succeeds; album_category_page.dart listens and calls _load(reset: true).
+- 2026-05-08: Bug fix — emoji invisible and black corners in export preview: replaced img.drawString bitmap-font pipeline with Flutter TextPainter/Canvas/PictureRecorder pipeline (supports full Unicode emoji); removed radius parameter from img.copyCrop in blur hide-region path (JPEG has no alpha, so radius filled corners with opaque black that composited as solid rectangles).
+- 2026-05-08: User approved replacing the complex editor with crop-only image preparation. Existing public helper names remain temporarily for compatibility, but the helpers now route normal image preparation through native `image_cropper`.
+- 2026-05-08: Added embedded multi-photo crop flow with `crop_your_image`: selected photos stay in one PageView screen, back/next navigation is available, "Bitir" is always active, and untouched photos fall back to target-ratio center crop.
+- 2026-05-08: Added album upload progress UI: single uploads show a progress bar; multi-photo uploads show story-like segmented bars and `1/x`, `2/x`, `3/x` status.
+
+## Revised Direction: Crop-Only Image Preparation
+
+The app should not expose a full image editor for new uploads. Users should only prepare an image for the place where it will be shown.
+
+Allowed actions:
+
+- choose image from gallery or camera
+- crop/position image inside the target aspect ratio
+- rotate/reset when supported by the native cropper
+- confirm or cancel
+
+Removed from the user-facing upload flow:
+
+- text overlays
+- drawing
+- blur/mosaic masking
+- filters
+- custom Flutter bitmap/layer export for normal uploads
+
+Implementation rule:
+
+- Keep existing public helper names such as `pickAndCropImage`, `pickAndEditImage`, `pickAndEditImages`, and `editImageFile` temporarily so feature screens do not need a large rewrite.
+- Internally, these helpers call `image_cropper`.
+- New metadata identifies `editorMode: cropOnly`.
+- Older metadata remains backward compatible for existing photos, but new photos should treat the cropped output as the authoritative display image.
+
+User-friendly layout direction from impeccable/product guidance:
+
+- Product UI, restrained styling.
+- Native cropper toolbar title should say "Fotoğrafı hazırla" or the target-specific equivalent.
+- Use target-specific aspect ratios so users do not need to make layout decisions.
+- Avoid multi-tab tool panels. The flow should feel like a short preparation step, not a creative editor.
 
 ## Goal
 
@@ -582,6 +621,51 @@ For each:
 - detail page matches edited output
 - lightbox matches edited output
 - re-edit current image works
+
+## Bug Fixes (post-Phase 5)
+
+### Bug 1 — Zoom-out sticking and free rotation
+
+**Symptom:** When the user zoomed out during cropping, the photo snapped to the top edge and could not be panned freely. Pinch-to-rotate was not supported.
+
+**Root cause:**
+- `InteractiveViewer.minScale` was set to `_baseScale`, preventing zoom below fill level.
+- `boundaryMargin: EdgeInsets.all(320)` created a hard boundary that caused the snapping.
+- Both `_setImageTransform` and `_updateViewport` clamped the zoom to `(1.0, 6.0)`, reinforcing the restriction.
+- `InteractiveViewer` has no native rotation support.
+
+**Fix (`lib/core/media/pick_cropped_image.dart`):**
+- `minScale` changed to `_baseScale * 0.15`; both zoom clamps changed to `(0.15, 6.0)`.
+- `boundaryMargin` set to `const EdgeInsets.all(double.maxFinite)`.
+- Added `double _freeRotationAngle` state. The image content is wrapped in `Transform.rotate(angle: _freeRotationAngle)` inside the InteractiveViewer's scene SizedBox.
+- `onInteractionStart` saves the angle at gesture start; `onInteractionUpdate` accumulates `ScaleUpdateDetails.rotation` when two or more fingers are active.
+- Quarter-turn rotation (rotate button) resets `_freeRotationAngle` to 0.
+- `freeRotationAngle` is serialized into edit metadata for round-trip restore.
+- **Export:** After `_applyQuarterTurns`, `img.copyRotate` is applied (which expands the canvas). The crop rect in the expanded bitmap uses the formula `bx = expandedW/2 + (sceneX − displayCenterX) × scale`, which is correct when scaleX == scaleY (always true here because both the display size and the bitmap are constrained from the same image aspect ratio). A dedicated `_resolveCropRectInFreeRotatedBitmap` method implements this mapping.
+
+### Bug 2 — Gallery/category page shows original photo after an edit
+
+**Symptom:** After saving a photo edit in `AlbumPhotoPage`, navigating back to `AlbumCategoryPage` showed the old unedited thumbnail. The stale photo only updated after the app was fully restarted or the category page was manually re-navigated to.
+
+**Root cause:** `AlbumCategoryPage` loads its photo list into local state (`_detail`) on `initState`. Saving in `AlbumPhotoPage` only invalidated `albumPhotoLikesProvider` and called the photo-page-local `_load()`. No signal reached the category page's state.
+
+**Fix:**
+- `lib/features/albums/data/albums_repository.dart`: Added `AlbumPhotoEditCounter` Notifier and `albumPhotoEditCounterProvider`.
+- `lib/features/albums/presentation/album_photo_page.dart`: After a successful `replacePhotoFile`, calls `ref.read(albumPhotoEditCounterProvider.notifier).increment()`.
+- `lib/features/albums/presentation/album_category_page.dart`: `ref.listen<int>(albumPhotoEditCounterProvider, ...)` in `build` calls `_load(reset: true)` whenever the counter changes, forcing a fresh category photo list from the server.
+
+### Bug 3 — Emoji invisible and black corners in export preview
+
+**Symptom:** In the pre-save export preview (and final saved JPEG), text stickers containing emoji or special Unicode characters appeared as blank/invisible. Hide-region blur overlays showed solid black corners instead of rounded ones.
+
+**Root cause (emoji):** `_paintStickersOnBitmap` used `img.drawString` with `img.arial14/24/48` bitmap fonts. These fonts only contain ASCII codepoints; Unicode/emoji characters are silently skipped.
+
+**Root cause (black corners):** `img.copyCrop(image, ..., radius: radius)` was used to sample the blur region from the JPEG bitmap. The `image` package's `copyCrop` fills outside-rounded-rect pixels with `transparent` (RGBA 0,0,0,0), but JPEG images have no alpha channel so these become opaque black `(0,0,0,255)`. When the blurred sample was composited back with `img.compositeImage`, the solid black corner pixels overwrote the background.
+
+**Fix (`lib/core/media/pick_cropped_image.dart`):**
+- `_paintStickersOnBitmap` converted from `void` to `Future<void>` and rewritten using Flutter's `TextPainter` + `Canvas` + `ui.PictureRecorder` pipeline. The rendered sticker (background + text with shadows and emoji) is rasterized to `ui.Image`, converted via `ui.ImageByteFormat.rawRgba` to an `img.Image`, and alpha-composited onto the export bitmap. Full Unicode and emoji are now supported.
+- The `await _paintStickersOnBitmap(cropped)` call in `_buildExportBitmap` is now awaited.
+- Removed `radius: radius` from the `img.copyCrop` call in `_paintHideRegionsOnBitmap` for the blur path. The rectangular blur sample is composited back without corner rounding; the subsequent `img.fillRect(..., radius: radius)` dark overlay still renders with rounded corners to provide visual edge softening.
 
 ## Validation Commands
 

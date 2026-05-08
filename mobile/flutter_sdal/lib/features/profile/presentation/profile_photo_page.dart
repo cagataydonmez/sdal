@@ -117,7 +117,7 @@ class _ProfilePhotoPageState extends ConsumerState<ProfilePhotoPage> {
       context,
       source: source,
       aspectPreset: CropAspectPreset.square,
-      title: 'Profil fotoğrafını kırp',
+      title: 'Profil fotoğrafını hazırla',
     );
     if (picked == null || !mounted) return;
     setState(() {

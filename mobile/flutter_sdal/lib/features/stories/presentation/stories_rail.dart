@@ -952,7 +952,7 @@ class _StoryUploadSheetState extends ConsumerState<_StoryUploadSheet> {
                 final file = await pickAndCropImage(
                   context,
                   aspectPreset: CropAspectPreset.story916,
-                  title: 'Hikayeyi kırp',
+                  title: 'Hikayeyi hazırla',
                 );
                 if (file != null) setState(() => _pickedFile = file);
               },
