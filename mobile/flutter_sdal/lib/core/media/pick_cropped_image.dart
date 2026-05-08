@@ -392,6 +392,8 @@ class _CropImagePageState extends State<_CropImagePage> {
   double _freeformHeightFactor = 1;
   double? _selectedAspectRatio;
   int _quarterTurns = 0;
+  double _freeRotationAngle = 0.0;
+  double _gestureRotationAtStart = 0.0;
   _EditorPanel _activePanel = _EditorPanel.crop;
 
   int _nextStickerId = 1;
@@ -484,41 +486,54 @@ class _CropImagePageState extends State<_CropImagePage> {
                             InteractiveViewer(
                               transformationController: _controller,
                               constrained: false,
-                              minScale: _baseScale,
+                              minScale: _baseScale * 0.15,
                               maxScale: math.max(_baseScale * 6, 6),
-                              boundaryMargin: const EdgeInsets.all(320),
+                              boundaryMargin: const EdgeInsets.all(
+                                double.maxFinite,
+                              ),
                               clipBehavior: Clip.none,
                               panEnabled: canTransformImage,
                               scaleEnabled: canTransformImage,
+                              onInteractionStart: canTransformImage
+                                  ? _onCropInteractionStart
+                                  : null,
+                              onInteractionUpdate: canTransformImage
+                                  ? _onCropInteractionUpdate
+                                  : null,
                               child: SizedBox(
                                 width: _displayImageSize.width,
                                 height: _displayImageSize.height,
-                                child: RotatedBox(
-                                  quarterTurns: _quarterTurns,
-                                  child: SizedBox(
-                                    width: _unrotatedDisplaySize.width,
-                                    height: _unrotatedDisplaySize.height,
-                                    child: _showOriginalPreview
-                                        ? Image.file(
-                                            widget.sourceFile,
-                                            fit: BoxFit.fill,
-                                            filterQuality: FilterQuality.medium,
-                                            cacheWidth: _cacheWidth,
-                                            cacheHeight: _cacheHeight,
-                                          )
-                                        : ColorFiltered(
-                                            colorFilter: ColorFilter.matrix(
-                                              _buildColorMatrix(),
-                                            ),
-                                            child: Image.file(
+                                child: Transform.rotate(
+                                  angle: _freeRotationAngle,
+                                  alignment: Alignment.center,
+                                  child: RotatedBox(
+                                    quarterTurns: _quarterTurns,
+                                    child: SizedBox(
+                                      width: _unrotatedDisplaySize.width,
+                                      height: _unrotatedDisplaySize.height,
+                                      child: _showOriginalPreview
+                                          ? Image.file(
                                               widget.sourceFile,
                                               fit: BoxFit.fill,
                                               filterQuality:
                                                   FilterQuality.medium,
                                               cacheWidth: _cacheWidth,
                                               cacheHeight: _cacheHeight,
+                                            )
+                                          : ColorFiltered(
+                                              colorFilter: ColorFilter.matrix(
+                                                _buildColorMatrix(),
+                                              ),
+                                              child: Image.file(
+                                                widget.sourceFile,
+                                                fit: BoxFit.fill,
+                                                filterQuality:
+                                                    FilterQuality.medium,
+                                                cacheWidth: _cacheWidth,
+                                                cacheHeight: _cacheHeight,
+                                              ),
                                             ),
-                                          ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1354,7 +1369,7 @@ class _CropImagePageState extends State<_CropImagePage> {
         ),
       );
       relativeZoom = (_controller.value.getMaxScaleOnAxis() / previousBaseScale)
-          .clamp(1.0, 6.0);
+          .clamp(0.15, 6.0);
     }
 
     _viewportSize = nextViewport;
@@ -1387,7 +1402,7 @@ class _CropImagePageState extends State<_CropImagePage> {
         _stageSize == Size.zero) {
       return;
     }
-    final scale = _baseScale * zoom.clamp(1.0, 6.0);
+    final scale = _baseScale * zoom.clamp(0.15, 6.0);
     final sceneCenter = Offset(
       center.dx.clamp(0.0, 1.0) * _displayImageSize.width,
       center.dy.clamp(0.0, 1.0) * _displayImageSize.height,
@@ -1413,6 +1428,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     setState(() {
       _selectedAspectRatio = widget.initialAspectRatio;
       _quarterTurns = 0;
+      _freeRotationAngle = 0.0;
       _activePanel = _EditorPanel.crop;
       _showOriginalPreview = false;
       _freeformWidthFactor = 1;
@@ -1449,10 +1465,22 @@ class _CropImagePageState extends State<_CropImagePage> {
   void _rotateImage() {
     setState(() {
       _quarterTurns = (_quarterTurns + 1) % 4;
+      _freeRotationAngle = 0.0;
       _viewportSize = Size.zero;
       _stageSize = Size.zero;
       _selectedStickerId = null;
       _selectedHideRegionId = null;
+    });
+  }
+
+  void _onCropInteractionStart(ScaleStartDetails details) {
+    _gestureRotationAtStart = _freeRotationAngle;
+  }
+
+  void _onCropInteractionUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount < 2) return;
+    setState(() {
+      _freeRotationAngle = _gestureRotationAtStart + details.rotation;
     });
   }
 
@@ -2339,6 +2367,7 @@ class _CropImagePageState extends State<_CropImagePage> {
 
     final restoredQuarterTurns = _readInt(metadata['quarterTurns']) ?? 0;
     _quarterTurns = ((restoredQuarterTurns % 4) + 4) % 4;
+    _freeRotationAngle = _readDouble(metadata['freeRotationAngle']) ?? 0.0;
 
     final filters = _readMap(metadata['filters']);
     _brightness = _readDouble(filters['brightness']) ?? 0;
@@ -2533,6 +2562,7 @@ class _CropImagePageState extends State<_CropImagePage> {
       'freeformWidthFactor': _freeformWidthFactor,
       'freeformHeightFactor': _freeformHeightFactor,
       'quarterTurns': _quarterTurns,
+      'freeRotationAngle': _freeRotationAngle,
       'filters': {
         'brightness': _brightness,
         'contrast': _contrast,
@@ -2667,14 +2697,25 @@ class _CropImagePageState extends State<_CropImagePage> {
       details: '${baseImage.width}x${baseImage.height}',
     );
     final rotatedImage = _applyQuarterTurns(baseImage, _quarterTurns % 4);
-    final cropRect = _resolveCropRectInRotatedBitmap(rotatedImage);
+    final img.Image bitmapForCrop;
+    final Rect cropRect;
+    if (_freeRotationAngle.abs() > 0.001) {
+      bitmapForCrop = img.copyRotate(
+        rotatedImage,
+        angle: _freeRotationAngle * 180 / math.pi,
+      );
+      cropRect = _resolveCropRectInFreeRotatedBitmap(rotatedImage, bitmapForCrop);
+    } else {
+      bitmapForCrop = rotatedImage;
+      cropRect = _resolveCropRectInRotatedBitmap(bitmapForCrop);
+    }
     _logSaveStage(
       'crop-rect-resolved',
       details:
           'x=${cropRect.left.round()} y=${cropRect.top.round()} w=${cropRect.width.round()} h=${cropRect.height.round()}',
     );
     var cropped = img.copyCrop(
-      rotatedImage,
+      bitmapForCrop,
       x: cropRect.left.round(),
       y: cropRect.top.round(),
       width: cropRect.width.round(),
@@ -2702,7 +2743,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     _applyColorMatrixToBitmap(cropped);
     _paintStrokesOnBitmap(cropped);
     _paintHideRegionsOnBitmap(cropped);
-    _paintStickersOnBitmap(cropped);
+    await _paintStickersOnBitmap(cropped);
     _logSaveStage('bitmap-build-done');
     return cropped;
   }
@@ -2804,6 +2845,45 @@ class _CropImagePageState extends State<_CropImagePage> {
     );
   }
 
+  // Crop rect inside an expanded bitmap produced by img.copyRotate (non-right-angle).
+  // img.copyRotate maps the original image center to the expanded center. When
+  // scaleX == scaleY (which holds whenever both are constrained to the same aspect
+  // ratio), the scene → expanded-bitmap mapping is a simple scale + translate:
+  //   bx = expandedW/2 + (sceneX - displayW/2) * scale
+  Rect _resolveCropRectInFreeRotatedBitmap(
+    img.Image original,
+    img.Image expanded,
+  ) {
+    if (_viewportSize == Size.zero ||
+        _stageSize == Size.zero ||
+        _displayImageSize == Size.zero) {
+      throw StateError('Kirpma alani hazir degil.');
+    }
+    final cropOrigin = _cropFrameOrigin(_viewportSize, _stageSize);
+    final topLeft = _controller.toScene(cropOrigin);
+    final bottomRight = _controller.toScene(
+      cropOrigin + Offset(_viewportSize.width, _viewportSize.height),
+    );
+    final scale = original.width / _displayImageSize.width;
+    final cx = expanded.width / 2.0;
+    final cy = expanded.height / 2.0;
+    final dcx = _displayImageSize.width / 2.0;
+    final dcy = _displayImageSize.height / 2.0;
+    final left = (cx + (math.min(topLeft.dx, bottomRight.dx) - dcx) * scale)
+        .clamp(0.0, expanded.width.toDouble());
+    final top = (cy + (math.min(topLeft.dy, bottomRight.dy) - dcy) * scale)
+        .clamp(0.0, expanded.height.toDouble());
+    final right = (cx + (math.max(topLeft.dx, bottomRight.dx) - dcx) * scale)
+        .clamp(0.0, expanded.width.toDouble());
+    final bottom = (cy + (math.max(topLeft.dy, bottomRight.dy) - dcy) * scale)
+        .clamp(0.0, expanded.height.toDouble());
+    final r = Rect.fromLTRB(left, top, right, bottom);
+    if (r.width <= 0 || r.height <= 0) {
+      throw StateError('Kirpma alani hesaplanamadi.');
+    }
+    return r;
+  }
+
   void _applyColorMatrixToBitmap(img.Image image) {
     final matrix = _buildColorMatrix();
     final isIdentity =
@@ -2882,7 +2962,6 @@ class _CropImagePageState extends State<_CropImagePage> {
           y: clippedRegion.top.round(),
           width: math.max(1, clippedRegion.width.round()),
           height: math.max(1, clippedRegion.height.round()),
-          radius: radius,
         );
         img.gaussianBlur(sample, radius: 14);
         img.compositeImage(
@@ -2940,7 +3019,7 @@ class _CropImagePageState extends State<_CropImagePage> {
     }
   }
 
-  void _paintStickersOnBitmap(img.Image image) {
+  Future<void> _paintStickersOnBitmap(img.Image image) async {
     if (_viewportSize == Size.zero) return;
     final scaleX = image.width / _viewportSize.width;
     final scaleY = image.height / _viewportSize.height;
@@ -2948,85 +3027,84 @@ class _CropImagePageState extends State<_CropImagePage> {
 
     for (final sticker in _stickers) {
       if (sticker.text.trim().isEmpty) continue;
-      final font = _fontForSticker(sticker, visualScale);
-      final lines = sticker.text.split(RegExp(r'\r?\n'));
-      final textWidths = [
-        for (final line in lines) _measureBitmapTextWidth(font, line),
-      ];
-      final textWidth = textWidths.fold<int>(0, math.max);
-      final lineHeight = font.lineHeight > 0 ? font.lineHeight : font.base;
-      final textHeight = math.max(lineHeight, lineHeight * lines.length);
-      final paddingX = math.max(6, (14 * scaleX).round());
-      final paddingY = math.max(4, (8 * scaleY).round());
-      final backgroundRect = Rect.fromLTWH(
-        (sticker.anchor.dx * image.width) + (-38 * scaleX),
-        (sticker.anchor.dy * image.height) + (-20 * scaleY),
-        (textWidth + (paddingX * 2)).toDouble(),
-        (textHeight + (paddingY * 2)).toDouble(),
+
+      final fontSize = 20.0 * sticker.scale * visualScale;
+      final maxBoxWidth = 220.0 * visualScale;
+      final paddingX = math.max(6.0, 14.0 * scaleX);
+      final paddingY = math.max(4.0, 8.0 * scaleY);
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: sticker.text,
+          style: TextStyle(
+            color: sticker.textColor,
+            fontSize: fontSize,
+            fontWeight:
+                sticker.bold ? FontWeight.w800 : FontWeight.w500,
+            height: 1.08,
+            fontFamily: _fontFamilyFor(sticker.fontKind),
+            shadows: [
+              Shadow(
+                color: _shadowColorFor(
+                  sticker.textColor,
+                  sticker.backgroundStyle,
+                ),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        textAlign: sticker.textAlign,
+        textDirection: TextDirection.ltr,
       );
-      final backgroundColor = _stickerBackgroundColor(sticker.backgroundStyle);
-      if (backgroundColor.toARGB32() != 0) {
-        img.fillRect(
-          image,
-          x1: backgroundRect.left.round(),
-          y1: backgroundRect.top.round(),
-          x2: backgroundRect.right.round(),
-          y2: backgroundRect.bottom.round(),
-          color: _toImgColor(backgroundColor),
-          radius: 18 * visualScale,
+      tp.layout(maxWidth: maxBoxWidth - paddingX * 2);
+
+      final boxWidth = tp.width + paddingX * 2;
+      final boxHeight = tp.height + paddingY * 2;
+      final w = math.max(1, boxWidth.ceil());
+      final h = math.max(1, boxHeight.ceil());
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(
+        recorder,
+        Rect.fromLTWH(0, 0, boxWidth, boxHeight),
+      );
+
+      final bgColor = _stickerBackgroundColor(sticker.backgroundStyle);
+      if (bgColor.a > 0) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(0, 0, boxWidth, boxHeight),
+            const Radius.circular(18),
+          ),
+          Paint()..color = bgColor,
         );
       }
 
-      final shadowColor = _toImgColor(
-        _shadowColorFor(sticker.textColor, sticker.backgroundStyle),
+      tp.paint(canvas, Offset(paddingX, paddingY));
+
+      final picture = recorder.endRecording();
+      final uiImage = await picture.toImage(w, h);
+      picture.dispose();
+
+      final byteData = await uiImage.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
       );
-      final textColor = _toImgColor(sticker.textColor);
-      for (final line in lines.indexed) {
-        final textY =
-            backgroundRect.top.round() + paddingY + (line.$1 * lineHeight);
-        final lineWidth = textWidths[line.$1];
-        final textX = switch (sticker.textAlign) {
-          TextAlign.right ||
-          TextAlign.end => backgroundRect.right.round() - paddingX - lineWidth,
-          TextAlign.center =>
-            backgroundRect.left.round() +
-                ((backgroundRect.width - lineWidth) / 2).round(),
-          _ => backgroundRect.left.round() + paddingX,
-        };
-        img.drawString(
-          image,
-          line.$2,
-          font: font,
-          x: textX + math.max(1, visualScale.round()),
-          y: textY + math.max(1, (visualScale * 0.8).round()),
-          color: shadowColor,
-        );
-        img.drawString(
-          image,
-          line.$2,
-          font: font,
-          x: textX,
-          y: textY,
-          color: textColor,
-        );
-      }
-    }
-  }
+      uiImage.dispose();
+      if (byteData == null) continue;
 
-  img.BitmapFont _fontForSticker(_OverlaySticker sticker, double visualScale) {
-    final targetSize =
-        20 * sticker.scale * visualScale * (sticker.bold ? 1.08 : 1);
-    if (targetSize >= 36) return img.arial48;
-    if (targetSize >= 19) return img.arial24;
-    return img.arial14;
-  }
+      final stickerBitmap = img.Image.fromBytes(
+        width: w,
+        height: h,
+        bytes: byteData.buffer,
+        order: img.ChannelOrder.rgba,
+      );
 
-  int _measureBitmapTextWidth(img.BitmapFont font, String text) {
-    var width = 0;
-    for (final rune in text.runes) {
-      width += font.characterXAdvance(String.fromCharCode(rune));
+      final dstX = (sticker.anchor.dx * image.width - 38.0 * scaleX).round();
+      final dstY = (sticker.anchor.dy * image.height - 20.0 * scaleY).round();
+      img.compositeImage(image, stickerBitmap, dstX: dstX, dstY: dstY);
     }
-    return width;
   }
 
   img.Color _toImgColor(Color color) {

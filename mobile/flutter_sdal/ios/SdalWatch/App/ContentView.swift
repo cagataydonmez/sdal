@@ -72,48 +72,49 @@ private struct MainTabView: View {
     @EnvironmentObject private var sessionManager: WatchSessionManager
     @State private var selectedTab: Int = 0
 
+    private let tabs: [(icon: String, label: String, color: Color)] = [
+        ("newspaper.fill",   "Akış",       .blue),
+        ("magnifyingglass",  "Keşfet",     .purple),
+        ("message.fill",     "Mesajlar",   .green),
+        ("bell.fill",        "Bildirimler",.orange),
+    ]
+
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                FeedView()
-            }
-            .tag(0)
-            .tabItem {
-                Image(systemName: "newspaper.fill")
-                Text("Akış")
-            }
+        ZStack(alignment: .bottom) {
+            // ── Content ───────────────────────────────────────────────────
+            ZStack {
+                NavigationStack { FeedView() }
+                    .opacity(selectedTab == 0 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 0)
 
-            NavigationStack {
-                ExploreView()
-            }
-            .tag(1)
-            .tabItem {
-                Image(systemName: "magnifyingglass")
-                Text("Keşfet")
-            }
+                NavigationStack { ExploreView() }
+                    .opacity(selectedTab == 1 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 1)
 
-            NavigationStack {
-                MessagesView()
-            }
-            .tag(2)
-            .tabItem {
-                Image(systemName: "message.fill")
-                Text(tabTitle("Mesajlar", count: viewModel.unreadMessageCount))
-            }
+                NavigationStack { MessagesView() }
+                    .opacity(selectedTab == 2 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 2)
 
-            NavigationStack {
-                NotificationsView()
+                NavigationStack { NotificationsView() }
+                    .opacity(selectedTab == 3 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 3)
             }
-            .tag(3)
-            .tabItem {
-                Image(systemName: "bell.fill")
-                Text(tabTitle("Bildirimler", count: viewModel.unreadNotificationCount))
+            .padding(.bottom, 50)
+
+            // ── Custom Tab Bar ────────────────────────────────────────────
+            HStack(spacing: 0) {
+                ForEach(0..<tabs.count, id: \.self) { index in
+                    tabButton(index: index)
+                }
             }
+            .frame(height: 50)
+            .background(.ultraThinMaterial)
         }
+        .ignoresSafeArea(edges: .bottom)
         .onChange(of: viewModel.deepLinkTarget) { target in
             guard let target else { return }
             switch target {
-            case .thread:       selectedTab = 2
+            case .thread:        selectedTab = 2
             case .notifications: selectedTab = 3
             case .post, .member: selectedTab = 0
             }
@@ -123,7 +124,48 @@ private struct MainTabView: View {
         }
     }
 
-    private func tabTitle(_ title: String, count: Int) -> String {
-        count > 0 ? "\(title) \(min(count, 99))" : title
+    @ViewBuilder
+    private func tabButton(index: Int) -> some View {
+        let tab    = tabs[index]
+        let active = selectedTab == index
+        let badge  = badgeCount(for: index)
+
+        Button {
+            selectedTab = index
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 3) {
+                    Image(systemName: tab.icon)
+                        .font(.system(size: 22, weight: active ? .bold : .regular))
+                        .foregroundStyle(active ? tab.color : .secondary)
+                        .scaleEffect(active ? 1.15 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: active)
+
+                    Text(tab.label)
+                        .font(.system(size: 8, weight: active ? .semibold : .regular))
+                        .foregroundStyle(active ? tab.color : .secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if badge > 0 {
+                    Text("\(min(badge, 9))+")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 1)
+                        .background(tab.color, in: Capsule())
+                        .offset(x: -4, y: 2)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func badgeCount(for index: Int) -> Int {
+        switch index {
+        case 2: return viewModel.unreadMessageCount
+        case 3: return viewModel.unreadNotificationCount
+        default: return 0
+        }
     }
 }

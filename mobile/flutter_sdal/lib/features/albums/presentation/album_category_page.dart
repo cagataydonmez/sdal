@@ -33,6 +33,9 @@ class _AlbumCategoryPageState extends ConsumerState<AlbumCategoryPage> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watch(appConfigProvider);
+    ref.listen<int>(albumPhotoEditCounterProvider, (_, _) {
+      _load(reset: true);
+    });
     return FeatureScaffold(
       title: _detail?.title ?? 'Albüm',
       actions: [

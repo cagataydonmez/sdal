@@ -21,7 +21,7 @@ struct FeedView: View {
                 postList(posts)
             }
         }
-        .navigationTitle("")
+        .navigationTitle("Akış")
         .sheet(isPresented: $showCompose) {
             ComposePostView()
         }
@@ -96,7 +96,7 @@ struct FeedView: View {
                 .scaledToFit()
                 .frame(width: 20, height: 20)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
-            Text("Akış")
+            Text("SDAL Sosyal")
                 .font(.headline)
                 .fontWeight(.semibold)
             Spacer()

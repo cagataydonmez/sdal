@@ -844,6 +844,7 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
                       );
                       if (!ok) return;
                       ref.invalidate(albumPhotoLikesProvider(widget.photoId));
+                      ref.read(albumPhotoEditCounterProvider.notifier).increment();
                       Navigator.of(ctx).pop();
                       await _load();
                     },

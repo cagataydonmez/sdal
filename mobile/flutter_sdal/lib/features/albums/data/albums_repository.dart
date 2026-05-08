@@ -925,6 +925,16 @@ final albumsRepositoryProvider = Provider<AlbumsRepository>(
   (ref) => AlbumsRepository(ref.watch(apiClientProvider)),
 );
 
+// Incremented after a photo file replacement so other pages can react.
+class AlbumPhotoEditCounter extends Notifier<int> {
+  @override
+  int build() => 0;
+  void increment() => state++;
+}
+
+final albumPhotoEditCounterProvider =
+    NotifierProvider<AlbumPhotoEditCounter, int>(AlbumPhotoEditCounter.new);
+
 final albumsDashboardProvider = FutureProvider.autoDispose<AlbumsDashboardData>(
   (ref) => ref.watch(albumsRepositoryProvider).fetchDashboard(),
 );
