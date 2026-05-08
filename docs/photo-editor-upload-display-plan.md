@@ -17,6 +17,7 @@ Status: Direction changed after review. The new implementation target is crop-on
 - 2026-05-08: User approved replacing the complex editor with crop-only image preparation. Existing public helper names remain temporarily for compatibility, but the helpers now route normal image preparation through native `image_cropper`.
 - 2026-05-08: Added embedded multi-photo crop flow with `crop_your_image`: selected photos stay in one PageView screen, back/next navigation is available, "Bitir" is always active, and untouched photos fall back to target-ratio center crop.
 - 2026-05-08: Added album upload progress UI: single uploads show a progress bar; multi-photo uploads show story-like segmented bars and `1/x`, `2/x`, `3/x` status.
+- 2026-05-08: Crop controls update: single-photo native cropper now exposes aspect-ratio selection instead of locking the initial ratio; multi-photo cropper now has aspect chips, rotate button, keep-alive panes, and saved crop areas so switching photos does not reset previous crop placement.
 
 ## Revised Direction: Crop-Only Image Preparation
 

@@ -25,6 +25,27 @@ enum CropAspectPreset {
   final double ratio;
 }
 
+class _NativeAspectPreset implements native_cropper.CropAspectRatioPresetData {
+  const _NativeAspectPreset(this.name, this.ratioX, this.ratioY);
+
+  @override
+  final String name;
+  final int ratioX;
+  final int ratioY;
+
+  @override
+  (int ratioX, int ratioY)? get data => (ratioX, ratioY);
+}
+
+const _nativeAspectPresets = <native_cropper.CropAspectRatioPresetData>[
+  native_cropper.CropAspectRatioPreset.original,
+  native_cropper.CropAspectRatioPreset.square,
+  native_cropper.CropAspectRatioPreset.ratio4x3,
+  _NativeAspectPreset('4x5', 4, 5),
+  _NativeAspectPreset('9x16', 9, 16),
+  native_cropper.CropAspectRatioPreset.ratio16x9,
+];
+
 enum _EditorPanel { crop, text, draw, hide, filter }
 
 enum _StickerBackgroundStyle { none, soft, dark, light }
@@ -309,7 +330,10 @@ Future<List<EditedMediaResult>> pickAndEditImages(
   final items = <_MultiCropSource>[];
   for (final file in picked) {
     items.add(
-      _MultiCropSource(file: File(file.path), bytes: await file.readAsBytes()),
+      _MultiCropSource(
+        file: File(file.path),
+        originalBytes: await file.readAsBytes(),
+      ),
     );
   }
   if (!context.mounted) return const <EditedMediaResult>[];
@@ -336,7 +360,6 @@ Future<EditedMediaResult?> editImageFile(
 }) async {
   final cropped = await native_cropper.ImageCropper().cropImage(
     sourcePath: sourceFile.path,
-    aspectRatio: _nativeCropAspectRatio(aspectPreset),
     compressFormat: native_cropper.ImageCompressFormat.jpg,
     compressQuality: 92,
     uiSettings: _nativeCropUiSettings(context, title, aspectPreset),
@@ -350,31 +373,16 @@ Future<EditedMediaResult?> editImageFile(
   );
 }
 
-native_cropper.CropAspectRatio? _nativeCropAspectRatio(
+native_cropper.CropAspectRatioPresetData _nativeInitialAspectPreset(
   CropAspectPreset? preset,
 ) {
-  if (preset == null) return null;
+  if (preset == null) return native_cropper.CropAspectRatioPreset.original;
   return switch (preset) {
-    CropAspectPreset.square => const native_cropper.CropAspectRatio(
-      ratioX: 1,
-      ratioY: 1,
-    ),
-    CropAspectPreset.album43 => const native_cropper.CropAspectRatio(
-      ratioX: 4,
-      ratioY: 3,
-    ),
-    CropAspectPreset.portrait45 => const native_cropper.CropAspectRatio(
-      ratioX: 4,
-      ratioY: 5,
-    ),
-    CropAspectPreset.story916 => const native_cropper.CropAspectRatio(
-      ratioX: 9,
-      ratioY: 16,
-    ),
-    CropAspectPreset.wide169 => const native_cropper.CropAspectRatio(
-      ratioX: 16,
-      ratioY: 9,
-    ),
+    CropAspectPreset.square => native_cropper.CropAspectRatioPreset.square,
+    CropAspectPreset.album43 => native_cropper.CropAspectRatioPreset.ratio4x3,
+    CropAspectPreset.portrait45 => const _NativeAspectPreset('4x5', 4, 5),
+    CropAspectPreset.story916 => const _NativeAspectPreset('9x16', 9, 16),
+    CropAspectPreset.wide169 => native_cropper.CropAspectRatioPreset.ratio16x9,
   };
 }
 
@@ -388,7 +396,7 @@ List<native_cropper.PlatformUiSettings> _nativeCropUiSettings(
   final toolbarColor = tokens.panel;
   final foreground = tokens.foreground;
   final accent = tokens.accent;
-  final locked = preset != null;
+  final initialAspect = _nativeInitialAspectPreset(preset);
   return [
     native_cropper.AndroidUiSettings(
       toolbarTitle: title,
@@ -402,18 +410,21 @@ List<native_cropper.PlatformUiSettings> _nativeCropUiSettings(
       cropFrameStrokeWidth: 3,
       cropGridStrokeWidth: 1,
       showCropGrid: true,
-      lockAspectRatio: locked,
+      lockAspectRatio: false,
       hideBottomControls: false,
+      aspectRatioPresets: _nativeAspectPresets,
+      initAspectRatio: initialAspect,
     ),
     native_cropper.IOSUiSettings(
       title: title,
       doneButtonTitle: 'Tamam',
       cancelButtonTitle: 'Vazgeç',
-      aspectRatioLockEnabled: locked,
-      aspectRatioPickerButtonHidden: locked,
-      resetAspectRatioEnabled: !locked,
+      aspectRatioLockEnabled: false,
+      aspectRatioPickerButtonHidden: false,
+      resetAspectRatioEnabled: true,
       rotateButtonsHidden: false,
       resetButtonHidden: false,
+      aspectRatioPresets: _nativeAspectPresets,
     ),
     native_cropper.WebUiSettings(context: context),
   ];
@@ -430,10 +441,10 @@ Future<Size?> _readImageSize(File file) async {
 }
 
 class _MultiCropSource {
-  const _MultiCropSource({required this.file, required this.bytes});
+  const _MultiCropSource({required this.file, required this.originalBytes});
 
   final File file;
-  final Uint8List bytes;
+  final Uint8List originalBytes;
 }
 
 class _MultiCropPrepared {
@@ -441,6 +452,39 @@ class _MultiCropPrepared {
 
   final EditedMediaResult result;
   final bool dirty;
+}
+
+class _MultiCropVisualState {
+  const _MultiCropVisualState({
+    required this.bytes,
+    required this.turns,
+    required this.aspectRatio,
+    this.savedArea,
+    this.dirty = true,
+  });
+
+  final Uint8List bytes;
+  final int turns;
+  final double? aspectRatio;
+  final Rect? savedArea;
+  final bool dirty;
+
+  _MultiCropVisualState copyWith({
+    Uint8List? bytes,
+    int? turns,
+    double? aspectRatio,
+    Rect? savedArea,
+    bool clearSavedArea = false,
+    bool? dirty,
+  }) {
+    return _MultiCropVisualState(
+      bytes: bytes ?? this.bytes,
+      turns: turns ?? this.turns,
+      aspectRatio: aspectRatio ?? this.aspectRatio,
+      savedArea: clearSavedArea ? null : savedArea ?? this.savedArea,
+      dirty: dirty ?? this.dirty,
+    );
+  }
 }
 
 class _MultiCropImagePage extends StatefulWidget {
@@ -462,6 +506,7 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
   late final PageController _pageController;
   late final List<embedded_cropper.CropController> _controllers;
   late final List<_MultiCropPrepared?> _prepared;
+  late final List<_MultiCropVisualState> _visualStates;
   final Map<int, Completer<EditedMediaResult?>> _cropCompleters = {};
   int _index = 0;
   bool _busy = false;
@@ -475,6 +520,14 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
         embedded_cropper.CropController(),
     ];
     _prepared = List<_MultiCropPrepared?>.filled(widget.items.length, null);
+    _visualStates = [
+      for (final item in widget.items)
+        _MultiCropVisualState(
+          bytes: item.originalBytes,
+          turns: 0,
+          aspectRatio: widget.aspectPreset?.ratio,
+        ),
+    ];
   }
 
   @override
@@ -560,34 +613,20 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
               },
               itemCount: total,
               itemBuilder: (context, index) {
+                final visualState = _visualStates[index];
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: ColoredBox(
-                      color: Colors.black,
-                      child: embedded_cropper.Crop(
-                        image: widget.items[index].bytes,
-                        controller: _controllers[index],
-                        aspectRatio: widget.aspectPreset?.ratio,
-                        interactive: true,
-                        fixCropRect: true,
-                        baseColor: Colors.black,
-                        maskColor: Colors.black.withValues(alpha: 0.52),
-                        radius: 14,
-                        progressIndicator: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        cornerDotBuilder: (size, _) =>
-                            embedded_cropper.DotControl(
-                              color: tokens.foregroundOnAccent,
-                              padding: 9,
-                            ),
-                        onMoved: (_, _) => _markDirty(index),
-                        onImageMoved: (_) => _markDirty(index),
-                        onCropped: (result) => _handleCropped(index, result),
-                      ),
+                  child: _KeepAliveCropPane(
+                    key: ValueKey(
+                      'crop-$index-${visualState.turns}-${visualState.aspectRatio}',
                     ),
+                    image: visualState.bytes,
+                    controller: _controllers[index],
+                    aspectRatio: visualState.aspectRatio,
+                    initialArea: visualState.savedArea,
+                    tokens: tokens,
+                    onMoved: (area) => _rememberArea(index, area),
+                    onCropped: (result) => _handleCropped(index, result),
                   ),
                 );
               },
@@ -597,43 +636,92 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton.filledTonal(
-                    tooltip: 'Önceki fotoğraf',
-                    onPressed: _busy || _index == 0
-                        ? null
-                        : () => _goTo(_index - 1),
-                    icon: const Icon(Icons.chevron_left_rounded),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
-                        Text(
-                          '${_index + 1}/$total',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        _AspectChip(
+                          label: 'Orijinal',
+                          selected: _visualStates[_index].aspectRatio == null,
+                          onTap: _busy ? null : () => _setAspect(null),
                         ),
-                        Text(
-                          'Sola sağa kaydırabilir, istediğin zaman bitirebilirsin.',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: tokens.foregroundMuted,
-                          ),
+                        _AspectChip(
+                          label: '1:1',
+                          selected: _visualStates[_index].aspectRatio == 1,
+                          onTap: _busy ? null : () => _setAspect(1),
+                        ),
+                        _AspectChip(
+                          label: '4:3',
+                          selected: _visualStates[_index].aspectRatio == 4 / 3,
+                          onTap: _busy ? null : () => _setAspect(4 / 3),
+                        ),
+                        _AspectChip(
+                          label: '4:5',
+                          selected: _visualStates[_index].aspectRatio == 4 / 5,
+                          onTap: _busy ? null : () => _setAspect(4 / 5),
+                        ),
+                        _AspectChip(
+                          label: '9:16',
+                          selected: _visualStates[_index].aspectRatio == 9 / 16,
+                          onTap: _busy ? null : () => _setAspect(9 / 16),
+                        ),
+                        _AspectChip(
+                          label: '16:9',
+                          selected: _visualStates[_index].aspectRatio == 16 / 9,
+                          onTap: _busy ? null : () => _setAspect(16 / 9),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton.filledTonal(
+                          tooltip: 'Döndür',
+                          onPressed: _busy ? null : _rotateCurrent,
+                          icon: const Icon(Icons.rotate_90_degrees_cw_rounded),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  IconButton.filled(
-                    tooltip: 'Sonraki fotoğraf',
-                    onPressed: _busy || _index == total - 1
-                        ? null
-                        : () => _goTo(_index + 1),
-                    icon: const Icon(Icons.chevron_right_rounded),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      IconButton.filledTonal(
+                        tooltip: 'Önceki fotoğraf',
+                        onPressed: _busy || _index == 0
+                            ? null
+                            : () => _goTo(_index - 1),
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${_index + 1}/$total',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Kaydır, geri dön, istediğin zaman bitir.',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: tokens.foregroundMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton.filled(
+                        tooltip: 'Sonraki fotoğraf',
+                        onPressed: _busy || _index == total - 1
+                            ? null
+                            : () => _goTo(_index + 1),
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -648,6 +736,44 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
     final item = _prepared[index];
     if (item == null || item.dirty) return;
     _prepared[index] = _MultiCropPrepared(result: item.result, dirty: true);
+  }
+
+  void _rememberArea(int index, Rect area) {
+    if (index < 0 || index >= _visualStates.length) return;
+    _visualStates[index] = _visualStates[index].copyWith(
+      savedArea: area,
+      dirty: true,
+    );
+    _markDirty(index);
+  }
+
+  void _setAspect(double? ratio) {
+    final current = _visualStates[_index];
+    setState(() {
+      _visualStates[_index] = current.copyWith(
+        aspectRatio: ratio,
+        clearSavedArea: true,
+        dirty: true,
+      );
+    });
+    _controllers[_index].aspectRatio = ratio;
+    _markDirty(_index);
+  }
+
+  void _rotateCurrent() {
+    final current = _visualStates[_index];
+    final decoded = img.decodeImage(current.bytes);
+    if (decoded == null) return;
+    final rotated = img.copyRotate(decoded, angle: 90);
+    setState(() {
+      _visualStates[_index] = current.copyWith(
+        bytes: Uint8List.fromList(img.encodeJpg(rotated, quality: 92)),
+        turns: (current.turns + 1) % 4,
+        clearSavedArea: true,
+        dirty: true,
+      );
+      _prepared[_index] = null;
+    });
   }
 
   Future<void> _goTo(int nextIndex) async {
@@ -673,7 +799,7 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
       results.add(
         prepared != null && !prepared.dirty
             ? prepared.result
-            : await _centerCropFallback(widget.items[i]),
+            : await _centerCropFallback(i),
       );
     }
     if (!mounted) return;
@@ -711,7 +837,7 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
           await _buildCropOnlyResult(
             bytes: croppedImage,
             sourceFile: widget.items[index].file,
-            aspectPreset: widget.aspectPreset,
+            aspectRatio: _visualStates[index].aspectRatio,
           ),
         );
       case embedded_cropper.CropFailure():
@@ -719,16 +845,18 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
     }
   }
 
-  Future<EditedMediaResult> _centerCropFallback(_MultiCropSource source) async {
-    final decoded = img.decodeImage(source.bytes);
-    if (decoded == null || widget.aspectPreset == null) {
+  Future<EditedMediaResult> _centerCropFallback(int index) async {
+    final source = widget.items[index];
+    final state = _visualStates[index];
+    final decoded = img.decodeImage(state.bytes);
+    if (decoded == null || state.aspectRatio == null) {
       return _buildCropOnlyResult(
-        bytes: source.bytes,
+        bytes: state.bytes,
         sourceFile: source.file,
-        aspectPreset: widget.aspectPreset,
+        aspectRatio: state.aspectRatio,
       );
     }
-    final ratio = widget.aspectPreset!.ratio;
+    final ratio = state.aspectRatio!;
     var cropWidth = decoded.width;
     var cropHeight = (cropWidth / ratio).round();
     if (cropHeight > decoded.height) {
@@ -750,7 +878,106 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
     return _buildCropOnlyResult(
       bytes: Uint8List.fromList(img.encodeJpg(cropped, quality: 92)),
       sourceFile: source.file,
-      aspectPreset: widget.aspectPreset,
+      aspectRatio: state.aspectRatio,
+    );
+  }
+}
+
+class _KeepAliveCropPane extends StatefulWidget {
+  const _KeepAliveCropPane({
+    super.key,
+    required this.image,
+    required this.controller,
+    required this.aspectRatio,
+    required this.initialArea,
+    required this.tokens,
+    required this.onMoved,
+    required this.onCropped,
+  });
+
+  final Uint8List image;
+  final embedded_cropper.CropController controller;
+  final double? aspectRatio;
+  final Rect? initialArea;
+  final SdalThemeTokens tokens;
+  final ValueChanged<Rect> onMoved;
+  final ValueChanged<embedded_cropper.CropResult> onCropped;
+
+  @override
+  State<_KeepAliveCropPane> createState() => _KeepAliveCropPaneState();
+}
+
+class _KeepAliveCropPaneState extends State<_KeepAliveCropPane>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: ColoredBox(
+        color: Colors.black,
+        child: embedded_cropper.Crop(
+          image: widget.image,
+          controller: widget.controller,
+          aspectRatio: widget.aspectRatio,
+          initialRectBuilder: widget.initialArea == null
+              ? embedded_cropper.InitialRectBuilder.withSizeAndRatio(
+                  size: 0.82,
+                  aspectRatio: widget.aspectRatio,
+                )
+              : embedded_cropper.InitialRectBuilder.withArea(
+                  widget.initialArea!,
+                ),
+          interactive: true,
+          fixCropRect: false,
+          baseColor: Colors.black,
+          maskColor: Colors.black.withValues(alpha: 0.52),
+          radius: 14,
+          progressIndicator: const Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          cornerDotBuilder: (size, _) => embedded_cropper.DotControl(
+            color: widget.tokens.foregroundOnAccent,
+            padding: 9,
+          ),
+          onMoved: (_, area) => widget.onMoved(area),
+          onImageMoved: (_) {},
+          onCropped: widget.onCropped,
+        ),
+      ),
+    );
+  }
+}
+
+class _AspectChip extends StatelessWidget {
+  const _AspectChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).sdal;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: onTap == null ? null : (_) => onTap!(),
+        selectedColor: tokens.accentMuted,
+        labelStyle: TextStyle(
+          color: selected ? tokens.foreground : tokens.foregroundMuted,
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+        ),
+      ),
     );
   }
 }
@@ -758,7 +985,8 @@ class _MultiCropImagePageState extends State<_MultiCropImagePage> {
 Future<EditedMediaResult> _buildCropOnlyResult({
   required Uint8List bytes,
   required File sourceFile,
-  required CropAspectPreset? aspectPreset,
+  CropAspectPreset? aspectPreset,
+  double? aspectRatio,
   Map<String, dynamic> initialMetadata = const <String, dynamic>{},
 }) async {
   final decoded = img.decodeImage(bytes);
@@ -773,6 +1001,7 @@ Future<EditedMediaResult> _buildCropOnlyResult({
   final outputSize = decoded == null
       ? await _readImageSize(outputFile)
       : Size(decoded.width.toDouble(), decoded.height.toDouble());
+  final resolvedAspectRatio = aspectRatio ?? aspectPreset?.ratio;
   return EditedMediaResult(
     file: outputFile,
     sourceFile: outputFile,
@@ -780,7 +1009,7 @@ Future<EditedMediaResult> _buildCropOnlyResult({
       ...initialMetadata,
       'editorMode': 'cropOnly',
       'editorVersion': 2,
-      if (aspectPreset != null) 'aspectRatio': aspectPreset.ratio,
+      'aspectRatio': ?resolvedAspectRatio,
       if (outputSize != null) ...{
         'outputWidth': outputSize.width.round(),
         'outputHeight': outputSize.height.round(),
