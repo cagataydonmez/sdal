@@ -4,10 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../app/providers.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/media/pick_cropped_image.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/text/plain_text_from_rich_content.dart';
 import '../../../core/text/sdal_date_time.dart';
 import '../../../core/widgets/empty_state_view.dart';
@@ -436,7 +439,19 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
       text: _plainText(photo.description),
     );
     var allowComments = photo.allowComments;
-    EditedMediaResult? replacementFile;
+    var editingIndex = _initialGroupIndex(photo);
+    final groupItems = photo.groupPhotos.isEmpty
+        ? [
+            AlbumPhotoGroupItem(
+              id: photo.id,
+              fileName: photo.fileName,
+              title: photo.title,
+              groupIndex: 0,
+            ),
+          ]
+        : photo.groupPhotos;
+    final replacementFiles = <int, EditedMediaResult>{};
+    int? openingCurrentImageGroupIndex;
     final tagged = <MemberSummary>[
       for (final member in photo.taggedUsers)
         MemberSummary(
@@ -460,245 +475,382 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: true,
+      showDragHandle: true,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              20,
-              20,
-              20 + MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                Text(
-                  photo.groupCount > 1
-                      ? 'Fotoğraf serisini düzenle'
-                      : 'Fotoğrafı düzenle',
-                  style: Theme.of(ctx).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: AspectRatio(
-                        aspectRatio: 4 / 3,
-                        child: replacementFile != null
-                            ? SdalLightboxImage(
-                                imageProvider: FileImage(replacementFile!.file),
-                                semanticLabel: 'Düzenlenen fotoğraf önizlemesi',
-                                child: Image.file(
-                                  replacementFile!.file,
-                                  fit: BoxFit.cover,
+        builder: (ctx, setModalState) {
+          final editingItem = groupItems[editingIndex];
+          final editingGroupIndex = editingItem.groupIndex;
+          final replacementFile = replacementFiles[editingGroupIndex];
+          final openingCurrentImage =
+              openingCurrentImageGroupIndex == editingGroupIndex;
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                20 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          photo.groupCount > 1
+                              ? 'Fotoğraf serisini düzenle'
+                              : 'Fotoğrafı düzenle',
+                          style: Theme.of(ctx).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Kapat',
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (groupItems.length > 1) ...[
+                    SizedBox(
+                      height: 76,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: groupItems.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final item = groupItems[index];
+                          final selected = index == editingIndex;
+                          return InkWell(
+                            onTap: () => setModalState(() {
+                              editingIndex = index;
+                            }),
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              width: 76,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: selected
+                                      ? Theme.of(ctx).colorScheme.primary
+                                      : Theme.of(ctx).dividerColor,
+                                  width: selected ? 2 : 1,
                                 ),
-                              )
-                            : SdalNetworkImage(
-                                imageUrl: config.siteBaseUri
-                                    .resolve(
-                                      '/api/media/kucukresim?width=800&file=${Uri.encodeComponent(photo.fileName)}',
-                                    )
-                                    .toString(),
-                                fit: BoxFit.cover,
-                                semanticLabel: photo.title,
                               ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 10,
-                      bottom: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.edit_outlined,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              replacementFile != null
-                                  ? 'Kayda hazır'
-                                  : 'Mevcut fotoğraf',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child:
+                                        replacementFiles[item.groupIndex] !=
+                                            null
+                                        ? Image.file(
+                                            replacementFiles[item.groupIndex]!
+                                                .file,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : SdalNetworkImage(
+                                            imageUrl: _albumImageUrl(
+                                              config,
+                                              item.fileName,
+                                              width: 240,
+                                            ),
+                                            fit: BoxFit.cover,
+                                            enableLightbox: false,
+                                          ),
+                                  ),
+                                  if (replacementFiles[item.groupIndex] != null)
+                                    const Positioned(
+                                      right: 5,
+                                      top: 5,
+                                      child: Icon(
+                                        Icons.check_circle_rounded,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final picked = await pickAndEditImage(
-                            ctx,
-                            title: 'Yeni fotoğrafı kırp',
                           );
-                          if (picked == null) return;
-                          setModalState(() => replacementFile = picked);
                         },
-                        icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text('Galeriden değiştir'),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final edited = await _editCurrentPhotoSource(photo);
-                          if (!ctx.mounted || edited == null) return;
-                          setModalState(() => replacementFile = edited);
-                        },
-                        icon: const Icon(Icons.tune_rounded),
-                        label: const Text('Mevcut görseli aç'),
-                      ),
-                    ),
+                    const SizedBox(height: 12),
                   ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Başlık',
-                    border: OutlineInputBorder(),
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: AspectRatio(
+                          aspectRatio: 4 / 3,
+                          child: replacementFile != null
+                              ? SdalLightboxImage(
+                                  imageProvider: FileImage(
+                                    replacementFile.file,
+                                  ),
+                                  semanticLabel:
+                                      'Düzenlenen fotoğraf önizlemesi',
+                                  child: Image.file(
+                                    replacementFile.file,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : SdalNetworkImage(
+                                  imageUrl: _albumImageUrl(
+                                    config,
+                                    editingItem.fileName,
+                                    width: 900,
+                                  ),
+                                  fit: BoxFit.cover,
+                                  semanticLabel: editingItem.title,
+                                ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 10,
+                        bottom: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.edit_outlined,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                replacementFile != null
+                                    ? 'Kayda hazır'
+                                    : groupItems.length > 1
+                                    ? '${editingIndex + 1}/${groupItems.length}'
+                                    : 'Mevcut fotoğraf',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'Açıklama',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await pickAndEditImage(
+                              ctx,
+                              title: 'Yeni fotoğrafı kırp',
+                            );
+                            if (picked == null) return;
+                            setModalState(
+                              () =>
+                                  replacementFiles[editingGroupIndex] = picked,
+                            );
+                          },
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Galeriden değiştir'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: openingCurrentImage
+                              ? null
+                              : () async {
+                                  setModalState(() {
+                                    openingCurrentImageGroupIndex =
+                                        editingGroupIndex;
+                                  });
+                                  EditedMediaResult? edited;
+                                  try {
+                                    edited = await _editCurrentPhotoSource(
+                                      ctx,
+                                      photo,
+                                      editingItem,
+                                    );
+                                  } finally {
+                                    if (ctx.mounted) {
+                                      setModalState(() {
+                                        openingCurrentImageGroupIndex = null;
+                                        if (edited != null) {
+                                          replacementFiles[editingGroupIndex] =
+                                              edited;
+                                        }
+                                      });
+                                    }
+                                  }
+                                },
+                          icon: openingCurrentImage
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.tune_rounded),
+                          label: Text(
+                            openingCurrentImage
+                                ? 'Açılıyor...'
+                                : 'Mevcut görseli aç',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  value: allowComments,
-                  title: const Text('Yorumları açık tut'),
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: (value) =>
-                      setModalState(() => allowComments = value),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final result =
-                        await showModalBottomSheet<List<MemberSummary>>(
-                          context: ctx,
-                          isScrollControlled: true,
-                          builder: (context) =>
-                              AlbumMemberPickerSheet(initial: tagged),
-                        );
-                    if (result == null) return;
-                    setModalState(() {
-                      tagged
-                        ..clear()
-                        ..addAll(result);
-                    });
-                  },
-                  icon: const Icon(Icons.alternate_email_rounded),
-                  label: Text(
-                    tagged.isEmpty
-                        ? 'Kişi etiketle'
-                        : '${tagged.length} kişi etiketli',
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Başlık',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                if (tagged.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: tagged
-                        .map(
-                          (member) => InputChip(
-                            label: Text(member.name),
-                            onDeleted: () => setModalState(
-                              () => tagged.removeWhere(
-                                (item) => item.id == member.id,
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descriptionController,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Açıklama',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    value: allowComments,
+                    title: const Text('Yorumları açık tut'),
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (value) =>
+                        setModalState(() => allowComments = value),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final result =
+                          await showModalBottomSheet<List<MemberSummary>>(
+                            context: ctx,
+                            isScrollControlled: true,
+                            builder: (context) =>
+                                AlbumMemberPickerSheet(initial: tagged),
+                          );
+                      if (result == null) return;
+                      setModalState(() {
+                        tagged
+                          ..clear()
+                          ..addAll(result);
+                      });
+                    },
+                    icon: const Icon(Icons.alternate_email_rounded),
+                    label: Text(
+                      tagged.isEmpty
+                          ? 'Kişi etiketle'
+                          : '${tagged.length} kişi etiketli',
+                    ),
+                  ),
+                  if (tagged.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: tagged
+                          .map(
+                            (member) => InputChip(
+                              label: Text(member.name),
+                              onDeleted: () => setModalState(
+                                () => tagged.removeWhere(
+                                  (item) => item.id == member.id,
+                                ),
                               ),
                             ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () async {
-                    final notifier = ref.read(
-                      albumsActionControllerProvider.notifier,
-                    );
-                    // Replace file first if a new one was picked.
-                    if (replacementFile != null) {
-                      final fileOk = await notifier.replacePhotoFile(
+                          )
+                          .toList(growable: false),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () async {
+                      final notifier = ref.read(
+                        albumsActionControllerProvider.notifier,
+                      );
+                      for (final entry in replacementFiles.entries) {
+                        AlbumPhotoGroupItem? groupItem;
+                        for (final item in groupItems) {
+                          if (item.groupIndex == entry.key) {
+                            groupItem = item;
+                            break;
+                          }
+                        }
+                        final fileOk = await notifier.replacePhotoFile(
+                          photoId: groupItem?.id ?? widget.photoId,
+                          file: entry.value.file,
+                          sourceFile: entry.value.sourceFile,
+                          editMetadata: entry.value.metadata,
+                          albumGroupIndex: entry.key,
+                        );
+                        if (!mounted || !ctx.mounted) return;
+                        if (!fileOk) {
+                          final st = ref.read(albumsActionControllerProvider);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                st.message ?? 'Fotoğraf değiştirilemedi.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                      }
+                      final ok = await notifier.updatePhoto(
                         photoId: widget.photoId,
-                        file: replacementFile!.file,
-                        sourceFile: replacementFile!.sourceFile,
-                        editMetadata: replacementFile!.metadata,
+                        title: titleController.text.trim(),
+                        description: descriptionController.text.trim(),
+                        allowComments: allowComments,
+                        taggedUserIds: tagged
+                            .map((member) => member.id)
+                            .toList(),
                       );
                       if (!mounted || !ctx.mounted) return;
-                      if (!fileOk) {
-                        final st = ref.read(albumsActionControllerProvider);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              st.message ?? 'Fotoğraf değiştirilemedi.',
-                            ),
+                      final state = ref.read(albumsActionControllerProvider);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            state.message ??
+                                (ok
+                                    ? 'Fotoğraf güncellendi.'
+                                    : 'Fotoğraf güncellenemedi.'),
                           ),
-                        );
-                        return;
-                      }
-                    }
-                    final ok = await notifier.updatePhoto(
-                      photoId: widget.photoId,
-                      title: titleController.text.trim(),
-                      description: descriptionController.text.trim(),
-                      allowComments: allowComments,
-                      taggedUserIds: tagged.map((member) => member.id).toList(),
-                    );
-                    if (!mounted || !ctx.mounted) return;
-                    final state = ref.read(albumsActionControllerProvider);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          state.message ??
-                              (ok
-                                  ? 'Fotoğraf güncellendi.'
-                                  : 'Fotoğraf güncellenemedi.'),
                         ),
-                      ),
-                    );
-                    if (!ok) return;
-                    ref.invalidate(albumPhotoLikesProvider(widget.photoId));
-                    Navigator.of(ctx).pop();
-                    await _load();
-                  },
-                  child: const Text('Kaydet'),
-                ),
-              ],
+                      );
+                      if (!ok) return;
+                      ref.invalidate(albumPhotoLikesProvider(widget.photoId));
+                      Navigator.of(ctx).pop();
+                      await _load();
+                    },
+                    child: const Text('Kaydet'),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
 
@@ -707,30 +859,90 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
   }
 
   Future<EditedMediaResult?> _editCurrentPhotoSource(
+    BuildContext editorContext,
     AlbumPhotoDetail photo,
+    AlbumPhotoGroupItem item,
   ) async {
-    final sourceFile = await _downloadPhotoEditorSource(photo);
-    if (!mounted || sourceFile == null) return null;
+    final sourceFile = await _downloadPhotoEditorSource(
+      editorContext,
+      photo,
+      item,
+    );
+    if (!editorContext.mounted || sourceFile == null) return null;
     return editImageFile(
-      context,
+      editorContext,
       sourceFile: sourceFile,
-      title: 'Fotoğrafı düzenle',
-      initialMetadata: photo.editSourceFileName.isNotEmpty
+      title: photo.groupCount > 1
+          ? 'Fotoğrafı düzenle ${item.groupIndex + 1}/${photo.groupCount}'
+          : 'Fotoğrafı düzenle',
+      initialMetadata:
+          photo.editSourceFileName.isNotEmpty && item.id == photo.id
           ? photo.editMetadata
           : const <String, dynamic>{},
     );
   }
 
-  Future<File?> _downloadPhotoEditorSource(AlbumPhotoDetail photo) async {
+  Future<File?> _downloadPhotoEditorSource(
+    BuildContext feedbackContext,
+    AlbumPhotoDetail photo,
+    AlbumPhotoGroupItem item,
+  ) async {
     final apiClient = ref.read(apiClientProvider);
-    final sourceFileName = photo.editSourceFileName.isNotEmpty
+    final sourceFileName =
+        photo.editSourceFileName.isNotEmpty && item.id == photo.id
         ? photo.editSourceFileName
-        : photo.fileName;
+        : item.fileName;
     if (sourceFileName.isEmpty) return null;
 
-    final uri = apiClient.buildApiUri(
+    final directUri = apiClient.buildApiUri(
       '/uploads/album/${Uri.encodeComponent(sourceFileName)}',
     );
+    final fallbackUri = apiClient.buildApiUri(
+      '/api/media/kucukresim?width=1600&file=${Uri.encodeComponent(item.fileName)}',
+    );
+    var resolvedFile = await _downloadEditablePhotoFile(
+      apiClient,
+      fallbackUri,
+      item.id,
+    );
+    resolvedFile ??= await _downloadEditablePhotoFile(
+      apiClient,
+      directUri,
+      item.id,
+    );
+    if (!feedbackContext.mounted) return null;
+    if (resolvedFile == null) {
+      ScaffoldMessenger.of(feedbackContext).showSnackBar(
+        const SnackBar(content: Text('Fotoğraf düzenleme kaynağı açılamadı.')),
+      );
+      return null;
+    }
+
+    return resolvedFile;
+  }
+
+  Future<File?> _downloadEditablePhotoFile(
+    ApiClient apiClient,
+    Uri uri,
+    int photoId,
+  ) async {
+    final bytes = await _downloadPhotoBytes(apiClient, uri);
+    if (bytes == null || _looksLikeHtml(bytes)) return null;
+    final image = img.decodeImage(bytes);
+    if (image == null) return null;
+
+    final tempDir = await getTemporaryDirectory();
+    final file = File(
+      '${tempDir.path}/album-edit-source-$photoId-${DateTime.now().microsecondsSinceEpoch}.jpg',
+    );
+    await file.writeAsBytes(
+      Uint8List.fromList(img.encodeJpg(image, quality: 92)),
+      flush: true,
+    );
+    return file;
+  }
+
+  Future<Uint8List?> _downloadPhotoBytes(ApiClient apiClient, Uri uri) async {
     final client = HttpClient();
     try {
       final request = await client.getUrl(uri);
@@ -740,37 +952,27 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
       }
       final response = await request.close();
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Fotoğraf düzenleme kaynağı indirilemedi.'),
-            ),
-          );
-        }
         return null;
       }
-      final bytes = await consolidateHttpClientResponseBytes(response);
-      final tempDir = await getTemporaryDirectory();
-      final extension = sourceFileName.contains('.')
-          ? '.${sourceFileName.split('.').last}'
-          : '.jpg';
-      final file = File(
-        '${tempDir.path}/album-edit-source-${photo.id}-${DateTime.now().microsecondsSinceEpoch}$extension',
-      );
-      await file.writeAsBytes(bytes, flush: true);
-      return file;
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Fotoğraf düzenleme kaynağı indirilemedi.'),
-          ),
-        );
+      final mimeType = response.headers.contentType?.mimeType.toLowerCase();
+      if (mimeType != null &&
+          (mimeType.startsWith('text/') || mimeType == 'application/json')) {
+        return null;
       }
+      return await consolidateHttpClientResponseBytes(response);
+    } catch (_) {
       return null;
     } finally {
       client.close(force: true);
     }
+  }
+
+  bool _looksLikeHtml(Uint8List bytes) {
+    for (final byte in bytes.take(32)) {
+      if (byte == 9 || byte == 10 || byte == 13 || byte == 32) continue;
+      return byte == 60;
+    }
+    return false;
   }
 
   Future<void> _editComment(AlbumComment comment) async {
@@ -915,6 +1117,14 @@ class _AlbumPhotoPageState extends ConsumerState<AlbumPhotoPage> {
     ref.invalidate(myAlbumsProvider);
     context.pop();
   }
+}
+
+String _albumImageUrl(AppConfig config, String fileName, {int width = 900}) {
+  return config.siteBaseUri
+      .resolve(
+        '/api/media/kucukresim?width=$width&file=${Uri.encodeComponent(fileName)}',
+      )
+      .toString();
 }
 
 class _PhotoGroupViewer extends ConsumerWidget {

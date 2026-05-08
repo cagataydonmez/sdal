@@ -143,24 +143,35 @@ class _ImageLightboxPage extends StatelessWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => Navigator.of(context).maybePop(),
-                child: Center(
-                  child: InteractiveViewer(
-                    minScale: 1,
-                    maxScale: 5,
-                    clipBehavior: Clip.none,
-                    child: GestureDetector(
-                      onTap: () => Navigator.of(context).maybePop(),
-                      child: Hero(
-                        tag: heroTag,
-                        child: Image(
-                          image: imageProvider,
-                          fit: BoxFit.contain,
-                          semanticLabel: semanticLabel,
-                          filterQuality: FilterQuality.high,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final height = constraints.maxHeight;
+                    return InteractiveViewer(
+                      minScale: 1,
+                      maxScale: 6,
+                      boundaryMargin: const EdgeInsets.all(96),
+                      clipBehavior: Clip.hardEdge,
+                      child: SizedBox(
+                        width: width,
+                        height: height,
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(context).maybePop(),
+                          child: Hero(
+                            tag: heroTag,
+                            child: Image(
+                              image: imageProvider,
+                              width: width,
+                              height: height,
+                              fit: BoxFit.contain,
+                              semanticLabel: semanticLabel,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
             ),

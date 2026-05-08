@@ -4,6 +4,7 @@ import UIKit
 
 class SceneDelegate: FlutterSceneDelegate {
   private var photoEditorCaptureChannel: FlutterMethodChannel?
+  private var watchBridgeChannel: FlutterMethodChannel?
 
   override func scene(
     _ scene: UIScene,
@@ -12,11 +13,14 @@ class SceneDelegate: FlutterSceneDelegate {
   ) {
     super.scene(scene, willConnectTo: session, options: connectionOptions)
     configurePhotoEditorCaptureChannel()
+    configureWatchBridgeChannel()
   }
 
   override func sceneDidBecomeActive(_ scene: UIScene) {
     super.sceneDidBecomeActive(scene)
     configurePhotoEditorCaptureChannel()
+    configureWatchBridgeChannel()
+    WatchBridge.shared.resendSessionIfAvailable()
   }
 
   override func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -58,6 +62,42 @@ class SceneDelegate: FlutterSceneDelegate {
       self.handleCaptureRegion(call: call, result: result)
     }
     photoEditorCaptureChannel = channel
+  }
+
+  private func configureWatchBridgeChannel() {
+    guard watchBridgeChannel == nil,
+          let controller = window?.rootViewController as? FlutterViewController else {
+      return
+    }
+
+    let channel = FlutterMethodChannel(
+      name: "com.sdal/watch",
+      binaryMessenger: controller.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "pushSession":
+        if let args = call.arguments as? [String: Any],
+           let cookie = args["cookie"] as? String,
+           let baseUrl = args["baseUrl"] as? String {
+          let userId = args["userId"] as? Int ?? 0
+          let userPhoto = args["userPhoto"] as? String ?? ""
+          WatchBridge.shared.pushSession(
+            cookie: cookie,
+            baseUrl: baseUrl,
+            userId: userId,
+            userPhoto: userPhoto
+          )
+        }
+        result(nil)
+      case "clearSession":
+        WatchBridge.shared.clearSession()
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    watchBridgeChannel = channel
   }
 
   private func handleCaptureRegion(call: FlutterMethodCall, result: @escaping FlutterResult) {

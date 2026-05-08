@@ -242,6 +242,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
     required File file,
     File? sourceFile,
     Map<String, dynamic> editMetadata = const <String, dynamic>{},
+    int? albumGroupIndex,
   }) async {
     state = AsyncActionState.loading(scope: 'albums:photo-replace:$photoId');
     final result = await _repository.replacePhotoFile(
@@ -249,6 +250,7 @@ class AlbumsActionController extends Notifier<AsyncActionState> {
       file: file,
       sourceFile: sourceFile,
       editMetadata: editMetadata,
+      albumGroupIndex: albumGroupIndex,
     );
     if (result.ok) {
       state = const AsyncActionState.success(scope: 'albums:photo-replace');

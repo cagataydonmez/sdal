@@ -1,10 +1,10 @@
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
@@ -12,6 +12,7 @@ import '../theme/sdal_theme_tokens.dart';
 
 enum CropAspectPreset {
   square(1),
+  album43(4 / 3),
   portrait45(4 / 5),
   story916(9 / 16),
   wide169(16 / 9);
@@ -133,19 +134,27 @@ class _HideRegion {
     required this.center,
     required this.size,
     required this.style,
+    this.aspectLocked = true,
   });
 
   final int id;
   final Offset center;
   final Size size;
   final _HideRegionStyle style;
+  final bool aspectLocked;
 
-  _HideRegion copyWith({Offset? center, Size? size, _HideRegionStyle? style}) {
+  _HideRegion copyWith({
+    Offset? center,
+    Size? size,
+    _HideRegionStyle? style,
+    bool? aspectLocked,
+  }) {
     return _HideRegion(
       id: id,
       center: center ?? this.center,
       size: size ?? this.size,
       style: style ?? this.style,
+      aspectLocked: aspectLocked ?? this.aspectLocked,
     );
   }
 }
@@ -234,7 +243,7 @@ Future<ImageSource?> _chooseImageSource(BuildContext context) {
 Future<File?> pickAndCropImage(
   BuildContext context, {
   ImageSource? source,
-  CropAspectPreset? aspectPreset,
+  CropAspectPreset? aspectPreset = CropAspectPreset.album43,
   String title = 'Fotoğrafı düzenle',
 }) async {
   final result = await pickAndEditImage(
@@ -249,7 +258,7 @@ Future<File?> pickAndCropImage(
 Future<EditedMediaResult?> pickAndEditImage(
   BuildContext context, {
   ImageSource? source,
-  CropAspectPreset? aspectPreset,
+  CropAspectPreset? aspectPreset = CropAspectPreset.album43,
   String title = 'Fotoğrafı düzenle',
 }) async {
   final resolvedSource = source ?? await _chooseImageSource(context);
@@ -267,7 +276,7 @@ Future<EditedMediaResult?> pickAndEditImage(
 
 Future<List<EditedMediaResult>> pickAndEditImages(
   BuildContext context, {
-  CropAspectPreset? aspectPreset,
+  CropAspectPreset? aspectPreset = CropAspectPreset.album43,
   String title = 'Fotoğrafı düzenle',
 }) async {
   final picker = ImagePicker();
@@ -327,9 +336,6 @@ class _CropImagePage extends StatefulWidget {
 }
 
 class _CropImagePageState extends State<_CropImagePage> {
-  static const MethodChannel _nativeCaptureChannel = MethodChannel(
-    'sdal/photo_editor_capture',
-  );
   static const double _maxDecodedDimension = 2048;
   static const double _maxExportDimension = 1600;
   static const List<_AspectChoice> _aspectChoices = [
@@ -457,13 +463,20 @@ class _CropImagePageState extends State<_CropImagePage> {
                             const Positioned.fill(
                               child: ColoredBox(color: Colors.black),
                             ),
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: CustomPaint(
+                                  painter: _CropFramePainter(),
+                                ),
+                              ),
+                            ),
                             InteractiveViewer(
                               transformationController: _controller,
                               constrained: false,
                               minScale: _baseScale,
                               maxScale: math.max(_baseScale * 6, 6),
-                              boundaryMargin: const EdgeInsets.all(1200),
-                              clipBehavior: Clip.none,
+                              boundaryMargin: EdgeInsets.zero,
+                              clipBehavior: Clip.hardEdge,
                               panEnabled: canTransformImage,
                               scaleEnabled: canTransformImage,
                               child: SizedBox(
@@ -509,6 +522,7 @@ class _CropImagePageState extends State<_CropImagePage> {
                                     currentStroke: _showOriginalPreview
                                         ? null
                                         : _currentStroke,
+                                    viewport: viewport,
                                   ),
                                 ),
                               ),
@@ -1025,41 +1039,74 @@ class _CropImagePageState extends State<_CropImagePage> {
   Widget _buildHideControls(BuildContext context, _HideRegion? region) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: SizedBox(
-        height: 40,
-        child: Row(
-          children: [
-            _OverlayChip(
-              label: '+ Gizle',
-              selected: false,
-              onTap: _isSaving ? null : _addHideRegion,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 40,
+            child: Row(
+              children: [
+                _OverlayChip(
+                  label: '+ Gizle',
+                  selected: false,
+                  onTap: _isSaving ? null : _addHideRegion,
+                ),
+                if (region != null) ...[
+                  const SizedBox(width: 8),
+                  _OverlayChip(
+                    label: 'Blur',
+                    selected: region.style == _HideRegionStyle.blur,
+                    onTap: _isSaving
+                        ? null
+                        : () => _updateSelectedHideStyle(_HideRegionStyle.blur),
+                  ),
+                  const SizedBox(width: 8),
+                  _OverlayChip(
+                    label: 'Mozaik',
+                    selected: region.style == _HideRegionStyle.mosaic,
+                    onTap: _isSaving
+                        ? null
+                        : () =>
+                              _updateSelectedHideStyle(_HideRegionStyle.mosaic),
+                  ),
+                  const SizedBox(width: 8),
+                  _OverlayChip(
+                    label: region.aspectLocked ? 'Kilitli' : 'Serbest',
+                    selected: region.aspectLocked,
+                    onTap: _isSaving ? null : _toggleSelectedHideAspectLock,
+                  ),
+                  const Spacer(),
+                  _OverlayIconBtn(
+                    icon: Icons.delete_outline,
+                    tooltip: 'Sil',
+                    onTap: _isSaving ? null : _deleteSelectedHideRegion,
+                  ),
+                ],
+              ],
             ),
-            if (region != null) ...[
-              const SizedBox(width: 8),
-              _OverlayChip(
-                label: 'Blur',
-                selected: region.style == _HideRegionStyle.blur,
-                onTap: _isSaving
-                    ? null
-                    : () => _updateSelectedHideStyle(_HideRegionStyle.blur),
-              ),
-              const SizedBox(width: 8),
-              _OverlayChip(
-                label: 'Mozaik',
-                selected: region.style == _HideRegionStyle.mosaic,
-                onTap: _isSaving
-                    ? null
-                    : () => _updateSelectedHideStyle(_HideRegionStyle.mosaic),
-              ),
-              const Spacer(),
-              _OverlayIconBtn(
-                icon: Icons.delete_outline,
-                tooltip: 'Sil',
-                onTap: _isSaving ? null : _deleteSelectedHideRegion,
-              ),
-            ],
+          ),
+          if (region != null && !region.aspectLocked) ...[
+            const SizedBox(height: 8),
+            _OverlaySlider(
+              label: 'Gen',
+              value: region.size.width,
+              min: 0.12,
+              max: 0.82,
+              onChanged: _isSaving
+                  ? null
+                  : (value) => _resizeSelectedHideRegion(width: value),
+            ),
+            _OverlaySlider(
+              label: 'Yük',
+              value: region.size.height,
+              min: 0.08,
+              max: 0.82,
+              onChanged: _isSaving
+                  ? null
+                  : (value) => _resizeSelectedHideRegion(height: value),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1245,6 +1292,33 @@ class _CropImagePageState extends State<_CropImagePage> {
         _displayImageSize != Size.zero) {
       return;
     }
+
+    Offset? normalizedCenter;
+    double? relativeZoom;
+    final previousViewport = _viewportSize;
+    final previousDisplaySize = _displayImageSize;
+    final previousBaseScale = _baseScale;
+    if (previousViewport != Size.zero &&
+        previousDisplaySize != Size.zero &&
+        previousBaseScale > 0) {
+      final topLeft = _controller.toScene(Offset.zero);
+      final bottomRight = _controller.toScene(
+        Offset(previousViewport.width, previousViewport.height),
+      );
+      normalizedCenter = Offset(
+        ((topLeft.dx + bottomRight.dx) / 2 / previousDisplaySize.width).clamp(
+          0.0,
+          1.0,
+        ),
+        ((topLeft.dy + bottomRight.dy) / 2 / previousDisplaySize.height).clamp(
+          0.0,
+          1.0,
+        ),
+      );
+      relativeZoom = (_controller.value.getMaxScaleOnAxis() / previousBaseScale)
+          .clamp(1.0, 6.0);
+    }
+
     _viewportSize = nextViewport;
     final originalSize = _unrotatedDisplaySize;
     _displayImageSize = (_quarterTurns % 2 == 0)
@@ -1256,16 +1330,28 @@ class _CropImagePageState extends State<_CropImagePage> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isSaving) return;
-      _resetImageTransform();
+      if (normalizedCenter != null && relativeZoom != null) {
+        _setImageTransform(center: normalizedCenter, zoom: relativeZoom);
+      } else {
+        _resetImageTransform();
+      }
     });
   }
 
   void _resetImageTransform() {
+    _setImageTransform(center: const Offset(0.5, 0.5), zoom: 1);
+  }
+
+  void _setImageTransform({required Offset center, required double zoom}) {
     if (_displayImageSize == Size.zero || _viewportSize == Size.zero) return;
-    final dx = (_viewportSize.width - _displayImageSize.width * _baseScale) / 2;
-    final dy =
-        (_viewportSize.height - _displayImageSize.height * _baseScale) / 2;
-    _controller.value = Matrix4.diagonal3Values(_baseScale, _baseScale, 1)
+    final scale = _baseScale * zoom.clamp(1.0, 6.0);
+    final sceneCenter = Offset(
+      center.dx.clamp(0.0, 1.0) * _displayImageSize.width,
+      center.dy.clamp(0.0, 1.0) * _displayImageSize.height,
+    );
+    final dx = (_viewportSize.width / 2) - (sceneCenter.dx * scale);
+    final dy = (_viewportSize.height / 2) - (sceneCenter.dy * scale);
+    _controller.value = Matrix4.diagonal3Values(scale, scale, 1)
       ..setTranslationRaw(dx, dy, 0);
   }
 
@@ -1594,13 +1680,16 @@ class _CropImagePageState extends State<_CropImagePage> {
 
   void _startStroke(DragStartDetails details) {
     setState(() {
-      _currentStrokePoints = [details.localPosition];
+      _currentStrokePoints = [_normalizeViewportPoint(details.localPosition)];
     });
   }
 
   void _extendStroke(DragUpdateDetails details) {
     setState(() {
-      _currentStrokePoints = [..._currentStrokePoints, details.localPosition];
+      _currentStrokePoints = [
+        ..._currentStrokePoints,
+        _normalizeViewportPoint(details.localPosition),
+      ];
     });
   }
 
@@ -1639,6 +1728,15 @@ class _CropImagePageState extends State<_CropImagePage> {
     setState(() => _strokes = const []);
   }
 
+  Offset _normalizeViewportPoint(Offset point) {
+    final width = _viewportSize.width <= 0 ? 1.0 : _viewportSize.width;
+    final height = _viewportSize.height <= 0 ? 1.0 : _viewportSize.height;
+    return Offset(
+      (point.dx / width).clamp(0.0, 1.0),
+      (point.dy / height).clamp(0.0, 1.0),
+    );
+  }
+
   void _addHideRegion() {
     setState(() {
       _activePanel = _EditorPanel.hide;
@@ -1671,6 +1769,37 @@ class _CropImagePageState extends State<_CropImagePage> {
       _hideRegions = [
         for (final region in _hideRegions)
           region.id == selected.id ? region.copyWith(style: style) : region,
+      ];
+    });
+  }
+
+  void _toggleSelectedHideAspectLock() {
+    final selected = _selectedHideRegion;
+    if (selected == null) return;
+    setState(() {
+      _hideRegions = [
+        for (final region in _hideRegions)
+          region.id == selected.id
+              ? region.copyWith(aspectLocked: !region.aspectLocked)
+              : region,
+      ];
+    });
+  }
+
+  void _resizeSelectedHideRegion({double? width, double? height}) {
+    final selected = _selectedHideRegion;
+    if (selected == null) return;
+    setState(() {
+      _hideRegions = [
+        for (final region in _hideRegions)
+          region.id == selected.id
+              ? region.copyWith(
+                  size: Size(
+                    (width ?? region.size.width).clamp(0.12, 0.82),
+                    (height ?? region.size.height).clamp(0.08, 0.82),
+                  ),
+                )
+              : region,
       ];
     });
   }
@@ -1756,10 +1885,21 @@ class _CropImagePageState extends State<_CropImagePage> {
                 (region.center.dy + (details.focalPointDelta.dy / height))
                     .clamp(0.12, 0.88),
               ),
-              size: Size(
-                (baseSize.width * details.scale).clamp(0.12, 0.82),
-                (baseSize.height * details.scale).clamp(0.08, 0.82),
-              ),
+              size: region.aspectLocked
+                  ? Size(
+                      (baseSize.width * details.scale).clamp(0.12, 0.82),
+                      (baseSize.height * details.scale).clamp(0.08, 0.82),
+                    )
+                  : Size(
+                      (baseSize.width * details.horizontalScale).clamp(
+                        0.12,
+                        0.82,
+                      ),
+                      (baseSize.height * details.verticalScale).clamp(
+                        0.08,
+                        0.82,
+                      ),
+                    ),
             )
           else
             region,
@@ -1917,13 +2057,18 @@ class _CropImagePageState extends State<_CropImagePage> {
     }
 
     final restoredStrokes = <_DrawStroke>[];
+    final metadataCoordinateSpace = _readString(metadata['coordinateSpace']);
+    final metadataViewportWidth = _readDouble(metadata['viewportWidth']);
+    final metadataViewportHeight = _readDouble(metadata['viewportHeight']);
     for (final item in _readList(metadata['strokes'])) {
       final map = _readMap(item);
       final points = <Offset>[
         for (final point in _readList(map['points']))
-          Offset(
-            _readDouble(_readMap(point)['x']) ?? 0,
-            _readDouble(_readMap(point)['y']) ?? 0,
+          _restoreStrokePoint(
+            _readMap(point),
+            coordinateSpace: metadataCoordinateSpace,
+            viewportWidth: metadataViewportWidth,
+            viewportHeight: metadataViewportHeight,
           ),
       ];
       if (points.length < 2) continue;
@@ -1966,6 +2111,7 @@ class _CropImagePageState extends State<_CropImagePage> {
             _readString(map['style']),
             _HideRegionStyle.blur,
           ),
+          aspectLocked: _readBool(map['aspectLocked']) ?? true,
         ),
       );
     }
@@ -2027,9 +2173,32 @@ class _CropImagePageState extends State<_CropImagePage> {
     return Color(raw & 0xFFFFFFFF);
   }
 
+  Offset _restoreStrokePoint(
+    Map<String, dynamic> point, {
+    required String? coordinateSpace,
+    required double? viewportWidth,
+    required double? viewportHeight,
+  }) {
+    final x = _readDouble(point['x']) ?? 0;
+    final y = _readDouble(point['y']) ?? 0;
+    if (coordinateSpace == 'normalizedViewport' || (x <= 1 && y <= 1)) {
+      return Offset(x.clamp(0.0, 1.0), y.clamp(0.0, 1.0));
+    }
+    final width = (viewportWidth != null && viewportWidth > 0)
+        ? viewportWidth
+        : 390.0;
+    final height = (viewportHeight != null && viewportHeight > 0)
+        ? viewportHeight
+        : 520.0;
+    return Offset((x / width).clamp(0.0, 1.0), (y / height).clamp(0.0, 1.0));
+  }
+
   Map<String, dynamic> _buildEditMetadata() {
     return {
-      'version': 1,
+      'version': 2,
+      'coordinateSpace': 'normalizedViewport',
+      'viewportWidth': _viewportSize.width,
+      'viewportHeight': _viewportSize.height,
       'aspectRatio': _selectedAspectRatio,
       'freeformWidthFactor': _freeformWidthFactor,
       'freeformHeightFactor': _freeformHeightFactor,
@@ -2077,6 +2246,7 @@ class _CropImagePageState extends State<_CropImagePage> {
               'width': region.size.width,
               'height': region.size.height,
               'style': region.style.name,
+              'aspectLocked': region.aspectLocked,
             },
           )
           .toList(growable: false),
@@ -2149,20 +2319,6 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   Future<Uint8List> _captureEditedImageBytes() async {
-    if (Platform.isIOS) {
-      try {
-        _logSaveStage('native-capture-begin');
-        final imageBytes = await _captureEditedImageBytesFromNative();
-        _logSaveStage(
-          'native-capture-done',
-          details: '${imageBytes.length} bytes',
-        );
-        return imageBytes;
-      } catch (error, stackTrace) {
-        _logSaveStage('native-capture-failed', details: '$error');
-        _logSaveError(error, stackTrace);
-      }
-    }
     _logSaveStage('image-encode-begin');
     final bitmap = await _buildExportBitmap();
     final bytes = Uint8List.fromList(img.encodeJpg(bitmap, quality: 84));
@@ -2171,39 +2327,6 @@ class _CropImagePageState extends State<_CropImagePage> {
       details: '${bitmap.width}x${bitmap.height} -> ${bytes.length} bytes',
     );
     return bytes;
-  }
-
-  Future<Uint8List> _captureEditedImageBytesFromNative() async {
-    final renderBox =
-        _captureRegionKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) {
-      throw StateError('Native capture alani bulunamadi.');
-    }
-
-    final origin = renderBox.localToGlobal(Offset.zero);
-    final captureRect = origin & renderBox.size;
-    if (captureRect.isEmpty) {
-      throw StateError('Native capture alani bos.');
-    }
-
-    _logSaveStage(
-      'native-capture-rect',
-      details:
-          'x=${captureRect.left.toStringAsFixed(1)} y=${captureRect.top.toStringAsFixed(1)} '
-          'w=${captureRect.width.toStringAsFixed(1)} h=${captureRect.height.toStringAsFixed(1)}',
-    );
-
-    final result = await _nativeCaptureChannel
-        .invokeMethod<Uint8List>('captureRegion', <String, double>{
-          'x': captureRect.left,
-          'y': captureRect.top,
-          'width': captureRect.width,
-          'height': captureRect.height,
-        });
-    if (result == null || result.isEmpty) {
-      throw StateError('Native capture bos dondu.');
-    }
-    return result;
   }
 
   Future<img.Image> _buildExportBitmap() async {
@@ -2372,11 +2495,6 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 
   void _paintStrokesOnBitmap(img.Image image) {
-    if (_viewportSize == Size.zero) return;
-    final scaleX = image.width / _viewportSize.width;
-    final scaleY = image.height / _viewportSize.height;
-    final widthScale = (scaleX + scaleY) / 2;
-
     for (final stroke in _strokes) {
       if (stroke.points.length < 2) continue;
       final color = stroke.mode == _BrushMode.highlighter
@@ -2387,12 +2505,15 @@ class _CropImagePageState extends State<_CropImagePage> {
         final end = segment.$2;
         img.drawLine(
           image,
-          x1: (start.dx * scaleX).round(),
-          y1: (start.dy * scaleY).round(),
-          x2: (end.dx * scaleX).round(),
-          y2: (end.dy * scaleY).round(),
+          x1: (start.dx * image.width).round(),
+          y1: (start.dy * image.height).round(),
+          x2: (end.dx * image.width).round(),
+          y2: (end.dy * image.height).round(),
           color: _toImgColor(color),
-          thickness: math.max(1, (stroke.width * widthScale).round()),
+          thickness: math.max(
+            1,
+            (stroke.width * math.max(image.width, image.height) / 720).round(),
+          ),
           antialias: true,
         );
       }
@@ -2593,23 +2714,53 @@ class _CropImagePageState extends State<_CropImagePage> {
   }
 }
 
+class _CropFramePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.86)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    const dash = 10.0;
+    const gap = 7.0;
+    final rect = Offset.zero & size;
+    final path = Path()..addRRect(RRect.fromRectXY(rect.deflate(0.7), 14, 14));
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final end = math.min(distance + dash, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _DrawOverlayPainter extends CustomPainter {
   const _DrawOverlayPainter({
     required this.strokes,
     required this.currentStroke,
+    required this.viewport,
   });
 
   final List<_DrawStroke> strokes;
   final _DrawStroke? currentStroke;
+  final Size viewport;
 
   @override
   void paint(Canvas canvas, Size size) {
     for (final stroke in [...strokes, ?currentStroke]) {
       if (stroke.points.length < 2) continue;
       final path = Path()
-        ..moveTo(stroke.points.first.dx, stroke.points.first.dy);
+        ..moveTo(
+          stroke.points.first.dx * size.width,
+          stroke.points.first.dy * size.height,
+        );
       for (final point in stroke.points.skip(1)) {
-        path.lineTo(point.dx, point.dy);
+        path.lineTo(point.dx * size.width, point.dy * size.height);
       }
       final paint = Paint()
         ..style = PaintingStyle.stroke
@@ -2626,7 +2777,8 @@ class _DrawOverlayPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DrawOverlayPainter oldDelegate) {
     return oldDelegate.strokes != strokes ||
-        oldDelegate.currentStroke != currentStroke;
+        oldDelegate.currentStroke != currentStroke ||
+        oldDelegate.viewport != viewport;
   }
 }
 

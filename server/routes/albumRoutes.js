@@ -1679,9 +1679,22 @@ export function registerAlbumRoutes(app, {
       const currentUser = getCurrentUser(req);
       const context = await loadPhotoContext(Number(req.params.id || 0), viewer, currentUser);
       if (context.error) return res.status(context.error.status).send(context.error.message);
+      const hasRequestedGroupIndex = typeof req.body?.albumGroupIndex !== 'undefined';
+      const requestedGroupIndex = normalizeIntegerId(req.body?.albumGroupIndex);
+      let targetPhoto = context.photo;
+      if (hasRequestedGroupIndex) {
+        const group = await getPhotoGroupContext(context.photo);
+        const indexedTarget = group.photos.find((item) => (
+          Number(item.album_group_index || 0) === requestedGroupIndex
+        ));
+        if (!indexedTarget) {
+          return res.status(400).send('Düzenlenecek grup fotoğrafı bulunamadı.');
+        }
+        targetPhoto = indexedTarget;
+      }
 
       const canEditPhoto =
-        sameUserId(context.photo.uploaded_by_user_id, req.session.userId) ||
+        sameUserId(targetPhoto.uploaded_by_user_id, req.session.userId) ||
         hasCategoryManagementAccess(currentUser);
       if (!canEditPhoto) return res.status(403).send('Bu fotoğrafı düzenleme yetkin yok.');
       const uploadFile = getUploadFieldFile(req, 'file');
@@ -1704,20 +1717,20 @@ export function registerAlbumRoutes(app, {
       if (isPostgres) {
         await sqlRunAsync(
           `UPDATE ${photoTable} SET file_name = ?, updated_at = ? WHERE id = ?`,
-          [storedFilename, now, context.photo.id],
+          [storedFilename, now, targetPhoto.id],
         );
         await sqlRunAsync(
           `UPDATE ${categoryTable} SET last_upload_at = ?, last_uploaded_by_user_id = ?, cover_file_name = COALESCE(?, cover_file_name) WHERE id = ?`,
-          [now, req.session.userId, storedFilename, context.photo.category_id],
+          [now, req.session.userId, storedFilename, targetPhoto.category_id],
         );
       } else {
         await sqlRunAsync(
           `UPDATE ${photoTable} SET dosyaadi = ?, updated_at = ? WHERE id = ?`,
-          [storedFilename, now, context.photo.id],
+          [storedFilename, now, targetPhoto.id],
         );
         await sqlRunAsync(
           `UPDATE ${categoryTable} SET sonekleme = ?, sonekleyen = ?, cover_file_name = COALESCE(?, cover_file_name) WHERE id = ?`,
-          [now, req.session.userId, storedFilename, context.photo.category_id],
+          [now, req.session.userId, storedFilename, targetPhoto.category_id],
         );
       }
 
@@ -1725,7 +1738,7 @@ export function registerAlbumRoutes(app, {
         sourceUploadFile?.path || processed.path || uploadFile.path,
       );
       if (Object.keys(editMetadata).length > 0 || sourceStoredFilename) {
-        await savePhotoEditMetadata(context.photo.id, editMetadata, {
+        await savePhotoEditMetadata(targetPhoto.id, editMetadata, {
           sourceFileName: sourceStoredFilename,
         });
       }

@@ -639,6 +639,7 @@ class AlbumsRepository {
     required File file,
     File? sourceFile,
     JsonMap editMetadata = const <String, dynamic>{},
+    int? albumGroupIndex,
   }) {
     final files = <String, File>{'file': file};
     if (sourceFile != null) {
@@ -647,7 +648,10 @@ class AlbumsRepository {
     return _apiClient.multipart<dynamic>(
       '/api/photos/$photoId/file',
       method: 'PUT',
-      fields: {if (editMetadata.isNotEmpty) 'editMetadata': editMetadata},
+      fields: {
+        if (editMetadata.isNotEmpty) 'editMetadata': editMetadata,
+        'albumGroupIndex': ?albumGroupIndex,
+      },
       files: files,
     );
   }

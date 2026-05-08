@@ -177,82 +177,82 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                     borderRadius: BorderRadius.circular(24),
                     onTap: () => context.push('/announcements/${item.id}'),
                     child: SurfaceCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        if (isAdmin)
-                          Align(
-                            alignment: Alignment.topRight,
-                            child: PopupMenuButton<String>(
-                              onSelected: (value) async {
-                                if (value == 'approve') {
-                                  await _approveAnnouncement(
-                                    item.id,
-                                    approved: true,
-                                  );
-                                  return;
-                                }
-                                if (value == 'reject') {
-                                  await _approveAnnouncement(
-                                    item.id,
-                                    approved: false,
-                                  );
-                                  return;
-                                }
-                                if (value == 'delete') {
-                                  await _deleteAnnouncement(item.id);
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                if (!item.approved)
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          if (isAdmin)
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: PopupMenuButton<String>(
+                                onSelected: (value) async {
+                                  if (value == 'approve') {
+                                    await _approveAnnouncement(
+                                      item.id,
+                                      approved: true,
+                                    );
+                                    return;
+                                  }
+                                  if (value == 'reject') {
+                                    await _approveAnnouncement(
+                                      item.id,
+                                      approved: false,
+                                    );
+                                    return;
+                                  }
+                                  if (value == 'delete') {
+                                    await _deleteAnnouncement(item.id);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  if (!item.approved)
+                                    const PopupMenuItem<String>(
+                                      value: 'approve',
+                                      child: Text('Onayla'),
+                                    ),
+                                  if (item.approved)
+                                    const PopupMenuItem<String>(
+                                      value: 'reject',
+                                      child: Text('Yayından kaldır'),
+                                    ),
                                   const PopupMenuItem<String>(
-                                    value: 'approve',
-                                    child: Text('Onayla'),
+                                    value: 'delete',
+                                    child: Text('Sil'),
                                   ),
-                                if (item.approved)
-                                  const PopupMenuItem<String>(
-                                    value: 'reject',
-                                    child: Text('Yayından kaldır'),
-                                  ),
-                                const PopupMenuItem<String>(
-                                  value: 'delete',
-                                  child: Text('Sil'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        const SizedBox(height: 8),
-                        if (item.image.isNotEmpty) ...[
-                          SdalNetworkImage(
-                            imageUrl: item.image,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            borderRadius: BorderRadius.circular(16),
-                            errorFallback: const SizedBox.shrink(),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        Text(_plainText(item.body)),
-                        const SizedBox(height: 12),
-                        Text(
-                          _metaLine(
-                            context,
-                            item.createdAt,
-                            item.creatorHandle,
-                            item.approved,
-                          ),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context).sdal.foregroundMuted,
+                                ],
                               ),
-                        ),
-                      ],
+                            ),
+                          const SizedBox(height: 8),
+                          if (item.image.isNotEmpty) ...[
+                            SdalNetworkImage(
+                              imageUrl: item.image,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              borderRadius: BorderRadius.circular(16),
+                              errorFallback: const SizedBox.shrink(),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          Text(_plainText(item.body)),
+                          const SizedBox(height: 12),
+                          Text(
+                            _metaLine(
+                              context,
+                              item.createdAt,
+                              item.creatorHandle,
+                              item.approved,
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).sdal.foregroundMuted,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                   ),
                 ),
               ),
@@ -271,6 +271,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
     final picked = await pickAndCropImage(
       context,
       source: source,
+      aspectPreset: CropAspectPreset.wide169,
       title: 'Duyuru görselini kırp',
     );
     if (picked == null || !mounted) return;

@@ -237,214 +237,214 @@ class _EventsPageState extends ConsumerState<EventsPage> {
         borderRadius: BorderRadius.circular(24),
         onTap: () => context.push('/events/${item.id}'),
         child: SurfaceCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                if (isAdmin)
-                  PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'approve') {
-                        await _approveEvent(item.id, approved: true);
-                        return;
-                      }
-                      if (value == 'reject') {
-                        await _approveEvent(item.id, approved: false);
-                        return;
-                      }
-                      if (value == 'delete') {
-                        await _deleteEvent(item.id);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      if (!item.approved)
-                        const PopupMenuItem<String>(
-                          value: 'approve',
-                          child: Text('Onayla'),
-                        ),
-                      if (item.approved)
-                        const PopupMenuItem<String>(
-                          value: 'reject',
-                          child: Text('Yayından kaldır'),
-                        ),
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Text('Sil'),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (item.image.isNotEmpty) ...[
-              SdalNetworkImage(
-                imageUrl: item.image,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                borderRadius: BorderRadius.circular(16),
-                errorFallback: const SizedBox.shrink(),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Text(_plainText(item.description)),
-            const SizedBox(height: 10),
-            Text(
-              _eventMeta(context, item),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).sdal.foregroundMuted,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilterChip(
-                  label: Text('Katılacağım (${item.attendCount})'),
-                  selected: item.myResponse == 'attend',
-                  onSelected:
-                      actionState.isLoading &&
-                          actionState.scope == respondingScope
-                      ? null
-                      : (_) => _respond(item.id, 'attend'),
-                ),
-                FilterChip(
-                  label: Text('Katılamam (${item.declineCount})'),
-                  selected: item.myResponse == 'decline',
-                  onSelected:
-                      actionState.isLoading &&
-                          actionState.scope == respondingScope
-                      ? null
-                      : (_) => _respond(item.id, 'decline'),
-                ),
-              ],
-            ),
-            if (item.canManageResponses) ...[
-              const SizedBox(height: 12),
-              _VisibilityCard(
-                item: item,
-                saving:
-                    actionState.isLoading &&
-                    actionState.scope == visibilityScope,
-                onSave: (showCounts, showAttendees, showDecliners) =>
-                    _saveVisibility(
-                      item.id,
-                      showCounts,
-                      showAttendees,
-                      showDecliners,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.title,
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
+                  ),
+                  if (isAdmin)
+                    PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        if (value == 'approve') {
+                          await _approveEvent(item.id, approved: true);
+                          return;
+                        }
+                        if (value == 'reject') {
+                          await _approveEvent(item.id, approved: false);
+                          return;
+                        }
+                        if (value == 'delete') {
+                          await _deleteEvent(item.id);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (!item.approved)
+                          const PopupMenuItem<String>(
+                            value: 'approve',
+                            child: Text('Onayla'),
+                          ),
+                        if (item.approved)
+                          const PopupMenuItem<String>(
+                            value: 'reject',
+                            child: Text('Yayından kaldır'),
+                          ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Sil'),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (item.image.isNotEmpty) ...[
+                SdalNetworkImage(
+                  imageUrl: item.image,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  borderRadius: BorderRadius.circular(16),
+                  errorFallback: const SizedBox.shrink(),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text(_plainText(item.description)),
+              const SizedBox(height: 10),
+              Text(
+                _eventMeta(context, item),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).sdal.foregroundMuted,
+                ),
               ),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  OutlinedButton(
-                    onPressed:
+                  FilterChip(
+                    label: Text('Katılacağım (${item.attendCount})'),
+                    selected: item.myResponse == 'attend',
+                    onSelected:
                         actionState.isLoading &&
-                            actionState.scope == notifyScope
+                            actionState.scope == respondingScope
                         ? null
-                        : () => _notify(item.id, 'invite'),
-                    child: const Text('Davet bildirimi'),
+                        : (_) => _respond(item.id, 'attend'),
                   ),
-                  OutlinedButton(
-                    onPressed:
+                  FilterChip(
+                    label: Text('Katılamam (${item.declineCount})'),
+                    selected: item.myResponse == 'decline',
+                    onSelected:
                         actionState.isLoading &&
-                            actionState.scope == notifyScope
+                            actionState.scope == respondingScope
                         ? null
-                        : () => _notify(item.id, 'reminder'),
-                    child: const Text('Hatırlatma'),
+                        : (_) => _respond(item.id, 'decline'),
                   ),
                 ],
               ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: commentController,
-              minLines: 2,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Yorum ekle',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonal(
-                onPressed:
-                    actionState.isLoading &&
-                        actionState.scope == commentingScope
-                    ? null
-                    : () => _addComment(item.id),
-                child: const Text('Yorum gönder'),
-              ),
-            ),
-            if (comments.isNotEmpty) ...[
+              if (item.canManageResponses) ...[
+                const SizedBox(height: 12),
+                _VisibilityCard(
+                  item: item,
+                  saving:
+                      actionState.isLoading &&
+                      actionState.scope == visibilityScope,
+                  onSave: (showCounts, showAttendees, showDecliners) =>
+                      _saveVisibility(
+                        item.id,
+                        showCounts,
+                        showAttendees,
+                        showDecliners,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed:
+                          actionState.isLoading &&
+                              actionState.scope == notifyScope
+                          ? null
+                          : () => _notify(item.id, 'invite'),
+                      child: const Text('Davet bildirimi'),
+                    ),
+                    OutlinedButton(
+                      onPressed:
+                          actionState.isLoading &&
+                              actionState.scope == notifyScope
+                          ? null
+                          : () => _notify(item.id, 'reminder'),
+                      child: const Text('Hatırlatma'),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
-              ...comments.map(
-                (comment) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      RemoteAvatar(
-                        label: comment.displayName,
-                        imageUrl: config.resolveUrl(comment.photo).toString(),
-                        radius: 18,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    comment.displayName,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleSmall,
-                                  ),
-                                ),
-                                if (comment.verified)
-                                  Icon(
-                                    Icons.verified_rounded,
-                                    size: 16,
-                                    color: Theme.of(context).sdal.info,
-                                  ),
-                              ],
-                            ),
-                            Text(
-                              formatSdalTimestamp(context, comment.createdAt),
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).sdal.foregroundMuted,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(_plainText(comment.comment)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+              TextField(
+                controller: commentController,
+                minLines: 2,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Yorum ekle',
+                  border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonal(
+                  onPressed:
+                      actionState.isLoading &&
+                          actionState.scope == commentingScope
+                      ? null
+                      : () => _addComment(item.id),
+                  child: const Text('Yorum gönder'),
+                ),
+              ),
+              if (comments.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...comments.map(
+                  (comment) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RemoteAvatar(
+                          label: comment.displayName,
+                          imageUrl: config.resolveUrl(comment.photo).toString(),
+                          radius: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      comment.displayName,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall,
+                                    ),
+                                  ),
+                                  if (comment.verified)
+                                    Icon(
+                                      Icons.verified_rounded,
+                                      size: 16,
+                                      color: Theme.of(context).sdal.info,
+                                    ),
+                                ],
+                              ),
+                              Text(
+                                formatSdalTimestamp(context, comment.createdAt),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).sdal.foregroundMuted,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(_plainText(comment.comment)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
-        ),
+          ),
         ),
       ),
     );
@@ -454,6 +454,7 @@ class _EventsPageState extends ConsumerState<EventsPage> {
     final picked = await pickAndCropImage(
       context,
       source: source,
+      aspectPreset: CropAspectPreset.wide169,
       title: 'Etkinlik görselini kırp',
     );
     if (picked == null || !mounted) return;

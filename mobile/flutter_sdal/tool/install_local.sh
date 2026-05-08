@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 IOS_DIR="$ROOT_DIR/ios"
+IOS_PBXPROJ="$IOS_DIR/Runner.xcodeproj/project.pbxproj"
 FLUTTER_BIN="${FLUTTER_BIN:-$HOME/Developer/flutter/bin/flutter}"
 IOS_BUNDLE_ID="${IOS_BUNDLE_ID:-com.sdal.flutterSdal}"
 ANDROID_PACKAGE_ID="${ANDROID_PACKAGE_ID:-com.sdal.flutter_sdal}"
@@ -27,6 +28,13 @@ VERSION_NEXT_BUILD=""
 APP_VERSION_PENDING=0
 CLEAN_BUILD_CACHES=0
 RESET_INSTALLED_APP=0
+SIMULATOR_PBXPROJ_BACKUP=""
+SIMULATOR_PBXPROJ_PATCHED=0
+SIM_PAIR_DRY_RUN="${SIM_PAIR_DRY_RUN:-0}"
+SIM_PAIR_AUTO_LOGS="${SIM_PAIR_AUTO_LOGS:-1}"
+SIM_PAIR_WATCH_LOGS="${SIM_PAIR_WATCH_LOGS:-0}"
+SIM_PAIR_WATCH_APP_PATH=""
+SIM_PAIR_WATCH_LOG_PID=""
 
 print_help() {
   cat <<'EOF'
@@ -258,6 +266,18 @@ make_temp_json() {
 }
 
 cleanup() {
+  if [[ -n "${SIM_PAIR_WATCH_LOG_PID:-}" ]]; then
+    kill "$SIM_PAIR_WATCH_LOG_PID" >/dev/null 2>&1 || true
+    wait "$SIM_PAIR_WATCH_LOG_PID" 2>/dev/null || true
+    SIM_PAIR_WATCH_LOG_PID=""
+  fi
+
+  if [[ $SIMULATOR_PBXPROJ_PATCHED -eq 1 && -n "$SIMULATOR_PBXPROJ_BACKUP" && -f "$SIMULATOR_PBXPROJ_BACKUP" ]]; then
+    cp "$SIMULATOR_PBXPROJ_BACKUP" "$IOS_PBXPROJ"
+    rm -f "$SIMULATOR_PBXPROJ_BACKUP"
+    SIMULATOR_PBXPROJ_PATCHED=0
+  fi
+
   if [[ $PREV_BUILD_DIR_SET -eq 1 ]]; then
     "$FLUTTER_BIN" config --build-dir="$PREV_BUILD_DIR" >/dev/null
   else
@@ -279,6 +299,36 @@ ensure_flutter_build_dir_override() {
 
   trap cleanup EXIT
   "$FLUTTER_BIN" config --build-dir="$FLUTTER_BUILD_DIR_REL" >/dev/null
+}
+
+disable_runner_watch_embed_for_ios_simulator() {
+  if [[ $SIMULATOR_PBXPROJ_PATCHED -eq 1 ]]; then
+    return
+  fi
+
+  SIMULATOR_PBXPROJ_BACKUP="$(mktemp -t "flutter_sdal.runner_pbxproj.XXXXXX")"
+  cp "$IOS_PBXPROJ" "$SIMULATOR_PBXPROJ_BACKUP"
+
+  /usr/bin/python3 - "$IOS_PBXPROJ" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+updated = text.replace(
+    "\t\t\t\tWA0012345678901ABCDEF002 /* Embed Watch Content */,\n",
+    "",
+).replace(
+    "\t\t\t\tWA0012345678901ABCDEF004 /* PBXTargetDependency */,\n",
+    "",
+)
+if updated == text:
+    raise SystemExit("Runner watch embed/dependency entries were not found in project.pbxproj")
+path.write_text(updated, encoding="utf-8")
+PY
+
+  SIMULATOR_PBXPROJ_PATCHED=1
+  log "Temporarily disabled Runner watch embedding for the iOS Simulator build."
 }
 
 prepare_flutter() {
@@ -502,6 +552,23 @@ elif mode == "simctl":
                 ]
             )
             print(f"{label}|||{device['udid']}")
+elif mode == "simctl-watchos":
+    devices = payload.get("devices", {})
+    for runtime, runtime_devices in sorted(devices.items()):
+        if ".watchOS-" not in runtime:
+            continue
+        runtime_label = runtime.split(".watchOS-")[-1].replace("-", ".")
+        for device in runtime_devices:
+            if not device.get("isAvailable"):
+                continue
+            label = " | ".join(
+                [
+                    device.get("name", device.get("udid", "unknown")),
+                    f"watchOS {runtime_label}",
+                    device.get("state", "unknown"),
+                ]
+            )
+            print(f"{label}|||{device['udid']}")
 PY
 }
 
@@ -543,6 +610,558 @@ get_ios_simulator_entries() {
   xcrun simctl list devices available --json > "$tmp"
   json_to_entries "simctl" "$tmp"
   rm -f "$tmp"
+}
+
+get_watchos_simulator_entries() {
+  local tmp
+  tmp="$(make_temp_json simctl-watchos-devices)"
+  xcrun simctl list devices available --json > "$tmp"
+  json_to_entries "simctl-watchos" "$tmp"
+  rm -f "$tmp"
+}
+
+find_paired_watch_simulator() {
+  local ios_udid="$1"
+  local tmp result
+  tmp="$(make_temp_json simctl-pairs)"
+  xcrun simctl list pairs --json > "$tmp" 2>/dev/null || { rm -f "$tmp"; return; }
+  result="$(/usr/bin/python3 - "$tmp" "$ios_udid" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1]) as fh:
+        data = json.load(fh)
+    target = sys.argv[2]
+    for pair in data.get("pairs", {}).values():
+        phone = pair.get("phone", {})
+        watch = pair.get("watch", {})
+        if phone.get("udid") == target and watch.get("isAvailable", False):
+            print(watch.get("udid", ""))
+            break
+except Exception:
+    pass
+PY
+  )"
+  rm -f "$tmp"
+  printf '%s' "$result"
+}
+
+sim_pair_failure() {
+  local phone_udid="${1:-}"
+  local watch_udid="${2:-}"
+  log "[sim-pair] Pairing failed."
+  log "[sim-pair] Chosen iPhone UDID: ${phone_udid:-unknown}"
+  log "[sim-pair] Chosen Watch UDID: ${watch_udid:-unknown}"
+  log ""
+  log "[sim-pair] xcrun simctl list devices:"
+  xcrun simctl list devices || true
+  log ""
+  log "[sim-pair] xcrun simctl list pairs:"
+  xcrun simctl list pairs || true
+  log ""
+  log "[sim-pair] Suggested cleanup/repair:"
+  log "  xcrun simctl shutdown all"
+  log "  xcrun simctl delete unavailable"
+  log "  Then recreate a paired simulator in Xcode > Window > Devices and Simulators > Simulators."
+  exit 1
+}
+
+simctl_json_available_or_fallback() {
+  local section="$1"
+  local output_file="$2"
+  if xcrun simctl list -j "$section" > "$output_file" 2>/dev/null; then
+    return 0
+  fi
+  log "[sim-pair] Warning: simctl JSON output failed for '$section'. Text output follows:"
+  xcrun simctl list "$section" || true
+  return 1
+}
+
+list_available_ios_simulators() {
+  local tmp
+  tmp="$(make_temp_json simctl-ios-devices)"
+  simctl_json_available_or_fallback devices "$tmp" || { rm -f "$tmp"; return 1; }
+  json_to_entries "simctl" "$tmp"
+  rm -f "$tmp"
+}
+
+list_available_watch_simulators() {
+  local tmp
+  tmp="$(make_temp_json simctl-watch-devices)"
+  simctl_json_available_or_fallback devices "$tmp" || { rm -f "$tmp"; return 1; }
+  json_to_entries "simctl-watchos" "$tmp"
+  rm -f "$tmp"
+}
+
+get_booted_ios_simulator_udid() {
+  local tmp
+  tmp="$(make_temp_json simctl-booted-ios)"
+  simctl_json_available_or_fallback devices "$tmp" || { rm -f "$tmp"; return; }
+  /usr/bin/python3 - "$tmp" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
+for runtime, devices in payload.get("devices", {}).items():
+    if ".iOS-" not in runtime:
+        continue
+    for device in devices:
+        if device.get("isAvailable") and device.get("state") == "Booted":
+            print(device.get("udid", ""))
+            raise SystemExit
+PY
+  rm -f "$tmp"
+}
+
+get_booted_watch_simulator_udid() {
+  local tmp
+  tmp="$(make_temp_json simctl-booted-watch)"
+  simctl_json_available_or_fallback devices "$tmp" || { rm -f "$tmp"; return; }
+  /usr/bin/python3 - "$tmp" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
+for runtime, devices in payload.get("devices", {}).items():
+    if ".watchOS-" not in runtime:
+        continue
+    for device in devices:
+        if device.get("isAvailable") and device.get("state") == "Booted":
+            print(device.get("udid", ""))
+            raise SystemExit
+PY
+  rm -f "$tmp"
+}
+
+get_existing_simulator_pairs() {
+  local tmp
+  tmp="$(make_temp_json simctl-pairs)"
+  xcrun simctl list pairs --json > "$tmp" 2>/dev/null || { rm -f "$tmp"; return; }
+  /usr/bin/python3 - "$tmp" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
+for pair_id, pair in payload.get("pairs", {}).items():
+    phone = pair.get("phone", {})
+    watch = pair.get("watch", {})
+    if phone.get("isAvailable") is False or watch.get("isAvailable") is False:
+        continue
+    print(f"{pair_id}|||{phone.get('udid', '')}|||{watch.get('udid', '')}")
+PY
+  rm -f "$tmp"
+}
+
+find_pair_for_phone_or_watch() {
+  local phone_udid="${1:-}"
+  local watch_udid="${2:-}"
+  get_existing_simulator_pairs | awk -F '\\|\\|\\|' -v phone="$phone_udid" -v watch="$watch_udid" '
+    (phone == "" || $2 == phone) && (watch == "" || $3 == watch) { print; exit }
+  '
+}
+
+ensure_paired_simulators() {
+  local preferred_phone_udid="${1:-}"
+  local preferred_phone_name="${2:-}"
+
+  [[ -x /usr/bin/python3 ]] || die "Missing required command: /usr/bin/python3 (needed to parse simctl JSON; jq is not required)."
+  require_cmd xcrun
+
+  local tmp_output
+  tmp_output="$(make_temp_json sim-pair-output)"
+  if ! /usr/bin/python3 - "${SIM_PAIR_DRY_RUN:-0}" "$preferred_phone_udid" "$preferred_phone_name" > "$tmp_output" <<'PY'
+import json
+import re
+import subprocess
+import sys
+
+dry_run = sys.argv[1] == "1"
+preferred_phone_udid = sys.argv[2]
+preferred_phone_name = sys.argv[3]
+iphone_prefs = ["iPhone 16 Pro", "iPhone 15 Pro", "iPhone 14 Pro", "iPhone 13"]
+watch_prefs = ["Apple Watch Series 10", "Apple Watch Series 9", "Apple Watch Ultra 2", "Apple Watch Series 8"]
+
+def simctl_json(*args):
+    proc = subprocess.run(["xcrun", "simctl", "list", "-j", *args], text=True, capture_output=True)
+    if proc.returncode != 0:
+        raise SystemExit(proc.stderr.strip() or f"simctl list -j {' '.join(args)} failed")
+    return json.loads(proc.stdout)
+
+def version_tuple(item):
+    version = str(item.get("version") or item.get("name") or "")
+    nums = [int(part) for part in re.findall(r"\d+", version)]
+    return tuple(nums)
+
+def newest_runtime(runtimes, platform_name):
+    candidates = [
+        runtime for runtime in runtimes.get("runtimes", [])
+        if runtime.get("isAvailable")
+        and (runtime.get("platform") == platform_name or f".{platform_name}-" in runtime.get("identifier", ""))
+    ]
+    if not candidates:
+        raise SystemExit(f"No available {platform_name} simulator runtime is installed.")
+    return sorted(candidates, key=version_tuple, reverse=True)[0]
+
+def preferred_devicetype(devicetypes, product, prefs):
+    candidates = [
+        dt for dt in devicetypes.get("devicetypes", [])
+        if product in dt.get("name", "") and dt.get("identifier")
+    ]
+    if not candidates:
+        raise SystemExit(f"No available {product} simulator device type is installed.")
+    for pref in prefs:
+        for dt in candidates:
+            if pref in dt.get("name", ""):
+                return dt
+    return candidates[0]
+
+def all_devices(devices_payload, runtime_fragment):
+    result = []
+    for runtime, devices in devices_payload.get("devices", {}).items():
+        if runtime_fragment not in runtime:
+            continue
+        for device in devices:
+            if device.get("isAvailable"):
+                item = dict(device)
+                item["runtime"] = runtime
+                result.append(item)
+    return result
+
+def pairs_payload():
+    proc = subprocess.run(["xcrun", "simctl", "list", "pairs", "--json"], text=True, capture_output=True)
+    if proc.returncode != 0:
+        return {}
+    return json.loads(proc.stdout).get("pairs", {})
+
+def available_pairs(pairs):
+    result = []
+    for pair_id, pair in pairs.items():
+        phone = pair.get("phone", {})
+        watch = pair.get("watch", {})
+        if phone.get("udid") and watch.get("udid") and phone.get("isAvailable", True) and watch.get("isAvailable", True):
+            result.append((pair_id, phone.get("udid"), watch.get("udid")))
+    return result
+
+def paired_watch_udids(pairs):
+    return {watch_udid for _, _, watch_udid in available_pairs(pairs)}
+
+def pair_for_phone(pairs, phone_udid):
+    for pair_id, phone_udid_candidate, watch_udid in available_pairs(pairs):
+        if phone_udid_candidate == phone_udid:
+            return pair_id, phone_udid_candidate, watch_udid
+    return None
+
+def pair_for_phone_and_watch(pairs, phone_udid, watch_udid):
+    for pair_id, phone_udid_candidate, watch_udid_candidate in available_pairs(pairs):
+        if phone_udid_candidate == phone_udid and watch_udid_candidate == watch_udid:
+            return pair_id, phone_udid_candidate, watch_udid_candidate
+    return None
+
+def device_by_udid(devices, udid):
+    for device in devices:
+        if device.get("udid") == udid:
+            return device
+    return None
+
+def choose_existing_phone(phones, pairs):
+    if preferred_phone_udid:
+        phone = device_by_udid(phones, preferred_phone_udid)
+        if not phone:
+            raise SystemExit(f"Selected iPhone simulator is not available: {preferred_phone_udid}")
+        return phone, "selected iPhone"
+    booted = [phone for phone in phones if phone.get("state") == "Booted"]
+    for phone in booted:
+        if pair_for_phone(pairs, phone.get("udid")):
+            return phone, "booted paired iPhone"
+    for _, phone_udid, _ in available_pairs(pairs):
+        phone = device_by_udid(phones, phone_udid)
+        if phone:
+            return phone, "existing pair"
+    if booted:
+        return booted[0], "booted iPhone"
+    return (phones[0], "available iPhone") if phones else (None, "")
+
+def choose_watch_for_phone(watches, pairs, phone_udid):
+    existing_pair = pair_for_phone(pairs, phone_udid)
+    if existing_pair:
+        watch = device_by_udid(watches, existing_pair[2])
+        if watch:
+            return watch, existing_pair[0], "existing pair"
+    booted = [watch for watch in watches if watch.get("state") == "Booted"]
+    for watch in booted:
+        existing = pair_for_phone_and_watch(pairs, phone_udid, watch.get("udid"))
+        if existing:
+            return watch, existing[0], "booted paired Watch"
+    paired_watches = paired_watch_udids(pairs)
+    unpaired = [watch for watch in watches if watch.get("udid") not in paired_watches]
+    return (unpaired[0], "", "available unpaired Watch") if unpaired else (None, "", "")
+
+def create_device(name, devicetype_id, runtime_id):
+    if dry_run:
+        return f"DRY-RUN-{re.sub('[^A-Za-z0-9]+', '-', name).strip('-')}"
+    proc = subprocess.run(["xcrun", "simctl", "create", name, devicetype_id, runtime_id], text=True, capture_output=True)
+    if proc.returncode != 0:
+        raise SystemExit(proc.stderr.strip() or f"Could not create simulator {name}")
+    return proc.stdout.strip().splitlines()[-1].strip()
+
+def emit_selection(phone, watch, phone_reason, watch_reason, pair_id, created_phone, created_watch, created_pair):
+    print(f"PHONE_NAME|||{phone.get('name', '')}", flush=True)
+    print(f"PHONE_UDID|||{phone.get('udid', '')}", flush=True)
+    print(f"PHONE_REASON|||{phone_reason}", flush=True)
+    print(f"WATCH_NAME|||{watch.get('name', '')}", flush=True)
+    print(f"WATCH_UDID|||{watch.get('udid', '')}", flush=True)
+    print(f"WATCH_REASON|||{watch_reason}", flush=True)
+    print(f"PAIR_ID|||{pair_id}", flush=True)
+    print(f"CREATED_PHONE|||{int(created_phone)}", flush=True)
+    print(f"CREATED_WATCH|||{int(created_watch)}", flush=True)
+    print(f"CREATED_PAIR|||{int(created_pair)}", flush=True)
+
+def create_pair(watch, phone, phone_reason, watch_reason, created_phone, created_watch):
+    if dry_run:
+        return "DRY-RUN-PAIR"
+    proc = subprocess.run(["xcrun", "simctl", "pair", watch["udid"], phone["udid"]], text=True, capture_output=True)
+    if proc.returncode != 0:
+        emit_selection(phone, watch, phone_reason, watch_reason, "", created_phone, created_watch, False)
+        raise SystemExit(proc.stderr.strip() or "Could not pair simulators")
+    pairs = pairs_payload()
+    found = pair_for_phone_and_watch(pairs, phone["udid"], watch["udid"])
+    return found[0] if found else proc.stdout.strip().splitlines()[-1].strip()
+
+devices_payload = simctl_json("devices")
+runtimes_payload = simctl_json("runtimes")
+devicetypes_payload = simctl_json("devicetypes")
+pairs = pairs_payload()
+
+phones = all_devices(devices_payload, ".iOS-")
+watches = all_devices(devices_payload, ".watchOS-")
+
+created_phone = False
+created_watch = False
+created_pair = False
+
+phone, phone_reason = choose_existing_phone(phones, pairs)
+if not phone:
+    runtime = newest_runtime(runtimes_payload, "iOS")
+    devicetype = preferred_devicetype(devicetypes_payload, "iPhone", iphone_prefs)
+    phone = {
+        "name": f"SDAL {devicetype['name']}",
+        "udid": create_device(f"SDAL {devicetype['name']}", devicetype["identifier"], runtime["identifier"]),
+        "state": "Shutdown",
+    }
+    phones.append(phone)
+    created_phone = True
+    phone_reason = f"created with {runtime.get('name', runtime['identifier'])}"
+
+watch, pair_id, watch_reason = choose_watch_for_phone(watches, pairs, phone["udid"])
+if not watch:
+    runtime = newest_runtime(runtimes_payload, "watchOS")
+    devicetype = preferred_devicetype(devicetypes_payload, "Apple Watch", watch_prefs)
+    watch = {
+        "name": f"SDAL {devicetype['name']}",
+        "udid": create_device(f"SDAL {devicetype['name']}", devicetype["identifier"], runtime["identifier"]),
+        "state": "Shutdown",
+    }
+    watches.append(watch)
+    created_watch = True
+    watch_reason = f"created with {runtime.get('name', runtime['identifier'])}"
+
+if not pair_id:
+    pair_id = create_pair(watch, phone, phone_reason, watch_reason, created_phone, created_watch)
+    created_pair = True
+
+emit_selection(phone, watch, phone_reason, watch_reason, pair_id, created_phone, created_watch, created_pair)
+PY
+  then
+    local phone_for_diag="" watch_for_diag=""
+    phone_for_diag="$(awk -F '\\|\\|\\|' '$1 == "PHONE_UDID" {print $2; exit}' "$tmp_output" 2>/dev/null || true)"
+    watch_for_diag="$(awk -F '\\|\\|\\|' '$1 == "WATCH_UDID" {print $2; exit}' "$tmp_output" 2>/dev/null || true)"
+    rm -f "$tmp_output"
+    sim_pair_failure "$phone_for_diag" "$watch_for_diag"
+  fi
+
+  SIM_PAIR_PHONE_NAME=""
+  SIM_PAIR_PHONE_UDID=""
+  SIM_PAIR_WATCH_NAME=""
+  SIM_PAIR_WATCH_UDID=""
+  SIM_PAIR_ID=""
+  local line key value created_pair="0"
+  while IFS= read -r line; do
+    key="${line%%|||*}"
+    value="${line#*|||}"
+    case "$key" in
+      PHONE_NAME) SIM_PAIR_PHONE_NAME="$value" ;;
+      PHONE_UDID) SIM_PAIR_PHONE_UDID="$value" ;;
+      PHONE_REASON) log "[sim-pair] iPhone selection: $value" ;;
+      WATCH_NAME) SIM_PAIR_WATCH_NAME="$value" ;;
+      WATCH_UDID) SIM_PAIR_WATCH_UDID="$value" ;;
+      WATCH_REASON) log "[sim-pair] Watch selection: $value" ;;
+      PAIR_ID) SIM_PAIR_ID="$value" ;;
+      CREATED_PHONE) [[ "$value" == "1" ]] && log "[sim-pair] Created new iPhone simulator." ;;
+      CREATED_WATCH) [[ "$value" == "1" ]] && log "[sim-pair] Created new Apple Watch simulator." ;;
+      CREATED_PAIR) created_pair="$value" ;;
+    esac
+  done < "$tmp_output"
+  rm -f "$tmp_output"
+
+  [[ -n "$SIM_PAIR_PHONE_UDID" && -n "$SIM_PAIR_WATCH_UDID" ]] \
+    || sim_pair_failure "$SIM_PAIR_PHONE_UDID" "$SIM_PAIR_WATCH_UDID"
+
+  if [[ "$created_pair" == "1" ]]; then
+    log "[sim-pair] Created new pair: $SIM_PAIR_ID"
+  elif [[ -n "$SIM_PAIR_ID" ]]; then
+    log "[sim-pair] Existing pair found: $SIM_PAIR_ID"
+  fi
+  log "[sim-pair] Selected iPhone: $SIM_PAIR_PHONE_NAME ($SIM_PAIR_PHONE_UDID)"
+  log "[sim-pair] Selected Watch: $SIM_PAIR_WATCH_NAME ($SIM_PAIR_WATCH_UDID)"
+}
+
+install_ios_simulator_only() {
+  local iphone_udid="$1"
+  local build_mode="$2"
+
+  apply_app_version_update
+  open -a Simulator >/dev/null 2>&1 || true
+  boot_simulator_if_needed "$iphone_udid"
+  wait_for_simulator_boot "$iphone_udid"
+  uninstall_ios_simulator_app_if_requested "$iphone_udid"
+  ensure_flutter_build_dir_override
+  prepare_ios
+  disable_runner_watch_embed_for_ios_simulator
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" run "--$build_mode" --device-timeout 120 -d "$iphone_udid"
+  )
+}
+
+boot_simulator_if_needed() {
+  local udid="$1"
+  xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+}
+
+wait_for_simulator_boot() {
+  local udid="$1"
+  if xcrun simctl bootstatus "$udid" -b >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local attempts=60 state
+  while (( attempts > 0 )); do
+    state="$(xcrun simctl list devices "$udid" 2>/dev/null | awk -F '[()]' '/Booted/{print "Booted"; exit}')"
+    if [[ "$state" == "Booted" ]]; then
+      return 0
+    fi
+    attempts=$((attempts - 1))
+    sleep 2
+  done
+  die "Simulator did not boot: $udid"
+}
+
+activate_simulator_pair_if_supported() {
+  local pair_identifier="$1"
+  if [[ -z "$pair_identifier" ]]; then
+    log "[sim-pair] Warning: pair identifier could not be determined; skipping pair_activate."
+    return 0
+  fi
+  if xcrun simctl pair_activate "$pair_identifier" >/dev/null 2>&1; then
+    log "[sim-pair] Activated pair: $pair_identifier"
+  else
+    log "[sim-pair] Warning: simctl pair_activate failed or is not supported; continuing with the existing pair."
+  fi
+}
+
+find_ios_simulator_runner_app() {
+  local candidates=(
+    "$ROOT_DIR/build/ios/iphonesimulator/Runner.app"
+    "$ROOT_DIR/$FLUTTER_BUILD_DIR_REL/ios/iphonesimulator/Runner.app"
+    "$HOME/Library/Caches/flutter_sdal_flutter_build/ios/iphonesimulator/Runner.app"
+  )
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -d "$candidate" ]]; then
+      printf '%s' "$candidate"
+      return
+    fi
+  done
+  find "$ROOT_DIR/build" "$HOME/Library/Caches/flutter_sdal_flutter_build" \
+    -path '*/ios/iphonesimulator/Runner.app' -type d 2>/dev/null | head -1 || true
+}
+
+install_ios_app_to_paired_phone() {
+  local iphone_udid="$1"
+  local build_mode="$2"
+  log "[sim-pair] Installing iOS app to paired iPhone..."
+  if [[ "${SIM_PAIR_DRY_RUN:-0}" == "1" ]]; then
+    log "[sim-pair] Dry run: skipping Flutter simulator build/install for $iphone_udid."
+    return 0
+  fi
+
+  [[ -n "$SIM_PAIR_WATCH_APP_PATH" && -d "$SIM_PAIR_WATCH_APP_PATH" ]] \
+    || die "SdalWatch.app must be built before installing the paired iPhone app."
+
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" build ios --simulator "--$build_mode" -d "$iphone_udid"
+  )
+
+  local ios_app_path
+  ios_app_path="$(find_ios_simulator_runner_app)"
+  [[ -n "$ios_app_path" && -d "$ios_app_path" ]] \
+    || die "Runner.app not found after Flutter simulator build."
+
+  log "[sim-pair] Embedding SdalWatch.app into Runner.app for WatchConnectivity."
+  rm -rf "$ios_app_path/Watch"
+  mkdir -p "$ios_app_path/Watch"
+  cp -R "$SIM_PAIR_WATCH_APP_PATH" "$ios_app_path/Watch/SdalWatch.app"
+
+  log "[sim-pair] Runner.app: $ios_app_path"
+  xcrun simctl terminate "$iphone_udid" "$IOS_BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl uninstall "$iphone_udid" "$IOS_BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl install "$iphone_udid" "$ios_app_path"
+  xcrun simctl launch "$iphone_udid" "$IOS_BUNDLE_ID"
+}
+
+install_watch_app_to_paired_watch() {
+  local watch_udid="$1"
+  log "[sim-pair] Installing watchOS app to paired Watch..."
+  if [[ "${SIM_PAIR_DRY_RUN:-0}" == "1" ]]; then
+    log "[sim-pair] Dry run: skipping watchOS install/launch for $watch_udid."
+    return 0
+  fi
+  build_install_watch_simulator "$watch_udid"
+}
+
+start_sim_pair_logs() {
+  local iphone_udid="$1"
+  local watch_udid="$2"
+
+  if [[ "${SIM_PAIR_DRY_RUN:-0}" == "1" ]]; then
+    log "[sim-pair] Dry run: skipping logs."
+    return 0
+  fi
+  if [[ "${SIM_PAIR_AUTO_LOGS:-1}" != "1" ]]; then
+    log "[sim-pair] Auto logs disabled (SIM_PAIR_AUTO_LOGS=$SIM_PAIR_AUTO_LOGS)."
+    return 0
+  fi
+
+  trap cleanup EXIT
+
+  if [[ "${SIM_PAIR_WATCH_LOGS:-0}" == "1" ]]; then
+    log ""
+    log "[sim-pair] Starting watchOS logs for SdalWatch and WatchConnectivity..."
+    xcrun simctl spawn "$watch_udid" log stream \
+      --style compact \
+      --level debug \
+      --predicate 'process == "SdalWatch" OR subsystem CONTAINS "WatchConnectivity" OR composedMessage CONTAINS "WCSession" OR composedMessage CONTAINS "SdalWatch"' &
+    SIM_PAIR_WATCH_LOG_PID=$!
+  fi
+
+  log ""
+  log "[sim-pair] Starting Flutter logs with flutter attach."
+  log "[sim-pair] Press q in flutter attach to quit."
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" attach -d "$iphone_udid" || true
+  )
+  return 0
 }
 
 get_android_emulator_entries() {
@@ -1207,13 +1826,35 @@ build_watch_app_for_sdk() {
       "OBJROOT=$watch_build_dir/build_objroot" \
       COMPILER_INDEX_STORE_ENABLE=NO \
       ONLY_ACTIVE_ARCH=NO \
-      "${extra_args[@]}"
+      ${extra_args[@]+"${extra_args[@]}"}
   ) >&2
 
   local app_path
   app_path="$(find "$watch_build_dir" -maxdepth 4 -name 'SdalWatch.app' \
     ! -path '*/SdalWatch.app/*' 2>/dev/null | head -1 || true)"
   printf '%s' "$app_path"
+}
+
+build_install_watch_simulator() {
+  local watch_sim_udid="$1"
+
+  log "Building SdalWatch for watchOS Simulator (Debug)..."
+  local watch_app_path
+  watch_app_path="$(build_watch_app_for_sdk "watchsimulator" "Debug")"
+  [[ -n "$watch_app_path" && -d "$watch_app_path" ]] \
+    || die "SdalWatch build for watchsimulator failed — app bundle not found."
+  SIM_PAIR_WATCH_APP_PATH="$watch_app_path"
+
+  log "SdalWatch build output: $watch_app_path"
+  log "Removing existing SdalWatch from watchOS Simulator, if present..."
+  xcrun simctl terminate "$watch_sim_udid" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
+  xcrun simctl uninstall "$watch_sim_udid" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
+
+  log "Installing SdalWatch on watchOS Simulator ($watch_sim_udid)..."
+  xcrun simctl install "$watch_sim_udid" "$watch_app_path"
+  log "Launching SdalWatch on watchOS Simulator..."
+  xcrun simctl launch "$watch_sim_udid" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
+  log "SdalWatch installed and launched on watchOS Simulator."
 }
 
 build_install_ios_and_watch() {
@@ -1484,21 +2125,60 @@ main() {
         die "Flutter release mode is not supported on iOS Simulator. Use iPhone + Release, or iOS Simulator + Debug."
       fi
       require_cmd open
+
+      printf '\niOS Simulator mode\n'
+      printf '  1. iOS only\n'
+      printf '  2. iOS + Apple Watch\n'
+      local simulator_mode
+      simulator_mode="$(prompt_number 2 "Choose simulator mode: ")"
+
       load_entries get_ios_simulator_entries
-      local selected label udid
+      local selected label selected_iphone_udid
       selected="$(select_from_entries "Available iOS simulators" "${entries[@]}")"
       label="${selected%%|||*}"
-      udid="${selected##*|||}"
-      log "Selected: $label"
-      apply_app_version_update
-      boot_ios_simulator "$udid"
-      uninstall_ios_simulator_app_if_requested "$udid"
-      ensure_flutter_build_dir_override
-      prepare_ios
-      (
-        cd "$ROOT_DIR"
-        "$FLUTTER_BIN" run "--$build_mode" --device-timeout 120 -d "$udid"
-      )
+      selected_iphone_udid="${selected##*|||}"
+      log "Selected iOS simulator: $label"
+
+      if [[ "$simulator_mode" == "1" ]]; then
+        install_ios_simulator_only "$selected_iphone_udid" "$build_mode"
+        return 0
+      fi
+
+      ensure_paired_simulators "$selected_iphone_udid" "$label"
+
+      if [[ "${SIM_PAIR_DRY_RUN:-0}" == "1" ]]; then
+        log "[sim-pair] Dry run: skipping version file update."
+      else
+        apply_app_version_update
+      fi
+      open -a Simulator >/dev/null 2>&1 || true
+      if [[ "${SIM_PAIR_DRY_RUN:-0}" != "1" ]]; then
+        log "[sim-pair] Booting iPhone..."
+        boot_simulator_if_needed "$SIM_PAIR_PHONE_UDID"
+        wait_for_simulator_boot "$SIM_PAIR_PHONE_UDID"
+        log "[sim-pair] Booting Watch..."
+        boot_simulator_if_needed "$SIM_PAIR_WATCH_UDID"
+        wait_for_simulator_boot "$SIM_PAIR_WATCH_UDID"
+        activate_simulator_pair_if_supported "$SIM_PAIR_ID"
+      else
+        log "[sim-pair] Dry run: skipping simulator boot and pair activation."
+      fi
+
+      if [[ "${SIM_PAIR_DRY_RUN:-0}" != "1" ]]; then
+        uninstall_ios_simulator_app_if_requested "$SIM_PAIR_PHONE_UDID"
+        ensure_flutter_build_dir_override
+        prepare_ios
+      else
+        log "[sim-pair] Dry run: skipping build preparation and uninstall."
+      fi
+
+      if [[ "${SIM_PAIR_DRY_RUN:-0}" != "1" ]]; then
+        disable_runner_watch_embed_for_ios_simulator
+      fi
+      install_watch_app_to_paired_watch "$SIM_PAIR_WATCH_UDID"
+      install_ios_app_to_paired_phone "$SIM_PAIR_PHONE_UDID" "$build_mode"
+      start_sim_pair_logs "$SIM_PAIR_PHONE_UDID" "$SIM_PAIR_WATCH_UDID"
+      return 0
       ;;
     3)
       print_android_instructions

@@ -45,7 +45,7 @@ class _AlbumMemberPickerSheetState
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+        padding: EdgeInsets.fromLTRB(20, 36, 20, 20 + bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
